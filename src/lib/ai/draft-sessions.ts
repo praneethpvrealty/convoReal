@@ -1,0 +1,238 @@
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
+import type {
+  ParsedContactDraftsContainer,
+  ParsedPropertyDraft,
+} from '@/lib/ai/gemini';
+
+type DB = SupabaseClient;
+
+// How long a draft stays answerable after the last message on it. The
+// confirmation card is often read long after it lands, so Confirm,
+// Cancel and plain-language corrections all keep working for an hour
+// before the draft is discarded.
+export const DRAFT_SESSION_TIMEOUT_MS = 60 * 60 * 1000;
+
+export const DRAFT_MUTATION_MAX_ATTEMPTS = 5;
+
+export type DraftSessionStatus = 'collecting' | 'awaiting_confirmation';
+
+export type PropertyDraftSessionMode = 'owner' | 'external';
+
+export interface PropertyDraftSessionRow {
+  id: string;
+  account_id: string;
+  contact_id: string;
+  draft_data: ParsedPropertyDraft;
+  status: DraftSessionStatus;
+  session_mode: PropertyDraftSessionMode;
+  requirement_link_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactDraftSessionRow {
+  id: string;
+  account_id: string;
+  contact_id: string;
+  draft_data: ParsedContactDraftsContainer;
+  status: DraftSessionStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PropertyDraftSessionInsert = Pick<
+  PropertyDraftSessionRow,
+  'account_id' | 'contact_id' | 'draft_data' | 'status'
+> &
+  Partial<
+    Pick<PropertyDraftSessionRow, 'session_mode' | 'requirement_link_id'>
+  >;
+
+export type ContactDraftSessionInsert = Pick<
+  ContactDraftSessionRow,
+  'account_id' | 'contact_id' | 'draft_data' | 'status'
+>;
+
+export interface SingleResult<T> {
+  data: T | null;
+  error: PostgrestError | null;
+}
+
+export interface NextPropertyDraft {
+  draft_data: ParsedPropertyDraft;
+  status: DraftSessionStatus;
+}
+
+export type MutatePropertyDraftResult =
+  | { status: 'ok'; row: PropertyDraftSessionRow; next: NextPropertyDraft }
+  | { status: 'gone' }
+  | { status: 'error'; error: PostgrestError | null }
+  | { status: 'conflict' }
+  | { status: 'skipped' };
+
+export interface MutatePropertyDraftOptions {
+  onMissingRow?: 'report' | 'retry';
+}
+
+export async function findPropertyDraftSession(
+  db: DB,
+  contactId: string,
+  mode?: PropertyDraftSessionMode
+): Promise<SingleResult<PropertyDraftSessionRow>> {
+  let query = db
+    .from('property_draft_sessions')
+    .select('*')
+    .eq('contact_id', contactId);
+  if (mode) query = query.eq('session_mode', mode);
+  const { data, error } = await query.maybeSingle();
+  return { data: data as PropertyDraftSessionRow | null, error };
+}
+
+export async function findPropertyDraftSessionById(
+  db: DB,
+  id: string
+): Promise<SingleResult<PropertyDraftSessionRow>> {
+  const { data, error } = await db
+    .from('property_draft_sessions')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  return { data: data as PropertyDraftSessionRow | null, error };
+}
+
+export async function findContactDraftSession(
+  db: DB,
+  contactId: string
+): Promise<SingleResult<ContactDraftSessionRow>> {
+  const { data, error } = await db
+    .from('contact_draft_sessions')
+    .select('*')
+    .eq('contact_id', contactId)
+    .maybeSingle();
+  return { data: data as ContactDraftSessionRow | null, error };
+}
+
+export async function deletePropertyDraftSession(
+  db: DB,
+  id: string
+): Promise<void> {
+  await db.from('property_draft_sessions').delete().eq('id', id);
+}
+
+export async function deleteContactDraftSession(
+  db: DB,
+  id: string
+): Promise<void> {
+  await db.from('contact_draft_sessions').delete().eq('id', id);
+}
+
+export async function touchPropertyDraftSession(
+  db: DB,
+  id: string
+): Promise<void> {
+  await db
+    .from('property_draft_sessions')
+    .update({ updated_at: new Date().toISOString() })
+    .eq('id', id);
+}
+
+export async function insertPropertyDraftSession(
+  db: DB,
+  row: PropertyDraftSessionInsert
+): Promise<{
+  data: PropertyDraftSessionRow[] | null;
+  error: PostgrestError | null;
+}> {
+  const { data, error } = await db
+    .from('property_draft_sessions')
+    .insert(row)
+    .select();
+  return { data: data as PropertyDraftSessionRow[] | null, error };
+}
+
+export async function insertContactDraftSession(
+  db: DB,
+  row: ContactDraftSessionInsert
+): Promise<{ error: PostgrestError | null }> {
+  const { error } = await db.from('contact_draft_sessions').insert(row);
+  return { error };
+}
+
+export async function overwriteContactDraftSession(
+  db: DB,
+  id: string,
+  draftData: ParsedContactDraftsContainer,
+  status: DraftSessionStatus
+): Promise<void> {
+  await db
+    .from('contact_draft_sessions')
+    .update({
+      draft_data: draftData,
+      status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id);
+}
+
+export async function mutatePropertyDraft(
+  db: DB,
+  id: string,
+  next: (
+    row: PropertyDraftSessionRow
+  ) => Promise<NextPropertyDraft | null> | NextPropertyDraft | null,
+  options: MutatePropertyDraftOptions = {}
+): Promise<MutatePropertyDraftResult> {
+  const onMissingRow = options.onMissingRow ?? 'report';
+  let attempts = 0;
+
+  while (attempts < DRAFT_MUTATION_MAX_ATTEMPTS) {
+    const { data, error: fetchErr } = await db
+      .from('property_draft_sessions')
+      .select('*')
+      .eq('id', id)
+      .single();
+    const latest = data as PropertyDraftSessionRow | null;
+
+    if (onMissingRow === 'retry') {
+      if (!latest) {
+        attempts++;
+        continue;
+      }
+    } else if (fetchErr || !latest) {
+      if (fetchErr?.code === 'PGRST116') return { status: 'gone' };
+      return { status: 'error', error: fetchErr };
+    }
+
+    const nextDraft = await next(latest);
+    if (!nextDraft) return { status: 'skipped' };
+
+    const { data: updateData, error: updateErr } = await db
+      .from('property_draft_sessions')
+      .update({
+        draft_data: nextDraft.draft_data,
+        status: nextDraft.status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('updated_at', latest.updated_at)
+      .select();
+    const written = updateData as PropertyDraftSessionRow[] | null;
+
+    if (!updateErr && written && written.length > 0) {
+      return { status: 'ok', row: written[0], next: nextDraft };
+    }
+    attempts++;
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.random() * 200 + 50)
+    );
+  }
+
+  return { status: 'conflict' };
+}
+
+export function isDraftSessionExpired(
+  row: Pick<PropertyDraftSessionRow | ContactDraftSessionRow, 'updated_at'>,
+  now: number
+): boolean {
+  return now - new Date(row.updated_at).getTime() > DRAFT_SESSION_TIMEOUT_MS;
+}
