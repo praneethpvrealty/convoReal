@@ -85,8 +85,8 @@ export default function AutomationsScreen() {
 
       <SectionLabel text="Automations" />
       <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-        Toggle automations you created on or off. Building and editing them
-        happens on the web.
+        Toggle any automation in your account on or off. Building and editing
+        them happens on the web.
       </Text>
       {automationsQuery.isLoading ? (
         <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
