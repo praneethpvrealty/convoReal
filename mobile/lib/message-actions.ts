@@ -140,6 +140,13 @@ export function messagePreview(
   return text.length > limit ? `${text.slice(0, limit).trimEnd()}…` : text;
 }
 
+export function quotedText(message: Message): string {
+  const text = stripDeliveryFailure(message.content_text)
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text || messagePreview(message);
+}
+
 /** Who wrote the quoted message, from the reader's side of the thread. */
 export function messageAuthorLabel(
   message: Message,

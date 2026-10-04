@@ -8,6 +8,7 @@ import {
   forwardableText,
   messageAuthorLabel,
   messagePreview,
+  quotedText,
 } from '@/lib/message-actions';
 import type { Message } from '@/lib/types';
 
@@ -72,6 +73,33 @@ describe('messagePreview', () => {
     expect(
       messagePreview(message({ content_type: 'audio', content_text: '   ' }))
     ).toBe('Voice message');
+  });
+});
+
+describe('quotedText [INB-024]', () => {
+  it('keeps the formatting markers for the quote to render', () => {
+    expect(
+      quotedText(
+        message({
+          content_text:
+            '📊 *Your Property Update*\n\nBuyers liked _35x80 Corner Plot_.',
+        })
+      )
+    ).toBe('📊 *Your Property Update* Buyers liked _35x80 Corner Plot_.');
+  });
+
+  it('drops the delivery-failure note and names media without text', () => {
+    expect(
+      quotedText(
+        message({
+          content_text:
+            '🏠 *New Property Match*\n\n❌ Delivery Failed:\n[Error 131049] not delivered',
+        })
+      )
+    ).toBe('🏠 *New Property Match*');
+    expect(
+      quotedText(message({ content_type: 'image', content_text: undefined }))
+    ).toBe('Photo');
   });
 });
 

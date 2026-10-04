@@ -21,8 +21,8 @@ than a written entry. Newest first.
 
 - **Reply quotes no longer show raw WhatsApp markers.** When a contact
   replies to a digest, the quoted original above their reply now shows
-  its header in bold instead of `*Your Property Update*`. On mobile the
-  quote drops the markers. Invariant INB-024.
+  its header in bold instead of `*Your Property Update*`, on web and
+  mobile alike. Invariant INB-024.
 
 #### 3 October 2026
 
