@@ -1003,7 +1003,7 @@ export async function POST(request: Request) {
     const cleanPhone = normalizedPhoneNum.replace(/\D/g, '');
     const { data: existingContact } = await supabase
       .from('contacts')
-      .select('id, name, pref_areas, pref_budget_max, pref_budget_anchor')
+      .select('id, name, pref_areas')
       .eq('account_id', accountId)
       .or(`phone.eq.${normalizedPhoneNum},phone.eq.${cleanPhone}`)
       .maybeSingle();
@@ -1041,7 +1041,6 @@ export async function POST(request: Request) {
       // Update existing contact preferences
       const updatePayload: {
         max_budget?: number | null;
-        pref_budget_max?: number | null;
         areas_of_interest?: string[];
         pref_areas?: string[];
         property_interests?: string[];
@@ -1052,7 +1051,6 @@ export async function POST(request: Request) {
         lead_portal_listing_id?: string;
       } = {};
       if (maxBudget) updatePayload.max_budget = maxBudget;
-      else if (inferredBudget) updatePayload.pref_budget_max = inferredBudget;
       if (areasOfInterest.length > 0)
         updatePayload.areas_of_interest = areasOfInterest;
       if (inferredAreas.length > 0) {
@@ -1085,19 +1083,24 @@ export async function POST(request: Request) {
         .update(updatePayload)
         .eq('id', existingContact.id);
 
-      // Separate from the write above: the pref_budget_max trigger clears
-      // the anchor on every write of the budget, so only this one marks
-      // the budget as the enquiry's (INB-029). A budget the lead already
-      // stated (one with no anchor) stays stated: an enquiry at the same
-      // or another price does not turn it into a floorless ceiling.
-      const hadStatedBudget =
-        existingContact.pref_budget_max != null &&
-        existingContact.pref_budget_anchor == null;
-      if (updatePayload.pref_budget_max != null && !hadStatedBudget) {
-        await supabase
-          .from('contacts')
-          .update({ pref_budget_anchor: updatePayload.pref_budget_max })
-          .eq('id', existingContact.id);
+      // The budget and its enquiry anchor land in one transaction, under
+      // the row lock, so concurrent enquiries cannot pair one budget with
+      // another's anchor (INB-029). A budget the lead already stated (one
+      // with no anchor) is replaced but never anchored.
+      if (!maxBudget && inferredBudget) {
+        const { error: budgetError } = await supabase.rpc(
+          'record_enquiry_budget',
+          {
+            p_account_id: accountId,
+            p_contact_id: existingContact.id,
+            p_budget: inferredBudget,
+          }
+        );
+        if (budgetError)
+          console.error(
+            '[lead-webhook] Failed to record enquiry budget:',
+            budgetError.message
+          );
       }
 
       // Record the inquiry in the junction table. One portal email is an

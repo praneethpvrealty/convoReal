@@ -1561,26 +1561,32 @@ describe('[PRP-014] a repeat portal enquiry reopens a closed one', () => {
 });
 
 describe('[INB-029] an existing contact re-seeded from an enquiry', () => {
-  it('anchors the budget in a write of its own, after the budget write', async () => {
+  it('records the budget and its anchor in one call, not in the enrichment update', async () => {
     const { readFileSync } = await import('node:fs');
     const source = readFileSync(new URL('./route.ts', import.meta.url), 'utf8');
-    const budgetWrite = source.indexOf('.update(updatePayload)');
-    const anchorWrite = source.indexOf(
-      '.update({ pref_budget_anchor: updatePayload.pref_budget_max })'
+    expect(source).toMatch(
+      /supabase\.rpc\(\s*'record_enquiry_budget',\s*\{\s*p_account_id: accountId,\s*p_contact_id: existingContact\.id,\s*p_budget: inferredBudget,/
     );
-    expect(budgetWrite).toBeGreaterThan(-1);
-    expect(anchorWrite).toBeGreaterThan(budgetWrite);
+    expect(source).not.toMatch(/updatePayload\.pref_budget_max\s*=/);
     expect(source).not.toMatch(/updatePayload\.pref_budget_anchor\s*=/);
+    expect(source).not.toContain('.update({ pref_budget_anchor');
   });
 
-  it('never anchors a budget the lead already stated', async () => {
-    const { readFileSync } = await import('node:fs');
-    const source = readFileSync(new URL('./route.ts', import.meta.url), 'utf8');
-    expect(source).toMatch(
-      /hadStatedBudget\s*=\s*existingContact\.pref_budget_max != null &&\s*existingContact\.pref_budget_anchor == null/
+  it('decides under the row lock whether the budget was stated', async () => {
+    const sql = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20261004171000_record_enquiry_budget.sql'
+      ),
+      'utf8'
     );
-    expect(source).toMatch(
-      /updatePayload\.pref_budget_max != null && !hadStatedBudget/
+    expect(sql).toMatch(
+      /SELECT pref_budget_max IS NOT NULL AND pref_budget_anchor IS NULL[\s\S]*?account_id = p_account_id\s+FOR UPDATE;/
     );
+    expect(sql).toMatch(
+      /IF NOT v_stated THEN\s+UPDATE contacts\s+SET pref_budget_anchor = p_budget/
+    );
+    expect(sql).toMatch(/FROM PUBLIC, anon, authenticated;/);
+    expect(sql).toMatch(/TO service_role;/);
   });
 });
