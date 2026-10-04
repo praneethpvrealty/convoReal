@@ -163,6 +163,62 @@ describe('validateStepsForActivation', () => {
     ]);
   });
 
+  it('matches the engine for message_content: value, not operand', () => {
+    expect(
+      validateStepsForActivation([
+        {
+          step_type: 'condition',
+          step_config: {
+            subject: 'message_content',
+            operand: '',
+            value: 'price',
+          },
+        },
+      ])
+    ).toEqual([]);
+    expect(
+      validateStepsForActivation([
+        {
+          step_type: 'condition',
+          step_config: { subject: 'message_content', operand: 'x', value: '' },
+        },
+      ])
+    ).toEqual([
+      { path: 'steps[0].value', message: 'text to look for is required' },
+    ]);
+  });
+
+  it('names the missing operand per condition subject', () => {
+    const messages = ['tag_presence', 'contact_field', 'time_of_day'].map(
+      (subject) =>
+        validateStepsForActivation([
+          { step_type: 'condition', step_config: { subject } },
+        ])[0]?.message
+    );
+    expect(messages).toEqual([
+      'tag is required',
+      'field is required',
+      'pick both a start and an end time',
+    ]);
+  });
+
+  it('requires both ends of a time-of-day window', () => {
+    const check = (operand: string) =>
+      validateStepsForActivation([
+        {
+          step_type: 'condition',
+          step_config: { subject: 'time_of_day', operand },
+        },
+      ]);
+    expect(check('18:00-09:00')).toEqual([]);
+    expect(check('18:00-')).toEqual([
+      {
+        path: 'steps[0].operand',
+        message: 'pick both a start and an end time',
+      },
+    ]);
+  });
+
   it('flags condition subject/operand independently', () => {
     const issues = validateStepsForActivation([
       { step_type: 'condition', step_config: {} },
@@ -210,23 +266,18 @@ describe('validateTriggerForActivation', () => {
     expect(issues.map((i) => i.path)).toContain('trigger.match_type');
   });
 
-  it('requires schedule on time_based triggers', () => {
-    expect(validateTriggerForActivation('time_based', {})).toEqual([
-      { path: 'trigger.schedule', message: 'schedule is required' },
-    ]);
-    expect(
-      validateTriggerForActivation('time_based', { schedule: '0 9 * * *' })
-    ).toEqual([]);
-  });
-
-  it('requires tag_id on tag_added triggers', () => {
-    expect(validateTriggerForActivation('tag_added', {})).toEqual([
-      { path: 'trigger.tag_id', message: 'tag is required' },
-    ]);
-    expect(
-      validateTriggerForActivation('tag_added', { tag_id: 'tag-uuid' })
-    ).toEqual([]);
-  });
+  it.each(['conversation_assigned', 'tag_added', 'time_based'])(
+    'refuses to activate the unavailable %s trigger whatever its config',
+    (t) => {
+      for (const cfg of [{}, { schedule: '0 9 * * *', tag_id: 'tag-uuid' }]) {
+        const issues = validateTriggerForActivation(t, cfg);
+        expect(issues).toHaveLength(1);
+        expect(issues[0].path).toBe('trigger.type');
+        expect(issues[0].message).toContain(t);
+        expect(issues[0].message).toContain('not yet available');
+      }
+    }
+  );
 
   it('does not flag unknown trigger types (handled elsewhere)', () => {
     expect(validateTriggerForActivation('some_future_trigger', {})).toEqual([]);

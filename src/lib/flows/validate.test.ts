@@ -600,3 +600,43 @@ describe('reachableFromEntry', () => {
     expect(set).toEqual(new Set(['a', 'b']));
   });
 });
+
+describe('send_property_listings empty-result route', () => {
+  const listingNodes = (emptyTarget: string) => [
+    { node_key: 's', node_type: 'start', config: { next_node_key: 'list' } },
+    {
+      node_key: 'list',
+      node_type: 'send_property_listings',
+      config: { next_node_key: 'done', empty_next_node_key: emptyTarget },
+    },
+    { node_key: 'done', node_type: 'end', config: {} },
+    { node_key: 'no_match', node_type: 'handoff', config: {} },
+  ];
+
+  it('treats the no-matches target as reachable', () => {
+    const nodes = listingNodes('no_match');
+    expect(reachableFromEntry('s', nodes).has('no_match')).toBe(true);
+    const issues = validateFlowForActivation(
+      { ...validFlow, entry_node_id: 's' },
+      nodes
+    );
+    expect(issues.filter((i) => i.node_key === 'no_match')).toEqual([]);
+    expect(issues.filter((i) => i.severity === 'error')).toEqual([]);
+  });
+
+  it('flags a no-matches target that does not exist', () => {
+    const issues = validateFlowForActivation(
+      { ...validFlow, entry_node_id: 's' },
+      listingNodes('ghost')
+    );
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          severity: 'error',
+          node_key: 'list',
+          field: 'empty_next_node_key',
+        }),
+      ])
+    );
+  });
+});
