@@ -128,3 +128,11 @@ describe('the failed deal document line promises no refund [CRD-003]', () => {
     }
   });
 });
+
+describe('what a route logs about a refund [CRD-003]', () => {
+  it('does not log that credits were refunded, which it has not checked', () => {
+    for (const { path } of routes) {
+      expect(read(path), path).not.toMatch(/refunded credits/i);
+    }
+  });
+});

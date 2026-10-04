@@ -109,10 +109,7 @@ export async function POST(request: NextRequest) {
     } catch (apiErr: unknown) {
       await refundBurn(ctx.accountId, 'property_description', burnKey);
       const msg = apiErr instanceof Error ? apiErr.message : String(apiErr);
-      console.error(
-        '[AI Description] generateText failed, refunded credits. Error:',
-        msg
-      );
+      console.error('[AI Description] generateText failed. Error:', msg);
       throw apiErr;
     }
 

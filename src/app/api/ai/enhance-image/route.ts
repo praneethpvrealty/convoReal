@@ -96,10 +96,7 @@ export async function POST(request: Request) {
       // API or network failure: refund the credits
       await refundBurn(accountId, 'image_enhance', burnKey);
       const err = apiErr as StatusError;
-      console.error(
-        '[AI Enhance] API call failed, refunded credits. Error:',
-        err.message
-      );
+      console.error('[AI Enhance] API call failed. Error:', err.message);
       const status = err.status || 500;
       return NextResponse.json(
         { error: err.message || 'AI generation failed' },
