@@ -10,6 +10,10 @@
   "regions": ["bom1"],
   "crons": [
     {
+      "path": "/api/cron/credit-refunds",
+      "schedule": "17 * * * *"
+    },
+    {
       "path": "/api/cron/realtime-publication-check",
       "schedule": "40 2 * * *"
     },

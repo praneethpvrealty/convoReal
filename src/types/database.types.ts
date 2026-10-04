@@ -3833,6 +3833,60 @@ export type Database = {
         };
         Relationships: [];
       };
+      credit_refund_retries: {
+        Row: {
+          account_id: string;
+          attempts: number;
+          burn_key: string;
+          created_at: string | null;
+          feature: string;
+          id: string;
+          last_error: string | null;
+          reason: string | null;
+          resolved_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          account_id: string;
+          attempts?: number;
+          burn_key: string;
+          created_at?: string | null;
+          feature: string;
+          id?: string;
+          last_error?: string | null;
+          reason?: string | null;
+          resolved_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          account_id?: string;
+          attempts?: number;
+          burn_key?: string;
+          created_at?: string | null;
+          feature?: string;
+          id?: string;
+          last_error?: string | null;
+          reason?: string | null;
+          resolved_at?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'credit_refund_retries_account_id_fkey';
+            columns: ['account_id'];
+            isOneToOne: false;
+            referencedRelation: 'account_plan_limits';
+            referencedColumns: ['account_id'];
+          },
+          {
+            foreignKeyName: 'credit_refund_retries_account_id_fkey';
+            columns: ['account_id'];
+            isOneToOne: false;
+            referencedRelation: 'accounts';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       credit_transactions: {
         Row: {
           account_id: string;
@@ -3840,6 +3894,7 @@ export type Database = {
           amount: number;
           balance_after: number;
           bucket: string;
+          burn_key: string | null;
           created_at: string;
           description: string | null;
           expires_at: string | null;
@@ -3856,6 +3911,7 @@ export type Database = {
           amount: number;
           balance_after: number;
           bucket: string;
+          burn_key?: string | null;
           created_at?: string;
           description?: string | null;
           expires_at?: string | null;
@@ -3872,6 +3928,7 @@ export type Database = {
           amount?: number;
           balance_after?: number;
           bucket?: string;
+          burn_key?: string | null;
           created_at?: string;
           description?: string | null;
           expires_at?: string | null;
@@ -14528,6 +14585,13 @@ export type Database = {
           replied_count: number;
           requirement_updated_count: number;
           sent_count: number;
+        }[];
+      };
+      refund_burn_tx: {
+        Args: { p_account_id: string; p_burn_key: string; p_feature: string };
+        Returns: {
+          balance_after: number;
+          refunded: number;
         }[];
       };
       refund_credits_tx: {
