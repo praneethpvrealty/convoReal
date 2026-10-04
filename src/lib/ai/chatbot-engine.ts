@@ -171,6 +171,26 @@ import {
   touchPropertyDraftSession,
   type ContactDraftSessionRow,
 } from '@/lib/ai/draft-sessions';
+import {
+  findContactByName,
+  findContactByPhoneVariants,
+  findContactEnrichmentFields,
+  findContactIdentityById,
+  findContactNameById,
+  findReferrerContacts,
+  insertContact,
+  insertContactNotes,
+  insertContacts,
+  insertContactTags,
+  insertTag,
+  listContactsByPhoneVariants,
+  listTagIdNames,
+  listUnmergedContactsForLinking,
+  updateContactEnrichment,
+  type ContactInsert,
+  type ContactTagInsert,
+  type PhoneVariants,
+} from '@/lib/ai/owner-contacts';
 import { recordRequirementResponse } from '@/lib/requirements/respond';
 
 // Debounces the low-balance WhatsApp ping per account so a Manager
@@ -657,14 +677,11 @@ async function computeContactDuplicateWarnings(
         if (draft.phone) {
           const normalized = normalizePhoneWithCountryCode(draft.phone);
           const cleanPhone = normalized.replace(/\D/g, '');
-          const { data: byPhone } = await supabaseAdmin()
-            .from('contacts')
-            .select('id, name')
-            .eq('account_id', accountId)
-            .or(
-              `phone.eq."${String(draft.phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`
-            )
-            .maybeSingle();
+          const { data: byPhone } = await findContactByPhoneVariants(
+            supabaseAdmin(),
+            accountId,
+            { rawPhone: draft.phone, normalized, cleanPhone }
+          );
 
           if (byPhone) {
             existingContact = byPhone;
@@ -673,12 +690,11 @@ async function computeContactDuplicateWarnings(
         }
 
         if (!existingContact && draft.name) {
-          const { data: byName } = await supabaseAdmin()
-            .from('contacts')
-            .select('id, name')
-            .eq('account_id', accountId)
-            .ilike('name', draft.name.trim())
-            .maybeSingle();
+          const { data: byName } = await findContactByName(
+            supabaseAdmin(),
+            accountId,
+            draft.name.trim()
+          );
 
           if (byName) {
             existingContact = byName;
@@ -743,11 +759,10 @@ async function suggestContactLink(
   try {
     const drafts = container.contacts || [];
     if (!drafts.some((c) => !(c.phone || '').trim())) return null;
-    const { data } = await supabaseAdmin()
-      .from('contacts')
-      .select('id, name, phone')
-      .eq('account_id', accountId)
-      .eq('is_merged', false);
+    const { data } = await listUnmergedContactsForLinking(
+      supabaseAdmin(),
+      accountId
+    );
     return suggestPhoneLink(drafts, (data || []) as BookContact[]);
   } catch (err) {
     console.error('[chatbot-engine] contact link suggestion failed:', err);
@@ -763,11 +778,10 @@ async function resolveExactContactLinks(
   if (!drafts.some((contact) => !(contact.phone || '').trim()))
     return container;
   try {
-    const { data } = await supabaseAdmin()
-      .from('contacts')
-      .select('id, name, phone')
-      .eq('account_id', accountId)
-      .eq('is_merged', false);
+    const { data } = await listUnmergedContactsForLinking(
+      supabaseAdmin(),
+      accountId
+    );
     const book = (data || []) as BookContact[];
     return {
       contacts: drafts.map((draft) => {
@@ -1381,12 +1395,11 @@ export async function processOwnerChatbotMessage(
     : null;
   if (cancelledPropertyContactId) {
     await clearBotTarget({ accountId, waMessageId: message.context?.id });
-    const { data: cancelledContact } = await supabaseAdmin()
-      .from('contacts')
-      .select('name')
-      .eq('id', cancelledPropertyContactId)
-      .eq('account_id', accountId)
-      .maybeSingle();
+    const { data: cancelledContact } = await findContactNameById(
+      supabaseAdmin(),
+      accountId,
+      cancelledPropertyContactId
+    );
     const text = buildPropertyCandidateCancelReply(
       (cancelledContact?.name as string | null) || 'The client'
     );
@@ -2080,13 +2093,11 @@ export async function processOwnerChatbotMessage(
 
         if (normalizedPhone) {
           const cleanPhone = normalizedPhone.replace(/\D/g, '');
-          const { data: existingContacts } = await supabaseAdmin()
-            .from('contacts')
-            .select('id, name, classification')
-            .eq('account_id', accountId)
-            .or(
-              `phone.eq."${String(ownerPhone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalizedPhone},phone.eq.${cleanPhone}`
-            );
+          const { data: existingContacts } = await listContactsByPhoneVariants(
+            supabaseAdmin(),
+            accountId,
+            { rawPhone: ownerPhone, normalized: normalizedPhone, cleanPhone }
+          );
 
           if (existingContacts && existingContacts.length > 0) {
             const contact = existingContacts[0];
@@ -2100,9 +2111,9 @@ export async function processOwnerChatbotMessage(
             // Contact not found -> Create a new contact with phone number
             const newClassification =
               draft.owner_contact_role === 'Agent' ? 'Agent' : 'Owner';
-            const { data: newContact, error: createErr } = await supabaseAdmin()
-              .from('contacts')
-              .insert({
+            const { data: newContact, error: createErr } = await insertContact(
+              supabaseAdmin(),
+              {
                 account_id: accountId,
                 user_id: userId,
                 name: ownerName,
@@ -2111,9 +2122,8 @@ export async function processOwnerChatbotMessage(
                 classification: newClassification,
                 status: 'pending_review',
                 source: 'WhatsApp',
-              })
-              .select()
-              .single();
+              }
+            );
 
             if (!createErr && newContact) {
               ownerContactId = newContact.id;
@@ -2863,12 +2873,11 @@ export async function processOwnerChatbotMessage(
     // agent who read a name should get the person they read.
     if (buttonId?.startsWith('link_contact:')) {
       const linkedId = buttonId.slice('link_contact:'.length);
-      const { data: linked } = await supabaseAdmin()
-        .from('contacts')
-        .select('id, name, phone')
-        .eq('id', linkedId)
-        .eq('account_id', accountId)
-        .maybeSingle();
+      const { data: linked } = await findContactIdentityById(
+        supabaseAdmin(),
+        accountId,
+        linkedId
+      );
 
       if (!linked?.phone) {
         const reply =
@@ -2985,21 +2994,18 @@ export async function processOwnerChatbotMessage(
       >();
 
       // Check duplicates and save new contacts in bulk
-      const toInsert = [];
+      const toInsert: Array<ContactInsert & { _notes: string | null }> = [];
       const duplicates = [];
       const enriched: { id: string; name: string; changed: string[] }[] = [];
 
       for (const draft of confirmedContainer.contacts) {
         const normalized = normalizePhoneWithCountryCode(draft.phone || '');
         const cleanPhone = normalized.replace(/\D/g, '');
-        const { data: existingContact } = await supabaseAdmin()
-          .from('contacts')
-          .select('id, name')
-          .eq('account_id', accountId)
-          .or(
-            `phone.eq."${String(draft.phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`
-          )
-          .maybeSingle();
+        const { data: existingContact } = await findContactByPhoneVariants(
+          supabaseAdmin(),
+          accountId,
+          { rawPhone: draft.phone, normalized, cleanPhone }
+        );
 
         if (existingContact) {
           // Enrich rather than skip. A forwarded chat about someone we
@@ -3007,11 +3013,11 @@ export async function processOwnerChatbotMessage(
           // answered it with "skipped duplicate", throwing away every
           // requirement and budget the conversation carried. Additive
           // only: an agent's own edits outrank an extraction.
-          const { data: held } = await supabaseAdmin()
-            .from('contacts')
-            .select('email, company, name_tag, requirements')
-            .eq('id', existingContact.id)
-            .maybeSingle();
+          const { data: held } = await findContactEnrichmentFields(
+            supabaseAdmin(),
+            accountId,
+            existingContact.id
+          );
           const enrichment = enrichmentFor(draft, held || {});
           if (enrichment.changed.length === 0) {
             duplicates.push(
@@ -3021,11 +3027,12 @@ export async function processOwnerChatbotMessage(
             const patch: Record<string, string> = { ...enrichment.updates };
             if (enrichment.requirements)
               patch.requirements = enrichment.requirements;
-            const { error: enrichErr } = await supabaseAdmin()
-              .from('contacts')
-              .update(patch)
-              .eq('id', existingContact.id)
-              .eq('account_id', accountId);
+            const { error: enrichErr } = await updateContactEnrichment(
+              supabaseAdmin(),
+              accountId,
+              existingContact.id,
+              patch
+            );
             if (enrichErr) {
               console.error(
                 '[chatbot-engine] contact enrichment failed:',
@@ -3057,23 +3064,22 @@ export async function processOwnerChatbotMessage(
           if (draft.referrer_name) {
             const refName = draft.referrer_name.trim();
             const refPhone = draft.referrer_phone;
-            let refQuery = supabaseAdmin()
-              .from('contacts')
-              .select('id, name')
-              .eq('account_id', accountId);
-
+            let refPhones: PhoneVariants | null = null;
             if (refPhone) {
               const refNormalized = normalizePhoneWithCountryCode(refPhone);
-              const refCleanPhone = refNormalized.replace(/\D/g, '');
-              const escapedRefName = refName.replace(/[\\"]/g, '\\$&');
-              refQuery = refQuery.or(
-                `phone.eq."${String(refPhone).replace(/[\\"]/g, '\\$&')}",phone.eq.${refNormalized},phone.eq.${refCleanPhone},name.ilike."${escapedRefName}"`
-              );
-            } else {
-              refQuery = refQuery.ilike('name', refName);
+              refPhones = {
+                rawPhone: refPhone,
+                normalized: refNormalized,
+                cleanPhone: refNormalized.replace(/\D/g, ''),
+              };
             }
 
-            const { data: existingRefs } = await refQuery;
+            const { data: existingRefs } = await findReferrerContacts(
+              supabaseAdmin(),
+              accountId,
+              refName,
+              refPhones
+            );
             if (existingRefs && existingRefs.length > 0) {
               referrerContactId = existingRefs[0].id;
               referrerNameText = existingRefs[0].name;
@@ -3254,17 +3260,17 @@ export async function processOwnerChatbotMessage(
 
       // Strip the temporary _notes field before DB insert
       const notesMap: Record<string, string | null> = {};
-      const contactsToInsert = toInsert.map((c: Record<string, unknown>) => {
+      const contactsToInsert = toInsert.map((c) => {
         const { _notes, ...rest } = c;
-        notesMap[rest.phone as string] = _notes as string | null;
+        notesMap[rest.phone as string] = _notes;
         return rest;
       });
 
       // Create new contacts in the Engine
-      const { data: inserted, error: contactErr } = await supabaseAdmin()
-        .from('contacts')
-        .insert(contactsToInsert)
-        .select();
+      const { data: inserted, error: contactErr } = await insertContacts(
+        supabaseAdmin(),
+        contactsToInsert
+      );
 
       if (contactErr) {
         console.error('[chatbot-engine] Failed to save contacts:', contactErr);
@@ -3283,10 +3289,10 @@ export async function processOwnerChatbotMessage(
       // Auto-tag inserted contacts with matched property/project tags
       if (inserted && inserted.length > 0) {
         try {
-          const { data: existingTags } = await supabaseAdmin()
-            .from('tags')
-            .select('id, name')
-            .eq('account_id', accountId);
+          const { data: existingTags } = await listTagIdNames(
+            supabaseAdmin(),
+            accountId
+          );
 
           const tagsCache = new Map<string, string>();
           if (existingTags) {
@@ -3305,10 +3311,10 @@ export async function processOwnerChatbotMessage(
             '#EF4444',
             '#14B8A6',
           ];
-          const tagLinksToInsert = [];
+          const tagLinksToInsert: ContactTagInsert[] = [];
 
           for (const contact of inserted) {
-            const matchedProp = matchedPropertyMap.get(contact.phone);
+            const matchedProp = matchedPropertyMap.get(contact.phone as string);
             if (matchedProp) {
               // Only a project name earns a tag. A property_code is an
               // internal SKU and a chopped-up title is a listing, not a
@@ -3326,17 +3332,15 @@ export async function processOwnerChatbotMessage(
                 if (!tagId) {
                   const randomColor =
                     tagColors[Math.floor(Math.random() * tagColors.length)];
-                  const { data: newTag, error: createTagErr } =
-                    await supabaseAdmin()
-                      .from('tags')
-                      .insert({
-                        account_id: accountId,
-                        user_id: userId,
-                        name: tagName,
-                        color: randomColor,
-                      })
-                      .select()
-                      .single();
+                  const { data: newTag, error: createTagErr } = await insertTag(
+                    supabaseAdmin(),
+                    {
+                      account_id: accountId,
+                      user_id: userId,
+                      name: tagName,
+                      color: randomColor,
+                    }
+                  );
 
                   if (!createTagErr && newTag) {
                     tagId = newTag.id;
@@ -3360,9 +3364,10 @@ export async function processOwnerChatbotMessage(
           }
 
           if (tagLinksToInsert.length > 0) {
-            const { error: linkTagErr } = await supabaseAdmin()
-              .from('contact_tags')
-              .insert(tagLinksToInsert);
+            const { error: linkTagErr } = await insertContactTags(
+              supabaseAdmin(),
+              tagLinksToInsert
+            );
 
             if (linkTagErr) {
               console.error(
@@ -3390,9 +3395,10 @@ export async function processOwnerChatbotMessage(
         }));
 
       if (noteRows.length > 0) {
-        const { error: noteErr } = await supabaseAdmin()
-          .from('contact_notes')
-          .insert(noteRows);
+        const { error: noteErr } = await insertContactNotes(
+          supabaseAdmin(),
+          noteRows
+        );
         if (noteErr) {
           console.error(
             '[chatbot-engine] Failed to save contact notes:',

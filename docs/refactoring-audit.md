@@ -43,7 +43,7 @@ Mobile holds 183 direct Supabase reads across 52 files. The contacts list now se
 
 ### 3. Chatbot engine
 
-The draft-session half is done (#1217). `src/lib/ai/chatbot-engine.ts` is still about 4,700 lines, almost all of it one 3,500-line `processOwnerChatbotMessage`, with 27 inline queries on contacts, properties, messages, tags and notes and no test of its own beyond the structure checks. Next: move the contact and property writes behind repositories the same way, then split the owner flow by section (property session, contact session, new session) the way the inbound chain was split into steps.
+The draft-session half is done (#1217) and so is the contact half: `src/lib/ai/owner-contacts.ts` now holds every read and write the engine made on `contacts`, `contact_tags`, `tags` and `contact_notes` (17 queries, each account-scoped, unit-tested over a stub client in `owner-contacts.test.ts`), and `chatbot-engine.structure.test.ts` fails if one of those `.from()` calls comes back. `src/lib/ai/chatbot-engine.ts` is still about 4,900 lines, almost all of it one 3,500-line `processOwnerChatbotMessage`; the call sites got no shorter, since the queries became calls of the same height, so the line count only drops when the owner flow is split. Ten inline queries remain, on properties (3), messages (2), conversations (2), accounts, profiles and showcase settings, and the engine has no test of its own beyond the structure checks. Next: move the property writes behind a repository the same way, then split the owner flow by section (property session, contact session, new session) the way the inbound chain was split into steps.
 
 ### 4. Typing
 
