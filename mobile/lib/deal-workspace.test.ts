@@ -174,8 +174,9 @@ describe('[TXW-032] timeline attribution', () => {
     ).toBe('Ravi');
   });
 
-  it('calls any other memberless system entry System', () => {
+  it('calls any other memberless entry System, whatever its source', () => {
     expect(timelineActorLabel(entry)).toBe('System');
+    expect(timelineActorLabel({ ...entry, source: 'api' })).toBe('System');
   });
 
   it('shows the source only for mobile and API entries', () => {

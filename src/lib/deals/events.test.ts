@@ -176,6 +176,14 @@ describe('[TXW-032] the timeline names a member, a replying stakeholder, or Syst
     expect(timelineActorLabel(base)).toBe('System');
   });
 
+  it('calls a memberless entry System whatever source it carries', () => {
+    for (const source of ['web', 'mobile', 'api'] as const) {
+      expect(
+        timelineActorLabel({ ...base, source, actor_name: 'Import script' })
+      ).toBe('System');
+    }
+  });
+
   it('keeps the stakeholder who acknowledged an update over WhatsApp', () => {
     expect(
       timelineActorLabel({

@@ -90,31 +90,10 @@ export const PHASE_3_EVENT_TYPES: readonly DealEventType[] = [
   'update_acknowledged',
 ];
 
-/**
- * Who a timeline entry is attributed to. A member's entry names the
- * member; a stakeholder's WhatsApp acknowledgement names the
- * stakeholder; anything else written with no member behind it (seeded
- * checklists, imports, agent scripts) is "System", whatever free text
- * the writer stored, so the timeline never shows "Claude (for …)" next
- * to a separate "· system". Mirrored in mobile/lib/deal-workspace.ts;
- * guarded by mobile-parity.test.ts.
- */
-export function timelineActorLabel(
-  ev: Pick<DealEvent, 'actor_id' | 'actor_name' | 'event_type' | 'source'>
-): string | null {
-  const name = ev.actor_name?.trim() || null;
-  if (ev.actor_id) return name;
-  if (ev.event_type === 'update_acknowledged') return name;
-  if (ev.source === 'system') return 'System';
-  return name;
-}
-
-/** The source suffix after the actor, or null when it adds nothing. */
-export function timelineSourceLabel(
-  ev: Pick<DealEvent, 'source'>
-): string | null {
-  return ev.source === 'mobile' || ev.source === 'api' ? ev.source : null;
-}
+export {
+  timelineActorLabel,
+  timelineSourceLabel,
+} from './timeline-attribution';
 
 export function parseEventSource(v: unknown): DealEventSource {
   return v === 'mobile' || v === 'api' ? v : 'web';

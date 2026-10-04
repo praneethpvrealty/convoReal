@@ -2665,17 +2665,13 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
   });
 
   it('[TXW-032] attributes a timeline entry by the same rule on both surfaces', () => {
-    for (const fn of ['timelineActorLabel', 'timelineSourceLabel']) {
-      const body = (source: string) =>
-        source.match(
-          new RegExp(
-            `export function ${fn}\\([\\s\\S]*?\\): string \\| null \\{([\\s\\S]*?\\n)\\}\\n`
-          )
-        )?.[1];
-      const web = body(webSource('lib/deals/events.ts'));
-      expect(web, `web is missing ${fn}`).toBeDefined();
-      expect(body(mobileVocab), `mobile ${fn} has drifted`).toBe(web);
-    }
+    expect(mobileVocab).toContain(
+      "from '@shared/lib/deals/timeline-attribution';"
+    );
+    expect(mobileVocab).not.toMatch(/export function timelineActorLabel/);
+    expect(webSource('lib/deals/events.ts')).toContain(
+      "from './timeline-attribution';"
+    );
     const eventRow = mobileVocab.match(
       /export interface DealEventRow \{[^}]*\}/
     )?.[0];

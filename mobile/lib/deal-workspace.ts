@@ -356,30 +356,10 @@ export interface DealEventRow {
   created_at: string;
 }
 
-/**
- * Who a timeline entry is attributed to: the member, the stakeholder
- * who acknowledged an update, or "System" for any other entry with no
- * member behind it. Mirrored from src/lib/deals/events.ts; guarded by
- * mobile-parity.test.ts.
- */
-export function timelineActorLabel(
-  ev: Pick<DealEventRow, 'actor_id' | 'actor_name' | 'event_type' | 'source'>
-): string | null {
-  const name = ev.actor_name?.trim() || null;
-  if (ev.actor_id) return name;
-  if (ev.event_type === 'update_acknowledged') return name;
-  if (ev.source === 'system') return 'System';
-  return name;
-}
-
-/** The source suffix after the actor, or null when it adds nothing.
- *  Mirrored from src/lib/deals/events.ts; guarded by
- *  mobile-parity.test.ts. */
-export function timelineSourceLabel(
-  ev: Pick<DealEventRow, 'source'>
-): string | null {
-  return ev.source === 'mobile' || ev.source === 'api' ? ev.source : null;
-}
+export {
+  timelineActorLabel,
+  timelineSourceLabel,
+} from '@shared/lib/deals/timeline-attribution';
 
 export type TdsStatus =
   'not_applicable' | 'expected' | 'deducted' | 'deposited';
