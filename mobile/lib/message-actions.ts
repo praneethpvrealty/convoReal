@@ -5,6 +5,7 @@
 // Kept transport-free so the conversation screen stays a renderer: the
 // rules here are the ones worth being sure about.
 
+import { plainText } from '@shared/lib/conversations/text-format';
 import type { Message } from '@/lib/types';
 
 /** Longest quote preview kept before an ellipsis. */
@@ -132,7 +133,9 @@ export function messagePreview(
   message: Message,
   limit: number = PREVIEW_LIMIT
 ): string {
-  const text = stripDeliveryFailure(message.content_text).replace(/\s+/g, ' ');
+  const text = plainText(stripDeliveryFailure(message.content_text))
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!text) return MEDIA_LABELS[message.content_type] ?? 'Message';
   return text.length > limit ? `${text.slice(0, limit).trimEnd()}…` : text;
 }

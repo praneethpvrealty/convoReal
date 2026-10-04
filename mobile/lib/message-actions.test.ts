@@ -50,6 +50,19 @@ describe('messagePreview', () => {
     ).toBe('🏠 New Property Match');
   });
 
+  it('drops WhatsApp formatting markers from the quoted text [INB-024]', () => {
+    expect(
+      messagePreview(
+        message({
+          content_text:
+            '📊 *Your Property Update*\n\nBuyers liked *35x80 Corner Plot* and _2 others_.',
+        })
+      )
+    ).toBe(
+      '📊 Your Property Update Buyers liked 35x80 Corner Plot and 2 others.'
+    );
+  });
+
   it('names the media kind when there is no text', () => {
     expect(
       messagePreview(
