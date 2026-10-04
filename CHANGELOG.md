@@ -31,6 +31,10 @@ than a written entry. Newest first.
   journeys you hid now say **hidden by you** and why. Same on mobile for
   the record tabs and timeline names; mobile Journeys load behind skeleton
   rows, and a bundle's linked deals print in each deal's own currency.
+- **Reply quotes no longer show raw WhatsApp markers.** When a contact
+  replies to a digest, the quoted original above their reply now shows
+  its header in bold instead of `*Your Property Update*`, on web and
+  mobile alike. Invariant INB-024.
 
 #### 3 October 2026
 
