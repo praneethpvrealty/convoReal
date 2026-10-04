@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **A failed reminder voice note or reminder call returns only its own
+  charge.** The voice note's charge was keyed to the reminder rather than to the
+  one run, so a replayed job, or a reminder re-armed after a call had gone out,
+  could reverse an earlier charge that was kept. Each run now has its own key
+  and a refund reverses that key alone. Invariant CRD-004.
 - **A voice note that fails to render, or cannot be queued, is refunded
   exactly once.** The charge for an audio announcement now carries its own key,
   stored on the announcement, and every failure returns that charge and no
