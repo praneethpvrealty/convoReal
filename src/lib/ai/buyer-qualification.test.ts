@@ -1104,6 +1104,7 @@ describe('[INB-029] a lead naming their location replaces the enquiry locality',
     expect(
       restatedAreas('Hebbal also fine', ['Whitefield', 'Hebbal'], null)
     ).toBeNull();
+    expect(restatedAreas('Hebbal also fine', ['Hebbal'], 'Hebbal')).toBeNull();
     expect(
       restatedAreas('only independent houses', ['Koramangala'], null)
     ).toBeNull();
@@ -1131,6 +1132,36 @@ describe('[INB-029] a lead naming their location replaces the enquiry locality',
       'lead_message'
     ).find((f) => f.field === 'pref_areas');
     expect(areas?.value).toEqual(['Horamavu']);
+  });
+
+  it('replaces a portal-stated areas_of_interest list with the named area', () => {
+    const text = 'Looking near Horamavu';
+    const restated = restatedAreas(text, ['HSR', 'Horamavu'], null);
+    expect(restated).toEqual(['Horamavu']);
+    const facts = prepareFacts(
+      'contact',
+      { areas_of_interest: ['HSR'], pref_areas: ['HSR'] },
+      preferenceFacts(prefs({ areas: restated ?? [] }), [], {
+        areasRestated: true,
+        replaceAreasOfInterest: true,
+      }),
+      text,
+      'lead_message'
+    );
+    expect(facts.find((f) => f.field === 'areas_of_interest')?.value).toEqual([
+      'Horamavu',
+    ]);
+    expect(facts.find((f) => f.field === 'pref_areas')?.value).toEqual([
+      'Horamavu',
+    ]);
+  });
+
+  it('leaves an empty areas_of_interest list alone', () => {
+    const fields = preferenceFacts(prefs({ areas: ['Horamavu'] }), [], {
+      areasRestated: true,
+      replaceAreasOfInterest: false,
+    }).map((f) => f.field);
+    expect(fields).not.toContain('areas_of_interest');
   });
 
   it('never marks an empty area list as a restatement', () => {

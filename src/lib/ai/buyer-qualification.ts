@@ -31,7 +31,10 @@ import {
   type RankedPropertyMatch,
 } from '@/lib/radar/engine';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
-import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
+import {
+  carriesRequirementSignal,
+  statesBudget,
+} from '@/lib/ai/requirement-signal';
 import {
   applySizeAnchor,
   parseRelativeSizeSignal,
@@ -928,8 +931,10 @@ export function preferenceFacts(
    *  not a proposal, it is already done. */
   attachedTagNames: (string | null | undefined)[] = [],
   /** The lead's message stated where they want to buy — see
-   *  restatedAreas. Their areas then replace the saved list. */
-  opts: { areasRestated?: boolean } = {}
+   *  restatedAreas. Their areas then replace the saved list, and the
+   *  areas_of_interest list too when it holds any (matching reads both,
+   *  and a portal requirement fills it with an older answer). */
+  opts: { areasRestated?: boolean; replaceAreasOfInterest?: boolean } = {}
 ): { field: string; value: unknown; replaces?: boolean }[] {
   const facts: { field: string; value: unknown; replaces?: boolean }[] = [
     { field: 'pref_property_types', value: prefs.property_types },
@@ -947,6 +952,11 @@ export function preferenceFacts(
         ? { replaces: true }
         : {}),
     },
+    ...(opts.areasRestated &&
+    opts.replaceAreasOfInterest &&
+    prefs.areas.length > 0
+      ? [{ field: 'areas_of_interest', value: prefs.areas, replaces: true }]
+      : []),
     { field: 'pref_excluded_areas', value: prefs.excluded_areas },
     { field: 'pref_projects', value: prefs.projects },
     { field: 'pref_listing_types', value: prefs.listing_types },
@@ -973,6 +983,27 @@ export function preferenceFacts(
   return facts;
 }
 
+/**
+ * The lead confirmed, in their own words, the maximum the portal
+ * webhook seeded from their enquiry. pref_budget_max does not move, so
+ * nothing else marks the change: without this the budget they stated
+ * would still read as the enquiry's floorless ceiling.
+ */
+async function clearBudgetAnchor(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  contactId: string
+): Promise<void> {
+  const { error } = await db
+    .from('contacts')
+    .update({ pref_budget_anchor: null })
+    .eq('id', contactId)
+    .eq('account_id', accountId);
+  if (error) {
+    console.error('[buyer-qualification] budget anchor clear failed:', error);
+  }
+}
+
 const ADDITIVE_AREA_PATTERN =
   /\b(?:also|too|as well|additionally|in addition|apart from|along with|plus)\b/i;
 
@@ -986,15 +1017,16 @@ const ADDITIVE_AREA_PATTERN =
  * is replaced rather than kept. Without this a lead who enquired about a
  * Koramangala listing and answered "I'm looking near Horamavu" was sent
  * Koramangala houses. A message that adds an area ("Hebbal also") is
- * not a restatement, so nothing is dropped.
+ * not a restatement, even when it resolves to one locality, so nothing
+ * is dropped.
  */
 export function restatedAreas(
   text: string,
   areas: string[],
   resolvedLocation: string | null
 ): string[] | null {
-  if (resolvedLocation) return [resolvedLocation];
   if (ADDITIVE_AREA_PATTERN.test(text)) return null;
+  if (resolvedLocation) return [resolvedLocation];
   const named = areas.filter(
     (area) => area.trim() && textNamesLocality(text, area)
   );
@@ -1586,6 +1618,15 @@ export async function processBuyerQualificationMessage(
       // The message added nothing the contact didn't already say — it's
       // chatter ("ok", "call me"), not an answer. Don't file it as a
       // requirement and don't answer it; the agent owns this thread.
+      if (
+        statesBudget(text) &&
+        contact.pref_budget_anchor != null &&
+        extracted.budget_max != null &&
+        Number(contact.pref_budget_anchor) === extracted.budget_max
+      ) {
+        await clearBudgetAnchor(db, accountId, contact.id);
+      }
+
       if (preferenceSignature(extracted) === preferenceSignature(prefs))
         return false;
 
@@ -1622,6 +1663,7 @@ export async function processBuyerQualificationMessage(
         },
         facts: preferenceFacts(prefs, attachedTagNames, {
           areasRestated: restated !== null,
+          replaceAreasOfInterest: (contact.areas_of_interest?.length ?? 0) > 0,
         }),
         evidence: text,
         source: 'lead_message',

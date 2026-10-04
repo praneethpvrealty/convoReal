@@ -13,6 +13,11 @@ const BUDGET_SIGNAL =
 const SIZE_SIGNAL =
   /\b\d[\d,.]*\s*(?:sq\.?\s*(?:ft|feet|yds?|yards?|mtrs?|m)|sqft|sft|square\s*(?:feet|foot|yards?|met(?:er|re)s?)|guntas?|grounds?)\b|\b\d{2,3}\s*(?:x|×|\*|by)\s*\d{2,3}\b/i;
 
+/** True when the message states a budget figure. */
+export function statesBudget(text?: string | null): boolean {
+  return BUDGET_SIGNAL.test((text || '').trim());
+}
+
 /**
  * True when an inbound message plausibly carries requirement detail —
  * a property type, a budget figure, a size, or an explicit "looking for".

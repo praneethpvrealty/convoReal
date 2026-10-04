@@ -166,6 +166,44 @@ beforeEach(() => {
 });
 
 describe('processBuyerQualificationMessage — free-text requirement updates', () => {
+  it('[INB-029] clears the enquiry anchor when the lead states that same maximum', async () => {
+    queues.contacts = [
+      contactRow({
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_budget_anchor: 20_000_000,
+        pref_areas: ['Koramangala'],
+      }),
+    ];
+
+    await run('owner-1');
+
+    expect(updates).toContainEqual({
+      table: 'contacts',
+      payload: { pref_budget_anchor: null },
+    });
+  });
+
+  it('[INB-029] leaves a budget with no enquiry anchor untouched', async () => {
+    queues.contacts = [
+      contactRow({
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_areas: ['Koramangala'],
+      }),
+    ];
+
+    await run('owner-1');
+
+    expect(updates).not.toContainEqual(
+      expect.objectContaining({
+        payload: expect.objectContaining({ pref_budget_anchor: null }),
+      })
+    );
+  });
+
   it('treats a bare live-inventory locality as a refinement and sends its matches', async () => {
     queues.contacts = [
       contactRow({
