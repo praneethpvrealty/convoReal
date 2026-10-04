@@ -255,6 +255,10 @@ describe('[INB-027] the keyed refund migrations', () => {
     'supabase/migrations/20261004084600_burn_credits_tx_burn_key.sql',
     'utf8'
   );
+  const legacy = readFileSync(
+    'supabase/migrations/20261004084700_refund_credits_tx_skip_keyed_burns.sql',
+    'utf8'
+  );
   const refundFn = refund.slice(
     refund.indexOf('FUNCTION public.refund_burn_tx(')
   );
@@ -290,5 +294,19 @@ describe('[INB-027] the keyed refund migrations', () => {
     expect(burn).toContain(
       "AND (burn_key = p_retry_key OR description = 'retry:' || p_retry_key)"
     );
+  });
+
+  it('keeps the legacy refund off burns that refund_burn_tx owns', () => {
+    const select = legacy.slice(
+      legacy.indexOf('FOR r IN'),
+      legacy.indexOf('LOOP')
+    );
+    expect(select).toContain(
+      "AND left(COALESCE(burn_key, ''), length(p_feature) + 1) <> p_feature || ':'"
+    );
+    expect(select).toContain(
+      "AND left(COALESCE(description, ''), length(p_feature) + 7) <> 'retry:' || p_feature || ':'"
+    );
+    expect(newBurnKey('listing_parse').startsWith('listing_parse:')).toBe(true);
   });
 });
