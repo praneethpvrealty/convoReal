@@ -131,6 +131,7 @@ import {
   validateDraft,
   validateContactDraftsContainer,
   reconcileContactDrafts,
+  absorbContactDrafts,
   applyExplicitContactDraftUpdate,
   formatDraftPreviewMessage,
   formatContactDraftsPreview,
@@ -158,11 +159,13 @@ import {
   findPropertyDraftSession,
   findPropertyDraftSessionById,
   insertContactDraftSession,
+  mutateContactDraft,
   insertPropertyDraftSession,
   isDraftSessionExpired,
   mutatePropertyDraft,
   overwriteContactDraftSession,
   touchPropertyDraftSession,
+  type ContactDraftSessionRow,
 } from '@/lib/ai/draft-sessions';
 import { recordRequirementResponse } from '@/lib/requirements/respond';
 
@@ -237,6 +240,13 @@ async function gatedBurn(
   accountId: string,
   feature: AiFeatureKey
 ): Promise<boolean> {
+  return (await gatedBurnReceipt(accountId, feature)).allowed;
+}
+
+async function gatedBurnReceipt(
+  accountId: string,
+  feature: AiFeatureKey
+): Promise<{ allowed: boolean; charged: boolean }> {
   try {
     const result = await burnCredits(
       accountId,
@@ -250,13 +260,13 @@ async function gatedBurn(
         `[chatbot-engine] blocked '${feature}' for account ${accountId}: ${result.deficit} credits short`
       );
     }
-    return result.success;
+    return { allowed: result.success, charged: result.success };
   } catch (err) {
     console.error(
       `[chatbot-engine] gatedBurn failed (fail-open) for '${feature}':`,
       err
     );
-    return true;
+    return { allowed: true, charged: false };
   }
 }
 
@@ -827,6 +837,68 @@ async function sendContactDraftPreview(
   });
 
   await saveBotMessage(conversationId, reply, sendRes.messageId);
+}
+
+async function readCurrentContactDraft(
+  contactId: string,
+  accountId: string
+): Promise<ContactDraftSessionRow | null | undefined> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data, error } = await findContactDraftSession(
+      supabaseAdmin(),
+      contactId,
+      accountId
+    );
+    if (!error) return data;
+    await new Promise((resolve) => setTimeout(resolve, 100 * 2 ** attempt));
+  }
+  return undefined;
+}
+
+async function announceLatestContactDraft(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  header: string,
+  shown: ContactDraftSessionRow,
+  contactId: string,
+  conversationId: string,
+  accountId: string
+): Promise<void> {
+  let row = shown;
+  let title = header;
+  for (;;) {
+    await sendContactDraftPreview(
+      phoneNumberId,
+      accessToken,
+      to,
+      title,
+      row.draft_data,
+      row.status,
+      validateContactDraftsContainer(row.draft_data).missingFields,
+      conversationId,
+      accountId
+    );
+    const latest = await readCurrentContactDraft(contactId, accountId);
+    if (latest === undefined) {
+      console.error(
+        `[chatbot-engine] could not confirm the contact draft preview for ${contactId} is current`
+      );
+      const warning =
+        "⚠️ *I couldn't check that this draft is the latest.* Send the contact again to refresh it before you tap Confirm, or reply *cancel*.";
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to,
+        text: warning,
+      });
+      await saveBotMessage(conversationId, warning, sendRes.messageId);
+      return;
+    }
+    if (!latest || latest.updated_at === row.updated_at) return;
+    row = latest;
+    title = `📝 *Contact Drafts Updated:*`;
+  }
 }
 
 /**
@@ -4011,10 +4083,13 @@ export async function processOwnerChatbotMessage(
         ? contactDraftsFromCards(cleanedText)
         : null;
 
+      let parseCharged = false;
       if (!cardContainer) {
         // Gate the parse burn before announcing "Analyzing…" so a
         // drained balance produces the lock reply, not a dead promise.
-        if (!(await gatedBurn(accountId, 'contact_parse'))) {
+        const parseBurn = await gatedBurnReceipt(accountId, 'contact_parse');
+        parseCharged = parseBurn.charged;
+        if (!parseBurn.allowed) {
           return await sendCreditsLockedReply(
             phoneNumberId,
             accessToken,
@@ -4052,29 +4127,121 @@ export async function processOwnerChatbotMessage(
           parsedContainer = await parseContactFromImageOrText(cleanedText);
         }
 
-        const { isValid, missingFields } =
-          validateContactDraftsContainer(parsedContainer);
-        const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+        const initialStatus = validateContactDraftsContainer(parsedContainer)
+          .isValid
+          ? 'awaiting_confirmation'
+          : 'collecting';
 
         // Insert new active session
-        await insertContactDraftSession(supabaseAdmin(), {
-          account_id: accountId,
-          contact_id: contactRecord.id,
-          draft_data: parsedContainer,
-          status: initialStatus,
-        });
+        const { error: insertErr } = await insertContactDraftSession(
+          supabaseAdmin(),
+          {
+            account_id: accountId,
+            contact_id: contactRecord.id,
+            draft_data: parsedContainer,
+            status: initialStatus,
+          }
+        );
 
-        await sendContactDraftPreview(
-          phoneNumberId,
-          accessToken,
-          contactRecord.phone,
-          `📝 *Contact Drafts Created!*`,
-          parsedContainer,
-          initialStatus,
-          missingFields,
-          conversation.id,
+        if (insertErr) {
+          const { data: existingSession } =
+            insertErr.code === '23505'
+              ? await findContactDraftSession(
+                  supabaseAdmin(),
+                  contactRecord.id,
+                  accountId
+                )
+              : { data: null };
+
+          const mutation = existingSession
+            ? await mutateContactDraft(
+                supabaseAdmin(),
+                existingSession.id,
+                (latestSession) => {
+                  const absorbed = absorbContactDrafts(
+                    latestSession.draft_data,
+                    parsedContainer
+                  );
+                  return {
+                    draft_data: absorbed,
+                    status: validateContactDraftsContainer(absorbed).isValid
+                      ? 'awaiting_confirmation'
+                      : 'collecting',
+                  };
+                },
+                accountId
+              )
+            : null;
+
+          if (mutation?.status !== 'ok') {
+            console.error(
+              '[chatbot-engine] Failed to save contact draft session:',
+              mutation ?? insertErr
+            );
+            if (parseCharged) {
+              await refundCredits(
+                accountId,
+                'contact_parse',
+                AI_FEATURE_COSTS.contact_parse,
+                { description: 'contact draft could not be saved' }
+              ).catch((refundErr) => {
+                console.error(
+                  `[chatbot-engine] contact_parse refund of ${AI_FEATURE_COSTS.contact_parse} credits for account ${accountId} failed; reconcile manually:`,
+                  refundErr
+                );
+              });
+            }
+            const reply =
+              "❌ *Couldn't save the contact draft.* Please send it again.";
+            const sendRes = await sendTextMessage({
+              phoneNumberId,
+              accessToken,
+              to: contactRecord.phone,
+              text: reply,
+            });
+            await saveBotMessage(conversation.id, reply, sendRes.messageId);
+            return true;
+          }
+
+          await announceLatestContactDraft(
+            phoneNumberId,
+            accessToken,
+            contactRecord.phone,
+            `📝 *Contact Drafts Updated:*`,
+            mutation.row,
+            contactRecord.id,
+            conversation.id,
+            accountId
+          );
+          return true;
+        }
+
+        const createdSession = await readCurrentContactDraft(
+          contactRecord.id,
           accountId
         );
+        if (createdSession) {
+          await announceLatestContactDraft(
+            phoneNumberId,
+            accessToken,
+            contactRecord.phone,
+            `📝 *Contact Drafts Created!*`,
+            createdSession,
+            contactRecord.id,
+            conversation.id,
+            accountId
+          );
+        } else if (createdSession === undefined) {
+          const reply =
+            "⚠️ *Your contact draft is saved, but I couldn't load it to show you.* Send the contact again in a moment to see it, or reply *cancel* to discard it.";
+          const sendRes = await sendTextMessage({
+            phoneNumberId,
+            accessToken,
+            to: contactRecord.phone,
+            text: reply,
+          });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        }
         return true;
       } catch (err) {
         console.error(
