@@ -15,6 +15,7 @@ import { SkeletonCard, Skeleton } from '@/components/dashboard/skeleton';
 import { EmptyState } from '@/components/dashboard/empty-state';
 import { BarChart } from '@/components/tremor/bar-chart';
 import { cn } from '@/lib/utils';
+import { LoadError } from '@/components/broadcasts/load-error';
 
 interface CallAnalytics {
   days: number;
@@ -167,220 +168,240 @@ export default function CallAnalyticsContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {loading || !data ? (
-          Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-        ) : (
-          <>
-            <MetricCard
-              title="Calls"
-              value={String(data.summary.total)}
-              icon={Phone}
-              subtitle={`${data.summary.voiceAgent} by voice agent · ${data.summary.manual} manual`}
-            />
-            <MetricCard
-              title="Connect rate"
-              value={pct(data.summary.connected, data.summary.total)}
-              icon={PhoneIncoming}
-              subtitle={`${data.summary.connected} of ${data.summary.total} answered`}
-            />
-            <MetricCard
-              title="Avg call length"
-              value={formatDuration(data.summary.avgDurationSeconds)}
-              icon={Timer}
-              subtitle="Connected calls only"
-            />
-            <MetricCard
-              title="Follow-ups sent"
-              value={String(data.funnel.sent)}
-              icon={Send}
-              subtitle={`${data.funnel.opened} opener taps · ${data.funnel.scheduled} scheduled`}
-            />
-          </>
-        )}
-      </div>
-
-      <div className={cardChrome}>
-        <header className="flex items-center justify-between gap-3 border-b border-slate-900/60 px-5 py-4">
-          <h3 className="text-sm font-bold text-white">Calls per day</h3>
-          <span className="text-xs text-slate-500">
-            Connected vs total, last {range} days
-          </span>
-        </header>
-        <div className="p-5">
-          {loading && !data ? (
-            <Skeleton className="h-[260px]" />
-          ) : chartData.length === 0 ? (
-            <EmptyState
-              icon={Phone}
-              title="No calls in this period"
-              hint="Run a voice campaign or log calls on contacts, and they'll chart here."
-            />
-          ) : (
-            <BarChart
-              data={chartData}
-              index="day"
-              categories={['Calls', 'Connected']}
-              colors={['violet', 'emerald']}
-              showLegend={true}
-              yAxisWidth={40}
-              allowDecimals={false}
-              className="h-[260px]"
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className={cardChrome}>
-          <header className="border-b border-slate-900/60 px-5 py-4">
-            <h3 className="text-sm font-bold text-white">Call outcomes</h3>
-          </header>
-          <div className="space-y-3 p-5">
+      {query.isError && !data ? (
+        <LoadError
+          what="call analytics"
+          onRetry={() => query.refetch()}
+          retrying={query.isFetching}
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {loading || !data ? (
-              <Skeleton className="h-40" />
-            ) : data.summary.total === 0 ? (
-              <EmptyState title="No calls yet" />
+              Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
             ) : (
-              OUTCOME_ROWS.map(([key, label]) => {
-                const count = data.summary[key];
-                const share = data.summary.total
-                  ? (count / data.summary.total) * 100
-                  : 0;
-                return (
-                  <div key={key} className="flex items-center gap-3">
-                    <span className="w-36 shrink-0 text-xs font-medium text-slate-400">
-                      {label}
-                    </span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
-                      <div
-                        className="bg-primary/70 h-full rounded-full"
-                        style={{ width: `${share}%` }}
-                      />
-                    </div>
-                    <span className="w-12 shrink-0 text-right text-xs text-slate-300 tabular-nums">
-                      {count}
-                    </span>
-                  </div>
-                );
-              })
+              <>
+                <MetricCard
+                  title="Calls"
+                  value={String(data.summary.total)}
+                  icon={Phone}
+                  subtitle={`${data.summary.voiceAgent} by voice agent · ${data.summary.manual} manual`}
+                />
+                <MetricCard
+                  title="Connect rate"
+                  value={pct(data.summary.connected, data.summary.total)}
+                  icon={PhoneIncoming}
+                  subtitle={`${data.summary.connected} of ${data.summary.total} answered`}
+                />
+                <MetricCard
+                  title="Avg call length"
+                  value={formatDuration(data.summary.avgDurationSeconds)}
+                  icon={Timer}
+                  subtitle="Connected calls only"
+                />
+                <MetricCard
+                  title="Follow-ups sent"
+                  value={String(data.funnel.sent)}
+                  icon={Send}
+                  subtitle={`${data.funnel.opened} opener taps · ${data.funnel.scheduled} scheduled`}
+                />
+              </>
             )}
           </div>
-        </div>
 
-        <div className={cardChrome}>
-          <header className="flex items-center justify-between border-b border-slate-900/60 px-5 py-4">
-            <h3 className="text-sm font-bold text-white">Follow-up funnel</h3>
-            <MousePointerClick className="h-4 w-4 text-slate-500" />
-          </header>
-          <div className="p-5">
-            {loading || !data ? (
-              <Skeleton className="h-40" />
-            ) : data.funnel.total === 0 ? (
-              <EmptyState
-                title="No follow-ups yet"
-                hint="Connected calls with a disposition enrol here automatically."
-              />
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-4 gap-2 text-center">
-                  {(
-                    [
-                      ['Enrolled', data.funnel.total],
-                      ['Sent', data.funnel.sent],
-                      ['Opened', data.funnel.opened],
-                      ['Completed', data.funnel.completed],
-                    ] as const
-                  ).map(([label, value]) => (
-                    <div
-                      key={label}
-                      className="rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-3"
-                    >
-                      <p className="text-lg font-black text-white tabular-nums">
-                        {value}
-                      </p>
-                      <p className="mt-0.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-                        {label}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                {data.funnel.skipped > 0 || data.funnel.failed > 0 ? (
-                  <div className="space-y-1.5">
-                    <p className="text-xs font-semibold text-slate-400">
-                      {data.funnel.skipped} skipped · {data.funnel.failed}{' '}
-                      failed
-                    </p>
-                    {data.skips.map((skip) => (
-                      <p key={skip.reason} className="text-xs text-slate-500">
-                        {SKIP_LABELS[skip.reason] || skip.reason} —{' '}
-                        <span className="tabular-nums">{skip.followups}</span>
-                      </p>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className={cardChrome}>
-        <header className="border-b border-slate-900/60 px-5 py-4">
-          <h3 className="text-sm font-bold text-white">
-            What the calls produced
-          </h3>
-        </header>
-        <div className="p-5">
-          {loading || !data ? (
-            <Skeleton className="h-40" />
-          ) : data.dispositions.length === 0 ? (
-            <EmptyState
-              title="No dispositions yet"
-              hint="When the voice agent reports what each conversation produced, the breakdown lands here."
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-800 text-left text-xs font-bold tracking-wider text-slate-500 uppercase">
-                    <th className="pr-4 pb-2">Disposition</th>
-                    <th className="pr-4 pb-2 text-right">Calls</th>
-                    <th className="pr-4 pb-2 text-right">Follow-ups sent</th>
-                    <th className="pb-2 text-right">Opener taps</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.dispositions.map((row) => (
-                    <tr
-                      key={row.disposition}
-                      className="border-b border-slate-900/60 last:border-0"
-                    >
-                      <td className="py-2.5 pr-4 text-slate-300">
-                        {DISPOSITION_LABELS[row.disposition] || row.disposition}
-                      </td>
-                      <td className="py-2.5 pr-4 text-right text-white tabular-nums">
-                        {row.calls}
-                      </td>
-                      <td className="py-2.5 pr-4 text-right text-slate-300 tabular-nums">
-                        {row.followupsSent}
-                      </td>
-                      <td className="py-2.5 text-right text-slate-300 tabular-nums">
-                        {row.followupsOpened}
-                        {row.followupsSent > 0 && (
-                          <span className="ml-1 text-xs text-slate-500">
-                            ({pct(row.followupsOpened, row.followupsSent)})
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <div className={cardChrome}>
+            <header className="flex items-center justify-between gap-3 border-b border-slate-900/60 px-5 py-4">
+              <h3 className="text-sm font-bold text-white">Calls per day</h3>
+              <span className="text-xs text-slate-500">
+                Connected vs total, last {range} days
+              </span>
+            </header>
+            <div className="p-5">
+              {loading && !data ? (
+                <Skeleton className="h-[260px]" />
+              ) : chartData.length === 0 ? (
+                <EmptyState
+                  icon={Phone}
+                  title="No calls in this period"
+                  hint="Run a voice campaign or log calls on contacts, and they'll chart here."
+                />
+              ) : (
+                <BarChart
+                  data={chartData}
+                  index="day"
+                  categories={['Calls', 'Connected']}
+                  colors={['violet', 'emerald']}
+                  showLegend={true}
+                  yAxisWidth={40}
+                  allowDecimals={false}
+                  className="h-[260px]"
+                />
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className={cardChrome}>
+              <header className="border-b border-slate-900/60 px-5 py-4">
+                <h3 className="text-sm font-bold text-white">Call outcomes</h3>
+              </header>
+              <div className="space-y-3 p-5">
+                {loading || !data ? (
+                  <Skeleton className="h-40" />
+                ) : data.summary.total === 0 ? (
+                  <EmptyState title="No calls yet" />
+                ) : (
+                  OUTCOME_ROWS.map(([key, label]) => {
+                    const count = data.summary[key];
+                    const share = data.summary.total
+                      ? (count / data.summary.total) * 100
+                      : 0;
+                    return (
+                      <div key={key} className="flex items-center gap-3">
+                        <span className="w-36 shrink-0 text-xs font-medium text-slate-400">
+                          {label}
+                        </span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+                          <div
+                            className="bg-primary/70 h-full rounded-full"
+                            style={{ width: `${share}%` }}
+                          />
+                        </div>
+                        <span className="w-12 shrink-0 text-right text-xs text-slate-300 tabular-nums">
+                          {count}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className={cardChrome}>
+              <header className="flex items-center justify-between border-b border-slate-900/60 px-5 py-4">
+                <h3 className="text-sm font-bold text-white">
+                  Follow-up funnel
+                </h3>
+                <MousePointerClick className="h-4 w-4 text-slate-500" />
+              </header>
+              <div className="p-5">
+                {loading || !data ? (
+                  <Skeleton className="h-40" />
+                ) : data.funnel.total === 0 ? (
+                  <EmptyState
+                    title="No follow-ups yet"
+                    hint="Connected calls with a disposition enrol here automatically."
+                  />
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      {(
+                        [
+                          ['Enrolled', data.funnel.total],
+                          ['Sent', data.funnel.sent],
+                          ['Opened', data.funnel.opened],
+                          ['Completed', data.funnel.completed],
+                        ] as const
+                      ).map(([label, value]) => (
+                        <div
+                          key={label}
+                          className="rounded-xl border border-slate-800 bg-slate-900/60 px-2 py-3"
+                        >
+                          <p className="text-lg font-black text-white tabular-nums">
+                            {value}
+                          </p>
+                          <p className="mt-0.5 text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                            {label}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    {data.funnel.skipped > 0 || data.funnel.failed > 0 ? (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-slate-400">
+                          {data.funnel.skipped} skipped · {data.funnel.failed}{' '}
+                          failed
+                        </p>
+                        {data.skips.map((skip) => (
+                          <p
+                            key={skip.reason}
+                            className="text-xs text-slate-500"
+                          >
+                            {SKIP_LABELS[skip.reason] || skip.reason} —{' '}
+                            <span className="tabular-nums">
+                              {skip.followups}
+                            </span>
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className={cardChrome}>
+            <header className="border-b border-slate-900/60 px-5 py-4">
+              <h3 className="text-sm font-bold text-white">
+                What the calls produced
+              </h3>
+            </header>
+            <div className="p-5">
+              {loading || !data ? (
+                <Skeleton className="h-40" />
+              ) : data.dispositions.length === 0 ? (
+                <EmptyState
+                  title="No dispositions yet"
+                  hint="When the voice agent reports what each conversation produced, the breakdown lands here."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-800 text-left text-xs font-bold tracking-wider text-slate-500 uppercase">
+                        <th className="pr-4 pb-2">Disposition</th>
+                        <th className="pr-4 pb-2 text-right">Calls</th>
+                        <th className="pr-4 pb-2 text-right">
+                          Follow-ups sent
+                        </th>
+                        <th className="pb-2 text-right">Opener taps</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.dispositions.map((row) => (
+                        <tr
+                          key={row.disposition}
+                          className="border-b border-slate-900/60 last:border-0"
+                        >
+                          <td className="py-2.5 pr-4 text-slate-300">
+                            {DISPOSITION_LABELS[row.disposition] ||
+                              row.disposition}
+                          </td>
+                          <td className="py-2.5 pr-4 text-right text-white tabular-nums">
+                            {row.calls}
+                          </td>
+                          <td className="py-2.5 pr-4 text-right text-slate-300 tabular-nums">
+                            {row.followupsSent}
+                          </td>
+                          <td className="py-2.5 text-right text-slate-300 tabular-nums">
+                            {row.followupsOpened}
+                            {row.followupsSent > 0 && (
+                              <span className="ml-1 text-xs text-slate-500">
+                                ({pct(row.followupsOpened, row.followupsSent)})
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

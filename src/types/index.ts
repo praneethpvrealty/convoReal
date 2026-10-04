@@ -347,6 +347,8 @@ export interface MatchEvent {
   status: 'new' | 'sent' | 'dismissed';
   sent_count: number;
   sent_at: string | null;
+  send_claimed_at?: string | null;
+  sent_target_ids?: string[] | null;
   created_at: string;
   updated_at: string;
   /** 'deal_mode' = cross-tenant Owners Den event (migration 134): the

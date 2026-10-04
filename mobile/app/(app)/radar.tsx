@@ -31,6 +31,7 @@ import {
   MATCH_ALERT_LOCK_MS,
   dismissMatchEvent,
   fetchMatchEvents,
+  matchAlertRefusal,
   matchAlertTimeoutMs,
   searchRadarContacts,
   sendMatchAlert,
@@ -213,7 +214,11 @@ export default function RadarScreen() {
         queryClient.invalidateQueries({ queryKey: ['radar-events'] });
       }
     } catch (err) {
-      if (isTimeout(err)) {
+      const refusal = matchAlertRefusal(err);
+      if (refusal) {
+        setNotice(refusal);
+        queryClient.invalidateQueries({ queryKey: ['radar-events'] });
+      } else if (isTimeout(err)) {
         setError(
           'No reply yet — the alerts may still be going out. This card stays locked for up to 5 minutes so no one gets them twice.'
         );

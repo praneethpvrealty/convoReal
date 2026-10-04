@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -21,17 +22,24 @@ import {
   SectionLabel,
   TextField,
 } from '@/components/ui';
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { TourTarget } from '@/components/copilot-tour';
 import { apiFetch, ApiError } from '@/lib/api';
 import {
   buildAudience,
+  buildCsvAudience,
   CONTACT_FIELDS,
   defaultVariableMappings,
+  draftChanged,
   mappingsComplete,
   previewBody,
+  readCsvAudience,
   templateVariableKeys,
+  type BroadcastDraft,
   type VariableMapping,
 } from '@/lib/broadcast-compose';
+import { MAX_CSV_CONTACTS } from '@shared/lib/broadcasts/csv-audience';
+import { contactsLabel, recountOutcome } from '@shared/lib/broadcasts/recount';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
@@ -46,21 +54,26 @@ import type { MessageTemplate, Tag } from '@/lib/types';
  * per-user rate limit and sends — so this screen only assembles the
  * payload that route already accepts from the web wizard.
  *
- * Audience is All or by tag, which is what a phone can sensibly offer;
- * CSV upload and custom-field filters stay on the web wizard.
+ * Audience is All, by tag, or a pasted list of numbers; custom-field
+ * filters stay on the web wizard.
  */
 export default function NewBroadcastScreen() {
   const { colors, fonts: f } = useTheme();
   const [name, setName] = useState('');
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
-  const [audienceType, setAudienceType] = useState<'all' | 'tags'>('all');
+  const [audienceType, setAudienceType] = useState<
+    'all' | 'tags' | 'csv' | null
+  >(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
+  const [csvText, setCsvText] = useState('');
   const [excludeTagIds, setExcludeTagIds] = useState<string[]>([]);
   const [variables, setVariables] = useState<Record<string, VariableMapping>>(
     {}
   );
   const [sending, setSending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialog = useAppDialog();
 
   // Only APPROVED templates can be sent via Meta — anything else would
   // be rejected at the API, so they are not offered here.
@@ -103,55 +116,35 @@ export default function NewBroadcastScreen() {
     },
   });
 
-  // Recipient count, so nobody sends to a list of unknown size. Mirrors
-  // the server's resolution for the two audiences offered here; the
-  // server recounts on send, so this is a guide, not the contract.
-  const { data: recipientCount, isFetching: counting } = useQuery({
-    queryKey: ['broadcast-audience-count', audienceType, tagIds, excludeTagIds],
-    enabled: audienceType === 'all' || tagIds.length > 0,
-    queryFn: async () => {
-      let includedIds: string[] | null = null;
-      if (audienceType === 'tags') {
-        const { data } = await supabase
-          .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', tagIds);
-        includedIds = [
-          ...new Set(
-            (data ?? []).map((r: { contact_id: string }) => r.contact_id)
-          ),
-        ];
-        if (includedIds.length === 0) return 0;
-      }
-      let excludedIds: string[] = [];
-      if (excludeTagIds.length > 0) {
-        const { data } = await supabase
-          .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', excludeTagIds);
-        excludedIds = [
-          ...new Set(
-            (data ?? []).map((r: { contact_id: string }) => r.contact_id)
-          ),
-        ];
-      }
-      let query = supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true });
-      if (includedIds) query = query.in('id', includedIds);
-      const { count } = await query;
-      if (!count) return 0;
-      if (excludedIds.length === 0) return count;
-      // Exclusions overlap the included set, so subtract only the ones
-      // that are actually in it rather than the raw excluded total.
-      let overlapQuery = supabase
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .in('id', excludedIds);
-      if (includedIds) overlapQuery = overlapQuery.in('id', includedIds);
-      const { count: overlap } = await overlapQuery;
-      return Math.max(0, count - (overlap ?? 0));
-    },
+  const csvDraft = useMemo(() => readCsvAudience(csvText), [csvText]);
+
+  const audience = useMemo(() => {
+    if (audienceType === 'csv')
+      return buildCsvAudience(csvDraft, excludeTagIds);
+    return audienceType === 'all' ||
+      (audienceType === 'tags' && tagIds.length > 0)
+      ? buildAudience(audienceType, tagIds, excludeTagIds)
+      : null;
+  }, [audienceType, tagIds, excludeTagIds, csvDraft]);
+
+  const {
+    data: recipientCount,
+    isFetching: counting,
+    isError: countFailed,
+    refetch: recount,
+  } = useQuery({
+    queryKey: ['broadcast-audience-count', audience],
+    enabled: audience !== null,
+    queryFn: async () =>
+      (
+        await apiFetch<{ data: { count: number } }>(
+          '/api/broadcasts/audience-count',
+          {
+            method: 'POST',
+            body: JSON.stringify({ audience }),
+          }
+        )
+      ).data.count,
   });
 
   const variableKeys = useMemo(
@@ -178,23 +171,87 @@ export default function NewBroadcastScreen() {
   const ready =
     Boolean(template) &&
     name.trim().length > 0 &&
-    (audienceType === 'all' || tagIds.length > 0) &&
+    audience !== null &&
+    !counting &&
+    !countFailed &&
     mappingsComplete(variableKeys, variables) &&
     (recipientCount ?? 0) > 0;
 
-  async function send() {
-    if (!template || sending) return;
+  const recipientsLabel = contactsLabel(recipientCount ?? 0);
+
+  const latestDraft = useRef<BroadcastDraft<MessageTemplate> | null>(null);
+  useEffect(() => {
+    latestDraft.current = template
+      ? { name: name.trim(), template, audience, variables }
+      : null;
+  }, [name, template, audience, variables]);
+
+  async function confirmSend() {
+    if (!template || !audience) return;
+    haptic.tap();
+    const snapshot = {
+      name: name.trim(),
+      template,
+      audience,
+      variables,
+    };
+    setConfirming(true);
+    const outcome = recountOutcome(await recount());
+    setConfirming(false);
+    if (!latestDraft.current || draftChanged(snapshot, latestDraft.current)) {
+      dialog.show({
+        title: 'The broadcast changed',
+        message:
+          'You edited the broadcast while the audience was being counted. Nothing was sent. Check it and tap Send again.',
+      });
+      return;
+    }
+    if (outcome.kind === 'failed') {
+      dialog.show({
+        title: 'Could not count recipients',
+        message:
+          'Nothing was sent. Check your connection and try again, so you confirm the current number.',
+      });
+      return;
+    }
+    if (outcome.kind === 'empty') {
+      dialog.show({
+        title: 'Nobody to send to',
+        message:
+          'No contacts in this audience can receive this broadcast right now. Nothing was sent.',
+      });
+      return;
+    }
+    dialog.show({
+      title: 'Send this broadcast?',
+      message: `“${snapshot.name}” goes to ${outcome.label} now. Sending cannot be undone.`,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: dialog.close },
+        {
+          label: `Send to ${outcome.label}`,
+          variant: 'primary',
+          onPress: () => {
+            dialog.close();
+            void send(snapshot);
+          },
+        },
+      ],
+    });
+  }
+
+  async function send(payload: {
+    name: string;
+    template: MessageTemplate;
+    audience: NonNullable<typeof audience>;
+    variables: Record<string, VariableMapping>;
+  }) {
+    if (sending) return;
     setSending(true);
     setError(null);
     try {
       const res = await apiFetch<{ broadcastId: string }>('/api/broadcasts', {
         method: 'POST',
-        body: JSON.stringify({
-          name: name.trim(),
-          template,
-          audience: buildAudience(audienceType, tagIds, excludeTagIds),
-          variables,
-        }),
+        body: JSON.stringify(payload),
       });
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
@@ -328,7 +385,13 @@ export default function NewBroadcastScreen() {
                   text="Who receives it"
                   style={{ color: colors.textMuted }}
                 />
-                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: spacing.sm,
+                  }}
+                >
                   <FilterChip
                     label="All contacts"
                     active={audienceType === 'all'}
@@ -343,6 +406,14 @@ export default function NewBroadcastScreen() {
                     onPress={() => {
                       haptic.tap();
                       setAudienceType('tags');
+                    }}
+                  />
+                  <FilterChip
+                    label="CSV / pasted numbers"
+                    active={audienceType === 'csv'}
+                    onPress={() => {
+                      haptic.tap();
+                      setAudienceType('csv');
                     }}
                   />
                 </View>
@@ -363,6 +434,49 @@ export default function NewBroadcastScreen() {
                         onPress={() => toggle(tagIds, setTagIds, tag.id)}
                       />
                     ))}
+                  </View>
+                ) : null}
+
+                {audienceType === 'csv' ? (
+                  <View style={{ gap: spacing.sm }}>
+                    <TextInput
+                      value={csvText}
+                      onChangeText={setCsvText}
+                      multiline
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      accessibilityLabel="Paste phone numbers"
+                      placeholder={
+                        'One per line: phone, name (optional)\n9876543210, Asha\n+91 98765 43211'
+                      }
+                      placeholderTextColor={colors.textFaint}
+                      style={[
+                        styles.csvInput,
+                        {
+                          backgroundColor: colors.surface,
+                          borderColor: colors.border,
+                          color: colors.text,
+                          fontFamily: f.regular,
+                        },
+                      ]}
+                    />
+                    <Text
+                      accessibilityLiveRegion="polite"
+                      style={{ fontSize: 12, color: colors.textMuted }}
+                    >
+                      {`${csvDraft.contacts.length.toLocaleString('en-IN')} valid, ${csvDraft.skipped.toLocaleString('en-IN')} skipped`}
+                    </Text>
+                    {csvDraft.overCap ? (
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontFamily: f.semibold,
+                          color: colors.danger,
+                        }}
+                      >
+                        {`A list can hold up to ${MAX_CSV_CONTACTS.toLocaleString('en-IN')} numbers. Split it into smaller broadcasts.`}
+                      </Text>
+                    ) : null}
                   </View>
                 ) : null}
 
@@ -400,13 +514,39 @@ export default function NewBroadcastScreen() {
                     size={16}
                     color={colors.primary}
                   />
-                  <Text style={{ fontSize: 13, color: colors.text }}>
-                    {counting
-                      ? 'Counting recipients…'
+                  <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>
+                    {audienceType === null
+                      ? 'Choose who receives it'
                       : audienceType === 'tags' && tagIds.length === 0
                         ? 'Pick at least one tag'
-                        : `${recipientCount ?? 0} recipient${(recipientCount ?? 0) === 1 ? '' : 's'}`}
+                        : audienceType === 'csv' && audience === null
+                          ? csvDraft.overCap
+                            ? 'Too many numbers for one broadcast'
+                            : 'Paste at least one valid number'
+                          : counting
+                            ? 'Counting recipients…'
+                            : countFailed
+                              ? 'Couldn’t count the audience'
+                              : `${recipientCount ?? 0} recipient${(recipientCount ?? 0) === 1 ? '' : 's'}`}
                   </Text>
+                  {countFailed && !counting ? (
+                    <Pressable
+                      onPress={() => recount()}
+                      accessibilityRole="button"
+                      accessibilityLabel="Retry counting recipients"
+                      hitSlop={8}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontFamily: f.semibold,
+                          color: colors.primary,
+                        }}
+                      >
+                        Retry
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               </View>
 
@@ -515,11 +655,13 @@ export default function NewBroadcastScreen() {
                 label={
                   sending
                     ? 'Starting…'
-                    : `Send to ${recipientCount ?? 0} contact${(recipientCount ?? 0) === 1 ? '' : 's'}`
+                    : audience === null
+                      ? 'Choose an audience'
+                      : `Send to ${recipientsLabel}`
                 }
-                onPress={send}
-                disabled={!ready || sending}
-                busy={sending}
+                onPress={() => void confirmSend()}
+                disabled={!ready || sending || confirming}
+                busy={sending || confirming}
               />
               <Text
                 style={{
@@ -528,12 +670,13 @@ export default function NewBroadcastScreen() {
                   textAlign: 'center',
                 }}
               >
-                Sending starts immediately and cannot be undone.
+                You confirm the recipient count before anything is sent.
               </Text>
             </>
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
+      <AppDialog {...dialog.dialogProps} />
     </View>
   );
 }
@@ -558,5 +701,15 @@ const styles = StyleSheet.create({
     gap: 6,
     borderRadius: radius.md,
     padding: spacing.md,
+  },
+  csvInput: {
+    minHeight: 120,
+    maxHeight: 240,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    textAlignVertical: 'top',
   },
 });

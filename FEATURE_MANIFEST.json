@@ -4140,6 +4140,45 @@
           ]
         }
       ]
+    },
+    {
+      "id": "match-radar",
+      "name": "Match Radar — one-tap WhatsApp alerts for matched buyers and listings",
+      "surfaces": ["web", "mobile", "whatsapp"],
+      "invariants": [
+        {
+          "id": "RDR-001",
+          "rule": "A Match Radar event's alerts reach each recipient once, enforced by the server rather than the client. POST /api/radar/send claims the event with one conditional update before it sends anything; while that claim is live (6 minutes, longer than the route can run) another send of the same event is refused with 409 SEND_IN_PROGRESS and sends nothing. Each recipient is recorded on the event before its alert goes out and taken off again only when that send is known not to have reached Meta (refused before or by Meta); a failure after Meta accepted any part of the alert, or a request whose outcome is unknown, keeps the recipient recorded, so a run that dies mid-send can never be retried into a duplicate, and every later send of the event skips recorded recipients: a resubmit from a stale screen or a retry after a crashed batch reaches only recipients who do not have the alert yet, and is refused with 409 ALREADY_SENT when every selected recipient already has it (as is an event sent before recipients were recorded). Only the re-engagement Send again button, which asks to resend, delivers to a recipient twice. A send that delivered nothing releases the claim so the card can be retried, one that delivered anything marks the event sent, even when a later target threw, and sent_count adds to the total current when the claim was taken. Web and mobile show the refusal (\"This alert is already being sent.\" / \"This alert was already sent.\") from one shared mapping and refresh the feed instead of resending.",
+          "tests": [
+            {
+              "file": "src/app/api/radar/send/route.test.ts",
+              "case": "[RDR-001]"
+            },
+            {
+              "file": "src/lib/radar/send-claim.test.ts",
+              "case": "[RDR-001]"
+            },
+            {
+              "file": "src/lib/whatsapp/meta-api-dispatcher.test.ts",
+              "case": "[RDR-001]"
+            },
+            {
+              "file": "src/app/(dashboard)/radar/radar-content.test.tsx",
+              "case": "[RDR-001]"
+            },
+            {
+              "file": "mobile/lib/radar.test.ts",
+              "case": "[RDR-001]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261004140649_match_event_send_claim.sql",
+            "src/lib/radar/send-claim.ts",
+            "src/lib/radar/send-refusal.ts",
+            "mobile/app/(app)/radar.tsx"
+          ]
+        }
+      ]
     }
   ]
 }

@@ -7761,8 +7761,10 @@ export type Database = {
           kind: string;
           matches: Json;
           property_id: string | null;
+          send_claimed_at: string | null;
           sent_at: string | null;
           sent_count: number;
+          sent_target_ids: string[] | null;
           source: string;
           status: string;
           subject_snapshot: Json | null;
@@ -7776,8 +7778,10 @@ export type Database = {
           kind: string;
           matches?: Json;
           property_id?: string | null;
+          send_claimed_at?: string | null;
           sent_at?: string | null;
           sent_count?: number;
+          sent_target_ids?: string[] | null;
           source?: string;
           status?: string;
           subject_snapshot?: Json | null;
@@ -7791,8 +7795,10 @@ export type Database = {
           kind?: string;
           matches?: Json;
           property_id?: string | null;
+          send_claimed_at?: string | null;
           sent_at?: string | null;
           sent_count?: number;
+          sent_target_ids?: string[] | null;
           source?: string;
           status?: string;
           subject_snapshot?: Json | null;

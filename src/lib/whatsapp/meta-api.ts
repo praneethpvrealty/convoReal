@@ -62,6 +62,8 @@ interface MetaErrorResponse {
   };
 }
 
+export class MetaRequestRefusedError extends Error {}
+
 async function throwMetaError(
   response: Response,
   fallback: string
@@ -89,7 +91,7 @@ async function throwMetaError(
   } catch {
     // response body wasn't JSON — keep the fallback
   }
-  throw new Error(message);
+  throw new MetaRequestRefusedError(message);
 }
 
 // ============================================================
