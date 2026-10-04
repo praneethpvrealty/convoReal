@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { analyzeCall } from '@/lib/ai/call-analysis';
 import { uploadCallRecording } from '@/lib/storage/upload';
@@ -75,7 +76,10 @@ export async function POST(
 
     const feature = audioBase64 ? 'call_recording_analysis' : 'call_analysis';
     const cost = AI_FEATURE_COSTS[feature];
-    const burn = await burnCredits(ctx.accountId, feature, cost);
+    const burnKey = newBurnKey(feature);
+    const burn = await burnCredits(ctx.accountId, feature, cost, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -100,7 +104,7 @@ export async function POST(
         context: context || undefined,
       });
     } catch (apiErr) {
-      await refundCredits(ctx.accountId, feature, cost);
+      await refundBurn(ctx.accountId, feature, burnKey);
       console.error('[calls/analyze] Gemini call failed:', apiErr);
       return NextResponse.json(
         { error: 'Could not analyze that call. Please try again.' },

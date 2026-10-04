@@ -491,7 +491,8 @@ export function DealDocumentsPanel({
 
                 {doc.extraction_status === 'failed' && (
                   <p className="mt-2 text-xs text-rose-300">
-                    Could not read this one. Your credits were refunded.
+                    Could not read this one. Try again, or check your credit
+                    history to see whether credits were returned.
                   </p>
                 )}
 

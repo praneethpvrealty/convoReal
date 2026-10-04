@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **A failed AI call returns exactly the credits it took, and a refund that
+  fails is retried.** Ad copy, photo enhancement, listing descriptions,
+  greetings, event and call analysis, share emails, deal document reads,
+  guidance value lookups and e-Khata reads each refunded by feature and amount
+  before; each now reverses the charge it made, and a refund that still fails
+  is queued for the hourly retry instead of turning the route into an error.
+  Invariant CRD-003.
 - **A voice call that never connects, and a listing video that fails to
   render, are refunded exactly once, and a refund that fails is retried.** They
   used to be returned by feature and amount, which takes the most recent
