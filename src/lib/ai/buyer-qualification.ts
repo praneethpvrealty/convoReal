@@ -1615,9 +1615,6 @@ export async function processBuyerQualificationMessage(
         extracted = { ...extracted, areas: [resolvedLocation] };
       }
 
-      // The message added nothing the contact didn't already say — it's
-      // chatter ("ok", "call me"), not an answer. Don't file it as a
-      // requirement and don't answer it; the agent owns this thread.
       if (
         statesBudget(text) &&
         contact.pref_budget_anchor != null &&
@@ -1627,12 +1624,16 @@ export async function processBuyerQualificationMessage(
         await clearBudgetAnchor(db, accountId, contact.id);
       }
 
+      const restated = restatedAreas(text, extracted.areas, resolvedLocation);
+      if (restated) extracted = { ...extracted, areas: restated };
+
+      // The message added nothing the contact didn't already say — it's
+      // chatter ("ok", "call me"), not an answer. Don't file it as a
+      // requirement and don't answer it; the agent owns this thread.
       if (preferenceSignature(extracted) === preferenceSignature(prefs))
         return false;
 
       prefs = extracted;
-      const restated = restatedAreas(text, prefs.areas, resolvedLocation);
-      if (restated) prefs = { ...prefs, areas: restated };
 
       // The registry-governed fields go through the framework, which
       // applies them (they are 'auto' — the ladder reads them back on

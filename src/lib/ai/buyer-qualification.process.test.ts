@@ -185,6 +185,39 @@ describe('processBuyerQualificationMessage — free-text requirement updates', (
     });
   });
 
+  it('[INB-029] restates the named area even when the extraction matches the saved brief', async () => {
+    queues.contacts = [
+      contactRow({
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_areas: ['HSR', 'Horamavu'],
+      }),
+    ];
+    extractContactPreferences.mockResolvedValue({
+      ...fullPrefs,
+      areas: ['HSR', 'Horamavu'],
+    });
+
+    await processBuyerQualificationMessage(
+      'Commercial land near Horamavu',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: expect.arrayContaining([
+          { field: 'pref_areas', value: ['Horamavu'], replaces: true },
+        ]),
+      })
+    );
+  });
+
   it('[INB-029] leaves a budget with no enquiry anchor untouched', async () => {
     queues.contacts = [
       contactRow({
