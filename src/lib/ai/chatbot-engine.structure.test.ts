@@ -20,7 +20,7 @@ describe('chatbot-engine draft session access', () => {
   });
 });
 
-describe('an external listing session on the owner number', () => {
+describe('[INB-024] an external listing session on the owner number', () => {
   it('is handed to the external flow before the owner flow reads it as its own draft', () => {
     const ownerFlow = source.slice(
       source.indexOf('export async function processOwnerChatbotMessage('),
