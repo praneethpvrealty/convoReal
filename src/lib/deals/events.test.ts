@@ -9,6 +9,8 @@ import {
   PHASE_3_EVENT_TYPES,
   parseEventSource,
   parseNoteInput,
+  timelineActorLabel,
+  timelineSourceLabel,
 } from './events';
 
 const migration = readFileSync(
@@ -145,5 +147,49 @@ describe('every Transaction Workspace mutation refuses read-only members', () =>
       expect(body, handler).toContain("requireWriteRole('agent')");
       expect(body, handler).not.toContain("requireRole('agent')");
     }
+  });
+});
+
+describe('[TXW-032] the timeline names a member, a replying stakeholder, or System', () => {
+  const base = {
+    actor_id: null,
+    actor_name: null,
+    event_type: 'created' as const,
+    source: 'system' as const,
+  };
+
+  it('names the member who made the change', () => {
+    expect(
+      timelineActorLabel({
+        ...base,
+        actor_id: 'u1',
+        actor_name: 'Praneeth',
+        source: 'web',
+      })
+    ).toBe('Praneeth');
+  });
+
+  it('calls a memberless system entry System, whatever free text it stored', () => {
+    expect(
+      timelineActorLabel({ ...base, actor_name: 'Claude (for Praneeth)' })
+    ).toBe('System');
+    expect(timelineActorLabel(base)).toBe('System');
+  });
+
+  it('keeps the stakeholder who acknowledged an update over WhatsApp', () => {
+    expect(
+      timelineActorLabel({
+        ...base,
+        event_type: 'update_acknowledged',
+        actor_name: 'Ramesh',
+      })
+    ).toBe('Ramesh');
+  });
+
+  it('adds a source suffix only for mobile and API entries', () => {
+    expect(timelineSourceLabel({ source: 'system' })).toBeNull();
+    expect(timelineSourceLabel({ source: 'web' })).toBeNull();
+    expect(timelineSourceLabel({ source: 'mobile' })).toBe('mobile');
+    expect(timelineSourceLabel({ source: 'api' })).toBe('api');
   });
 });
