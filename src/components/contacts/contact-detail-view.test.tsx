@@ -1,11 +1,18 @@
 // @vitest-environment happy-dom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const tables = vi.hoisted(() => ({
   reads: [] as string[],
+  searches: [] as Array<{ table: string; ors: string[]; limit?: number }>,
   rows: {} as Record<string, unknown>,
 }));
 
@@ -24,18 +31,33 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     from: (table: string) => {
       tables.reads.push(table);
-      const finish = (single: boolean) =>
-        Promise.resolve({
+      const search: { table: string; ors: string[]; limit?: number } = {
+        table,
+        ors: [],
+      };
+      const finish = (single: boolean) => {
+        if (search.ors.length > 0) tables.searches.push(search);
+        return Promise.resolve({
           data: single
             ? ((tables.rows[table] as unknown[] | undefined)?.[0] ?? null)
             : (tables.rows[table] ?? []),
           error: null,
         });
+      };
       const chain = {
         select: () => chain,
         order: () => chain,
         eq: () => chain,
+        neq: () => chain,
         in: () => chain,
+        or: (expression: string) => {
+          search.ors.push(expression);
+          return chain;
+        },
+        limit: (count: number) => {
+          search.limit = count;
+          return chain;
+        },
         single: () => finish(true),
         maybeSingle: () => finish(true),
         then: (
@@ -132,7 +154,64 @@ describe('ContactDetailView', () => {
     cleanup();
     vi.unstubAllGlobals();
     tables.reads = [];
+    tables.searches = [];
     tables.rows = {};
+  });
+
+  it('searches referrer suggestions on the server only once the field is used', async () => {
+    tables.rows = {
+      contacts: [
+        {
+          id: 'c1',
+          name: 'Meera Buyer',
+          phone: '+919800000000',
+          classification: 'Buyer',
+          secondary_phones: [],
+        },
+        {
+          id: 'c2',
+          name: 'Ravi',
+          second_name: 'Kumar',
+          phone: '+919800000002',
+          classification: 'Agent',
+        },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ calls: [] }),
+        })
+      )
+    );
+
+    renderView();
+
+    const input = await screen.findByPlaceholderText(
+      'Search existing contact or type a name...'
+    );
+    await waitFor(() => expect(tables.reads).toContain('contact_notes'));
+    expect(tables.searches).toEqual([]);
+
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: 'ravi' } });
+
+    expect(await screen.findByText('Ravi Kumar')).toBeTruthy();
+    expect(tables.searches).toEqual([
+      {
+        table: 'contacts',
+        ors: [
+          'name.ilike."%ravi%",second_name.ilike."%ravi%",phone.ilike."%ravi%"',
+        ],
+        limit: 5,
+      },
+    ]);
+
+    fireEvent.change(input, { target: { value: 'ravi k' } });
+    expect(screen.queryByText('Ravi Kumar')).toBeNull();
+    expect(await screen.findByText('Ravi Kumar')).toBeTruthy();
   });
 
   it('renders the contact once the detail bundle has loaded', async () => {

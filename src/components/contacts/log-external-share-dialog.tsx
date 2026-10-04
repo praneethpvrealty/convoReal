@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Property } from '@/types';
+import type { Contact } from '@/types';
+import type { PickerProperty } from '@/lib/contacts/detail-queries';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { storagePublicUrl } from '@/lib/storage/url';
 import {
@@ -28,7 +29,7 @@ interface LogExternalShareDialogProps {
   contactName: string;
   contactPhone: string;
   contactClassification?: Contact['classification'] | null;
-  properties: Property[];
+  properties: PickerProperty[];
   onSaved?: () => void;
 }
 

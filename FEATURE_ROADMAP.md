@@ -190,6 +190,14 @@ _A party is several people on one requirement — a couple buying together, or t
 
 ---
 
+### Deferred: the referrer picker on mobile
+
+_On web, a contact's Reference field suggests existing contacts as you type and links the one you pick (`referrer_contact_id`), through a bounded server-side search (`searchReferrerCandidates` in `src/lib/contacts/detail-queries.ts`). Mobile edits Reference as free text only, so a referrer typed there never links to a contact._
+
+- [ ] **Referrer suggestions on mobile (§2.8)**: the mobile contact edit (`mobile/app/(app)/contact/[id].tsx`) needs the same search (account-scoped, name, second name or phone, current contact excluded, five results in name order) and to write `referrer_contact_id` on pick, the way `referrerFields` already clears it when the text changes.
+
+---
+
 ### Transaction Workspace: Phases 1–5 shipped
 
 _The closing record for a deal — see `docs/transaction-workspace.md` for the decisions and `FEATURE_MANIFEST.json` → `transaction-workspace` for the invariants. Built as a consolidation of `deals` and Journey rather than a fifth deal abstraction; product name Transaction Workspace, identifiers stay `deal_*`._

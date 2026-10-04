@@ -16,12 +16,19 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2, Star, Unlink, UsersRound } from 'lucide-react';
 import { toast } from 'sonner';
 
-import type { Contact, ContactPartySummary, PartyKind } from '@/types';
+import type { ContactPartySummary, PartyKind } from '@/types';
 import type { PartySuggestion } from '@/lib/contacts/party-suggestions';
 import { contactFullName } from '@/lib/contacts/full-name';
+import {
+  loadPartyCandidates,
+  type PartyCandidate,
+} from '@/lib/contacts/detail-queries';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { SearchableContactSelect } from '@/components/ui/searchable-contact-select';
 import {
@@ -47,15 +54,21 @@ const KIND_LABELS: Record<PartyKind, string> = {
   partners: 'Partners',
 };
 
+const NO_CANDIDATES: PartyCandidate[] = [];
+
 interface PartyPanelProps {
   contactId: string;
-  /** The book, for picking who to link. The contact themselves and
-   *  anyone already linked are filtered out. */
-  contacts: Contact[];
   canEdit: boolean;
 }
 
-export function PartyPanel({ contactId, contacts, canEdit }: PartyPanelProps) {
+export function PartyPanel({ contactId, canEdit }: PartyPanelProps) {
+  const { accountId } = useAuth();
+  const candidatesQuery = useQuery({
+    queryKey: ['contacts', 'party-candidates', accountId],
+    queryFn: () => loadPartyCandidates(createClient(), accountId!),
+    enabled: canEdit && Boolean(accountId),
+  });
+  const contacts = candidatesQuery.data ?? NO_CANDIDATES;
   const [party, setParty] = useState<ContactPartySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
