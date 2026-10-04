@@ -441,7 +441,7 @@ function isNegated(text: string, keyword: string): boolean {
  */
 export function isEnquiryBudgetAnchor(
   budgetMax: number | null,
-  anchor: number | string | null | undefined
+  anchor: number | null | undefined
 ): boolean {
   if (budgetMax === null || anchor == null) return false;
   const seeded = Number(anchor);

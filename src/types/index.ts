@@ -276,7 +276,7 @@ export interface Contact {
    *  enquired listing's price (migration 20261004131500). While
    *  pref_budget_max still equals it, matching reads it as a ceiling
    *  with no implied floor. */
-  pref_budget_anchor?: number | string | null;
+  pref_budget_anchor?: number | null;
   contact_notes?: { note_text: string }[] | null;
   /** Listing types of the properties this contact actually enquired
    *  about, hydrated by attachInquiredListingTypes (not a column).
