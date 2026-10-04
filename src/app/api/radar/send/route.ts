@@ -239,9 +239,7 @@ export async function POST(request: NextRequest) {
       : targetIds.filter((id) => !alreadyDelivered.has(id));
     let claimHeld = true;
     let sentNow = 0;
-    const recordDelivered = async (id: string) => {
-      sentNow += 1;
-      if (!alreadyDelivered.has(id)) delivered.push(id);
+    const persistDelivered = async () => {
       claimHeld = await recordRadarSendProgress(
         db,
         ctx.accountId,
@@ -249,6 +247,26 @@ export async function POST(request: NextRequest) {
         claim.claimedAt,
         delivered
       );
+      return claimHeld;
+    };
+    // A target is recorded before its alert goes out, so a run that dies
+    // mid-send can never be retried into a duplicate. Only a send that
+    // definitely did not go out is taken back off the list.
+    const reserve = async (id: string) => {
+      if (alreadyDelivered.has(id)) return claimHeld;
+      delivered.push(id);
+      if (await persistDelivered()) return true;
+      delivered.splice(delivered.indexOf(id), 1);
+      return false;
+    };
+    const settle = async (id: string, status: string) => {
+      if (status === 'sent') {
+        sentNow += 1;
+        return;
+      }
+      if (alreadyDelivered.has(id)) return;
+      delivered.splice(delivered.indexOf(id), 1);
+      await persistDelivered();
     };
 
     try {
@@ -466,14 +484,14 @@ export async function POST(request: NextRequest) {
         );
 
         for (const contactId of targets) {
-          if (!claimHeld) break;
+          if (!claimHeld || !(await reserve(contactId))) break;
           const outcome = await sendAlert(
             contactId,
             nameById.get(contactId) ?? null,
             typedProperty
           );
           results.push({ id: contactId, ...outcome });
-          if (outcome.status === 'sent') await recordDelivered(contactId);
+          await settle(contactId, outcome.status);
         }
       } else {
         // buyer_updated: send each selected property to the event's contact
@@ -499,14 +517,14 @@ export async function POST(request: NextRequest) {
         ]);
 
         for (const property of (properties || []) as Property[]) {
-          if (!claimHeld) break;
+          if (!claimHeld || !(await reserve(property.id))) break;
           const outcome = await sendAlert(
             typedEvent.contact_id,
             (contactRow?.name as string | null) ?? null,
             property
           );
           results.push({ id: property.id, ...outcome });
-          if (outcome.status === 'sent') await recordDelivered(property.id);
+          await settle(property.id, outcome.status);
         }
       }
 
@@ -533,7 +551,7 @@ export async function POST(request: NextRequest) {
       await finishRadarSend(
         db,
         ctx.accountId,
-        typedEvent,
+        { ...typedEvent, sent_count: claim.sentCount },
         claim.claimedAt,
         delivered,
         sentNow

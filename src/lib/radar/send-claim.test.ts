@@ -56,8 +56,23 @@ describe('claimRadarSend', () => {
       ok: true,
       claimedAt: now.toISOString(),
       deliveredIds: ['contact-1'],
+      sentCount: 0,
     });
     expect(row.send_claimed_at).toBe(now.toISOString());
+  });
+
+  it('[RDR-001] returns the sent count current at the claim, not the one read earlier', async () => {
+    const { row, db, snapshot } = setup();
+    const stale = snapshot();
+    Object.assign(row, {
+      status: 'sent',
+      sent_count: 1,
+      sent_target_ids: ['contact-1'],
+    });
+
+    expect(await claimRadarSend(db, 'account-1', stale, { now })).toMatchObject(
+      { ok: true, sentCount: 1 }
+    );
   });
 
   it('[RDR-001] loses the race when another send claimed the event after it was read', async () => {
@@ -80,6 +95,7 @@ describe('claimRadarSend', () => {
       ok: true,
       claimedAt: now.toISOString(),
       deliveredIds: ['contact-1'],
+      sentCount: 0,
     });
   });
 
@@ -109,6 +125,7 @@ describe('claimRadarSend', () => {
       ok: true,
       claimedAt: now.toISOString(),
       deliveredIds: ['contact-1'],
+      sentCount: 0,
     });
     expect(row.sent_target_ids).toEqual(['contact-1']);
   });

@@ -10,7 +10,7 @@ type ClaimableEvent = Pick<
 >;
 
 export type RadarSendClaim =
-  | { ok: true; claimedAt: string; deliveredIds: string[] }
+  | { ok: true; claimedAt: string; deliveredIds: string[]; sentCount: number }
   | { ok: false; code: RadarSendRefusalCode };
 
 export function isLiveRadarSendClaim(
@@ -60,7 +60,7 @@ export async function claimRadarSend(
       ? claim.eq('send_claimed_at', prior)
       : claim.is('send_claimed_at', null)
   )
-    .select('status, sent_target_ids')
+    .select('status, sent_target_ids, sent_count')
     .maybeSingle();
   if (error) throw error;
 
@@ -79,7 +79,10 @@ export async function claimRadarSend(
     };
   }
 
-  const claimed = data as Pick<MatchEvent, 'status' | 'sent_target_ids'>;
+  const claimed = data as Pick<
+    MatchEvent,
+    'status' | 'sent_target_ids' | 'sent_count'
+  >;
   if (refusalFor({ ...claimed, send_claimed_at: null }, resend, now)) {
     await db
       .from('match_events')
@@ -94,6 +97,7 @@ export async function claimRadarSend(
     ok: true,
     claimedAt,
     deliveredIds: [...(claimed.sent_target_ids ?? [])],
+    sentCount: claimed.sent_count ?? 0,
   };
 }
 

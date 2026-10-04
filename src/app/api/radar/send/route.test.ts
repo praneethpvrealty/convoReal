@@ -297,14 +297,36 @@ describe('POST /api/radar/send claim', () => {
     expect(eventRow.status).toBe('sent');
   });
 
-  it('[RDR-001] releases the claim when the send throws before anything was delivered', async () => {
+  it('[RDR-001] records each recipient before its alert goes out', async () => {
+    const seen: unknown[] = [];
+    sendWhatsAppMessageAndPersist.mockImplementation(async () => {
+      seen.push([...((eventRow.sent_target_ids as string[]) ?? [])]);
+      return { success: true };
+    });
+    await POST(
+      request({ eventId: 'event-1', targetIds: ['matched-1', 'matched-2'] })
+    );
+
+    expect(seen).toEqual([['matched-1'], ['matched-1', 'matched-2']]);
+  });
+
+  it('[RDR-001] never resends to a recipient whose send died mid-flight', async () => {
     sendWhatsAppMessageAndPersist.mockRejectedValueOnce(new Error('boom'));
     const response = await POST(
       request({ eventId: 'event-1', targetIds: ['matched-1'] })
     );
 
     expect(response.status).toBe(500);
-    expect(eventRow).toMatchObject({ status: 'new', send_claimed_at: null });
+    expect(eventRow).toMatchObject({
+      send_claimed_at: null,
+      sent_target_ids: ['matched-1'],
+    });
+    sendWhatsAppMessageAndPersist.mockClear();
+    const retry = await POST(
+      request({ eventId: 'event-1', targetIds: ['matched-1'] })
+    );
+    expect(retry.status).toBe(409);
+    expect(recipients()).toEqual([]);
   });
 
   it('[RDR-001] keeps what was delivered when a later target throws', async () => {
@@ -318,9 +340,23 @@ describe('POST /api/radar/send claim', () => {
     expect(response.status).toBe(500);
     expect(eventRow).toMatchObject({
       status: 'sent',
+      sent_count: 1,
       send_claimed_at: null,
+      sent_target_ids: ['matched-1', 'matched-2'],
+    });
+  });
+
+  it('[RDR-001] counts on from the total current at the claim', async () => {
+    Object.assign(eventRow, {
+      status: 'sent',
+      sent_count: 2,
       sent_target_ids: ['matched-1'],
     });
+    await POST(
+      request({ eventId: 'event-1', targetIds: ['matched-1', 'matched-2'] })
+    );
+
+    expect(eventRow).toMatchObject({ sent_count: 3 });
   });
 
   it('[RDR-001] skips recipients who already have the alert when a stale claim is retried', async () => {
