@@ -86,3 +86,24 @@ describe('AdsPage Meta connection state', () => {
     expect(screen.queryByRole('link', { name: 'Reconnect Meta' })).toBeNull();
   });
 });
+
+describe('AdsPage loading state', () => {
+  it('[PRP-038] shows the campaigns table shape while loading, not a splash', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})));
+    const { default: AdsPage } = await import('./ads-content');
+    render(<AdsPage />);
+    const skeleton = screen.getByRole('status', {
+      name: 'Loading ad campaigns',
+    });
+    expect(skeleton.getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByText('Property')).toBeTruthy();
+    expect(screen.getByText('Cost/lead')).toBeTruthy();
+    expect(screen.queryByText(/Loading ad campaigns\.\.\./)).toBeNull();
+  });
+
+  it('[PRP-038] swaps the skeleton for the rows once campaigns arrive', async () => {
+    mockCampaigns('connected');
+    await renderAds();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+});

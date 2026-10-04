@@ -8,7 +8,8 @@ export interface LauncherPlacement {
 export const LAUNCHER_EDGE_PX = 16;
 export const LAUNCHER_HEIGHT_PX = 48;
 export const LAUNCHER_STORAGE_KEY = 'copilot-launcher-placement';
-const MIN_BOTTOM_PX = 16;
+export const HELP_CONTROL_CLEARANCE_PX = 64;
+const MIN_BOTTOM_PX = HELP_CONTROL_CLEARANCE_PX;
 const TOP_CLEARANCE_PX = 80;
 const DRAG_THRESHOLD_PX = 6;
 const NUDGE_GAP_PX = 16;

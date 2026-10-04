@@ -1705,6 +1705,17 @@
             }
           ],
           "guards": ["src/app/globals.css", "mobile/lib/theme.ts"]
+        },
+        {
+          "id": "PRP-038",
+          "rule": "While the Ads page loads it shows the campaigns table shape (the real header and placeholder rows marked busy), never a full-page splash, so the layout does not jump when campaigns arrive.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/ads/ads-content.test.tsx",
+              "case": "[PRP-038]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/ads/ads-content.tsx"]
         }
       ]
     },
@@ -3673,6 +3684,21 @@
             },
             { "file": "mobile/lib/copilot-fab.test.ts", "case": "[CPL-001]" }
           ]
+        },
+        {
+          "id": "CPL-002",
+          "rule": "The floating AI Assistant launcher and the Help & feedback control never overlap: the launcher collapses to an icon once the main content scrolls, and a dragged launcher is clamped to rest at least 64px from the bottom, above the Help control.",
+          "tests": [
+            {
+              "file": "src/lib/copilot/launcher-placement.test.ts",
+              "case": "[CPL-002]"
+            },
+            {
+              "file": "src/components/copilot/copilot-widget.test.tsx",
+              "case": "collapses to an icon-only button"
+            }
+          ],
+          "guards": ["src/lib/copilot/launcher-placement.ts"]
         }
       ]
     },
