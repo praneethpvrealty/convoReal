@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Redis from 'ioredis';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   getCurrentAccount,
   requireRole,
@@ -16,6 +17,28 @@ import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { isNarrationLanguage } from '@/lib/video/listing-video';
 
 const TEXT_MAX = 1200;
+
+async function failUnqueuedAnnouncement(
+  supabase: SupabaseClient,
+  accountId: string,
+  announcementId: string
+): Promise<'failed' | 'taken' | 'unknown'> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await supabase
+      .from('voice_announcements')
+      .update({ status: 'failed', error: 'Could not be queued' })
+      .eq('id', announcementId)
+      .eq('account_id', accountId)
+      .eq('status', 'generating')
+      .select('id');
+    if (!error) return data?.length ? 'failed' : 'taken';
+    await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** attempt));
+  }
+  console.error(
+    `[announcements] Announcement ${announcementId} for account ${accountId} could not be marked failed after its job was not queued; reconcile manually`
+  );
+  return 'unknown';
+}
 
 // GET /api/announcements — the account's audio announcements
 export async function GET() {
@@ -135,15 +158,16 @@ export async function POST(request: NextRequest) {
         })
       );
     } catch (err) {
-      await refundBurn(ctx.accountId, 'audio_announcement', burnKey, {
-        reason: 'audio_announcement could not be queued',
-      });
-      await ctx.supabase
-        .from('voice_announcements')
-        .update({ status: 'failed', error: 'Could not be queued' })
-        .eq('id', announcement.id)
-        .eq('account_id', ctx.accountId)
-        .select('id');
+      const outcome = await failUnqueuedAnnouncement(
+        ctx.supabase,
+        ctx.accountId,
+        announcement.id
+      );
+      if (outcome !== 'taken') {
+        await refundBurn(ctx.accountId, 'audio_announcement', burnKey, {
+          reason: 'audio_announcement could not be queued',
+        });
+      }
       throw err;
     } finally {
       redis.disconnect();

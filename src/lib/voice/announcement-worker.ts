@@ -182,7 +182,7 @@ export async function processAnnouncementAudioJob(
     );
     return;
   }
-  if (announcement.status === 'ready') return;
+  if (announcement.status !== 'generating') return;
 
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'announcement-'));
   try {
@@ -273,6 +273,7 @@ export async function processAnnouncementAudioJob(
         error: null,
       })
       .eq('id', announcement.id)
+      .eq('status', 'generating')
       .select('id');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

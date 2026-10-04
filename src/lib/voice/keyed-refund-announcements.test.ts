@@ -1,9 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   routeUpdates: [] as Record<string, unknown>[],
+  cancelQueue: [] as Array<{
+    data: unknown[] | null;
+    error: { message: string } | null;
+  }>,
+  cancelResult: { data: [{ id: 'ann-1' }], error: null } as {
+    data: unknown[] | null;
+    error: { message: string } | null;
+  },
   burnCredits: vi.fn(),
   refundBurn: vi.fn(),
   refundCredits: vi.fn(),
@@ -64,7 +72,10 @@ vi.mock('@/lib/auth/account', () => ({
       from: () => ({
         update: (patch: Record<string, unknown>) => {
           h.routeUpdates.push(patch);
-          const chain = { eq: () => chain, select: async () => ({ data: [] }) };
+          const chain = {
+            eq: () => chain,
+            select: async () => h.cancelQueue.shift() ?? h.cancelResult,
+          };
           return chain;
         },
         insert: (row: Record<string, unknown>) => {
@@ -125,7 +136,7 @@ const announcement = {
   title: 'Open house',
   body_text: 'Join us on Sunday',
   language: 'en-IN',
-  status: 'pending',
+  status: 'generating',
 };
 
 const post = () =>
@@ -140,6 +151,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.updates.length = 0;
   h.routeUpdates.length = 0;
+  h.cancelResult = { data: [{ id: 'ann-1' }], error: null };
+  h.cancelQueue = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockRejectedValue(new Error('network disabled in tests'))
+  );
   h.rpush.mockResolvedValue(1);
   h.insertFails = false;
   h.announcementRow.current = null;
@@ -151,6 +168,11 @@ beforeEach(() => {
   h.refundBurn.mockResolvedValue({ status: 'refunded', refunded: 100 });
   h.refundCredits.mockResolvedValue({ success: true, balanceAfter: 100 });
   process.env.REDIS_URL = 'redis://localhost:6379';
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('an announcement render that fails [CRD-005]', () => {
@@ -185,6 +207,26 @@ describe('an announcement render that fails [CRD-005]', () => {
       'audio_announcement',
       AI_FEATURE_COSTS.audio_announcement,
       { description: 'audio_announcement generation refund (ann-1)' }
+    );
+  });
+
+  it('skips a row that is no longer generating, so a job that was queued after all cannot render a cancelled announcement', async () => {
+    h.announcementRow.current = {
+      ...announcement,
+      status: 'failed',
+      burn_key: 'audio_announcement:key-1',
+    };
+
+    await processAnnouncementAudioJob(job);
+
+    expect(h.updates).toHaveLength(0);
+    expect(h.refundBurn).not.toHaveBeenCalled();
+    expect(h.refundCredits).not.toHaveBeenCalled();
+  });
+
+  it('only marks a row ready while it is still generating', () => {
+    expect(read('src/lib/voice/announcement-worker.ts')).toMatch(
+      /status: 'ready',[\s\S]*?\.eq\('status', 'generating'\)/
     );
   });
 
@@ -250,6 +292,42 @@ describe('creating an announcement [CRD-005]', () => {
     expect(h.routeUpdates).toEqual([
       { status: 'failed', error: 'Could not be queued' },
     ]);
+  });
+
+  it('leaves the refund to the worker when the job was taken after all', async () => {
+    h.rpush.mockRejectedValue(new Error('reply lost'));
+    h.cancelResult = { data: [], error: null };
+
+    const res = await post();
+
+    expect(res.status).toBe(500);
+    expect(h.refundBurn).not.toHaveBeenCalled();
+  });
+
+  it('retries a failed status update and refunds once the row is failed', async () => {
+    h.rpush.mockRejectedValue(new Error('redis down'));
+    h.cancelQueue = [
+      { data: null, error: { message: 'db blip' } },
+      { data: null, error: { message: 'db blip' } },
+    ];
+
+    const res = await post();
+
+    expect(res.status).toBe(500);
+    expect(h.routeUpdates).toHaveLength(3);
+    expect(h.refundBurn).toHaveBeenCalledTimes(1);
+  });
+
+  it('refunds and says to reconcile when the status update keeps failing', async () => {
+    h.rpush.mockRejectedValue(new Error('redis down'));
+    h.cancelResult = { data: null, error: { message: 'db down' } };
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const res = await post();
+
+    expect(res.status).toBe(500);
+    expect(h.refundBurn).toHaveBeenCalledTimes(1);
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining('reconcile'));
   });
 
   it('refunds nothing when the burn was refused', async () => {
