@@ -97,7 +97,14 @@ async function publishPendingMobileUpdates(github, core, owner, repo, dryRun) {
     if (!issue.pull_request) continue;
     if (dryRun) {
       core.info(`#${issue.number}: mobile update still to publish`);
-    } else if (issue.pull_request.merged_at) {
+      continue;
+    }
+    const { data: pull } = await github.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: issue.number,
+    });
+    if (pull.merged) {
       await publishMobileUpdate(github, core, owner, repo, issue.number);
     } else {
       await github.rest.issues.removeLabel({

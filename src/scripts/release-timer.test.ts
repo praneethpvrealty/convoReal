@@ -160,10 +160,7 @@ function fakeGithub({
   behindAtMerge = behindBy,
   threadPages = [[]] as boolean[][],
   releaseFiles = [] as { filename: string; previous_filename?: string }[],
-  pendingUpdates = [] as {
-    number: number;
-    pull_request?: { merged_at: string | null };
-  }[],
+  pendingUpdates = [] as { number: number; merged: boolean }[],
 }: {
   pulls: Pull[];
   created?: string;
@@ -179,10 +176,7 @@ function fakeGithub({
   behindAtMerge?: number;
   threadPages?: boolean[][];
   releaseFiles?: { filename: string; previous_filename?: string }[];
-  pendingUpdates?: {
-    number: number;
-    pull_request?: { merged_at: string | null };
-  }[];
+  pendingUpdates?: { number: number; merged: boolean }[];
 }) {
   const listBranches = vi.fn();
   const listFiles = vi.fn();
@@ -208,7 +202,11 @@ function fakeGithub({
       }
       if (method === listComments) return [];
       if (method === listFiles) return releaseFiles;
-      if (method === listForRepo) return pendingUpdates;
+      if (method === listForRepo)
+        return pendingUpdates.map(({ number }) => ({
+          number,
+          pull_request: { url: `https://api.github.com/pulls/${number}` },
+        }));
       return pulls.filter(
         (pull) =>
           (params.state === 'all' || pull.state === params.state) &&
@@ -242,7 +240,14 @@ function fakeGithub({
     },
     pulls: {
       list: pullsList,
-      get: vi.fn(async () => ({ data: { mergeable } })),
+      get: vi.fn(async ({ pull_number }: { pull_number: number }) => ({
+        data: {
+          mergeable,
+          merged:
+            pendingUpdates.find((pending) => pending.number === pull_number)
+              ?.merged ?? false,
+        },
+      })),
       create: vi.fn(async () => ({ data: { number: 50 } })),
       merge: vi.fn(async () => ({ data: { sha: 'merged' } })),
       listFiles,
@@ -524,9 +529,7 @@ describe('run', () => {
   it('publishes a mobile update a merged release still owes on the next run', async () => {
     const { github, rest } = fakeGithub({
       pulls: [],
-      pendingUpdates: [
-        { number: 49, pull_request: { merged_at: minutesAgo(20) } },
-      ],
+      pendingUpdates: [{ number: 49, merged: true }],
     });
 
     await run({ github, context, core, now: NOW });
@@ -537,6 +540,11 @@ describe('run', () => {
       state: 'closed',
       labels: MOBILE_UPDATE_PENDING_LABEL,
       per_page: 100,
+    });
+    expect(rest.pulls.get).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      pull_number: 49,
     });
     expect(rest.actions.createWorkflowDispatch).toHaveBeenCalledWith({
       owner: 'owner',
@@ -553,7 +561,7 @@ describe('run', () => {
   it('drops the mark from a release closed without merging, and only reports on a dry run', async () => {
     const closed = fakeGithub({
       pulls: [],
-      pendingUpdates: [{ number: 48, pull_request: { merged_at: null } }],
+      pendingUpdates: [{ number: 48, merged: false }],
     });
     await run({ github: closed.github, context, core, now: NOW });
     expect(closed.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
@@ -563,9 +571,7 @@ describe('run', () => {
 
     const dry = fakeGithub({
       pulls: [],
-      pendingUpdates: [
-        { number: 49, pull_request: { merged_at: minutesAgo(20) } },
-      ],
+      pendingUpdates: [{ number: 49, merged: true }],
     });
     await run({ github: dry.github, context, core, dryRun: true, now: NOW });
     expect(dry.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
