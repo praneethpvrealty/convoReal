@@ -3838,6 +3838,28 @@
             }
           ],
           "guards": ["src/lib/copilot/launcher-placement.ts"]
+        },
+        {
+          "id": "CPL-003",
+          "rule": "A staff question asking which contacts are looking for an area, property type, BHK or budget is answered from the account's own contact rows: a bounded list of matching contacts, each a link that opens that contact's card on web and mobile, plus a link to the filtered Contacts list, with no phone numbers in the answer, no tour offered in its place, and never served from or stored in the shared answer cache.",
+          "tests": [
+            {
+              "file": "src/lib/copilot/contact-search.test.ts",
+              "case": "[CPL-003]"
+            },
+            {
+              "file": "src/lib/copilot/engine.contact-search.test.ts",
+              "case": "[CPL-003]"
+            },
+            {
+              "file": "src/lib/copilot/contact-search-query.test.ts",
+              "case": "[CPL-003]"
+            },
+            { "file": "mobile/lib/copilot.test.ts", "case": "[CPL-003]" }
+          ],
+          "guards": [
+            "supabase/migrations/20261004125900_copilot_find_contacts.sql"
+          ]
         }
       ]
     },
