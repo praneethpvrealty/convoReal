@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   routeUpdates: [] as Record<string, unknown>[],
+  routeRead: { data: null, error: null } as {
+    data: { status: string; error: string | null } | null;
+    error: { message: string } | null;
+  },
   cancelQueue: [] as Array<{
     data: unknown[] | null;
     error: { message: string } | null;
@@ -70,6 +74,13 @@ vi.mock('@/lib/auth/account', () => ({
     userId: 'user-1',
     supabase: {
       from: () => ({
+        select: () => {
+          const chain = {
+            eq: () => chain,
+            maybeSingle: async () => h.routeRead,
+          };
+          return chain;
+        },
         update: (patch: Record<string, unknown>) => {
           h.routeUpdates.push(patch);
           const chain = {
@@ -153,6 +164,7 @@ beforeEach(() => {
   h.routeUpdates.length = 0;
   h.cancelResult = { data: [{ id: 'ann-1' }], error: null };
   h.cancelQueue = [];
+  h.routeRead = { data: { status: 'ready', error: null }, error: null };
   vi.stubGlobal(
     'fetch',
     vi.fn().mockRejectedValue(new Error('network disabled in tests'))
@@ -292,6 +304,36 @@ describe('creating an announcement [CRD-005]', () => {
     expect(h.routeUpdates).toEqual([
       { status: 'failed', error: 'Could not be queued' },
     ]);
+  });
+
+  it('refunds when an earlier attempt of its own cancellation committed and only the reply was lost', async () => {
+    h.rpush.mockRejectedValue(new Error('redis down'));
+    h.cancelQueue = [
+      { data: null, error: { message: 'reply lost' } },
+      { data: [], error: null },
+    ];
+    h.routeRead = {
+      data: { status: 'failed', error: 'Could not be queued' },
+      error: null,
+    };
+
+    const res = await post();
+
+    expect(res.status).toBe(500);
+    expect(h.refundBurn).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not refund a row the worker already failed or finished', async () => {
+    h.rpush.mockRejectedValue(new Error('redis down'));
+    h.cancelResult = { data: [], error: null };
+    h.routeRead = {
+      data: { status: 'failed', error: 'Storage upload failed' },
+      error: null,
+    };
+
+    await post();
+
+    expect(h.refundBurn).not.toHaveBeenCalled();
   });
 
   it('leaves the refund to the worker when the job was taken after all', async () => {

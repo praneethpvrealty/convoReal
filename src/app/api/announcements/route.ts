@@ -18,6 +18,8 @@ import { isNarrationLanguage } from '@/lib/video/listing-video';
 
 const TEXT_MAX = 1200;
 
+const UNQUEUED_ERROR = 'Could not be queued';
+
 async function failUnqueuedAnnouncement(
   supabase: SupabaseClient,
   accountId: string,
@@ -27,12 +29,25 @@ async function failUnqueuedAnnouncement(
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data, error } = await supabase
       .from('voice_announcements')
-      .update({ status: 'failed', error: 'Could not be queued' })
+      .update({ status: 'failed', error: UNQUEUED_ERROR })
       .eq('id', announcementId)
       .eq('account_id', accountId)
       .eq('status', 'generating')
       .select('id');
-    if (!error) return data?.length ? 'failed' : 'taken';
+    if (!error && data?.length) return 'failed';
+    if (!error) {
+      const { data: row, error: readError } = await supabase
+        .from('voice_announcements')
+        .select('status, error')
+        .eq('id', announcementId)
+        .eq('account_id', accountId)
+        .maybeSingle();
+      if (!readError) {
+        return row?.status === 'failed' && row.error === UNQUEUED_ERROR
+          ? 'failed'
+          : 'taken';
+      }
+    }
     await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** attempt));
   }
   console.error(
