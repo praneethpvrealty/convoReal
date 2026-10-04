@@ -1110,22 +1110,18 @@ describe('[INB-029] a lead naming their location replaces the enquiry locality',
     ).toBeNull();
   });
 
+  it('keeps the saved list when an additive marker names an area already saved', () => {
+    expect(restatedAreas('Hebbal also fine', ['Hebbal'], null)).toBeNull();
+  });
+
   it('reads an additive marker against a new area across punctuation', () => {
+    expect(restatedAreas('Also, Whitefield', ['Whitefield'], null)).toBeNull();
+    expect(restatedAreas('Whitefield, too', ['Whitefield'], null)).toBeNull();
     expect(
-      restatedAreas('Also, Whitefield', ['Whitefield'], null, ['HSR'])
-    ).toBeNull();
-    expect(
-      restatedAreas('Whitefield, too', ['Whitefield'], null, ['HSR'])
-    ).toBeNull();
-    expect(
-      restatedAreas('HSR is too expensive, near Horamavu', ['Horamavu'], null, [
-        'HSR',
-      ])
+      restatedAreas('HSR is too expensive, near Horamavu', ['Horamavu'], null)
     ).toEqual(['Horamavu']);
     expect(
-      restatedAreas('near HSR and Horamavu', ['HSR', 'Horamavu'], null, [
-        'Whitefield',
-      ])
+      restatedAreas('near HSR and Horamavu', ['HSR', 'Horamavu'], null)
     ).toEqual(['HSR', 'Horamavu']);
   });
 
@@ -1134,14 +1130,11 @@ describe('[INB-029] a lead naming their location replaces the enquiry locality',
       restatedAreas(
         'HSR is too expensive; 4 BHK near Horamavu',
         ['Horamavu'],
-        null,
-        ['HSR']
+        null
       )
     ).toEqual(['Horamavu']);
     expect(
-      restatedAreas('Hebbal also fine', ['Whitefield', 'Hebbal'], null, [
-        'Whitefield',
-      ])
+      restatedAreas('Hebbal also fine', ['Whitefield', 'Hebbal'], null)
     ).toBeNull();
   });
 

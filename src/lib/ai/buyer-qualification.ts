@@ -1025,6 +1025,19 @@ function addsArea(text: string, area: string): boolean {
   return trailing.test(text) || leading.test(text);
 }
 
+/** Does either stored area column disagree with a restated list? */
+function storedAreasDiffer(
+  contact: Contact,
+  restated: string[] | null
+): boolean {
+  return (
+    restated !== null &&
+    [contact.pref_areas, contact.areas_of_interest].some(
+      (stored) => (stored?.length ?? 0) > 0 && valuesDiffer(stored, restated)
+    )
+  );
+}
+
 /**
  * The areas this message states as where the lead wants to buy, or null
  * when it states none. A reply the ladder resolved to one locality is
@@ -1036,23 +1049,17 @@ function addsArea(text: string, area: string): boolean {
  * Koramangala listing and answered "I'm looking near Horamavu" was sent
  * Koramangala houses. A message that adds an area ("Hebbal also") is
  * not a restatement, even when it resolves to one locality, so nothing
- * is dropped. Only a marker against an area the contact has not
- * already got counts (addsArea): "HSR is too expensive, near Horamavu"
- * moves away from HSR, it does not add to it.
+ * is dropped, whether the area it names is new or already saved. The
+ * marker has to sit against the area (addsArea): "HSR is too
+ * expensive, near Horamavu" moves away from HSR, it does not add to it.
  */
 export function restatedAreas(
   text: string,
   areas: string[],
-  resolvedLocation: string | null,
-  savedAreas: string[] = []
+  resolvedLocation: string | null
 ): string[] | null {
   const candidates = resolvedLocation ? [...areas, resolvedLocation] : areas;
-  const adding = candidates.some(
-    (area) =>
-      !savedAreas.some((saved) => localityLabelsMatch(saved, area)) &&
-      addsArea(text, area)
-  );
-  if (adding) return null;
+  if (candidates.some((area) => addsArea(text, area))) return null;
   if (resolvedLocation) return [resolvedLocation];
   const named = areas.filter(
     (area) => area.trim() && textNamesLocality(text, area)
@@ -1654,25 +1661,14 @@ export async function processBuyerQualificationMessage(
         await clearBudgetAnchor(db, accountId, contact.id);
       }
 
-      const restated = restatedAreas(
-        text,
-        extracted.areas,
-        resolvedLocation,
-        prefs.areas
-      );
+      const restated = restatedAreas(text, extracted.areas, resolvedLocation);
       if (restated) extracted = { ...extracted, areas: restated };
 
       // The message added nothing the contact didn't already say — it's
       // chatter ("ok", "call me"), not an answer. Don't file it as a
       // requirement and don't answer it; the agent owns this thread.
-      const storedAreasStale =
-        restated !== null &&
-        [contact.pref_areas, contact.areas_of_interest].some(
-          (stored) =>
-            (stored?.length ?? 0) > 0 && valuesDiffer(stored, restated)
-        );
       if (
-        !storedAreasStale &&
+        !storedAreasDiffer(contact, restated) &&
         preferenceSignature(extracted) === preferenceSignature(prefs)
       )
         return false;
@@ -1745,6 +1741,35 @@ export async function processBuyerQualificationMessage(
         contactId: contact.id,
         conversationId: conversation.id,
       });
+    }
+
+    // The same message again leaves the source text, and so its hash,
+    // unchanged, and the block above never re-reads it. A lead repeating
+    // where they want to buy still restates it against the saved lists.
+    if (hash === contact.pref_source_hash) {
+      const restated = restatedAreas(text, prefs.areas, resolvedLocation);
+      if (restated && storedAreasDiffer(contact, restated)) {
+        prefs = { ...prefs, areas: restated };
+        await recordLearnedFacts({
+          db,
+          accountId,
+          entity: 'contact',
+          entityId: contact.id,
+          current: contact as unknown as Record<string, unknown>,
+          facts: preferenceFacts(prefs, [], {
+            areasRestated: true,
+            replaceAreasOfInterest:
+              (contact.areas_of_interest?.length ?? 0) > 0,
+          }).filter(
+            (fact) =>
+              fact.field === 'pref_areas' || fact.field === 'areas_of_interest'
+          ),
+          evidence: text,
+          source: 'lead_message',
+          contactId: contact.id,
+          conversationId: conversation.id,
+        });
+      }
     }
 
     // Learned and filed. The guard bites here, on the reply: the

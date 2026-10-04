@@ -285,6 +285,40 @@ describe('processBuyerQualificationMessage — free-text requirement updates', (
     );
   });
 
+  it('[INB-029] restates stale areas when the lead repeats the same message', async () => {
+    const line = 'Commercial land near Horamavu';
+    queues.contacts = [
+      contactRow({
+        requirements: line,
+        pref_source_hash: preferenceSourceHash(
+          buildPreferenceSourceText(line, [])
+        ),
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_areas: ['HSR', 'Horamavu'],
+      }),
+    ];
+    queues.messages = [[{ sender_type: 'customer', content_text: line }]];
+
+    await processBuyerQualificationMessage(
+      line,
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(extractContactPreferences).not.toHaveBeenCalled();
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: [{ field: 'pref_areas', value: ['Horamavu'], replaces: true }],
+      })
+    );
+  });
+
   it('[INB-029] leaves a budget with no enquiry anchor untouched', async () => {
     queues.contacts = [
       contactRow({
