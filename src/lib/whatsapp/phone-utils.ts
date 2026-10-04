@@ -1,4 +1,7 @@
 import { BRANDING } from '@/config/branding';
+import { phoneWithCountryCode } from '@/lib/format/phone';
+
+export const DEFAULT_COUNTRY_CODE = BRANDING.defaultCountryCode || '91';
 
 /**
  * Sanitize phone number for Meta WhatsApp API.
@@ -28,31 +31,9 @@ export function normalizePhone(phone: unknown): string {
  */
 export function normalizePhoneWithCountryCode(
   phone: unknown,
-  defaultCountryCode: string = BRANDING.defaultCountryCode || '91'
+  defaultCountryCode: string = DEFAULT_COUNTRY_CODE
 ): string {
-  if (phone === null || phone === undefined) return '';
-  const phoneStr = String(phone);
-
-  // 1. Remove all non-digits
-  let digits = phoneStr.replace(/\D/g, '');
-
-  // 2. Strip leading international double zero prefix (e.g. 0091... -> 91...)
-  if (digits.startsWith('00')) {
-    digits = digits.slice(2);
-  }
-
-  // 3. Strip leading single zero domestic trunk prefix (e.g. 09876543210 -> 9876543210)
-  // only if the remaining length is 10 digits
-  if (digits.startsWith('0') && digits.length === 11) {
-    digits = digits.slice(1);
-  }
-
-  // 4. If the digits length matches a local 10-digit number, prefix with the default country code
-  if (digits.length === 10) {
-    digits = defaultCountryCode + digits;
-  }
-
-  return digits ? '+' + digits : '';
+  return phoneWithCountryCode(phone, defaultCountryCode);
 }
 
 /**

@@ -25,13 +25,20 @@ import {
   accountBrandName,
 } from '@/lib/showcase/account-showcase-url';
 import { loadEligibleRadarContacts } from '@/lib/radar/manual-contacts';
+import {
+  claimRadarSend,
+  finishRadarSend,
+  recordRadarSendProgress,
+} from '@/lib/radar/send-claim';
+import { RADAR_SEND_REFUSAL_MESSAGES } from '@/lib/radar/send-refusal';
 import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
 import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
 import type { MatchEvent, MessageTemplate, Property } from '@/types';
 import { formatCurrency } from '@/lib/format/currency';
 
 // POST /api/radar/send
-// Body: { eventId: string, targetIds: string[], manualContactIds?: string[] }
+// Body: { eventId: string, targetIds: string[], manualContactIds?: string[],
+//         resend?: boolean }
 //
 // One-tap send for a Match Radar event:
 //   - kind 'new_property': targetIds are contact ids → each gets the
@@ -124,6 +131,7 @@ export async function POST(request: NextRequest) {
       eventId?: string;
       targetIds?: string[];
       manualContactIds?: string[];
+      resend?: boolean;
     } | null;
     const eventId = body?.eventId;
     const targetIds = Array.isArray(body?.targetIds)
@@ -205,80 +213,239 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const targets = targetIds;
-
     const db = supabaseAdmin();
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    const results: Array<{
-      id: string;
-      status: 'sent' | 'templateMissing' | 'failed';
-      channel?: 'freeform' | 'template';
-      error?: string;
-    }> = [];
+    const resend = body?.resend === true;
+    const claim = await claimRadarSend(db, ctx.accountId, typedEvent, {
+      resend,
+    });
+    if (!claim.ok) {
+      return NextResponse.json(
+        { error: RADAR_SEND_REFUSAL_MESSAGES[claim.code], code: claim.code },
+        { status: 409 }
+      );
+    }
+    const delivered = [...claim.deliveredIds];
+    const alreadyDelivered = new Set(claim.deliveredIds);
+    const targets = resend
+      ? targetIds
+      : targetIds.filter((id) => !alreadyDelivered.has(id));
+    let claimHeld = true;
+    let sentNow = 0;
+    const persistDelivered = async () => {
+      claimHeld = await recordRadarSendProgress(
+        db,
+        ctx.accountId,
+        typedEvent.id,
+        claim.claimedAt,
+        delivered
+      );
+      return claimHeld;
+    };
+    const reserve = async (id: string) => {
+      if (alreadyDelivered.has(id)) return claimHeld;
+      delivered.push(id);
+      if (await persistDelivered()) return true;
+      delivered.splice(delivered.indexOf(id), 1);
+      return false;
+    };
+    const settle = async (
+      id: string,
+      outcome: { status: string; reachedMeta?: boolean }
+    ) => {
+      if (outcome.status === 'sent') {
+        sentNow += 1;
+        return;
+      }
+      if (outcome.reachedMeta || alreadyDelivered.has(id)) return;
+      delivered.splice(delivered.indexOf(id), 1);
+      await persistDelivered();
+    };
 
-    // Latest approved alert template (template-first channel). The
-    // latest row of ANY status is also surfaced so the UI can tell
-    // "not created yet" apart from "pending Meta approval".
-    const { data: templateRows } = await db
-      .from('message_templates')
-      .select('*')
-      .eq('account_id', ctx.accountId)
-      .in('name', PROPERTY_SHARE_TEMPLATE_NAMES)
-      .order('last_submitted_at', { ascending: false, nullsFirst: false });
-    const candidates = (templateRows || []) as MessageTemplate[];
-    const latestTemplate = candidates[0] ?? null;
-    // One lookup for the whole batch — the brand card is per account,
-    // and only the property photo varies from alert to alert.
-    const [brandImage, brandName] = await Promise.all([
-      accountBrandImage(db, ctx.accountId),
-      accountBrandName(db, ctx.accountId),
-    ]);
-    /** Whether ANY of these alerts can go out at all, for the
-     *  "templateMissing" report — the per-property choice happens at
-     *  send time, once the header image is known. */
-    const anyApproved =
-      pickPropertyShareTemplate(candidates, { hasImage: true }) ??
-      pickPropertyShareTemplate(candidates, { hasImage: false });
-
-    /** One alert to one contact: free-form when the window is open,
-     *  template otherwise. */
-    const sendAlert = async (
-      contactId: string,
-      contactName: string | null,
-      property: Property
-    ): Promise<{
-      status: 'sent' | 'templateMissing' | 'failed';
-      channel?: 'freeform' | 'template';
-      error?: string;
-    }> => {
-      const session = await sessionState(db, ctx.accountId, contactId);
-
-      if (session.open) {
-        const firstImage = (property.images || []).find(
-          (img) => img && img.trim()
+    try {
+      if (targets.length === 0) {
+        return NextResponse.json(
+          {
+            error: RADAR_SEND_REFUSAL_MESSAGES.ALREADY_SENT,
+            code: 'ALREADY_SENT',
+          },
+          { status: 409 }
         );
-        if (firstImage) {
-          await sendWhatsAppMessageAndPersist({
+      }
+      const baseUrl =
+        process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+      const results: Array<{
+        id: string;
+        status: 'sent' | 'templateMissing' | 'failed';
+        channel?: 'freeform' | 'template';
+        error?: string;
+      }> = [];
+
+      // Latest approved alert template (template-first channel). The
+      // latest row of ANY status is also surfaced so the UI can tell
+      // "not created yet" apart from "pending Meta approval".
+      const { data: templateRows } = await db
+        .from('message_templates')
+        .select('*')
+        .eq('account_id', ctx.accountId)
+        .in('name', PROPERTY_SHARE_TEMPLATE_NAMES)
+        .order('last_submitted_at', { ascending: false, nullsFirst: false });
+      const candidates = (templateRows || []) as MessageTemplate[];
+      const latestTemplate = candidates[0] ?? null;
+      // One lookup for the whole batch — the brand card is per account,
+      // and only the property photo varies from alert to alert.
+      const [brandImage, brandName] = await Promise.all([
+        accountBrandImage(db, ctx.accountId),
+        accountBrandName(db, ctx.accountId),
+      ]);
+      /** Whether ANY of these alerts can go out at all, for the
+       *  "templateMissing" report — the per-property choice happens at
+       *  send time, once the header image is known. */
+      const anyApproved =
+        pickPropertyShareTemplate(candidates, { hasImage: true }) ??
+        pickPropertyShareTemplate(candidates, { hasImage: false });
+
+      /** One alert to one contact: free-form when the window is open,
+       *  template otherwise. */
+      const sendAlert = async (
+        contactId: string,
+        contactName: string | null,
+        property: Property
+      ): Promise<{
+        status: 'sent' | 'templateMissing' | 'failed';
+        channel?: 'freeform' | 'template';
+        error?: string;
+        reachedMeta?: boolean;
+      }> => {
+        const session = await sessionState(db, ctx.accountId, contactId);
+
+        if (session.open) {
+          const firstImage = (property.images || []).find(
+            (img) => img && img.trim()
+          );
+          let imageReachedMeta = false;
+          if (firstImage) {
+            const image = await sendWhatsAppMessageAndPersist({
+              accountId: ctx.accountId,
+              userId: ctx.userId,
+              contactId,
+              kind: 'media',
+              mediaKind: 'image',
+              mediaLink: firstImage,
+              mediaCaption: property.title,
+              senderType: 'agent',
+            });
+            imageReachedMeta = image.success || Boolean(image.reachedMeta);
+          }
+          const res = await sendWhatsAppMessageAndPersist({
             accountId: ctx.accountId,
             userId: ctx.userId,
             contactId,
-            kind: 'media',
-            mediaKind: 'image',
-            mediaLink: firstImage,
-            mediaCaption: property.title,
+            kind: 'text',
+            text: propertyMessage(property, baseUrl, contactId),
             senderType: 'agent',
           });
+          if (!res.success) {
+            return {
+              status: 'failed',
+              error: res.error,
+              reachedMeta: imageReachedMeta || Boolean(res.reachedMeta),
+            };
+          }
+
+          await logPropertyShare(
+            db,
+            ctx.accountId,
+            ctx.userId,
+            property.id,
+            contactId
+          );
+          if (session.conversationId) {
+            await sendListingFeedbackPrompt({
+              db,
+              accountId: ctx.accountId,
+              userId: ctx.userId,
+              contactId,
+              conversationId: session.conversationId,
+              matches: [{ property }],
+              includeFormRow: true,
+              includeExploreRows: true,
+              sourcePropertyId: property.id,
+            });
+          }
+          return { status: 'sent', channel: 'freeform' };
         }
+
+        if (!anyApproved) return { status: 'templateMissing' };
+
+        // The listing's own photo, or the account's brand card — a
+        // Radar alert used to go out as text even for a listing with
+        // photos sitting right there, because this path only ever asked
+        // for the text template's names.
+        const headerImage = shareHeaderImage({
+          images: property.images,
+          brandImage,
+        });
+        const language = await resolveSendLanguage(
+          ctx.supabase,
+          ctx.accountId,
+          contactId
+        );
+        const alertTemplate = pickPropertyShareTemplate(candidates, {
+          hasImage: Boolean(headerImage),
+          language,
+        });
+        if (!alertTemplate) return { status: 'templateMissing' };
+        if (isLanguageFallback(alertTemplate, language)) {
+          warnLanguageFallback(
+            'radar-send',
+            ctx.accountId,
+            language,
+            alertTemplate
+          );
+        }
+
+        // Param count follows the template's name — the signed revisions
+        // carry the brokerage as {{2}}, their predecessors do not.
+        const params = propertyShareParams(
+          alertTemplate.name,
+          contactName,
+          property,
+          brandName
+        );
+        const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [
+          ...params,
+        ]);
+        const buttonParams: Record<number, string> = {};
+        (alertTemplate.buttons ?? []).forEach((btn, idx) => {
+          if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
+            // v= attributes portal opens to this contact in Showcase Pulse.
+            buttonParams[idx] = `?property_id=${property.id}&v=${contactId}`;
+          }
+        });
         const res = await sendWhatsAppMessageAndPersist({
           accountId: ctx.accountId,
           userId: ctx.userId,
           contactId,
-          kind: 'text',
-          text: propertyMessage(property, baseUrl, contactId),
+          kind: 'template',
           senderType: 'agent',
+          templateName: alertTemplate.name,
+          templateLanguage: alertTemplate.language || 'en_US',
+          templateParams: bodyParams,
+          messageParams: {
+            body: bodyParams,
+            ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {}),
+            ...(headerImage ? { headerMediaUrl: headerImage } : {}),
+          },
+          templateRow: alertTemplate,
+          text: resolveTemplateBodyText(alertTemplate.body_text, bodyParams),
         });
-        if (!res.success) return { status: 'failed', error: res.error };
-
+        if (!res.success) {
+          return {
+            status: 'failed',
+            error: res.error,
+            reachedMeta: Boolean(res.reachedMeta),
+          };
+        }
         await logPropertyShare(
           db,
           ctx.accountId,
@@ -286,204 +453,119 @@ export async function POST(request: NextRequest) {
           property.id,
           contactId
         );
-        if (session.conversationId) {
-          await sendListingFeedbackPrompt({
-            db,
-            accountId: ctx.accountId,
-            userId: ctx.userId,
-            contactId,
-            conversationId: session.conversationId,
-            matches: [{ property }],
-            includeFormRow: true,
-            includeExploreRows: true,
-            sourcePropertyId: property.id,
-          });
+        return { status: 'sent', channel: 'template' };
+      };
+
+      if (typedEvent.kind === 'new_property') {
+        if (!typedEvent.property_id) {
+          return NextResponse.json(
+            { error: 'Event has no property' },
+            { status: 400 }
+          );
         }
-        return { status: 'sent', channel: 'freeform' };
-      }
-
-      if (!anyApproved) return { status: 'templateMissing' };
-
-      // The listing's own photo, or the account's brand card — a
-      // Radar alert used to go out as text even for a listing with
-      // photos sitting right there, because this path only ever asked
-      // for the text template's names.
-      const headerImage = shareHeaderImage({
-        images: property.images,
-        brandImage,
-      });
-      const language = await resolveSendLanguage(
-        ctx.supabase,
-        ctx.accountId,
-        contactId
-      );
-      const alertTemplate = pickPropertyShareTemplate(candidates, {
-        hasImage: Boolean(headerImage),
-        language,
-      });
-      if (!alertTemplate) return { status: 'templateMissing' };
-      if (isLanguageFallback(alertTemplate, language)) {
-        warnLanguageFallback(
-          'radar-send',
-          ctx.accountId,
-          language,
-          alertTemplate
-        );
-      }
-
-      // Param count follows the template's name — the signed revisions
-      // carry the brokerage as {{2}}, their predecessors do not.
-      const params = propertyShareParams(
-        alertTemplate.name,
-        contactName,
-        property,
-        brandName
-      );
-      const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [
-        ...params,
-      ]);
-      const buttonParams: Record<number, string> = {};
-      (alertTemplate.buttons ?? []).forEach((btn, idx) => {
-        if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
-          // v= attributes portal opens to this contact in Showcase Pulse.
-          buttonParams[idx] = `?property_id=${property.id}&v=${contactId}`;
+        const { data: property } = await db
+          .from('properties')
+          .select('*')
+          .eq('id', typedEvent.property_id)
+          .eq('account_id', ctx.accountId)
+          .maybeSingle();
+        if (!property) {
+          return NextResponse.json(
+            { error: 'Property no longer exists' },
+            { status: 410 }
+          );
         }
-      });
-      const res = await sendWhatsAppMessageAndPersist({
-        accountId: ctx.accountId,
-        userId: ctx.userId,
-        contactId,
-        kind: 'template',
-        senderType: 'agent',
-        templateName: alertTemplate.name,
-        templateLanguage: alertTemplate.language || 'en_US',
-        templateParams: bodyParams,
-        messageParams: {
-          body: bodyParams,
-          ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {}),
-          ...(headerImage ? { headerMediaUrl: headerImage } : {}),
-        },
-        templateRow: alertTemplate,
-        text: resolveTemplateBodyText(alertTemplate.body_text, bodyParams),
-      });
-      if (!res.success) return { status: 'failed', error: res.error };
-      await logPropertyShare(
-        db,
-        ctx.accountId,
-        ctx.userId,
-        property.id,
-        contactId
-      );
-      return { status: 'sent', channel: 'template' };
-    };
+        const typedProperty = property as Property;
 
-    if (typedEvent.kind === 'new_property') {
-      if (!typedEvent.property_id) {
-        return NextResponse.json(
-          { error: 'Event has no property' },
-          { status: 400 }
-        );
-      }
-      const { data: property } = await db
-        .from('properties')
-        .select('*')
-        .eq('id', typedEvent.property_id)
-        .eq('account_id', ctx.accountId)
-        .maybeSingle();
-      if (!property) {
-        return NextResponse.json(
-          { error: 'Property no longer exists' },
-          { status: 410 }
-        );
-      }
-      const typedProperty = property as Property;
-
-      // Contact names feed the template's {{1}} — one query for all targets.
-      const { data: contactRows } = await db
-        .from('contacts')
-        .select('id, name')
-        .eq('account_id', ctx.accountId)
-        .in('id', targets);
-      const nameById = new Map(
-        (contactRows || []).map((c) => [
-          c.id as string,
-          c.name as string | null,
-        ])
-      );
-
-      for (const contactId of targets) {
-        const outcome = await sendAlert(
-          contactId,
-          nameById.get(contactId) ?? null,
-          typedProperty
-        );
-        results.push({ id: contactId, ...outcome });
-      }
-    } else {
-      // buyer_updated: send each selected property to the event's contact
-      if (!typedEvent.contact_id) {
-        return NextResponse.json(
-          { error: 'Event has no contact' },
-          { status: 400 }
-        );
-      }
-
-      const [{ data: contactRow }, { data: properties }] = await Promise.all([
-        db
+        // Contact names feed the template's {{1}} — one query for all targets.
+        const { data: contactRows } = await db
           .from('contacts')
           .select('id, name')
           .eq('account_id', ctx.accountId)
-          .eq('id', typedEvent.contact_id)
-          .maybeSingle(),
-        db
-          .from('properties')
-          .select('*')
-          .eq('account_id', ctx.accountId)
-          .in('id', targets),
-      ]);
-
-      for (const property of (properties || []) as Property[]) {
-        const outcome = await sendAlert(
-          typedEvent.contact_id,
-          (contactRow?.name as string | null) ?? null,
-          property
+          .in('id', targets);
+        const nameById = new Map(
+          (contactRows || []).map((c) => [
+            c.id as string,
+            c.name as string | null,
+          ])
         );
-        results.push({ id: property.id, ...outcome });
+
+        for (const contactId of targets) {
+          if (!claimHeld || !(await reserve(contactId))) break;
+          const outcome = await sendAlert(
+            contactId,
+            nameById.get(contactId) ?? null,
+            typedProperty
+          );
+          const { reachedMeta, ...result } = outcome;
+          results.push({ id: contactId, ...result });
+          await settle(contactId, { status: outcome.status, reachedMeta });
+        }
+      } else {
+        // buyer_updated: send each selected property to the event's contact
+        if (!typedEvent.contact_id) {
+          return NextResponse.json(
+            { error: 'Event has no contact' },
+            { status: 400 }
+          );
+        }
+
+        const [{ data: contactRow }, { data: properties }] = await Promise.all([
+          db
+            .from('contacts')
+            .select('id, name')
+            .eq('account_id', ctx.accountId)
+            .eq('id', typedEvent.contact_id)
+            .maybeSingle(),
+          db
+            .from('properties')
+            .select('*')
+            .eq('account_id', ctx.accountId)
+            .in('id', targets),
+        ]);
+
+        for (const property of (properties || []) as Property[]) {
+          if (!claimHeld || !(await reserve(property.id))) break;
+          const outcome = await sendAlert(
+            typedEvent.contact_id,
+            (contactRow?.name as string | null) ?? null,
+            property
+          );
+          const { reachedMeta, ...result } = outcome;
+          results.push({ id: property.id, ...result });
+          await settle(property.id, { status: outcome.status, reachedMeta });
+        }
       }
+
+      const sent = results.filter((r) => r.status === 'sent').length;
+      const sentViaTemplate = results.filter(
+        (r) => r.channel === 'template'
+      ).length;
+      const templateMissing = results.filter(
+        (r) => r.status === 'templateMissing'
+      ).length;
+      const failed = results.filter((r) => r.status === 'failed').length;
+
+      return NextResponse.json({
+        results,
+        sent,
+        sentViaTemplate,
+        templateMissing,
+        failed,
+        // Lets the UI distinguish "template not created" from "waiting on
+        // Meta approval" when templateMissing > 0.
+        alertTemplateStatus: latestTemplate?.status ?? null,
+      });
+    } finally {
+      await finishRadarSend(
+        db,
+        ctx.accountId,
+        { ...typedEvent, sent_count: claim.sentCount },
+        claim.claimedAt,
+        delivered,
+        sentNow
+      );
     }
-
-    const sent = results.filter((r) => r.status === 'sent').length;
-    const sentViaTemplate = results.filter(
-      (r) => r.channel === 'template'
-    ).length;
-    const templateMissing = results.filter(
-      (r) => r.status === 'templateMissing'
-    ).length;
-    const failed = results.filter((r) => r.status === 'failed').length;
-
-    if (sent > 0) {
-      await db
-        .from('match_events')
-        .update({
-          status: 'sent',
-          sent_count: (typedEvent.sent_count || 0) + sent,
-          sent_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', typedEvent.id)
-        .eq('account_id', ctx.accountId);
-    }
-
-    return NextResponse.json({
-      results,
-      sent,
-      sentViaTemplate,
-      templateMissing,
-      failed,
-      // Lets the UI distinguish "template not created" from "waiting on
-      // Meta approval" when templateMissing > 0.
-      alertTemplateStatus: latestTemplate?.status ?? null,
-    });
   } catch (err) {
     console.error('[POST /api/radar/send] Unexpected error:', err);
     return toErrorResponse(err);

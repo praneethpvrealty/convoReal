@@ -122,8 +122,7 @@ export default function BroadcastsScreen() {
 
 function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
   const { colors, fonts: f } = useTheme();
-  const delivered =
-    broadcast.delivered_count + broadcast.read_count + broadcast.replied_count;
+  const delivered = broadcast.delivered_count;
   const progress =
     broadcast.total_recipients > 0
       ? Math.min(1, broadcast.sent_count / broadcast.total_recipients)

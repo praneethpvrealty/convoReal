@@ -26,6 +26,13 @@ than a written entry. Newest first.
   the Automations and Flows screens hide or disable those actions; the flow
   editor opens read-only. **Migration required:**
   `20261004155516_flow_automation_write_read_only_rls.sql`. Invariant ACC-002.
+- **A Match Radar alert can no longer reach the same recipient twice.** The
+  send route now claims the event before sending, refuses a second send while
+  the first is still going out, and records each recipient before their alert
+  goes out, so a resubmit from a stale screen or a retry after a crash reaches
+  only the recipients who do not have it yet. Web and mobile say "This alert is already being sent" and
+  refresh the feed instead of resending. **Migration required:**
+  `20261004140649_match_event_send_claim.sql`. Invariant RDR-001.
 - **A failed reminder voice note or reminder call returns only its own
   charge.** The voice note's charge was keyed to the reminder rather than to the
   one run, so a replayed job, or a reminder re-armed after a call had gone out,

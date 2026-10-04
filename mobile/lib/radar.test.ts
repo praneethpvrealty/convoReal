@@ -3,12 +3,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const apiFetch = vi.fn();
 
 vi.mock('@/lib/api', () => ({
+  ApiError: class ApiError extends Error {
+    constructor(
+      readonly status: number,
+      message: string,
+      readonly retryAfterSeconds?: number,
+      readonly code?: string
+    ) {
+      super(message);
+    }
+  },
   apiFetch: (...args: unknown[]) => apiFetch(...args),
 }));
 vi.mock('@/lib/supabase', () => ({ supabase: {} }));
 
-const { MATCH_ALERT_LOCK_MS, matchAlertTimeoutMs, sendMatchAlert } =
-  await import('./radar');
+const { ApiError } = await import('@/lib/api');
+const {
+  MATCH_ALERT_LOCK_MS,
+  matchAlertRefusal,
+  matchAlertTimeoutMs,
+  sendMatchAlert,
+} = await import('./radar');
 
 describe('matchAlertTimeoutMs', () => {
   it('outlasts the default 20-second budget for a nine-target send', () => {
@@ -39,5 +54,26 @@ describe('sendMatchAlert', () => {
       targetIds: targets,
       manualContactIds: ['c0'],
     });
+  });
+});
+
+describe('matchAlertRefusal', () => {
+  it('[RDR-001] names a server refusal so the card refreshes instead of resending', () => {
+    expect(
+      matchAlertRefusal(
+        new ApiError(409, 'busy', undefined, 'SEND_IN_PROGRESS')
+      )
+    ).toBe('This alert is already being sent.');
+    expect(
+      matchAlertRefusal(new ApiError(409, 'done', undefined, 'ALREADY_SENT'))
+    ).toBe('This alert was already sent.');
+  });
+
+  it('leaves every other failure to the generic error', () => {
+    expect(
+      matchAlertRefusal(new ApiError(500, 'boom', undefined, 'ALREADY_SENT'))
+    ).toBeNull();
+    expect(matchAlertRefusal(new ApiError(409, 'other'))).toBeNull();
+    expect(matchAlertRefusal(new Error('network'))).toBeNull();
   });
 });

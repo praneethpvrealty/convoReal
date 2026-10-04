@@ -10,6 +10,7 @@ import {
   resolveAudienceOnServer,
   sendBroadcastRecipients,
 } from '@/lib/broadcasts/sender';
+import { parseAudience } from '@/lib/broadcasts/audience';
 
 const INSERT_BATCH_SIZE = 200;
 
@@ -38,6 +39,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const parsedAudience = parseAudience(audience);
+    if ('error' in parsedAudience) {
+      return NextResponse.json(
+        { error: parsedAudience.error },
+        { status: 400 }
+      );
+    }
+
     const admin = supabaseAdmin();
 
     // 1. Resolve contacts server-side
@@ -45,7 +54,7 @@ export async function POST(request: NextRequest) {
       ctx.supabase,
       ctx.accountId,
       ctx.userId,
-      audience
+      parsedAudience.audience
     );
 
     if (contacts.length === 0) {
@@ -65,7 +74,7 @@ export async function POST(request: NextRequest) {
         template_name: template.name,
         template_language: template.language ?? 'en_US',
         template_variables: variables,
-        audience_filter: audience,
+        audience_filter: parsedAudience.audience,
         status: 'sending',
         total_recipients: contacts.length,
         sent_count: 0,

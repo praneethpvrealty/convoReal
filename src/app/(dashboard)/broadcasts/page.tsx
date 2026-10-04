@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl } from '@/lib/navigation';
-import { useMemo } from 'react';
+import { useMemo, type KeyboardEvent } from 'react';
 import BroadcastsContent from './broadcasts-content';
 import TemplatePerformanceContent from './template-performance-content';
 import VoiceCampaignsContent from './voice-campaigns-content';
@@ -14,13 +14,13 @@ import { FavoriteButton } from '@/components/layout/favorite-button';
 type TabId =
   'campaigns' | 'templates' | 'voice' | 'calls' | 'announcements' | 'greetings';
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'campaigns', label: 'Campaigns' },
-  { id: 'templates', label: 'Templates' },
-  { id: 'voice', label: 'Voice Calls' },
-  { id: 'calls', label: 'Call Analytics' },
-  { id: 'announcements', label: 'Announcements' },
-  { id: 'greetings', label: 'Greetings' },
+const TABS: { id: TabId; label: string; icon: string }[] = [
+  { id: 'campaigns', label: 'Campaigns', icon: 'Radio' },
+  { id: 'templates', label: 'Template Performance', icon: 'FileBarChart' },
+  { id: 'voice', label: 'Voice Calls', icon: 'PhoneCall' },
+  { id: 'calls', label: 'Call Analytics', icon: 'PhoneOutgoing' },
+  { id: 'announcements', label: 'Announcements', icon: 'Mic' },
+  { id: 'greetings', label: 'Greetings', icon: 'PartyPopper' },
 ];
 
 export default function BroadcastsPage() {
@@ -33,45 +33,30 @@ export default function BroadcastsPage() {
   }, [searchParams]);
 
   const tabMeta = useMemo(() => {
-    switch (activeTab) {
-      case 'templates':
-        return {
-          label: 'Template Performance',
-          href: '/broadcasts?tab=templates',
-          icon: 'FileBarChart',
-        };
-      case 'voice':
-        return {
-          label: 'Voice Campaigns',
-          href: '/broadcasts?tab=voice',
-          icon: 'PhoneCall',
-        };
-      case 'calls':
-        return {
-          label: 'Call Analytics',
-          href: '/broadcasts?tab=calls',
-          icon: 'PhoneOutgoing',
-        };
-      case 'announcements':
-        return {
-          label: 'Announcements',
-          href: '/broadcasts?tab=announcements',
-          icon: 'Mic',
-        };
-      case 'greetings':
-        return {
-          label: 'Greetings',
-          href: '/broadcasts?tab=greetings',
-          icon: 'PartyPopper',
-        };
-      case 'campaigns':
-      default:
-        return { label: 'Broadcasts', href: '/broadcasts', icon: 'Radio' };
-    }
+    const tab = TABS.find((t) => t.id === activeTab) ?? TABS[0];
+    return {
+      label: tab.label,
+      href:
+        tab.id === 'campaigns' ? '/broadcasts' : `/broadcasts?tab=${tab.id}`,
+      icon: tab.icon,
+    };
   }, [activeTab]);
 
   const handleTabChange = (tab: TabId) => {
     pushUrl(router, `/broadcasts?tab=${tab}`);
+  };
+
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const step =
+      event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const current = TABS.findIndex((t) => t.id === activeTab);
+    const next = (current + step + TABS.length) % TABS.length;
+    handleTabChange(TABS[next].id);
+    event.currentTarget
+      .querySelectorAll<HTMLButtonElement>('[role="tab"]')
+      [next]?.focus();
   };
 
   return (
@@ -94,13 +79,21 @@ export default function BroadcastsPage() {
         />
       </div>
 
-      {/* Sleek Tab Bar */}
-      <div className="relative z-10 flex gap-2 border-b border-slate-800/80">
+      <div
+        role="tablist"
+        aria-label="Broadcast sections"
+        onKeyDown={handleTabKeyDown}
+        className="relative z-10 flex flex-nowrap gap-2 overflow-x-auto border-b border-slate-800/80"
+      >
         {TABS.map((tab) => (
           <button
             key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            tabIndex={activeTab === tab.id ? 0 : -1}
             onClick={() => handleTabChange(tab.id)}
-            className={`cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
+            className={`shrink-0 cursor-pointer border-b-2 px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all ${
               activeTab === tab.id
                 ? 'border-primary bg-primary/5 text-white'
                 : 'border-transparent text-slate-400 hover:text-white'

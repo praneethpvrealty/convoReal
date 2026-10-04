@@ -1,5 +1,6 @@
-import { apiFetch } from '@/lib/api';
+import { ApiError, apiFetch } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import { radarSendRefusalMessage } from '@shared/lib/radar/send-refusal';
 import type { MatchEvent, RadarManualContact } from '@shared/types';
 
 /**
@@ -79,4 +80,10 @@ export function sendMatchAlert(
     timeoutMs: matchAlertTimeoutMs(targetIds.length),
     body: JSON.stringify({ eventId, targetIds, manualContactIds }),
   });
+}
+
+export function matchAlertRefusal(err: unknown): string | null {
+  return err instanceof ApiError && err.status === 409
+    ? radarSendRefusalMessage(err.code)
+    : null;
 }

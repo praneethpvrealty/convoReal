@@ -10,6 +10,7 @@ import {
   sendInteractiveList,
   sendProductMessage,
   sendFlowMessage,
+  MetaRequestRefusedError,
   type MediaKind,
   type InteractiveButton,
   type InteractiveListSection,
@@ -215,6 +216,7 @@ export interface DispatcherResult {
   error?: string;
   errorCode?: number;
   retryAfter?: string;
+  reachedMeta?: boolean;
 }
 
 interface OutboundContact {
@@ -236,6 +238,7 @@ export async function sendWhatsAppMessageAndPersist(
   const { accountId, userId, contactId, conversationId, toPhone } = args;
   let resolvedContactId = contactId;
   let resolvedContact: OutboundContact | null = null;
+  let reachedMeta = false;
 
   // contacts.user_id and conversations.user_id are still NOT NULL — a
   // legacy holdover from the pre-account tenancy model (see migration
@@ -840,12 +843,16 @@ export async function sendWhatsAppMessageAndPersist(
         break;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (!isRecipientNotAllowedError(msg)) throw err;
+        if (!isRecipientNotAllowedError(msg)) {
+          reachedMeta = !(err instanceof MetaRequestRefusedError);
+          throw err;
+        }
         lastError = err;
       }
     }
 
     if (lastError) throw lastError;
+    reachedMeta = true;
 
     // 5. Success Post-Processing
     // Update contact phone if working variant is different
@@ -1085,6 +1092,7 @@ export async function sendWhatsAppMessageAndPersist(
     return {
       success: false,
       error: errorMsg,
+      ...(reachedMeta ? { reachedMeta: true } : {}),
     };
   }
 }
