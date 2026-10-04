@@ -135,7 +135,10 @@ export function PortalExpirySheet({
     haptic.success();
     setEditingId(null);
     setPickerOpen(false);
-    await queryClient.invalidateQueries({ queryKey });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey }),
+      queryClient.invalidateQueries({ queryKey: ['portal-drift'] }),
+    ]);
   }
 
   function confirmRemoved(row: PortalListingRow) {
