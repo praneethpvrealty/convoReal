@@ -32,7 +32,6 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCan } from '@/hooks/useCan';
 import { Button } from '@/components/ui/button';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +45,7 @@ import type { JourneyStage } from '@/types';
 import { ensureJourneyStages } from '@/lib/journey/capture';
 import { JourneySection } from '@/components/journey/journey-section';
 import { JourneyOverview } from '@/components/journey/journey-overview';
+import { JourneyListSkeleton } from '@/components/journey/journey-list-skeleton';
 import { navigateJourney, type JourneyMode } from '@/components/journey/shared';
 
 export default function JourneyPage({
@@ -106,11 +106,7 @@ export default function JourneyPage({
   }, [accountId]);
 
   if (stagesLoading) {
-    return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <ConvoRealLoader />
-      </div>
-    );
+    return <JourneyListSkeleton header={embedded ? 'compact' : 'full'} />;
   }
 
   return (

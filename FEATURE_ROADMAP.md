@@ -148,6 +148,12 @@ _A §2.8 gap, stated rather than silent._
 
 - [ ] **Re-engagement tab (mobile)**: The web dashboard's Re-engagement tab (`src/app/(dashboard)/reengagement/reengagement-content.tsx`, table in `src/components/reengagement/reengagement-outcome.tsx`) has no mobile screen. The lead order is chosen by the `reengagement_leads` function (`p_sort`, passed by `loadReengagementLeads` in `src/lib/reengagement/queries.ts`), so a mobile screen sorts by sending the same parameter, and its helpers (`nextLeadSort`, `leadSortDirection`, `maskPhoneLastFour`, `allLeadsMatched` in `src/lib/reengagement/funnel.ts`) are pure, so it can import them through `@shared/` once it exists.
 
+### Deferred: custom-field broadcast audiences on mobile
+
+_A §2.8 gap, stated rather than silent._
+
+- [ ] **Broadcast composer audiences (mobile)**: The web wizard can target a custom-field match; `mobile/app/(app)/broadcast-new.tsx` offers All contacts, By tag and a pasted list of numbers (parsed by the shared `src/lib/broadcasts/csv-audience.ts`). Both surfaces already count through `POST /api/broadcasts/audience-count`, which accepts every audience type, so closing the gap is a composer UI on mobile with no new rule.
+
 ### Deferred: account administration on mobile
 
 _§2.8 gaps, stated rather than silent. They share one root cause: the mobile app has no account-administration surface at all (no Members, Teams, Billing, Routing or Settings shell), so each of these would be the first of its kind rather than a screen added to an existing section._
@@ -195,6 +201,25 @@ _A party is several people on one requirement — a couple buying together, or t
 - [ ] **Match counts and share dialogs still list people, not deals**: dedup is opt-in per caller by design — a share dialog _should_ offer a husband and wife separately, since you may want to send to both. But the inventory match count (`src/app/(dashboard)/inventory/inventory-content.tsx`) and the property match list are counting deals and should pass the party index. They are client components with no party map in hand; closing this means loading it alongside contacts, or moving the count server-side.
 - [ ] **Suggestions are per contact, not a queue**: they surface on the contact you have open (`party-panel.tsx`). There is no account-wide "these look like parties" review screen the way there is for duplicates. The API (`/api/contacts/[id]/party/suggestions`) is already the whole rule; a queue is a second consumer of it.
 - [ ] **Party editing on mobile (§2.8)**: the mobile contact screen shows who a contact buys with, read-only (`BuysWithRow` in `mobile/app/(app)/contact/[id].tsx`), and every behavioural rule is server-side so both surfaces already dedup identically. Linking, unlinking and suggestions ship on web only; closing the gap means a native picker over the same routes, which already accept mobile bearer tokens.
+
+---
+
+### Deferred: automation and flow insight on mobile
+
+_A §2.8 gap, stated rather than silent. Building and editing automations and flows is web-only by design today (the canvas and step builder need a desktop pointer), and the mobile Automations screen (`mobile/app/(app)/automations.tsx`) lists automations with an on/off switch and lists flows read-only. What it does not have:_
+
+- [ ] **Automation logs (mobile)**: the per-automation execution log on web (`src/app/(dashboard)/automations/[id]/logs/page.tsx`) — status filter, step results, links to the contact and the chat — has no mobile screen. It reads `automation_logs` and `conversations` under RLS, so a mobile screen can run the same reads.
+- [ ] **Automation analytics (mobile)**: the Analytics tab (`src/app/(dashboard)/automations/analytics-content.tsx`) — runs, success rate with waiting runs excluded, flow completion and the node funnel — is web-only. The numbers come from the `automation_analytics`, `flow_analytics` and `flow_node_funnel` functions and the funnel order from `src/lib/flows/funnel-order.ts`, which is pure and can be imported through `@shared/`.
+- [ ] **Flow runs (mobile)**: the run history at `/flows/[id]/runs` is web-only; `GET /api/flows/[id]/runs` already accepts the mobile bearer token.
+- [ ] **Flow activate / pause (mobile)**: turning a flow on or off goes through `POST /api/flows/[id]/activate`, which already accepts the mobile bearer token, but mobile lists flows without a switch. Closing it means the same switch the automation rows have, showing the activation issues the route returns.
+
+---
+
+### Deferred: Ads on mobile
+
+_A §2.8 gap, stated rather than silent._
+
+- [ ] **Ads screen (mobile)**: the web Ads page (`src/app/(dashboard)/ads/ads-content.tsx`) has no mobile screen. The minimum a phone needs is the campaign list with spend and New contacts, pause and resume, and the daily budget on a spending ad, because an agent who sees money going out should be able to stop it without a laptop. All of it is mobile-reachable already: `GET /api/meta-ads/campaigns` returns the rows plus the connection state, and `PATCH /api/meta-ads/campaigns/[id]` takes `pause`, `resume`, `archive` and `set_budget`, both behind bearer-auth role checks. Money formatting is `formatAdMoney` in `src/lib/meta-ads/format.ts` and the per-ad lead count is `leadCountsByAd` in `src/lib/meta-ads/lead-counts.ts`, both pure, so a mobile screen imports them through `@shared/` once it exists. Connecting Meta (the OAuth redirect and the ad account and Page choice in Settings → Ads) stays web-only, as a browser-bound flow.
 
 ---
 

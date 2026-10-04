@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Workflow,
@@ -23,12 +24,12 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
+import { useAuth } from '@/hooks/useAuth';
 import { useCan } from '@/hooks/useCan';
 import { openRazorpayCheckout } from '@/lib/marketplace/checkout';
 import { Button } from '@/components/ui/button';
 import { GatedButton } from '@/components/ui/gated-button';
-import { FlowNodeLoader } from '@/components/ui/flow-node-loader';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { TabSkeleton } from '@/components/dashboard/skeleton';
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { formatRelative } from '@/lib/format/date';
 
 /**
  * Flows list page.
@@ -102,64 +104,94 @@ const TEMPLATE_ICONS = {
   UserPlus,
 } as const;
 
+export async function fetchFlows(): Promise<FlowRow[]> {
+  const res = await fetch('/api/flows');
+  if (!res.ok) throw new Error(`Failed to load flows: ${res.status}`);
+  const json = (await res.json()) as { flows?: FlowRow[] };
+  return json.flows ?? [];
+}
+
+async function fetchTemplates(): Promise<TemplateSummary[]> {
+  const res = await fetch('/api/flows/templates');
+  if (!res.ok) return [];
+  const json = (await res.json()) as { templates?: TemplateSummary[] };
+  return json.templates ?? [];
+}
+
+export async function fetchMarketplaceItems(): Promise<
+  MarketplaceItemSummary[]
+> {
+  const res = await fetch('/api/marketplace/items');
+  if (!res.ok) return [];
+  const json = (await res.json()) as { items?: MarketplaceItemSummary[] };
+  return json.items ?? [];
+}
+
+export function formatItemPrice(cents: number, currency: string): string {
+  if (cents === 0) return 'Free';
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+    }).format(cents / 100);
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${currency}`;
+  }
+}
+
+export function goLiveConsequence(triggerType: string): string {
+  if (triggerType === 'first_inbound_message') {
+    return 'Will reply to every first-time customer.';
+  }
+  if (triggerType === 'keyword') {
+    return 'Will reply to every customer who sends one of its keywords.';
+  }
+  if (triggerType === 'manual') {
+    return 'Will run only when someone on your team starts it.';
+  }
+  return 'Will start replying to customers automatically.';
+}
+
 export default function FlowsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { accountId } = useAuth();
   const canCreate = useCan('send-messages');
-  const [flows, setFlows] = useState<FlowRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
-  const [templates, setTemplates] = useState<TemplateSummary[]>([]);
-  const [marketplaceItems, setMarketplaceItems] = useState<
-    MarketplaceItemSummary[]
-  >([]);
   const [activatingId, setActivatingId] = useState<string | null>(null);
+  const [confirmItem, setConfirmItem] = useState<MarketplaceItemSummary | null>(
+    null
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [flowsRes, tmplRes, marketRes] = await Promise.all([
-          fetch('/api/flows'),
-          fetch('/api/flows/templates'),
-          fetch('/api/marketplace/items'),
-        ]);
-        if (!flowsRes.ok) {
-          throw new Error(`Failed to load flows: ${flowsRes.status}`);
-        }
-        const flowsJson = (await flowsRes.json()) as { flows: FlowRow[] };
-        if (!cancelled) setFlows(flowsJson.flows ?? []);
-        // Templates endpoint is forward-looking — if it 404s on an
-        // older deployment, gracefully fall through.
-        if (tmplRes.ok) {
-          const tmplJson = (await tmplRes.json()) as {
-            templates: TemplateSummary[];
-          };
-          if (!cancelled) setTemplates(tmplJson.templates ?? []);
-        }
-        if (marketRes.ok) {
-          const marketJson = (await marketRes.json()) as {
-            items: MarketplaceItemSummary[];
-          };
-          if (!cancelled) setMarketplaceItems(marketJson.items ?? []);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          console.error(err);
-          toast.error("Couldn't load flows.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const flowsKey = ['flows', accountId];
+  const marketKey = ['marketplace-items', accountId];
+  const flowsQuery = useQuery({
+    queryKey: flowsKey,
+    queryFn: fetchFlows,
+    enabled: Boolean(accountId),
+  });
+  const templatesQuery = useQuery({
+    queryKey: ['flow-templates'],
+    queryFn: fetchTemplates,
+  });
+  const marketQuery = useQuery({
+    queryKey: marketKey,
+    queryFn: fetchMarketplaceItems,
+    enabled: Boolean(accountId),
+  });
+  const flows = flowsQuery.data ?? [];
+  const templates = templatesQuery.data ?? [];
+  const marketplaceItems = marketQuery.data ?? [];
+
+  const setMarketplaceItem = (item: MarketplaceItemSummary) =>
+    queryClient.setQueryData<MarketplaceItemSummary[]>(marketKey, (prev) =>
+      prev?.map((i) => (i.id === item.id ? item : i))
+    );
 
   async function handleCreate() {
-    if (!newName.trim()) return;
+    if (!newName.trim() || creating) return;
     setCreating(true);
     try {
       const res = await fetch('/api/flows', {
@@ -215,7 +247,9 @@ export default function FlowsPage() {
     try {
       const res = await fetch(`/api/flows/${flow.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
-      setFlows((prev) => prev.filter((f) => f.id !== flow.id));
+      queryClient.setQueryData<FlowRow[]>(flowsKey, (prev) =>
+        prev?.filter((f) => f.id !== flow.id)
+      );
       toast.success('Flow deleted.');
     } catch (err) {
       console.error(err);
@@ -236,11 +270,13 @@ export default function FlowsPage() {
       };
       if (!res.ok)
         throw new Error(json.error ?? `Activation failed: ${res.status}`);
-      setMarketplaceItems((prev) =>
-        prev.map((i) =>
-          i.id === item.id ? { ...i, account_status: 'enabled' } : i
-        )
-      );
+      setConfirmItem(null);
+      setMarketplaceItem({
+        ...item,
+        account_status: 'enabled',
+        account_flow_id: json.flow_id ?? item.account_flow_id,
+      });
+      queryClient.invalidateQueries({ queryKey: flowsKey });
       toast.success('Flow activated.');
       if (json.flow_id) {
         router.push(`/flows/${json.flow_id}`);
@@ -272,7 +308,7 @@ export default function FlowsPage() {
       if (!json.orderId || !json.keyId)
         throw new Error('Missing checkout credentials');
 
-      const result = await openRazorpayCheckout({
+      await openRazorpayCheckout({
         keyId: json.keyId,
         orderId: json.orderId,
         amount: json.amount ?? item.price_cents,
@@ -285,7 +321,7 @@ export default function FlowsPage() {
       toast.loading('Processing payment...', { id: 'payment-processing' });
 
       // Poll for up to 10 seconds for the webhook to arrive
-      let confirmed = false;
+      let confirmed: MarketplaceItemSummary | null = null;
       for (let attempt = 0; attempt < 5; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -300,37 +336,32 @@ export default function FlowsPage() {
             updatedItem?.account_status === 'enabled' ||
             updatedItem?.account_status === 'purchased'
           ) {
-            confirmed = true;
-            // Update local state with the confirmed status
-            setMarketplaceItems((prev) =>
-              prev.map((i) => (i.id === item.id ? updatedItem : i))
-            );
+            confirmed = updatedItem;
+            setMarketplaceItem(updatedItem);
             break;
           }
         }
       }
 
-      if (confirmed) {
+      if (confirmed?.account_status === 'enabled') {
         toast.success('Payment successful. Your flow is now active.', {
           id: 'payment-processing',
         });
-        if (item.account_flow_id) {
-          router.push(`/flows/${item.account_flow_id}`);
+        if (confirmed.account_flow_id) {
+          router.push(`/flows/${confirmed.account_flow_id}`);
         }
-      } else {
-        // Webhook hasn't arrived yet, but payment was successful
-        // Optimistically update and let the user refresh if needed
-        setMarketplaceItems((prev) =>
-          prev.map((i) =>
-            i.id === item.id ? { ...i, account_status: 'enabled' } : i
-          )
+      } else if (confirmed) {
+        toast.success(
+          'Payment successful. Press Enable on the card to turn the flow on.',
+          { id: 'payment-processing' }
         );
-        toast.success('Payment successful. Activating your flow...', {
-          id: 'payment-processing',
-        });
+      } else {
+        toast.success(
+          "Payment received. We're still confirming it — refresh in a minute to enable the flow.",
+          { id: 'payment-processing' }
+        );
+        queryClient.invalidateQueries({ queryKey: marketKey });
       }
-
-      console.log('Razorpay marketplace payment:', result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Checkout failed';
       toast.error(msg, { id: 'payment-processing' });
@@ -339,12 +370,21 @@ export default function FlowsPage() {
     }
   }
 
-  if (loading) {
+  if (flowsQuery.isPending) {
+    return <TabSkeleton label="Loading flows" />;
+  }
+
+  if (flowsQuery.isError) {
     return (
-      <div className="flex h-full flex-col items-center justify-center text-slate-400">
-        <FlowNodeLoader size={104} label="Loading flows" className="mb-3" />
-        <ConvoRealLoader size={20} className="mb-2" />
-        <p className="text-sm">Loading flows...</p>
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/5 p-6 text-center">
+        <p className="text-sm text-rose-300">Couldn&apos;t load your flows.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => flowsQuery.refetch()}
+        >
+          Retry
+        </Button>
       </div>
     );
   }
@@ -407,7 +447,7 @@ export default function FlowsPage() {
                 key={item.id}
                 item={item}
                 activating={activatingId === item.id}
-                onActivate={() => handleActivateMarketplaceItem(item)}
+                onActivate={() => setConfirmItem(item)}
                 onBuy={() => handleBuyMarketplaceItem(item)}
                 onEdit={() =>
                   item.account_flow_id &&
@@ -418,6 +458,44 @@ export default function FlowsPage() {
           </div>
         </div>
       )}
+
+      <Dialog
+        open={confirmItem !== null}
+        onOpenChange={(open) => {
+          if (!open && !activatingId) setConfirmItem(null);
+        }}
+      >
+        <DialogContent className="bg-slate-900 text-slate-100">
+          <DialogHeader>
+            <DialogTitle>Turn on {confirmItem?.name}?</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              {confirmItem && goLiveConsequence(confirmItem.trigger_type)} It
+              goes live as soon as you confirm, and you can pause it from the
+              flow editor.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="border-slate-800 bg-slate-900">
+            <Button
+              variant="ghost"
+              onClick={() => setConfirmItem(null)}
+              disabled={activatingId !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                confirmItem && handleActivateMarketplaceItem(confirmItem)
+              }
+              disabled={activatingId !== null}
+            >
+              {activatingId !== null && (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              )}
+              Turn on
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         {/* `sm:max-w-4xl` not `max-w-4xl` — shadcn's DialogContent has
@@ -574,11 +652,14 @@ function FlowCard({
         {flow.description || triggerSummary}
       </p>
 
-      <div className="mt-4 flex items-center gap-3 text-[11px] text-slate-500">
+      <div className="mt-4 flex items-center gap-3 text-[11px] text-slate-400">
         <span className="inline-flex items-center gap-1">
           <MessageSquare className="h-3 w-3" />
           {flow.execution_count} {flow.execution_count === 1 ? 'run' : 'runs'}
         </span>
+        {flow.last_executed_at && (
+          <span>Last run {formatRelative(flow.last_executed_at)}</span>
+        )}
       </div>
 
       <div className="mt-4 flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
@@ -662,8 +743,8 @@ function MarketplaceCard({
             variant="outline"
             className="shrink-0 gap-1 border-slate-700 bg-slate-800 text-[10px] text-slate-400"
           >
-            <PauseCircle className="h-3 w-3" />
-            Disabled
+            <Store className="h-3 w-3" />
+            Available
           </Badge>
         )}
       </div>
@@ -678,9 +759,7 @@ function MarketplaceCard({
 
       <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
         <span className="text-xs font-medium text-slate-300">
-          {isFree
-            ? 'Free'
-            : `${(item.price_cents / 100).toFixed(2)} ${item.currency}`}
+          {formatItemPrice(item.price_cents, item.currency)}
         </span>
         {isEnabled ? (
           <Button variant="ghost" size="sm" onClick={onEdit}>

@@ -49,7 +49,8 @@ import {
   validateFlowForActivation,
   type ValidationIssue,
 } from '@/lib/flows/validate';
-import { unlinkNodeReferences } from '@/lib/flows/edges';
+import { deriveCanvasEdges, unlinkNodeReferences } from '@/lib/flows/edges';
+import { layoutUnpositioned } from '@/lib/flows/layout';
 import type { FlowNodeRow, FlowRow } from '@/lib/flows/types';
 import { NODE_META, slugify, type BuilderNode, type NodeType } from './shared';
 
@@ -74,8 +75,9 @@ export interface FlowEditorContextValue {
   // Authored state
   state: BuilderState;
   /**
-   * Dirty-tracking React setState. Flips `dirty` on every call. Used
-   * by the list view's existing subcomponents (Header, TriggerPanel,
+   * React setState for the authored state. `dirty` is derived by
+   * comparing the state against the last saved snapshot. Used by the
+   * list view's existing subcomponents (Header, TriggerPanel,
    * EntryPicker) which mutate multiple fields atomically — granular
    * setters below would force them to fan out the update.
    */
@@ -98,7 +100,7 @@ export interface FlowEditorContextValue {
   removeNode: (key: string) => void;
 
   // Actions
-  save: () => Promise<void>;
+  save: () => Promise<boolean>;
   setStatus: (status: BuilderState['status']) => Promise<void>;
   deleteFlow: () => Promise<void>;
 
@@ -193,6 +195,34 @@ export function defaultConfigFor(type: NodeType): Record<string, unknown> {
   }
 }
 
+export function savePayload(state: BuilderState) {
+  return {
+    name: state.name,
+    description: state.description || null,
+    trigger_type: state.trigger_type,
+    trigger_config: state.trigger_config,
+    entry_node_id: state.entry_node_id,
+    nodes: state.nodes,
+  };
+}
+
+export function initialBuilderNodes(rows: FlowNodeRow[]): BuilderNode[] {
+  const nodes: BuilderNode[] = rows.map((n) => ({
+    node_key: n.node_key,
+    node_type: n.node_type as NodeType,
+    config: n.config as Record<string, unknown>,
+    position_x: n.position_x,
+    position_y: n.position_y,
+  }));
+  return layoutUnpositioned(
+    nodes,
+    deriveCanvasEdges(nodes).map((e) => ({
+      source: e.source,
+      target: e.target,
+    }))
+  );
+}
+
 // ============================================================
 // Context
 // ============================================================
@@ -224,32 +254,26 @@ export function FlowEditorProvider({
 }: ProviderProps) {
   const router = useRouter();
 
-  const [state, setStateRaw] = useState<BuilderState>(() => ({
+  const [state, setState] = useState<BuilderState>(() => ({
     name: initialFlow.name,
     description: initialFlow.description ?? '',
     trigger_type: initialFlow.trigger_type,
     trigger_config: initialFlow.trigger_config as Record<string, unknown>,
     entry_node_id: initialFlow.entry_node_id,
     status: initialFlow.status,
-    nodes: initialNodes.map((n) => ({
-      node_key: n.node_key,
-      node_type: n.node_type as NodeType,
-      config: n.config as Record<string, unknown>,
-      position_x: n.position_x,
-      position_y: n.position_y,
-    })),
+    nodes: initialBuilderNodes(initialNodes),
   }));
 
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
-  // dirty flips on user edits; status-only updates (after the activate
-  // API succeeds) use setStateRaw so they don't falsely re-flag the
-  // form as dirty.
-  const [dirty, setDirty] = useState(false);
-  const setState = useCallback<typeof setStateRaw>((updaterOrValue) => {
-    setDirty(true);
-    setStateRaw(updaterOrValue);
-  }, []);
+  const [savedSnapshot, setSavedSnapshot] = useState(() =>
+    JSON.stringify(savePayload(state))
+  );
+  const currentSnapshot = useMemo(
+    () => JSON.stringify(savePayload(state)),
+    [state]
+  );
+  const dirty = currentSnapshot !== savedSnapshot;
 
   // Cross-view "look here" signal (see FlowEditorContextValue docs).
   // Tracked via a ref alongside state so a rapid second click on a
@@ -276,11 +300,11 @@ export function FlowEditorProvider({
     []
   );
 
-  // Browser-level reload / tab-close / external-link guard. SPA
+  // Browser-level reload / tab-close / external-link guard. The
+  // editor header's own links confirm through a dialog; other SPA
   // navigation (sidebar links, back button) isn't covered — Next 16
   // routes through the App Router and beforeunload doesn't fire on
-  // client-side route changes. That's a follow-up; this catches the
-  // accidental refresh / closed-window class of data loss.
+  // client-side route changes.
   useEffect(() => {
     if (!dirty) return;
     const handler = (e: BeforeUnloadEvent) => {
@@ -313,34 +337,30 @@ export function FlowEditorProvider({
   );
 
   // ---- Save (PUT) ----
-  const save = useCallback(async () => {
+  const save = useCallback(async (): Promise<boolean> => {
+    const snapshot = currentSnapshot;
     setSaving(true);
     try {
       const res = await fetch(`/api/flows/${initialFlow.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: state.name,
-          description: state.description || null,
-          trigger_type: state.trigger_type,
-          trigger_config: state.trigger_config,
-          entry_node_id: state.entry_node_id,
-          nodes: state.nodes,
-        }),
+        body: snapshot,
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
         throw new Error(json.error ?? `Save failed: ${res.status}`);
       }
-      setDirty(false);
+      setSavedSnapshot(snapshot);
       toast.success('Saved.');
+      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Save failed';
       toast.error(msg);
+      return false;
     } finally {
       setSaving(false);
     }
-  }, [initialFlow.id, state]);
+  }, [initialFlow.id, currentSnapshot]);
 
   // ---- Activate / Pause / Archive ----
   const setStatus = useCallback(
@@ -354,9 +374,7 @@ export function FlowEditorProvider({
         // Always save first so the activation validator sees the
         // latest state — the user shouldn't have to remember "save
         // then activate".
-        if (next === 'active') {
-          await save();
-        }
+        if (next === 'active' && !(await save())) return;
         const res = await fetch(`/api/flows/${initialFlow.id}/activate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -366,13 +384,13 @@ export function FlowEditorProvider({
           const json = await res.json().catch(() => ({}));
           throw new Error(json.error ?? `Status update failed: ${res.status}`);
         }
-        setStateRaw((s) => ({ ...s, status: next }));
+        setState((s) => ({ ...s, status: next }));
         toast.success(
           next === 'active'
             ? 'Flow activated.'
             : next === 'archived'
               ? 'Archived.'
-              : 'Saved as draft.'
+              : 'Flow paused.'
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Status update failed';

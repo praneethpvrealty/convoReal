@@ -3,7 +3,7 @@
 /**
  * Per-node configuration form, dispatched by node_type.
  *
- * One component, ten branches. Each branch renders the inputs that
+ * One component, one branch per node type. Each branch renders the inputs that
  * map onto the node's `config` JSONB shape (text + buttons for
  * send_buttons, prompt + var_key for collect_input, etc.) and forwards
  * edits up via `onUpdateConfig`.
@@ -162,6 +162,16 @@ export function NodeConfigForm({
         </>
       );
 
+    case 'send_property_listings':
+      return (
+        <SendPropertyListingsForm
+          cfg={cfg as SendPropertyListingsCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
     case 'condition':
       return (
         <ConditionForm
@@ -210,6 +220,135 @@ export function NodeConfigForm({
         </p>
       );
   }
+}
+
+// ============================================================
+// send_property_listings
+// ============================================================
+
+interface SendPropertyListingsCfg {
+  intro_text?: string;
+  empty_text?: string;
+  limit?: number;
+  filter_type?: string;
+  filter_types?: string[];
+  filter_listing_type?: string;
+  next_node_key?: string;
+  empty_next_node_key?: string;
+}
+
+const LISTING_TYPES = ['Sale', 'Rent', 'JV/JD', 'Built to Suit'];
+
+function SendPropertyListingsForm({
+  cfg,
+  allNodes,
+  currentKey,
+  onUpdateConfig,
+}: {
+  cfg: SendPropertyListingsCfg;
+  allNodes: BuilderNode[];
+  currentKey: string;
+  onUpdateConfig: (patch: Record<string, unknown>) => void;
+}) {
+  const propertyTypes =
+    cfg.filter_types && cfg.filter_types.length > 0
+      ? cfg.filter_types
+      : cfg.filter_type
+        ? [cfg.filter_type]
+        : [];
+  return (
+    <>
+      <TextRow
+        label="Intro text (sent above the listings)"
+        value={cfg.intro_text ?? ''}
+        onChange={(v) => onUpdateConfig({ intro_text: v })}
+        rows={2}
+      />
+      <TextRow
+        label="Text when nothing matches"
+        value={cfg.empty_text ?? ''}
+        onChange={(v) => onUpdateConfig({ empty_text: v })}
+        rows={2}
+      />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div>
+          <label className="mb-1 block text-xs text-slate-400">
+            Listings to send (1–10)
+          </label>
+          <Input
+            type="number"
+            min={1}
+            max={10}
+            value={cfg.limit ?? 5}
+            onChange={(e) =>
+              onUpdateConfig({
+                limit: Math.min(10, Math.max(1, Number(e.target.value) || 1)),
+              })
+            }
+            className="bg-slate-800"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-slate-400">
+            Listing type
+          </label>
+          <Select
+            value={cfg.filter_listing_type || '__any__'}
+            onValueChange={(v) =>
+              onUpdateConfig({
+                filter_listing_type: v === '__any__' ? '' : v,
+              })
+            }
+          >
+            <SelectTrigger className="bg-slate-800">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__any__">Any</SelectItem>
+              {LISTING_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {t}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-slate-400">
+            Property types (comma-separated)
+          </label>
+          <Input
+            value={propertyTypes.join(', ')}
+            onChange={(e) =>
+              onUpdateConfig({
+                filter_type: '',
+                filter_types: e.target.value
+                  .split(',')
+                  .map((t) => t.trim())
+                  .filter(Boolean),
+              })
+            }
+            placeholder="Any"
+            className="bg-slate-800"
+          />
+        </div>
+      </div>
+      <NextNodeRow
+        value={cfg.next_node_key ?? ''}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ next_node_key: v })}
+        label="After sending, advance to"
+      />
+      <NextNodeRow
+        value={cfg.empty_next_node_key ?? ''}
+        allNodes={allNodes}
+        currentKey={currentKey}
+        onChange={(v) => onUpdateConfig({ empty_next_node_key: v })}
+        label="When nothing matches, go to (optional)"
+      />
+    </>
+  );
 }
 
 // ============================================================

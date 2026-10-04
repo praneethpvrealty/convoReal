@@ -19,6 +19,22 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **Deals screens lead with what matters.** The stat strip above the board
+  shows Pipeline value, Weighted revenue and Won this month, with the other
+  three tiles one **More** away, remembered per device. The Journeys tab
+  holds its layout while it loads instead of flashing a full-page loader.
+  On a closing record, Stakeholders and Timeline show their list first,
+  with **Add stakeholder** and **Add a note** in the header; empty Tasks
+  and Documents tabs say what happens next and offer the first step; the
+  timeline names the member who made each change, or System when nobody
+  did; and the stage in the record header reads as a control. The
+  journeys you hid now say **hidden by you** and why. Same on mobile for
+  the record tabs and timeline names; mobile Journeys load behind skeleton
+  rows, and a bundle's linked deals print in each deal's own currency.
+- **Reply quotes no longer show raw WhatsApp markers.** When a contact
+  replies to a digest, the quoted original above their reply now shows
+  its header in bold instead of `*Your Property Update*`, on web and
+  mobile alike. Invariant INB-027.
 - **Only agents and above can change portal ad records.** Marking a portal
   ad posted or removed, or changing its expiry date, is now refused by the
   database for viewers and read-only members on web and mobile alike; every
@@ -51,9 +67,10 @@ than a written entry. Newest first.
   from Analytics, showed "Failed to load (404)", and switching it on or off
   in the mobile app answered "Not found". An automation now belongs to the
   account: every member can read it, and an agent or above can edit, toggle
-  or delete it. Read-only members can look but not change: the builder on
-  web and the switches on mobile are locked for them and say so. An
-  automation in another account still answers "Not found".
+  or delete it. Read-only members can look but not change: the builder and
+  the list's switches, Edit, Duplicate and Delete on web and the switches
+  on mobile are locked or hidden for them. An automation in another account
+  still answers "Not found".
 
 #### 3 October 2026
 

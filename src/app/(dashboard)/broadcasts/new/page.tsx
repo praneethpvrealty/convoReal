@@ -10,7 +10,10 @@ import { Step1ChooseTemplate } from '@/components/broadcasts/step1-choose-templa
 import { Step2SelectAudience } from '@/components/broadcasts/step2-select-audience';
 import { Step3Personalize } from '@/components/broadcasts/step3-personalize';
 import { Step4ScheduleSend } from '@/components/broadcasts/step4-schedule-send';
-import { useBroadcastSending } from '@/hooks/useBroadcastSending';
+import {
+  useBroadcastSending,
+  type AudienceConfig,
+} from '@/hooks/useBroadcastSending';
 import { Check } from 'lucide-react';
 
 const steps = [
@@ -28,24 +31,14 @@ export default function NewBroadcastPage() {
 
   const [currentStep, setCurrentStep] = useState(0);
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
-  const [audience, setAudience] = useState<{
-    type: 'all' | 'tags' | 'custom_field' | 'csv';
-    tagIds?: string[];
-    customField?: {
-      fieldId: string;
-      operator: 'is' | 'is_not' | 'contains';
-      value: string;
-    };
-    csvContacts?: { phone: string; name?: string }[];
-    excludeTagIds?: string[];
-  }>({ type: 'all' });
+  const [audience, setAudience] = useState<AudienceConfig | null>(null);
   const [variables, setVariables] = useState<
     Record<string, { type: 'static' | 'field' | 'custom_field'; value: string }>
   >({});
   const [name, setName] = useState('');
 
   async function handleSend() {
-    if (!template) return;
+    if (!template || !audience) return;
 
     try {
       const broadcastId = await createAndSendBroadcast({
@@ -80,7 +73,7 @@ export default function NewBroadcastPage() {
    * A full resume-draft UX is a future polish.
    */
   async function handleSaveDraft() {
-    if (!template || !name.trim()) {
+    if (!template || !audience || !name.trim()) {
       toast.error('Give the broadcast a name before saving a draft.');
       return;
     }
@@ -209,7 +202,7 @@ export default function NewBroadcastPage() {
               onBack={() => setCurrentStep(1)}
             />
           )}
-          {currentStep === 3 && template && (
+          {currentStep === 3 && template && audience && (
             <Step4ScheduleSend
               name={name}
               onNameChange={setName}

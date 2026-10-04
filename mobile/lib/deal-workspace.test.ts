@@ -6,6 +6,8 @@ import {
   formatStakeholderPhone,
   isClosingRecord,
   isReadable,
+  timelineActorLabel,
+  timelineSourceLabel,
   transactionSubtitle,
   transactionTitle,
   DEAL_DOCUMENT_CATEGORIES,
@@ -145,5 +147,42 @@ describe('formatStakeholderPhone', () => {
     expect(formatStakeholderPhone(null)).toBeNull();
     expect(formatStakeholderPhone('')).toBeNull();
     expect(formatStakeholderPhone(' - ')).toBeNull();
+  });
+});
+
+describe('[TXW-032] timeline attribution', () => {
+  const entry = {
+    actor_id: null,
+    actor_name: 'Claude (for Praneeth)',
+    event_type: 'milestone_added' as const,
+    source: 'system' as const,
+  };
+
+  it('names the member behind an entry', () => {
+    expect(
+      timelineActorLabel({ ...entry, actor_id: 'u1', actor_name: ' Asha ' })
+    ).toBe('Asha');
+  });
+
+  it('names the stakeholder who acknowledged an update', () => {
+    expect(
+      timelineActorLabel({
+        ...entry,
+        event_type: 'update_acknowledged',
+        actor_name: 'Ravi',
+      })
+    ).toBe('Ravi');
+  });
+
+  it('calls any other memberless entry System, whatever its source', () => {
+    expect(timelineActorLabel(entry)).toBe('System');
+    expect(timelineActorLabel({ ...entry, source: 'api' })).toBe('System');
+  });
+
+  it('shows the source only for mobile and API entries', () => {
+    expect(timelineSourceLabel({ source: 'mobile' })).toBe('mobile');
+    expect(timelineSourceLabel({ source: 'api' })).toBe('api');
+    expect(timelineSourceLabel({ source: 'web' })).toBeNull();
+    expect(timelineSourceLabel({ source: 'system' })).toBeNull();
   });
 });

@@ -778,6 +778,7 @@ Defined in `vercel.json`:
 - `/api/cron/buyer-match-digest` — daily 05:45 UTC
 - `/api/cron/lead-sync-reconcile` — hourly at :10
 - `/api/cron/outreach-followups` — hourly at :25
+- `/api/cron/credit-refunds` — hourly at :17; retries the AI-credit refunds queued in `credit_refund_retries`
 - `/api/appointments/cron` — every 15 minutes
 - `/api/cron/voice-campaigns` — every 10 minutes
 - `/api/cron/guidance-batches` — every 15 minutes

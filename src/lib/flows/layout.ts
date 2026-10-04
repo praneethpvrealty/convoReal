@@ -129,3 +129,29 @@ export function autoLayout(
   }
   return positions;
 }
+
+export function layoutUnpositioned<
+  T extends {
+    node_key: string;
+    position_x?: number | null;
+    position_y?: number | null;
+  },
+>(nodes: T[], edges: LayoutEdge[], options: LayoutOptions = {}): T[] {
+  if (!shouldAutoLayout(nodes)) return nodes;
+  const positions = autoLayout(
+    nodes.map((n) => ({ id: n.node_key })),
+    edges,
+    options
+  );
+  let moved = false;
+  const laid = nodes.map((n) => {
+    const at = positions.get(n.node_key);
+    if (!at) return n;
+    const x = Math.round(at.x);
+    const y = Math.round(at.y);
+    if (x === (n.position_x ?? 0) && y === (n.position_y ?? 0)) return n;
+    moved = true;
+    return { ...n, position_x: x, position_y: y };
+  });
+  return moved ? laid : nodes;
+}
