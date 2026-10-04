@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { inboundStepSource } from '@/lib/whatsapp/inbound/chain/test-source';
 
 const source = readFileSync(
   join(process.cwd(), 'src/lib/ai/chatbot-engine.ts'),
@@ -137,6 +138,63 @@ describe('[INB-025] starting a contact draft', () => {
   });
 });
 
+describe('[INB-025] a card sent into an open contact draft', () => {
+  const start = source.indexOf('const absorbIncoming =');
+  const cards = source.slice(
+    start,
+    source.indexOf('// Handle conversational updates to contact drafts')
+  );
+
+  it('appends a different person for a burst under the lease or a reply to the draft', () => {
+    expect(start).toBeGreaterThan(-1);
+    expect(cards).toContain(
+      'isContactCardBurst(contactSession, waited, Date.now())'
+    );
+    expect(cards).toMatch(
+      /isReplyToContactDraft\(\s*supabaseAdmin\(\),\s*conversation\.id,\s*message\.context\?\.id,\s*contactSession\s*\)/
+    );
+    expect(cards.match(/absorbIncoming\n/g)).toHaveLength(2);
+  });
+
+  it('writes both the screenshot and the card through the account-scoped compare-and-swap', () => {
+    expect(cards.match(/await foldIntoContactDraft\(/g)).toHaveLength(2);
+    expect(cards).not.toContain('overwriteContactDraftSession(');
+    expect(cards).not.toContain('reconcileContactDrafts(');
+
+    const fold = source.slice(
+      source.indexOf('async function foldIntoContactDraft('),
+      source.indexOf('async function sendContactDraftSaveFailed(')
+    );
+    expect(fold).toContain('await mutateContactDraft(');
+    expect(fold).toMatch(
+      /foldContactDrafts\(\s*latestSession\.draft_data,\s*incoming,\s*absorb\s*\)/
+    );
+    expect(fold).toMatch(/},\s*accountId\s*\);/);
+    expect(fold).toContain("if (mutation.status !== 'ok') {");
+    expect(fold).toContain('version: mutation.row.updated_at,');
+  });
+
+  it('sends no card when the write did not land', () => {
+    const writes = cards.split('await foldIntoContactDraft(').slice(1);
+    for (const write of writes) {
+      const afterWrite = write.slice(write.indexOf(');') + 2);
+      expect(afterWrite).toMatch(
+        /^\s*if \(!folded\) \{\s*return await sendContactDraftSaveFailed\(/
+      );
+      expect(
+        afterWrite.indexOf('return await sendContactDraftSaveFailed(')
+      ).toBeLessThan(afterWrite.indexOf('await sendContactDraftPreview('));
+    }
+  });
+
+  it('is told by the inbound chain whether the message waited for the lease', () => {
+    const step = inboundStepSource('owner-chatbot');
+    expect(step).toMatch(/waited,\s*} = ctx;/);
+    expect(step).toMatch(/phoneNumberId,\s*\{ waited \}\s*\);/);
+    expect(source).toContain('{ waited = false }: { waited?: boolean } = {}');
+  });
+});
+
 describe('[INB-024] an external listing session on the owner number', () => {
   it('is handed to the external flow before the owner flow reads it as its own draft', () => {
     const ownerFlow = source.slice(
@@ -217,7 +275,7 @@ describe('[INB-026] confirming a contact draft', () => {
     const writes = source
       .split('const version = await overwriteContactDraftSession(')
       .slice(1);
-    expect(writes).toHaveLength(4);
+    expect(writes).toHaveLength(2);
     for (const write of writes) {
       const afterWrite = write.slice(write.indexOf(');') + 2);
       expect(afterWrite).toMatch(

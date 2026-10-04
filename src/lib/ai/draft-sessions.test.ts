@@ -6,6 +6,7 @@ import type {
   ParsedPropertyDraft,
 } from './gemini';
 import {
+  CONTACT_CARD_BURST_WINDOW_MS,
   DRAFT_MUTATION_MAX_ATTEMPTS,
   DRAFT_SESSION_TIMEOUT_MS,
   deleteContactDraftSession,
@@ -15,7 +16,9 @@ import {
   findPropertyDraftSessionById,
   insertContactDraftSession,
   insertPropertyDraftSession,
+  isContactCardBurst,
   isDraftSessionExpired,
+  isReplyToContactDraft,
   mutateContactDraft,
   mutatePropertyDraft,
   overwriteContactDraftSession,
@@ -734,5 +737,104 @@ describe('isDraftSessionExpired', () => {
 
   it('uses a one-hour timeout', () => {
     expect(DRAFT_SESSION_TIMEOUT_MS).toBe(60 * 60 * 1000);
+  });
+});
+
+describe('[INB-025] isContactCardBurst', () => {
+  const updatedAt = '2026-10-04T10:00:00.000Z';
+  const base = new Date(updatedAt).getTime();
+
+  it('joins a card that waited to a draft written within the window', () => {
+    expect(
+      isContactCardBurst(
+        { updated_at: updatedAt },
+        true,
+        base + CONTACT_CARD_BURST_WINDOW_MS
+      )
+    ).toBe(true);
+  });
+
+  it('leaves a card that waited behind an older draft to the replace rule', () => {
+    expect(
+      isContactCardBurst(
+        { updated_at: updatedAt },
+        true,
+        base + CONTACT_CARD_BURST_WINDOW_MS + 1
+      )
+    ).toBe(false);
+  });
+
+  it('leaves a card that did not wait to the replace rule', () => {
+    expect(isContactCardBurst({ updated_at: updatedAt }, false, base)).toBe(
+      false
+    );
+  });
+
+  it('uses a one-minute window', () => {
+    expect(CONTACT_CARD_BURST_WINDOW_MS).toBe(60 * 1000);
+  });
+});
+
+describe('[INB-025] isReplyToContactDraft', () => {
+  const session = { created_at: '2026-10-04T10:00:00.000Z' };
+
+  it('accepts a quoted bot message of the conversation sent since the draft opened', async () => {
+    const { client, calls } = stubClient(() =>
+      ok({ created_at: '2026-10-04T10:00:05.000Z' })
+    );
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', 'wamid.1', session)
+    ).toBe(true);
+    expect(calls.map((c) => [c.table, c.op, c.filters, c.terminal])).toEqual([
+      [
+        'messages',
+        'select',
+        [
+          ['conversation_id', 'conv1'],
+          ['message_id', 'wamid.1'],
+          ['sender_type', 'bot'],
+        ],
+        'maybeSingle',
+      ],
+    ]);
+  });
+
+  it('rejects a quoted bot message older than the draft', async () => {
+    const { client } = stubClient(() =>
+      ok({ created_at: '2026-10-04T09:59:59.000Z' })
+    );
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', 'wamid.1', session)
+    ).toBe(false);
+  });
+
+  it('rejects a quote that is not a bot message of the conversation', async () => {
+    const { client } = stubClient(() => ok(null));
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', 'wamid.1', session)
+    ).toBe(false);
+  });
+
+  it('rejects a failed lookup', async () => {
+    const { client } = stubClient(() => ({
+      data: null,
+      error: { message: 'boom' },
+    }));
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', 'wamid.1', session)
+    ).toBe(false);
+  });
+
+  it('reads nothing for a message that quotes nothing', async () => {
+    const { client, calls } = stubClient(() => ok(null));
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', undefined, session)
+    ).toBe(false);
+    expect(calls).toHaveLength(0);
   });
 });
