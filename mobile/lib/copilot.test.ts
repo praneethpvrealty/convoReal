@@ -36,6 +36,17 @@ describe('mobile Copilot actions', () => {
     );
   });
 
+  it('[CPL-002] maps a contact-card link and a contacts search to native screens', () => {
+    expect(
+      appHrefForWebRoute(
+        '/contacts?contactId=11111111-1111-4111-8111-111111111111'
+      )
+    ).toBe('/(app)/contact/11111111-1111-4111-8111-111111111111');
+    expect(
+      appHrefForWebRoute('/contacts?search=JP%20Nagar%20residential')
+    ).toBe('/(app)/(tabs)/contacts?search=JP%20Nagar%20residential');
+  });
+
   it('maps audience sharing to the native listing-audience picker', () => {
     expect(
       appHrefForWebRoute(

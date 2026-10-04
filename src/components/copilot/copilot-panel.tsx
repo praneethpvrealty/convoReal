@@ -586,8 +586,15 @@ export function CopilotPanel() {
                         onClick={closePanel}
                         className="bg-primary/15 text-primary hover:bg-primary/25 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold"
                       >
-                        {link.label}
-                        <ArrowRight className="h-3 w-3" />
+                        <span className="flex flex-col items-start">
+                          <span>{link.label}</span>
+                          {link.subtitle ? (
+                            <span className="text-[10px] font-medium opacity-80">
+                              {link.subtitle}
+                            </span>
+                          ) : null}
+                        </span>
+                        <ArrowRight className="h-3 w-3 shrink-0" />
                       </Link>
                     ) : link.appUrl ? (
                       <a

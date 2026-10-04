@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
@@ -501,7 +501,17 @@ export default function ContactsScreen() {
   const wide = width >= 700;
   const insets = useSafeAreaInsets();
   const accountId = useAuthStore((state) => state.profile?.account_id);
-  const [search, setSearch] = useState('');
+  const { search: searchParam } = useLocalSearchParams<{ search?: string }>();
+  const [search, setSearch] = useState(
+    typeof searchParam === 'string' ? searchParam : ''
+  );
+  const [seededSearch, setSeededSearch] = useState(searchParam);
+  if (searchParam !== seededSearch) {
+    setSeededSearch(searchParam);
+    if (typeof searchParam === 'string' && searchParam.trim()) {
+      setSearch(searchParam);
+    }
+  }
   const [segment, setSegment] = useState<SegmentKey>('active');
   const [interest, setInterest] = useState<InterestFilter | null>(null);
   const [interestOpen, setInterestOpen] = useState(false);

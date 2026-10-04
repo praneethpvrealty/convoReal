@@ -64,6 +64,7 @@ export interface CopilotAnswer {
 
 export interface CopilotNavigationLink {
   label: string;
+  subtitle?: string;
   navigateTo?: string;
   appUrl?: string;
 }
@@ -132,8 +133,13 @@ export function appHrefForWebRoute(route: string | undefined): string | null {
     if (propertyId) return `/(app)/property/${encodeURIComponent(propertyId)}`;
   }
   if (route?.startsWith('/contacts?')) {
-    const contactId = new URLSearchParams(route.split('?')[1]).get('contactId');
+    const params = new URLSearchParams(route.split('?')[1]);
+    const contactId = params.get('contactId');
     if (contactId) return `/(app)/contact/${encodeURIComponent(contactId)}`;
+    const search = params.get('search');
+    if (search) {
+      return `/(app)/(tabs)/contacts?search=${encodeURIComponent(search)}`;
+    }
   }
   if (route?.startsWith('/calendar?')) {
     const eventId = new URLSearchParams(route.split('?')[1]).get('eventId');

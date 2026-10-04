@@ -15,6 +15,27 @@ full contact numbers. Selected `{ kind, id, label }` references are authorized
 again by `POST /api/copilot` before deterministic navigation. The trigram-backed
 search fields are defined in migration `20260902021006_copilot_entity_search`.
 
+## Contact search
+
+A staff question of the form "which contacts are looking for residential
+in JP Nagar under 2 Cr?" is answered from the account's own contact rows,
+before the tour matcher and outside the answer cache. `contact-search.ts`
+recognises the question and parses it lexically into locality stems
+(`src/lib/locality-match.ts`), type probes, a BHK band, a budget band and
+deal types; only phrasing the parser cannot read goes through the
+existing preference extractor (`src/lib/ai/preference-extraction.ts`),
+so the common questions cost no model call. `contact-search-query.ts`
+then calls `copilot_find_contacts` (migration
+`20261004125900_copilot_find_contacts`), a `SECURITY DEFINER` function
+guarded by `is_account_member()` that matches the flat columns, the
+`pref_*` columns and every active `requirement_profiles` entry, skips
+merged, archived, dead and parked contacts, and returns the top four with
+a total. The answer carries one `links[]` entry per contact (name,
+classification, budget band, matched area — never a phone number) that
+opens the contact card on web and natively on mobile, and a "See all" link
+into the Contacts list search. The result is built from live rows for one
+account, so it returns before the shared cache and is never stored there.
+
 ## Confirmed actions
 
 Staff with agent-or-higher access can ask to mark one selected `&` calendar
