@@ -82,10 +82,6 @@ jobs:
               # Web modules the mobile bundle imports through @shared/;
               # [SHR-003] in src/lib/mobile-parity.test.ts keeps this list whole.
               - 'src/lib/automations/step-tree.ts'
-              - 'src/lib/broadcasts/recount.ts'
-              - 'src/lib/broadcasts/csv-audience.ts'
-              - 'src/lib/format/phone.ts'
-              - 'src/lib/voice/campaign-settings.ts'
               - 'src/lib/automations/trigger-meta.ts'
               - 'src/lib/calendar/archive-sort.ts'
               - 'src/lib/calendar/todo-groups.ts'
@@ -109,6 +105,10 @@ jobs:
               - 'src/lib/showcase/message-preview.ts'
               - 'src/lib/sweep/gap-actions.ts'
               - 'src/lib/today/insights.ts'
+              - 'src/lib/broadcasts/recount.ts'
+              - 'src/lib/broadcasts/csv-audience.ts'
+              - 'src/lib/format/phone.ts'
+              - 'src/lib/voice/campaign-settings.ts'
               - '.github/workflows/ci.yml'
             go:
               - 'go-ingress/**'
