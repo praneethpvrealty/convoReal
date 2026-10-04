@@ -22,7 +22,10 @@ vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ accountId: 'acct-1', isReadOnly: auth.isReadOnly }),
 }));
 
-vi.mock('@/hooks/useCan', () => ({ useCan: () => true }));
+vi.mock('@/hooks/useCan', () => ({
+  useCan: (action: string) =>
+    action === 'make-changes' ? !auth.isReadOnly : true,
+}));
 
 vi.mock('@/lib/marketplace/checkout', () => ({
   openRazorpayCheckout: vi.fn(),

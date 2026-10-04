@@ -82,7 +82,7 @@ function rateChip(rate: number | null, goodAt = 90, okAt = 60) {
 export default function AutomationAnalyticsContent() {
   const db = createClient();
   const { accountId } = useAuth();
-  const canEdit = useCan('send-messages');
+  const canEdit = useCan('make-changes');
   const [range, setRange] = useState<Range>(30);
   const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
 

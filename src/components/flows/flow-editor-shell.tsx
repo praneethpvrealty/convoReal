@@ -24,7 +24,6 @@ import { FlowCanvas } from './flow-canvas';
 import { FlowEditorProvider } from './flow-editor-state';
 import { EditorHeader } from './header';
 import { ValidationPanel } from './validation-panel';
-import { useAuth } from '@/hooks/useAuth';
 import { useCan } from '@/hooks/useCan';
 import { cn } from '@/lib/utils';
 import type { FlowRow, FlowNodeRow } from '@/lib/flows/types';
@@ -67,8 +66,7 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
   // breakpoint regardless of `view` — but we keep `view` itself
   // intact so the user's preference comes back when they widen
   // again (e.g. rotating a tablet, resizing a window).
-  const { isReadOnly } = useAuth();
-  const readOnly = !useCan('send-messages') || isReadOnly;
+  const readOnly = !useCan('make-changes');
   const isMobile = useMatchMedia(MOBILE_BREAKPOINT);
   const effectiveView: View = isMobile ? 'list' : view;
 

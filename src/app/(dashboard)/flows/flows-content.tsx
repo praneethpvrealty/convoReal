@@ -155,8 +155,8 @@ export function goLiveConsequence(triggerType: string): string {
 export default function FlowsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { accountId, isReadOnly } = useAuth();
-  const canCreate = useCan('send-messages') && !isReadOnly;
+  const { accountId } = useAuth();
+  const canCreate = useCan('make-changes');
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
