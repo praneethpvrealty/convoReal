@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  absorbContactDrafts,
   applyExplicitContactDraftUpdate,
   deriveDraftStatus,
   validateDraft,
@@ -962,5 +963,31 @@ describe('reconcileContactDrafts', () => {
     );
     expect(out.replaced).toBe(true);
     expect(out.container.contacts[0].name).toBe('Anita');
+  });
+});
+
+describe('[INB-025] absorbContactDrafts', () => {
+  const draft = (name: string, phone: string | null = null, extra = {}) =>
+    makeContact({ name, phone, ...extra });
+
+  it('keeps both people when two different cards land together', () => {
+    const out = absorbContactDrafts(
+      makeContainer([draft('Vasundhara', '9972225992')]),
+      makeContainer([draft('Shiv', '9880011223')])
+    );
+    expect(out.contacts.map((c) => c.name)).toEqual(['Vasundhara', 'Shiv']);
+  });
+
+  it('merges a card about someone already in the draft', () => {
+    const out = absorbContactDrafts(
+      makeContainer([draft('Anita', '9000000001')]),
+      makeContainer([
+        draft('Anita', '9000000001', { email: 'a@x.com' }),
+        draft('Chetan', '9000000009'),
+      ])
+    );
+    expect(out.contacts).toHaveLength(2);
+    expect(out.contacts[0].email).toBe('a@x.com');
+    expect(out.contacts[1].name).toBe('Chetan');
   });
 });

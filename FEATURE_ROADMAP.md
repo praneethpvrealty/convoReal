@@ -167,12 +167,20 @@ _§2.8 gaps, stated rather than silent. They share one root cause: the mobile ap
 
 ---
 
-### Deferred: portal posting on mobile
+### Deferred: projects on mobile
 
 _A §2.8 gap, stated rather than silent._
 
+- [ ] **The Projects tab** (`src/app/(dashboard)/inventory/projects-content.tsx`, `src/components/inventory/project-form-dialog.tsx`, `project-units-dialog.tsx`): grouping flats under one development, with the shared pin, brochure and amenities stored once and the "from" price recomputed from `project_unit_stats`, exists on web only. Mobile shows each unit as its own listing and has no project screen. Closing it means a read-only project card on the mobile property screen (name, where, "N of M units sold") before any editing.
+
+---
+
+### Deferred: portal posting on mobile
+
+_Posting to a portal is desktop-only by design, not a missing feature: it runs through the Chrome extension, which phone browsers cannot run. What remains is the record-keeping around it, stated rather than silent._
+
 - [ ] **Portal ad ids on mobile** (`src/components/inventory/portal-post-dialog.tsx`, the `99 / MB / H` badges in `src/components/inventory/property-list.tsx`): recording where a listing is advertised, and the portal's own ad id for it, ships on web only. Mobile has no portal surface at all — posting is a copy-paste flow into the portals' own web forms, assisted by the Chrome extension, so the dialog grew where the work happens. What _is_ at parity is the part that matters for lead accuracy: the unmapped-ads queue and the one-tap assertion from a lead both run on the phone (`mobile/components/unmapped-portal-ads.tsx`), reading the same `unmapped_portal_ads` and `POST /api/contacts/[id]/portal-link`. So an agent can map every ad from mobile; they just cannot see or edit the ad id from the listing itself. Closing it means a read-only portal section on the mobile property screen, plus the ad-id editor.
-- [ ] **Fixing a portal-ad mismatch from mobile** (`mobile/components/portal-drift-panel.tsx`): the drift banner's findings offer **Update portal listing** on web, which opens the Post to Portals dialog. Mobile offers only **Open listing** and **View ad**, because that dialog does not exist there; the stale-expiry finding still points to the web dialog. It closes with the portal section above.
+- [x] **Fixing a portal-ad mismatch from mobile** (`mobile/components/portal-drift-panel.tsx`, `mobile/components/portal-expiry-sheet.tsx`): closed. Each drift finding offers **Update portal listing**, which opens the portal listings sheet to change an expiry date or mark the ad removed, then refreshes the banner. This is the same record-keeping the web Post to Portals dialog does after a post.
 
 ---
 

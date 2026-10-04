@@ -34,7 +34,43 @@ than a written entry. Newest first.
 - **Reply quotes no longer show raw WhatsApp markers.** When a contact
   replies to a digest, the quoted original above their reply now shows
   its header in bold instead of `*Your Property Update*`, on web and
-  mobile alike. Invariant INB-024.
+  mobile alike. Invariant INB-026.
+- **Only agents and above can change portal ad records.** Marking a portal
+  ad posted or removed, or changing its expiry date, is now refused by the
+  database for viewers and read-only members on web and mobile alike; every
+  member can still read the records.
+- **One badge per idea on listing cards.** An available listing shows "For
+  Sale" or "For Rent" alone; the status badge appears only when it says
+  something — Under Contract, Sold, Off Market, Pending Review or Archived.
+  Mobile cards gain the same status chip, so an unavailable listing no
+  longer looks like an available one when unavailable listings are shown.
+- **Project cards show progress and open with one click.** Each card on the
+  Projects tab now reads "3 of 12 units sold" with a bar at the sold share,
+  the whole card opens its units, and **Manage units** and **Edit** are
+  proper buttons instead of plain text.
+- **The inventory sort says what it is.** The control reads "Sort: Recently
+  added" rather than a bare "Recently added".
+- **Ads loads into its table, not a splash screen.** The campaigns page
+  shows the table's header and placeholder rows while it loads, so nothing
+  jumps when the campaigns arrive.
+- **The AI Assistant button stays off the Help button.** Dragging the
+  launcher can no longer park it on top of Help & feedback; it now rests at
+  least a button's height above it.
+- **Fix a portal-ad mismatch from the phone.** Each finding in the portal
+  drift banner on mobile now has **Update portal listing**, which opens the
+  listing's portal ads to change an expiry date or **Mark removed** once the
+  ad is down, and the banner refreshes on its own. Viewers and read-only
+  members see the findings without those actions. Posting to a portal stays
+  on desktop, where the Chrome extension runs.
+- **Anyone on the team can open, edit and switch a colleague's automation.**
+  Opening an automation someone else created, from the Automations list or
+  from Analytics, showed "Failed to load (404)", and switching it on or off
+  in the mobile app answered "Not found". An automation now belongs to the
+  account: every member can read it, and an agent or above can edit, toggle
+  or delete it. Read-only members can look but not change: the builder and
+  the list's switches, Edit, Duplicate and Delete on web and the switches
+  on mobile are locked or hidden for them. An automation in another account
+  still answers "Not found".
 
 #### 3 October 2026
 

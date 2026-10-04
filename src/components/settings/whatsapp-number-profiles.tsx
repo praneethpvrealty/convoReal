@@ -13,7 +13,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import { cn } from '@/lib/utils';
 import type { WhatsAppNumberProfile } from '@/types';
 import { Badge } from '@/components/ui/badge';

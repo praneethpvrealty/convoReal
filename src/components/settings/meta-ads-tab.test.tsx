@@ -14,7 +14,7 @@ vi.mock('@/lib/navigation', () => ({ replaceUrl: vi.fn() }));
 vi.mock('@/hooks/usePlan', () => ({
   usePlan: () => ({ plan: 'pro', isLoading: false }),
 }));
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ isOwner: auth.isOwner, profileLoading: false }),
 }));
 
@@ -49,7 +49,7 @@ afterEach(() => {
 });
 
 describe('MetaAdsTab', () => {
-  it('[PRP-036] shows one Reconnect action, not Connect as well, when the token expired', async () => {
+  it('[PRP-041] shows one Reconnect action, not Connect as well, when the token expired', async () => {
     stubConfig({ connected: false, status: 'token_expired' });
     render(<MetaAdsTab />);
 
@@ -63,7 +63,7 @@ describe('MetaAdsTab', () => {
     ).toBeNull();
   });
 
-  it('[PRP-036] lists what happens next above the Connect button for the owner', async () => {
+  it('[PRP-041] lists what happens next above the Connect button for the owner', async () => {
     stubConfig({ connected: false, reason: 'not_connected' });
     render(<MetaAdsTab />);
 
@@ -79,7 +79,7 @@ describe('MetaAdsTab', () => {
     ).toBeTruthy();
   });
 
-  it('[PRP-036] hides Connect from non-owners and tells them who can connect', async () => {
+  it('[PRP-041] hides Connect from non-owners and tells them who can connect', async () => {
     auth.isOwner = false;
     stubConfig({ connected: false, reason: 'not_connected' });
     render(<MetaAdsTab />);
@@ -91,7 +91,7 @@ describe('MetaAdsTab', () => {
     ).toBeNull();
   });
 
-  it('[PRP-036] warns when the connection expires within 14 days', async () => {
+  it('[PRP-041] warns when the connection expires within 14 days', async () => {
     stubConfig({
       connected: true,
       status: 'connected',
@@ -105,7 +105,7 @@ describe('MetaAdsTab', () => {
     await screen.findByText(/Connection expires in [45] days/);
   });
 
-  it('[PRP-036] warns at 13 days 23 hours left', async () => {
+  it('[PRP-041] warns at 13 days 23 hours left', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-10-04T00:00:00Z'));
     stubConfig({
@@ -121,7 +121,7 @@ describe('MetaAdsTab', () => {
     await screen.findByText('Connection expires in 14 days');
   });
 
-  it('[PRP-036] stays quiet at exactly 14 days left', async () => {
+  it('[PRP-041] stays quiet at exactly 14 days left', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-10-04T00:00:00Z'));
     stubConfig({
@@ -139,7 +139,7 @@ describe('MetaAdsTab', () => {
     expect(screen.queryByText(/Connection expires/)).toBeNull();
   });
 
-  it('[PRP-036] stays quiet when the connection has more than 14 days left', async () => {
+  it('[PRP-041] stays quiet when the connection has more than 14 days left', async () => {
     stubConfig({
       connected: true,
       status: 'connected',
@@ -155,7 +155,7 @@ describe('MetaAdsTab', () => {
     expect(screen.queryByText(/Connection expires/)).toBeNull();
   });
 
-  it('[PRP-036] offers Reconnect and Disconnect while the ad account is still to be chosen, with labelled selects', async () => {
+  it('[PRP-041] offers Reconnect and Disconnect while the ad account is still to be chosen, with labelled selects', async () => {
     stubConfig({
       connected: true,
       status: 'connected',
@@ -170,7 +170,7 @@ describe('MetaAdsTab', () => {
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy();
   });
 
-  it('[PRP-036] re-enables Connect when the window regains focus', async () => {
+  it('[PRP-041] re-enables Connect when the window regains focus', async () => {
     const assign = vi.fn();
     vi.stubGlobal('location', {
       ...window.location,

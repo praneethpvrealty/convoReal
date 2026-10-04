@@ -8,11 +8,13 @@ import {
   CheckCircle2,
   GitBranch,
   History,
+  Pencil,
   Workflow,
   XCircle,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import {
   buildFunnelSteps,
   completionRate,
@@ -80,6 +82,7 @@ function rateChip(rate: number | null, goodAt = 90, okAt = 60) {
 export default function AutomationAnalyticsContent() {
   const db = createClient();
   const { accountId } = useAuth();
+  const canEdit = useCan('send-messages');
   const [range, setRange] = useState<Range>(30);
   const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
 
@@ -309,6 +312,19 @@ export default function AutomationAnalyticsContent() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
+                        {canEdit && (
+                          <Link
+                            href={`/automations/${row.automation_id}/edit`}
+                            aria-label={`Edit ${row.name}`}
+                            className={buttonVariants({
+                              variant: 'ghost',
+                              size: 'sm',
+                            })}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </Link>
+                        )}
                         <Link
                           href={`/automations/${row.automation_id}/logs`}
                           aria-label={`Logs for ${row.name}`}

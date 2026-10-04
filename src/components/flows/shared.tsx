@@ -30,6 +30,7 @@ import {
   UserPlus,
   Workflow,
 } from 'lucide-react';
+import { truncate } from '@/lib/format/text';
 
 // ============================================================
 // Node-type union — single source of truth for every place the UI
@@ -167,10 +168,8 @@ export function slugify(s: string, fallback: string): string {
 // or a freshly-added node with no fields filled in).
 // ============================================================
 
-export function truncate(s: string, max = 80): string {
-  const clean = s.replace(/\s+/g, ' ').trim();
-  if (clean.length <= max) return clean;
-  return clean.slice(0, max - 1) + '…';
+function preview(s: string, max = 80): string {
+  return truncate(s.replace(/\s+/g, ' ').trim(), max);
 }
 
 export function summarizeNode(node: BuilderNode): string | null {
@@ -181,7 +180,7 @@ export function summarizeNode(node: BuilderNode): string | null {
       return null;
     case 'send_message': {
       const text = typeof cfg.text === 'string' ? cfg.text : '';
-      return text.length > 0 ? truncate(text) : null;
+      return text.length > 0 ? preview(text) : null;
     }
     case 'send_buttons': {
       const text = typeof cfg.text === 'string' ? cfg.text : '';
@@ -194,8 +193,8 @@ export function summarizeNode(node: BuilderNode): string | null {
         .join(' / ');
       if (text.length > 0) {
         return titles
-          ? `${truncate(text, 40)} · ${truncate(titles, 35)}`
-          : truncate(text);
+          ? `${preview(text, 40)} · ${preview(titles, 35)}`
+          : preview(text);
       }
       return titles || null;
     }
@@ -210,8 +209,8 @@ export function summarizeNode(node: BuilderNode): string | null {
       }, 0);
       if (text.length > 0) {
         return rowCount > 0
-          ? `${truncate(text, 50)} · ${rowCount} option${rowCount === 1 ? '' : 's'}`
-          : truncate(text);
+          ? `${preview(text, 50)} · ${rowCount} option${rowCount === 1 ? '' : 's'}`
+          : preview(text);
       }
       return rowCount > 0
         ? `${rowCount} option${rowCount === 1 ? '' : 's'} across ${sections.length} section${sections.length === 1 ? '' : 's'}`
@@ -229,16 +228,16 @@ export function summarizeNode(node: BuilderNode): string | null {
       if (!url) return `${label} (no file uploaded)`;
       const name = filename || url.split('/').pop() || 'file';
       return caption
-        ? `${label}: ${truncate(name, 30)} · ${truncate(caption, 40)}`
-        : `${label}: ${truncate(name, 60)}`;
+        ? `${label}: ${preview(name, 30)} · ${preview(caption, 40)}`
+        : `${label}: ${preview(name, 60)}`;
     }
     case 'collect_input': {
       const prompt = typeof cfg.prompt_text === 'string' ? cfg.prompt_text : '';
       const varKey = typeof cfg.var_key === 'string' ? cfg.var_key : '';
       if (prompt.length > 0) {
         return varKey
-          ? `${truncate(prompt, 50)} → vars.${varKey}`
-          : truncate(prompt);
+          ? `${preview(prompt, 50)} → vars.${varKey}`
+          : preview(prompt);
       }
       return varKey ? `→ vars.${varKey}` : null;
     }
@@ -254,7 +253,7 @@ export function summarizeNode(node: BuilderNode): string | null {
             : 'var';
       const subjectStr =
         subject === 'tag'
-          ? `has tag ${truncate(subjectKey, 24)}`
+          ? `has tag ${preview(subjectKey, 24)}`
           : `${subject}.${subjectKey}`;
       const op =
         cfg.operator === 'equals'
@@ -269,7 +268,7 @@ export function summarizeNode(node: BuilderNode): string | null {
       const value = typeof cfg.value === 'string' ? cfg.value : '';
       const valStr =
         (cfg.operator === 'equals' || cfg.operator === 'contains') && value
-          ? ` "${truncate(value, 20)}"`
+          ? ` "${preview(value, 20)}"`
           : '';
       return subject === 'tag' ? subjectStr : `${subjectStr} ${op}${valStr}`;
     }
@@ -285,12 +284,12 @@ export function summarizeNode(node: BuilderNode): string | null {
     }
     case 'handoff': {
       const note = typeof cfg.note === 'string' ? cfg.note : '';
-      return note.length > 0 ? truncate(note) : null;
+      return note.length > 0 ? preview(note) : null;
     }
     case 'start_property_intake': {
       const introText =
         typeof cfg.intro_text === 'string' ? cfg.intro_text : '';
-      return introText.length > 0 ? truncate(introText) : null;
+      return introText.length > 0 ? preview(introText) : null;
     }
     case 'send_property_listings': {
       const filterType =

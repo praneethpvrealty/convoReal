@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { Suspense } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   act,
   cleanup,
@@ -36,9 +36,9 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
-  useAuth: () => ({ user: { id: 'u1' } }),
-}));
+const can = vi.hoisted(() => ({ value: true }));
+
+vi.mock('@/hooks/useCan', () => ({ useCan: () => can.value }));
 
 vi.mock('@/components/contacts/name-tag-badge', () => ({
   NameTagBadge: () => null,
@@ -74,6 +74,10 @@ async function renderLogs() {
     );
   });
 }
+
+beforeEach(() => {
+  can.value = true;
+});
 
 afterEach(() => {
   cleanup();
@@ -130,8 +134,8 @@ describe('AutomationLogsPage', () => {
     ).toBe('/automations/a1/edit');
   });
 
-  it("offers Edit only to the automation's creator", async () => {
-    db.results = {
+  it("offers Edit on a teammate's automation and not to a read-only member", async () => {
+    const teammates = () => ({
       automations: {
         data: {
           id: 'a1',
@@ -143,7 +147,18 @@ describe('AutomationLogsPage', () => {
       },
       automation_logs: { data: [log('l1', 'success')], error: null },
       conversations: { data: [], error: null },
-    };
+    });
+
+    db.results = teammates();
+    await renderLogs();
+    await screen.findByText('Keyword reply');
+    expect(
+      screen.getByRole('link', { name: /Edit/ }).getAttribute('href')
+    ).toBe('/automations/a1/edit');
+    cleanup();
+
+    can.value = false;
+    db.results = teammates();
     await renderLogs();
     await screen.findByText('Keyword reply');
     expect(screen.queryByRole('link', { name: /Edit/ })).toBeNull();

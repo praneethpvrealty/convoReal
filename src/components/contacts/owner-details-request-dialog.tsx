@@ -13,8 +13,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useAuth } from '@/hooks/use-auth';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import {

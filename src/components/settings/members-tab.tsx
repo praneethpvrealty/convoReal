@@ -59,7 +59,7 @@ import {
 } from '@/components/ui/select';
 import { RequireRole } from '@/components/auth/require-role';
 import { storagePublicUrl } from '@/lib/storage/url';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import type { AccountRole } from '@/lib/auth/roles';
 import { InviteMemberDialog } from './invite-member-dialog';
 

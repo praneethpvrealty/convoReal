@@ -1,5 +1,9 @@
 import type { PostgrestError } from '@supabase/supabase-js';
-import type { Tables, TypedSupabaseClient } from '@/lib/supabase/database';
+import type {
+  Json,
+  Tables,
+  TypedSupabaseClient,
+} from '@/lib/supabase/database';
 import type {
   ParsedContactDraftsContainer,
   ParsedPropertyDraft,
@@ -59,12 +63,27 @@ export interface NextPropertyDraft {
   status: DraftSessionStatus;
 }
 
-export type MutatePropertyDraftResult =
-  | { status: 'ok'; row: PropertyDraftSessionRow; next: NextPropertyDraft }
+export interface NextContactDraft {
+  draft_data: ParsedContactDraftsContainer;
+  status: DraftSessionStatus;
+}
+
+export type MutateDraftResult<Row, Next> =
+  | { status: 'ok'; row: Row; next: Next }
   | { status: 'gone' }
   | { status: 'error'; error: PostgrestError | null }
   | { status: 'conflict' }
   | { status: 'skipped' };
+
+export type MutatePropertyDraftResult = MutateDraftResult<
+  PropertyDraftSessionRow,
+  NextPropertyDraft
+>;
+
+export type MutateContactDraftResult = MutateDraftResult<
+  ContactDraftSessionRow,
+  NextContactDraft
+>;
 
 export interface MutatePropertyDraftOptions {
   onMissingRow?: 'report' | 'retry';
@@ -98,13 +117,15 @@ export async function findPropertyDraftSessionById(
 
 export async function findContactDraftSession(
   db: DB,
-  contactId: string
+  contactId: string,
+  accountId?: string
 ): Promise<SingleResult<ContactDraftSessionRow>> {
-  const { data, error } = await db
+  let query = db
     .from('contact_draft_sessions')
     .select('*')
-    .eq('contact_id', contactId)
-    .maybeSingle();
+    .eq('contact_id', contactId);
+  if (accountId) query = query.eq('account_id', accountId);
+  const { data, error } = await query.maybeSingle();
   return { data: data as ContactDraftSessionRow | null, error };
 }
 
@@ -170,24 +191,24 @@ export async function overwriteContactDraftSession(
     .eq('id', id);
 }
 
-export async function mutatePropertyDraft(
+async function mutateDraftRow<
+  Row extends { updated_at: string },
+  Next extends { draft_data: Json; status: DraftSessionStatus },
+>(
   db: DB,
+  table: 'property_draft_sessions' | 'contact_draft_sessions',
   id: string,
-  next: (
-    row: PropertyDraftSessionRow
-  ) => Promise<NextPropertyDraft | null> | NextPropertyDraft | null,
-  options: MutatePropertyDraftOptions = {}
-): Promise<MutatePropertyDraftResult> {
-  const onMissingRow = options.onMissingRow ?? 'report';
+  next: (row: Row) => Promise<Next | null> | Next | null,
+  onMissingRow: 'report' | 'retry',
+  accountId?: string
+): Promise<MutateDraftResult<Row, Next>> {
   let attempts = 0;
 
   while (attempts < DRAFT_MUTATION_MAX_ATTEMPTS) {
-    const { data, error: fetchErr } = await db
-      .from('property_draft_sessions')
-      .select('*')
-      .eq('id', id)
-      .single();
-    const latest = data as PropertyDraftSessionRow | null;
+    let read = db.from(table).select('*').eq('id', id);
+    if (accountId) read = read.eq('account_id', accountId);
+    const { data, error: fetchErr } = await read.single();
+    const latest = data as Row | null;
 
     if (onMissingRow === 'retry') {
       if (!latest) {
@@ -202,17 +223,18 @@ export async function mutatePropertyDraft(
     const nextDraft = await next(latest);
     if (!nextDraft) return { status: 'skipped' };
 
-    const { data: updateData, error: updateErr } = await db
-      .from('property_draft_sessions')
+    let write = db
+      .from(table)
       .update({
         draft_data: nextDraft.draft_data,
         status: nextDraft.status,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .eq('updated_at', latest.updated_at)
-      .select();
-    const written = updateData as PropertyDraftSessionRow[] | null;
+      .eq('updated_at', latest.updated_at);
+    if (accountId) write = write.eq('account_id', accountId);
+    const { data: updateData, error: updateErr } = await write.select();
+    const written = updateData as Row[] | null;
 
     if (!updateErr && written && written.length > 0) {
       return { status: 'ok', row: written[0], next: nextDraft };
@@ -224,6 +246,41 @@ export async function mutatePropertyDraft(
   }
 
   return { status: 'conflict' };
+}
+
+export function mutatePropertyDraft(
+  db: DB,
+  id: string,
+  next: (
+    row: PropertyDraftSessionRow
+  ) => Promise<NextPropertyDraft | null> | NextPropertyDraft | null,
+  options: MutatePropertyDraftOptions = {}
+): Promise<MutatePropertyDraftResult> {
+  return mutateDraftRow<PropertyDraftSessionRow, NextPropertyDraft>(
+    db,
+    'property_draft_sessions',
+    id,
+    next,
+    options.onMissingRow ?? 'report'
+  );
+}
+
+export function mutateContactDraft(
+  db: DB,
+  id: string,
+  next: (
+    row: ContactDraftSessionRow
+  ) => Promise<NextContactDraft | null> | NextContactDraft | null,
+  accountId?: string
+): Promise<MutateContactDraftResult> {
+  return mutateDraftRow<ContactDraftSessionRow, NextContactDraft>(
+    db,
+    'contact_draft_sessions',
+    id,
+    next,
+    'report',
+    accountId
+  );
 }
 
 export function isDraftSessionExpired(

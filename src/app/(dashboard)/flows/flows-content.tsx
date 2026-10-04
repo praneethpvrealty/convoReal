@@ -24,8 +24,8 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-import { useAuth } from '@/hooks/use-auth';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { openRazorpayCheckout } from '@/lib/marketplace/checkout';
 import { Button } from '@/components/ui/button';
 import { GatedButton } from '@/components/ui/gated-button';

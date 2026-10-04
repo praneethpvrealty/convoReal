@@ -40,17 +40,17 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => searchParams,
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
     accountId: 'acct-search-test',
   }),
 }));
 
-vi.mock('@/hooks/use-can', () => ({
+vi.mock('@/hooks/useCan', () => ({
   useCan: () => true,
 }));
 
-vi.mock('@/hooks/use-locale', () => ({
+vi.mock('@/hooks/useLocale', () => ({
   useT: () => (key: string) => key,
 }));
 
@@ -485,6 +485,7 @@ describe('inventory sort and filters', () => {
     });
     const trigger = screen.getByLabelText('Sort listings');
     expect(trigger.textContent).toContain('Recently added');
+    expect(trigger.textContent).toMatch(/Sort:\s*Recently added/);
     expect(trigger.textContent).not.toContain('created_at');
     const params = new URLSearchParams(
       propertiesCalls(fetchMock).at(-1)!.split('?')[1]

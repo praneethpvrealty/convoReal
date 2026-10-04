@@ -9,7 +9,7 @@ import {
   Send,
   MousePointerClick,
 } from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { MetricCard } from '@/components/dashboard/metric-card';
 import { SkeletonCard, Skeleton } from '@/components/dashboard/skeleton';
 import { EmptyState } from '@/components/dashboard/empty-state';

@@ -15,8 +15,8 @@ import {
   X,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { cn } from '@/lib/utils';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import { voiceCallCost } from '@/lib/credits/types';

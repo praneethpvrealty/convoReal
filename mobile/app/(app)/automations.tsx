@@ -30,10 +30,13 @@ import {
 
 export default function AutomationsScreen() {
   const { colors, fonts: f } = useTheme();
+  const profile = useAuthStore((s) => s.profile);
+  const canEdit = Boolean(
+    profile && profile.account_role !== 'viewer' && !profile.is_read_only
+  );
   const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const { show, close, dialogProps } = useAppDialog();
-  const userId = useAuthStore((s) => s.session?.user.id);
 
   const automationsQuery = useQuery({
     queryKey: ['automations'],
@@ -118,8 +121,9 @@ export default function AutomationsScreen() {
 
       <SectionLabel text="Automations" />
       <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-        Toggle automations you created on or off. Building and editing them
-        happens on the web.
+        {canEdit
+          ? 'Toggle any automation in your account on or off. Building and editing them happens on the web.'
+          : "Every automation in your account. Your access is read-only, so you can't switch them on or off."}
       </Text>
       {automationsQuery.isLoading ? (
         <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
@@ -131,7 +135,6 @@ export default function AutomationsScreen() {
         />
       ) : (
         (automationsQuery.data ?? []).map((a) => {
-          const ownedByCaller = Boolean(userId) && a.user_id === userId;
           const blockedOn = !isTriggerAvailable(a.trigger_type) && !a.is_active;
           return (
             <View
@@ -160,12 +163,6 @@ export default function AutomationsScreen() {
                     ? ` · ran ${a.execution_count}×`
                     : ''}
                 </Text>
-                {!ownedByCaller ? (
-                  <Text style={{ fontSize: 12, color: colors.textFaint }}>
-                    Created by a teammate. Only its creator can change it for
-                    now.
-                  </Text>
-                ) : null}
               </View>
               {togglingId === a.id ? (
                 <ActivityIndicator color={colors.primary} />
@@ -173,10 +170,10 @@ export default function AutomationsScreen() {
                 <Switch
                   value={a.is_active}
                   onValueChange={(v) => requestToggle(a, v)}
-                  disabled={!ownedByCaller || blockedOn}
+                  disabled={!canEdit || blockedOn}
                   accessibilityHint={
-                    !ownedByCaller
-                      ? 'Only its creator can change it for now.'
+                    !canEdit
+                      ? 'Your access is read-only.'
                       : blockedOn
                         ? 'This trigger is not yet available, so this automation cannot be turned on.'
                         : undefined

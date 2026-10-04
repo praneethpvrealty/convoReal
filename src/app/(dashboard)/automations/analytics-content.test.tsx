@@ -17,9 +17,13 @@ const analytics = vi.hoisted(() => ({
   loadFlowNodeFunnel: vi.fn(),
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
+const can = vi.hoisted(() => ({ value: true }));
+
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ accountId: 'acct-1' }),
 }));
+
+vi.mock('@/hooks/useCan', () => ({ useCan: () => can.value }));
 
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({}) }));
 
@@ -67,6 +71,7 @@ function renderAnalytics() {
 }
 
 beforeEach(() => {
+  can.value = true;
   analytics.loadAutomationAnalytics.mockResolvedValue([automationRow]);
   analytics.loadFlowAnalytics.mockResolvedValue([
     flowRow('f1', 'Welcome', 5),
@@ -127,13 +132,32 @@ describe('AutomationAnalyticsContent', () => {
     expect(within(row).getByText('100%')).toBeTruthy();
     expect(screen.getByText('0 failed · 4 waiting')).toBeTruthy();
     expect(
-      within(row).queryByRole('link', { name: 'Edit Keyword reply' })
-    ).toBeNull();
-    expect(
       within(row)
         .getByRole('link', { name: 'Logs for Keyword reply' })
         .getAttribute('href')
     ).toBe('/automations/a1/logs');
+  });
+
+  it('links each automation to its editor for members who can change it', async () => {
+    renderAnalytics();
+    const row = (await screen.findByText('Keyword reply')).closest('tr')!;
+    expect(
+      within(row)
+        .getByRole('link', { name: 'Edit Keyword reply' })
+        .getAttribute('href')
+    ).toBe('/automations/a1/edit');
+  });
+
+  it('leaves the Edit link out for a read-only member', async () => {
+    can.value = false;
+    renderAnalytics();
+    const row = (await screen.findByText('Keyword reply')).closest('tr')!;
+    expect(
+      within(row).queryByRole('link', { name: 'Edit Keyword reply' })
+    ).toBeNull();
+    expect(
+      within(row).getByRole('link', { name: 'Logs for Keyword reply' })
+    ).toBeTruthy();
   });
 
   it('marks the selected range and funnel', async () => {

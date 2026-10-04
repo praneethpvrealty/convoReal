@@ -13,7 +13,7 @@ const dialogs = vi.hoisted(() => ({
   followUp: [] as Array<Record<string, unknown>>,
 }));
 
-vi.mock('@/hooks/use-can', () => ({
+vi.mock('@/hooks/useCan', () => ({
   useCan: () => true,
 }));
 

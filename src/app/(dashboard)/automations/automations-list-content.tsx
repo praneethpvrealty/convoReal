@@ -16,8 +16,8 @@ import {
   Zap,
 } from 'lucide-react';
 
-import { useAuth } from '@/hooks/use-auth';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { GatedButton } from '@/components/ui/gated-button';
@@ -75,8 +75,7 @@ async function readError(res: Response, fallback: string): Promise<never> {
 export default function AutomationsListContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { accountId, user } = useAuth();
-  const userId = user?.id ?? null;
+  const { accountId } = useAuth();
   const canEdit = useCan('send-messages');
   const [issuesById, setIssuesById] = useState<
     Record<string, ActivationIssue[]>
@@ -217,7 +216,6 @@ export default function AutomationsListContent() {
               key={automation.id}
               automation={automation}
               canEdit={canEdit}
-              ownedByCaller={userId !== null && automation.user_id === userId}
               issues={issuesById[automation.id] ?? []}
               toggling={
                 toggle.isPending && toggle.variables?.id === automation.id
@@ -311,7 +309,6 @@ export default function AutomationsListContent() {
 function AutomationRow({
   automation,
   canEdit,
-  ownedByCaller,
   issues,
   toggling,
   duplicating,
@@ -321,7 +318,6 @@ function AutomationRow({
 }: {
   automation: Automation;
   canEdit: boolean;
-  ownedByCaller: boolean;
   issues: ActivationIssue[];
   toggling: boolean;
   duplicating: boolean;
@@ -340,64 +336,47 @@ function AutomationRow({
   return (
     <li className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        {ownedByCaller && (
-          <span
-            title={
-              blockedOn
-                ? 'This trigger is not yet available, so this automation cannot be turned on. Pick another trigger in the editor.'
+        <span
+          title={
+            blockedOn
+              ? 'This trigger is not yet available, so this automation cannot be turned on. Pick another trigger in the editor.'
+              : !canEdit
+                ? 'Your access is read-only.'
                 : undefined
-            }
-          >
-            <Switch
-              checked={automation.is_active}
-              onCheckedChange={(checked) => onToggle(checked)}
-              disabled={!canEdit || toggling || blockedOn}
-              aria-label={`${automation.is_active ? 'Pause' : 'Turn on'} ${automation.name}`}
-            />
-          </span>
-        )}
+          }
+        >
+          <Switch
+            checked={automation.is_active}
+            onCheckedChange={(checked) => onToggle(checked)}
+            disabled={!canEdit || toggling || blockedOn}
+            aria-label={`${automation.is_active ? 'Pause' : 'Turn on'} ${automation.name}`}
+          />
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            {ownedByCaller ? (
-              <Link
-                href={`/automations/${automation.id}/edit`}
-                className="truncate text-sm font-semibold text-white hover:underline"
-              >
-                {automation.name}
-              </Link>
-            ) : (
-              <span className="truncate text-sm font-semibold text-white">
-                {automation.name}
-              </span>
-            )}
+            <Link
+              href={`/automations/${automation.id}/edit`}
+              className="truncate text-sm font-semibold text-white hover:underline"
+            >
+              {automation.name}
+            </Link>
             <Badge
               variant="outline"
               className={cn('text-[10px]', trigger.pillClass)}
             >
               {triggerLabel(automation.trigger_type)}
             </Badge>
-            {ownedByCaller ? (
-              !automation.is_active && (
-                <span className="text-[11px] text-slate-400">Paused</span>
-              )
-            ) : (
-              <Badge variant="outline" className="text-[10px] text-slate-300">
-                {automation.is_active ? 'On' : 'Paused'}
-              </Badge>
+            {!automation.is_active && (
+              <span className="text-[11px] text-slate-400">Paused</span>
             )}
           </div>
           <p className="mt-0.5 text-xs text-slate-400">
             {runs.toLocaleString()} {runs === 1 ? 'run' : 'runs'}
             {lastRun && ` · Last run ${lastRun}`}
           </p>
-          {!ownedByCaller && (
-            <p className="mt-0.5 text-xs text-slate-500">
-              Created by a teammate. Only its creator can change it for now.
-            </p>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          {ownedByCaller && (
+          {canEdit && (
             <Link
               href={`/automations/${automation.id}/edit`}
               className={buttonVariants({ variant: 'ghost', size: 'sm' })}
@@ -413,13 +392,13 @@ function AutomationRow({
             <History className="h-3.5 w-3.5" />
             Logs
           </Link>
-          {ownedByCaller && (
+          {canEdit && (
             <>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={onDuplicate}
-                disabled={!canEdit || duplicating}
+                disabled={duplicating}
               >
                 {duplicating ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -432,7 +411,6 @@ function AutomationRow({
                 variant="ghost"
                 size="sm"
                 onClick={onDelete}
-                disabled={!canEdit}
                 className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
               >
                 <Trash2 className="h-3.5 w-3.5" />

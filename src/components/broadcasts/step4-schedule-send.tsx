@@ -17,7 +17,7 @@ import { ArrowLeft, Send, Loader2, Users, Save, RefreshCw } from 'lucide-react';
 import {
   useAudienceCount,
   type AudienceConfig,
-} from '@/hooks/use-broadcast-sending';
+} from '@/hooks/useBroadcastSending';
 
 function contactsLabel(count: number): string {
   return `${count.toLocaleString()} contact${count === 1 ? '' : 's'}`;

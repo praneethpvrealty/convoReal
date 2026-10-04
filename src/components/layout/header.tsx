@@ -3,10 +3,10 @@
 import { useState, useEffect, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAuth } from '@/hooks/use-auth';
-import { useT } from '@/hooks/use-locale';
+import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useLocale';
 import { LanguageToggle } from '@/components/layout/language-toggle';
-import { useTheme } from '@/hooks/use-theme';
+import { useTheme } from '@/hooks/useTheme';
 import {
   LogOut,
   Menu,

@@ -17,11 +17,11 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ accountId: 'acct-1' }),
 }));
 
-vi.mock('@/hooks/use-can', () => ({ useCan: () => true }));
+vi.mock('@/hooks/useCan', () => ({ useCan: () => true }));
 
 vi.mock('@/lib/marketplace/checkout', () => ({
   openRazorpayCheckout: vi.fn(),

@@ -29,8 +29,8 @@ import {
 } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,

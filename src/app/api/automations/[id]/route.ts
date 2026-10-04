@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
-import { hasMinRole } from '@/lib/auth/roles';
+import {
+  getCurrentAccount,
+  requireWriteRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
   loadStepsTree,
@@ -12,36 +15,18 @@ import {
   validateTriggerForActivation,
 } from '@/lib/automations/validate';
 
-// Mutating an automation (editing steps, activation → outbound sends,
-// deletion) requires the 'agent' role. Returns the caller's userId, or a
-// NextResponse to return directly on auth/role failure.
-async function requireAgentUser(): Promise<{ userId: string } | NextResponse> {
-  try {
-    const ctx = await getCurrentAccount();
-    if (!hasMinRole(ctx.role, 'agent')) {
-      return NextResponse.json(
-        { error: "This action requires the 'agent' role or higher" },
-        { status: 403 }
-      );
-    }
-    return { userId: ctx.userId };
-  } catch (err) {
-    const status = (err as { status?: number })?.status ?? 401;
-    return NextResponse.json(
-      { error: status === 403 ? 'Forbidden' : 'Unauthorized' },
-      { status }
-    );
-  }
-}
-
+// An automation belongs to its account, not to whoever created it: any
+// member can read one, and any 'agent' or above who is not read-only
+// can edit, toggle or delete it. A row in another account answers 404,
+// exactly as a missing one does.
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  let user: { id: string };
+  let accountId: string;
   try {
-    user = { id: (await getCurrentAccount()).userId };
+    accountId = (await getCurrentAccount()).accountId;
   } catch (err) {
     return toErrorResponse(err);
   }
@@ -51,7 +36,7 @@ export async function GET(
     .from('automations')
     .select('*')
     .eq('id', id)
-    .eq('user_id', user.id)
+    .eq('account_id', accountId)
     .maybeSingle();
 
   if (error)
@@ -68,9 +53,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const gate = await requireAgentUser();
-  if (gate instanceof NextResponse) return gate;
-  const user = { id: gate.userId };
+  let accountId: string;
+  try {
+    accountId = (await requireWriteRole('agent')).accountId;
+  } catch (err) {
+    return toErrorResponse(err);
+  }
 
   const body = await request.json().catch(() => null);
   if (!body)
@@ -78,14 +66,15 @@ export async function PATCH(
 
   const admin = supabaseAdmin();
 
-  // Ownership check before we touch anything. Load the fields we need
+  // Account check before we touch anything. Load the fields we need
   // to compute the post-patch "effective" state for validation.
   const { data: existing } = await admin
     .from('automations')
-    .select('id, user_id, is_active, trigger_type, trigger_config')
+    .select('id, is_active, trigger_type, trigger_config')
     .eq('id', id)
+    .eq('account_id', accountId)
     .maybeSingle();
-  if (!existing || existing.user_id !== user.id) {
+  if (!existing) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
@@ -139,7 +128,8 @@ export async function PATCH(
     const { error: updErr } = await admin
       .from('automations')
       .update(update)
-      .eq('id', id);
+      .eq('id', id)
+      .eq('account_id', accountId);
     if (updErr)
       return NextResponse.json({ error: updErr.message }, { status: 500 });
   }
@@ -157,15 +147,23 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const gate = await requireAgentUser();
-  if (gate instanceof NextResponse) return gate;
+  let accountId: string;
+  try {
+    accountId = (await requireWriteRole('agent')).accountId;
+  } catch (err) {
+    return toErrorResponse(err);
+  }
 
-  const { error } = await supabaseAdmin()
+  const { data: deleted, error } = await supabaseAdmin()
     .from('automations')
     .delete()
     .eq('id', id)
-    .eq('user_id', gate.userId);
+    .eq('account_id', accountId)
+    .select('id')
+    .maybeSingle();
   if (error)
     return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!deleted)
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { DEAL_SAVED_QUERY_KEYS } from '@/lib/deals/board-focus';
 import { netOfPayouts } from '@/lib/deals/co-broking';

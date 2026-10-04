@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Typed action keys for `useCan`. Adding a capability = one new
@@ -28,7 +28,7 @@ export type CanAction =
  *
  * Reads the pre-computed booleans off `useAuth()` (which itself
  * prefers `orgRole` over the legacy `accountRole` — see
- * use-auth.tsx) rather than re-deriving them here, so there's one
+ * useAuth.tsx) rather than re-deriving them here, so there's one
  * place role-policy logic lives.
  *
  * Example:

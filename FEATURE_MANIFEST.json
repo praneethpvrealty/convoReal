@@ -415,15 +415,43 @@
         },
         {
           "id": "INB-024",
+          "rule": "An external listing session open on the account owner's own WhatsApp number (one a listing-collection flow started when the owner tried it on themselves, or one opened before the number was recognised as the owner's) is continued by the external listing flow, not adopted by the owner chatbot as an owner draft, so its corrections (a voice note transcribed first, as the owner flow does), confirm and attribution follow the external path the session was opened for.",
+          "tests": [
+            {
+              "file": "src/lib/ai/chatbot-engine.structure.test.ts",
+              "case": "[INB-024]"
+            }
+          ]
+        },
+        {
+          "id": "INB-025",
+          "rule": "A contact forwarded to the owner chatbot is announced as a saved draft only after a session row is written: a session row another call wrote for the same sender between the lookup and the insert (an insert conflict) keeps every card from both (the same person merged, anyone else appended, nothing discarded) through a compare-and-swap write scoped to the sender's account, while cards handled one after another under the conversation lease follow the later-forward rule (the same person merged, a different person replaces the draft and the owner is told), no preview is ever built from an unsaved local copy (a draft that could not be read back is reported as saved but unshown, one already confirmed or cancelled gets no preview), the last preview the owner receives is the saved draft (each handler re-reads after sending, retrying a failed read rather than taking it as an answer and, if it never succeeds, ending on a plain notice without a Confirm button, and sends again, without a cap, until the row it showed is still the saved one), and a draft that could not be saved refunds the parse charge only when credits were actually taken and tells the owner to send it again.",
+          "tests": [
+            {
+              "file": "src/lib/ai/chatbot-engine.structure.test.ts",
+              "case": "[INB-025]"
+            },
+            {
+              "file": "src/lib/ai/draft-sessions.test.ts",
+              "case": "[INB-025]"
+            },
+            {
+              "file": "src/lib/ai/intake-core.test.ts",
+              "case": "[INB-025]"
+            }
+          ]
+        },
+        {
+          "id": "INB-026",
           "rule": "A reply quote shows the quoted message's WhatsApp formatting rather than its markers: on web and mobile the quote renders *bold*, _italic_, ~strike~ and ```monospace``` as formatting, while plain one-line previews such as the forward confirmation and pinned banner drop the markers, so a contact's reply to a digest never shows literal asterisks around the quoted header.",
           "tests": [
             {
               "file": "src/components/inbox/reply-quote.test.tsx",
-              "case": "[INB-024]"
+              "case": "[INB-026]"
             },
             {
               "file": "mobile/lib/message-actions.test.ts",
-              "case": "[INB-024]"
+              "case": "[INB-026]"
             }
           ]
         }
@@ -1598,7 +1626,7 @@
         },
         {
           "id": "PRP-028",
-          "rule": "The portal-ads drift banner is a warning, not an error: it says how many portal ads don't match their listings, Review expands the findings, and every finding opens the affected listing on web and mobile, with the Post to Portals dialog offered too wherever it exists (web only today; recorded in FEATURE_ROADMAP.md).",
+          "rule": "The portal-ads drift banner is a warning, not an error: it says how many portal ads don't match their listings, Review expands the findings, and every finding offers fixing the portal record (web: the Post to Portals dialog; mobile: the portal listings sheet, with the expiry date and Mark removed) and opening the listing. Viewers and read-only members see the findings and open the listing, but the portal record is changed only by agents and above.",
           "tests": [
             {
               "file": "src/components/inventory/portal-drift-panel.test.tsx",
@@ -1734,11 +1762,76 @@
         },
         {
           "id": "PRP-036",
+          "rule": "A project card on the Projects tab is one click to its units anywhere on the card, keeps Edit as a separate button, and reads sales as progress: \"N of M units sold\" with a bar at the sold share.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/project-pricing.test.ts",
+              "case": "[PRP-036]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/projects-content.test.tsx",
+              "case": "[PRP-036]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/inventory/projects-content.tsx"]
+        },
+        {
+          "id": "PRP-037",
+          "rule": "The inventory sort control says what it is: its trigger reads \"Sort: <order>\", never a bare order name.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "names the sort in force"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/inventory/inventory-content.tsx"]
+        },
+        {
+          "id": "PRP-038",
+          "rule": "While the Ads page loads it shows the campaigns table shape (the real header and placeholder rows marked busy), never a full-page splash, so the layout does not jump when campaigns arrive.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/ads/ads-content.test.tsx",
+              "case": "[PRP-038]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/ads/ads-content.tsx"]
+        },
+        {
+          "id": "PRP-039",
+          "rule": "A listing card, on web and mobile, badges its status only when the status is not Available: an available listing shows its listing type alone, and Sold, Under Contract, Off Market, Pending Review, Rejected and Archived still show.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/card-badges.test.ts",
+              "case": "[PRP-039]"
+            },
+            {
+              "file": "src/components/inventory/property-list.test.tsx",
+              "case": "[PRP-039]"
+            }
+          ],
+          "guards": ["src/lib/inventory/card-badges.ts"]
+        },
+        {
+          "id": "PRP-040",
+          "rule": "Portal listing records (property_portal_listings) are readable by every account member and written only by agents and above: a viewer or read-only member can neither mark a portal ad posted or removed nor change its expiry, from web, mobile or a direct client call, because the table's row-level security enforces the agent role on insert, update and delete.",
+          "tests": [
+            {
+              "file": "src/lib/migrations/portal-listings-write-role.test.ts",
+              "case": "[PRP-040]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261004073500_portal_listings_write_role.sql"
+          ]
+        },
+        {
+          "id": "PRP-041",
           "rule": "The Meta Ads settings tab shows one Reconnect action when the token expired, warns when the connection expires within 14 days, lists what happens next before Connect, offers Reconnect and Disconnect while the ad account is still to be chosen, and shows Connect, Reconnect and Disconnect to the account owner only, who is the only role the API accepts.",
           "tests": [
             {
               "file": "src/components/settings/meta-ads-tab.test.tsx",
-              "case": "[PRP-036]"
+              "case": "[PRP-041]"
             }
           ],
           "guards": ["src/components/settings/meta-ads-tab.tsx"]
@@ -2294,7 +2387,7 @@
           ],
           "guards": [
             "src/lib/pipelines/board-layout.ts",
-            "src/hooks/use-board-layout.ts",
+            "src/hooks/useBoardLayout.ts",
             "src/components/pipelines/pipeline-board.tsx",
             "mobile/lib/board-layout-preference.ts",
             "mobile/app/(app)/deals.tsx"
@@ -3730,6 +3823,21 @@
             },
             { "file": "mobile/lib/copilot-fab.test.ts", "case": "[CPL-001]" }
           ]
+        },
+        {
+          "id": "CPL-002",
+          "rule": "The floating AI Assistant launcher and the Help & feedback control never overlap: the launcher collapses to an icon once the main content scrolls, and a dragged launcher is clamped to rest at least 64px from the bottom, above the Help control.",
+          "tests": [
+            {
+              "file": "src/lib/copilot/launcher-placement.test.ts",
+              "case": "[CPL-002]"
+            },
+            {
+              "file": "src/components/copilot/copilot-widget.test.tsx",
+              "case": "collapses to an icon-only button"
+            }
+          ],
+          "guards": ["src/lib/copilot/launcher-placement.ts"]
         }
       ]
     },

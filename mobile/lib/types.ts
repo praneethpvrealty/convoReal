@@ -321,7 +321,6 @@ export interface BroadcastRecipient {
 
 export interface AutomationRow {
   id: string;
-  user_id: string;
   name: string;
   description?: string | null;
   trigger_type: string;

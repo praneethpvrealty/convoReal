@@ -14,6 +14,7 @@
 // of the two interactive shapes WhatsApp actually has.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { truncate } from '@/lib/format/text';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import type { InteractiveListSection } from '@/lib/whatsapp/meta-api';
 import { sendPreferenceFlowToContact } from '@/lib/whatsapp/meta-flow-service';
@@ -51,10 +52,6 @@ const REASON_QUESTION: Record<RejectReason, string> = {
   other:
     "Tell me what to change — budget, area, type, anything — and I'll tune your matches.",
 };
-
-function truncate(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
-}
 
 /**
  * The one-tap list that follows a shortlist. One row per listing shown,

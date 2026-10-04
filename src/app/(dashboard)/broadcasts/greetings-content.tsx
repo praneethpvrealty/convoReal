@@ -21,8 +21,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { cn } from '@/lib/utils';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
@@ -57,7 +57,7 @@ import { LoadError } from '@/components/broadcasts/load-error';
 import {
   useAudienceCount,
   type AudienceConfig,
-} from '@/hooks/use-broadcast-sending';
+} from '@/hooks/useBroadcastSending';
 
 const CUSTOM_OCCASION = 'custom';
 

@@ -21,7 +21,7 @@ import {
   type AudienceConfig,
   type CustomFieldFilter,
   type CustomFieldOperator,
-} from '@/hooks/use-broadcast-sending';
+} from '@/hooks/useBroadcastSending';
 import { parseCsvAudience } from '@/lib/broadcasts/csv-audience';
 import { MAX_CSV_CONTACTS } from '@/lib/broadcasts/audience';
 

@@ -31,6 +31,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/format/currency';
+import { getInitials } from '@/lib/format/text';
 
 function formatFee(fee: number | null | undefined): string {
   if (fee === null || fee === undefined) return 'Fee varies';
@@ -52,15 +53,6 @@ function computeMargin(
 function formatMargin(margin: number, pct: number | null) {
   const sign = margin < 0 ? '-' : '+';
   return `${sign}₹${Math.abs(margin).toLocaleString('en-IN')}${pct !== null ? ` (${pct}%)` : ''}`;
-}
-
-function getInitials(name: string) {
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
 }
 
 /** wa.me only accepts digits (country code + number, no + or spaces). */

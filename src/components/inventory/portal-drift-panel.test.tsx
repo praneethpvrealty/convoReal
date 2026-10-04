@@ -12,7 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PortalDriftPanel } from './portal-drift-panel';
 import type { PortalDriftFinding } from '@/app/api/portals/drift/route';
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ accountId: 'acct-portal-drift' }),
 }));
 

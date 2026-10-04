@@ -37,7 +37,7 @@ import {
   type SharedProperty,
 } from '@/lib/contacts/detail-queries';
 import { resolveConversation } from '@/lib/conversations/resolve';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type {
   Tag,
@@ -56,7 +56,7 @@ import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
 import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { PartyPanel } from '@/components/contacts/party-panel';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import {
   LogCallPrompt,
   type PendingDial,
@@ -176,6 +176,7 @@ import { SellerPageDialog } from '@/components/contacts/seller-page-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 import { formatCurrency } from '@/lib/format/currency';
+import { getInitials } from '@/lib/format/text';
 
 const NO_PROPERTIES: Property[] = [];
 const NO_PICKER_PROPERTIES: PickerProperty[] = [];
@@ -1588,16 +1589,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       invalidateContactQuery('notes');
       toast.success('Note deleted');
     }
-  }
-
-  function getInitials(name?: string | null) {
-    if (!name) return '?';
-    return name
-      .split(' ')
-      .map((w) => w[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
   }
 
   return (
