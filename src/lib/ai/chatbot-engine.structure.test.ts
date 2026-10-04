@@ -68,6 +68,11 @@ describe('[INB-025] starting a contact draft', () => {
     const handling = insert.slice(0, created);
     expect(handling).toMatch(/if \(parseCharged\) \{\s*await refundCredits\(/);
     expect(handling.match(/refundCredits\(/g)).toHaveLength(1);
+    const refund = handling.slice(handling.indexOf('await refundCredits('));
+    expect(refund.slice(0, refund.indexOf('const reply'))).not.toContain(
+      '.catch(() => undefined)'
+    );
+    expect(refund).toContain('reconcile manually');
   });
 
   it('announces the persisted row and re-sends while another handler has moved it on', () => {

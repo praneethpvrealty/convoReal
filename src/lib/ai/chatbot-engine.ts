@@ -4197,7 +4197,12 @@ export async function processOwnerChatbotMessage(
                 'contact_parse',
                 AI_FEATURE_COSTS.contact_parse,
                 { description: 'contact draft could not be saved' }
-              ).catch(() => undefined);
+              ).catch((refundErr) => {
+                console.error(
+                  `[chatbot-engine] contact_parse refund of ${AI_FEATURE_COSTS.contact_parse} credits for account ${accountId} failed; reconcile manually:`,
+                  refundErr
+                );
+              });
             }
             const reply =
               "❌ *Couldn't save the contact draft.* Please send it again.";
