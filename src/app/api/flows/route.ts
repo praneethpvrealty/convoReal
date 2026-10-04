@@ -10,11 +10,6 @@ import { getFlowTemplate } from '@/lib/flows/templates';
 /**
  * GET /api/flows — list the caller's flows.
  * POST /api/flows — create a new (draft) flow.
- *
- * Listing is open to every member of a live account; creating a flow
- * needs the 'agent' role and a member who is not read-only. The previous
- * per-account beta gate was removed when Flows went to soft-GA; the UI
- * still shows a "Beta" label so users know the surface is young.
  */
 
 export async function GET() {

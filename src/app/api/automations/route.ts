@@ -16,7 +16,7 @@ import {
 } from '@/lib/automations/validate';
 
 // Listing is open to every member of a live account (the [id] GET is
-// too); only creating an automation carries the 'agent' write gate its
+// too); only creating an automation carries the 'agent' gate its
 // mutation siblings use.
 export async function GET() {
   try {
