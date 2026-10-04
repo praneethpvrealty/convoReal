@@ -18,33 +18,20 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { PropertyBlueprintLoader } from '@/components/ui/property-blueprint-loader';
 import { PriceHint } from '@/components/ui/price-hint';
 import {
   Loader2,
-  Plus,
-  Trash2,
-  Upload,
-  ChevronDown,
-  ChevronUp,
   Send,
-  Star,
-  MessageSquare,
-  Search,
-  X,
   MapPin,
   BedDouble,
   Bath,
   Maximize2,
   ExternalLink,
   Lock,
-  Unlock,
   Compass,
   CheckCircle2,
   Edit,
@@ -67,12 +54,10 @@ import {
   type MatchAudience,
 } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
-import { ListingVideoCard } from '@/components/inventory/listing-video-card';
 import { LearningPanel } from '@/components/inventory/learning-panel';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { formatCurrency } from '@/lib/currency-utils';
 import { formatAuditDateTime } from '@/lib/audit-timestamps';
-import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { useTopupModal } from '@/components/layout/topup-modal-context';
 import type { Contact } from '@/types';
 import {
@@ -80,19 +65,7 @@ import {
   POPULAR_SUBLOCALITIES,
 } from '@/lib/data/real-estate-data';
 import {
-  AMENITIES_BY_CATEGORY,
-  NEARBY_HIGHLIGHTS_OPTIONS,
-  FACING_DIRECTIONS,
-  FURNISHING_OPTIONS,
-  FLOORING_OPTIONS,
-  POWER_BACKUP_OPTIONS,
-  AREA_UNITS,
   SQFT_PER_AREA_UNIT,
-  PROPERTY_STATUSES,
-  LAND_OWNERSHIP_TYPES,
-  LAND_LEGAL_STATUSES,
-  LAND_CONVERSION_TYPES,
-  propertyTypeGroupsFor,
   hasBedsBaths as typeHasBedsBaths,
   hasCommercialFields as typeHasCommercialFields,
   hasCommercialBuildingFields as typeHasCommercialBuildingFields,
@@ -120,20 +93,29 @@ import { ShareDocumentsDialog } from '@/components/inventory/share-documents-dia
 import { PropertyRequestsPanels } from '@/components/inventory/property-requests-panels';
 import { propertyFormSections } from '@/lib/inventory/property-form-sections';
 import {
-  looksLikeDocument,
-  orderForCover,
-  samplePixels,
-} from '@/lib/inventory/cover-photo';
+  buildPropertyPayload,
+  emptyPropertyFormValues,
+  propertyToFormValues,
+  validatePropertyForm,
+} from '@/lib/inventory/property-form-state';
+import { usePropertyForm } from '@/hooks/usePropertyForm';
+import { BasicsSection } from '@/components/inventory/property-form/basics-section';
 import {
-  FloorPlansEditor,
-  type FloorPlanDraft,
-} from '@/components/inventory/floor-plans-editor';
+  LocationSection,
+  type AutoCompleteProject,
+} from '@/components/inventory/property-form/location-section';
+import { TenancySection } from '@/components/inventory/property-form/tenancy-section';
+import { SpecsSection } from '@/components/inventory/property-form/specs-section';
+import { MediaSection } from '@/components/inventory/property-form/media-section';
+import { DescriptionSection } from '@/components/inventory/property-form/description-section';
+import { OwnerSection } from '@/components/inventory/property-form/owner-section';
+import { compressImageOnClient } from '@/components/inventory/property-form/client-image';
 import { isPlanPdf, PLAN_IMAGE_MIME_TYPES } from '@/lib/inventory/floor-plans';
 import {
   isGuardedType,
   isLocationGuarded,
 } from '@/lib/inventory/location-guard';
-import { rentalYieldPercent, yieldApplies } from '@/lib/inventory/rental-yield';
+import { rentalYieldPercent } from '@/lib/inventory/rental-yield';
 import { contactHandle, hasPhone } from '@/lib/contacts/reachability';
 import { propertyAvailabilityWhatsAppUrl } from '@/lib/inventory/availability-check';
 import {
@@ -162,77 +144,6 @@ interface PropertyDuplicateCandidate {
   signals: string[];
 }
 
-function compressImageOnClient(file: File): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const maxW = 1200;
-      let w = img.width;
-      let h = img.height;
-
-      if (w > maxW) {
-        h = Math.round(h * (maxW / w));
-        w = maxW;
-      }
-
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas unavailable'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0, w, h);
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error('Compression failed'))),
-        'image/jpeg',
-        0.75
-      );
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Image load failed'));
-    };
-    img.src = url;
-  });
-}
-
-function isDocumentImage(blob: Blob): Promise<boolean> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(blob);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = 48;
-        canvas.height = 48;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(false);
-          return;
-        }
-        ctx.drawImage(img, 0, 0, 48, 48);
-        resolve(
-          looksLikeDocument(samplePixels(ctx.getImageData(0, 0, 48, 48).data))
-        );
-      } catch {
-        resolve(false);
-      }
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(false);
-    };
-    img.src = url;
-  });
-}
-
 export function PropertyForm({
   open,
   onOpenChange,
@@ -248,8 +159,6 @@ export function PropertyForm({
   const canEdit = useCan('send-messages');
   const { openTopupModal } = useTopupModal();
   const isEdit = !!property;
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const documentInputRef = useRef<HTMLInputElement>(null);
   const eKhataInputRef = useRef<HTMLInputElement>(null);
 
   const [viewMode, setViewMode] = useState(viewOnly);
@@ -272,109 +181,71 @@ export function PropertyForm({
     }
   }, [open, viewOnly, property]);
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [price, setPrice] = useState(''); // Whole rupee amount (INR)
-  // Final sale price, captured only when status is Sold. Optional —
-  // feeds the anonymized market-stats aggregation, never shown to buyers.
-  const [soldPrice, setSoldPrice] = useState('');
-  // What the seller will actually accept, as a total and/or a per-Sq.Ft.
-  // rate. Distinct from `price`, which is the advertised figure — this
-  // one never reaches a public surface.
-  const [sellerFinalPrice, setSellerFinalPrice] = useState('');
-  const [sellerFinalPricePerSqft, setSellerFinalPricePerSqft] = useState('');
-  const [listingType, setListingType] = useState<
-    'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'
-  >('Sale');
-  const [rentPerMonth, setRentPerMonth] = useState('');
-  const [maintenance, setMaintenance] = useState('');
-  const [advance, setAdvance] = useState('');
-  const [gst, setGst] = useState('');
-  // JV/JD deal terms
-  const [jvStructure, setJvStructure] = useState<
-    'Revenue Share' | 'Area Share' | 'Hybrid'
-  >('Revenue Share');
-  const [ownerSharePercent, setOwnerSharePercent] = useState('');
-  const [builderSharePercent, setBuilderSharePercent] = useState('');
-  const [goodwillAmount, setGoodwillAmount] = useState('');
-  // Built to Suit lease terms
-  const [btsLeaseYears, setBtsLeaseYears] = useState('');
-  const [btsLockInYears, setBtsLockInYears] = useState('');
-  const [btsEscalationPercent, setBtsEscalationPercent] = useState('');
-  const [type, setType] = useState('Flat/ Apartment');
-  const [status, setStatus] = useState('Available');
-  const [bedrooms, setBedrooms] = useState('');
-  const [bathrooms, setBathrooms] = useState('');
-  const [areaSqft, setAreaSqft] = useState('');
-  const [areaUnit, setAreaUnit] = useState('Sq.Ft.');
-  const [landArea, setLandArea] = useState('');
-  const [landAreaUnit, setLandAreaUnit] = useState('Sq.Ft.');
-  const [superBuiltArea, setSuperBuiltArea] = useState('');
-  const [frontage, setFrontage] = useState('');
-  const [depth, setDepth] = useState('');
-  const [sublocality, setSublocality] = useState('');
-  const [city, setCity] = useState('');
-  const [stateVal, setStateVal] = useState('');
-  const [address, setAddress] = useState('');
-  // Coordinates of the picked place. Declared with the rest of the
-  // location fields because the match preview reads them too, well
-  // above the autocomplete handlers that set them.
-  const [geoPick, setGeoPick] = useState<{
-    latitude: number;
-    longitude: number;
-    place_id: string;
-    canonical: string;
-  } | null>(null);
-  const [project, setProject] = useState('');
-  const [landZone, setLandZone] = useState('');
-  const [idealFor, setIdealFor] = useState('');
-  // Land/JV deal notes — prefill source for the "Share via Email" draft
-  const [ownershipStatus, setOwnershipStatus] = useState('');
-  const [landUseZoning, setLandUseZoning] = useState('');
-  const [legalStatus, setLegalStatus] = useState('');
-  const [conversionType, setConversionType] = useState('');
-  const [dealRemarks, setDealRemarks] = useState('');
-  const [dimensions, setDimensions] = useState('');
-  const [roadWidth, setRoadWidth] = useState('');
-  const [roadWidthUnit, setRoadWidthUnit] = useState('Feet');
-  const [facingDirection, setFacingDirection] = useState('');
-  const [khataEpid, setKhataEpid] = useState('');
-  const [khataForm, setKhataForm] = useState('');
-  const [yearBuilt, setYearBuilt] = useState('');
+  const { values, set, reset } = usePropertyForm(defaultOwnerId);
+  const {
+    title,
+    description,
+    price,
+    listingType,
+    rentPerMonth,
+    maintenance,
+    advance,
+    gst,
+    jvStructure,
+    ownerSharePercent,
+    builderSharePercent,
+    goodwillAmount,
+    btsLeaseYears,
+    btsLockInYears,
+    type,
+    status,
+    bedrooms,
+    bathrooms,
+    areaSqft,
+    areaUnit,
+    landArea,
+    landAreaUnit,
+    superBuiltArea,
+    frontage,
+    depth,
+    sublocality,
+    city,
+    stateVal,
+    address,
+    geoPick,
+    project,
+    landZone,
+    idealFor,
+    ownershipStatus,
+    dimensions,
+    roadWidth,
+    roadWidthUnit,
+    facingDirection,
+    khataEpid,
+    khataForm,
+    yearBuilt,
+    isPublished,
+    features,
+    nearbyHighlights,
+    images,
+    privateImages,
+    documents,
+    googleMapLink,
+    locationPrivacy,
+    notes,
+    tags,
+    rentalIncome,
+    floorTenancies,
+    floorPlans,
+    ownerContactId,
+    listingSource,
+    searchQuery,
+  } = values;
   const [readingEKhata, setReadingEKhata] = useState(false);
   const [eKhataReview, setEKhataReview] = useState<{
     fields: EKhataFields;
     changes: EKhataChange[];
   } | null>(null);
-  const [furnishing, setFurnishing] = useState('');
-  const [possessionDate, setPossessionDate] = useState('');
-  const [floorNumber, setFloorNumber] = useState('');
-  const [totalFloors, setTotalFloors] = useState('');
-  const [balconies, setBalconies] = useState('');
-  const [flooring, setFlooring] = useState('');
-  const [powerBackup, setPowerBackup] = useState('');
-  const [isPublished, setIsPublished] = useState(false);
-  const [features, setFeatures] = useState<string[]>([]);
-  const [nearbyHighlights, setNearbyHighlights] = useState<string[]>([]);
-  const [images, setImages] = useState<string[]>(['']);
-  const [privateImages, setPrivateImages] = useState<string[]>([]);
-  const [lockingImagePath, setLockingImagePath] = useState<string | null>(null);
-  const [defaultImageIndex, setDefaultImageIndex] = useState(0);
-  const [videoRemoved, setVideoRemoved] = useState(false);
-  const [removingVideo, setRemovingVideo] = useState(false);
-  const [documents, setDocuments] = useState<
-    Array<{ url: string; title: string }>
-  >([{ url: '', title: '' }]);
-  const [uploadingDocument, setUploadingDocument] = useState(false);
-  const [googleMapLink, setGoogleMapLink] = useState('');
-  const [locationPrivacy, setLocationPrivacy] = useState<
-    '' | 'exact' | 'locality'
-  >('');
-  const [showcaseVisibility, setShowcaseVisibility] = useState<'' | 'teaser'>(
-    ''
-  );
-  const [notes, setNotes] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<
     { tag: string; uses: number }[]
   >([]);
@@ -383,7 +254,6 @@ export function PropertyForm({
   const [localitiesDb, setLocalitiesDb] = useState<{
     detailed: string[];
   } | null>(null);
-  const [rentalIncome, setRentalIncome] = useState('');
   // A rental's price is its monthly rent, so it has no yield to show —
   // see src/lib/inventory/rental-yield.ts. The API derives the stored
   // figure the same way; this is only what the form previews.
@@ -392,46 +262,6 @@ export function PropertyForm({
     [listingType, price, rentalIncome]
   );
 
-  // Floor-wise tenancy (rent roll) for pre-leased commercial buildings
-  // under sale — string drafts of lib/inventory/floor-tenancies rows.
-  interface FloorTenancyDraft {
-    floor: string;
-    tenant_name: string;
-    area_sqft: string;
-    monthly_rent: string;
-    advance: string;
-    lease_start: string;
-    lease_end: string;
-    lock_in_months: string;
-    maintenance: string;
-    notes: string;
-    floor_plan: string;
-  }
-  const emptyFloorTenancy: FloorTenancyDraft = {
-    floor: '',
-    tenant_name: '',
-    area_sqft: '',
-    monthly_rent: '',
-    advance: '',
-    lease_start: '',
-    lease_end: '',
-    lock_in_months: '',
-    maintenance: '',
-    notes: '',
-    floor_plan: '',
-  };
-  const [floorTenancies, setFloorTenancies] = useState<FloorTenancyDraft[]>([]);
-  const [floorPlans, setFloorPlans] = useState<FloorPlanDraft[]>([]);
-  const tenancyPlanInputs = useRef<Record<number, HTMLInputElement | null>>({});
-  const updateFloorTenancy = (
-    idx: number,
-    key: keyof FloorTenancyDraft,
-    value: string
-  ) => {
-    setFloorTenancies((prev) =>
-      prev.map((ft, i) => (i === idx ? { ...ft, [key]: value } : ft))
-    );
-  };
   const floorRentTotal = useMemo(
     () =>
       floorTenancies.reduce(
@@ -446,50 +276,21 @@ export function PropertyForm({
     [floorTenancies]
   );
 
-  interface AutoCompleteProject {
-    name: string;
-    sublocality: string;
-    city: string;
-    state: string;
-    address: string;
-    source?: 'rera' | 'curated' | 'ai' | null;
-  }
-
   const [fetchedProjects, setFetchedProjects] = useState<AutoCompleteProject[]>(
     []
   );
   const [searchingProjects, setSearchingProjects] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [ownerContactId, setOwnerContactId] = useState<string | null>(null);
-  const [listingSource, setListingSource] = useState<'owner' | 'agent'>(
-    'owner'
-  );
-  const [interestedContactIds, setInterestedContactIds] = useState<string[]>(
-    []
-  );
+  const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [lockingImagePath, setLockingImagePath] = useState<string | null>(null);
+  const [removingVideo, setRemovingVideo] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [contactedContactIds, setContactedContactIds] = useState<Set<string>>(
     new Set()
   );
-  const [contactSearchInput, setContactSearchInput] = useState('');
-  const [isContactDropdownOpen, setIsContactDropdownOpen] = useState(false);
   const [ownerSearchInput, setOwnerSearchInput] = useState('');
-  const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false);
-
-  // Close owner dropdown on click outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-owner-dropdown]')) {
-        setIsOwnerDropdownOpen(false);
-      }
-    }
-    if (isOwnerDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () =>
-        document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isOwnerDropdownOpen]);
 
   // Helper classifications based on selected type
   const hasBedsBaths = typeHasBedsBaths(type);
@@ -500,7 +301,6 @@ export function PropertyForm({
   const isApartment = isApartmentType(type);
   const showFloorNumber = hasUnitFloor(type);
   const showTotalFloors = hasTotalFloors(type);
-  const propertyTypeGroups = propertyTypeGroupsFor(type);
   const guardedByType = isGuardedType(type);
   const locationGuarded = isLocationGuarded({
     type,
@@ -513,9 +313,6 @@ export function PropertyForm({
       setLocalitiesDb({ detailed: db.getDetailedLocalities() });
     }
   }
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [generatingDescription, setGeneratingDescription] = useState(false);
 
   // Real estate matching & broadcast states
   const [activeTab, setActiveTab] = useState('details');
@@ -684,7 +481,7 @@ export function PropertyForm({
       }
       setActiveTab(initialTab);
       if (!property) {
-        setInterestedContactIds([]);
+        set('interestedContactIds', []);
       }
     }
   }, [
@@ -696,6 +493,7 @@ export function PropertyForm({
     accountId,
     supabase,
     initialTab,
+    set,
   ]);
 
   useEffect(() => {
@@ -703,9 +501,9 @@ export function PropertyForm({
       const interested = contacts
         .filter((c) => c.last_inquired_property_id === property.id)
         .map((c) => c.id);
-      setInterestedContactIds(interested);
+      set('interestedContactIds', interested);
     }
-  }, [open, property, contacts]);
+  }, [open, property, contacts, set]);
 
   const matchedContacts = useMemo(() => {
     const fullLocation = [
@@ -776,104 +574,7 @@ export function PropertyForm({
     [listingAudience]
   );
 
-  function handleToggleFeature(feature: string) {
-    setFeatures((prev) =>
-      prev.includes(feature)
-        ? prev.filter((f) => f !== feature)
-        : [...prev, feature]
-    );
-  }
-
-  function handleToggleHighlight(highlight: string) {
-    setNearbyHighlights((prev) =>
-      prev.includes(highlight)
-        ? prev.filter((h) => h !== highlight)
-        : [...prev, highlight]
-    );
-  }
-
-  async function handleGenerateAIDescription() {
-    if (!title.trim()) {
-      toast.error('Please enter a Property Title first');
-      return;
-    }
-    setGeneratingDescription(true);
-    try {
-      const response = await fetch('/api/ai/generate-description', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: title.trim(),
-          type,
-          location:
-            [
-              locationGuarded ? '' : address.trim(),
-              sublocality.trim(),
-              city.trim(),
-              stateVal.trim(),
-            ]
-              .filter(Boolean)
-              .join(', ') || null,
-          bedrooms: bedrooms.trim() ? Number(bedrooms) : null,
-          bathrooms: bathrooms.trim() ? Number(bathrooms) : null,
-          area: isLand
-            ? landArea.trim()
-              ? Number(landArea)
-              : null
-            : areaSqft.trim()
-              ? Number(areaSqft)
-              : null,
-          areaUnit: isLand ? landAreaUnit : areaUnit,
-          frontage: frontage.trim() || null,
-          depth: depth.trim() || null,
-          features,
-        }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        if (response.status === 402) {
-          if (
-            errData.upgradeRequired &&
-            typeof errData.upgradeRequired === 'string'
-          ) {
-            toast.error(
-              errData.error || 'AI features require a plan upgrade.',
-              {
-                action: {
-                  label: 'Upgrade plan',
-                  onClick: () => router.push('/settings?tab=billing'),
-                },
-              }
-            );
-          } else {
-            toast.error(
-              errData.error || `You've used all your credits for this month.`,
-              {
-                action: { label: 'Buy credits', onClick: openTopupModal },
-              }
-            );
-          }
-          return;
-        }
-        throw new Error(errData.error || 'Failed to generate description');
-      }
-
-      const data = await response.json();
-      setDescription(data.description || '');
-      toast.success('Description generated successfully!');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || 'Failed to generate description');
-    } finally {
-      setGeneratingDescription(false);
-    }
-  }
-
   // Autocomplete states
-  const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const autocompleteRef = useRef<HTMLDivElement>(null);
 
@@ -932,8 +633,8 @@ export function PropertyForm({
   async function handleGooglePick(s: { place_id: string; main_text: string }) {
     setShowSuggestions(false);
     setGoogleSuggestions([]);
-    setSearchQuery(s.main_text);
-    setProject('');
+    set('searchQuery', s.main_text);
+    set('project', '');
     try {
       const session = googleSessionRef.current;
       googleSessionRef.current = null; // details pick closes the billing session
@@ -941,7 +642,7 @@ export function PropertyForm({
         `/api/maps/place-details?place_id=${encodeURIComponent(s.place_id)}${session ? `&session=${session}` : ''}`
       );
       if (!res.ok) {
-        setSublocality(s.main_text);
+        set('sublocality', s.main_text);
         return;
       }
       const { place } = (await res.json()) as {
@@ -955,10 +656,10 @@ export function PropertyForm({
           state: string | null;
         };
       };
-      setSublocality(place.sublocality || place.name);
-      if (place.city) setCity(place.city);
-      if (place.state) setStateVal(place.state);
-      setGeoPick({
+      set('sublocality', place.sublocality || place.name);
+      if (place.city) set('city', place.city);
+      if (place.state) set('stateVal', place.state);
+      set('geoPick', {
         latitude: place.latitude,
         longitude: place.longitude,
         place_id: place.place_id,
@@ -966,12 +667,11 @@ export function PropertyForm({
       });
     } catch {
       // Keep the typed text; server-side geocode fallback resolves it on save
-      setSublocality(s.main_text);
+      set('sublocality', s.main_text);
     }
   }
-  const contactSearchRef = useRef<HTMLDivElement>(null);
 
-  // Close autocomplete and contact dropdown on click outside
+  // Close autocomplete on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -980,46 +680,10 @@ export function PropertyForm({
       ) {
         setShowSuggestions(false);
       }
-      if (
-        contactSearchRef.current &&
-        !contactSearchRef.current.contains(event.target as Node)
-      ) {
-        setIsContactDropdownOpen(false);
-      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const contactSearchResults = useMemo(() => {
-    if (!contactSearchInput.trim()) return [];
-    const query = contactSearchInput.toLowerCase();
-    return contacts.filter((c) => {
-      if (c.classification !== 'Buyer' && c.classification !== 'Agent')
-        return false;
-      if (interestedContactIds.includes(c.id)) return false;
-      // The share goes out over WhatsApp — an email-only contact has
-      // nowhere to receive it.
-      if (!hasPhone(c)) return false;
-      return (
-        (c.name || '').toLowerCase().includes(query) ||
-        (c.phone ?? '').toLowerCase().includes(query) ||
-        (c.email || '').toLowerCase().includes(query)
-      );
-    });
-  }, [contacts, contactSearchInput, interestedContactIds]);
-
-  const interestedContacts = useMemo(() => {
-    return contacts.filter((c) => interestedContactIds.includes(c.id));
-  }, [contacts, interestedContactIds]);
-
-  const handleAddInterestedContact = (contactId: string) => {
-    if (!interestedContactIds.includes(contactId)) {
-      setInterestedContactIds((prev) => [...prev, contactId]);
-    }
-    setContactSearchInput('');
-    setIsContactDropdownOpen(false);
-  };
 
   // Parent refetches recreate `property` (the updated_at sync in
   // inventory-content) and `contacts` (query identity) while the dialog
@@ -1038,254 +702,13 @@ export function PropertyForm({
         depth: false,
       };
       derivedDims.current = { landArea: false, frontage: false, depth: false };
+      reset(
+        property
+          ? propertyToFormValues(property, contacts)
+          : emptyPropertyFormValues(defaultOwnerId)
+      );
+      setTagInput('');
       if (property) {
-        setTitle(property.title);
-        setDescription(property.description ?? '');
-        setPrice(
-          property.price !== null && property.price !== undefined
-            ? String(property.price)
-            : ''
-        );
-        setListingType(property.listing_type ?? 'Sale');
-        setRentPerMonth(
-          property.rent_per_month !== null &&
-            property.rent_per_month !== undefined
-            ? String(property.rent_per_month)
-            : ''
-        );
-        setMaintenance(
-          property.maintenance !== null && property.maintenance !== undefined
-            ? String(property.maintenance)
-            : ''
-        );
-        setAdvance(
-          property.advance !== null && property.advance !== undefined
-            ? String(property.advance)
-            : ''
-        );
-        setGst(
-          property.gst !== null && property.gst !== undefined
-            ? String(property.gst)
-            : ''
-        );
-        setJvStructure(property.jv_structure ?? 'Revenue Share');
-        setOwnerSharePercent(
-          property.owner_share_percent !== null &&
-            property.owner_share_percent !== undefined
-            ? String(property.owner_share_percent)
-            : ''
-        );
-        setBuilderSharePercent(
-          property.builder_share_percent !== null &&
-            property.builder_share_percent !== undefined
-            ? String(property.builder_share_percent)
-            : ''
-        );
-        setGoodwillAmount(
-          property.goodwill_amount !== null &&
-            property.goodwill_amount !== undefined
-            ? String(property.goodwill_amount)
-            : ''
-        );
-        setBtsLeaseYears(
-          property.bts_lease_years !== null &&
-            property.bts_lease_years !== undefined
-            ? String(property.bts_lease_years)
-            : ''
-        );
-        setBtsLockInYears(
-          property.bts_lock_in_years !== null &&
-            property.bts_lock_in_years !== undefined
-            ? String(property.bts_lock_in_years)
-            : ''
-        );
-        setBtsEscalationPercent(
-          property.bts_escalation_percent !== null &&
-            property.bts_escalation_percent !== undefined
-            ? String(property.bts_escalation_percent)
-            : ''
-        );
-        setRentalIncome(
-          property.rental_income !== null &&
-            property.rental_income !== undefined
-            ? String(property.rental_income)
-            : ''
-        );
-        setFloorTenancies(
-          (property.floor_tenancies || []).map((ft) => ({
-            floor: ft.floor || '',
-            tenant_name: ft.tenant_name || '',
-            area_sqft:
-              ft.area_sqft !== null && ft.area_sqft !== undefined
-                ? String(ft.area_sqft)
-                : '',
-            monthly_rent:
-              ft.monthly_rent !== null && ft.monthly_rent !== undefined
-                ? String(ft.monthly_rent)
-                : '',
-            advance:
-              ft.advance !== null && ft.advance !== undefined
-                ? String(ft.advance)
-                : '',
-            lease_start: ft.lease_start || '',
-            lease_end: ft.lease_end || '',
-            lock_in_months:
-              ft.lock_in_months !== null && ft.lock_in_months !== undefined
-                ? String(ft.lock_in_months)
-                : '',
-            maintenance: ft.maintenance || '',
-            notes: ft.notes || '',
-            floor_plan: ft.floor_plan || '',
-          }))
-        );
-        setFloorPlans(
-          (property.floor_plans || []).map((fp) => ({
-            floor: fp.floor || '',
-            image: fp.image || '',
-            area_sqft:
-              fp.area_sqft !== null && fp.area_sqft !== undefined
-                ? String(fp.area_sqft)
-                : '',
-            notes: fp.notes || '',
-          }))
-        );
-        setType(property.type);
-        setStatus(property.status);
-        setSoldPrice(
-          property.sold_price !== null && property.sold_price !== undefined
-            ? String(property.sold_price)
-            : ''
-        );
-        setSellerFinalPrice(
-          property.seller_final_price !== null &&
-            property.seller_final_price !== undefined
-            ? String(property.seller_final_price)
-            : ''
-        );
-        setSellerFinalPricePerSqft(
-          property.seller_final_price_per_sqft !== null &&
-            property.seller_final_price_per_sqft !== undefined
-            ? String(property.seller_final_price_per_sqft)
-            : ''
-        );
-        setBedrooms(
-          property.bedrooms !== null && property.bedrooms !== undefined
-            ? String(property.bedrooms)
-            : ''
-        );
-        setBathrooms(
-          property.bathrooms !== null && property.bathrooms !== undefined
-            ? String(property.bathrooms)
-            : ''
-        );
-        setAreaSqft(
-          property.area_sqft !== null && property.area_sqft !== undefined
-            ? String(property.area_sqft)
-            : ''
-        );
-        setAreaUnit(property.area_unit ?? 'Sq.Ft.');
-        setLandArea(
-          property.land_area !== null && property.land_area !== undefined
-            ? String(property.land_area)
-            : ''
-        );
-        setLandAreaUnit(property.land_area_unit ?? 'Sq.Ft.');
-        setSuperBuiltArea(
-          property.super_built_area !== null &&
-            property.super_built_area !== undefined
-            ? String(property.super_built_area)
-            : ''
-        );
-        setSublocality(property.sublocality ?? '');
-        setCity(property.city ?? '');
-        setStateVal(property.state ?? '');
-        setProject(property.project ?? '');
-        setLandZone(property.land_zone ?? '');
-        setIdealFor(property.ideal_for ?? '');
-        setOwnershipStatus(property.ownership_status ?? '');
-        setLandUseZoning(property.land_use_zoning ?? '');
-        setLegalStatus(property.legal_status ?? '');
-        setConversionType(property.conversion_type ?? '');
-        setDealRemarks(property.deal_remarks ?? '');
-        const dims = property.dimensions ?? '';
-        setDimensions(dims);
-        if (dims && dims.includes('x')) {
-          const parts = dims.split('x');
-          if (parts.length === 2) {
-            setFrontage(parts[0].trim());
-            setDepth(parts[1].trim());
-          } else {
-            setFrontage('');
-            setDepth('');
-          }
-        } else {
-          setFrontage('');
-          setDepth('');
-        }
-        setRoadWidth(
-          property.road_width !== null && property.road_width !== undefined
-            ? String(property.road_width)
-            : ''
-        );
-        setRoadWidthUnit(property.road_width_unit ?? 'Feet');
-        setFacingDirection(property.facing_direction ?? '');
-        setKhataEpid(property.khata_epid ?? '');
-        setKhataForm(property.khata_form ?? '');
-        setYearBuilt(
-          property.year_built != null ? String(property.year_built) : ''
-        );
-        setFurnishing(property.furnishing ?? '');
-        setPossessionDate(property.possession_date ?? '');
-        setFloorNumber(
-          property.floor_number !== null && property.floor_number !== undefined
-            ? String(property.floor_number)
-            : ''
-        );
-        setTotalFloors(
-          property.total_floors !== null && property.total_floors !== undefined
-            ? String(property.total_floors)
-            : ''
-        );
-        setBalconies(
-          property.balconies !== null && property.balconies !== undefined
-            ? String(property.balconies)
-            : ''
-        );
-        setFlooring(property.flooring ?? '');
-        setPowerBackup(property.power_backup ?? '');
-        setIsPublished(property.is_published);
-        setFeatures(property.features || []);
-        setNearbyHighlights(property.nearby_highlights || []);
-        setImages(
-          property.images && property.images.length > 0 ? property.images : ['']
-        );
-        setPrivateImages(property.private_images || []);
-        setVideoRemoved(false);
-        setDefaultImageIndex(0); // Default image is always at index 0
-        const dbDocs =
-          property.documents && property.documents.length > 0
-            ? property.documents
-            : [];
-        const parsed = dbDocs.map((doc: unknown) => {
-          if (typeof doc === 'string') {
-            if (doc.trim().startsWith('{')) {
-              try {
-                const parsedDoc = JSON.parse(doc);
-                return {
-                  url: (parsedDoc?.url as string) || '',
-                  title: (parsedDoc?.title as string) || '',
-                };
-              } catch {
-                // fall through
-              }
-            }
-            return { url: doc, title: '' };
-          }
-          const typedDoc = doc as { url?: string; title?: string } | null;
-          return { url: typedDoc?.url || '', title: typedDoc?.title || '' };
-        });
-        setDocuments(parsed.length > 0 ? parsed : [{ url: '', title: '' }]);
-        setOwnerContactId(property.owner_contact_id ?? null);
         // Set owner search input to display the selected owner's name
         if (property.owner_contact_id) {
           const ownerContact = contacts?.find(
@@ -1295,167 +718,13 @@ export function PropertyForm({
             setOwnerSearchInput(ownerContact.name || ownerContact.phone || '');
           }
         }
-        // The form's Owner/Agent toggle only models Engine-internal referral
-        // source; a WhatsApp self-listing is displayed as "Owner" here
-        // (the "Submitted via WhatsApp" badge in the list view already
-        // distinguishes it) rather than adding a third toggle state.
-        setListingSource(
-          property.listing_source === 'agent' ? 'agent' : 'owner'
-        );
-        setGoogleMapLink(property.google_map_link ?? '');
-        setLocationPrivacy(
-          property.location_privacy === 'exact' ||
-            property.location_privacy === 'locality'
-            ? property.location_privacy
-            : ''
-        );
-        setShowcaseVisibility(
-          property.showcase_visibility === 'teaser' ? 'teaser' : ''
-        );
-        setNotes(property.notes ?? '');
-        setTags(property.tags || []);
-        setTagInput('');
-        // Preserve saved coordinates unless the agent re-touches the location
-        setGeoPick(
-          property.latitude != null && property.longitude != null
-            ? {
-                latitude: Number(property.latitude),
-                longitude: Number(property.longitude),
-                place_id: property.locality_place_id || '',
-                canonical: property.locality_canonical || '',
-              }
-            : null
-        );
-
-        if (contacts && contacts.length > 0) {
-          const interested = contacts
-            .filter((c) => c.last_inquired_property_id === property.id)
-            .map((c) => c.id);
-          setInterestedContactIds(interested);
-        } else if (property.interested_contacts) {
-          setInterestedContactIds(
-            property.interested_contacts.map((c) => c.id)
-          );
-        } else {
-          setInterestedContactIds([]);
-        }
-
-        // Set unified query string on open
-        if (property.project) {
-          setSearchQuery(property.project);
-        } else {
-          setSearchQuery(property.sublocality ?? '');
-        }
-
-        // Recover `address` from the stored location by removing the
-        // parts that get re-appended on save (sublocality, city, state).
-        //
-        // Each of those is expanded into its OWN segments before the
-        // comparison. Comparing a whole location segment against the
-        // raw field breaks whenever `sublocality` spans more than one
-        // segment — "Agara, HSR Layout" never equals "Agara" or "HSR
-        // Layout", so nothing was stripped, and the save path then
-        // appended the sublocality a second time. Worse, it compounded:
-        // the next edit recovered the doubled text as `address` and
-        // appended again, which is how a row reached "JP Nagar, 5th
-        // phase" three times over.
-        const dropSegments = new Set(
-          [property.sublocality, property.city, property.state]
-            .filter((v): v is string => Boolean(v))
-            .flatMap((v) => v.split(',').map((s) => s.trim().toLowerCase()))
-            .filter(Boolean)
-        );
-
-        const seenSegments = new Set<string>();
-        const addrSegments = property.location
-          .split(',')
-          .map((s) => s.trim())
-          .filter((seg) => {
-            const key = seg.toLowerCase();
-            // Also drop repeats, so opening and saving a row that was
-            // already corrupted heals it instead of growing it again.
-            if (!key || dropSegments.has(key) || seenSegments.has(key))
-              return false;
-            seenSegments.add(key);
-            return true;
-          });
-        setAddress(addrSegments.join(', ') || '');
       } else {
-        setTitle('');
-        setDescription('');
-        setPrice('');
-        setListingType('Sale');
-        setRentPerMonth('');
-        setMaintenance('');
-        setAdvance('');
-        setGst('');
-        setJvStructure('Revenue Share');
-        setOwnerSharePercent('');
-        setBuilderSharePercent('');
-        setGoodwillAmount('');
-        setBtsLeaseYears('');
-        setBtsLockInYears('');
-        setBtsEscalationPercent('');
-        setRentalIncome('');
-        setFloorTenancies([]);
-        setFloorPlans([]);
-        setType('Flat/ Apartment');
-        setStatus('Available');
-        setBedrooms('');
-        setBathrooms('');
-        setAreaSqft('');
-        setAreaUnit('Sq.Ft.');
-        setLandArea('');
-        setLandAreaUnit('Sq.Ft.');
-        setSuperBuiltArea('');
-        setSublocality('');
-        setCity('');
-        setStateVal('');
-        setAddress('');
-        setProject('');
-        setLandZone('');
-        setIdealFor('');
-        setOwnershipStatus('');
-        setLandUseZoning('');
-        setLegalStatus('');
-        setConversionType('');
-        setDealRemarks('');
-        setDimensions('');
-        setFrontage('');
-        setDepth('');
-        setRoadWidth('');
-        setRoadWidthUnit('Feet');
-        setFacingDirection('');
-        setKhataEpid('');
-        setKhataForm('');
-        setYearBuilt('');
-        setFurnishing('');
-        setFloorNumber('');
-        setTotalFloors('');
-        setBalconies('');
-        setIsPublished(false);
-        setFeatures([]);
-        setNearbyHighlights([]);
-        setImages(['']);
-        setPrivateImages([]);
-        setVideoRemoved(false);
-        setDocuments([{ url: '', title: '' }]);
-        setSearchQuery('');
-        setGoogleMapLink('');
-        setLocationPrivacy('');
-        setShowcaseVisibility('');
-        setNotes('');
-        setTags([]);
-        setTagInput('');
-        setGeoPick(null);
         setGoogleSuggestions([]);
-        setOwnerContactId(defaultOwnerId ?? null);
-        setListingSource('owner');
       }
     } else {
       formResetKey.current = null;
     }
-  }, [open, property, defaultOwnerId, contacts]);
+  }, [open, property, defaultOwnerId, contacts, reset]);
 
   useEffect(() => {
     if (!open) return;
@@ -1495,11 +764,11 @@ export function PropertyForm({
       ));
 
   function handleSearchQueryChange(val: string) {
-    setSearchQuery(val);
+    set('searchQuery', val);
     setShowSuggestions(true);
     // Typed text invalidates a previous Google pick — the server geocode
     // fallback re-resolves coordinates for the new text on save.
-    setGeoPick(null);
+    set('geoPick', null);
     if (googleDebounceRef.current) clearTimeout(googleDebounceRef.current);
     if (val.trim().length >= 2) {
       googleDebounceRef.current = setTimeout(
@@ -1515,28 +784,28 @@ export function PropertyForm({
       (p) => p.name.toLowerCase() === val.trim().toLowerCase()
     );
     if (exactProj) {
-      setProject(exactProj.name);
-      setSublocality(exactProj.sublocality);
-      setCity(exactProj.city);
-      setStateVal(exactProj.state);
-      setAddress(exactProj.address);
+      set('project', exactProj.name);
+      set('sublocality', exactProj.sublocality);
+      set('city', exactProj.city);
+      set('stateVal', exactProj.state);
+      set('address', exactProj.address);
     } else {
       // Check if it matches a layout, sector, or main/cross (split by comma)
       const parts = val.split(',').map((s) => s.trim());
       if (parts.length > 1) {
-        setSublocality(parts[0]);
-        setAddress(parts[1]);
+        set('sublocality', parts[0]);
+        set('address', parts[1]);
       } else {
         const exactArea = POPULAR_SUBLOCALITIES.find(
           (a) => a.toLowerCase() === val.trim().toLowerCase()
         );
         if (exactArea) {
-          setSublocality(exactArea);
+          set('sublocality', exactArea);
         } else {
-          setSublocality(val);
+          set('sublocality', val);
         }
       }
-      setProject('');
+      set('project', '');
     }
   }
 
@@ -1570,7 +839,7 @@ export function PropertyForm({
   };
 
   const handleLandAreaChange = (val: string) => {
-    setLandArea(val);
+    set('landArea', val);
     markDimTyped('landArea', val);
     if (!isLand) return;
     const typed = userTypedDims.current;
@@ -1581,11 +850,11 @@ export function PropertyForm({
     if (!val || isNaN(aSqft) || aSqft <= 0) return;
 
     const deriveFrontage = () => {
-      setFrontage(String(round2(aSqft / dNum)));
+      set('frontage', String(round2(aSqft / dNum)));
       derived.frontage = true;
     };
     const deriveDepth = () => {
-      setDepth(String(round2(aSqft / fNum)));
+      set('depth', String(round2(aSqft / fNum)));
       derived.depth = true;
     };
 
@@ -1596,7 +865,7 @@ export function PropertyForm({
   };
 
   const handleFrontageChange = (val: string) => {
-    setFrontage(val);
+    set('frontage', val);
     markDimTyped('frontage', val);
     if (!isLand) return;
     const typed = userTypedDims.current;
@@ -1607,11 +876,11 @@ export function PropertyForm({
     if (!val || isNaN(fNum) || fNum <= 0) return;
 
     const deriveArea = () => {
-      setLandArea(String(round2((fNum * dNum) / sqftFactor())));
+      set('landArea', String(round2((fNum * dNum) / sqftFactor())));
       derived.landArea = true;
     };
     const deriveDepth = () => {
-      setDepth(String(round2(aSqft / fNum)));
+      set('depth', String(round2(aSqft / fNum)));
       derived.depth = true;
     };
 
@@ -1622,7 +891,7 @@ export function PropertyForm({
   };
 
   const handleDepthChange = (val: string) => {
-    setDepth(val);
+    set('depth', val);
     markDimTyped('depth', val);
     if (!isLand) return;
     const typed = userTypedDims.current;
@@ -1633,11 +902,11 @@ export function PropertyForm({
     if (!val || isNaN(dNum) || dNum <= 0) return;
 
     const deriveArea = () => {
-      setLandArea(String(round2((fNum * dNum) / sqftFactor())));
+      set('landArea', String(round2((fNum * dNum) / sqftFactor())));
       derived.landArea = true;
     };
     const deriveFrontage = () => {
-      setFrontage(String(round2(aSqft / dNum)));
+      set('frontage', String(round2(aSqft / dNum)));
       derived.frontage = true;
     };
 
@@ -1647,49 +916,6 @@ export function PropertyForm({
       deriveFrontage();
     else if (!typed.landArea && fNum > 0) deriveArea();
   };
-
-  const filteredAmenities = useMemo(() => {
-    if (isLand) {
-      return {
-        'Land Specifications': [
-          'Fenced Boundary',
-          'Access Road',
-          'Electricity Connection',
-          'Water Supply (Borewell)',
-          'Rain Water Harvesting',
-          'CCTV Surveillance',
-          '24/7 Security',
-        ],
-      };
-    }
-    if (hasCommercialFields) {
-      return {
-        'Commercial Specifications': [
-          'Centrally Air Conditioned',
-          'Conference Room',
-          'Cafeteria/Food Court',
-          'Wi-Fi Connectivity',
-          'ATM',
-          'Service/Goods Lift',
-        ],
-        'Utilities & Security': [
-          '24/7 Security',
-          'CCTV Surveillance',
-          'Power Backup',
-          'Fire Fighting System',
-          'Lift/Elevator',
-          'Reserved Parking',
-          'Visitor Parking',
-          'Waste Disposal',
-        ],
-      };
-    }
-    // Default Residential
-    return {
-      'Security & Utilities': AMENITIES_BY_CATEGORY['Security & Utilities'],
-      'Leisure & Community': AMENITIES_BY_CATEGORY['Leisure & Community'],
-    };
-  }, [isLand, hasCommercialFields]);
 
   // Images use the photo bucket; PDF land sketches use the document
   // bucket so their MIME type is accepted and preserved.
@@ -1746,89 +972,6 @@ export function PropertyForm({
     }
   }
 
-  async function onUploadImages(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    if (!accountId) {
-      toast.error('Account not loaded, please try again.');
-      return;
-    }
-
-    setUploadingImage(true);
-    const uploaded: { url: string; document: boolean }[] = [];
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-
-        // 5MB limit
-        if (file.size > 5 * 1024 * 1024) {
-          toast.error(`File "${file.name}" is too large. Max size is 5MB.`);
-          continue;
-        }
-
-        // Compress image before upload
-        let uploadFile: File | Blob = file;
-        if (
-          file.type.startsWith('image/') &&
-          file.type !== 'image/svg+xml' &&
-          file.type !== 'image/gif'
-        ) {
-          try {
-            uploadFile = await compressImageOnClient(file);
-          } catch {
-            // Fallback to original if compression fails
-          }
-        }
-
-        const ext = 'jpg';
-        const randomStr = Math.random().toString(36).substring(2, 7);
-        // Scoped by account ID folder
-        const path = `${accountId}/img-${Date.now()}-${randomStr}.${ext}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('property-images')
-          .upload(path, uploadFile, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: 'image/jpeg',
-          });
-
-        if (uploadError) {
-          throw new Error(`Upload failed: ${uploadError.message}`);
-        }
-
-        uploaded.push({
-          url: `property-images/${path}`,
-          document: await isDocumentImage(uploadFile),
-        });
-      }
-
-      if (uploaded.length > 0) {
-        const uploadedUrls = orderForCover(uploaded, (u) => u.document).map(
-          (u) => u.url
-        );
-        const documents = uploaded.filter((u) => u.document).length;
-        setImages((prev) => {
-          const filteredPrev = prev.filter((url) => url.trim().length > 0);
-          return [...filteredPrev, ...uploadedUrls];
-        });
-        toast.success(
-          documents > 0
-            ? `Uploaded ${uploaded.length} image(s) — ${documents} look${documents === 1 ? 's' : ''} like a document and ${documents === 1 ? 'was' : 'were'} placed after the photos`
-            : `Uploaded ${uploaded.length} image(s)`
-        );
-      }
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Image upload failed';
-      toast.error(message);
-    } finally {
-      setUploadingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
-
   async function onReadEKhata(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (eKhataInputRef.current) eKhataInputRef.current.value = '';
@@ -1879,7 +1022,7 @@ export function PropertyForm({
         throw new Error(body.error || 'Could not read this e-Khata.');
       }
 
-      setDocuments((prev) => {
+      set('documents', (prev) => {
         const kept = prev
           .map((doc) =>
             typeof doc === 'string' ? { url: doc, title: '' } : doc
@@ -1927,14 +1070,14 @@ export function PropertyForm({
     if (!review) return;
     const { fields } = review;
     for (const key of keys) {
-      if (key === 'address' && fields.address) setAddress(fields.address);
-      if (key === 'city') setCity('Bengaluru');
+      if (key === 'address' && fields.address) set('address', fields.address);
+      if (key === 'city') set('city', 'Bengaluru');
       if (
         key === 'pin' &&
         fields.latitude !== undefined &&
         fields.longitude !== undefined
       ) {
-        setGeoPick({
+        set('geoPick', {
           latitude: fields.latitude,
           longitude: fields.longitude,
           place_id: '',
@@ -1942,27 +1085,27 @@ export function PropertyForm({
         });
       }
       if (key === 'land_area' && fields.site_area_sqft) {
-        setLandArea(String(fields.site_area_sqft));
-        setLandAreaUnit('Sq.Ft.');
+        set('landArea', String(fields.site_area_sqft));
+        set('landAreaUnit', 'Sq.Ft.');
       }
       if (
         key === 'dimensions' &&
         fields.site_frontage_ft &&
         fields.site_depth_ft
       ) {
-        setFrontage(String(fields.site_frontage_ft));
-        setDepth(String(fields.site_depth_ft));
-        setDimensions(`${fields.site_frontage_ft}x${fields.site_depth_ft}`);
+        set('frontage', String(fields.site_frontage_ft));
+        set('depth', String(fields.site_depth_ft));
+        set('dimensions', `${fields.site_frontage_ft}x${fields.site_depth_ft}`);
       }
       if (key === 'built_up_area' && fields.built_up_sqft) {
-        setAreaSqft(String(fields.built_up_sqft));
-        setAreaUnit('Sq.Ft.');
+        set('areaSqft', String(fields.built_up_sqft));
+        set('areaUnit', 'Sq.Ft.');
       }
       if (key === 'year_built' && fields.year_built)
-        setYearBuilt(String(fields.year_built));
-      if (key === 'khata_epid' && fields.epid) setKhataEpid(fields.epid);
+        set('yearBuilt', String(fields.year_built));
+      if (key === 'khata_epid' && fields.epid) set('khataEpid', fields.epid);
       if (key === 'khata_form' && fields.khata_form)
-        setKhataForm(fields.khata_form);
+        set('khataForm', fields.khata_form);
     }
     setEKhataReview(null);
     toast.success(
@@ -1970,388 +1113,12 @@ export function PropertyForm({
     );
   }
 
-  async function onUploadDocuments(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    if (!accountId) {
-      toast.error('Account not loaded, please try again.');
-      return;
-    }
-
-    setUploadingDocument(true);
-    const uploadedUrls: string[] = [];
-
-    try {
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-
-        if (file.size > DOCUMENT_SIZE_LIMIT) {
-          const mb = (file.size / (1024 * 1024)).toFixed(1);
-          toast.error(
-            `File "${file.name}" is ${mb}MB. Max size is ${Math.round(DOCUMENT_SIZE_LIMIT / (1024 * 1024))}MB.`
-          );
-          continue;
-        }
-
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-        const randomStr = Math.random().toString(36).substring(2, 7);
-        // Scoped by account ID folder
-        const path = `${accountId}/doc-${Date.now()}-${randomStr}.${ext}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('property-documents')
-          .upload(path, file, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: file.type,
-          });
-
-        if (uploadError) {
-          throw new Error(`Upload failed: ${uploadError.message}`);
-        }
-
-        uploadedUrls.push(`property-documents/${path}`);
-      }
-
-      if (uploadedUrls.length > 0) {
-        const newDocs = uploadedUrls.map((url) => {
-          const filename = url.split('/').pop()?.split('?')[0] || '';
-          const decoded = decodeURIComponent(filename);
-          const cleanName = decoded
-            .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-[a-zA-Z0-9]+-/, '')
-            .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-/, '')
-            .split('.')
-            .slice(0, -1)
-            .join('.');
-          return { url, title: cleanName };
-        });
-
-        setDocuments((prev) => {
-          const filteredPrev = prev
-            .filter((doc) => {
-              const url = typeof doc === 'string' ? doc : doc?.url;
-              return url && url.trim().length > 0;
-            })
-            .map((doc) => {
-              if (typeof doc === 'string') return { url: doc, title: '' };
-              return doc;
-            });
-          return [...filteredPrev, ...newDocs];
-        });
-        toast.success(`Uploaded ${uploadedUrls.length} document(s)`);
-      }
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Document upload failed';
-      toast.error(message);
-    } finally {
-      setUploadingDocument(false);
-      if (documentInputRef.current) documentInputRef.current.value = '';
-    }
-  }
-
-  function handleAddDocumentUrl() {
-    setDocuments((prev) => [...prev, { url: '', title: '' }]);
-  }
-
-  // Close owner dropdown on click outside helper
-
-  function handleRemoveDocumentUrl(index: number) {
-    if (documents.length === 1) {
-      setDocuments([{ url: '', title: '' }]);
-    } else {
-      setDocuments((prev) => prev.filter((_, i) => i !== index));
-    }
-  }
-
-  function handleDocumentUrlChange(index: number, value: string) {
-    setDocuments((prev) => {
-      const copy = [...prev];
-      const target = copy[index];
-      if (typeof target === 'string') {
-        copy[index] = { url: value, title: '' };
-      } else {
-        copy[index] = { ...target, url: value };
-      }
-      return copy;
-    });
-  }
-
-  function handleDocumentTitleChange(index: number, value: string) {
-    setDocuments((prev) => {
-      const copy = [...prev];
-      const target = copy[index];
-      if (typeof target === 'string') {
-        copy[index] = { url: '', title: value };
-      } else {
-        copy[index] = { ...target, title: value };
-      }
-      return copy;
-    });
-  }
-
-  function handleAddImageUrl() {
-    setImages((prev) => [...prev, '']);
-  }
-
-  function handleRemoveImageUrl(index: number) {
-    if (images.length === 1) {
-      setImages(['']);
-    } else {
-      setImages((prev) => prev.filter((_, i) => i !== index));
-    }
-  }
-
-  // Handle owner selection with auto-detection of listing source
-  function handleOwnerSelect(contactId: string | null) {
-    setOwnerContactId(contactId);
-    setIsOwnerDropdownOpen(false);
-
-    // Set search input to display the selected contact's name
-    if (contactId) {
-      const selectedContact = contacts.find((c) => c.id === contactId);
-      if (selectedContact) {
-        setOwnerSearchInput(
-          selectedContact.name || selectedContact.phone || ''
-        );
-        // Auto-detect listing source based on selected contact's classification
-        const classification =
-          selectedContact.classification?.toLowerCase() || '';
-        if (classification === 'agent') {
-          setListingSource('agent');
-        } else {
-          setListingSource('owner');
-        }
-      }
-    } else {
-      setOwnerSearchInput('');
-    }
-  }
-
-  // Filter contacts for owner search
-  const filteredOwnerContacts = useMemo(() => {
-    if (!ownerSearchInput.trim()) return contacts;
-    const query = ownerSearchInput.toLowerCase();
-    return contacts.filter(
-      (c) =>
-        c.name?.toLowerCase().includes(query) ||
-        c.phone?.toLowerCase().includes(query) ||
-        c.email?.toLowerCase().includes(query)
-    );
-  }, [contacts, ownerSearchInput]);
-
-  function handleImageUrlChange(index: number, value: string) {
-    setImages((prev) => {
-      const copy = [...prev];
-      copy[index] = value;
-      return copy;
-    });
-  }
-
-  function handleSetDefaultImage(index: number) {
-    setDefaultImageIndex(index);
-    toast.success('Selected image set as default listing photo');
-  }
-
-  async function handleToggleImageLock(
-    path: string,
-    action: 'lock' | 'unlock'
-  ) {
-    if (!property?.id || lockingImagePath) return;
-    setLockingImagePath(path);
-    try {
-      const response = await fetch(
-        `/api/properties/${property.id}/private-images`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path, action }),
-        }
-      );
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update photo privacy');
-      }
-      setImages(data.data.images.length > 0 ? data.data.images : ['']);
-      setPrivateImages(data.data.private_images || []);
-      toast.success(
-        action === 'lock'
-          ? 'Photo moved to private — revealed only on approved requests'
-          : 'Photo is public again'
-      );
-    } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to update photo privacy'
-      );
-    } finally {
-      setLockingImagePath(null);
-    }
-  }
-
-  async function handleRemoveVideo() {
-    if (!property?.id || removingVideo) return;
-    setRemovingVideo(true);
-    try {
-      const response = await fetch(
-        `/api/properties/${property.id}/generate-video`,
-        {
-          method: 'DELETE',
-        }
-      );
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Failed to remove the video');
-      }
-      setVideoRemoved(true);
-      toast.success(
-        'Listing video removed — it no longer plays in the Showcase'
-      );
-    } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to remove the video'
-      );
-    } finally {
-      setRemovingVideo(false);
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!title.trim()) {
-      toast.error('Title is required');
-      return;
-    }
-
-    const isRent = listingType === 'Rent';
-    const isJV = listingType === 'JV/JD';
-    const isBTS = listingType === 'Built to Suit';
-    // BTS is leased out like Rent — same rent/maintenance/advance/gst fields.
-    const isRentLike = isRent || isBTS;
-
-    if (isRentLike) {
-      if (
-        !rentPerMonth.trim() ||
-        isNaN(Number(rentPerMonth)) ||
-        Number(rentPerMonth) < 0
-      ) {
-        toast.error(
-          isBTS
-            ? 'Expected rent must be a valid non-negative number'
-            : 'Rent per month must be a valid non-negative number'
-        );
-        return;
-      }
-      if (
-        maintenance &&
-        (isNaN(Number(maintenance)) || Number(maintenance) < 0)
-      ) {
-        toast.error('Maintenance must be a valid non-negative number');
-        return;
-      }
-      if (advance && (isNaN(Number(advance)) || Number(advance) < 0)) {
-        toast.error('Advance must be a valid non-negative number');
-        return;
-      }
-      if (gst && (isNaN(Number(gst)) || Number(gst) < 0)) {
-        toast.error('GST must be a valid non-negative number');
-        return;
-      }
-    } else if (isJV) {
-      if (price && (isNaN(Number(price)) || Number(price) < 0)) {
-        toast.error(
-          'Expected project value must be a valid non-negative number'
-        );
-        return;
-      }
-      if (
-        !ownerSharePercent.trim() ||
-        isNaN(Number(ownerSharePercent)) ||
-        Number(ownerSharePercent) <= 0 ||
-        Number(ownerSharePercent) >= 100
-      ) {
-        toast.error('Owner share % must be a valid number between 0 and 100');
-        return;
-      }
-      if (
-        !builderSharePercent.trim() ||
-        isNaN(Number(builderSharePercent)) ||
-        Number(builderSharePercent) <= 0 ||
-        Number(builderSharePercent) >= 100
-      ) {
-        toast.error('Builder share % must be a valid number between 0 and 100');
-        return;
-      }
-      if (
-        Math.round(Number(ownerSharePercent) + Number(builderSharePercent)) !==
-        100
-      ) {
-        toast.error('Owner share % and Builder share % must add up to 100');
-        return;
-      }
-      if (
-        goodwillAmount &&
-        (isNaN(Number(goodwillAmount)) || Number(goodwillAmount) < 0)
-      ) {
-        toast.error('Goodwill amount must be a valid non-negative number');
-        return;
-      }
-      if (advance && (isNaN(Number(advance)) || Number(advance) < 0)) {
-        toast.error('Advance must be a valid non-negative number');
-        return;
-      }
-    } else {
-      if (!price.trim() || isNaN(Number(price)) || Number(price) < 0) {
-        toast.error('Price must be a valid non-negative number');
-        return;
-      }
-    }
-
-    if (isBTS) {
-      if (
-        !btsLeaseYears.trim() ||
-        isNaN(Number(btsLeaseYears)) ||
-        Number(btsLeaseYears) <= 0
-      ) {
-        toast.error('Lease term (years) must be a valid positive number');
-        return;
-      }
-      if (
-        btsLockInYears &&
-        (isNaN(Number(btsLockInYears)) || Number(btsLockInYears) < 0)
-      ) {
-        toast.error('Lock-in period must be a valid non-negative number');
-        return;
-      }
-      if (btsLockInYears && Number(btsLockInYears) > Number(btsLeaseYears)) {
-        toast.error('Lock-in period cannot exceed the total lease term');
-        return;
-      }
-      if (
-        btsEscalationPercent &&
-        (isNaN(Number(btsEscalationPercent)) ||
-          Number(btsEscalationPercent) < 0)
-      ) {
-        toast.error('Rent escalation % must be a valid non-negative number');
-        return;
-      }
-    }
-
-    let finalSublocality = sublocality.trim();
-    if (!finalSublocality && searchQuery.trim()) {
-      finalSublocality = searchQuery.trim();
-    }
-
-    if (!finalSublocality || !city.trim() || !stateVal.trim()) {
-      toast.error('Location search query, City, and State are required');
-      return;
-    }
-
-    if (
-      isLand &&
-      (!landArea.trim() || isNaN(Number(landArea)) || Number(landArea) <= 0)
-    ) {
-      toast.error('Land Area is required and must be a valid positive number');
+    const validationError = validatePropertyForm(values);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
@@ -2361,247 +1128,7 @@ export function PropertyForm({
       if (!user || !accountId)
         throw new Error('Not authenticated or account not loaded');
 
-      const parsedPrice = isRentLike
-        ? Number(rentPerMonth) || 0
-        : isJV
-          ? price.trim() !== ''
-            ? Number(price)
-            : 0
-          : Number(price);
-      const parsedRentPerMonth = isRentLike ? Number(rentPerMonth) : null;
-      const parsedMaintenance =
-        isRentLike && maintenance.trim() !== '' ? Number(maintenance) : null;
-      const parsedAdvance =
-        (isRentLike || isJV) && advance.trim() !== '' ? Number(advance) : null;
-      const parsedGst = isRentLike && gst.trim() !== '' ? Number(gst) : null;
-      const parsedJvStructure = isJV ? jvStructure : null;
-      const parsedOwnerSharePercent =
-        isJV && ownerSharePercent.trim() !== ''
-          ? Number(ownerSharePercent)
-          : null;
-      const parsedBuilderSharePercent =
-        isJV && builderSharePercent.trim() !== ''
-          ? Number(builderSharePercent)
-          : null;
-      const parsedGoodwillAmount =
-        isJV && goodwillAmount.trim() !== '' ? Number(goodwillAmount) : null;
-      const parsedBtsLeaseYears =
-        isBTS && btsLeaseYears.trim() !== '' ? Number(btsLeaseYears) : null;
-      const parsedBtsLockInYears =
-        isBTS && btsLockInYears.trim() !== '' ? Number(btsLockInYears) : null;
-      const parsedBtsEscalationPercent =
-        isBTS && btsEscalationPercent.trim() !== ''
-          ? Number(btsEscalationPercent)
-          : null;
-      const parsedBedrooms =
-        hasBedsBaths && bedrooms.trim() !== '' ? Number(bedrooms) : null;
-      const parsedBathrooms =
-        hasBedsBaths && bathrooms.trim() !== '' ? Number(bathrooms) : null;
-      const parsedFloorNumber =
-        showFloorNumber && floorNumber.trim() !== ''
-          ? Number(floorNumber)
-          : null;
-      const parsedTotalFloors =
-        showTotalFloors && totalFloors.trim() !== ''
-          ? Number(totalFloors)
-          : null;
-      const parsedBalconies =
-        hasBedsBaths && balconies.trim() !== '' ? Number(balconies) : null;
-      const parsedAreaSqft =
-        !isLand && areaSqft.trim() !== '' ? Number(areaSqft) : null;
-      const parsedLandArea =
-        (isLand || !isApartment) && landArea.trim() !== ''
-          ? Number(landArea)
-          : null;
-      const parsedSuperBuiltArea =
-        !isLand && superBuiltArea.trim() !== '' ? Number(superBuiltArea) : null;
-      const parsedRoadWidth =
-        !isApartment && roadWidth.trim() !== '' ? Number(roadWidth) : null;
-
-      const parsedFeatures = features;
-      const parsedNearbyHighlights = nearbyHighlights;
-      const filteredImages = images
-        .map((img) => img.trim())
-        .filter((img) => img.length > 0);
-      // Reorder images so the default image is at index 0
-      const parsedImages =
-        filteredImages.length > 0 &&
-        defaultImageIndex > 0 &&
-        defaultImageIndex < filteredImages.length
-          ? [
-              filteredImages[defaultImageIndex],
-              ...filteredImages.filter((_, i) => i !== defaultImageIndex),
-            ]
-          : filteredImages;
-      const parsedDocuments = documents
-        .filter((doc) => doc.url.trim().length > 0)
-        .map((doc) => {
-          return JSON.stringify({
-            url: doc.url.trim(),
-            title: doc.title?.trim() || '',
-          });
-        });
-
-      // Construct formatted complete location string
-      const fullLocation = [
-        address.trim(),
-        finalSublocality,
-        city.trim(),
-        stateVal.trim(),
-      ]
-        .filter(Boolean)
-        .join(', ');
-
-      let finalDimensions = dimensions.trim();
-      if (isLand) {
-        if (frontage.trim() && depth.trim()) {
-          finalDimensions = `${frontage.trim()}x${depth.trim()}`;
-        } else {
-          finalDimensions = '';
-        }
-      } else if (isApartment) {
-        finalDimensions = '';
-      }
-
-      const payload = {
-        title: title.trim(),
-        description: description.trim() || null,
-        price: parsedPrice,
-        listing_type: listingType,
-        rent_per_month: parsedRentPerMonth,
-        maintenance: parsedMaintenance,
-        advance: parsedAdvance,
-        gst: parsedGst,
-        jv_structure: parsedJvStructure,
-        owner_share_percent: parsedOwnerSharePercent,
-        builder_share_percent: parsedBuilderSharePercent,
-        goodwill_amount: parsedGoodwillAmount,
-        bts_lease_years: parsedBtsLeaseYears,
-        bts_lock_in_years: parsedBtsLockInYears,
-        bts_escalation_percent: parsedBtsEscalationPercent,
-        location: fullLocation,
-        type,
-        status: isEdit ? status : 'Available', // Force Available for additions
-        // Only meaningful while Sold; sending null clears a stale value
-        // if the status moves away from Sold.
-        sold_price:
-          status === 'Sold' &&
-          soldPrice.trim() !== '' &&
-          !Number.isNaN(Number(soldPrice))
-            ? Number(soldPrice)
-            : null,
-        // Ignored by the create route's allowlist — a listing has no
-        // negotiated floor on the day it is entered.
-        seller_final_price:
-          sellerFinalPrice.trim() !== '' &&
-          !Number.isNaN(Number(sellerFinalPrice))
-            ? Number(sellerFinalPrice)
-            : null,
-        seller_final_price_per_sqft:
-          sellerFinalPricePerSqft.trim() !== '' &&
-          !Number.isNaN(Number(sellerFinalPricePerSqft))
-            ? Number(sellerFinalPricePerSqft)
-            : null,
-        bedrooms: parsedBedrooms,
-        bathrooms: parsedBathrooms,
-        furnishing: !isLand && furnishing ? furnishing : null,
-        possession_date: possessionDate || null,
-        floor_number: parsedFloorNumber,
-        total_floors: parsedTotalFloors,
-        balconies: parsedBalconies,
-        flooring: !isLand && flooring ? flooring : null,
-        power_backup: !isLand && powerBackup ? powerBackup : null,
-        area_sqft: parsedAreaSqft,
-        area_unit: isLand ? null : areaUnit,
-        land_area: parsedLandArea,
-        land_area_unit: isApartment ? null : landAreaUnit,
-        super_built_area: parsedSuperBuiltArea,
-        sublocality: finalSublocality,
-        city: city.trim(),
-        state: stateVal.trim(),
-        project: project.trim() || null,
-        land_zone: landZone.trim() || null,
-        ideal_for: idealFor.trim() || null,
-        ownership_status: ownershipStatus.trim() || null,
-        land_use_zoning: landUseZoning.trim() || null,
-        legal_status: isRawLand ? legalStatus.trim() || null : null,
-        conversion_type: isRawLand ? conversionType.trim() || null : null,
-        deal_remarks: dealRemarks.trim() || null,
-        dimensions: finalDimensions || null,
-        road_width: parsedRoadWidth,
-        road_width_unit: roadWidthUnit,
-        facing_direction: facingDirection || null,
-        khata_epid: khataEpid.trim() || null,
-        khata_form: khataForm || null,
-        year_built: isLand ? null : yearBuilt.trim() ? Number(yearBuilt) : null,
-        nearby_highlights: parsedNearbyHighlights,
-        is_published: isPublished,
-        features: parsedFeatures,
-        images: parsedImages,
-        documents: parsedDocuments,
-        owner_contact_id: ownerContactId,
-        listing_source: listingSource,
-        google_map_link: googleMapLink.trim() || null,
-        location_privacy: locationPrivacy || null,
-        showcase_visibility: showcaseVisibility || null,
-        rental_income:
-          hasCommercialBuildingFields && rentalIncome.trim() !== ''
-            ? Number(rentalIncome)
-            : null,
-        // Server-side sanitizeFloorTenancies() drops empty rows and
-        // re-validates every value.
-        floor_tenancies: hasCommercialBuildingFields
-          ? floorTenancies.map((ft) => ({
-              floor: ft.floor.trim(),
-              tenant_name: ft.tenant_name.trim() || null,
-              area_sqft:
-                ft.area_sqft.trim() !== '' &&
-                !Number.isNaN(Number(ft.area_sqft))
-                  ? Number(ft.area_sqft)
-                  : null,
-              monthly_rent:
-                ft.monthly_rent.trim() !== '' &&
-                !Number.isNaN(Number(ft.monthly_rent))
-                  ? Number(ft.monthly_rent)
-                  : null,
-              advance:
-                ft.advance.trim() !== '' && !Number.isNaN(Number(ft.advance))
-                  ? Number(ft.advance)
-                  : null,
-              lease_start: ft.lease_start || null,
-              lease_end: ft.lease_end || null,
-              lock_in_months:
-                ft.lock_in_months.trim() !== '' &&
-                !Number.isNaN(Number(ft.lock_in_months))
-                  ? Number(ft.lock_in_months)
-                  : null,
-              maintenance: ft.maintenance.trim() || null,
-              notes: ft.notes.trim() || null,
-              floor_plan: ft.floor_plan.trim() || null,
-            }))
-          : [],
-        // Server-side sanitizeFloorPlans() drops rows with neither a
-        // label nor a drawing.
-        floor_plans: floorPlans.map((fp) => ({
-          floor: fp.floor.trim(),
-          image: fp.image.trim() || null,
-          area_sqft:
-            fp.area_sqft.trim() !== '' && !Number.isNaN(Number(fp.area_sqft))
-              ? Number(fp.area_sqft)
-              : null,
-          notes: fp.notes.trim() || null,
-        })),
-        notes: notes.trim() || null,
-        tags,
-        // Coordinates from the Google Maps pick; nulls tell the server to
-        // geocode the (possibly changed) location text instead.
-        latitude: geoPick?.latitude ?? null,
-        longitude: geoPick?.longitude ?? null,
-        locality_place_id: geoPick?.place_id || null,
-        locality_canonical: geoPick?.canonical || null,
-        interested_contact_ids: interestedContactIds,
-        updated_at: new Date().toISOString(),
-      };
+      const payload = buildPropertyPayload(values, { isEdit });
 
       if (isEdit && property) {
         const response = await fetch(`/api/properties/${property.id}`, {
@@ -4050,2938 +2577,113 @@ export function PropertyForm({
                     <PropertyFormSectionNav sections={formSections} />
                   </div>
                   {/* Main Info */}
-                  <div
-                    id="pf-basics"
-                    className="grid scroll-mt-2 grid-cols-2 gap-4"
-                  >
-                    {isEdit && property?.property_code && (
-                      <div className="animate-fade-in col-span-2 space-y-1.5">
-                        <Label className="text-slate-400">
-                          Property Code (Unique ID)
-                        </Label>
-                        <Input
-                          value={property.property_code}
-                          readOnly
-                          className="bg-slate-850 cursor-not-allowed border-slate-800 font-mono text-slate-400 select-all"
-                        />
-                      </div>
-                    )}
-
-                    <div className="col-span-2 space-y-1.5">
-                      <Label htmlFor="prop-title" className="text-slate-300">
-                        Property Title <span className="text-red-400">*</span>
-                      </Label>
-                      <Input
-                        id="prop-title"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="e.g. Luxurious 3BHK Apartment in Downtown"
-                        className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                        required
-                      />
-                    </div>
-
-                    <div className="animate-fade-in space-y-1.5">
-                      <Label
-                        htmlFor="prop-listing-type"
-                        className="text-slate-300"
-                      >
-                        Listing Type
-                      </Label>
-                      <select
-                        id="prop-listing-type"
-                        value={listingType}
-                        onChange={(e) =>
-                          setListingType(
-                            e.target.value as
-                              'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'
-                          )
-                        }
-                        className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                      >
-                        <option value="Sale">For Sale</option>
-                        <option value="Rent">For Rent</option>
-                        <option value="JV/JD">JV / Joint Development</option>
-                        <option value="Built to Suit">Built to Suit</option>
-                      </select>
-                    </div>
-
-                    {listingType === 'Sale' ? (
-                      <div className="animate-fade-in space-y-1.5">
-                        <Label htmlFor="prop-price" className="text-slate-300">
-                          Price (INR) <span className="text-red-400">*</span>
-                        </Label>
-                        <Input
-                          id="prop-price"
-                          type="number"
-                          value={price}
-                          onChange={(e) => setPrice(e.target.value)}
-                          placeholder="e.g. 12000000"
-                          className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          required
-                        />
-                        <PriceHint value={price} />
-                      </div>
-                    ) : listingType === 'Rent' ? (
-                      <div className="animate-fade-in col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="prop-rent" className="text-slate-300">
-                            Rent per month (INR){' '}
-                            <span className="text-red-400">*</span>
-                          </Label>
-                          <Input
-                            id="prop-rent"
-                            type="number"
-                            value={rentPerMonth}
-                            onChange={(e) => setRentPerMonth(e.target.value)}
-                            placeholder="e.g. 45000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            required
-                          />
-                          <PriceHint value={rentPerMonth} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-maintenance"
-                            className="text-slate-300"
-                          >
-                            Maintenance (INR)
-                          </Label>
-                          <Input
-                            id="prop-maintenance"
-                            type="number"
-                            value={maintenance}
-                            onChange={(e) => setMaintenance(e.target.value)}
-                            placeholder="e.g. 5000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={maintenance} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-advance"
-                            className="text-slate-300"
-                          >
-                            Advance (Deposit) (INR)
-                          </Label>
-                          <Input
-                            id="prop-advance"
-                            type="number"
-                            value={advance}
-                            onChange={(e) => setAdvance(e.target.value)}
-                            placeholder="e.g. 200000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={advance} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor="prop-gst" className="text-slate-300">
-                            GST (INR)
-                          </Label>
-                          <Input
-                            id="prop-gst"
-                            type="number"
-                            value={gst}
-                            onChange={(e) => setGst(e.target.value)}
-                            placeholder="e.g. 1800"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={gst} />
-                        </div>
-                      </div>
-                    ) : listingType === 'Built to Suit' ? (
-                      <div className="animate-fade-in col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-rent"
-                            className="text-slate-300"
-                          >
-                            Expected Rent per month (INR){' '}
-                            <span className="text-red-400">*</span>
-                          </Label>
-                          <Input
-                            id="prop-bts-rent"
-                            type="number"
-                            value={rentPerMonth}
-                            onChange={(e) => setRentPerMonth(e.target.value)}
-                            placeholder="e.g. 250000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            required
-                          />
-                          <PriceHint value={rentPerMonth} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-maintenance"
-                            className="text-slate-300"
-                          >
-                            Maintenance / CAM (INR)
-                          </Label>
-                          <Input
-                            id="prop-bts-maintenance"
-                            type="number"
-                            value={maintenance}
-                            onChange={(e) => setMaintenance(e.target.value)}
-                            placeholder="e.g. 15000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={maintenance} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-advance"
-                            className="text-slate-300"
-                          >
-                            Security Deposit (INR)
-                          </Label>
-                          <Input
-                            id="prop-bts-advance"
-                            type="number"
-                            value={advance}
-                            onChange={(e) => setAdvance(e.target.value)}
-                            placeholder="e.g. 1500000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={advance} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-gst"
-                            className="text-slate-300"
-                          >
-                            GST (INR)
-                          </Label>
-                          <Input
-                            id="prop-bts-gst"
-                            type="number"
-                            value={gst}
-                            onChange={(e) => setGst(e.target.value)}
-                            placeholder="e.g. 45000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={gst} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-lease-years"
-                            className="text-slate-300"
-                          >
-                            Total Lease Term (years){' '}
-                            <span className="text-red-400">*</span>
-                          </Label>
-                          <Input
-                            id="prop-bts-lease-years"
-                            type="number"
-                            value={btsLeaseYears}
-                            onChange={(e) => setBtsLeaseYears(e.target.value)}
-                            placeholder="e.g. 9"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            required
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-lockin-years"
-                            className="text-slate-300"
-                          >
-                            Lock-in Period (years)
-                          </Label>
-                          <Input
-                            id="prop-bts-lockin-years"
-                            type="number"
-                            value={btsLockInYears}
-                            onChange={(e) => setBtsLockInYears(e.target.value)}
-                            placeholder="e.g. 3"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bts-escalation"
-                            className="text-slate-300"
-                          >
-                            Rent Escalation (%)
-                          </Label>
-                          <Input
-                            id="prop-bts-escalation"
-                            type="number"
-                            value={btsEscalationPercent}
-                            onChange={(e) =>
-                              setBtsEscalationPercent(e.target.value)
-                            }
-                            placeholder="e.g. 5"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="animate-fade-in col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-structure"
-                            className="text-slate-300"
-                          >
-                            Deal Structure
-                          </Label>
-                          <select
-                            id="prop-jv-structure"
-                            value={jvStructure}
-                            onChange={(e) =>
-                              setJvStructure(
-                                e.target.value as
-                                  'Revenue Share' | 'Area Share' | 'Hybrid'
-                              )
-                            }
-                            className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                          >
-                            <option value="Revenue Share">Revenue Share</option>
-                            <option value="Area Share">Area Share</option>
-                            <option value="Hybrid">Hybrid</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-price"
-                            className="text-slate-300"
-                          >
-                            Expected Project Value (INR)
-                          </Label>
-                          <Input
-                            id="prop-jv-price"
-                            type="number"
-                            value={price}
-                            onChange={(e) => setPrice(e.target.value)}
-                            placeholder="e.g. 50000000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={price} />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-owner-share"
-                            className="text-slate-300"
-                          >
-                            Owner Share (%){' '}
-                            <span className="text-red-400">*</span>
-                          </Label>
-                          <Input
-                            id="prop-jv-owner-share"
-                            type="number"
-                            value={ownerSharePercent}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setOwnerSharePercent(val);
-                              const num = Number(val);
-                              if (
-                                val.trim() !== '' &&
-                                !isNaN(num) &&
-                                num >= 0 &&
-                                num <= 100
-                              ) {
-                                setBuilderSharePercent(String(100 - num));
-                              }
-                            }}
-                            placeholder="e.g. 40"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            required
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-builder-share"
-                            className="text-slate-300"
-                          >
-                            Builder Share (%){' '}
-                            <span className="text-red-400">*</span>
-                          </Label>
-                          <Input
-                            id="prop-jv-builder-share"
-                            type="number"
-                            value={builderSharePercent}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setBuilderSharePercent(val);
-                              const num = Number(val);
-                              if (
-                                val.trim() !== '' &&
-                                !isNaN(num) &&
-                                num >= 0 &&
-                                num <= 100
-                              ) {
-                                setOwnerSharePercent(String(100 - num));
-                              }
-                            }}
-                            placeholder="e.g. 60"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            required
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-goodwill"
-                            className="text-slate-300"
-                          >
-                            Goodwill (INR)
-                          </Label>
-                          <Input
-                            id="prop-jv-goodwill"
-                            type="number"
-                            value={goodwillAmount}
-                            onChange={(e) => setGoodwillAmount(e.target.value)}
-                            placeholder="e.g. 2000000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={goodwillAmount} />
-                          <p className="text-[10px] text-slate-500">
-                            Non-refundable upfront payment to the landowner.
-                          </p>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-jv-advance"
-                            className="text-slate-300"
-                          >
-                            Advance (Refundable) (INR)
-                          </Label>
-                          <Input
-                            id="prop-jv-advance"
-                            type="number"
-                            value={advance}
-                            onChange={(e) => setAdvance(e.target.value)}
-                            placeholder="e.g. 1000000"
-                            className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                          <PriceHint value={advance} />
-                          <p className="text-[10px] text-slate-500">
-                            Refundable deposit, adjusted against the
-                            owner&apos;s share at handover.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prop-type" className="text-slate-300">
-                        Property Type
-                      </Label>
-                      <select
-                        id="prop-type"
-                        value={type}
-                        onChange={(e) => setType(e.target.value)}
-                        className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                      >
-                        {propertyTypeGroups.map((g) => (
-                          <optgroup
-                            key={g.group}
-                            label={`ALL ${g.group.toUpperCase()}`}
-                          >
-                            {g.options.map((o) => (
-                              <option key={o.value} value={o.value}>
-                                {o.label ?? o.value}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                    </div>
-
-                    {isEdit && (
-                      <div className="col-span-2 space-y-1.5">
-                        <Label htmlFor="prop-status" className="text-slate-300">
-                          Status
-                        </Label>
-                        <select
-                          id="prop-status"
-                          value={status}
-                          onChange={(e) => setStatus(e.target.value)}
-                          className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                        >
-                          {PROPERTY_STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {isEdit && (
-                      <div className="col-span-2 space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <h4 className="text-sm font-semibold text-white">
-                          Seller&apos;s final price
-                        </h4>
-                        <p className="text-[11px] text-slate-500">
-                          What the seller will actually accept, as against the
-                          quoted price above. Internal — never shown on the
-                          showcase or in a share link.
-                        </p>
-                        <div className="grid grid-cols-2 gap-3 pt-1">
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-seller-final-price"
-                              className="text-slate-300"
-                            >
-                              Total
-                            </Label>
-                            <Input
-                              id="prop-seller-final-price"
-                              type="number"
-                              min="0"
-                              value={sellerFinalPrice}
-                              onChange={(e) =>
-                                setSellerFinalPrice(e.target.value)
-                              }
-                              placeholder={
-                                price ? `e.g. ${price}` : 'e.g. 42000000'
-                              }
-                              className="border-slate-700 bg-slate-800 text-white"
-                            />
-                            <PriceHint value={sellerFinalPrice} />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-seller-final-rate"
-                              className="text-slate-300"
-                            >
-                              Per Sq.Ft.
-                            </Label>
-                            <Input
-                              id="prop-seller-final-rate"
-                              type="number"
-                              min="0"
-                              value={sellerFinalPricePerSqft}
-                              onChange={(e) =>
-                                setSellerFinalPricePerSqft(e.target.value)
-                              }
-                              placeholder="e.g. 10500"
-                              className="border-slate-700 bg-slate-800 text-white"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {isEdit && status === 'Sold' && (
-                      <div className="col-span-2 space-y-1.5">
-                        <Label
-                          htmlFor="prop-sold-price"
-                          className="text-slate-300"
-                        >
-                          Final sale price
-                        </Label>
-                        <Input
-                          id="prop-sold-price"
-                          type="number"
-                          min="0"
-                          value={soldPrice}
-                          onChange={(e) => setSoldPrice(e.target.value)}
-                          placeholder={price ? `e.g. ${price}` : 'e.g. 8500000'}
-                          className="border-slate-700 bg-slate-800 text-white"
-                        />
-                        <PriceHint value={soldPrice} />
-                        <p className="text-[11px] text-slate-500">
-                          Optional — improves your area&apos;s price accuracy.
-                          Never shown to buyers.
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                  <BasicsSection
+                    values={values}
+                    set={set}
+                    isEdit={isEdit}
+                    property={property}
+                  />
 
                   {/* Autocomplete Real Location Details */}
-                  <div
-                    id="pf-location"
-                    className="scroll-mt-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
-                  >
-                    <h4 className="text-sm font-semibold text-white">
-                      Property Location
-                    </h4>
-
-                    <div className="relative space-y-1.5" ref={autocompleteRef}>
-                      <Label
-                        htmlFor="prop-search-query"
-                        className="text-slate-300"
-                      >
-                        Project Name or Area / Sublocality{' '}
-                        <span className="text-red-400">*</span>
-                      </Label>
-                      <Input
-                        id="prop-search-query"
-                        value={searchQuery}
-                        onChange={(e) => {
-                          ensureLocalitiesLoaded();
-                          handleSearchQueryChange(e.target.value);
-                        }}
-                        onFocus={() => {
-                          ensureLocalitiesLoaded();
-                          setShowSuggestions(true);
-                        }}
-                        placeholder="Search project (e.g. Prestige) or area (e.g. Indiranagar)..."
-                        className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                        required
-                      />
-
-                      {showSuggestions && (
-                        <div className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-slate-700 bg-slate-800 text-slate-200 shadow-xl">
-                          {searchingProjects ? (
-                            <div className="flex items-center justify-center gap-2 p-3 text-center text-xs text-slate-500">
-                              <Loader2 className="text-primary size-3 animate-spin" />
-                              <span>Searching project registry...</span>
-                            </div>
-                          ) : filteredProjects.length === 0 &&
-                            filteredSublocalities.length === 0 &&
-                            googleSuggestions.length === 0 ? (
-                            <div className="p-3 text-center text-xs text-slate-500">
-                              No matching projects or areas. Keep typing to
-                              enter a custom value.
-                            </div>
-                          ) : (
-                            <div>
-                              {filteredProjects.length > 0 && (
-                                <div className="p-1">
-                                  <div className="px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                    🏢 Projects
-                                  </div>
-                                  {filteredProjects.map((p) => (
-                                    <button
-                                      key={p.name}
-                                      type="button"
-                                      onClick={() => {
-                                        setProject(p.name);
-                                        setSublocality(p.sublocality);
-                                        setCity(p.city);
-                                        setStateVal(p.state);
-                                        setAddress(p.address);
-                                        setSearchQuery(p.name);
-                                        setGeoPick(null); // registry pick has no coords; server geocodes on save
-                                        setShowSuggestions(false);
-                                      }}
-                                      className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
-                                    >
-                                      <span className="font-bold">
-                                        {p.name}
-                                      </span>
-                                      <span className="text-slate-400">
-                                        {' '}
-                                        - {p.sublocality}, {p.city}
-                                      </span>
-                                      {'source' in p && p.source === 'ai' && (
-                                        <span className="ml-2 rounded border border-amber-500/30 bg-amber-500/10 px-1 py-px text-[10px] text-amber-300">
-                                          AI suggestion · unverified
-                                        </span>
-                                      )}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-
-                              {filteredSublocalities.length > 0 && (
-                                <div className="border-t border-slate-700 p-1">
-                                  <div className="px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                    📍 Areas / Sublocalities
-                                  </div>
-                                  {filteredSublocalities.map((sub) => (
-                                    <button
-                                      key={sub}
-                                      type="button"
-                                      onClick={() => {
-                                        setProject('');
-                                        const parts = sub
-                                          .split(',')
-                                          .map((s) => s.trim());
-                                        if (parts.length > 1) {
-                                          setSublocality(parts[0]);
-                                          setAddress(parts[1]);
-                                        } else {
-                                          setSublocality(sub);
-                                          setAddress('');
-                                        }
-                                        setCity('Bangalore');
-                                        setStateVal('Karnataka');
-                                        setSearchQuery(sub);
-                                        setGeoPick(null); // registry pick has no coords; server geocodes on save
-                                        setShowSuggestions(false);
-                                      }}
-                                      className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
-                                    >
-                                      <span className="font-medium text-slate-200">
-                                        {sub}
-                                      </span>
-                                      <span className="text-slate-400">
-                                        {' '}
-                                        - Bangalore, Karnataka
-                                      </span>
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-
-                              {googleSuggestions.length > 0 && (
-                                <div className="border-t border-slate-700 p-1">
-                                  <div className="px-2 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                    🌐 Google Maps
-                                  </div>
-                                  {googleSuggestions.map((s) => (
-                                    <button
-                                      key={s.place_id}
-                                      type="button"
-                                      onClick={() => handleGooglePick(s)}
-                                      className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
-                                    >
-                                      <span className="font-medium text-slate-200">
-                                        {s.main_text}
-                                      </span>
-                                      {s.secondary_text && (
-                                        <span className="text-slate-400">
-                                          {' '}
-                                          - {s.secondary_text}
-                                        </span>
-                                      )}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {geoPick && (
-                        <p className="mt-0.5 text-[10px] font-medium text-sky-400">
-                          📍 Pinned to Google Maps locality &quot;
-                          {geoPick.canonical}&quot; — enables radius search.
-                        </p>
-                      )}
-
-                      {isProjectMatched && (
-                        <p className="mt-0.5 text-[10px] font-medium text-green-400">
-                          Linked to project location details (pre-filled fields
-                          locked).
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="prop-city" className="text-slate-300">
-                          City <span className="text-red-400">*</span>
-                        </Label>
-                        <Input
-                          id="prop-city"
-                          value={city}
-                          onChange={(e) => setCity(e.target.value)}
-                          placeholder="e.g. Bangalore"
-                          className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
-                          required
-                          disabled={isProjectMatched}
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label htmlFor="prop-state" className="text-slate-300">
-                          State <span className="text-red-400">*</span>
-                        </Label>
-                        <Input
-                          id="prop-state"
-                          value={stateVal}
-                          onChange={(e) => setStateVal(e.target.value)}
-                          placeholder="e.g. Karnataka"
-                          className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
-                          required
-                          disabled={isProjectMatched}
-                        />
-                      </div>
-
-                      <div className="col-span-2 space-y-1.5">
-                        <Label
-                          htmlFor="prop-address"
-                          className="text-slate-300"
-                        >
-                          Landmark / Street Address
-                        </Label>
-                        <Input
-                          id="prop-address"
-                          value={address}
-                          onChange={(e) => setAddress(e.target.value)}
-                          placeholder="e.g. Near Metro Station"
-                          className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={isProjectMatched}
-                        />
-                      </div>
-
-                      <div className="col-span-2 space-y-1.5">
-                        <Label
-                          htmlFor="prop-google-map-link"
-                          className="text-slate-300"
-                        >
-                          Google Map Link (Shared on inquiry approval only)
-                        </Label>
-                        <Input
-                          id="prop-google-map-link"
-                          value={googleMapLink}
-                          onChange={(e) => setGoogleMapLink(e.target.value)}
-                          placeholder="e.g. https://maps.google.com/?q=..."
-                        />
-                        {mapPinDrift !== null && (
-                          <p className="flex items-start gap-1.5 text-[11px] text-amber-400">
-                            <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
-                            <span>
-                              This pin sits {mapPinDrift.toFixed(1)} km from the
-                              selected locality
-                              {geoPick?.canonical
-                                ? ` (${geoPick.canonical})`
-                                : ''}
-                              . The pin wins on save — fix the link or re-pick
-                              the locality if that&apos;s the wrong one.
-                            </span>
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
-                        <div className="space-y-0.5">
-                          <Label
-                            htmlFor="prop-location-guard"
-                            className="cursor-pointer text-sm text-slate-300"
-                          >
-                            Guard exact location
-                          </Label>
-                          <p className="text-xs leading-normal text-slate-400">
-                            {guardedByType
-                              ? 'On by default for this property type — buyers and co-brokers see locality only until you approve a reveal.'
-                              : 'Off by default for this property type — turn on to hide the street address, map pin and coordinates until you approve a reveal.'}
-                          </p>
-                        </div>
-                        <Switch
-                          id="prop-location-guard"
-                          checked={locationGuarded}
-                          onCheckedChange={(checked) => {
-                            const next = checked ? 'locality' : 'exact';
-                            setLocationPrivacy(
-                              (guardedByType ? 'locality' : 'exact') === next
-                                ? ''
-                                : next
-                            );
-                          }}
-                        />
-                      </div>
-
-                      <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
-                        <div className="space-y-0.5">
-                          <Label
-                            htmlFor="prop-showcase-gate"
-                            className="cursor-pointer text-sm text-slate-300"
-                          >
-                            Confidential listing
-                          </Label>
-                          <p className="text-xs leading-normal text-slate-400">
-                            Anyone opening the public link sees only the type,
-                            locality and a price band until you approve them.
-                            Link previews and search engines get nothing, and
-                            photos you release are watermarked to the viewer.
-                          </p>
-                        </div>
-                        <Switch
-                          id="prop-showcase-gate"
-                          checked={showcaseVisibility === 'teaser'}
-                          onCheckedChange={(checked) =>
-                            setShowcaseVisibility(checked ? 'teaser' : '')
-                          }
-                        />
-                      </div>
-
-                      <div className="col-span-2 space-y-1.5">
-                        <Label
-                          htmlFor="prop-notes"
-                          className="flex items-center gap-1.5 text-slate-300"
-                        >
-                          Internal Notes
-                          <span className="rounded border border-amber-500/20 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                            Engine Only — Not visible to clients
-                          </span>
-                        </Label>
-                        <Textarea
-                          id="prop-notes"
-                          value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
-                          placeholder="e.g. Near Garuda Mall, 3rd left from Metro Station. Owner available only on weekdays..."
-                          className="min-h-[80px] resize-y border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
-                          rows={3}
-                        />
-                        <p className="text-xs leading-normal text-slate-400">
-                          Location landmarks, access info, owner contact
-                          preferences — searchable in the Engine but private to
-                          your team.
-                        </p>
-                      </div>
-
-                      <div className="col-span-2 space-y-1.5">
-                        <Label
-                          htmlFor="prop-tags"
-                          className="flex items-center gap-1.5 text-slate-300"
-                        >
-                          Tags
-                          <span className="rounded border border-amber-500/20 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                            Engine Only — Not visible to clients
-                          </span>
-                        </Label>
-                        <div className="focus-within:ring-primary flex flex-wrap items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-slate-950">
-                          {tags.map((tag, idx) => (
-                            <span
-                              key={`${tag}-${idx}`}
-                              className="bg-primary/15 border-primary/25 text-primary inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
-                            >
-                              <Tag className="size-2.5" />
-                              {tag}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setTags(tags.filter((_, i) => i !== idx))
-                                }
-                                className="text-primary/70 hover:text-primary"
-                              >
-                                <X className="size-3" />
-                              </button>
-                            </span>
-                          ))}
-                          <input
-                            id="prop-tags"
-                            value={tagInput}
-                            onChange={(e) => setTagInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ',') {
-                                e.preventDefault();
-                                const next = tagInput.trim();
-                                if (
-                                  next &&
-                                  !tags.some(
-                                    (t) =>
-                                      t.toLowerCase() === next.toLowerCase()
-                                  )
-                                ) {
-                                  setTags([...tags, next]);
-                                }
-                                setTagInput('');
-                              } else if (
-                                e.key === 'Backspace' &&
-                                !tagInput &&
-                                tags.length > 0
-                              ) {
-                                setTags(tags.slice(0, -1));
-                              }
-                            }}
-                            onBlur={() => {
-                              const next = tagInput.trim();
-                              if (
-                                next &&
-                                !tags.some(
-                                  (t) => t.toLowerCase() === next.toLowerCase()
-                                )
-                              ) {
-                                setTags([...tags, next]);
-                              }
-                              setTagInput('');
-                            }}
-                            placeholder={
-                              tags.length === 0
-                                ? 'e.g. Brick and Bolt, Distress Sale — press Enter to add'
-                                : 'Add tag...'
-                            }
-                            className="h-6 min-w-[140px] flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
-                          />
-                        </div>
-                        {tagSuggestions.filter(
-                          (s) =>
-                            !tags.some(
-                              (t) => t.toLowerCase() === s.tag.toLowerCase()
-                            )
-                        ).length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {/* Already in use in this account. A tag only earns its
-                              keep if every listing it should cover spells it the
-                              same way — "APM" on three villas of a project and
-                              "AMP" on the fourth leaves the fourth out of the
-                              search the tag exists for. */}
-                            {tagSuggestions
-                              .filter(
-                                (s) =>
-                                  !tags.some(
-                                    (t) =>
-                                      t.toLowerCase() === s.tag.toLowerCase()
-                                  )
-                              )
-                              .slice(0, 10)
-                              .map((s) => (
-                                <button
-                                  key={s.tag}
-                                  type="button"
-                                  onClick={() => setTags([...tags, s.tag])}
-                                  className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400 hover:border-slate-600 hover:text-slate-200"
-                                >
-                                  <Plus className="size-2.5" />
-                                  {s.tag}
-                                  <span className="text-slate-600">
-                                    {s.uses}
-                                  </span>
-                                </button>
-                              ))}
-                          </div>
-                        )}
-                        <p className="text-xs leading-normal text-slate-400">
-                          Builder names, campaigns, deal nicknames — typing any
-                          part of a tag finds this property in Inventory search
-                          and property pickers.
-                        </p>
-                      </div>
-
-                      {/* Commercial Location Fields */}
-                      {hasCommercialFields && (
-                        <>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-land-zone"
-                              className="text-slate-300"
-                            >
-                              Land Zone
-                            </Label>
-                            <select
-                              id="prop-land-zone"
-                              value={landZone}
-                              onChange={(e) => setLandZone(e.target.value)}
-                              className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                            >
-                              <option value="">Select Land Zone</option>
-                              <option value="Industrial">Industrial</option>
-                              <option value="Commercial">Commercial</option>
-                              <option value="Residential">Residential</option>
-                              <option value="Agricultural">Agricultural</option>
-                              <option value="Mixed Use">Mixed Use</option>
-                              <option value="SEZ">
-                                SEZ (Special Economic Zone)
-                              </option>
-                            </select>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-ideal-for"
-                              className="text-slate-300"
-                            >
-                              Ideal For Businesses
-                            </Label>
-                            <Input
-                              id="prop-ideal-for"
-                              value={idealFor}
-                              onChange={(e) => setIdealFor(e.target.value)}
-                              placeholder="e.g. Software, Bank, Clinic"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-
-                          {hasCommercialBuildingFields && (
-                            <div className="space-y-1.5">
-                              <Label
-                                htmlFor="prop-rental-income"
-                                className="text-slate-300"
-                              >
-                                Monthly Rental Income (INR)
-                              </Label>
-                              <Input
-                                id="prop-rental-income"
-                                type="number"
-                                value={rentalIncome}
-                                onChange={(e) =>
-                                  setRentalIncome(e.target.value)
-                                }
-                                placeholder="e.g. 250000"
-                                className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                              />
-                              <PriceHint value={rentalIncome} />
-                            </div>
-                          )}
-
-                          {hasCommercialBuildingFields &&
-                            yieldApplies(listingType) && (
-                              <div className="space-y-1.5">
-                                <Label
-                                  htmlFor="prop-roi"
-                                  className="text-slate-300"
-                                >
-                                  ROI (Return on Investment)
-                                </Label>
-                                <Input
-                                  id="prop-roi"
-                                  type="text"
-                                  value={
-                                    roiValue !== null
-                                      ? `${roiValue}%`
-                                      : 'calculated automatically'
-                                  }
-                                  readOnly
-                                  className="bg-slate-850 text-primary h-9 cursor-not-allowed border-slate-800 font-medium"
-                                />
-                              </div>
-                            )}
-                        </>
-                      )}
-                    </div>
-                  </div>
+                  <LocationSection
+                    values={values}
+                    set={set}
+                    autocompleteRef={autocompleteRef}
+                    ensureLocalitiesLoaded={ensureLocalitiesLoaded}
+                    handleSearchQueryChange={handleSearchQueryChange}
+                    showSuggestions={showSuggestions}
+                    setShowSuggestions={setShowSuggestions}
+                    searchingProjects={searchingProjects}
+                    filteredProjects={filteredProjects}
+                    filteredSublocalities={filteredSublocalities}
+                    googleSuggestions={googleSuggestions}
+                    handleGooglePick={handleGooglePick}
+                    isProjectMatched={isProjectMatched}
+                    mapPinDrift={mapPinDrift}
+                    guardedByType={guardedByType}
+                    locationGuarded={locationGuarded}
+                    tagInput={tagInput}
+                    setTagInput={setTagInput}
+                    tagSuggestions={tagSuggestions}
+                    hasCommercialFields={hasCommercialFields}
+                    hasCommercialBuildingFields={hasCommercialBuildingFields}
+                    roiValue={roiValue}
+                  />
 
                   {/* Floor-wise Tenancy (Rent Roll) — pre-leased commercial
                     buildings under sale: tenant, rent (excl. GST), lease
                     window, lock-in and maintenance per floor. */}
                   {hasCommercialBuildingFields && (
-                    <div className="space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="text-sm font-semibold text-white">
-                            Floor-wise Tenancy (Rent Roll)
-                          </h4>
-                          <p className="mt-0.5 text-[11px] text-slate-500">
-                            For pre-leased buildings — one row per lease, not
-                            per floor. A tenant taking several floors, or the
-                            whole building, is a single row: name every floor it
-                            covers in the label. Internal to your Engine; never
-                            shown on the showcase.
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            setFloorTenancies((prev) => [
-                              ...prev,
-                              { ...emptyFloorTenancy },
-                            ])
-                          }
-                          className="h-8 shrink-0 border-slate-700 text-slate-300 hover:bg-slate-800"
-                        >
-                          <Plus className="mr-1 size-3.5" />
-                          Add Tenancy
-                        </Button>
-                      </div>
-
-                      {floorTenancies.map((ft, idx) => (
-                        <div
-                          key={idx}
-                          className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-                              Tenancy {idx + 1}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setFloorTenancies((prev) =>
-                                  prev.filter((_, i) => i !== idx)
-                                )
-                              }
-                              className="text-slate-500 transition-colors hover:text-rose-400"
-                              aria-label={`Remove tenancy ${idx + 1}`}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Floor(s) / Unit(s)
-                              </Label>
-                              <Input
-                                value={ft.floor}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'floor',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="e.g. G+1+2+3+4, or Entire building"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Tenant Name
-                              </Label>
-                              <Input
-                                value={ft.tenant_name}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'tenant_name',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="e.g. Ramada Hospitality"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Area (Sq.Ft.)
-                              </Label>
-                              <Input
-                                type="number"
-                                value={ft.area_sqft}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'area_sqft',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="10000"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Monthly Rent (₹, excl. GST)
-                              </Label>
-                              <Input
-                                type="number"
-                                value={ft.monthly_rent}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'monthly_rent',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="1350000"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                              <PriceHint
-                                value={ft.monthly_rent}
-                                compact
-                                className="text-[10px]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Advance / Deposit (₹)
-                              </Label>
-                              <Input
-                                type="number"
-                                value={ft.advance}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'advance',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="e.g. 8100000"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                              <PriceHint
-                                value={ft.advance}
-                                compact
-                                className="text-[10px]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Lease Start
-                              </Label>
-                              <Input
-                                type="date"
-                                value={ft.lease_start}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'lease_start',
-                                    e.target.value
-                                  )
-                                }
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white [color-scheme:dark]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Lease End
-                              </Label>
-                              <Input
-                                type="date"
-                                value={ft.lease_end}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'lease_end',
-                                    e.target.value
-                                  )
-                                }
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white [color-scheme:dark]"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Lock-in (months)
-                              </Label>
-                              <Input
-                                type="number"
-                                value={ft.lock_in_months}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'lock_in_months',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="36"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-[11px] text-slate-400">
-                                Maintenance
-                              </Label>
-                              <Input
-                                value={ft.maintenance}
-                                onChange={(e) =>
-                                  updateFloorTenancy(
-                                    idx,
-                                    'maintenance',
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="e.g. ₹5/sqft, by tenant"
-                                className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <Label className="text-[11px] text-slate-400">
-                              Usage / Notes
-                            </Label>
-                            <Input
-                              value={ft.notes}
-                              onChange={(e) =>
-                                updateFloorTenancy(idx, 'notes', e.target.value)
-                              }
-                              placeholder="e.g. 3-Star Hotel · 27 rooms · convention centre (400 seats)"
-                              className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                            />
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Label className="shrink-0 text-[11px] text-slate-400">
-                              Floor Plan
-                            </Label>
-                            {ft.floor_plan ? (
-                              <a
-                                href={storagePublicUrl(ft.floor_plan)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-primary truncate text-[11px] hover:underline"
-                              >
-                                View plan
-                              </a>
-                            ) : (
-                              <span className="text-[11px] text-slate-600">
-                                None attached
-                              </span>
-                            )}
-                            <input
-                              ref={(el) => {
-                                tenancyPlanInputs.current[idx] = el;
-                              }}
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                e.target.value = '';
-                                if (!file) return;
-                                const path = await uploadPlanImage(file);
-                                if (path)
-                                  updateFloorTenancy(idx, 'floor_plan', path);
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              disabled={!canEdit}
-                              onClick={() =>
-                                tenancyPlanInputs.current[idx]?.click()
-                              }
-                              className="ml-auto h-7 px-2 text-[11px] text-slate-400 hover:text-white"
-                            >
-                              <Upload className="mr-1 size-3" />
-                              {ft.floor_plan ? 'Replace' : 'Attach'}
-                            </Button>
-                            {ft.floor_plan && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  updateFloorTenancy(idx, 'floor_plan', '')
-                                }
-                                className="text-slate-500 transition-colors hover:text-rose-400"
-                                aria-label={`Remove floor plan for tenancy ${idx + 1}`}
-                              >
-                                <Trash2 className="size-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-
-                      {floorTenancies.length > 0 &&
-                        (floorRentTotal > 0 || floorAdvanceTotal > 0) && (
-                          <div className="space-y-1.5 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
-                            {floorRentTotal > 0 && (
-                              <p className="flex items-baseline justify-between gap-3 text-xs font-semibold text-slate-300">
-                                <span>
-                                  Total monthly rent{' '}
-                                  <span className="font-medium text-slate-500">
-                                    ({floorTenancies.length} tenanc
-                                    {floorTenancies.length === 1 ? 'y' : 'ies'},
-                                    excluding GST)
-                                  </span>
-                                </span>
-                                <span className="text-primary">
-                                  {formatCurrency(floorRentTotal, currency)}
-                                </span>
-                              </p>
-                            )}
-                            {floorAdvanceTotal > 0 && (
-                              <p className="flex items-baseline justify-between gap-3 text-xs font-semibold text-slate-300">
-                                <span>
-                                  Total advance / deposit{' '}
-                                  <span className="font-medium text-slate-500">
-                                    held across all floors
-                                  </span>
-                                </span>
-                                <span className="text-primary">
-                                  {formatCurrency(floorAdvanceTotal, currency)}
-                                </span>
-                              </p>
-                            )}
-                            {floorRentTotal > 0 && floorAdvanceTotal > 0 && (
-                              <p className="border-t border-slate-800/80 pt-1 text-[11px] text-slate-500">
-                                Deposit is{' '}
-                                {(floorAdvanceTotal / floorRentTotal).toFixed(
-                                  1
-                                )}
-                                × the monthly rent.
-                              </p>
-                            )}
-                          </div>
-                        )}
-                    </div>
+                    <TenancySection
+                      values={values}
+                      set={set}
+                      uploadPlanImage={uploadPlanImage}
+                      canEdit={canEdit}
+                      currency={currency}
+                      floorRentTotal={floorRentTotal}
+                      floorAdvanceTotal={floorAdvanceTotal}
+                    />
                   )}
 
                   {/* Area & Specification Fields */}
-                  <div
-                    id="pf-specs"
-                    className="scroll-mt-2 space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
-                  >
-                    <h4 className="text-sm font-semibold text-white">
-                      Area & Specs
-                    </h4>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      {hasBedsBaths && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bedrooms"
-                            className="text-slate-300"
-                          >
-                            Beds
-                          </Label>
-                          <Input
-                            id="prop-bedrooms"
-                            type="number"
-                            value={bedrooms}
-                            onChange={(e) => setBedrooms(e.target.value)}
-                            placeholder="e.g. 3"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      )}
-
-                      {hasBedsBaths && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-bathrooms"
-                            className="text-slate-300"
-                          >
-                            Baths
-                          </Label>
-                          <Input
-                            id="prop-bathrooms"
-                            type="number"
-                            value={bathrooms}
-                            onChange={(e) => setBathrooms(e.target.value)}
-                            placeholder="e.g. 2"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      )}
-
-                      {isLand ? (
-                        <div className="col-span-2 space-y-1.5">
-                          <Label
-                            htmlFor="prop-land-area"
-                            className="text-slate-300"
-                          >
-                            Land Area <span className="text-red-400">*</span>
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              id="prop-land-area"
-                              type="number"
-                              value={landArea}
-                              onChange={(e) =>
-                                handleLandAreaChange(e.target.value)
-                              }
-                              placeholder="e.g. 2400"
-                              className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                              required
-                            />
-                            <select
-                              value={landAreaUnit}
-                              onChange={(e) => setLandAreaUnit(e.target.value)}
-                              className="focus:ring-primary h-9 w-28 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs font-medium text-white focus:ring-2 focus:outline-none"
-                            >
-                              {AREA_UNITS.map((unit) => (
-                                <option key={unit} value={unit}>
-                                  {unit}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="col-span-2 space-y-1.5">
-                            <Label
-                              htmlFor="prop-area"
-                              className="text-slate-300"
-                            >
-                              Built-up Area
-                            </Label>
-                            <div className="flex gap-2">
-                              <Input
-                                id="prop-area"
-                                type="number"
-                                value={areaSqft}
-                                onChange={(e) => setAreaSqft(e.target.value)}
-                                placeholder="e.g. 1500"
-                                className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                              />
-                              <select
-                                value={areaUnit}
-                                onChange={(e) => setAreaUnit(e.target.value)}
-                                className="focus:ring-primary h-9 w-28 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs font-medium text-white focus:ring-2 focus:outline-none"
-                              >
-                                {AREA_UNITS.map((unit) => (
-                                  <option key={unit} value={unit}>
-                                    {unit}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-
-                          <div
-                            className={`space-y-1.5 ${isApartment ? 'col-span-2' : ''}`}
-                          >
-                            <Label
-                              htmlFor="prop-super-built"
-                              className="text-slate-300"
-                            >
-                              Super Built-up Area ({areaUnit})
-                            </Label>
-                            <Input
-                              id="prop-super-built"
-                              type="number"
-                              value={superBuiltArea}
-                              onChange={(e) =>
-                                setSuperBuiltArea(e.target.value)
-                              }
-                              placeholder="e.g. 1800"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-
-                          {!isApartment && (
-                            <div className="space-y-1.5">
-                              <Label
-                                htmlFor="prop-land-area"
-                                className="text-slate-300"
-                              >
-                                Land Area
-                              </Label>
-                              <div className="flex gap-2">
-                                <Input
-                                  id="prop-land-area"
-                                  type="number"
-                                  value={landArea}
-                                  onChange={(e) =>
-                                    handleLandAreaChange(e.target.value)
-                                  }
-                                  placeholder="e.g. 2400"
-                                  className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                                />
-                                <select
-                                  value={landAreaUnit}
-                                  onChange={(e) =>
-                                    setLandAreaUnit(e.target.value)
-                                  }
-                                  className="focus:ring-primary h-9 w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs font-medium text-white focus:ring-2 focus:outline-none"
-                                >
-                                  {AREA_UNITS.map((unit) => (
-                                    <option key={unit} value={unit}>
-                                      {unit}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      )}
-
-                      {isLand ? (
-                        <div className="col-span-2 grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-frontage"
-                              className="text-slate-300"
-                            >
-                              Frontage (Ft)
-                            </Label>
-                            <Input
-                              id="prop-frontage"
-                              type="number"
-                              value={frontage}
-                              onChange={(e) =>
-                                handleFrontageChange(e.target.value)
-                              }
-                              placeholder="e.g. 30"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-depth"
-                              className="text-slate-300"
-                            >
-                              Depth (Ft)
-                            </Label>
-                            <Input
-                              id="prop-depth"
-                              type="number"
-                              value={depth}
-                              onChange={(e) =>
-                                handleDepthChange(e.target.value)
-                              }
-                              placeholder="e.g. 40"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        !isApartment && (
-                          <div className="col-span-2 space-y-1.5">
-                            <Label
-                              htmlFor="prop-dimensions"
-                              className="text-slate-300"
-                            >
-                              Dimensions
-                            </Label>
-                            <Input
-                              id="prop-dimensions"
-                              value={dimensions}
-                              onChange={(e) => setDimensions(e.target.value)}
-                              placeholder="e.g. 30x40, 50x80 (Width x Length)"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-                        )
-                      )}
-
-                      {!isApartment && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-road-width"
-                            className="text-slate-300"
-                          >
-                            Road Width
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              id="prop-road-width"
-                              type="number"
-                              value={roadWidth}
-                              onChange={(e) => setRoadWidth(e.target.value)}
-                              placeholder="e.g. 40"
-                              className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                            <select
-                              value={roadWidthUnit}
-                              onChange={(e) => setRoadWidthUnit(e.target.value)}
-                              className="focus:ring-primary h-9 w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs font-medium text-white focus:ring-2 focus:outline-none"
-                            >
-                              <option value="Feet">Feet</option>
-                              <option value="Meters">Meters</option>
-                            </select>
-                          </div>
-                        </div>
-                      )}
-
-                      <div
-                        className={`space-y-1.5 ${isApartment ? 'col-span-2' : ''}`}
-                      >
-                        <Label htmlFor="prop-facing" className="text-slate-300">
-                          Facing Direction
-                        </Label>
-                        <select
-                          id="prop-facing"
-                          value={facingDirection}
-                          onChange={(e) => setFacingDirection(e.target.value)}
-                          className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                        >
-                          <option value="">Select Facing</option>
-                          {FACING_DIRECTIONS.map((dir) => (
-                            <option key={dir} value={dir}>
-                              {dir}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label
-                          htmlFor="prop-khata-epid"
-                          className="text-slate-300"
-                        >
-                          e-Khata ePID
-                        </Label>
-                        <Input
-                          id="prop-khata-epid"
-                          value={khataEpid}
-                          onChange={(e) => setKhataEpid(e.target.value)}
-                          placeholder="e.g. 7425317720"
-                          className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Label
-                          htmlFor="prop-khata-form"
-                          className="text-slate-300"
-                        >
-                          Khata
-                        </Label>
-                        <select
-                          id="prop-khata-form"
-                          value={khataForm}
-                          onChange={(e) => setKhataForm(e.target.value)}
-                          className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                        >
-                          <option value="">Not recorded</option>
-                          <option value="A">Form-A (A-Khata)</option>
-                          <option value="B">Form-B (B-Khata)</option>
-                        </select>
-                      </div>
-
-                      {!isLand && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-year-built"
-                            className="text-slate-300"
-                          >
-                            Year Built
-                          </Label>
-                          <Input
-                            id="prop-year-built"
-                            type="number"
-                            min={1800}
-                            max={2100}
-                            value={yearBuilt}
-                            onChange={(e) => setYearBuilt(e.target.value)}
-                            placeholder="e.g. 1998"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      )}
-
-                      {!isLand && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-furnishing"
-                            className="text-slate-300"
-                          >
-                            Furnishing
-                          </Label>
-                          <select
-                            id="prop-furnishing"
-                            value={furnishing}
-                            onChange={(e) => setFurnishing(e.target.value)}
-                            className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                          >
-                            <option value="">Select Furnishing</option>
-                            {FURNISHING_OPTIONS.map((opt) => (
-                              <option key={opt} value={opt}>
-                                {opt}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      <div className="space-y-1.5">
-                        <Label
-                          htmlFor="prop-possession-date"
-                          className="text-slate-300"
-                        >
-                          Possession Date
-                        </Label>
-                        <Input
-                          id="prop-possession-date"
-                          type="date"
-                          value={possessionDate}
-                          onChange={(e) => setPossessionDate(e.target.value)}
-                          className="h-9 border-slate-700 bg-slate-800 text-white [color-scheme:dark]"
-                        />
-                        <p className="text-[10px] text-slate-500">
-                          {isLand
-                            ? 'When possession transfers to the buyer. Leave empty if it is not committed yet.'
-                            : 'When the buyer gets the keys. Leave empty if it is not committed yet.'}
-                        </p>
-                      </div>
-
-                      {!isLand && (
-                        <>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-flooring"
-                              className="text-slate-300"
-                            >
-                              Flooring
-                            </Label>
-                            <select
-                              id="prop-flooring"
-                              value={flooring}
-                              onChange={(e) => setFlooring(e.target.value)}
-                              className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                            >
-                              <option value="">Select Flooring</option>
-                              {FLOORING_OPTIONS.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-power-backup"
-                              className="text-slate-300"
-                            >
-                              Power Backup
-                            </Label>
-                            <select
-                              id="prop-power-backup"
-                              value={powerBackup}
-                              onChange={(e) => setPowerBackup(e.target.value)}
-                              className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                            >
-                              <option value="">Select Power Backup</option>
-                              {POWER_BACKUP_OPTIONS.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        </>
-                      )}
-
-                      {hasBedsBaths && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-balconies"
-                            className="text-slate-300"
-                          >
-                            Balconies
-                          </Label>
-                          <Input
-                            id="prop-balconies"
-                            type="number"
-                            value={balconies}
-                            onChange={(e) => setBalconies(e.target.value)}
-                            placeholder="e.g. 2"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      )}
-
-                      {showFloorNumber && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-floor-number"
-                            className="text-slate-300"
-                          >
-                            Floor No.
-                          </Label>
-                          <Input
-                            id="prop-floor-number"
-                            type="number"
-                            value={floorNumber}
-                            onChange={(e) => setFloorNumber(e.target.value)}
-                            placeholder="e.g. 4 (0 = Ground)"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      )}
-                      {showTotalFloors && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="prop-total-floors"
-                            className="text-slate-300"
-                          >
-                            Total Floors
-                          </Label>
-                          <Input
-                            id="prop-total-floors"
-                            type="number"
-                            value={totalFloors}
-                            onChange={(e) => setTotalFloors(e.target.value)}
-                            placeholder="e.g. 12"
-                            className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                          />
-                        </div>
-                      )}
-
-                      {/* Land/JV Deal Notes — prefills the "Share via Email" draft */}
-                      {(isLand || listingType === 'JV/JD') && (
-                        <div className="col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                          <div className="col-span-2 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">
-                            Land / Deal Notes
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-ownership-status"
-                              className="text-slate-300"
-                            >
-                              Ownership
-                            </Label>
-                            <select
-                              id="prop-ownership-status"
-                              value={ownershipStatus}
-                              onChange={(e) =>
-                                setOwnershipStatus(e.target.value)
-                              }
-                              className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                            >
-                              <option value="">Select ownership</option>
-                              {LAND_OWNERSHIP_TYPES.map((o) => (
-                                <option key={o} value={o}>
-                                  {o}
-                                </option>
-                              ))}
-                              {/* Free text captured before this became a
-                                picker stays selected rather than silently
-                                resetting to blank on the next save. */}
-                              {ownershipStatus &&
-                                !LAND_OWNERSHIP_TYPES.includes(
-                                  ownershipStatus
-                                ) && (
-                                  <option value={ownershipStatus}>
-                                    {ownershipStatus}
-                                  </option>
-                                )}
-                            </select>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label
-                              htmlFor="prop-land-use-zoning"
-                              className="text-slate-300"
-                            >
-                              Land Use Breakdown
-                            </Label>
-                            <Input
-                              id="prop-land-use-zoning"
-                              value={landUseZoning}
-                              onChange={(e) => setLandUseZoning(e.target.value)}
-                              placeholder="e.g. Residential zone 26A 13G, Red Zone 5A 29G"
-                              className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-                          {isRawLand && (
-                            <>
-                              <div className="space-y-1.5">
-                                <Label
-                                  htmlFor="prop-legal-status"
-                                  className="text-slate-300"
-                                >
-                                  Legal Status
-                                </Label>
-                                <select
-                                  id="prop-legal-status"
-                                  value={legalStatus}
-                                  onChange={(e) =>
-                                    setLegalStatus(e.target.value)
-                                  }
-                                  className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                                >
-                                  <option value="">Select legal status</option>
-                                  {LAND_LEGAL_STATUSES.map((o) => (
-                                    <option key={o} value={o}>
-                                      {o}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label
-                                  htmlFor="prop-conversion-type"
-                                  className="text-slate-300"
-                                >
-                                  Conversion
-                                </Label>
-                                <select
-                                  id="prop-conversion-type"
-                                  value={conversionType}
-                                  onChange={(e) =>
-                                    setConversionType(e.target.value)
-                                  }
-                                  className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                                >
-                                  <option value="">Select conversion</option>
-                                  {LAND_CONVERSION_TYPES.map((o) => (
-                                    <option key={o} value={o}>
-                                      {o}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                              {/* Commercial/industrial land already gets this
-                                control in the commercial block above. */}
-                              {!hasCommercialFields && (
-                                <div className="space-y-1.5">
-                                  <Label
-                                    htmlFor="prop-land-zone-res"
-                                    className="text-slate-300"
-                                  >
-                                    Land Use
-                                  </Label>
-                                  <select
-                                    id="prop-land-zone-res"
-                                    value={landZone}
-                                    onChange={(e) =>
-                                      setLandZone(e.target.value)
-                                    }
-                                    className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
-                                  >
-                                    <option value="">Select land use</option>
-                                    <option value="Residential">
-                                      Residential
-                                    </option>
-                                    <option value="Commercial">
-                                      Commercial
-                                    </option>
-                                    <option value="Industrial">
-                                      Industrial
-                                    </option>
-                                    <option value="Agricultural">
-                                      Agricultural
-                                    </option>
-                                    <option value="Mixed Use">Mixed Use</option>
-                                    <option value="SEZ">
-                                      SEZ (Special Economic Zone)
-                                    </option>
-                                  </select>
-                                </div>
-                              )}
-                            </>
-                          )}
-                          <div className="col-span-2 space-y-1.5">
-                            <Label
-                              htmlFor="prop-deal-remarks"
-                              className="text-slate-300"
-                            >
-                              Deal Remarks
-                            </Label>
-                            <Textarea
-                              id="prop-deal-remarks"
-                              value={dealRemarks}
-                              onChange={(e) => setDealRemarks(e.target.value)}
-                              placeholder="e.g. Legal/aggregation status, road access, timeline for completion..."
-                              className="min-h-16 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                            />
-                          </div>
-                          <p className="col-span-2 text-[10px] text-slate-500">
-                            Internal notes — never shown on the public showcase.
-                            Used to prefill the &quot;Share via Email&quot;
-                            draft.
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Amenities Checkbox Selection */}
-                      <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <Label className="text-sm font-semibold text-slate-300">
-                          Amenities
-                        </Label>
-                        <div className="mt-1 space-y-4">
-                          {Object.entries(filteredAmenities).map(
-                            ([category, items]) => (
-                              <div key={category} className="space-y-1.5">
-                                <div className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-                                  {category}
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {items.map((amenity: string) => {
-                                    const isChecked =
-                                      features.includes(amenity);
-                                    return (
-                                      <label
-                                        key={amenity}
-                                        className="flex cursor-pointer items-center gap-2 text-xs text-slate-300"
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={isChecked}
-                                          onChange={() =>
-                                            handleToggleFeature(amenity)
-                                          }
-                                          className="border-slate-750 text-primary focus:ring-primary size-3.5 rounded bg-slate-800 focus:ring-offset-slate-950"
-                                        />
-                                        <span>{amenity}</span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Collapsible Advanced section (landmarks) */}
-                      <div className="col-span-2 border-t border-slate-800 pt-4">
-                        <button
-                          type="button"
-                          onClick={() => setShowAdvanced(!showAdvanced)}
-                          className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 transition-colors hover:text-white"
-                        >
-                          {showAdvanced ? (
-                            <ChevronUp className="size-3.5" />
-                          ) : (
-                            <ChevronDown className="size-3.5" />
-                          )}
-                          <span>
-                            {showAdvanced
-                              ? 'Hide Advanced Options'
-                              : 'Show Advanced Options'}
-                          </span>
-                        </button>
-
-                        {showAdvanced && (
-                          <div className="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/10 p-4">
-                            <Label className="text-xs font-semibold text-slate-300">
-                              Nearby Highlights / Landmarks
-                            </Label>
-                            <div className="mt-1 grid grid-cols-3 gap-2">
-                              {NEARBY_HIGHLIGHTS_OPTIONS.map((highlight) => {
-                                const isChecked =
-                                  nearbyHighlights.includes(highlight);
-                                return (
-                                  <label
-                                    key={highlight}
-                                    className="flex cursor-pointer items-center gap-2 text-xs text-slate-300"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      onChange={() =>
-                                        handleToggleHighlight(highlight)
-                                      }
-                                      className="border-slate-750 text-primary focus:ring-primary size-3.5 rounded bg-slate-800 focus:ring-offset-slate-950"
-                                    />
-                                    <span>{highlight}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Auto-generated listing video — needs a saved
-                        property with photos, so edit mode only. */}
-                      {property?.id && (
-                        <div className="col-span-2">
-                          <ListingVideoCard
-                            key={videoRemoved ? 'video-removed' : 'video'}
-                            propertyId={property.id}
-                          />
-                        </div>
-                      )}
-
-                      {/* Images URLs Input */}
-                      <div
-                        id="pf-media"
-                        className="col-span-2 scroll-mt-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <Label className="text-slate-300">
-                            Property Images
-                          </Label>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={uploadingImage}
-                            className="text-primary hover:bg-primary/10 flex h-7 items-center gap-1 text-xs font-semibold"
-                          >
-                            {uploadingImage ? (
-                              <>
-                                <PropertyBlueprintLoader
-                                  size={14}
-                                  label="Uploading"
-                                />{' '}
-                                Uploading...
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="size-3" /> Upload
-                              </>
-                            )}
-                          </Button>
-                          <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={onUploadImages}
-                            multiple
-                            accept="image/*"
-                            className="hidden"
-                          />
-                        </div>
-
-                        <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
-                          {property?.video_url &&
-                            property.video_status === 'ready' &&
-                            !videoRemoved && (
-                              <div className="flex items-center gap-2">
-                                <video
-                                  src={storagePublicUrl(property.video_url)}
-                                  muted
-                                  playsInline
-                                  preload="metadata"
-                                  className="size-8 shrink-0 rounded border border-slate-700 object-cover"
-                                />
-                                <span className="flex-1 truncate text-xs text-slate-400">
-                                  Listing video — plays in the Showcase gallery
-                                </span>
-                                <a
-                                  href={storagePublicUrl(property.video_url)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  title="Play video"
-                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-400 hover:text-white"
-                                >
-                                  <CirclePlay className="size-3.5" />
-                                </a>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={handleRemoveVideo}
-                                  disabled={removingVideo}
-                                  title="Remove video"
-                                  className="h-8 w-8 shrink-0 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                                >
-                                  {removingVideo ? (
-                                    <Loader2 className="size-3.5 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="size-3.5" />
-                                  )}
-                                </Button>
-                              </div>
-                            )}
-                          {images.map((imgUrl, idx) => (
-                            <div key={idx} className="flex items-center gap-2">
-                              {imgUrl.trim().length > 0 && (
-                                /* eslint-disable-next-line @next/next/no-img-element */
-                                <img
-                                  key={imgUrl}
-                                  src={storagePublicUrl(imgUrl)}
-                                  alt={`Property ${idx + 1}`}
-                                  className="size-8 shrink-0 rounded border border-slate-700 object-cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLElement).style.display =
-                                      'none';
-                                  }}
-                                />
-                              )}
-                              <Input
-                                value={imgUrl}
-                                onChange={(e) =>
-                                  handleImageUrlChange(idx, e.target.value)
-                                }
-                                placeholder="Image URL (e.g. https://...)"
-                                className="h-8 flex-1 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                              />
-                              {imgUrl.trim().length > 0 && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleSetDefaultImage(idx)}
-                                  className={`h-8 w-8 shrink-0 p-0 ${idx === defaultImageIndex ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}`}
-                                  title={
-                                    idx === defaultImageIndex
-                                      ? 'Default Image'
-                                      : 'Set as Default'
-                                  }
-                                >
-                                  <Star
-                                    className={`size-3.5 ${idx === defaultImageIndex ? 'fill-amber-400' : ''}`}
-                                  />
-                                </Button>
-                              )}
-                              {imgUrl.trim().length > 0 && property?.id && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleToggleImageLock(imgUrl, 'lock')
-                                  }
-                                  disabled={lockingImagePath !== null}
-                                  className="h-8 w-8 shrink-0 p-0 text-slate-500 hover:text-amber-400"
-                                  title="Make private — hidden from the showcase, revealed only on approved requests (e.g. facade / street view)"
-                                >
-                                  {lockingImagePath === imgUrl ? (
-                                    <Loader2 className="size-3.5 animate-spin" />
-                                  ) : (
-                                    <Lock className="size-3.5" />
-                                  )}
-                                </Button>
-                              )}
-                              {images.length > 1 && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleRemoveImageUrl(idx)}
-                                  className="h-8 w-8 shrink-0 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                                >
-                                  <Trash2 className="size-3.5" />
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleAddImageUrl}
-                            className="mt-1 flex h-7 items-center gap-1 text-xs font-semibold text-slate-400 hover:text-white"
-                          >
-                            <Plus className="size-3" /> Add Image URL
-                          </Button>
-                        </div>
-
-                        {property?.id && privateImages.length > 0 && (
-                          <div className="space-y-2 border-t border-slate-800 pt-3">
-                            <Label className="flex items-center gap-1.5 text-xs text-amber-400">
-                              <Lock className="size-3" /> Private Photos
-                              <span className="text-[10px] font-medium text-slate-500">
-                                Hidden from the showcase — sent only with
-                                approved location reveals
-                              </span>
-                            </Label>
-                            {privateImages.map((path, idx) => (
-                              <div
-                                key={path}
-                                className="flex items-center gap-2"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={`/api/properties/${property.id}/private-images/${idx}`}
-                                  alt={`Private ${idx + 1}`}
-                                  className="size-8 shrink-0 rounded border border-amber-900/50 object-cover"
-                                  onError={(e) => {
-                                    (e.target as HTMLElement).style.display =
-                                      'none';
-                                  }}
-                                />
-                                <span className="flex-1 truncate text-xs text-slate-500">
-                                  {path}
-                                </span>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleToggleImageLock(path, 'unlock')
-                                  }
-                                  disabled={lockingImagePath !== null}
-                                  className="flex h-8 shrink-0 items-center gap-1 px-2 text-xs text-slate-400 hover:text-white"
-                                  title="Make public again"
-                                >
-                                  {lockingImagePath === path ? (
-                                    <Loader2 className="size-3.5 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Unlock className="size-3.5" /> Unlock
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Floor Plans */}
-                      <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <FloorPlansEditor
-                          value={floorPlans}
-                          onChange={setFloorPlans}
-                          onUpload={uploadPlanImage}
-                          disabled={!canEdit}
-                          isLand={isLand}
-                        />
-                      </div>
-
-                      {/* Property Documents */}
-                      <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-slate-300">
-                            Property Documents
-                          </Label>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => eKhataInputRef.current?.click()}
-                              disabled={readingEKhata || !canEdit}
-                              className="text-primary hover:bg-primary/10 flex h-7 items-center gap-1 text-xs font-semibold"
-                            >
-                              {readingEKhata ? (
-                                <>
-                                  <Loader2 className="size-3 animate-spin" />{' '}
-                                  Reading...
-                                </>
-                              ) : (
-                                <>
-                                  <FileText className="size-3" /> Read e-Khata ·{' '}
-                                  {AI_FEATURE_COSTS.listing_parse} cr
-                                </>
-                              )}
-                            </Button>
-                            <input
-                              type="file"
-                              ref={eKhataInputRef}
-                              onChange={onReadEKhata}
-                              accept=".pdf,.png,.jpg,.jpeg,.webp"
-                              className="hidden"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => documentInputRef.current?.click()}
-                              disabled={uploadingDocument}
-                              className="text-primary hover:bg-primary/10 flex h-7 items-center gap-1 text-xs font-semibold"
-                            >
-                              {uploadingDocument ? (
-                                <>
-                                  <PropertyBlueprintLoader
-                                    size={14}
-                                    label="Uploading"
-                                  />{' '}
-                                  Uploading...
-                                </>
-                              ) : (
-                                <>
-                                  <Upload className="size-3" /> Upload
-                                </>
-                              )}
-                            </Button>
-                            <input
-                              type="file"
-                              ref={documentInputRef}
-                              onChange={onUploadDocuments}
-                              multiple
-                              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,text/plain"
-                              className="hidden"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="max-h-60 space-y-3 overflow-y-auto pr-1">
-                          {documents.map((doc, idx) => (
-                            <div
-                              key={idx}
-                              className="border-slate-850 flex flex-col items-start gap-2 rounded-lg border bg-slate-950/30 p-2.5 sm:flex-row sm:items-center"
-                            >
-                              <div className="grid w-full flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
-                                <Input
-                                  value={doc.title}
-                                  onChange={(e) =>
-                                    handleDocumentTitleChange(
-                                      idx,
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="Document Title (e.g. Layout Sketch)"
-                                  className="h-8 w-full border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
-                                />
-                                <Input
-                                  value={doc.url}
-                                  onChange={(e) =>
-                                    handleDocumentUrlChange(idx, e.target.value)
-                                  }
-                                  placeholder="Document URL (e.g. https://...)"
-                                  className="h-8 w-full border-slate-700 bg-slate-800 font-mono text-xs text-white placeholder:text-slate-500"
-                                />
-                              </div>
-                              <div className="flex shrink-0 gap-1.5 self-end sm:self-auto">
-                                {doc.url.trim().length > 0 && (
-                                  <a
-                                    href={storagePublicUrl(doc.url)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
-                                    title="Open Document"
-                                  >
-                                    <ExternalLink className="size-3.5" />
-                                  </a>
-                                )}
-                                {documents.length > 1 && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRemoveDocumentUrl(idx)}
-                                    className="h-8 w-8 shrink-0 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                                  >
-                                    <Trash2 className="size-3.5" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleAddDocumentUrl}
-                            className="mt-1 flex h-7 items-center gap-1 text-xs font-semibold text-slate-400 hover:text-white"
-                          >
-                            <Plus className="size-3" /> Add Document URL
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <SpecsSection
+                    values={values}
+                    set={set}
+                    hasBedsBaths={hasBedsBaths}
+                    hasCommercialFields={hasCommercialFields}
+                    isLand={isLand}
+                    isRawLand={isRawLand}
+                    isApartment={isApartment}
+                    showFloorNumber={showFloorNumber}
+                    showTotalFloors={showTotalFloors}
+                    handleLandAreaChange={handleLandAreaChange}
+                    handleFrontageChange={handleFrontageChange}
+                    handleDepthChange={handleDepthChange}
+                    media={
+                      <MediaSection
+                        values={values}
+                        set={set}
+                        property={property}
+                        accountId={accountId}
+                        supabase={supabase}
+                        canEdit={canEdit}
+                        isLand={isLand}
+                        uploadPlanImage={uploadPlanImage}
+                        readingEKhata={readingEKhata}
+                        eKhataInputRef={eKhataInputRef}
+                        onReadEKhata={onReadEKhata}
+                        lockingImagePath={lockingImagePath}
+                        setLockingImagePath={setLockingImagePath}
+                        removingVideo={removingVideo}
+                        setRemovingVideo={setRemovingVideo}
+                        uploadingDocument={uploadingDocument}
+                        setUploadingDocument={setUploadingDocument}
+                        uploadingImage={uploadingImage}
+                        setUploadingImage={setUploadingImage}
+                      />
+                    }
+                  />
 
                   {/* Description */}
-                  <div
-                    id="pf-description"
-                    className="scroll-mt-2 space-y-1.5 pt-2"
-                  >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Label
-                        htmlFor="prop-description"
-                        className="text-slate-300"
-                      >
-                        Description
-                      </Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleGenerateAIDescription}
-                        disabled={generatingDescription || !title.trim()}
-                        className="text-primary hover:text-primary-hover hover:bg-primary/10 border-primary/20 flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {generatingDescription ? (
-                          <>
-                            <Loader2 className="size-3.5 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <span>✨</span> Generate with AI
-                            <Badge
-                              variant="outline"
-                              className="border-primary/30 text-primary/80 ml-1 h-4 px-1 text-[9px] font-medium"
-                            >
-                              {AI_FEATURE_COSTS.property_description} cr
-                            </Badge>
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    <Textarea
-                      id="prop-description"
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Describe the property's design, styling details, location benefits, etc..."
-                      rows={4}
-                      className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                    />
-                    <p className="text-[10px] leading-normal font-medium text-slate-500">
-                      💡{' '}
-                      <span className="font-semibold text-slate-400">
-                        Tip for better AI results:
-                      </span>{' '}
-                      fill out title, area, amenities, landmarks, and other
-                      specs before generating.
-                    </p>
-                  </div>
+                  <DescriptionSection
+                    values={values}
+                    set={set}
+                    isLand={isLand}
+                    locationGuarded={locationGuarded}
+                    generatingDescription={generatingDescription}
+                    setGeneratingDescription={setGeneratingDescription}
+                  />
 
                   {/* Owner & Leads */}
-                  <div
-                    id="pf-owner"
-                    className="scroll-mt-2 space-y-4 rounded-lg border border-slate-800 bg-slate-950/20 p-4"
-                  >
-                    <h4 className="text-sm font-semibold text-white">
-                      Owner & Inquiries
-                    </h4>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div
-                        className="col-span-2 space-y-1.5 md:col-span-1"
-                        data-owner-dropdown
-                      >
-                        <Label htmlFor="prop-owner" className="text-slate-300">
-                          Select Contact (Owner/Agent)
-                        </Label>
-                        <div className="relative">
-                          <Input
-                            type="text"
-                            placeholder="Search by name, phone or email..."
-                            value={ownerSearchInput}
-                            onChange={(e) => {
-                              setOwnerSearchInput(e.target.value);
-                              setIsOwnerDropdownOpen(true);
-                            }}
-                            onFocus={() => setIsOwnerDropdownOpen(true)}
-                            readOnly={!!ownerContactId}
-                            className={`h-9 border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500 ${
-                              ownerContactId ? 'cursor-default' : ''
-                            }`}
-                          />
-                          {ownerContactId && (
-                            <button
-                              type="button"
-                              onClick={() => handleOwnerSelect(null)}
-                              className="absolute top-1/2 right-2 -translate-y-1/2 text-slate-500 hover:text-white"
-                            >
-                              ×
-                            </button>
-                          )}
-                          {ownerContactId && (
-                            <div className="absolute top-1/2 right-8 -translate-y-1/2">
-                              <span
-                                className={`rounded px-1.5 py-0.5 text-[10px] ${
-                                  listingSource === 'agent'
-                                    ? 'bg-blue-500/20 text-blue-400'
-                                    : 'bg-amber-500/20 text-amber-400'
-                                }`}
-                              >
-                                {listingSource === 'agent' ? 'Agent' : 'Owner'}
-                              </span>
-                            </div>
-                          )}
-                          {isOwnerDropdownOpen &&
-                            filteredOwnerContacts.length > 0 && (
-                              <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-700 bg-slate-800 shadow-lg">
-                                {filteredOwnerContacts.map((contact) => (
-                                  <button
-                                    key={contact.id}
-                                    type="button"
-                                    onClick={() =>
-                                      handleOwnerSelect(contact.id)
-                                    }
-                                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-700 ${
-                                      ownerContactId === contact.id
-                                        ? 'bg-primary/20 text-primary'
-                                        : 'text-white'
-                                    }`}
-                                  >
-                                    <span className="flex items-center gap-1.5 truncate">
-                                      <span className="truncate">
-                                        {contact.name || 'Unnamed'} (
-                                        {contact.phone})
-                                      </span>
-                                      <NameTagBadge tag={contact.name_tag} />
-                                    </span>
-                                    <span
-                                      className={`rounded px-1.5 py-0.5 text-[10px] ${
-                                        contact.classification === 'Agent'
-                                          ? 'bg-blue-500/20 text-blue-400'
-                                          : contact.classification === 'Owner'
-                                            ? 'bg-amber-500/20 text-amber-400'
-                                            : 'bg-slate-600 text-slate-300'
-                                      }`}
-                                    >
-                                      {contact.classification}
-                                    </span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                        </div>
-                      </div>
-
-                      <div className="col-span-2 space-y-1.5 md:col-span-1">
-                        <Label
-                          htmlFor="prop-listing-source"
-                          className="text-slate-300"
-                        >
-                          Listing Source
-                        </Label>
-                        {ownerContactId ? (
-                          <div className="flex h-9 items-center rounded-md border border-slate-700 bg-slate-800 px-3">
-                            <span
-                              className={`text-sm font-medium ${
-                                listingSource === 'agent'
-                                  ? 'text-blue-400'
-                                  : 'text-amber-400'
-                              }`}
-                            >
-                              {listingSource === 'agent'
-                                ? 'Referred by Agent'
-                                : 'Direct (from Owner)'}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex h-9 items-center rounded-md border border-slate-700 bg-slate-800/50 px-3">
-                            <span className="text-sm text-slate-500">
-                              Select a contact first
-                            </span>
-                          </div>
-                        )}
-                        <p className="text-[10px] leading-normal font-medium text-slate-500">
-                          Auto-detected based on selected contact&apos;s
-                          classification
-                        </p>
-                      </div>
-
-                      <div
-                        className="col-span-2 space-y-3"
-                        ref={contactSearchRef}
-                      >
-                        <div className="flex items-center justify-between">
-                          <Label className="text-slate-350 font-medium">
-                            Contacts with Shown Interest (Buyers & Agents)
-                          </Label>
-                          <span className="rounded-full border border-slate-800 bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                            {interestedContacts.length} Linked
-                          </span>
-                        </div>
-
-                        {/* Autocomplete Contact Search Input */}
-                        <div className="relative">
-                          <div className="relative">
-                            <Search className="absolute top-2.5 left-3 h-4 w-4 text-slate-500" />
-                            <Input
-                              type="text"
-                              placeholder="Search Buyer or Agent by name, phone or email..."
-                              value={contactSearchInput}
-                              onChange={(e) => {
-                                setContactSearchInput(e.target.value);
-                                setIsContactDropdownOpen(true);
-                              }}
-                              onFocus={() => setIsContactDropdownOpen(true)}
-                              className="h-9 border-slate-700 bg-slate-800 pr-9 pl-9 text-xs text-white placeholder:text-slate-500"
-                            />
-                            {contactSearchInput && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setContactSearchInput('');
-                                  setIsContactDropdownOpen(false);
-                                }}
-                                className="absolute top-2.5 right-3 text-slate-500 hover:text-white"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            )}
-                          </div>
-
-                          {/* Dropdown search results */}
-                          {isContactDropdownOpen &&
-                            contactSearchInput.trim() && (
-                              <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-slate-700 bg-slate-900 p-1 shadow-xl">
-                                {contactSearchResults.length > 0 ? (
-                                  contactSearchResults.map((c) => (
-                                    <button
-                                      key={c.id}
-                                      type="button"
-                                      onClick={() =>
-                                        handleAddInterestedContact(c.id)
-                                      }
-                                      className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left text-xs text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-                                    >
-                                      <div className="truncate pr-4">
-                                        <span className="flex items-center gap-1.5 truncate font-semibold text-slate-200">
-                                          <span className="truncate">
-                                            {c.name || 'Unnamed'} ({c.phone})
-                                          </span>
-                                          <NameTagBadge tag={c.name_tag} />
-                                        </span>
-                                        <span className="block truncate text-[10px] text-slate-500">
-                                          Classification: {c.classification}
-                                        </span>
-                                      </div>
-                                      <Plus className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                                    </button>
-                                  ))
-                                ) : (
-                                  <div className="py-2 text-center text-xs text-slate-500">
-                                    No matching Buyers or Agents found (or
-                                    already linked)
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                        </div>
-
-                        {/* Linked Contacts list */}
-                        <div className="max-h-56 space-y-2 overflow-y-auto rounded-md border border-slate-700 bg-slate-900 p-2">
-                          {interestedContacts.length > 0 ? (
-                            interestedContacts.map((c) => {
-                              const isHot =
-                                c.lead_temp === 'HOT' ||
-                                c.status === 'pending_review';
-                              const isContacted =
-                                contactedContactIds.has(c.id) ||
-                                !!c.last_contacted_at;
-                              const isCold =
-                                c.lead_temp === 'COLD' ||
-                                c.lead_temp === 'Dead';
-
-                              // Style based on interest and contact status
-                              let cardBorderClass =
-                                'border-slate-800 bg-slate-800/20';
-                              if (isHot) {
-                                cardBorderClass =
-                                  'border-[#00ff88]/40 bg-[#00ff88]/5 shadow-[0_0_8px_rgba(0,255,136,0.06)]';
-                              } else if (isCold) {
-                                cardBorderClass =
-                                  'border-rose-950/30 bg-rose-950/5';
-                              } else if (isContacted) {
-                                cardBorderClass =
-                                  'border-emerald-600/30 bg-emerald-950/5';
-                              }
-
-                              return (
-                                <div
-                                  key={c.id}
-                                  className={`flex items-center justify-between gap-3 rounded-md border p-2.5 text-xs transition-all ${cardBorderClass}`}
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                      <span className="font-bold text-slate-200">
-                                        {c.name || 'Unnamed'}
-                                      </span>
-                                      <NameTagBadge tag={c.name_tag} />
-                                      <span className="text-[10px] text-slate-500">
-                                        ({c.phone})
-                                      </span>
-                                    </div>
-                                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                                      <span className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-                                        {c.classification || 'Buyer'}
-                                      </span>
-                                      <span className="text-[10px] text-slate-600">
-                                        •
-                                      </span>
-
-                                      {/* Status badges */}
-                                      {isHot && (
-                                        <span className="animate-pulse rounded border border-[#00ff88]/30 bg-[#00ff88]/10 px-1.5 py-0.5 text-[9px] font-bold text-[#00ff88] uppercase">
-                                          Interested (Hot)
-                                        </span>
-                                      )}
-                                      {isContacted && (
-                                        <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] font-medium text-white uppercase">
-                                          Contacted
-                                        </span>
-                                      )}
-                                      {isCold && (
-                                        <span className="rounded border border-rose-950/50 bg-rose-950/40 px-1.5 py-0.5 text-[9px] font-medium text-rose-400 uppercase">
-                                          Not Interested
-                                        </span>
-                                      )}
-                                      {!isHot && !isContacted && !isCold && (
-                                        <span className="bg-slate-850 rounded border border-slate-700 px-1.5 py-0.5 text-[9px] font-medium text-slate-400 uppercase">
-                                          Not Contacted
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex shrink-0 items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleGoToChat(c.id)}
-                                      className="hover:bg-slate-750 rounded border border-slate-700 bg-slate-800 p-1.5 text-slate-400 transition-colors hover:text-emerald-400"
-                                      title="Go to WhatsApp Chat Inbox"
-                                      aria-label="Open Chat"
-                                    >
-                                      <MessageSquare className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setInterestedContactIds((prev) =>
-                                          prev.filter((id) => id !== c.id)
-                                        );
-                                      }}
-                                      className="rounded border border-slate-700 bg-slate-800 p-1.5 text-slate-400 transition-colors hover:border-rose-900/50 hover:bg-rose-950/50 hover:text-rose-400"
-                                      title="Remove link"
-                                      aria-label="Remove Contact Link"
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          ) : (
-                            <div className="py-6 text-center text-xs text-slate-500">
-                              No interested contacts linked to this property
-                              yet. Use the search bar above to link contacts.
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <OwnerSection
+                    values={values}
+                    set={set}
+                    contacts={contacts}
+                    contactedContactIds={contactedContactIds}
+                    ownerSearchInput={ownerSearchInput}
+                    setOwnerSearchInput={setOwnerSearchInput}
+                    handleGoToChat={handleGoToChat}
+                  />
 
                   <div
                     id="pf-publish"
@@ -6991,7 +2693,9 @@ export function PropertyForm({
                       <Switch
                         id="prop-published"
                         checked={isPublished}
-                        onCheckedChange={setIsPublished}
+                        onCheckedChange={(checked) =>
+                          set('isPublished', checked)
+                        }
                       />
                       <Label
                         htmlFor="prop-published"
