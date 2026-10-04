@@ -266,23 +266,18 @@ describe('validateTriggerForActivation', () => {
     expect(issues.map((i) => i.path)).toContain('trigger.match_type');
   });
 
-  it('requires schedule on time_based triggers', () => {
-    expect(validateTriggerForActivation('time_based', {})).toEqual([
-      { path: 'trigger.schedule', message: 'schedule is required' },
-    ]);
-    expect(
-      validateTriggerForActivation('time_based', { schedule: '0 9 * * *' })
-    ).toEqual([]);
-  });
-
-  it('requires tag_id on tag_added triggers', () => {
-    expect(validateTriggerForActivation('tag_added', {})).toEqual([
-      { path: 'trigger.tag_id', message: 'tag is required' },
-    ]);
-    expect(
-      validateTriggerForActivation('tag_added', { tag_id: 'tag-uuid' })
-    ).toEqual([]);
-  });
+  it.each(['conversation_assigned', 'tag_added', 'time_based'])(
+    'refuses to activate the unavailable %s trigger whatever its config',
+    (t) => {
+      for (const cfg of [{}, { schedule: '0 9 * * *', tag_id: 'tag-uuid' }]) {
+        const issues = validateTriggerForActivation(t, cfg);
+        expect(issues).toHaveLength(1);
+        expect(issues[0].path).toBe('trigger.type');
+        expect(issues[0].message).toContain(t);
+        expect(issues[0].message).toContain('not yet available');
+      }
+    }
+  );
 
   it('does not flag unknown trigger types (handled elsewhere)', () => {
     expect(validateTriggerForActivation('some_future_trigger', {})).toEqual([]);

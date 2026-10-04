@@ -260,7 +260,10 @@ function FlowCanvasInner() {
 
   useEffect(() => {
     if (laidOutNodes !== builderNodes) {
-      setState((s) => ({ ...s, nodes: withLayout(s.nodes) }));
+      setState((s) => {
+        const nodes = withLayout(s.nodes);
+        return nodes === s.nodes ? s : { ...s, nodes };
+      });
     }
   }, [laidOutNodes, builderNodes, setState]);
 

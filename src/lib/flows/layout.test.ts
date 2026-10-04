@@ -156,6 +156,20 @@ describe('layoutUnpositioned', () => {
     );
   });
 
+  it('returns the same array for a single node at the origin so the canvas writes nothing', () => {
+    const single = [{ node_key: 'only', position_x: 0, position_y: 0 }];
+    expect(shouldAutoLayout(single)).toBe(true);
+    const first = layoutUnpositioned(single, []);
+    expect(first).toBe(single);
+    expect(layoutUnpositioned(first, [])).toBe(first);
+  });
+
+  it('settles after one layout pass', () => {
+    const laid = layoutUnpositioned(nodes, edges);
+    expect(laid).not.toBe(nodes);
+    expect(layoutUnpositioned(laid, edges)).toBe(laid);
+  });
+
   it('writes whole-pixel positions', () => {
     for (const n of layoutUnpositioned(nodes, edges)) {
       expect(Number.isInteger(n.position_x)).toBe(true);

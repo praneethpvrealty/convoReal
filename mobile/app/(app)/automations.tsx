@@ -15,6 +15,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ConvoRealLoader } from '@/components/loader';
 import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -22,6 +23,7 @@ import type { AutomationRow, FlowRow } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { describeIssue } from '@shared/lib/automations/step-tree';
 import {
+  isTriggerAvailable,
   triggerActivationSentence,
   triggerLabel,
 } from '@shared/lib/automations/trigger-meta';
@@ -31,6 +33,7 @@ export default function AutomationsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const { show, close, dialogProps } = useAppDialog();
+  const userId = useAuthStore((s) => s.session?.user.id);
 
   const automationsQuery = useQuery({
     queryKey: ['automations'],
@@ -127,42 +130,64 @@ export default function AutomationsScreen() {
           subtitle="Create triggers and actions in the web app's Automations builder."
         />
       ) : (
-        (automationsQuery.data ?? []).map((a) => (
-          <View
-            key={a.id}
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.glass,
-                borderColor: colors.glassBorder,
-              },
-            ]}
-          >
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text
-                style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}
-              >
-                {a.name}
-              </Text>
-              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                {triggerLabel(a.trigger_type)}
-                {typeof a.execution_count === 'number'
-                  ? ` · ran ${a.execution_count}×`
-                  : ''}
-              </Text>
+        (automationsQuery.data ?? []).map((a) => {
+          const ownedByCaller = Boolean(userId) && a.user_id === userId;
+          const blockedOn = !isTriggerAvailable(a.trigger_type) && !a.is_active;
+          return (
+            <View
+              key={a.id}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.glass,
+                  borderColor: colors.glassBorder,
+                },
+              ]}
+            >
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontFamily: f.bold,
+                    color: colors.text,
+                  }}
+                >
+                  {a.name}
+                </Text>
+                <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                  {triggerLabel(a.trigger_type)}
+                  {typeof a.execution_count === 'number'
+                    ? ` · ran ${a.execution_count}×`
+                    : ''}
+                </Text>
+                {!ownedByCaller ? (
+                  <Text style={{ fontSize: 12, color: colors.textFaint }}>
+                    Created by a teammate. Only its creator can change it for
+                    now.
+                  </Text>
+                ) : null}
+              </View>
+              {togglingId === a.id ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Switch
+                  value={a.is_active}
+                  onValueChange={(v) => requestToggle(a, v)}
+                  disabled={!ownedByCaller || blockedOn}
+                  accessibilityHint={
+                    !ownedByCaller
+                      ? 'Only its creator can change it for now.'
+                      : blockedOn
+                        ? 'This trigger is not yet available, so this automation cannot be turned on.'
+                        : undefined
+                  }
+                  trackColor={{ true: colors.primary, false: colors.border }}
+                  thumbColor="#fff"
+                />
+              )}
             </View>
-            {togglingId === a.id ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : (
-              <Switch
-                value={a.is_active}
-                onValueChange={(v) => requestToggle(a, v)}
-                trackColor={{ true: colors.primary, false: colors.border }}
-                thumbColor="#fff"
-              />
-            )}
-          </View>
-        ))
+          );
+        })
       )}
 
       <SectionLabel text="WhatsApp Flows" />

@@ -739,6 +739,9 @@ function TriggerCard({
               <p className="mt-1 text-[11px] text-slate-500">
                 {option?.hint ?? triggerActivationSentence(type)}
               </p>
+              {errors.type && (
+                <p className="mt-1 text-[11px] text-red-400">{errors.type}</p>
+              )}
             </div>
             {type === 'keyword_match' && (
               <KeywordMatchConfig

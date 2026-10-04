@@ -1,4 +1,5 @@
 import type { AutomationTriggerType } from '@/types';
+import { isTriggerAvailable, triggerMeta } from './trigger-meta';
 
 // ------------------------------------------------------------
 // Pre-flight config validation for automations about to be activated.
@@ -203,6 +204,14 @@ export function validateTriggerForActivation(
   triggerType: AutomationTriggerType | string,
   triggerConfig: unknown
 ): ValidationIssue[] {
+  if (!isTriggerAvailable(triggerType)) {
+    return [
+      {
+        path: 'trigger.type',
+        message: `the "${triggerMeta(triggerType).label}" trigger (${triggerType}) is not yet available, so this automation cannot be turned on`,
+      },
+    ];
+  }
   const issues: ValidationIssue[] = [];
   const cfg = (triggerConfig ?? {}) as Record<string, unknown>;
 
@@ -224,17 +233,6 @@ export function validateTriggerForActivation(
         path: 'trigger.match_type',
         message: 'match type must be "exact" or "contains"',
       });
-    }
-  } else if (triggerType === 'time_based') {
-    if (!nonEmpty(cfg.schedule)) {
-      issues.push({
-        path: 'trigger.schedule',
-        message: 'schedule is required',
-      });
-    }
-  } else if (triggerType === 'tag_added') {
-    if (!nonEmpty(cfg.tag_id)) {
-      issues.push({ path: 'trigger.tag_id', message: 'tag is required' });
     }
   }
 

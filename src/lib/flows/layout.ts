@@ -143,10 +143,15 @@ export function layoutUnpositioned<
     edges,
     options
   );
-  return nodes.map((n) => {
+  let moved = false;
+  const laid = nodes.map((n) => {
     const at = positions.get(n.node_key);
-    return at
-      ? { ...n, position_x: Math.round(at.x), position_y: Math.round(at.y) }
-      : n;
+    if (!at) return n;
+    const x = Math.round(at.x);
+    const y = Math.round(at.y);
+    if (x === (n.position_x ?? 0) && y === (n.position_y ?? 0)) return n;
+    moved = true;
+    return { ...n, position_x: x, position_y: y };
   });
+  return moved ? laid : nodes;
 }

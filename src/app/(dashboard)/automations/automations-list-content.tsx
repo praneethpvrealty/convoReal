@@ -31,7 +31,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { TabSkeleton } from '@/components/dashboard/skeleton';
-import { triggerMeta } from '@/lib/automations/trigger-meta';
+import {
+  isTriggerAvailable,
+  triggerActivationSentence,
+  triggerLabel,
+  triggerMeta,
+} from '@/lib/automations/trigger-meta';
 import { formatRelative } from '@/lib/format/date';
 import { cn } from '@/lib/utils';
 import type { Automation } from '@/types';
@@ -70,12 +75,16 @@ async function readError(res: Response, fallback: string): Promise<never> {
 export default function AutomationsListContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { accountId } = useAuth();
+  const { accountId, user } = useAuth();
+  const userId = user?.id ?? null;
   const canEdit = useCan('send-messages');
   const [issuesById, setIssuesById] = useState<
     Record<string, ActivationIssue[]>
   >({});
   const [pendingDelete, setPendingDelete] = useState<Automation | null>(null);
+  const [pendingActivate, setPendingActivate] = useState<Automation | null>(
+    null
+  );
 
   const queryKey = ['automations', accountId];
   const automationsQuery = useQuery({
@@ -208,6 +217,7 @@ export default function AutomationsListContent() {
               key={automation.id}
               automation={automation}
               canEdit={canEdit}
+              ownedByCaller={userId !== null && automation.user_id === userId}
               issues={issuesById[automation.id] ?? []}
               toggling={
                 toggle.isPending && toggle.variables?.id === automation.id
@@ -216,7 +226,9 @@ export default function AutomationsListContent() {
                 duplicate.isPending && duplicate.variables === automation.id
               }
               onToggle={(active) =>
-                toggle.mutate({ id: automation.id, active })
+                active
+                  ? setPendingActivate(automation)
+                  : toggle.mutate({ id: automation.id, active })
               }
               onDuplicate={() => duplicate.mutate(automation.id)}
               onDelete={() => setPendingDelete(automation)}
@@ -224,6 +236,40 @@ export default function AutomationsListContent() {
           ))}
         </ul>
       )}
+
+      <Dialog
+        open={pendingActivate !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingActivate(null);
+        }}
+      >
+        <DialogContent className="bg-slate-900 text-slate-100">
+          <DialogHeader>
+            <DialogTitle>Turn on “{pendingActivate?.name}”?</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {pendingActivate &&
+                triggerActivationSentence(
+                  pendingActivate.trigger_type,
+                  pendingActivate.trigger_config as Record<string, unknown>
+                )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="border-slate-800 bg-slate-900">
+            <Button variant="ghost" onClick={() => setPendingActivate(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!pendingActivate) return;
+                toggle.mutate({ id: pendingActivate.id, active: true });
+                setPendingActivate(null);
+              }}
+            >
+              Turn on
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={pendingDelete !== null}
@@ -265,6 +311,7 @@ export default function AutomationsListContent() {
 function AutomationRow({
   automation,
   canEdit,
+  ownedByCaller,
   issues,
   toggling,
   duplicating,
@@ -274,6 +321,7 @@ function AutomationRow({
 }: {
   automation: Automation;
   canEdit: boolean;
+  ownedByCaller: boolean;
   issues: ActivationIssue[];
   toggling: boolean;
   duplicating: boolean;
@@ -282,6 +330,8 @@ function AutomationRow({
   onDelete: () => void;
 }) {
   const trigger = triggerMeta(automation.trigger_type);
+  const available = isTriggerAvailable(automation.trigger_type);
+  const blockedOn = !available && !automation.is_active;
   const runs = automation.execution_count ?? 0;
   const lastRun = automation.last_executed_at
     ? formatRelative(automation.last_executed_at)
@@ -290,43 +340,72 @@ function AutomationRow({
   return (
     <li className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <Switch
-          checked={automation.is_active}
-          onCheckedChange={(checked) => onToggle(checked)}
-          disabled={!canEdit || toggling}
-          aria-label={`${automation.is_active ? 'Pause' : 'Turn on'} ${automation.name}`}
-        />
+        {ownedByCaller && (
+          <span
+            title={
+              blockedOn
+                ? 'This trigger is not yet available, so this automation cannot be turned on. Pick another trigger in the editor.'
+                : undefined
+            }
+          >
+            <Switch
+              checked={automation.is_active}
+              onCheckedChange={(checked) => onToggle(checked)}
+              disabled={!canEdit || toggling || blockedOn}
+              aria-label={`${automation.is_active ? 'Pause' : 'Turn on'} ${automation.name}`}
+            />
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/automations/${automation.id}/edit`}
-              className="truncate text-sm font-semibold text-white hover:underline"
-            >
-              {automation.name}
-            </Link>
+            {ownedByCaller ? (
+              <Link
+                href={`/automations/${automation.id}/edit`}
+                className="truncate text-sm font-semibold text-white hover:underline"
+              >
+                {automation.name}
+              </Link>
+            ) : (
+              <span className="truncate text-sm font-semibold text-white">
+                {automation.name}
+              </span>
+            )}
             <Badge
               variant="outline"
               className={cn('text-[10px]', trigger.pillClass)}
             >
-              {trigger.label}
+              {triggerLabel(automation.trigger_type)}
             </Badge>
-            {!automation.is_active && (
-              <span className="text-[11px] text-slate-400">Paused</span>
+            {ownedByCaller ? (
+              !automation.is_active && (
+                <span className="text-[11px] text-slate-400">Paused</span>
+              )
+            ) : (
+              <Badge variant="outline" className="text-[10px] text-slate-300">
+                {automation.is_active ? 'On' : 'Paused'}
+              </Badge>
             )}
           </div>
           <p className="mt-0.5 text-xs text-slate-400">
             {runs.toLocaleString()} {runs === 1 ? 'run' : 'runs'}
             {lastRun && ` · Last run ${lastRun}`}
           </p>
+          {!ownedByCaller && (
+            <p className="mt-0.5 text-xs text-slate-500">
+              Created by a teammate. Only its creator can change it for now.
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          <Link
-            href={`/automations/${automation.id}/edit`}
-            className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Edit
-          </Link>
+          {ownedByCaller && (
+            <Link
+              href={`/automations/${automation.id}/edit`}
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </Link>
+          )}
           <Link
             href={`/automations/${automation.id}/logs`}
             className={buttonVariants({ variant: 'ghost', size: 'sm' })}
@@ -334,29 +413,33 @@ function AutomationRow({
             <History className="h-3.5 w-3.5" />
             Logs
           </Link>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDuplicate}
-            disabled={!canEdit || duplicating}
-          >
-            {duplicating ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Copy className="h-3.5 w-3.5" />
-            )}
-            Duplicate
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDelete}
-            disabled={!canEdit}
-            className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete
-          </Button>
+          {ownedByCaller && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDuplicate}
+                disabled={!canEdit || duplicating}
+              >
+                {duplicating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+                Duplicate
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDelete}
+                disabled={!canEdit}
+                className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </Button>
+            </>
+          )}
         </div>
       </div>
       {issues.length > 0 && (

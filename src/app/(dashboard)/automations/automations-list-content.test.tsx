@@ -18,7 +18,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/hooks/use-auth', () => ({
-  useAuth: () => ({ accountId: 'acct-1' }),
+  useAuth: () => ({ accountId: 'acct-1', user: { id: 'u1' } }),
 }));
 
 vi.mock('@/hooks/use-can', () => ({ useCan: () => true }));
@@ -123,12 +123,115 @@ describe('AutomationsListContent', () => {
       name: 'Turn on Welcome new leads',
     });
     fireEvent.click(toggle);
+    fireEvent.click(await screen.findByRole('button', { name: 'Turn on' }));
     await screen.findByText('Add at least one step.');
     const patch = fetchMock.mock.calls.find(
       ([, init]) => init?.method === 'PATCH'
     );
     expect(patch?.[0]).toBe('/api/automations/a1');
     expect(JSON.parse(String(patch?.[1]?.body))).toEqual({ is_active: true });
+  });
+
+  it('asks for confirmation with the trigger sentence before turning one on', async () => {
+    const fetchMock = renderList((url, init) =>
+      init?.method === 'PATCH'
+        ? ok({ ok: true })
+        : ok({ automations: [automation()] })
+    );
+    fireEvent.click(
+      await screen.findByRole('switch', { name: 'Turn on Welcome new leads' })
+    );
+    await screen.findByText('Turn on “Welcome new leads”?');
+    expect(
+      screen.getByText(/This will run for every new contact/)
+    ).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')
+    ).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() =>
+      expect(screen.queryByText('Turn on “Welcome new leads”?')).toBe(null)
+    );
+    expect(
+      fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')
+    ).toBe(false);
+
+    fireEvent.click(
+      screen.getByRole('switch', { name: 'Turn on Welcome new leads' })
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Turn on' }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
+      ).toBeTruthy()
+    );
+    const patch = fetchMock.mock.calls.find(
+      ([, init]) => init?.method === 'PATCH'
+    );
+    expect(JSON.parse(String(patch?.[1]?.body))).toEqual({ is_active: true });
+  });
+
+  it('pauses immediately without a confirmation', async () => {
+    const fetchMock = renderList((url, init) =>
+      init?.method === 'PATCH'
+        ? ok({ ok: true })
+        : ok({ automations: [automation({ is_active: true })] })
+    );
+    fireEvent.click(
+      await screen.findByRole('switch', { name: 'Pause Welcome new leads' })
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
+      ).toBeTruthy()
+    );
+    expect(screen.queryByText(/Turn on “/)).toBe(null);
+    const patch = fetchMock.mock.calls.find(
+      ([, init]) => init?.method === 'PATCH'
+    );
+    expect(JSON.parse(String(patch?.[1]?.body))).toEqual({ is_active: false });
+  });
+
+  it('marks an unavailable trigger and will not turn it on', async () => {
+    renderList(() =>
+      ok({ automations: [automation({ trigger_type: 'tag_added' })] })
+    );
+    await screen.findByText('Tag Added (not yet available)');
+    const toggle = screen.getByRole('switch', {
+      name: 'Turn on Welcome new leads',
+    });
+    expect(
+      toggle.hasAttribute('disabled') ||
+        toggle.getAttribute('aria-disabled') === 'true' ||
+        toggle.hasAttribute('data-disabled')
+    ).toBe(true);
+    expect(toggle.closest('[title]')?.getAttribute('title')).toMatch(
+      /not yet available/
+    );
+  });
+
+  it("shows a teammate's automation read-only", async () => {
+    renderList(() =>
+      ok({ automations: [automation({ user_id: 'u2', is_active: true })] })
+    );
+    await screen.findByText('Welcome new leads');
+    expect(screen.queryByRole('switch')).toBe(null);
+    expect(screen.queryByRole('link', { name: /Edit/ })).toBe(null);
+    expect(screen.queryByRole('button', { name: /Duplicate/ })).toBe(null);
+    expect(screen.queryByRole('button', { name: /Delete/ })).toBe(null);
+    expect(screen.queryByRole('link', { name: 'Welcome new leads' })).toBe(
+      null
+    );
+    expect(
+      screen.getByRole('link', { name: /Logs/ }).getAttribute('href')
+    ).toBe('/automations/a1/logs');
+    expect(screen.getByText('On')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Created by a teammate. Only its creator can change it for now.'
+      )
+    ).toBeTruthy();
   });
 
   it('deletes only after the confirm dialog', async () => {
