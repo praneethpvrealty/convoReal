@@ -54,14 +54,6 @@ import { formatCurrency } from '@/lib/format/currency';
 // full details). Only when the window is closed AND the template isn't
 // approved yet does a recipient come back unsent (`templateMissing`),
 // and the UI offers the one-click template setup.
-//
-// The event is claimed before the first send and released or marked
-// sent at the end, so a second submit while a batch is still going out
-// gets a 409 instead of duplicate alerts. Each delivered target is
-// recorded as it lands and skipped by any later send of the event, so
-// a resubmit from a stale screen or a retry after a crashed batch
-// reaches only recipients who do not have the alert yet. `resend` lets
-// the re-engagement "Send again" button deliberately send it again.
 
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -249,9 +241,6 @@ export async function POST(request: NextRequest) {
       );
       return claimHeld;
     };
-    // A target is recorded before its alert goes out, so a run that dies
-    // mid-send can never be retried into a duplicate. Only a send that
-    // definitely did not go out is taken back off the list.
     const reserve = async (id: string) => {
       if (alreadyDelivered.has(id)) return claimHeld;
       delivered.push(id);
