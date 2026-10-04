@@ -412,6 +412,20 @@
               "case": "[INB-023]"
             }
           ]
+        },
+        {
+          "id": "INB-024",
+          "rule": "A reply quote shows the quoted message's WhatsApp formatting rather than its markers: on web and mobile the quote renders *bold*, _italic_, ~strike~ and ```monospace``` as formatting, while plain one-line previews such as the forward confirmation and pinned banner drop the markers, so a contact's reply to a digest never shows literal asterisks around the quoted header.",
+          "tests": [
+            {
+              "file": "src/components/inbox/reply-quote.test.tsx",
+              "case": "[INB-024]"
+            },
+            {
+              "file": "mobile/lib/message-actions.test.ts",
+              "case": "[INB-024]"
+            }
+          ]
         }
       ]
     },
