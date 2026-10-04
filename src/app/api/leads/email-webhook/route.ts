@@ -1042,7 +1042,6 @@ export async function POST(request: Request) {
       const updatePayload: {
         max_budget?: number | null;
         pref_budget_max?: number | null;
-        pref_budget_anchor?: number | null;
         areas_of_interest?: string[];
         pref_areas?: string[];
         property_interests?: string[];
@@ -1053,10 +1052,7 @@ export async function POST(request: Request) {
         lead_portal_listing_id?: string;
       } = {};
       if (maxBudget) updatePayload.max_budget = maxBudget;
-      else if (inferredBudget) {
-        updatePayload.pref_budget_max = inferredBudget;
-        updatePayload.pref_budget_anchor = inferredBudget;
-      }
+      else if (inferredBudget) updatePayload.pref_budget_max = inferredBudget;
       if (areasOfInterest.length > 0)
         updatePayload.areas_of_interest = areasOfInterest;
       if (inferredAreas.length > 0) {
@@ -1088,6 +1084,16 @@ export async function POST(request: Request) {
         // is the point of this webhook, not the backfill.
         .update(updatePayload)
         .eq('id', existingContact.id);
+
+      // Separate from the write above: the pref_budget_max trigger clears
+      // the anchor on every write of the budget, so only this one marks
+      // the budget as the enquiry's (INB-029).
+      if (updatePayload.pref_budget_max != null) {
+        await supabase
+          .from('contacts')
+          .update({ pref_budget_anchor: updatePayload.pref_budget_max })
+          .eq('id', existingContact.id);
+      }
 
       // Record the inquiry in the junction table. One portal email is an
       // inquiry about ONE listing — matchedPropertyIds is a ranked list of

@@ -773,6 +773,34 @@ describe('getMatchingContacts', () => {
       ).toHaveLength(0);
     });
 
+    it('[INB-029] ignores a locality the requirement history names once the contact has stated areas', () => {
+      const hsrHouse = createTestProperty({
+        type: 'Residential House',
+        price: 40000000,
+        location: 'Sector 2, HSR Layout, Bangalore',
+        sublocality: 'HSR Layout',
+        listing_type: 'Sale',
+        latitude: null,
+        longitude: null,
+      });
+      const restated = createTestContact({
+        requirements: '4 BHK house in HSR Layout\nPreferred location: Horamavu',
+        pref_property_types: ['Residential House'],
+        pref_areas: ['Horamavu'],
+        pref_listing_types: ['Sale'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      expect(getMatchingContacts(hsrHouse, [restated])).toHaveLength(0);
+
+      const unextracted = createTestContact({
+        requirements: '4 BHK house in HSR Layout',
+        pref_property_types: ['Residential House'],
+        pref_listing_types: ['Sale'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      expect(getMatchingContacts(hsrHouse, [unextracted])).toHaveLength(1);
+    });
+
     it('[INB-029] keeps the implied floor once a stated budget replaces the enquiry anchor', () => {
       const contact = createTestContact({
         pref_property_types: ['Residential House'],

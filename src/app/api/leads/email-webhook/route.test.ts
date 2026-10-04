@@ -1559,3 +1559,17 @@ describe('[PRP-014] a repeat portal enquiry reopens a closed one', () => {
     );
   });
 });
+
+describe('[INB-029] an existing contact re-seeded from an enquiry', () => {
+  it('anchors the budget in a write of its own, after the budget write', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('./route.ts', import.meta.url), 'utf8');
+    const budgetWrite = source.indexOf('.update(updatePayload)');
+    const anchorWrite = source.indexOf(
+      '.update({ pref_budget_anchor: updatePayload.pref_budget_max })'
+    );
+    expect(budgetWrite).toBeGreaterThan(-1);
+    expect(anchorWrite).toBeGreaterThan(budgetWrite);
+    expect(source).not.toMatch(/updatePayload\.pref_budget_anchor\s*=/);
+  });
+});

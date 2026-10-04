@@ -50,6 +50,7 @@ import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordLearnedFacts } from '@/lib/learning/record';
+import { valuesDiffer } from '@/lib/learning/fields';
 import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
 import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
@@ -1630,7 +1631,16 @@ export async function processBuyerQualificationMessage(
       // The message added nothing the contact didn't already say — it's
       // chatter ("ok", "call me"), not an answer. Don't file it as a
       // requirement and don't answer it; the agent owns this thread.
-      if (preferenceSignature(extracted) === preferenceSignature(prefs))
+      const storedAreasStale =
+        restated !== null &&
+        [contact.pref_areas, contact.areas_of_interest].some(
+          (stored) =>
+            (stored?.length ?? 0) > 0 && valuesDiffer(stored, restated)
+        );
+      if (
+        !storedAreasStale &&
+        preferenceSignature(extracted) === preferenceSignature(prefs)
+      )
         return false;
 
       prefs = extracted;

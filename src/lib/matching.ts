@@ -1129,9 +1129,17 @@ function matchContactsSingleProfile(
     // Direct mention of the property's locality/project/internal tag in
     // requirements or notes counts as a match. Tags are Engine-only, but
     // this lets an agent's own builder/campaign shorthand find inventory.
+    // A locality mention counts only for a contact with no stated areas:
+    // the extraction reads the same text, so stated areas already carry
+    // every locality the contact still wants, and the text keeps the ones
+    // a later answer replaced (INB-029).
+    const hasStatedAreas = explicitAreas.length > 0 || aiAreas.length > 0;
     if (locationVerdict !== 'match' && combinedText) {
       if (
-        (propSub && propSub.length > 2 && combinedText.includes(propSub)) ||
+        (!hasStatedAreas &&
+          propSub &&
+          propSub.length > 2 &&
+          combinedText.includes(propSub)) ||
         (propProject &&
           propProject.length > 2 &&
           combinedText.includes(propProject)) ||
