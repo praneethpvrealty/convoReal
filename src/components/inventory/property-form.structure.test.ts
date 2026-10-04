@@ -127,4 +127,21 @@ describe('property-form.tsx stays split into its tab components', () => {
     expect(form).toContain('generatingDescription={generatingDescription}');
     expect(section).not.toContain('useState(');
   });
+
+  it('keeps the media operation in-flight flags above the unmounting form, so a reopen cannot start them twice', () => {
+    const form = inventorySource('property-form.tsx');
+    const media = inventorySource('property-form/media-section.tsx');
+    for (const flag of [
+      'lockingImagePath',
+      'removingVideo',
+      'uploadingDocument',
+      'uploadingImage',
+    ]) {
+      expect(form).toContain(`${flag}={${flag}}`);
+    }
+    expect(form).toContain(
+      'const [uploadingImage, setUploadingImage] = useState(false);'
+    );
+    expect(media).not.toContain('useState(');
+  });
 });

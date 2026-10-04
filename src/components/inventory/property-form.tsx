@@ -283,6 +283,10 @@ export function PropertyForm({
 
   const [saving, setSaving] = useState(false);
   const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [lockingImagePath, setLockingImagePath] = useState<string | null>(null);
+  const [removingVideo, setRemovingVideo] = useState(false);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [contactedContactIds, setContactedContactIds] = useState<Set<string>>(
     new Set()
   );
@@ -2648,6 +2652,14 @@ export function PropertyForm({
                         readingEKhata={readingEKhata}
                         eKhataInputRef={eKhataInputRef}
                         onReadEKhata={onReadEKhata}
+                        lockingImagePath={lockingImagePath}
+                        setLockingImagePath={setLockingImagePath}
+                        removingVideo={removingVideo}
+                        setRemovingVideo={setRemovingVideo}
+                        uploadingDocument={uploadingDocument}
+                        setUploadingDocument={setUploadingDocument}
+                        uploadingImage={uploadingImage}
+                        setUploadingImage={setUploadingImage}
                       />
                     }
                   />

@@ -1,6 +1,11 @@
 'use client';
 
-import { useRef, useState, type RefObject } from 'react';
+import {
+  useRef,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import {
@@ -46,6 +51,14 @@ interface MediaSectionProps {
   readingEKhata: boolean;
   eKhataInputRef: RefObject<HTMLInputElement | null>;
   onReadEKhata: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+  lockingImagePath: string | null;
+  setLockingImagePath: Dispatch<SetStateAction<string | null>>;
+  removingVideo: boolean;
+  setRemovingVideo: Dispatch<SetStateAction<boolean>>;
+  uploadingDocument: boolean;
+  setUploadingDocument: Dispatch<SetStateAction<boolean>>;
+  uploadingImage: boolean;
+  setUploadingImage: Dispatch<SetStateAction<boolean>>;
 }
 
 function isDocumentImage(blob: Blob): Promise<boolean> {
@@ -91,6 +104,14 @@ export function MediaSection({
   readingEKhata,
   eKhataInputRef,
   onReadEKhata,
+  lockingImagePath,
+  setLockingImagePath,
+  removingVideo,
+  setRemovingVideo,
+  uploadingDocument,
+  setUploadingDocument,
+  uploadingImage,
+  setUploadingImage,
 }: MediaSectionProps) {
   const {
     images,
@@ -102,11 +123,6 @@ export function MediaSection({
   } = values;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
-
-  const [lockingImagePath, setLockingImagePath] = useState<string | null>(null);
-  const [removingVideo, setRemovingVideo] = useState(false);
-  const [uploadingDocument, setUploadingDocument] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   async function onUploadImages(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
