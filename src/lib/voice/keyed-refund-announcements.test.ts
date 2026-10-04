@@ -371,7 +371,46 @@ describe('creating an announcement [CRD-005]', () => {
     expect(h.refundBurn).not.toHaveBeenCalled();
     const key = h.burnCredits.mock.calls[0][3].retryKey;
     expect(logged).toHaveBeenCalledWith(
-      expect.stringContaining(`${key} is held until reconciled manually`)
+      expect.stringContaining(`charged under ${key}`)
+    );
+    expect(logged).toHaveBeenCalledWith(
+      expect.stringContaining('held until reconciled manually')
+    );
+  });
+
+  it('cancels a row the insert may have committed before refunding, so it cannot sit generating with its charge returned', async () => {
+    h.insertFails = true;
+    h.cancelResult = { data: [{ id: 'ann-1' }], error: null };
+
+    const res = await post();
+
+    expect(res.status).toBe(500);
+    expect(h.routeUpdates).toEqual([
+      { status: 'failed', error: 'Could not be queued' },
+    ]);
+    expect(h.refundBurn).toHaveBeenCalledTimes(1);
+  });
+
+  it('refunds when no row exists under the charge, so the insert really did fail', async () => {
+    h.insertFails = true;
+    h.cancelResult = { data: [], error: null };
+    h.routeRead = { data: null, error: null };
+
+    await post();
+
+    expect(h.refundBurn).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds the refund when an insert failed and the row cannot be looked up', async () => {
+    h.insertFails = true;
+    h.cancelResult = { data: null, error: { message: 'db down' } };
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await post();
+
+    expect(h.refundBurn).not.toHaveBeenCalled();
+    expect(logged).toHaveBeenCalledWith(
+      expect.stringContaining('held until reconciled manually')
     );
   });
 

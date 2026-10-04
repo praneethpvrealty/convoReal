@@ -20,17 +20,16 @@ const TEXT_MAX = 1200;
 
 const UNQUEUED_ERROR = 'Could not be queued';
 
-async function failUnqueuedAnnouncement(
+async function cancelAnnouncementByKey(
   supabase: SupabaseClient,
   accountId: string,
-  announcementId: string,
   burnKey: string
-): Promise<'failed' | 'taken' | 'unknown'> {
+): Promise<'failed' | 'none' | 'taken' | 'unknown'> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data, error } = await supabase
       .from('voice_announcements')
       .update({ status: 'failed', error: UNQUEUED_ERROR })
-      .eq('id', announcementId)
+      .eq('burn_key', burnKey)
       .eq('account_id', accountId)
       .eq('status', 'generating')
       .select('id');
@@ -39,11 +38,12 @@ async function failUnqueuedAnnouncement(
       const { data: row, error: readError } = await supabase
         .from('voice_announcements')
         .select('status, error')
-        .eq('id', announcementId)
+        .eq('burn_key', burnKey)
         .eq('account_id', accountId)
         .maybeSingle();
       if (!readError) {
-        return row?.status === 'failed' && row.error === UNQUEUED_ERROR
+        if (!row) return 'none';
+        return row.status === 'failed' && row.error === UNQUEUED_ERROR
           ? 'failed'
           : 'taken';
       }
@@ -51,7 +51,7 @@ async function failUnqueuedAnnouncement(
     await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** attempt));
   }
   console.error(
-    `[announcements] Announcement ${announcementId} for account ${accountId} could not be marked failed after its job was not queued; its charge ${burnKey} is held until reconciled manually`
+    `[announcements] The announcement charged under ${burnKey} for account ${accountId} could not be cancelled after it was not queued; its charge is held until reconciled manually`
   );
   return 'unknown';
 }
@@ -150,9 +150,16 @@ export async function POST(request: NextRequest) {
       .select('id, title, status, language')
       .single();
     if (insertErr || !announcement) {
-      await refundBurn(ctx.accountId, 'audio_announcement', burnKey, {
-        reason: 'audio_announcement insert failed',
-      });
+      const outcome = await cancelAnnouncementByKey(
+        ctx.supabase,
+        ctx.accountId,
+        burnKey
+      );
+      if (outcome === 'failed' || outcome === 'none') {
+        await refundBurn(ctx.accountId, 'audio_announcement', burnKey, {
+          reason: 'audio_announcement insert failed',
+        });
+      }
       return NextResponse.json(
         { error: insertErr?.message || 'Failed to create announcement' },
         { status: 500 }
@@ -174,13 +181,12 @@ export async function POST(request: NextRequest) {
         })
       );
     } catch (err) {
-      const outcome = await failUnqueuedAnnouncement(
+      const outcome = await cancelAnnouncementByKey(
         ctx.supabase,
         ctx.accountId,
-        announcement.id,
         burnKey
       );
-      if (outcome === 'failed') {
+      if (outcome === 'failed' || outcome === 'none') {
         await refundBurn(ctx.accountId, 'audio_announcement', burnKey, {
           reason: 'audio_announcement could not be queued',
         });
