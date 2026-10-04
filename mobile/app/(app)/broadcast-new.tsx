@@ -27,9 +27,11 @@ import { apiFetch, ApiError } from '@/lib/api';
 import {
   buildAudience,
   CONTACT_FIELDS,
+  contactsLabel,
   defaultVariableMappings,
   mappingsComplete,
   previewBody,
+  recountOutcome,
   templateVariableKeys,
   type VariableMapping,
 } from '@/lib/broadcast-compose';
@@ -61,6 +63,7 @@ export default function NewBroadcastScreen() {
     {}
   );
   const [sending, setSending] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialog = useAppDialog();
 
@@ -163,17 +166,36 @@ export default function NewBroadcastScreen() {
     mappingsComplete(variableKeys, variables) &&
     (recipientCount ?? 0) > 0;
 
-  const recipientsLabel = `${recipientCount ?? 0} contact${(recipientCount ?? 0) === 1 ? '' : 's'}`;
+  const recipientsLabel = contactsLabel(recipientCount ?? 0);
 
-  function confirmSend() {
+  async function confirmSend() {
     haptic.tap();
+    setConfirming(true);
+    const outcome = recountOutcome(await recount());
+    setConfirming(false);
+    if (outcome.kind === 'failed') {
+      dialog.show({
+        title: 'Could not count recipients',
+        message:
+          'Nothing was sent. Check your connection and try again, so you confirm the current number.',
+      });
+      return;
+    }
+    if (outcome.kind === 'empty') {
+      dialog.show({
+        title: 'Nobody to send to',
+        message:
+          'No contacts in this audience can receive this broadcast right now. Nothing was sent.',
+      });
+      return;
+    }
     dialog.show({
       title: 'Send this broadcast?',
-      message: `“${name.trim()}” goes to ${recipientsLabel} now. Sending cannot be undone.`,
+      message: `“${name.trim()}” goes to ${outcome.label} now. Sending cannot be undone.`,
       actions: [
         { label: 'Cancel', variant: 'muted', onPress: dialog.close },
         {
-          label: `Send to ${recipientsLabel}`,
+          label: `Send to ${outcome.label}`,
           variant: 'primary',
           onPress: () => {
             dialog.close();
@@ -543,9 +565,9 @@ export default function NewBroadcastScreen() {
                       ? 'Choose an audience'
                       : `Send to ${recipientsLabel}`
                 }
-                onPress={confirmSend}
-                disabled={!ready || sending}
-                busy={sending}
+                onPress={() => void confirmSend()}
+                disabled={!ready || sending || confirming}
+                busy={sending || confirming}
               />
               <Text
                 style={{
