@@ -420,7 +420,7 @@ export function valuesDiffer(a: unknown, b: unknown): boolean {
       list
         .map((v) => String(v).toLowerCase())
         .sort()
-        .join(' ');
+        .join('\u0000');
     return norm(a) !== norm(b);
   }
   if (Array.isArray(a) || Array.isArray(b)) return true;

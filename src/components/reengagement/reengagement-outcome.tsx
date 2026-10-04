@@ -20,7 +20,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import {
   loadReengagementSummary,
   loadReengagementLeads,

@@ -49,7 +49,7 @@ import {
 } from '@/lib/contacts/import-csv';
 import { loadBatchSplit, type BatchSplit } from '@/lib/reengagement/queries';
 import { canSendToEveryLead } from '@/lib/reengagement/template-gate';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { BRANDING } from '@/config/branding';
 import { formatInrCompact } from '@/lib/format/currency';
 

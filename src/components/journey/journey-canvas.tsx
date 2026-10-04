@@ -60,7 +60,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
-import { useTheme } from '@/hooks/use-theme';
+import { useTheme } from '@/hooks/useTheme';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import type { Contact, JourneyItem, JourneyStage, Property } from '@/types';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';

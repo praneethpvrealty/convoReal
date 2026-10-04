@@ -5,8 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Mic, Plus, Send, Trash2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { cn } from '@/lib/utils';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {

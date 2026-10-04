@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, cleanup, screen, waitFor } from '@testing-library/react';
 import type { Contact } from '@/types';
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'u1' }, accountId: 'acct-1' }),
 }));
 

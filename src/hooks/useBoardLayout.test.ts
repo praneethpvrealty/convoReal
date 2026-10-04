@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { BOARD_LAYOUT_STORAGE_KEY } from '@/lib/pipelines/board-layout';
-import { useBoardLayout } from './use-board-layout';
+import { useBoardLayout } from './useBoardLayout';
 
 afterEach(() => {
   localStorage.clear();

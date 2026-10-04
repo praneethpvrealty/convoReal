@@ -5,7 +5,7 @@ import { Landmark, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
   rateHeadline,

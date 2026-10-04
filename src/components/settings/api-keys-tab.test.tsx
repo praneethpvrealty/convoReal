@@ -31,7 +31,7 @@ const auth = vi.hoisted(() => ({
 }));
 const plan = vi.hoisted(() => ({ allowed: true }));
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
     canManageMembers: auth.canManageMembers,
     accountRole: auth.accountRole,

@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Building2, Loader2, MapPin, Pencil, Plus, Layers } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { listProjects, type ProjectWithStats } from '@/lib/inventory/projects';
 import {

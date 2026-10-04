@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { CONVOREAL_QUICK_START_GUIDE_URL } from '@/lib/beta/invites';
 
 type InviteRole = 'admin' | 'coordinator' | 'agent' | 'viewer';

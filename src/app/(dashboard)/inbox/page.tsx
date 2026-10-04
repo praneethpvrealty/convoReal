@@ -9,7 +9,7 @@ import type {
   Contact,
   ConversationStatus,
 } from '@/types';
-import { useRealtime } from '@/hooks/use-realtime';
+import { useRealtime } from '@/hooks/useRealtime';
 import { ConversationList } from '@/components/inbox/conversation-list';
 import { MessageThread } from '@/components/inbox/message-thread';
 import type { TemplateIntent } from '@/components/inbox/template-picker';
@@ -17,7 +17,7 @@ import { ContactSidebar } from '@/components/inbox/contact-sidebar';
 import { mergeConversations } from '@/lib/conversations/merge';
 import { WifiOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function InboxPage() {
   const searchParams = useSearchParams();

@@ -11,7 +11,7 @@ import {
 } from 'react';
 
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import {
   DEFAULT_LANGUAGE,
   MAX_UI_LANGUAGES,

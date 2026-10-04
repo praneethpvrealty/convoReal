@@ -12,7 +12,7 @@ import {
 import type { Property } from '@/types';
 import { PropertyRequestsPanels } from './property-requests-panels';
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'viewer' }, accountId: 'acct-1' }),
 }));
 

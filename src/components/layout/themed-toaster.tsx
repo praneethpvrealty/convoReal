@@ -2,7 +2,7 @@
 
 import { Toaster } from 'sonner';
 
-import { useTheme } from '@/hooks/use-theme';
+import { useTheme } from '@/hooks/useTheme';
 
 /**
  * Sonner toaster that follows the light/dark mode toggle. The old

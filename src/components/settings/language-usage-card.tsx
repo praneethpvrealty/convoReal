@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Card,
   CardContent,

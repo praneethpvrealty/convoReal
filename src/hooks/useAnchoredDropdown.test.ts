@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeAnchoredPosition } from './use-anchored-dropdown';
+import { computeAnchoredPosition } from './useAnchoredDropdown';
 
 const viewport = { width: 1440, height: 900 };
 

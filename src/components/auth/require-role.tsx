@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { hasMinRole, type AccountRole } from '@/lib/auth/roles';
 
 interface RequireRoleProps {

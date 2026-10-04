@@ -11,7 +11,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { resolveConversation } from '@/lib/conversations/resolve';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { Contact, Tag, ContactTag, Property } from '@/types';
@@ -73,7 +73,7 @@ import { ContactCleanupDialog } from '@/components/contacts/cleanup-dialog';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { UnmappedPortalAds } from '@/components/contacts/unmapped-portal-ads';
 import { ReengageWizard } from '@/components/contacts/reengage-wizard';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import { GatedButton } from '@/components/ui/gated-button';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { splitImportedName } from '@/lib/contacts/name-tag-split';
@@ -115,7 +115,7 @@ import {
   areaOptionLabel,
   MAX_SELECTED_AREAS,
 } from '@/lib/contacts/area-variants';
-import { useT } from '@/hooks/use-locale';
+import { useT } from '@/hooks/useLocale';
 import {
   CONTACTS_PAGE_SIZE,
   loadAreaOptions,

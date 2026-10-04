@@ -9,7 +9,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ accountId: 'acct-1' }),
 }));
 

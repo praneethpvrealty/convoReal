@@ -57,7 +57,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { RequireRole } from '@/components/auth/require-role';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { usePlan } from '@/hooks/usePlan';
 import { cn } from '@/lib/utils';
 

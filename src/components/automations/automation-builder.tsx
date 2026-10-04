@@ -43,7 +43,7 @@ import type {
   KeywordMatchTriggerConfig,
 } from '@/types';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)

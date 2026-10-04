@@ -19,7 +19,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, MapPinOff } from 'lucide-react';
 import { formatCurrencyShort } from '@/lib/currency-utils';
-import { useT } from '@/hooks/use-locale';
+import { useT } from '@/hooks/useLocale';
 import type { Property } from '@/types';
 
 const BROWSER_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
