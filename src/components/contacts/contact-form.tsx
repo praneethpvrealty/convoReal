@@ -18,12 +18,7 @@ import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { contactHandle } from '@/lib/contacts/reachability';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
-import {
-  LANGUAGE_CODES,
-  languageDisplay,
-  type LanguageCode,
-} from '@/lib/languages';
-import type { UpdateChannel } from '@/lib/voice/announcements';
+import { LANGUAGE_CODES, languageDisplay } from '@/lib/languages';
 import {
   Dialog,
   DialogContent,
@@ -69,29 +64,17 @@ export function ContactForm({
   const isEdit = !!contact;
 
   const [name, setName] = useState('');
-  const [salutation, setSalutation] = useState<'Mr.' | 'Mrs.' | ''>('');
+  const [salutation, setSalutation] = useState('');
   const [secondName, setSecondName] = useState('');
   const [nameTag, setNameTag] = useState('');
   const [phone, setPhone] = useState('');
   const [secondaryPhones, setSecondaryPhones] = useState<string[]>([]);
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
-  const [classification, setClassification] = useState<
-    | 'Owner'
-    | 'Seller'
-    | 'Buyer'
-    | 'Agent'
-    | 'Developer'
-    | 'Owner & Buyer'
-    | 'Others'
-  >('Others');
-  const [leadTemp, setLeadTemp] = useState<
-    'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''
-  >('');
-  const [updateChannel, setUpdateChannel] = useState<UpdateChannel | ''>('');
-  const [preferredLanguage, setPreferredLanguage] = useState<LanguageCode | ''>(
-    ''
-  );
+  const [classification, setClassification] = useState('Others');
+  const [leadTemp, setLeadTemp] = useState('');
+  const [updateChannel, setUpdateChannel] = useState('');
+  const [preferredLanguage, setPreferredLanguage] = useState('');
   const [lastInquiredPropertyId, setLastInquiredPropertyId] = useState<
     string | null
   >(null);
@@ -104,9 +87,7 @@ export function ContactForm({
   const [source, setSource] = useState('');
   const [saving, setSaving] = useState(false);
   const [dob, setDob] = useState('');
-  const [feedbackStatus, setFeedbackStatus] = useState<
-    'not_requested' | 'requested' | 'collected'
-  >('not_requested');
+  const [feedbackStatus, setFeedbackStatus] = useState('not_requested');
 
   // Notes state
   const [notesText, setNotesText] = useState('');
@@ -209,7 +190,7 @@ export function ContactForm({
       setSecondaryPhones(contact?.secondary_phones ?? []);
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
-      setClassification((contact as Contact)?.classification ?? 'Others');
+      setClassification(contact?.classification ?? 'Others');
       setLeadTemp(contact?.lead_temp ?? '');
       setUpdateChannel(contact?.preferred_update_channel ?? '');
       setLastInquiredPropertyId(contact?.last_inquired_property_id ?? null);
@@ -746,18 +727,7 @@ export function ContactForm({
               <select
                 id="cf-classification"
                 value={classification}
-                onChange={(e) =>
-                  setClassification(
-                    e.target.value as
-                      | 'Owner'
-                      | 'Seller'
-                      | 'Buyer'
-                      | 'Agent'
-                      | 'Developer'
-                      | 'Owner & Buyer'
-                      | 'Others'
-                  )
-                }
+                onChange={(e) => setClassification(e.target.value)}
                 className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
               >
                 <option value="Others">Others</option>
@@ -812,12 +782,7 @@ export function ContactForm({
               <select
                 id="cf-lead-temp"
                 value={leadTemp}
-                onChange={(e) =>
-                  setLeadTemp(
-                    e.target.value as
-                      'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''
-                  )
-                }
+                onChange={(e) => setLeadTemp(e.target.value)}
                 className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
               >
                 <option value="">None</option>
@@ -835,9 +800,7 @@ export function ContactForm({
               <select
                 id="cf-preferred-language"
                 value={preferredLanguage}
-                onChange={(e) =>
-                  setPreferredLanguage(e.target.value as LanguageCode | '')
-                }
+                onChange={(e) => setPreferredLanguage(e.target.value)}
                 className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
               >
                 <option value="">Use account default</option>
@@ -860,9 +823,7 @@ export function ContactForm({
               <select
                 id="cf-update-channel"
                 value={updateChannel}
-                onChange={(e) =>
-                  setUpdateChannel(e.target.value as UpdateChannel | '')
-                }
+                onChange={(e) => setUpdateChannel(e.target.value)}
                 className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
               >
                 <option value="">No preference</option>

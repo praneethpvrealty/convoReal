@@ -4057,6 +4057,45 @@
           ]
         }
       ]
+    },
+    {
+      "id": "credits",
+      "name": "AI credits wallet and transaction history",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "CRD-001",
+          "rule": "The credits history names what each row was for, never the marker the ledger stores: a refund reads \"Refund — <feature>\" and a charge reads the feature's name, whether its description is a refund marker (refund:<burn id>), a retry key (retry:<key>) or \"<feature> burn\", while a description a person wrote is kept as written. Web (including its CSV export) and mobile render the one label from the same function, so the two surfaces cannot disagree about it.",
+          "tests": [
+            {
+              "file": "src/lib/format/ledger-label.test.ts",
+              "case": "[CRD-001]"
+            }
+          ],
+          "guards": [
+            "src/lib/format/ledger-label.ts",
+            "src/components/settings/CreditLedger.tsx",
+            "mobile/app/(app)/credits.tsx"
+          ]
+        },
+        {
+          "id": "CRD-002",
+          "rule": "A voice call attempt, a reminder call and a listing video render are refunded by the charge each one made, never by feature and amount: a dial is charged and refunded under voice-call:<recipient>:<attempt>, shared by the dispatcher's start-failure and stale-requeue refunds and the post-call webhook's no-answer refund; a reminder call is refunded under its own retry key; and a listing video's burn key travels in the queued job, with a job queued before keys existed still refunded by amount. Each refund goes through refundBurn, so it reverses at most the rows written under that key and is queued for the hourly credit-refunds cron if the call fails.",
+          "tests": [
+            {
+              "file": "src/lib/voice/keyed-refunds.test.ts",
+              "case": "[CRD-002]"
+            }
+          ],
+          "guards": [
+            "src/lib/voice/campaigns.ts",
+            "src/app/api/cron/voice-campaigns/route.ts",
+            "src/app/api/webhooks/voice-agent/route.ts",
+            "src/lib/voice/reminder-call.ts",
+            "src/lib/video/listing-video-worker.ts"
+          ]
+        }
+      ]
     }
   ]
 }

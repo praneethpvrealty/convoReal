@@ -53,9 +53,7 @@ export async function grantAlertsConsent(
       .maybeSingle();
     if (!contact) return false;
 
-    const promoted = classificationAfterSubscribe(
-      contact.classification as Contact['classification'] | null
-    );
+    const promoted = classificationAfterSubscribe(contact.classification);
     const { error } = await db
       .from('contacts')
       .update({

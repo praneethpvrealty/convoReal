@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **A voice call that never connects, and a listing video that fails to
+  render, are refunded exactly once, and a refund that fails is retried.** They
+  used to be returned by feature and amount, which takes the most recent
+  matching charge and could not be retried safely. Each now reverses the
+  charge it made, and a refund that still fails is queued for the hourly
+  retry. Invariant CRD-002.
+- **The credits history says what each charge and refund was for.** Rows
+  read "Refund — Photo enhancement" or "Daily conversation review" instead of
+  `refund:<id>`, `retry:<key>` or `chatbot_classify burn`, on web (including the
+  CSV export) and mobile alike; a description a person wrote is kept as written.
+  Invariant CRD-001.
 - **Roles can no longer be self-edited.** A signed-in member's own profile
   update could change their account, role, team, platform role or read-only
   status directly, which every role-based permission reads, and a Portfolio

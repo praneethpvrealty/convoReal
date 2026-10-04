@@ -130,7 +130,9 @@ export function DealForm({
       setLostReason(isLostReason(deal.lost_reason) ? deal.lost_reason : null);
       setLostNote(deal.lost_note ?? '');
       setPropertyId(deal.property_id ?? '');
-      setBrokerageType(deal.brokerage_type || 'percentage');
+      setBrokerageType(
+        deal.brokerage_type === 'fixed' ? 'fixed' : 'percentage'
+      );
       setBrokerageValue(
         deal.brokerage_value ? String(deal.brokerage_value) : ''
       );
@@ -240,7 +242,9 @@ export function DealForm({
 
     const dealStatus: DealStatus = selectedStage
       ? dealStatusForStage(selectedStage)
-      : deal?.status || 'open';
+      : deal?.status === 'won' || deal?.status === 'lost'
+        ? deal.status
+        : 'open';
     const isClosed = dealStatus !== 'open';
     if (
       dealStatus === 'lost' &&

@@ -172,7 +172,8 @@ export async function loadHotGoingQuiet(db: DB): Promise<QuietHotLead[]> {
       ? new Date(contact.last_contacted_at).getTime()
       : null;
     if (lastTouch !== null && lastTouch > cutoff) continue;
-    const silentSince = lastTouch ?? new Date(contact.created_at).getTime();
+    const silentSince =
+      lastTouch ?? new Date(contact.created_at ?? 0).getTime();
     leads.push({
       contact,
       daysSilent: Math.max(0, Math.floor((Date.now() - silentSince) / DAY_MS)),
