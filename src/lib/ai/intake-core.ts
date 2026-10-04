@@ -519,3 +519,26 @@ export function absorbContactDrafts(
   }
   return { contacts: merged };
 }
+
+export const CONTACT_CONFIRM_BUTTON = 'confirm_contact';
+
+export function contactConfirmButtonId(version: string | null): string {
+  return version
+    ? `${CONTACT_CONFIRM_BUTTON}:${version}`
+    : CONTACT_CONFIRM_BUTTON;
+}
+
+export function readContactConfirm(
+  buttonId: string | null | undefined,
+  lowerText: string
+): { version: string | null } | null {
+  if (buttonId?.startsWith(`${CONTACT_CONFIRM_BUTTON}:`)) {
+    return {
+      version: buttonId.slice(CONTACT_CONFIRM_BUTTON.length + 1) || null,
+    };
+  }
+  if (buttonId === CONTACT_CONFIRM_BUTTON || lowerText === 'confirm') {
+    return { version: null };
+  }
+  return null;
+}

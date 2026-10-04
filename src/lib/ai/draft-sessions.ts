@@ -180,15 +180,18 @@ export async function overwriteContactDraftSession(
   id: string,
   draftData: ParsedContactDraftsContainer,
   status: DraftSessionStatus
-): Promise<void> {
-  await db
+): Promise<string | null> {
+  const { data } = await db
     .from('contact_draft_sessions')
     .update({
       draft_data: draftData,
       status,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', id);
+    .eq('id', id)
+    .select('updated_at')
+    .maybeSingle();
+  return data?.updated_at ?? null;
 }
 
 async function mutateDraftRow<

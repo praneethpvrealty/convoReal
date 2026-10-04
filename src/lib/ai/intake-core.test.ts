@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   absorbContactDrafts,
+  contactConfirmButtonId,
+  readContactConfirm,
   applyExplicitContactDraftUpdate,
   deriveDraftStatus,
   validateDraft,
@@ -989,5 +991,34 @@ describe('[INB-025] absorbContactDrafts', () => {
     expect(out.contacts).toHaveLength(2);
     expect(out.contacts[0].email).toBe('a@x.com');
     expect(out.contacts[1].name).toBe('Chetan');
+  });
+});
+
+describe('[INB-026] the contact draft Confirm button', () => {
+  const version = '2026-10-04T10:00:00.123456+00:00';
+
+  it('carries the version of the draft the card shows', () => {
+    expect(contactConfirmButtonId(version)).toBe(`confirm_contact:${version}`);
+    expect(contactConfirmButtonId(null)).toBe('confirm_contact');
+    expect(contactConfirmButtonId(version).length).toBeLessThanOrEqual(256);
+  });
+
+  it('reads the version back from a tap, even though the tap text is the title', () => {
+    expect(
+      readContactConfirm(contactConfirmButtonId(version), 'confirm')
+    ).toEqual({ version });
+  });
+
+  it('accepts a card sent before versions and a typed confirm without a version', () => {
+    expect(readContactConfirm('confirm_contact', 'confirm')).toEqual({
+      version: null,
+    });
+    expect(readContactConfirm(null, 'confirm')).toEqual({ version: null });
+  });
+
+  it('ignores every other tap and text', () => {
+    expect(readContactConfirm('cancel_contact', 'cancel')).toBeNull();
+    expect(readContactConfirm(null, 'confirmed it')).toBeNull();
+    expect(readContactConfirm('link_contact:c1', 'use ravi')).toBeNull();
   });
 });

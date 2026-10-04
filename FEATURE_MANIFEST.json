@@ -440,6 +440,24 @@
               "case": "[INB-025]"
             }
           ]
+        },
+        {
+          "id": "INB-026",
+          "rule": "A contact draft card's Confirm button carries the version of the draft it shows, and Confirm saves only that version: a tap on a card the draft has since moved past saves nothing and sends the current draft instead. A Confirm from a card sent before versions existed, or a typed \"confirm\", confirms the current draft as before.",
+          "tests": [
+            {
+              "file": "src/lib/ai/intake-core.test.ts",
+              "case": "[INB-026]"
+            },
+            {
+              "file": "src/lib/ai/draft-sessions.test.ts",
+              "case": "[INB-026]"
+            },
+            {
+              "file": "src/lib/ai/chatbot-engine.structure.test.ts",
+              "case": "[INB-026]"
+            }
+          ]
         }
       ]
     },

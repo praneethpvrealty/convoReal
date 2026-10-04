@@ -193,3 +193,41 @@ describe('the external text correction', () => {
     expect(correction.match(/softBurn\(/g)).toHaveLength(1);
   });
 });
+
+describe('[INB-026] confirming a contact draft', () => {
+  it('builds the Confirm button from the version the card shows', () => {
+    expect(source).not.toContain("id: 'confirm_contact'");
+    expect(source).toContain(
+      "{ id: contactConfirmButtonId(version), title: 'Confirm' }"
+    );
+  });
+
+  it('passes a version to every contact preview', () => {
+    const calls = source.split('await sendContactDraftPreview(').slice(1);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      const args = call.slice(0, call.indexOf(');'));
+      expect(args).toMatch(
+        /accountId,\s*(version|row\.updated_at|contactSession\.updated_at)\s*$/
+      );
+    }
+  });
+
+  it('refuses a stale card before saving and shows the current draft instead', () => {
+    const handler = source.slice(
+      source.indexOf(
+        'const confirmRequest = readContactConfirm(buttonId, lowerText);'
+      )
+    );
+    const staleCheck = handler.indexOf(
+      'confirmRequest.version !== contactSession.updated_at'
+    );
+    const save = handler.indexOf('if (confirmRequest) {');
+    expect(staleCheck).toBeGreaterThan(-1);
+    expect(staleCheck).toBeLessThan(save);
+    expect(handler.slice(staleCheck, save)).toContain(
+      'This draft changed after that card'
+    );
+    expect(handler.slice(staleCheck, save)).toContain('return true;');
+  });
+});
