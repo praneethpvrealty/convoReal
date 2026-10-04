@@ -411,6 +411,7 @@ export async function POST(request: NextRequest) {
 // docs/meta-ads-integration-plan.md §6). The connection state is always
 // returned so the dashboard can say whether managing ads will work.
 const INSIGHTS_STALE_MS = 15 * 60 * 1000;
+const LEGACY_REFRESH_BATCH = 5;
 
 function inInsightsWindow(cached: unknown): boolean {
   return (
@@ -498,18 +499,26 @@ export async function GET() {
       leadCountByAdId = leadCountsByAd(counts ?? []);
     }
 
-    // Refresh stale insights for live campaigns. An archived/errored row
-    // is refetched only once, when its cache predates the 30-day window
-    // and still holds lifetime totals.
-    const needsRefresh = campaigns.filter(
-      (c) =>
-        c.campaign_id &&
-        (!inInsightsWindow(c.last_insights) ||
-          (['ACTIVE', 'PAUSED'].includes(c.status) &&
-            (!c.last_insights_at ||
-              now - new Date(c.last_insights_at).getTime() >
-                INSIGHTS_STALE_MS)))
-    );
+    // Refresh stale insights for live campaigns. A cache from before the
+    // 30-day window holds lifetime totals: an archived/errored row with one
+    // is refetched once, a few per request so the page stays fast.
+    const isLive = (c: { status: string }) =>
+      ['ACTIVE', 'PAUSED'].includes(c.status);
+    const isLegacy = (c: { last_insights: unknown }) =>
+      c.last_insights != null && !inInsightsWindow(c.last_insights);
+    const needsRefresh = [
+      ...campaigns.filter(
+        (c) =>
+          c.campaign_id &&
+          isLive(c) &&
+          (isLegacy(c) ||
+            !c.last_insights_at ||
+            now - new Date(c.last_insights_at).getTime() > INSIGHTS_STALE_MS)
+      ),
+      ...campaigns
+        .filter((c) => c.campaign_id && !isLive(c) && isLegacy(c))
+        .slice(0, LEGACY_REFRESH_BATCH),
+    ];
 
     const refreshedById = new Map<
       string,
@@ -549,9 +558,15 @@ export async function GET() {
                 .from('meta_ads_config')
                 .update({ status: 'token_expired' })
                 .eq('account_id', ctx.accountId);
+            } else if (isLegacy(c)) {
+              // A lifetime cache is dropped, so it is refetched only once.
+              await db
+                .from('ad_campaigns')
+                .update({ last_insights: null })
+                .eq('id', c.id);
             }
-            // Non-token errors: leave this campaign's cached insights as-is
-            // (served below with stale: true); keep refreshing the rest.
+            // Other non-token errors: leave this campaign's cached insights
+            // as-is (served below with stale: true); keep refreshing the rest.
           }
         }
         if (tokenExpired) connectionStatus = 'token_expired';
