@@ -117,6 +117,7 @@ export async function PATCH(
         {
           error: 'Cannot keep automation active with invalid configuration',
           issues,
+          data: { issues },
         },
         { status: 400 }
       );

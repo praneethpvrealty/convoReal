@@ -2,9 +2,7 @@
 
 /**
  * Canvas / mind-map view of a flow. Editable, in parity with the
- * list view for everything except the trigger / header / fallback
- * panels (those are list-only — they don't fit visually inside a
- * node graph and the user can switch to List for them).
+ * list view; the shell renders the trigger panel above it.
  *
  * What this view does:
  *   - Renders every flow_node as a draggable tile, pan + zoom +
@@ -24,10 +22,10 @@
  *   - Delete on a selected edge → clears just that slot.
  *   - "+ Add node" floating button drops a new node at the visible
  *     viewport center.
- *   - Runs dagre auto-layout once on mount for flows whose
- *     `position_x` / `position_y` are all zero (pre-canvas flows
- *     and brand-new flows) — otherwise everything would pile at
- *     the origin.
+ *   - Runs dagre auto-layout for flows whose `position_x` /
+ *     `position_y` are all zero (pre-canvas flows and brand-new
+ *     flows) and writes the result into the editor state, so a
+ *     later drag moves one node and the rest stay where they are.
  *
  * The toggle in `flow-editor-shell.tsx` swaps this in for
  * `<FlowBuilder>` on the same page. Both views share the same
@@ -71,8 +69,9 @@ import {
   deriveCanvasEdges,
   outgoingSlots,
 } from '@/lib/flows/edges';
-import { autoLayout, shouldAutoLayout } from '@/lib/flows/layout';
+import { layoutUnpositioned } from '@/lib/flows/layout';
 import {
+  ADD_NODE_TYPES,
   NODE_META,
   summarizeNode,
   type BuilderNode,
@@ -203,6 +202,17 @@ function FlowNodeCard({ data, selected }: NodeProps) {
 
 const NODE_TYPES = { flow: FlowNodeCard };
 
+function withLayout(nodes: BuilderNode[]): BuilderNode[] {
+  return layoutUnpositioned(
+    nodes,
+    deriveCanvasEdges(nodes).map((e) => ({
+      source: e.source,
+      target: e.target,
+    })),
+    { direction: 'TB', defaultWidth: NODE_WIDTH, defaultHeight: NODE_HEIGHT }
+  );
+}
+
 // ============================================================
 // Root canvas
 // ============================================================
@@ -246,42 +256,30 @@ function FlowCanvasInner() {
     [selectedNodeKey, builderNodes]
   );
 
+  const laidOutNodes = useMemo(() => withLayout(builderNodes), [builderNodes]);
+
+  useEffect(() => {
+    if (laidOutNodes !== builderNodes) {
+      setState((s) => {
+        const nodes = withLayout(s.nodes);
+        return nodes === s.nodes ? s : { ...s, nodes };
+      });
+    }
+  }, [laidOutNodes, builderNodes, setState]);
+
   const { rfNodes, rfEdges } = useMemo(() => {
-    const canvasEdges = deriveCanvasEdges(builderNodes);
+    const canvasEdges = deriveCanvasEdges(laidOutNodes);
 
-    // Decide whether to auto-layout. The helper guards against
-    // overwriting a user's manual arrangement (only fires when ALL
-    // nodes sit at the origin), so we can safely call it
-    // unconditionally — if any node has been positioned, this is a
-    // no-op.
-    const positions = shouldAutoLayout(builderNodes)
-      ? autoLayout(
-          builderNodes.map((n) => ({
-            id: n.node_key,
-            width: NODE_WIDTH,
-            height: NODE_HEIGHT,
-          })),
-          canvasEdges.map((e) => ({ source: e.source, target: e.target })),
-          { direction: 'TB' }
-        )
-      : null;
-
-    const rfNodes: RfNode<NodeData>[] = builderNodes.map((n) => {
-      const fallback = positions?.get(n.node_key);
-      return {
-        id: n.node_key,
-        type: 'flow',
-        position: {
-          x: fallback?.x ?? n.position_x ?? 0,
-          y: fallback?.y ?? n.position_y ?? 0,
-        },
-        data: {
-          node: n,
-          isEntry: n.node_key === entryNodeId,
-          isFlashed: n.node_key === flashKey,
-        },
-      };
-    });
+    const rfNodes: RfNode<NodeData>[] = laidOutNodes.map((n) => ({
+      id: n.node_key,
+      type: 'flow',
+      position: { x: n.position_x ?? 0, y: n.position_y ?? 0 },
+      data: {
+        node: n,
+        isEntry: n.node_key === entryNodeId,
+        isFlashed: n.node_key === flashKey,
+      },
+    }));
 
     // sourceHandle is now wired up — the FlowNodeCard renders a Handle
     // per slot whose id matches the scheme in edges.ts, so React-Flow
@@ -300,7 +298,7 @@ function FlowCanvasInner() {
     }));
 
     return { rfNodes, rfEdges };
-  }, [builderNodes, entryNodeId, flashKey]);
+  }, [laidOutNodes, entryNodeId, flashKey]);
 
   // Drag-to-position: React-Flow tracks the visual drag internally and
   // fires this once on release. We write the final coordinate back to
@@ -585,19 +583,6 @@ function NodeEditSheet({
 // list, same icons via NODE_META) but drops the new node into the
 // center of the visible viewport rather than appending to a list.
 // ============================================================
-
-const ADD_NODE_TYPES: NodeType[] = [
-  'start',
-  'send_buttons',
-  'send_list',
-  'send_message',
-  'send_media',
-  'collect_input',
-  'condition',
-  'set_tag',
-  'handoff',
-  'end',
-];
 
 function CanvasAddNodeButton() {
   const reactFlow = useReactFlow();

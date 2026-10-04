@@ -45,6 +45,7 @@ import {
 import { cn } from '@/lib/utils';
 import { type ValidationIssue } from '@/lib/flows/validate';
 import {
+  ADD_NODE_TYPES,
   NODE_META,
   slugify,
   summarizeNode,
@@ -148,11 +149,7 @@ export function FlowBuilder() {
 
   return (
     <div className="flex flex-col gap-6">
-      <TriggerPanel
-        state={state}
-        setState={setState}
-        triggerIssues={issues.filter((i) => i.scope === 'trigger')}
-      />
+      <FlowTriggerPanel />
 
       <EntryPicker state={state} setState={setState} />
 
@@ -166,9 +163,9 @@ export function FlowBuilder() {
 
         {state.nodes.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-700 bg-slate-900/50 p-8 text-center text-sm text-slate-400">
-            Add a <strong>Start</strong> node, then a{' '}
-            <strong>Send buttons</strong> node, then a <strong>Handoff</strong>{' '}
-            — that&apos;s the welcome-menu shape from the brief.
+            Start with a <strong>Start</strong> node, add the messages and
+            buttons your customer will see, then end each path with a{' '}
+            <strong>Handoff</strong> or <strong>End</strong> node.
           </div>
         ) : (
           state.nodes.map((node) => (
@@ -201,6 +198,17 @@ export function FlowBuilder() {
 // ============================================================
 // Trigger panel
 // ============================================================
+
+export function FlowTriggerPanel() {
+  const { state, setState, issues } = useFlowEditor();
+  return (
+    <TriggerPanel
+      state={state}
+      setState={setState}
+      triggerIssues={issues.filter((i) => i.scope === 'trigger')}
+    />
+  );
+}
 
 function TriggerPanel({
   state,
@@ -507,18 +515,6 @@ function NodeConfigWithAdvanced({
 // ============================================================
 
 function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
-  const types: NodeType[] = [
-    'start',
-    'send_buttons',
-    'send_list',
-    'send_message',
-    'send_media',
-    'collect_input',
-    'condition',
-    'set_tag',
-    'handoff',
-    'end',
-  ];
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -532,7 +528,7 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
         align="end"
         className="border-slate-700 bg-slate-900"
       >
-        {types.map((t) => {
+        {ADD_NODE_TYPES.map((t) => {
           const meta = NODE_META[t];
           return (
             <DropdownMenuItem key={t} onClick={() => onAdd(t)}>

@@ -3,6 +3,7 @@
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/types';
+import { FormattedText } from './formatted-text';
 
 interface ReplyQuoteProps {
   /** Sender label of the quoted message: "You" for our own messages,
@@ -41,7 +42,7 @@ export function ReplyQuote({
          *  `break-words` also wraps long URLs that have no whitespace
          *  to break on. Issue #165. */}
         <div className="text-xs break-words whitespace-pre-wrap text-slate-200/80">
-          {preview}
+          <FormattedText text={preview} />
         </div>
       </div>
       {onDismiss && (
