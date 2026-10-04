@@ -159,6 +159,7 @@ export default function NewBroadcastScreen() {
     name.trim().length > 0 &&
     audience !== null &&
     !counting &&
+    !countFailed &&
     mappingsComplete(variableKeys, variables) &&
     (recipientCount ?? 0) > 0;
 

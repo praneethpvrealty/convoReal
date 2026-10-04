@@ -785,7 +785,8 @@ function SendGreetingSheet({
         )
       ).data.count,
   });
-  const reach = audience && !counting ? recipientCount : undefined;
+  const reach =
+    audience && !counting && !countFailed ? recipientCount : undefined;
   const reachLabel =
     reach === undefined ? '' : `${reach} contact${reach === 1 ? '' : 's'}`;
 

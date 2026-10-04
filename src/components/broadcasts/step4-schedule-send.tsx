@@ -50,7 +50,12 @@ export function Step4ScheduleSend({
   const countQuery = useAudienceCount(audience);
   const reach = countQuery.data;
   const confirmedReach =
-    reach !== undefined && reach > 0 && !countQuery.isFetching ? reach : null;
+    reach !== undefined &&
+    reach > 0 &&
+    !countQuery.isFetching &&
+    !countQuery.isError
+      ? reach
+      : null;
 
   const audienceLabel =
     audience.type === 'all'
@@ -222,6 +227,12 @@ export function Step4ScheduleSend({
                   </span>{' '}
                   template. This action cannot be undone.
                 </DialogDescription>
+                {countQuery.isError && !countQuery.isFetching && (
+                  <p role="alert" className="text-sm text-red-400">
+                    Couldn&apos;t recount the recipients, so sending is paused.
+                    Retry to confirm the number first.
+                  </p>
+                )}
               </DialogHeader>
               <DialogFooter>
                 <Button
@@ -231,23 +242,33 @@ export function Step4ScheduleSend({
                 >
                   Cancel
                 </Button>
-                <Button
-                  disabled={confirmedReach === null}
-                  onClick={() => {
-                    setShowConfirm(false);
-                    onSend();
-                  }}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  {confirmedReach !== null ? (
-                    <Send className="h-4 w-4" />
-                  ) : (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  )}
-                  {confirmedReach !== null
-                    ? `Send to ${contactsLabel(confirmedReach)}`
-                    : 'Counting recipients…'}
-                </Button>
+                {countQuery.isError && !countQuery.isFetching ? (
+                  <Button
+                    onClick={() => countQuery.refetch()}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Retry count
+                  </Button>
+                ) : (
+                  <Button
+                    disabled={confirmedReach === null}
+                    onClick={() => {
+                      setShowConfirm(false);
+                      onSend();
+                    }}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {confirmedReach !== null ? (
+                      <Send className="h-4 w-4" />
+                    ) : (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                    {confirmedReach !== null
+                      ? `Send to ${contactsLabel(confirmedReach)}`
+                      : 'Counting recipients…'}
+                  </Button>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>

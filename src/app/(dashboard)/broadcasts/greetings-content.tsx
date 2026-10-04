@@ -880,7 +880,9 @@ function SendGreetingDialog({
     { optedInOnly }
   );
   const recipientCount =
-    audience && !countQuery.isFetching ? countQuery.data : undefined;
+    audience && !countQuery.isFetching && !countQuery.isError
+      ? countQuery.data
+      : undefined;
 
   const resetAudience = () => {
     setAudienceType(null);
