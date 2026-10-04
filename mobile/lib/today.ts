@@ -1,12 +1,16 @@
 import { withAnalyticsTimeout } from '@/lib/analytics-request';
 import { supabase } from '@/lib/supabase';
+import {
+  toRangeInsights,
+  type TodayInsightsRow,
+} from '@shared/lib/today/insights';
 
 /**
  * Web parity: the Today signals that render under Focus
  * (src/lib/today/queries.ts) — reply windows, cooling leads, and the
- * day's numbers. Same client-side aggregation over the RLS-scoped
- * client; fine at the current scale, move to an RPC if a tenant
- * outgrows it.
+ * day's numbers. The numbers come from the same today_insights SQL
+ * aggregate the web reads; the rest is client-side over the RLS-scoped
+ * client.
  *
  * The day's agenda is deliberately absent: Focus owns it, and both
  * surfaces read it from GET /api/focus so the two can't disagree about
@@ -234,70 +238,25 @@ export interface TodayInsights {
   showcaseOpens: number;
 }
 
-export async function fetchTodayInsights(): Promise<TodayInsights> {
-  return withAnalyticsTimeout(fetchTodayInsightsUnbounded(), 'Today analytics');
+export async function fetchTodayInsights(
+  accountId: string
+): Promise<TodayInsights> {
+  return withAnalyticsTimeout(
+    fetchTodayInsightsUnbounded(accountId),
+    'Today analytics'
+  );
 }
 
-async function fetchTodayInsightsUnbounded(): Promise<TodayInsights> {
-  const startIso = startOfLocalDay().toISOString();
-  const endIso = endOfLocalDay().toISOString();
-
-  const [convRes, contactRes, msgRes, showcaseRes] = await Promise.all([
-    supabase
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', startIso)
-      .lte('created_at', endIso),
-    supabase
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', startIso)
-      .lte('created_at', endIso),
-    supabase
-      .from('messages')
-      .select('conversation_id, sender_type')
-      .gte('created_at', startIso)
-      .lte('created_at', endIso)
-      .order('conversation_id', { ascending: true })
-      .order('created_at', { ascending: true }),
-    supabase
-      .from('showcase_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('event_type', 'open')
-      .gte('created_at', startIso)
-      .lte('created_at', endIso),
-  ]);
-  if (convRes.error) throw convRes.error;
-  if (contactRes.error) throw contactRes.error;
-  if (msgRes.error) throw msgRes.error;
-  if (showcaseRes.error) throw showcaseRes.error;
-
-  const rows = (msgRes.data ?? []) as {
-    conversation_id: string;
-    sender_type: string;
-  }[];
-
-  let messagesReceived = 0;
-  let messagesSent = 0;
-  const inbound = new Set<string>();
-  const responded = new Set<string>();
-  for (const row of rows) {
-    if (row.sender_type === 'customer') {
-      messagesReceived++;
-      inbound.add(row.conversation_id);
-    } else {
-      messagesSent++;
-      if (inbound.has(row.conversation_id)) responded.add(row.conversation_id);
-    }
-  }
-
-  return {
-    newInquiries: convRes.count ?? 0,
-    newContacts: contactRes.count ?? 0,
-    messagesReceived,
-    messagesSent,
-    inboundConversations: inbound.size,
-    respondedConversations: responded.size,
-    showcaseOpens: showcaseRes.count ?? 0,
-  };
+async function fetchTodayInsightsUnbounded(
+  accountId: string
+): Promise<TodayInsights> {
+  const { data, error } = await supabase
+    .rpc('today_insights', {
+      p_account_id: accountId,
+      p_start: startOfLocalDay().toISOString(),
+      p_end: endOfLocalDay().toISOString(),
+    })
+    .maybeSingle<TodayInsightsRow>();
+  if (error) throw error;
+  return toRangeInsights(data);
 }
