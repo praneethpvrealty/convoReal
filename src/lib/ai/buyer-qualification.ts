@@ -928,7 +928,7 @@ export function preferenceFacts(
    *  not a proposal, it is already done. */
   attachedTagNames: (string | null | undefined)[] = [],
   /** The lead's message stated where they want to buy — see
-   *  turnRestatesAreas. Their areas then replace the saved list. */
+   *  restatedAreas. Their areas then replace the saved list. */
   opts: { areasRestated?: boolean } = {}
 ): { field: string; value: unknown; replaces?: boolean }[] {
   const facts: { field: string; value: unknown; replaces?: boolean }[] = [
@@ -973,22 +973,32 @@ export function preferenceFacts(
   return facts;
 }
 
+const ADDITIVE_AREA_PATTERN =
+  /\b(?:also|too|as well|additionally|in addition|apart from|along with|plus)\b/i;
+
 /**
- * Did this message say where the lead wants to buy? A reply the ladder
- * resolved to one locality does, and so does any message naming one of
- * the areas extracted from it. The areas then stand as the whole list:
- * an area the lead never named — the locality of the listing a portal
- * enquiry was about — is replaced, not kept. Without this a lead who
- * enquired about a Koramangala listing and answered "I'm looking near
- * Horamavu" was sent Koramangala houses.
+ * The areas this message states as where the lead wants to buy, or null
+ * when it states none. A reply the ladder resolved to one locality is
+ * that locality; otherwise it is the extracted areas the message itself
+ * names. Those stand as the whole list — the extraction reads the whole
+ * requirement history, and an area the lead never named this turn (the
+ * locality of the listing a portal enquiry was about, an older answer)
+ * is replaced rather than kept. Without this a lead who enquired about a
+ * Koramangala listing and answered "I'm looking near Horamavu" was sent
+ * Koramangala houses. A message that adds an area ("Hebbal also") is
+ * not a restatement, so nothing is dropped.
  */
-export function turnRestatesAreas(
+export function restatedAreas(
   text: string,
   areas: string[],
   resolvedLocation: string | null
-): boolean {
-  if (resolvedLocation) return true;
-  return areas.some((area) => area.trim() && textNamesLocality(text, area));
+): string[] | null {
+  if (resolvedLocation) return [resolvedLocation];
+  if (ADDITIVE_AREA_PATTERN.test(text)) return null;
+  const named = areas.filter(
+    (area) => area.trim() && textNamesLocality(text, area)
+  );
+  return named.length > 0 ? named : null;
 }
 
 /** Preferences already on the contact row, in extraction shape. */
@@ -1580,6 +1590,8 @@ export async function processBuyerQualificationMessage(
         return false;
 
       prefs = extracted;
+      const restated = restatedAreas(text, prefs.areas, resolvedLocation);
+      if (restated) prefs = { ...prefs, areas: restated };
 
       // The registry-governed fields go through the framework, which
       // applies them (they are 'auto' — the ladder reads them back on
@@ -1609,7 +1621,7 @@ export async function processBuyerQualificationMessage(
           tags: attachedTagNames.filter(Boolean),
         },
         facts: preferenceFacts(prefs, attachedTagNames, {
-          areasRestated: turnRestatesAreas(text, prefs.areas, resolvedLocation),
+          areasRestated: restated !== null,
         }),
         evidence: text,
         source: 'lead_message',

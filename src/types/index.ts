@@ -280,17 +280,17 @@ export interface Contact {
   pref_listing_types?: string[] | null;
   pref_source_hash?: string | null;
   pref_extracted_at?: string | null;
+  /** The pref_budget_max the portal lead webhook seeded from the
+   *  enquired listing's price (migration 20261004131500). While
+   *  pref_budget_max still equals it, matching reads it as a ceiling
+   *  with no implied floor. */
+  pref_budget_anchor?: number | string | null;
   contact_notes?: { note_text: string }[] | null;
   /** Listing types of the properties this contact actually enquired
    *  about, hydrated by attachInquiredListingTypes (not a column).
    *  Stands in for pref_listing_types in matching when the contact
    *  never stated an intent. */
   inquired_listing_types?: string[] | null;
-  /** Prices of the listings this contact enquired about, hydrated by
-   *  attachInquiredListingTypes (not a column). A budget equal to one of
-   *  them was seeded from the enquiry, not stated, and matching reads it
-   *  as a ceiling. */
-  inquired_prices?: number[] | null;
   last_inquired_property_id?: string | null;
   /** The portal ad this lead enquired about (migration 260). Once an
    *  agent maps the pair into property_portal_listings, every later lead

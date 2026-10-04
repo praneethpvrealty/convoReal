@@ -28,7 +28,7 @@ import {
   shouldSendMatchesNow,
   buildFollowUpQuestion,
   preferenceFacts,
-  turnRestatesAreas,
+  restatedAreas,
   askedQualifiers,
   shortlistAlreadySent,
   buildShortlistStandsReply,
@@ -1084,32 +1084,39 @@ describe('preferenceFacts', () => {
 });
 
 describe('[INB-029] a lead naming their location replaces the enquiry locality', () => {
-  it('reads a resolved locality reply or a named area as a restatement', () => {
+  it('reads a resolved locality reply as that locality alone', () => {
     expect(
-      turnRestatesAreas("I'm looking near horamavu", ['Horamavu'], 'Horamavu')
-    ).toBe(true);
+      restatedAreas("I'm looking near horamavu", ['Horamavu'], 'Horamavu')
+    ).toEqual(['Horamavu']);
+  });
+
+  it('keeps only the areas the message names, not the older ones the history carries', () => {
     expect(
-      turnRestatesAreas(
-        '4bhk house near Horamavu under 5cr',
-        ['Horamavu'],
+      restatedAreas(
+        '4 BHK near Horamavu',
+        ['Koramangala 1st Block', 'Horamavu'],
         null
       )
-    ).toBe(true);
+    ).toEqual(['Horamavu']);
+  });
+
+  it('is no restatement when the message adds an area or names none', () => {
     expect(
-      turnRestatesAreas('only independent houses', ['Koramangala'], null)
-    ).toBe(false);
+      restatedAreas('Hebbal also fine', ['Whitefield', 'Hebbal'], null)
+    ).toBeNull();
+    expect(
+      restatedAreas('only independent houses', ['Koramangala'], null)
+    ).toBeNull();
   });
 
   it('files Horamavu alone over the Koramangala enquiry area', () => {
+    const text = "I'm looking near horamavu";
+    const restated = restatedAreas(text, ['Horamavu'], 'Horamavu');
     const extracted = prefs({
       property_types: ['Residential House'],
-      areas: ['Horamavu'],
+      areas: restated ?? [],
       budget_max: 147_000_000,
       listing_types: ['Sale'],
-    });
-    const text = "I'm looking near horamavu";
-    const facts = preferenceFacts(extracted, [], {
-      areasRestated: turnRestatesAreas(text, extracted.areas, 'Horamavu'),
     });
     const areas = prepareFacts(
       'contact',
@@ -1119,7 +1126,7 @@ describe('[INB-029] a lead naming their location replaces the enquiry locality',
         pref_budget_max: 147_000_000,
         pref_listing_types: ['Sale'],
       },
-      facts,
+      preferenceFacts(extracted, [], { areasRestated: restated !== null }),
       text,
       'lead_message'
     ).find((f) => f.field === 'pref_areas');

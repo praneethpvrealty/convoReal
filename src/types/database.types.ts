@@ -2882,6 +2882,7 @@ export type Database = {
           pref_areas: string[] | null;
           pref_bhk_max: number | null;
           pref_bhk_min: number | null;
+          pref_budget_anchor: number | null;
           pref_budget_max: number | null;
           pref_budget_min: number | null;
           pref_excluded_areas: string[] | null;
@@ -2965,6 +2966,7 @@ export type Database = {
           pref_areas?: string[] | null;
           pref_bhk_max?: number | null;
           pref_bhk_min?: number | null;
+          pref_budget_anchor?: number | null;
           pref_budget_max?: number | null;
           pref_budget_min?: number | null;
           pref_excluded_areas?: string[] | null;
@@ -3048,6 +3050,7 @@ export type Database = {
           pref_areas?: string[] | null;
           pref_bhk_max?: number | null;
           pref_bhk_min?: number | null;
+          pref_budget_anchor?: number | null;
           pref_budget_max?: number | null;
           pref_budget_min?: number | null;
           pref_excluded_areas?: string[] | null;

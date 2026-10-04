@@ -756,7 +756,7 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(horamavuHouse, [enquirer])).toHaveLength(0);
 
       const [result] = getMatchingContacts(horamavuHouse, [
-        { ...enquirer, inquired_prices: [147000000] },
+        { ...enquirer, pref_budget_anchor: 147000000 },
       ]);
       expect(result?.details.budget).toBe('match');
       expect(
@@ -768,16 +768,16 @@ describe('getMatchingContacts', () => {
             sublocality: 'Horamavu',
             listing_type: 'Sale',
           }),
-          [{ ...enquirer, inquired_prices: [147000000] }]
+          [{ ...enquirer, pref_budget_anchor: 147000000 }]
         )
       ).toHaveLength(0);
     });
 
-    it('[INB-029] keeps the implied floor for a stated budget that differs from every enquired price', () => {
+    it('[INB-029] keeps the implied floor once a stated budget replaces the enquiry anchor', () => {
       const contact = createTestContact({
         pref_property_types: ['Residential House'],
         pref_budget_max: 200000000,
-        inquired_prices: [147000000],
+        pref_budget_anchor: 147000000,
         pref_extracted_at: new Date().toISOString(),
       });
       const property = createTestProperty({

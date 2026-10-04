@@ -432,22 +432,20 @@ function isNegated(text: string, keyword: string): boolean {
 }
 
 /**
- * A budget that is the price of a listing the contact enquired about was
- * seeded from that enquiry (the portal lead webhook writes it to
- * pref_budget_max), not stated by the contact. It says what they were
- * willing to look at, so it caps the band but implies no floor: a lead
- * who enquired at ₹14.7 Cr and then asks for another locality still sees
- * the ₹3.5 Cr house there.
+ * A budget the portal lead webhook seeded from the enquired listing's
+ * price (contacts.pref_budget_anchor) was not stated by the contact. It
+ * says what they were willing to look at, so it caps the band but
+ * implies no floor: a lead who enquired at ₹14.7 Cr and then asks for
+ * another locality still sees the ₹3.5 Cr house there. A budget stated
+ * afterwards replaces pref_budget_max, and the two no longer agree.
  */
-export function isEnquiryPriceAnchor(
+export function isEnquiryBudgetAnchor(
   budgetMax: number | null,
-  inquiredPrices: number[] | null | undefined
+  anchor: number | string | null | undefined
 ): boolean {
-  if (budgetMax === null || !(budgetMax > 0) || !inquiredPrices?.length)
-    return false;
-  return inquiredPrices.some(
-    (price) => Math.abs(price - budgetMax) <= budgetMax * 0.01
-  );
+  if (budgetMax === null || anchor == null) return false;
+  const seeded = Number(anchor);
+  return Number.isFinite(seeded) && seeded > 0 && seeded === budgetMax;
 }
 
 /**
@@ -1190,7 +1188,7 @@ function matchContactsSingleProfile(
     let maxIsCeiling =
       explicitMax === null &&
       budgetMin === null &&
-      isEnquiryPriceAnchor(budgetMax, contact.inquired_prices);
+      isEnquiryBudgetAnchor(budgetMax, contact.pref_budget_anchor);
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
       const parsed = parseBudgetFromText(combinedText);
       budgetMin = parsed.min;
@@ -1222,7 +1220,7 @@ function matchContactsSingleProfile(
     // asks such a lead for a SALE budget, so imposing half of it as a
     // monthly-rent floor would turn "show me both" into sale-only. A max
     // that is the enquired listing's own price is a ceiling too — see
-    // isEnquiryPriceAnchor.
+    // isEnquiryBudgetAnchor.
     const IMPLIED_FLOOR_OF_MAX = 0.5;
     const isRentComparison =
       propertyListingType === 'Rent' || propertyListingType === 'Built to Suit';

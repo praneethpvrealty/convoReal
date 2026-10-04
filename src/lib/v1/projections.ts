@@ -133,6 +133,7 @@ export const MATCHING_CONTACT_COLUMNS = [
   'pref_bhk_max',
   'pref_budget_min',
   'pref_budget_max',
+  'pref_budget_anchor',
   'pref_land_area_min_sqft',
   'pref_land_area_max_sqft',
   'pref_listing_types',
