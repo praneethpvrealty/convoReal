@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **Roles can no longer be self-edited.** A signed-in member's own profile
+  update could change their account, role or read-only status directly,
+  which every role-based permission reads. The database now refuses those
+  columns from a client; the member management screens and invitations keep
+  working through their server functions.
 - **One badge per idea on listing cards.** An available listing shows "For
   Sale" or "For Rent" alone; the status badge appears only when it says
   something — Under Contract, Sold, Off Market, Pending Review or Archived.

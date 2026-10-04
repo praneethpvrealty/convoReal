@@ -1,0 +1,24 @@
+CREATE OR REPLACE FUNCTION profiles_guard_privileged_columns()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF current_user IN ('authenticated', 'anon')
+     AND (
+       NEW.account_id IS DISTINCT FROM OLD.account_id
+       OR NEW.account_role IS DISTINCT FROM OLD.account_role
+       OR NEW.org_role IS DISTINCT FROM OLD.org_role
+       OR NEW.is_read_only IS DISTINCT FROM OLD.is_read_only
+     ) THEN
+    RAISE EXCEPTION 'Account, role and read-only status change only through the member RPCs'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_privileged_columns_guard ON profiles;
+CREATE TRIGGER profiles_privileged_columns_guard
+  BEFORE UPDATE OF account_id, account_role, org_role, is_read_only ON profiles
+  FOR EACH ROW EXECUTE FUNCTION profiles_guard_privileged_columns();
