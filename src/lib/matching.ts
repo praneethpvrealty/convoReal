@@ -164,8 +164,9 @@ function calculateHaversineDistance(
  *    shopping at ₹4 Cr — so far-cheaper stock excludes too; stating an
  *    explicit min is how an agent widens that band on purpose. Explicit
  *    ceilings ("under X" phrasing, entry-band maxima, sale budgets read
- *    against rent) keep their old floor-less reading — see the budget
- *    step for the exact carve-outs.
+ *    against rent, a max seeded from the enquired listing's price) keep
+ *    their old floor-less reading — see the budget step for the exact
+ *    carve-outs.
  *
  * Preference sources, in priority order:
  *  1. Explicit fields the agent filled in (min/max budget, areas_of_interest,
@@ -428,6 +429,23 @@ function isNegated(text: string, keyword: string): boolean {
     index = text.indexOf(cleanKeyword, index + 1);
   }
   return false;
+}
+
+/**
+ * A budget the portal lead webhook seeded from the enquired listing's
+ * price (contacts.pref_budget_anchor) was not stated by the contact. It
+ * says what they were willing to look at, so it caps the band but
+ * implies no floor: a lead who enquired at ₹14.7 Cr and then asks for
+ * another locality still sees the ₹3.5 Cr house there. A budget stated
+ * afterwards replaces pref_budget_max, and the two no longer agree.
+ */
+export function isEnquiryBudgetAnchor(
+  budgetMax: number | null,
+  anchor: number | null | undefined
+): boolean {
+  if (budgetMax === null || anchor == null) return false;
+  const seeded = Number(anchor);
+  return Number.isFinite(seeded) && seeded > 0 && seeded === budgetMax;
 }
 
 /**
@@ -802,7 +820,15 @@ function matchContactsSingleProfile(
     const aiAreas = (sourceContact.pref_areas || [])
       .map(cleanArea)
       .filter((a) => a && !isPlaceholderArea(a));
-    const textZones = extractBengaluruZones(combinedText).map(cleanArea);
+    // Zones and localities read from the requirement text stand in for
+    // stated areas only when there are none: the extraction reads the
+    // same text, so stated areas already carry every place the contact
+    // still wants, and the text keeps the ones a later answer replaced
+    // (INB-029).
+    const hasStatedAreas = explicitAreas.length > 0 || aiAreas.length > 0;
+    const textZones = hasStatedAreas
+      ? []
+      : extractBengaluruZones(combinedText).map(cleanArea);
     const zoneComparableText = combinedText.replace(/bangalore/g, 'bengaluru');
     const wantedAreas = [
       ...new Set([...explicitAreas, ...aiAreas, ...textZones]),
@@ -1111,9 +1137,14 @@ function matchContactsSingleProfile(
     // Direct mention of the property's locality/project/internal tag in
     // requirements or notes counts as a match. Tags are Engine-only, but
     // this lets an agent's own builder/campaign shorthand find inventory.
+    // A locality mention counts only for a contact with no stated areas,
+    // for the same reason as textZones above.
     if (locationVerdict !== 'match' && combinedText) {
       if (
-        (propSub && propSub.length > 2 && combinedText.includes(propSub)) ||
+        (!hasStatedAreas &&
+          propSub &&
+          propSub.length > 2 &&
+          combinedText.includes(propSub)) ||
         (propProject &&
           propProject.length > 2 &&
           combinedText.includes(propProject)) ||
@@ -1167,7 +1198,10 @@ function matchContactsSingleProfile(
         ? Number(sourceContact.pref_budget_max)
         : null
     );
-    let maxIsCeiling = false;
+    let maxIsCeiling =
+      explicitMax === null &&
+      budgetMin === null &&
+      isEnquiryBudgetAnchor(budgetMax, contact.pref_budget_anchor);
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
       const parsed = parseBudgetFromText(combinedText);
       budgetMin = parsed.min;
@@ -1197,7 +1231,9 @@ function matchContactsSingleProfile(
     // rent-only, whose max is a sale-scale number that would exclude
     // every rental if halved. "Either" is that case too: the ladder
     // asks such a lead for a SALE budget, so imposing half of it as a
-    // monthly-rent floor would turn "show me both" into sale-only.
+    // monthly-rent floor would turn "show me both" into sale-only. A max
+    // that is the enquired listing's own price is a ceiling too — see
+    // isEnquiryBudgetAnchor.
     const IMPLIED_FLOOR_OF_MAX = 0.5;
     const isRentComparison =
       propertyListingType === 'Rent' || propertyListingType === 'Built to Suit';

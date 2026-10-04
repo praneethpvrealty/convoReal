@@ -28,6 +28,7 @@ import {
   shouldSendMatchesNow,
   buildFollowUpQuestion,
   preferenceFacts,
+  restatedAreas,
   askedQualifiers,
   shortlistAlreadySent,
   buildShortlistStandsReply,
@@ -48,6 +49,7 @@ import {
   type ExtractedPreferences,
 } from './preference-extraction';
 import type { RankedPropertyMatch } from '@/lib/radar/engine';
+import { prepareFacts } from '@/lib/learning/record';
 import type { Contact, Property } from '@/types';
 
 function prefs(
@@ -1078,6 +1080,138 @@ describe('preferenceFacts', () => {
     expect(preferenceFacts(prefs(), [])).not.toContainEqual(
       expect.objectContaining({ field: 'no_budget' })
     );
+  });
+});
+
+describe('[INB-029] a lead naming their location replaces the enquiry locality', () => {
+  it('reads a resolved locality reply as that locality alone', () => {
+    expect(
+      restatedAreas("I'm looking near horamavu", ['Horamavu'], 'Horamavu')
+    ).toEqual(['Horamavu']);
+  });
+
+  it('keeps only the areas the message names, not the older ones the history carries', () => {
+    expect(
+      restatedAreas(
+        '4 BHK near Horamavu',
+        ['Koramangala 1st Block', 'Horamavu'],
+        null
+      )
+    ).toEqual(['Horamavu']);
+  });
+
+  it('is no restatement when the message adds an area or names none', () => {
+    expect(
+      restatedAreas('Hebbal also fine', ['Whitefield', 'Hebbal'], null)
+    ).toBeNull();
+    expect(restatedAreas('Hebbal also fine', ['Hebbal'], 'Hebbal')).toBeNull();
+    expect(
+      restatedAreas('only independent houses', ['Koramangala'], null)
+    ).toBeNull();
+  });
+
+  it('keeps the saved list when an additive marker names an area already saved', () => {
+    expect(restatedAreas('Hebbal also fine', ['Hebbal'], null)).toBeNull();
+  });
+
+  it('reads an additive marker against a new area across punctuation', () => {
+    expect(restatedAreas('Also, Whitefield', ['Whitefield'], null)).toBeNull();
+    expect(restatedAreas('Whitefield, too', ['Whitefield'], null)).toBeNull();
+    expect(
+      restatedAreas('HSR is too expensive, near Horamavu', ['Horamavu'], null)
+    ).toEqual(['Horamavu']);
+    expect(
+      restatedAreas('near HSR and Horamavu', ['HSR', 'Horamavu'], null)
+    ).toEqual(['HSR', 'Horamavu']);
+  });
+
+  it('reads an additive marker joined to the area by a linking phrase', () => {
+    expect(
+      restatedAreas('4 BHK in Whitefield is also fine', ['Whitefield'], null)
+    ).toBeNull();
+    expect(
+      restatedAreas('Whitefield works too', ['Whitefield'], null)
+    ).toBeNull();
+    expect(
+      restatedAreas('Whitefield is fine too', ['Whitefield'], 'Whitefield')
+    ).toBeNull();
+    expect(
+      restatedAreas('HSR is too far, near Horamavu', ['HSR', 'Horamavu'], null)
+    ).toEqual(['HSR', 'Horamavu']);
+  });
+
+  it('reads an additive word about an area already saved as a move away from it', () => {
+    expect(
+      restatedAreas(
+        'HSR is too expensive; 4 BHK near Horamavu',
+        ['Horamavu'],
+        null
+      )
+    ).toEqual(['Horamavu']);
+    expect(
+      restatedAreas('Hebbal also fine', ['Whitefield', 'Hebbal'], null)
+    ).toBeNull();
+  });
+
+  it('files Horamavu alone over the Koramangala enquiry area', () => {
+    const text = "I'm looking near horamavu";
+    const restated = restatedAreas(text, ['Horamavu'], 'Horamavu');
+    const extracted = prefs({
+      property_types: ['Residential House'],
+      areas: restated ?? [],
+      budget_max: 147_000_000,
+      listing_types: ['Sale'],
+    });
+    const areas = prepareFacts(
+      'contact',
+      {
+        pref_areas: ['Koramangala 1st Block'],
+        pref_property_types: ['Residential House'],
+        pref_budget_max: 147_000_000,
+        pref_listing_types: ['Sale'],
+      },
+      preferenceFacts(extracted, [], { areasRestated: restated !== null }),
+      text,
+      'lead_message'
+    ).find((f) => f.field === 'pref_areas');
+    expect(areas?.value).toEqual(['Horamavu']);
+  });
+
+  it('replaces a portal-stated areas_of_interest list with the named area', () => {
+    const text = 'Looking near Horamavu';
+    const restated = restatedAreas(text, ['HSR', 'Horamavu'], null);
+    expect(restated).toEqual(['Horamavu']);
+    const facts = prepareFacts(
+      'contact',
+      { areas_of_interest: ['HSR'], pref_areas: ['HSR'] },
+      preferenceFacts(prefs({ areas: restated ?? [] }), [], {
+        areasRestated: true,
+        replaceAreasOfInterest: true,
+      }),
+      text,
+      'lead_message'
+    );
+    expect(facts.find((f) => f.field === 'areas_of_interest')?.value).toEqual([
+      'Horamavu',
+    ]);
+    expect(facts.find((f) => f.field === 'pref_areas')?.value).toEqual([
+      'Horamavu',
+    ]);
+  });
+
+  it('leaves an empty areas_of_interest list alone', () => {
+    const fields = preferenceFacts(prefs({ areas: ['Horamavu'] }), [], {
+      areasRestated: true,
+      replaceAreasOfInterest: false,
+    }).map((f) => f.field);
+    expect(fields).not.toContain('areas_of_interest');
+  });
+
+  it('never marks an empty area list as a restatement', () => {
+    const fact = preferenceFacts(prefs({ areas: [] }), [], {
+      areasRestated: true,
+    }).find((f) => f.field === 'pref_areas');
+    expect(fact?.replaces).toBeUndefined();
   });
 });
 

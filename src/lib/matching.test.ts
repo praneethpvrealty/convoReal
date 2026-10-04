@@ -737,6 +737,104 @@ describe('getMatchingContacts', () => {
       expect(results[0].details.budget).toBe('partial');
     });
 
+    it('[INB-029] reads a budget seeded from the enquired listing as a ceiling, not a floor', () => {
+      const enquirer = createTestContact({
+        pref_property_types: ['Residential House'],
+        pref_areas: ['Horamavu'],
+        pref_budget_max: 147000000, // the enquired listing's ₹14.70 Cr
+        pref_listing_types: ['Sale'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const horamavuHouse = createTestProperty({
+        type: 'Residential House',
+        price: 35000000, // ₹3.5 Cr
+        location: 'Banjara layout Horamavu main road, Horamavu, Bangalore',
+        sublocality: 'Horamavu',
+        listing_type: 'Sale',
+      });
+
+      expect(getMatchingContacts(horamavuHouse, [enquirer])).toHaveLength(0);
+
+      const [result] = getMatchingContacts(horamavuHouse, [
+        { ...enquirer, pref_budget_anchor: 147000000 },
+      ]);
+      expect(result?.details.budget).toBe('match');
+      expect(
+        getMatchingContacts(
+          createTestProperty({
+            type: 'Residential House',
+            price: 170000000,
+            location: 'Horamavu, Bangalore',
+            sublocality: 'Horamavu',
+            listing_type: 'Sale',
+          }),
+          [{ ...enquirer, pref_budget_anchor: 147000000 }]
+        )
+      ).toHaveLength(0);
+    });
+
+    it('[INB-029] ignores a locality the requirement history names once the contact has stated areas', () => {
+      const hsrHouse = createTestProperty({
+        type: 'Residential House',
+        price: 40000000,
+        location: 'Sector 2, HSR Layout, Bangalore',
+        sublocality: 'HSR Layout',
+        listing_type: 'Sale',
+        latitude: null,
+        longitude: null,
+      });
+      const restated = createTestContact({
+        requirements: '4 BHK house in HSR Layout\nPreferred location: Horamavu',
+        pref_property_types: ['Residential House'],
+        pref_areas: ['Horamavu'],
+        pref_listing_types: ['Sale'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      expect(getMatchingContacts(hsrHouse, [restated])).toHaveLength(0);
+
+      const unextracted = createTestContact({
+        requirements: '4 BHK house in HSR Layout',
+        pref_property_types: ['Residential House'],
+        pref_listing_types: ['Sale'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      expect(getMatchingContacts(hsrHouse, [unextracted])).toHaveLength(1);
+    });
+
+    it('[INB-029] ignores a zone the requirement history names once the contact has stated areas', () => {
+      const bellandurHouse = createTestProperty({
+        type: 'Residential House',
+        price: 40000000,
+        location: 'Bellandur, Outer Ring Road, Bangalore',
+        sublocality: 'Bellandur',
+        listing_type: 'Sale',
+        latitude: null,
+        longitude: null,
+      });
+      const restated = createTestContact({
+        requirements: '4 BHK house on ORR\nPreferred location: Horamavu',
+        pref_property_types: ['Residential House'],
+        pref_areas: ['Horamavu'],
+        pref_listing_types: ['Sale'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      expect(getMatchingContacts(bellandurHouse, [restated])).toHaveLength(0);
+    });
+
+    it('[INB-029] keeps the implied floor once a stated budget replaces the enquiry anchor', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Residential House'],
+        pref_budget_max: 200000000,
+        pref_budget_anchor: 147000000,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({
+        type: 'Residential House',
+        price: 43200000,
+      });
+      expect(getMatchingContacts(property, [contact])).toHaveLength(0);
+    });
+
     it('lets an explicit min budget widen the band below the implied floor', () => {
       const contact = createTestContact({
         pref_property_types: ['Residential House'],

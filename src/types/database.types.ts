@@ -2882,6 +2882,7 @@ export type Database = {
           pref_areas: string[] | null;
           pref_bhk_max: number | null;
           pref_bhk_min: number | null;
+          pref_budget_anchor: number | null;
           pref_budget_max: number | null;
           pref_budget_min: number | null;
           pref_excluded_areas: string[] | null;
@@ -2965,6 +2966,7 @@ export type Database = {
           pref_areas?: string[] | null;
           pref_bhk_max?: number | null;
           pref_bhk_min?: number | null;
+          pref_budget_anchor?: number | null;
           pref_budget_max?: number | null;
           pref_budget_min?: number | null;
           pref_excluded_areas?: string[] | null;
@@ -3048,6 +3050,7 @@ export type Database = {
           pref_areas?: string[] | null;
           pref_bhk_max?: number | null;
           pref_bhk_min?: number | null;
+          pref_budget_anchor?: number | null;
           pref_budget_max?: number | null;
           pref_budget_min?: number | null;
           pref_excluded_areas?: string[] | null;
@@ -14534,6 +14537,10 @@ export type Database = {
       recompute_broadcast_counts: { Args: { bid: string }; Returns: undefined };
       reconcile_subscriptions: { Args: never; Returns: undefined };
       redeem_invitation: { Args: { p_token_hash: string }; Returns: string };
+      record_enquiry_budget: {
+        Args: { p_account_id: string; p_budget: number; p_contact_id: string };
+        Returns: undefined;
+      };
       reengagement_batch_split: {
         Args: { p_account_id: string; p_tag_id: string };
         Returns: {

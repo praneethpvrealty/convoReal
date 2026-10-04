@@ -490,6 +490,36 @@
               "case": "[INB-028]"
             }
           ]
+        },
+        {
+          "id": "INB-029",
+          "rule": "A lead who says where they want to buy is matched on that place alone: a reply the qualification ladder resolves to one locality, or a message naming areas extracted from it, replaces the saved area list (pref_areas, and areas_of_interest when it holds any) with the areas that message names, so neither a locality inherited from a portal enquiry nor an older answer is kept beside them, and a locality that only the requirement history still names no longer matches a contact with stated areas. A message that adds an area (also, too, as well) or names none keeps every saved area, even when it resolves to one locality. A budget the portal lead webhook seeds from the enquired listing's price is recorded as pref_budget_anchor, and while it stands the budget caps matches but implies no half-of-max floor, so cheaper stock in the area the lead named still reaches them. The anchor is cleared by any other write of pref_budget_max, even of the same value, and when the lead states that same maximum in their own words; a stated budget keeps its implied floor.",
+          "tests": [
+            {
+              "file": "src/lib/ai/buyer-qualification.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/learning/record.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/ai/buyer-qualification.process.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/app/api/leads/email-webhook/route.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/ai/requirement-signal.test.ts",
+              "case": "[INB-029]"
+            }
+          ]
         }
       ]
     },
