@@ -30,5 +30,17 @@ describe('portal listings are written by agents and above only', () => {
       /FOR UPDATE USING \([\s\S]*?\) WITH CHECK \(\s*is_account_member\(account_id, 'agent'\)/
     );
     expect(sql).not.toMatch(/FOR ALL/);
+    expect(sql.match(/p\.is_read_only IS NOT TRUE/g)).toHaveLength(4);
+    expect(
+      sql.match(/p\.account_id = property_portal_listings\.account_id/g)
+    ).toHaveLength(4);
+  });
+
+  it('[PRP-040] a viewer folded into org_agent with is_read_only still cannot write', () => {
+    for (const block of sql.split('DROP POLICY IF EXISTS').slice(2)) {
+      if (block.includes('FOR SELECT')) continue;
+      expect(block).toContain("is_account_member(account_id, 'agent')");
+      expect(block).toContain('p.is_read_only IS NOT TRUE');
+    }
   });
 });
