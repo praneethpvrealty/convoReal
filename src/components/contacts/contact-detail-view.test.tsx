@@ -208,6 +208,10 @@ describe('ContactDetailView', () => {
         limit: 5,
       },
     ]);
+
+    fireEvent.change(input, { target: { value: 'ravi k' } });
+    expect(screen.queryByText('Ravi Kumar')).toBeNull();
+    expect(await screen.findByText('Ravi Kumar')).toBeTruthy();
   });
 
   it('renders the contact once the detail bundle has loaded', async () => {

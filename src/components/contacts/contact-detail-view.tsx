@@ -811,9 +811,12 @@ export function ContactDetailView({
   // gate the API route enforces.
   const canEditContacts = useCan('send-messages');
 
-  const filteredReferrerContacts = editReferrer.trim()
-    ? (referrerSearchQuery.data ?? NO_REFERRERS)
-    : NO_REFERRERS;
+  const filteredReferrerContacts =
+    editReferrer.trim() &&
+    editReferrer.trim() === referrerSearch &&
+    !referrerSearchQuery.isPlaceholderData
+      ? (referrerSearchQuery.data ?? NO_REFERRERS)
+      : NO_REFERRERS;
 
   // Applied tags lead; the rest keep their alphabetical order behind
   // them (sort is stable, and the query already orders by name).
