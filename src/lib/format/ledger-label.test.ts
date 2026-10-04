@@ -32,6 +32,16 @@ describe('ledgerLabel [CRD-001]', () => {
     ).toBe('Daily conversation review');
   });
 
+  it('names the feature on a refund the fallback path wrote as "<feature> refund"', () => {
+    expect(
+      ledgerLabel({
+        type: 'refund',
+        ai_feature: 'property_description',
+        description: 'property_description refund',
+      })
+    ).toBe('Refund — Property description');
+  });
+
   it('keeps a description a person wrote', () => {
     expect(
       ledgerLabel({

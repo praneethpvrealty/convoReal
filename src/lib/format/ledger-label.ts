@@ -32,7 +32,7 @@ export const FEATURE_LABELS: Record<string, string> = {
   match_unlock: 'Match unlock',
 };
 
-const MACHINE_DESCRIPTION = /^(?:refund:|retry:|[a-z0-9_]+ burn$)/;
+const MACHINE_DESCRIPTION = /^(?:refund:|retry:|[a-z0-9_]+ (?:burn|refund)$)/;
 
 function humanize(value: string): string {
   const spaced = value.replace(/_/g, ' ');
