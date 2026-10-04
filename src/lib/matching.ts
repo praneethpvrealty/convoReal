@@ -164,8 +164,9 @@ function calculateHaversineDistance(
  *    shopping at ₹4 Cr — so far-cheaper stock excludes too; stating an
  *    explicit min is how an agent widens that band on purpose. Explicit
  *    ceilings ("under X" phrasing, entry-band maxima, sale budgets read
- *    against rent) keep their old floor-less reading — see the budget
- *    step for the exact carve-outs.
+ *    against rent, a max seeded from the enquired listing's price) keep
+ *    their old floor-less reading — see the budget step for the exact
+ *    carve-outs.
  *
  * Preference sources, in priority order:
  *  1. Explicit fields the agent filled in (min/max budget, areas_of_interest,
@@ -428,6 +429,25 @@ function isNegated(text: string, keyword: string): boolean {
     index = text.indexOf(cleanKeyword, index + 1);
   }
   return false;
+}
+
+/**
+ * A budget that is the price of a listing the contact enquired about was
+ * seeded from that enquiry (the portal lead webhook writes it to
+ * pref_budget_max), not stated by the contact. It says what they were
+ * willing to look at, so it caps the band but implies no floor: a lead
+ * who enquired at ₹14.7 Cr and then asks for another locality still sees
+ * the ₹3.5 Cr house there.
+ */
+export function isEnquiryPriceAnchor(
+  budgetMax: number | null,
+  inquiredPrices: number[] | null | undefined
+): boolean {
+  if (budgetMax === null || !(budgetMax > 0) || !inquiredPrices?.length)
+    return false;
+  return inquiredPrices.some(
+    (price) => Math.abs(price - budgetMax) <= budgetMax * 0.01
+  );
 }
 
 /**
@@ -1167,7 +1187,10 @@ function matchContactsSingleProfile(
         ? Number(sourceContact.pref_budget_max)
         : null
     );
-    let maxIsCeiling = false;
+    let maxIsCeiling =
+      explicitMax === null &&
+      budgetMin === null &&
+      isEnquiryPriceAnchor(budgetMax, contact.inquired_prices);
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
       const parsed = parseBudgetFromText(combinedText);
       budgetMin = parsed.min;
@@ -1197,7 +1220,9 @@ function matchContactsSingleProfile(
     // rent-only, whose max is a sale-scale number that would exclude
     // every rental if halved. "Either" is that case too: the ladder
     // asks such a lead for a SALE budget, so imposing half of it as a
-    // monthly-rent floor would turn "show me both" into sale-only.
+    // monthly-rent floor would turn "show me both" into sale-only. A max
+    // that is the enquired listing's own price is a ceiling too — see
+    // isEnquiryPriceAnchor.
     const IMPLIED_FLOOR_OF_MAX = 0.5;
     const isRentComparison =
       propertyListingType === 'Rent' || propertyListingType === 'Built to Suit';

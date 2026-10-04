@@ -490,6 +490,28 @@
               "case": "[INB-028]"
             }
           ]
+        },
+        {
+          "id": "INB-029",
+          "rule": "A lead who says where they want to buy is matched on that place alone: a reply the qualification ladder resolves to one locality, or a message naming one of the areas extracted from it, replaces the saved area list, so a locality inherited from a portal enquiry is never kept beside it. A budget that is the price of a listing the lead enquired about (the portal lead webhook seeds pref_budget_max from it) caps matches but implies no half-of-max floor, so cheaper stock in the area the lead named still reaches them. A message that names no area keeps every saved area, and a stated budget keeps its implied floor.",
+          "tests": [
+            {
+              "file": "src/lib/ai/buyer-qualification.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/learning/record.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/contacts/inquired-intent.test.ts",
+              "case": "[INB-029]"
+            }
+          ]
         }
       ]
     },

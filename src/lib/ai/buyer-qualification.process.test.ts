@@ -235,7 +235,7 @@ describe('processBuyerQualificationMessage — free-text requirement updates', (
     expect(recordLearnedFacts).toHaveBeenCalledWith(
       expect.objectContaining({
         facts: expect.arrayContaining([
-          { field: 'pref_areas', value: ['Domlur'] },
+          { field: 'pref_areas', value: ['Domlur'], replaces: true },
         ]),
       })
     );

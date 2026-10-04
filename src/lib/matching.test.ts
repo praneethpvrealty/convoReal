@@ -737,6 +737,56 @@ describe('getMatchingContacts', () => {
       expect(results[0].details.budget).toBe('partial');
     });
 
+    it('[INB-029] reads a budget seeded from the enquired listing as a ceiling, not a floor', () => {
+      const enquirer = createTestContact({
+        pref_property_types: ['Residential House'],
+        pref_areas: ['Horamavu'],
+        pref_budget_max: 147000000, // the enquired listing's ₹14.70 Cr
+        pref_listing_types: ['Sale'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const horamavuHouse = createTestProperty({
+        type: 'Residential House',
+        price: 35000000, // ₹3.5 Cr
+        location: 'Banjara layout Horamavu main road, Horamavu, Bangalore',
+        sublocality: 'Horamavu',
+        listing_type: 'Sale',
+      });
+
+      expect(getMatchingContacts(horamavuHouse, [enquirer])).toHaveLength(0);
+
+      const [result] = getMatchingContacts(horamavuHouse, [
+        { ...enquirer, inquired_prices: [147000000] },
+      ]);
+      expect(result?.details.budget).toBe('match');
+      expect(
+        getMatchingContacts(
+          createTestProperty({
+            type: 'Residential House',
+            price: 170000000,
+            location: 'Horamavu, Bangalore',
+            sublocality: 'Horamavu',
+            listing_type: 'Sale',
+          }),
+          [{ ...enquirer, inquired_prices: [147000000] }]
+        )
+      ).toHaveLength(0);
+    });
+
+    it('[INB-029] keeps the implied floor for a stated budget that differs from every enquired price', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Residential House'],
+        pref_budget_max: 200000000,
+        inquired_prices: [147000000],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({
+        type: 'Residential House',
+        price: 43200000,
+      });
+      expect(getMatchingContacts(property, [contact])).toHaveLength(0);
+    });
+
     it('lets an explicit min budget widen the band below the implied floor', () => {
       const contact = createTestContact({
         pref_property_types: ['Residential House'],

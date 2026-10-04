@@ -28,6 +28,7 @@ import {
   shouldSendMatchesNow,
   buildFollowUpQuestion,
   preferenceFacts,
+  turnRestatesAreas,
   askedQualifiers,
   shortlistAlreadySent,
   buildShortlistStandsReply,
@@ -48,6 +49,7 @@ import {
   type ExtractedPreferences,
 } from './preference-extraction';
 import type { RankedPropertyMatch } from '@/lib/radar/engine';
+import { prepareFacts } from '@/lib/learning/record';
 import type { Contact, Property } from '@/types';
 
 function prefs(
@@ -1078,6 +1080,57 @@ describe('preferenceFacts', () => {
     expect(preferenceFacts(prefs(), [])).not.toContainEqual(
       expect.objectContaining({ field: 'no_budget' })
     );
+  });
+});
+
+describe('[INB-029] a lead naming their location replaces the enquiry locality', () => {
+  it('reads a resolved locality reply or a named area as a restatement', () => {
+    expect(
+      turnRestatesAreas("I'm looking near horamavu", ['Horamavu'], 'Horamavu')
+    ).toBe(true);
+    expect(
+      turnRestatesAreas(
+        '4bhk house near Horamavu under 5cr',
+        ['Horamavu'],
+        null
+      )
+    ).toBe(true);
+    expect(
+      turnRestatesAreas('only independent houses', ['Koramangala'], null)
+    ).toBe(false);
+  });
+
+  it('files Horamavu alone over the Koramangala enquiry area', () => {
+    const extracted = prefs({
+      property_types: ['Residential House'],
+      areas: ['Horamavu'],
+      budget_max: 147_000_000,
+      listing_types: ['Sale'],
+    });
+    const text = "I'm looking near horamavu";
+    const facts = preferenceFacts(extracted, [], {
+      areasRestated: turnRestatesAreas(text, extracted.areas, 'Horamavu'),
+    });
+    const areas = prepareFacts(
+      'contact',
+      {
+        pref_areas: ['Koramangala 1st Block'],
+        pref_property_types: ['Residential House'],
+        pref_budget_max: 147_000_000,
+        pref_listing_types: ['Sale'],
+      },
+      facts,
+      text,
+      'lead_message'
+    ).find((f) => f.field === 'pref_areas');
+    expect(areas?.value).toEqual(['Horamavu']);
+  });
+
+  it('never marks an empty area list as a restatement', () => {
+    const fact = preferenceFacts(prefs({ areas: [] }), [], {
+      areasRestated: true,
+    }).find((f) => f.field === 'pref_areas');
+    expect(fact?.replaces).toBeUndefined();
   });
 });
 

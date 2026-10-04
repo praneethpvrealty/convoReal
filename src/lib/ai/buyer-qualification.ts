@@ -52,7 +52,7 @@ import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
-import { localityLabelsMatch } from '@/lib/locality-match';
+import { localityLabelsMatch, textNamesLocality } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
 import type { Contact, Property } from '@/types';
@@ -926,9 +926,12 @@ export function preferenceFacts(
   prefs: ExtractedPreferences,
   /** Tag names already on the contact. A suggestion matching one is
    *  not a proposal, it is already done. */
-  attachedTagNames: (string | null | undefined)[] = []
-): { field: string; value: unknown }[] {
-  const facts: { field: string; value: unknown }[] = [
+  attachedTagNames: (string | null | undefined)[] = [],
+  /** The lead's message stated where they want to buy — see
+   *  turnRestatesAreas. Their areas then replace the saved list. */
+  opts: { areasRestated?: boolean } = {}
+): { field: string; value: unknown; replaces?: boolean }[] {
+  const facts: { field: string; value: unknown; replaces?: boolean }[] = [
     { field: 'pref_property_types', value: prefs.property_types },
     { field: 'pref_property_categories', value: prefs.property_categories },
     { field: 'pref_bhk_min', value: prefs.bhk_min },
@@ -937,7 +940,13 @@ export function preferenceFacts(
     { field: 'pref_budget_max', value: prefs.budget_max },
     { field: 'pref_land_area_min_sqft', value: prefs.land_area_min_sqft },
     { field: 'pref_land_area_max_sqft', value: prefs.land_area_max_sqft },
-    { field: 'pref_areas', value: prefs.areas },
+    {
+      field: 'pref_areas',
+      value: prefs.areas,
+      ...(opts.areasRestated && prefs.areas.length > 0
+        ? { replaces: true }
+        : {}),
+    },
     { field: 'pref_excluded_areas', value: prefs.excluded_areas },
     { field: 'pref_projects', value: prefs.projects },
     { field: 'pref_listing_types', value: prefs.listing_types },
@@ -962,6 +971,24 @@ export function preferenceFacts(
   }
 
   return facts;
+}
+
+/**
+ * Did this message say where the lead wants to buy? A reply the ladder
+ * resolved to one locality does, and so does any message naming one of
+ * the areas extracted from it. The areas then stand as the whole list:
+ * an area the lead never named — the locality of the listing a portal
+ * enquiry was about — is replaced, not kept. Without this a lead who
+ * enquired about a Koramangala listing and answered "I'm looking near
+ * Horamavu" was sent Koramangala houses.
+ */
+export function turnRestatesAreas(
+  text: string,
+  areas: string[],
+  resolvedLocation: string | null
+): boolean {
+  if (resolvedLocation) return true;
+  return areas.some((area) => area.trim() && textNamesLocality(text, area));
 }
 
 /** Preferences already on the contact row, in extraction shape. */
@@ -1581,7 +1608,9 @@ export async function processBuyerQualificationMessage(
           ...(contact as unknown as Record<string, unknown>),
           tags: attachedTagNames.filter(Boolean),
         },
-        facts: preferenceFacts(prefs, attachedTagNames),
+        facts: preferenceFacts(prefs, attachedTagNames, {
+          areasRestated: turnRestatesAreas(text, prefs.areas, resolvedLocation),
+        }),
         evidence: text,
         source: 'lead_message',
         contactId: contact.id,
