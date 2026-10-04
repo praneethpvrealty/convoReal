@@ -10,6 +10,14 @@ export type RefundBurnResult =
   | { status: 'queued' }
   | { status: 'failed' };
 
+export function refundOutcomeNotice(result: RefundBurnResult): string {
+  if (result.status === 'refunded') return 'Your credits were refunded.';
+  if (result.status === 'queued') {
+    return 'Your credits will be refunded within the hour.';
+  }
+  return 'We could not refund your credits automatically; please contact support.';
+}
+
 export function newBurnKey(feature: BillableFeatureKey): string {
   return `${feature}:${randomUUID()}`;
 }
