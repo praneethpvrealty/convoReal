@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { readStored, writeStored } from '@/lib/safe-storage';
 import { formatCurrency } from '@/lib/format/currency';
+import { getInitials } from '@/lib/format/text';
 
 export default function AgentsPage() {
   const supabase = createClient();
@@ -291,16 +292,6 @@ export default function AgentsPage() {
         (a.phone?.includes(q) ?? false)
     );
   }, [agents, searchQuery]);
-
-  function getInitials(name?: string | null) {
-    if (!name) return '?';
-    return name
-      .split(' ')
-      .map((w) => w[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  }
 
   return (
     <div
