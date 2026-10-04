@@ -98,12 +98,13 @@ const NEED =
 const WHO_NEED =
   "who(?:\\s+(?:is|are|all|'s))?\\s+(?:looking|wants?|interested|searching|seeking|hunting|enquir(?:ed|ing)|inquir(?:ed|ing))";
 const FIND =
-  '(?:find|list|show|get|give|pull|fetch|search|filter|which|any|do\\s+(?:i|we)\\s+have|is\\s+there|are\\s+there|kaun|kon|koi)';
+  '(?:find|list|show|share|send|get|give|pull|fetch|search|filter|which|any|do\\s+(?:i|we)\\s+have|is\\s+there|are\\s+there|kaun|kon|koi)';
 
 const INSTRUCTIONAL =
   /\b(?:how\s+(?:do|can|should|to)\b|show\s+me\s+how|where\s+(?:do|can)\s+i|why\b|is\s+there\s+a\s+way|can\s+(?:i|we)\b|could\s+(?:i|we)\b|not\s+(?:showing|coming|syncing|working|loading|appearing|updating)|isn't|aren't|doesn't|don't|didn't)/i;
 const ADD_INTENT = /^\s*(?:please\s+)?(?:add|create|save|new|import)\b/i;
-const OUTBOUND_INTENT = /\b(?:share|send|forward|broadcast)\b/i;
+const OUTBOUND_INTENT =
+  /\b(?:share|send|forward|broadcast)\b(?:\s+\S+){0,3}?\s+(?:property|properties|listing|listings|details|brochure|flyer|link|links|message|messages|template|templates|broadcast|catalog|catalogue|pdf|video|photos?|images?)\b/i;
 const INVENTORY_OBJECT =
   /\b(?:find|show|have|any|list|get|search|fetch|pull)\b\s+(?:me\s+)?(?:a|an|the|some|all|any|few)?\s*(?:\d+\s*-?\s*bhks?\s+)?(?:property|properties|listings?|inventory|flats?|apartments?|villas?|houses?|plots?|sites?|lands?|offices?|shops?|deals?|campaigns?|templates?|broadcasts?|flows?|automations?)\b/i;
 
