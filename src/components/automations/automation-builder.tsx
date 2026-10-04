@@ -43,7 +43,7 @@ import type {
   KeywordMatchTriggerConfig,
 } from '@/types';
 import { cn } from '@/lib/utils';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/use-auth';
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -229,7 +229,9 @@ const ReadOnlyContext = createContext(false);
 export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const router = useRouter();
   const isEditing = !!initial.id;
-  const readOnly = useCan('view-only');
+  const { profileLoading, orgRole, isReadOnly } = useAuth();
+  const accessKnown = !profileLoading && !!orgRole;
+  const readOnly = !accessKnown || isReadOnly;
   const [state, setState] = useState<BuilderInitial>(initial);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -370,8 +372,9 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
             role="status"
             className="flex-shrink-0 border-b border-slate-800 bg-slate-900/60 px-4 py-2 text-xs text-slate-300"
           >
-            Your access is read-only. You can look through this automation, but
-            you can&apos;t change it.
+            {accessKnown
+              ? "Your access is read-only. You can look through this automation, but you can't change it."
+              : 'Checking your access…'}
           </p>
         ) : null}
 

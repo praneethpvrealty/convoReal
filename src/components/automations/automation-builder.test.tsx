@@ -4,14 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { AutomationBuilder, type BuilderInitial } from './automation-builder';
 
-const auth = vi.hoisted(() => ({ readOnly: false }));
+const auth = vi.hoisted(() => ({
+  profileLoading: false,
+  orgRole: 'org_agent' as string | null,
+  isReadOnly: false,
+}));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
-vi.mock('@/hooks/use-can', () => ({
-  useCan: (action: string) => action === 'view-only' && auth.readOnly,
+vi.mock('@/hooks/use-auth', () => ({
+  useAuth: () => auth,
 }));
 
 const initial: BuilderInitial = {
@@ -33,7 +37,9 @@ const initial: BuilderInitial = {
 const fetchMock = vi.fn();
 
 beforeEach(() => {
-  auth.readOnly = false;
+  auth.profileLoading = false;
+  auth.orgRole = 'org_agent';
+  auth.isReadOnly = false;
   fetchMock.mockReset();
   fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
   vi.stubGlobal('fetch', fetchMock);
@@ -78,7 +84,7 @@ describe('AutomationBuilder', () => {
   });
 
   it('shows a read-only member the automation without anything they can change', () => {
-    auth.readOnly = true;
+    auth.isReadOnly = true;
     render(<AutomationBuilder initial={initial} />);
 
     expect(screen.getByRole('status').textContent).toContain('read-only');
@@ -103,5 +109,25 @@ describe('AutomationBuilder', () => {
     expect(lockedBy(screen.getByRole('combobox'))).toBe(true);
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("stays locked until the member's access is known", () => {
+    auth.profileLoading = true;
+    auth.orgRole = null;
+    const view = render(<AutomationBuilder initial={initial} />);
+
+    expect(screen.getByRole('status').textContent).toContain('Checking');
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    expect(screen.queryByLabelText('Add step')).toBeNull();
+    expect(lockedBy(openStep())).toBe(true);
+    expect(screen.queryByRole('button', { name: /Delete/ })).toBeNull();
+
+    auth.profileLoading = false;
+    auth.orgRole = 'org_agent';
+    view.rerender(<AutomationBuilder initial={initial} />);
+
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy();
+    expect(lockedBy(screen.getByDisplayValue('Hello there'))).toBe(false);
   });
 });
