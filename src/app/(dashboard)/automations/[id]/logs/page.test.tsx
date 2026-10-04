@@ -36,6 +36,10 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }));
 
+vi.mock('@/hooks/use-auth', () => ({
+  useAuth: () => ({ user: { id: 'u1' } }),
+}));
+
 vi.mock('@/components/contacts/name-tag-badge', () => ({
   NameTagBadge: () => null,
 }));
@@ -96,6 +100,7 @@ describe('AutomationLogsPage', () => {
       automations: {
         data: {
           id: 'a1',
+          user_id: 'u1',
           name: 'Keyword reply',
           trigger_type: 'keyword_match',
         },
@@ -123,6 +128,25 @@ describe('AutomationLogsPage', () => {
     expect(
       screen.getByRole('link', { name: /Edit/ }).getAttribute('href')
     ).toBe('/automations/a1/edit');
+  });
+
+  it("offers Edit only to the automation's creator", async () => {
+    db.results = {
+      automations: {
+        data: {
+          id: 'a1',
+          user_id: 'teammate',
+          name: 'Keyword reply',
+          trigger_type: 'keyword_match',
+        },
+        error: null,
+      },
+      automation_logs: { data: [log('l1', 'success')], error: null },
+      conversations: { data: [], error: null },
+    };
+    await renderLogs();
+    await screen.findByText('Keyword reply');
+    expect(screen.queryByRole('link', { name: /Edit/ })).toBeNull();
   });
 
   it('filters runs by status', async () => {

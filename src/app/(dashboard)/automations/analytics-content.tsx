@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   GitBranch,
   History,
-  Pencil,
   Workflow,
   XCircle,
 } from 'lucide-react';
@@ -310,17 +309,6 @@ export default function AutomationAnalyticsContent() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-1">
-                        <Link
-                          href={`/automations/${row.automation_id}/edit`}
-                          aria-label={`Edit ${row.name}`}
-                          className={buttonVariants({
-                            variant: 'ghost',
-                            size: 'sm',
-                          })}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </Link>
                         <Link
                           href={`/automations/${row.automation_id}/logs`}
                           aria-label={`Logs for ${row.name}`}

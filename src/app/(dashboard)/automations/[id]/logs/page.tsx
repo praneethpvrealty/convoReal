@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { triggerMeta } from '@/lib/automations/trigger-meta';
 import { formatDateTime } from '@/lib/format/date';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { useAuth } from '@/hooks/use-auth';
 
 const LOG_LIMIT = 100;
 
@@ -97,6 +98,7 @@ export default function AutomationLogsPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const { user } = useAuth();
   const [openLogId, setOpenLogId] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>('all');
 
@@ -184,13 +186,15 @@ export default function AutomationLogsPage({
             Execution logs · {triggerMeta(automation.trigger_type).label}
           </p>
         </div>
-        <Link
-          href={`/automations/${automation.id}/edit`}
-          className={buttonVariants({ variant: 'outline', size: 'sm' })}
-        >
-          <Pencil className="h-3.5 w-3.5" />
-          Edit
-        </Link>
+        {automation.user_id === user?.id && (
+          <Link
+            href={`/automations/${automation.id}/edit`}
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </Link>
+        )}
       </div>
 
       {logs.length === 0 ? (

@@ -127,10 +127,8 @@ describe('AutomationAnalyticsContent', () => {
     expect(within(row).getByText('100%')).toBeTruthy();
     expect(screen.getByText('0 failed · 4 waiting')).toBeTruthy();
     expect(
-      within(row)
-        .getByRole('link', { name: 'Edit Keyword reply' })
-        .getAttribute('href')
-    ).toBe('/automations/a1/edit');
+      within(row).queryByRole('link', { name: 'Edit Keyword reply' })
+    ).toBeNull();
     expect(
       within(row)
         .getByRole('link', { name: 'Logs for Keyword reply' })
