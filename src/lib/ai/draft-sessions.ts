@@ -1,5 +1,9 @@
 import type { PostgrestError } from '@supabase/supabase-js';
-import type { Tables, TypedSupabaseClient } from '@/lib/supabase/database';
+import type {
+  Json,
+  Tables,
+  TypedSupabaseClient,
+} from '@/lib/supabase/database';
 import type {
   ParsedContactDraftsContainer,
   ParsedPropertyDraft,
@@ -189,7 +193,7 @@ export async function overwriteContactDraftSession(
 
 async function mutateDraftRow<
   Row extends { updated_at: string },
-  Next extends { draft_data: unknown; status: DraftSessionStatus },
+  Next extends { draft_data: Json; status: DraftSessionStatus },
 >(
   db: DB,
   table: 'property_draft_sessions' | 'contact_draft_sessions',
