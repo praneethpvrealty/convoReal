@@ -6,8 +6,8 @@ import type { GateStatsMap } from '@/lib/inventory/gate-stats';
 import { GateRequestsDrawer } from '@/components/inventory/gate-requests-drawer';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
-import { useCan } from '@/hooks/use-can';
-import { useAuth } from '@/hooks/use-auth';
+import { useCan } from '@/hooks/useCan';
+import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Property, ShowcaseSettings } from '@/types';
@@ -56,7 +56,7 @@ import {
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyMapView } from '@/components/inventory/property-map-view';
-import { useT } from '@/hooks/use-locale';
+import { useT } from '@/hooks/useLocale';
 import { PropertyList } from '@/components/inventory/property-list';
 import { PropertyTable } from '@/components/inventory/property-table';
 import {
@@ -1525,8 +1525,9 @@ export default function InventoryPage() {
                     ? 'Ordered by distance while a location filter is on. Clear the location to sort another way.'
                     : undefined
                 }
-                className="h-9 w-full border-slate-700 bg-slate-800 text-xs font-semibold text-white disabled:opacity-60 md:w-48"
+                className="h-9 w-full border-slate-700 bg-slate-800 text-xs font-semibold text-white disabled:opacity-60 md:w-52"
               >
+                <span className="font-normal text-slate-400">Sort:</span>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">

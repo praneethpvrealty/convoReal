@@ -3,7 +3,7 @@ import { Inter } from 'next/font/google';
 import Script from 'next/script';
 import { Analytics } from '@vercel/analytics/react';
 import './globals.css';
-import { ThemeProvider } from '@/hooks/use-theme';
+import { ThemeProvider } from '@/hooks/useTheme';
 import { QueryProvider } from '@/components/layout/query-provider';
 import {
   DEFAULT_MODE,

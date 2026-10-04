@@ -506,3 +506,16 @@ export function reconcileContactDrafts(
   }
   return { container: { contacts: merged }, replaced: false };
 }
+
+export function absorbContactDrafts(
+  existing: ParsedContactDraftsContainer,
+  incoming: ParsedContactDraftsContainer
+): ParsedContactDraftsContainer {
+  const merged = [...(existing.contacts || [])];
+  for (const inc of incoming.contacts || []) {
+    const at = merged.findIndex((base) => sameDraftSubject(base, inc));
+    if (at === -1) merged.push(inc);
+    else merged[at] = mergeContactDraft(merged[at], inc);
+  }
+  return { contacts: merged };
+}

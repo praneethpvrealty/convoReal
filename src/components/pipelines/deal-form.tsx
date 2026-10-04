@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, createElement } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import type {
   Contact,
   Conversation,

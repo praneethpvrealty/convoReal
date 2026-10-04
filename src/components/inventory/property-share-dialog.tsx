@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { toast } from 'sonner';
 import type { Property, Contact, MessageTemplate } from '@/types';
 import { storagePublicUrl } from '@/lib/storage/url';

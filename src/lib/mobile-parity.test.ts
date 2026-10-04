@@ -2598,7 +2598,7 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
 
   it('[PIPE-001] opens the Deals board flat on both surfaces and remembers the choice under one key', () => {
     const mobileHook = mobileSource('lib/board-layout-preference.ts');
-    const webHook = webSource('hooks/use-board-layout.ts');
+    const webHook = webSource('hooks/useBoardLayout.ts');
     for (const source of [mobileHook, webHook]) {
       expect(source).toContain('BOARD_LAYOUT_STORAGE_KEY');
       expect(source).toContain('parseBoardLayout(');
@@ -4790,6 +4790,62 @@ describe('[CTM-013] the Contacts tab counts come from one SQL aggregate on both 
     expect(migration).toContain(
       'GRANT EXECUTE ON FUNCTION public.contacts_tab_counts(UUID) TO authenticated;'
     );
+  });
+});
+
+describe('the Today insights come from one SQL aggregate on both surfaces', () => {
+  const web = webSource('lib/today/queries.ts');
+  const mobile = mobileSource('lib/today.ts');
+  const migration = readFileSync(
+    join(
+      process.cwd(),
+      'supabase/migrations/20261004072000_today_insights_rpc.sql'
+    ),
+    'utf8'
+  );
+
+  it('both surfaces call today_insights with the account and map it through the shared helper', () => {
+    for (const source of [web, mobile]) {
+      expect(source).toContain(".rpc('today_insights', {");
+      expect(source).toContain('p_account_id: accountId,');
+      expect(source).toContain('.maybeSingle<TodayInsightsRow>();');
+      expect(source).toContain('return toRangeInsights(data);');
+      expect(source).not.toContain("count: 'exact'");
+      expect(source).not.toMatch(
+        /\.from\('messages'\)\n\s+\.select\('conversation_id, sender_type'\)/
+      );
+    }
+    expect(mobile).toContain("from '@shared/lib/today/insights';");
+    expect(web).toContain("from '@/lib/today/insights';");
+  });
+
+  it('the aggregate is member-guarded, account-scoped and keeps the old filters', () => {
+    expect(migration).toContain('SECURITY INVOKER');
+    expect(migration).not.toContain('SECURITY DEFINER');
+    expect(migration).toContain('SET search_path = public');
+    expect(migration).toContain('WHERE is_account_member(p_account_id);');
+    for (const alias of ['m', 'c', 'ct', 'se']) {
+      expect(migration).toContain(`${alias}.account_id = p_account_id`);
+      expect(migration).toContain(`${alias}.created_at >= p_start`);
+      expect(migration).toContain(`${alias}.created_at <= p_end`);
+    }
+    expect(migration).toContain("AND se.event_type = 'open'");
+    expect(migration).toContain(
+      "count(*) FILTER (WHERE m.sender_type = 'customer') AS received"
+    );
+    expect(migration).toContain(
+      "count(*) FILTER (WHERE m.sender_type IS DISTINCT FROM 'customer') AS sent"
+    );
+    expect(migration).toContain(
+      'count(*) FILTER (WHERE pc.last_outbound_at > pc.first_customer_at) AS responded'
+    );
+    expect(migration).toContain(
+      'REVOKE ALL ON FUNCTION public.today_insights(UUID, TIMESTAMPTZ, TIMESTAMPTZ) FROM anon;'
+    );
+    expect(migration).toContain(
+      'GRANT EXECUTE ON FUNCTION public.today_insights(UUID, TIMESTAMPTZ, TIMESTAMPTZ) TO authenticated;'
+    );
+    expect(migration).not.toMatch(/\bDROP\b|ALTER TABLE|CREATE INDEX/);
   });
 });
 

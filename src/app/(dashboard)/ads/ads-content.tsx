@@ -15,7 +15,6 @@ import {
   Pencil,
   RefreshCw,
 } from 'lucide-react';
-import { TabSkeleton } from '@/components/dashboard/skeleton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -34,7 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import { formatRelative } from '@/lib/format/date';
 import { formatAdMoney } from '@/lib/meta-ads/format';
@@ -251,6 +250,30 @@ export default function AdsPage() {
 
   const metaCell = needsReconnect ? 'text-muted-foreground p-3' : 'p-3';
 
+  const tableHead = (
+    <thead>
+      <tr className="bg-muted/40 text-muted-foreground border-b text-left text-xs">
+        <th className="p-3 font-medium">Property</th>
+        <th className="p-3 font-medium">Status</th>
+        <th className="p-3 font-medium">Daily budget</th>
+        <ColumnHead label="Spend" />
+        <ColumnHead label="Reach" />
+        <ColumnHead
+          label="Chats (Meta)"
+          hint="Conversations Meta counts as started from this ad, using Meta's own attribution. It can differ from the contacts that actually reach ConvoReal."
+        />
+        <ColumnHead
+          label="New contacts (ConvoReal)"
+          hint="Distinct contacts who messaged you from this ad, counted once even if they tapped it more than once. Counted by ConvoReal, so it can differ from Meta's chats."
+        />
+        <ColumnHead label="Cost per lead" />
+        <th className="p-3 font-medium">
+          <span className="sr-only">Actions</span>
+        </th>
+      </tr>
+    </thead>
+  );
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -278,7 +301,37 @@ export default function AdsPage() {
       </div>
 
       {isPending ? (
-        <TabSkeleton label="Loading ads" cards={3} />
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label="Loading ad campaigns"
+          className="overflow-x-auto rounded-lg border"
+        >
+          <table className="w-full text-sm">
+            {tableHead}
+            <tbody>
+              {[0, 1, 2].map((row) => (
+                <tr key={row} className="border-b last:border-0">
+                  <td className="p-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="bg-muted h-9 w-9 shrink-0 animate-pulse rounded" />
+                      <div className="space-y-1.5">
+                        <div className="bg-muted h-3 w-36 animate-pulse rounded" />
+                        <div className="bg-muted h-2.5 w-16 animate-pulse rounded" />
+                      </div>
+                    </div>
+                  </td>
+                  {Array.from({ length: 7 }, (_, cell) => (
+                    <td key={cell} className="p-3">
+                      <div className="bg-muted h-3 w-12 animate-pulse rounded" />
+                    </td>
+                  ))}
+                  <td className="p-3" />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : isError && !data ? (
         <div
           role="alert"
@@ -418,27 +471,7 @@ export default function AdsPage() {
           ) : (
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/40 text-muted-foreground border-b text-left text-xs">
-                    <th className="p-3 font-medium">Property</th>
-                    <th className="p-3 font-medium">Status</th>
-                    <th className="p-3 font-medium">Daily budget</th>
-                    <ColumnHead label="Spend" />
-                    <ColumnHead label="Reach" />
-                    <ColumnHead
-                      label="Chats (Meta)"
-                      hint="Conversations Meta counts as started from this ad, using Meta's own attribution. It can differ from the contacts that actually reach ConvoReal."
-                    />
-                    <ColumnHead
-                      label="New contacts (ConvoReal)"
-                      hint="Distinct contacts who messaged you from this ad, counted once even if they tapped it more than once. Counted by ConvoReal, so it can differ from Meta's chats."
-                    />
-                    <ColumnHead label="Cost per lead" />
-                    <th className="p-3 font-medium">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
+                {tableHead}
                 <tbody>
                   {campaigns.map((c) => {
                     const live = c.status === 'ACTIVE' || c.status === 'PAUSED';

@@ -17,7 +17,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 const can = vi.hoisted(() => ({ value: true }));
-vi.mock('@/hooks/use-can', () => ({ useCan: () => can.value }));
+vi.mock('@/hooks/useCan', () => ({ useCan: () => can.value }));
 
 const CAMPAIGN = {
   id: 'camp-1',
@@ -392,5 +392,30 @@ describe('AdsPage actions', () => {
 
     await screen.findByText('Minimum daily budget is ₹200.');
     expect(screen.getByLabelText('Daily budget')).toBeTruthy();
+  });
+});
+
+describe('AdsPage loading state', () => {
+  it('[PRP-038] shows the campaigns table shape while loading, not a splash', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})));
+    const { default: AdsPage } = await import('./ads-content');
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <AdsPage />
+      </QueryClientProvider>
+    );
+    const skeleton = screen.getByRole('status', {
+      name: 'Loading ad campaigns',
+    });
+    expect(skeleton.getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByText('Property')).toBeTruthy();
+    expect(screen.getByText('Cost per lead')).toBeTruthy();
+    expect(screen.queryByText(/Loading ad campaigns\.\.\./)).toBeNull();
+  });
+
+  it('[PRP-038] swaps the skeleton for the rows once campaigns arrive', async () => {
+    mockCampaigns(CONNECTED);
+    await renderAds();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });

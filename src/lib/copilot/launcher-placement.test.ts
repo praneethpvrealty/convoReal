@@ -20,9 +20,15 @@ describe('[CPL-001] copilot launcher placement', () => {
   });
 
   it('keeps the launcher on screen and clear of the header', () => {
-    expect(clampLauncherBottom(-40, 800, 48)).toBe(16);
+    expect(clampLauncherBottom(-40, 800, 48)).toBe(64);
     expect(clampLauncherBottom(5000, 800, 48)).toBe(800 - 80 - 48);
-    expect(clampLauncherBottom(200, 100, 48)).toBe(16);
+    expect(clampLauncherBottom(200, 100, 48)).toBe(64);
+  });
+
+  it('[CPL-002] never parks a dragged launcher on the Help & feedback control', () => {
+    expect(clampLauncherBottom(0, 800, 48)).toBe(64);
+    expect(clampLauncherBottom(40, 800, 48)).toBe(64);
+    expect(clampLauncherBottom(90, 800, 48)).toBe(90);
   });
 
   it('treats a small wobble as a click, not a drag', () => {

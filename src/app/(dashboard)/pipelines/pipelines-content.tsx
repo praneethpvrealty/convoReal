@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import type { Pipeline, PipelineStage, Deal, DealStatus } from '@/types';
 import { PipelineBoard } from '@/components/pipelines/pipeline-board';
 import { PipelineSettings } from '@/components/pipelines/pipeline-settings';
@@ -38,7 +38,7 @@ import {
   Orbit,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import { GatedButton } from '@/components/ui/gated-button';
 import { InfoHint } from '@/components/ui/info-hint';
 import { brokerageAmount } from '@/lib/pipelines/brokerage';
@@ -62,7 +62,7 @@ import {
 } from '@/lib/deals/board-focus';
 import { formatDealAmount } from '@/lib/pipelines/deal-money';
 import { BOARD_LAYOUTS, type BoardLayout } from '@/lib/pipelines/board-layout';
-import { useBoardLayout } from '@/hooks/use-board-layout';
+import { useBoardLayout } from '@/hooks/useBoardLayout';
 
 const BOARD_LAYOUT_ICONS: Record<BoardLayout, typeof Columns3> = {
   flat: Columns3,

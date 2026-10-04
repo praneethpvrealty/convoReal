@@ -20,7 +20,7 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useCopilot } from './copilot-context';
-import { useT } from '@/hooks/use-locale';
+import { useT } from '@/hooks/useLocale';
 
 interface Rect {
   top: number;

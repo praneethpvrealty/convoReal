@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanup,
   fireEvent,
@@ -17,11 +17,13 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
+const can = vi.hoisted(() => ({ value: true }));
+
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ accountId: 'acct-1', user: { id: 'u1' } }),
 }));
 
-vi.mock('@/hooks/use-can', () => ({ useCan: () => true }));
+vi.mock('@/hooks/useCan', () => ({ useCan: () => can.value }));
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -63,6 +65,10 @@ function renderList(handler: Handler) {
 function ok(body: unknown) {
   return { ok: true, json: async () => body };
 }
+
+beforeEach(() => {
+  can.value = true;
+});
 
 afterEach(() => {
   cleanup();
@@ -211,27 +217,49 @@ describe('AutomationsListContent', () => {
     );
   });
 
-  it("shows a teammate's automation read-only", async () => {
+  it("gives a teammate's automation the same actions as the caller's own", async () => {
     renderList(() =>
       ok({ automations: [automation({ user_id: 'u2', is_active: true })] })
     );
     await screen.findByText('Welcome new leads');
-    expect(screen.queryByRole('switch')).toBe(null);
+    const toggle = screen.getByRole('switch', {
+      name: 'Pause Welcome new leads',
+    });
+    expect(toggle.getAttribute('aria-disabled')).not.toBe('true');
+    expect(
+      screen
+        .getAllByRole('link', { name: /Edit/ })
+        .some((l) => l.getAttribute('href') === '/automations/a1/edit')
+    ).toBe(true);
+    expect(
+      screen
+        .getByRole('link', { name: 'Welcome new leads' })
+        .getAttribute('href')
+    ).toBe('/automations/a1/edit');
+    expect(screen.getByRole('button', { name: /Duplicate/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Delete/ })).toBeTruthy();
+    expect(screen.queryByText(/Created by a teammate/)).toBe(null);
+  });
+
+  it('shows a read-only member every automation without the actions', async () => {
+    can.value = false;
+    renderList(() =>
+      ok({ automations: [automation({ user_id: 'u2', is_active: true })] })
+    );
+    await screen.findByText('Welcome new leads');
+    const toggle = screen.getByRole('switch', {
+      name: 'Pause Welcome new leads',
+    });
+    expect(toggle.getAttribute('aria-disabled')).toBe('true');
+    expect(toggle.closest('[title]')?.getAttribute('title')).toBe(
+      'Your access is read-only.'
+    );
     expect(screen.queryByRole('link', { name: /Edit/ })).toBe(null);
     expect(screen.queryByRole('button', { name: /Duplicate/ })).toBe(null);
     expect(screen.queryByRole('button', { name: /Delete/ })).toBe(null);
-    expect(screen.queryByRole('link', { name: 'Welcome new leads' })).toBe(
-      null
-    );
     expect(
       screen.getByRole('link', { name: /Logs/ }).getAttribute('href')
     ).toBe('/automations/a1/logs');
-    expect(screen.getByText('On')).toBeTruthy();
-    expect(
-      screen.getByText(
-        'Created by a teammate. Only its creator can change it for now.'
-      )
-    ).toBeTruthy();
   });
 
   it('deletes only after the confirm dialog', async () => {

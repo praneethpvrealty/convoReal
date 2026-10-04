@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { Search, ChevronDown, X, Check } from 'lucide-react';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
-import { useAnchoredDropdown } from '@/hooks/use-anchored-dropdown';
+import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown';
 
 interface Contact {
   id: string;

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ContactForm } from '@/components/contacts/contact-form';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { Smartphone, AlertCircle } from 'lucide-react';
 import { ContactCardLoader } from '@/components/ui/contact-card-loader';

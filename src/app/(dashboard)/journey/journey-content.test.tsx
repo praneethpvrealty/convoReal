@@ -15,11 +15,11 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => auth.current,
 }));
 
-vi.mock('@/hooks/use-can', () => ({
+vi.mock('@/hooks/useCan', () => ({
   useCan: () => true,
 }));
 

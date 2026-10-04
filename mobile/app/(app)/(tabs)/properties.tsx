@@ -27,6 +27,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { GateRequestsSheet } from '@/components/gate-requests-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
 import { PortalDriftPanel } from '@/components/portal-drift-panel';
+import { listingCardStatus } from '@shared/lib/inventory/card-badges';
 import { PropertyApprovals } from '@/components/property-approvals';
 import { PropertyImportsSheet } from '@/components/property-imports-sheet';
 import { useAuthStore } from '@/lib/auth-store';
@@ -1139,6 +1140,32 @@ function PropertyCard({
             </Text>
           </View>
         ) : null}
+        {listingCardStatus(property.status) ? (
+          <View
+            style={[
+              styles.statusChip,
+              styles.listingStatusChip,
+              {
+                backgroundColor:
+                  property.status === 'Sold' ? colors.danger : colors.warning,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                {
+                  color:
+                    property.status === 'Sold'
+                      ? colors.onDanger
+                      : colors.onWarning,
+                },
+              ]}
+            >
+              {listingCardStatus(property.status)}
+            </Text>
+          </View>
+        ) : null}
         {property.is_starred ? (
           <View style={styles.starBadge}>
             <Ionicons name="star" size={13} color={colors.rating} />
@@ -1434,6 +1461,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
+  listingStatusChip: { top: 42 },
   statusDot: { width: 5, height: 5, borderRadius: 2.5 },
   statusText: { fontSize: 11.5, fontFamily: fonts.bold },
   starBadge: {

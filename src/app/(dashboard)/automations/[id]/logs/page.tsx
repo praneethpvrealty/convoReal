@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils';
 import { triggerMeta } from '@/lib/automations/trigger-meta';
 import { formatDateTime } from '@/lib/format/date';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
-import { useAuth } from '@/hooks/use-auth';
+import { useCan } from '@/hooks/useCan';
 
 const LOG_LIMIT = 100;
 
@@ -98,7 +98,7 @@ export default function AutomationLogsPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const { user } = useAuth();
+  const canEdit = useCan('send-messages');
   const [openLogId, setOpenLogId] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>('all');
 
@@ -186,7 +186,7 @@ export default function AutomationLogsPage({
             Execution logs · {triggerMeta(automation.trigger_type).label}
           </p>
         </div>
-        {automation.user_id === user?.id && (
+        {canEdit && (
           <Link
             href={`/automations/${automation.id}/edit`}
             className={buttonVariants({ variant: 'outline', size: 'sm' })}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useLocale } from '@/hooks/use-locale';
+import { useLocale } from '@/hooks/useLocale';
 import { SUPPORTED_LANGUAGES, type LanguageCode } from '@/lib/languages';
 import { cn } from '@/lib/utils';
 

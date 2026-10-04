@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -84,6 +84,7 @@ import type {
   KeywordMatchTriggerConfig,
 } from '@/types';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -316,9 +317,17 @@ function issueCount(n: number): string {
 // Main builder component
 // ------------------------------------------------------------
 
+// A read-only member can open every card to look through an automation;
+// the fields inside are disabled and the add, move and delete controls
+// are not rendered.
+const ReadOnlyContext = createContext(false);
+
 export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const router = useRouter();
   const isEditing = !!initial.id;
+  const { profileLoading, orgRole, isReadOnly } = useAuth();
+  const accessKnown = !profileLoading && !!orgRole;
+  const readOnly = !accessKnown || isReadOnly;
   const [state, setState] = useState<BuilderInitial>(initial);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -400,6 +409,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   }
 
   function requestSave() {
+    if (readOnly) return;
     if (state.is_active) {
       const found = activationIssues(state);
       if (found.length > 0) {
@@ -417,6 +427,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
 
   async function save() {
     setConfirmActivate(false);
+    if (readOnly) return;
     setSaving(true);
     const sent = state;
     try {
@@ -469,153 +480,169 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-slate-950">
-      {/* Top bar. At sub-sm widths the "Active" label is hidden and the
+    <ReadOnlyContext.Provider value={readOnly}>
+      <div className="fixed inset-0 flex flex-col bg-slate-950">
+        {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
           gets maximum width. */}
-      <header className="flex flex-shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-900/80 px-3 py-3 sm:gap-3 sm:px-4">
-        <button
-          type="button"
-          onClick={() =>
-            dirty ? setConfirmLeave(true) : router.push('/automations')
-          }
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
-          aria-label="Back to automations"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <input
-          value={state.name}
-          onChange={(e) => patchTop('name', e.target.value)}
-          placeholder="Untitled automation"
-          className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 text-sm font-semibold text-white placeholder:text-slate-500 focus:bg-slate-800 focus:outline-none sm:text-base"
-        />
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span className="hidden sm:inline">Active</span>
-          <Switch
-            checked={state.is_active}
-            onCheckedChange={(v) => patchTop('is_active', !!v)}
-            aria-label="Active"
+        <header className="flex flex-shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-900/80 px-3 py-3 sm:gap-3 sm:px-4">
+          <button
+            type="button"
+            onClick={() =>
+              dirty ? setConfirmLeave(true) : router.push('/automations')
+            }
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+            aria-label="Back to automations"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <input
+            value={state.name}
+            onChange={(e) => patchTop('name', e.target.value)}
+            placeholder="Untitled automation"
+            readOnly={readOnly}
+            className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 text-sm font-semibold text-white placeholder:text-slate-500 focus:bg-slate-800 focus:outline-none sm:text-base"
           />
-        </div>
-        <Button
-          onClick={requestSave}
-          disabled={saving}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {state.is_active ? 'Save & activate' : 'Save draft'}
-        </Button>
-      </header>
-
-      {/* Canvas */}
-      <div className="relative flex-1 overflow-y-auto">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,#1e293b_1px,transparent_1px)] [background-size:20px_20px]" />
-        <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-0 px-4 py-10">
-          {issues.summary.length > 0 && (
-            <IssueSummary
-              items={issues.summary}
-              onPick={(id) => setExpandedId(id)}
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span className="hidden sm:inline">Active</span>
+            <Switch
+              checked={state.is_active}
+              onCheckedChange={(v) => patchTop('is_active', !!v)}
+              aria-label="Active"
+              disabled={readOnly}
             />
-          )}
-          <TriggerCard
-            type={state.trigger_type}
-            config={state.trigger_config}
-            errors={issues.trigger}
-            onTypeChange={(t) => patchTop('trigger_type', t)}
-            onConfigChange={(c) => patchTop('trigger_config', c)}
-          />
-          <StepList
-            steps={state.steps}
-            scope={ROOT_SCOPE}
-            expandedId={expandedId}
-            setExpandedId={setExpandedId}
-            issuesByCid={issues.byCid}
-            updateStep={updateStep}
-            addStepAt={addStepAt}
-            deleteStepAt={deleteStepAt}
-            moveStepAt={moveStepAt}
-          />
-        </div>
-      </div>
-
-      <Dialog
-        open={confirmActivate}
-        onOpenChange={(o) => !o && setConfirmActivate(false)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Turn on “{state.name || 'Untitled automation'}”?
-            </DialogTitle>
-            <DialogDescription>
-              {triggerActivationSentence(
-                state.trigger_type,
-                state.trigger_config
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmActivate(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void save()} disabled={saving}>
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={confirmLeave}
-        onOpenChange={(o) => !o && setConfirmLeave(false)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Discard unsaved changes?</DialogTitle>
-            <DialogDescription>
-              Your edits to this automation have not been saved.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmLeave(false)}>
-              Keep editing
-            </Button>
+          </div>
+          {readOnly ? null : (
             <Button
-              variant="destructive"
-              onClick={() => {
-                setConfirmLeave(false);
-                router.push('/automations');
-              }}
+              onClick={requestSave}
+              disabled={saving}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              Discard
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {state.is_active ? 'Save & activate' : 'Save draft'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          )}
+        </header>
+        {readOnly ? (
+          <p
+            role="status"
+            className="flex-shrink-0 border-b border-slate-800 bg-slate-900/60 px-4 py-2 text-xs text-slate-300"
+          >
+            {accessKnown
+              ? "Your access is read-only. You can look through this automation, but you can't change it."
+              : 'Checking your access…'}
+          </p>
+        ) : null}
 
-      <Dialog
-        open={pendingDelete !== null}
-        onOpenChange={(o) => !o && setPendingDelete(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete this condition?</DialogTitle>
-            <DialogDescription>
-              Every step inside its Yes and No branches will be deleted too.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setPendingDelete(null)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        {/* Canvas */}
+        <div className="relative flex-1 overflow-y-auto">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,#1e293b_1px,transparent_1px)] [background-size:20px_20px]" />
+          <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-0 px-4 py-10">
+            {issues.summary.length > 0 && (
+              <IssueSummary
+                items={issues.summary}
+                onPick={(id) => setExpandedId(id)}
+              />
+            )}
+            <TriggerCard
+              type={state.trigger_type}
+              config={state.trigger_config}
+              errors={issues.trigger}
+              onTypeChange={(t) => patchTop('trigger_type', t)}
+              onConfigChange={(c) => patchTop('trigger_config', c)}
+            />
+            <StepList
+              steps={state.steps}
+              scope={ROOT_SCOPE}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              issuesByCid={issues.byCid}
+              updateStep={updateStep}
+              addStepAt={addStepAt}
+              deleteStepAt={deleteStepAt}
+              moveStepAt={moveStepAt}
+            />
+          </div>
+        </div>
+
+        <Dialog
+          open={confirmActivate}
+          onOpenChange={(o) => !o && setConfirmActivate(false)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                Turn on “{state.name || 'Untitled automation'}”?
+              </DialogTitle>
+              <DialogDescription>
+                {triggerActivationSentence(
+                  state.trigger_type,
+                  state.trigger_config
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setConfirmActivate(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => void save()} disabled={saving}>
+                Confirm
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={confirmLeave}
+          onOpenChange={(o) => !o && setConfirmLeave(false)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Discard unsaved changes?</DialogTitle>
+              <DialogDescription>
+                Your edits to this automation have not been saved.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setConfirmLeave(false)}>
+                Keep editing
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setConfirmLeave(false);
+                  router.push('/automations');
+                }}
+              >
+                Discard
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={pendingDelete !== null}
+          onOpenChange={(o) => !o && setPendingDelete(null)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete this condition?</DialogTitle>
+              <DialogDescription>
+                Every step inside its Yes and No branches will be deleted too.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setPendingDelete(null)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDelete}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </ReadOnlyContext.Provider>
   );
 }
 
@@ -674,6 +701,7 @@ function TriggerCard({
   onConfigChange: (c: Record<string, unknown>) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const readOnly = useContext(ReadOnlyContext);
   const hasErrors = Object.keys(errors).length > 0;
   const expanded = open || hasErrors;
   const available = isTriggerAvailable(type);
@@ -712,7 +740,10 @@ function TriggerCard({
           />
         </button>
         {expanded && (
-          <div className="space-y-3 border-t border-slate-800 px-4 py-3">
+          <fieldset
+            disabled={readOnly}
+            className="min-w-0 space-y-3 border-t border-slate-800 px-4 py-3"
+          >
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-400">
                 Trigger type
@@ -750,7 +781,7 @@ function TriggerCard({
                 onChange={onConfigChange}
               />
             )}
-          </div>
+          </fieldset>
         )}
       </div>
     </div>
@@ -861,6 +892,7 @@ function StepRenderer({
   const path = pathInScope(scope, index);
   const meta = STEP_META[step.step_type];
   const Icon = meta.icon;
+  const readOnly = useContext(ReadOnlyContext);
   const expanded = props.expandedId === step.cid;
   const isCondition = step.step_type === 'condition';
   const errors = props.issuesByCid.get(step.cid);
@@ -924,42 +956,46 @@ function StepRenderer({
           </button>
           {expanded && (
             <div className="border-t border-slate-800 px-4 py-3">
-              <StepEditor
-                step={step}
-                errors={errors ?? {}}
-                onChange={(next) => props.updateStep(path, () => next)}
-              />
-              <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
-                <div className="flex gap-1">
+              <fieldset disabled={readOnly} className="min-w-0">
+                <StepEditor
+                  step={step}
+                  errors={errors ?? {}}
+                  onChange={(next) => props.updateStep(path, () => next)}
+                />
+              </fieldset>
+              {readOnly ? null : (
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={index === 0}
+                      aria-label="Move up"
+                      onClick={() => props.moveStepAt(path, -1)}
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={index === total - 1}
+                      aria-label="Move down"
+                      onClick={() => props.moveStepAt(path, 1)}
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <Button
                     variant="ghost"
-                    size="icon"
-                    disabled={index === 0}
-                    aria-label="Move up"
-                    onClick={() => props.moveStepAt(path, -1)}
+                    size="sm"
+                    className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    onClick={() => props.deleteStepAt(path, step)}
                   >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={index === total - 1}
-                    aria-label="Move down"
-                    onClick={() => props.moveStepAt(path, 1)}
-                  >
-                    <ArrowDown className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
                   </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                  onClick={() => props.deleteStepAt(path, step)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete
-                </Button>
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -1027,6 +1063,8 @@ function BranchColumn({
 }
 
 function AddButton({ onPick }: { onPick: (t: AutomationStepType) => void }) {
+  const readOnly = useContext(ReadOnlyContext);
+  if (readOnly) return <div className="h-8 w-[2px] bg-slate-700" aria-hidden />;
   return (
     <div className="relative flex flex-col items-center">
       <div className="h-4 w-[2px] bg-slate-700" aria-hidden />

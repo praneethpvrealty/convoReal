@@ -7,7 +7,7 @@ import type { PostgrestError } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { storagePublicUrl } from '@/lib/storage/url';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import {
   needsReply,
   needsReplyLabel,

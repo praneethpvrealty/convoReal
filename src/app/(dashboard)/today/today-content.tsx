@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -300,7 +300,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
     let cancelled = false;
     Promise.resolve().then(() => {
       setInsightsLoading(true);
-      loadRangeInsights(createClient(), range[0], range[1])
+      loadRangeInsights(createClient(), accountId, range[0], range[1])
         .then((data) => {
           if (!cancelled) setInsights(data);
         })
