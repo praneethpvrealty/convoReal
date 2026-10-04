@@ -897,6 +897,15 @@ async function announceLatestContactDraft(
       console.error(
         `[chatbot-engine] could not confirm the contact draft preview for ${contactId} is current`
       );
+      const warning =
+        "⚠️ *I couldn't check that this draft is the latest.* Send the contact again to refresh it before you tap Confirm, or reply *cancel*.";
+      const sendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to,
+        text: warning,
+      });
+      await saveBotMessage(conversationId, warning, sendRes.messageId);
       return;
     }
     if (!latest || latest.updated_at === row.updated_at) return;

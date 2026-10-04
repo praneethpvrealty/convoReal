@@ -81,6 +81,15 @@ describe('[INB-025] starting a contact draft', () => {
       announcer.indexOf('await readCurrentContactDraft(')
     );
     expect(announcer).toContain('if (latest === undefined) {');
+    const unverified = announcer.slice(
+      announcer.indexOf('if (latest === undefined) {'),
+      announcer.indexOf('if (!latest || latest.updated_at === row.updated_at)')
+    );
+    expect(unverified).toContain(
+      "I couldn't check that this draft is the latest."
+    );
+    expect(unverified).toContain('await sendTextMessage(');
+    expect(unverified).not.toContain('sendInteractiveButtons(');
 
     const reader = source.slice(
       source.indexOf('async function readCurrentContactDraft('),
