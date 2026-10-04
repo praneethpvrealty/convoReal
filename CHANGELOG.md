@@ -19,6 +19,10 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **Only agents and above can change portal ad records.** Marking a portal
+  ad posted or removed, or changing its expiry date, is now refused by the
+  database for viewers and read-only members on web and mobile alike; every
+  member can still read the records.
 - **One badge per idea on listing cards.** An available listing shows "For
   Sale" or "For Rent" alone; the status badge appears only when it says
   something — Under Contract, Sold, Off Market, Pending Review or Archived.

@@ -1767,6 +1767,19 @@
             }
           ],
           "guards": ["src/lib/inventory/card-badges.ts"]
+        },
+        {
+          "id": "PRP-040",
+          "rule": "Portal listing records (property_portal_listings) are readable by every account member and written only by agents and above: a viewer or read-only member can neither mark a portal ad posted or removed nor change its expiry, from web, mobile or a direct client call, because the table's row-level security enforces the agent role on insert, update and delete.",
+          "tests": [
+            {
+              "file": "src/lib/migrations/portal-listings-write-role.test.ts",
+              "case": "[PRP-040]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261004073500_portal_listings_write_role.sql"
+          ]
         }
       ]
     },
