@@ -7,6 +7,7 @@
  * the deal through the visibility resolver.
  */
 
+import { normalizePhone } from '@/lib/whatsapp/phone-utils';
 import type { DealSide } from './visibility';
 
 export type StakeholderRole =
@@ -104,8 +105,8 @@ type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function normalizePhone(raw: string): string | null {
-  const digits = raw.replace(/\D/g, '');
+export function parseStakeholderPhone(raw: string): string | null {
+  const digits = normalizePhone(raw);
   if (digits.length < 8 || digits.length > 15) return null;
   return digits;
 }
@@ -145,7 +146,7 @@ export function parseStakeholderInput(
 
   let phone: string | null = null;
   if (typeof input.phone === 'string' && input.phone.trim()) {
-    phone = normalizePhone(input.phone);
+    phone = parseStakeholderPhone(input.phone);
     if (!phone) return { ok: false, error: 'Phone number looks wrong' };
   }
   let email: string | null = null;

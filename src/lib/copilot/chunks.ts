@@ -890,7 +890,7 @@ export function chunkVersion(chunk: KnowledgeChunk): string {
     chunk.body,
     (chunk.keywords ?? []).join(','),
     chunk.kind,
-  ].join(' ');
+  ].join('\u0000');
   let hash = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) {
     hash ^= text.charCodeAt(i);

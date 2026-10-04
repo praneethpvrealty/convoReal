@@ -176,6 +176,7 @@ import { SellerPageDialog } from '@/components/contacts/seller-page-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 import { formatCurrency } from '@/lib/format/currency';
+import { getInitials } from '@/lib/format/text';
 
 const NO_PROPERTIES: Property[] = [];
 const NO_PICKER_PROPERTIES: PickerProperty[] = [];
@@ -1588,16 +1589,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       invalidateContactQuery('notes');
       toast.success('Note deleted');
     }
-  }
-
-  function getInitials(name?: string | null) {
-    if (!name) return '?';
-    return name
-      .split(' ')
-      .map((w) => w[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
   }
 
   return (
