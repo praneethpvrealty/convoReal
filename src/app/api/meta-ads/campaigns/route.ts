@@ -14,6 +14,7 @@ import {
   deleteObject,
   resolveCityGeoKey,
   getCampaignInsights,
+  INSIGHTS_DATE_PRESET,
   INSIGHTS_WINDOW_DAYS,
   isTokenError,
   MetaAdsApiError,
@@ -411,6 +412,14 @@ export async function POST(request: NextRequest) {
 // returned so the dashboard can say whether managing ads will work.
 const INSIGHTS_STALE_MS = 15 * 60 * 1000;
 
+function inInsightsWindow(cached: unknown): boolean {
+  return (
+    typeof cached === 'object' &&
+    cached !== null &&
+    (cached as { window?: unknown }).window === INSIGHTS_DATE_PRESET
+  );
+}
+
 export async function GET() {
   try {
     const ctx = await requireRole('viewer');
@@ -489,14 +498,17 @@ export async function GET() {
       leadCountByAdId = leadCountsByAd(counts ?? []);
     }
 
-    // Refresh stale insights for live campaigns only — no point
-    // spending a Meta call on an already-archived/errored row.
+    // Refresh stale insights for live campaigns. An archived/errored row
+    // is refetched only once, when its cache predates the 30-day window
+    // and still holds lifetime totals.
     const needsRefresh = campaigns.filter(
       (c) =>
-        ['ACTIVE', 'PAUSED'].includes(c.status) &&
         c.campaign_id &&
-        (!c.last_insights_at ||
-          now - new Date(c.last_insights_at).getTime() > INSIGHTS_STALE_MS)
+        (!inInsightsWindow(c.last_insights) ||
+          (['ACTIVE', 'PAUSED'].includes(c.status) &&
+            (!c.last_insights_at ||
+              now - new Date(c.last_insights_at).getTime() >
+                INSIGHTS_STALE_MS)))
     );
 
     const refreshedById = new Map<
@@ -523,6 +535,7 @@ export async function GET() {
               reach: insights?.reach ?? 0,
               conversations: insights?.conversationsStarted ?? 0,
               fetched_at: fetchedAt,
+              window: INSIGHTS_DATE_PRESET,
             };
             refreshedById.set(c.id, { insights: payload, fetchedAt });
             await db
@@ -548,7 +561,9 @@ export async function GET() {
     const result = campaigns.map((c) => {
       const property = propertyById.get(c.property_id);
       const fresh = refreshedById.get(c.id);
-      const insights = fresh?.insights ?? c.last_insights ?? null;
+      const insights =
+        fresh?.insights ??
+        (inInsightsWindow(c.last_insights) ? c.last_insights : null);
       const leads = c.ad_id ? (leadCountByAdId.get(c.ad_id) ?? 0) : 0;
       const spend = (insights?.spend as number | undefined) ?? 0;
       // Staleness reflects actual data AGE (fetched_at vs. now), not

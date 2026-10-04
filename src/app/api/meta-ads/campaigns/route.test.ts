@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
   errors: {} as Record<string, unknown>,
   filters: [] as Array<[string, string, unknown]>,
   insightsCalls: 0,
+  insightsError: null as unknown,
   rpcCalls: [] as Array<[string, Record<string, unknown>]>,
   adContactCounts: [] as Array<{ source_id: string; contacts: number }>,
   rpcError: null as unknown,
@@ -40,6 +41,7 @@ vi.mock('@/lib/meta-ads/client', async (importOriginal) => {
     ...actual,
     getCampaignInsights: async () => {
       state.insightsCalls += 1;
+      if (state.insightsError) throw state.insightsError;
       return { spend: 10, impressions: 1, reach: 1, conversationsStarted: 1 };
     },
   };
@@ -98,6 +100,7 @@ const CAMPAIGN = {
     reach: 80,
     conversations: 3,
     fetched_at: NOW_ISO,
+    window: 'last_30d',
   },
   last_insights_at: NOW_ISO,
 };
@@ -107,6 +110,7 @@ beforeEach(() => {
   state.errors = {};
   state.filters.length = 0;
   state.insightsCalls = 0;
+  state.insightsError = null;
   state.rpcCalls.length = 0;
   state.adContactCounts = [];
   state.rpcError = null;
@@ -180,6 +184,72 @@ describe('GET /api/meta-ads/campaigns', () => {
     const windowMs = 30 * 24 * 60 * 60 * 1000;
     expect(since).toBeGreaterThanOrEqual(before - windowMs - 1000);
     expect(since).toBeLessThanOrEqual(Date.now() - windowMs);
+  });
+
+  it('[PRP-029] refetches an archived campaign once when its cache holds lifetime totals', async () => {
+    const lifetime = { ...CAMPAIGN.last_insights, spend: 5000 };
+    delete (lifetime as { window?: string }).window;
+    state.tables = {
+      ad_campaigns: [
+        { ...CAMPAIGN, status: 'ARCHIVED', last_insights: lifetime },
+      ],
+      properties: [{ id: 'prop-1', title: 'Maple Grove', images: [] }],
+      meta_ads_config: {
+        status: 'connected',
+        access_token: 'enc',
+        ad_account_id: 'act_1',
+        page_id: 'page_1',
+        currency: 'USD',
+      },
+    };
+
+    const body = await (await GET()).json();
+
+    expect(state.insightsCalls).toBe(1);
+    expect(body.campaigns[0].insights.spend).toBe(10);
+  });
+
+  it('[PRP-029] leaves an archived 30-day cache alone', async () => {
+    state.tables = {
+      ad_campaigns: [{ ...CAMPAIGN, status: 'ARCHIVED' }],
+      properties: [{ id: 'prop-1', title: 'Maple Grove', images: [] }],
+      meta_ads_config: {
+        status: 'connected',
+        access_token: 'enc',
+        ad_account_id: 'act_1',
+        page_id: 'page_1',
+        currency: 'USD',
+      },
+    };
+
+    const body = await (await GET()).json();
+
+    expect(state.insightsCalls).toBe(0);
+    expect(body.campaigns[0].insights.spend).toBe(90);
+  });
+
+  it('[PRP-029] never labels lifetime totals as the last 30 days when the refetch fails', async () => {
+    const lifetime = { ...CAMPAIGN.last_insights, spend: 5000 };
+    delete (lifetime as { window?: string }).window;
+    state.tables = {
+      ad_campaigns: [
+        { ...CAMPAIGN, status: 'ARCHIVED', last_insights: lifetime },
+      ],
+      properties: [{ id: 'prop-1', title: 'Maple Grove', images: [] }],
+      meta_ads_config: {
+        status: 'connected',
+        access_token: 'enc',
+        ad_account_id: 'act_1',
+        page_id: 'page_1',
+        currency: 'USD',
+      },
+    };
+    state.insightsError = new Error('campaign deleted');
+
+    const body = await (await GET()).json();
+
+    expect(state.insightsCalls).toBe(1);
+    expect(body.campaigns[0].insights).toBeNull();
   });
 
   it('[PRP-029] fails the load instead of reporting zero leads when the lead count errors', async () => {
