@@ -21,8 +21,28 @@ describe('ContactDetailView reads through react-query', () => {
       "'shared-properties',\n      allPropertiesQuery.dataUpdatedAt,"
     );
     expect(source).toContain("queryKey: ['contacts', 'all-properties']");
-    expect(source).toContain("queryKey: ['contacts', 'referrer-candidates']");
     expect(source).toContain("queryKey: ['contacts', 'showcase-settings']");
+  });
+
+  it('searches referrer suggestions on the server instead of loading the book', () => {
+    expect(source).not.toContain('loadReferrerCandidates');
+    expect(source).not.toContain("'referrer-candidates'");
+    expect(source).not.toContain('contactsList');
+    expect(source).toContain('searchReferrerCandidates(');
+    expect(source).toContain(
+      "'contacts',\n      'referrer-search',\n      accountId,\n      contactId,\n      referrerSearch,"
+    );
+    expect(source).toContain('placeholderData: keepPreviousData');
+    expect(source).toContain(
+      'setTimeout(() => setReferrerSearch(editReferrer.trim()), 250)'
+    );
+  });
+
+  it('hands the property pickers the narrowed picker rows', () => {
+    expect(source).toContain(
+      'const allProperties = allPropertiesQuery.data ?? NO_PICKER_PROPERTIES;'
+    );
+    expect(source).not.toMatch(/<PartyPanel[^>]*contacts=/);
   });
 
   it('refreshes after writes by invalidating instead of refetching by hand', () => {

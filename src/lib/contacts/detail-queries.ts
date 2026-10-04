@@ -9,6 +9,7 @@ import type {
   Tag,
 } from '@/types';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
+import { ilikeAcross, ilikeTerm } from '@/lib/v1/query';
 
 type DB = SupabaseClient;
 
@@ -30,7 +31,47 @@ export type PropertyMessageStatus = Record<
   { sent: boolean; responded: boolean; lastSentAt: string | null }
 >;
 
-export type SharedProperty = Property & { sharedAt: string };
+export const PROPERTY_PICKER_COLUMNS =
+  'id, title, property_code, location, sublocality, city, state, project, tags, price, type, status, bedrooms, area_sqft, area_unit, images';
+
+export type PickerProperty = Pick<
+  Property,
+  | 'id'
+  | 'title'
+  | 'property_code'
+  | 'location'
+  | 'sublocality'
+  | 'city'
+  | 'state'
+  | 'project'
+  | 'tags'
+  | 'price'
+  | 'type'
+  | 'status'
+  | 'bedrooms'
+  | 'area_sqft'
+  | 'area_unit'
+  | 'images'
+>;
+
+export type SharedProperty = PickerProperty & { sharedAt: string };
+
+export const REFERRER_CANDIDATE_COLUMNS =
+  'id, name, second_name, name_tag, phone, classification';
+
+export const REFERRER_SUGGESTION_LIMIT = 5;
+
+export type ReferrerCandidate = Pick<
+  Contact,
+  'id' | 'name' | 'second_name' | 'name_tag' | 'phone' | 'classification'
+>;
+
+export const PARTY_CANDIDATE_COLUMNS = 'id, name, second_name, name_tag, phone';
+
+export type PartyCandidate = Pick<
+  Contact,
+  'id' | 'name' | 'second_name' | 'name_tag' | 'phone'
+>;
 
 export async function loadDetailShowcaseSettings(
   db: DB
@@ -47,14 +88,56 @@ export async function loadDetailShowcaseSettings(
   }
 }
 
-export async function loadAllProperties(db: DB): Promise<Property[]> {
-  const { data } = await db.from('properties').select('*').order('title');
-  return data ?? [];
+export async function loadAllProperties(db: DB): Promise<PickerProperty[]> {
+  const { data } = await db
+    .from('properties')
+    .select(PROPERTY_PICKER_COLUMNS)
+    .order('title');
+  return (data ?? []) as PickerProperty[];
 }
 
-export async function loadReferrerCandidates(db: DB): Promise<Contact[]> {
-  const { data } = await db.from('contacts').select('*').order('name');
-  return data ?? [];
+export function referrerSearchClauses(term: string): string[] {
+  const cleaned = ilikeTerm(term.replace(/["\\]/g, ' '));
+  if (!cleaned) return [];
+  return cleaned
+    .split(' ')
+    .map((word) =>
+      ilikeAcross(['name', 'second_name', 'phone'], word.replace(/_/g, '\\\\_'))
+    );
+}
+
+export async function searchReferrerCandidates(
+  db: DB,
+  accountId: string,
+  term: string,
+  excludeContactId: string
+): Promise<ReferrerCandidate[]> {
+  const clauses = referrerSearchClauses(term);
+  if (clauses.length === 0) return [];
+  let query = db
+    .from('contacts')
+    .select(REFERRER_CANDIDATE_COLUMNS)
+    .eq('account_id', accountId)
+    .neq('id', excludeContactId);
+  for (const clause of clauses) query = query.or(clause);
+  const { data, error } = await query
+    .order('name')
+    .limit(REFERRER_SUGGESTION_LIMIT);
+  if (error) throw error;
+  return (data ?? []) as ReferrerCandidate[];
+}
+
+export async function loadPartyCandidates(
+  db: DB,
+  accountId: string
+): Promise<PartyCandidate[]> {
+  const { data, error } = await db
+    .from('contacts')
+    .select(PARTY_CANDIDATE_COLUMNS)
+    .eq('account_id', accountId)
+    .order('name');
+  if (error) throw error;
+  return (data ?? []) as PartyCandidate[];
 }
 
 export async function loadContactDetail(
@@ -205,7 +288,7 @@ export async function loadPropertyMessageStatus(
 export async function loadSharedProperties(
   db: DB,
   contactId: string,
-  allProperties: Property[]
+  allProperties: PickerProperty[]
 ): Promise<SharedProperty[]> {
   const { data: conv } = await db
     .from('conversations')
