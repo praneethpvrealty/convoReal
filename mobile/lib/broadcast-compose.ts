@@ -5,6 +5,12 @@
 //
 // Mirrors the types in src/lib/broadcasts/sender.ts.
 
+import {
+  MAX_CSV_CONTACTS,
+  parseCsvAudience,
+  type CsvAudienceContact,
+} from '@shared/lib/broadcasts/csv-audience';
+
 export type VariableMapping =
   | { type: 'static'; value: string }
   | { type: 'field'; value: string }
@@ -14,6 +20,21 @@ export interface AudienceConfig {
   type: 'all' | 'tags' | 'custom_field' | 'csv';
   tagIds?: string[];
   excludeTagIds?: string[];
+  csvContacts?: CsvAudienceContact[];
+}
+
+/**
+ * Country code a local number in a pasted CSV is dialled under. The
+ * mobile twin of the web's NEXT_PUBLIC_DEFAULT_COUNTRY_CODE: a deployment
+ * outside India sets both, or a local number becomes an Indian one.
+ */
+export const CSV_DEFAULT_COUNTRY_CODE =
+  process.env.EXPO_PUBLIC_DEFAULT_COUNTRY_CODE?.replace(/\D/g, '') || '91';
+
+export interface CsvAudienceDraft {
+  contacts: CsvAudienceContact[];
+  skipped: number;
+  overCap: boolean;
 }
 
 /** Contact columns a placeholder can be filled from on mobile. */
@@ -96,4 +117,49 @@ export function buildAudience(
   if (type === 'tags') audience.tagIds = tagIds;
   if (excludeTagIds.length > 0) audience.excludeTagIds = excludeTagIds;
   return audience;
+}
+
+export function readCsvAudience(
+  text: string,
+  defaultCountryCode: string = CSV_DEFAULT_COUNTRY_CODE
+): CsvAudienceDraft {
+  const { contacts, skipped } = parseCsvAudience(text, defaultCountryCode);
+  return { contacts, skipped, overCap: contacts.length > MAX_CSV_CONTACTS };
+}
+
+export function buildCsvAudience(
+  draft: CsvAudienceDraft,
+  excludeTagIds: string[]
+): AudienceConfig | null {
+  if (draft.contacts.length === 0 || draft.overCap) return null;
+  const audience: AudienceConfig = {
+    type: 'csv',
+    csvContacts: draft.contacts,
+  };
+  if (excludeTagIds.length > 0) audience.excludeTagIds = excludeTagIds;
+  return audience;
+}
+
+export interface BroadcastDraft<Template = unknown> {
+  name: string;
+  template: Template;
+  audience: AudienceConfig | null;
+  variables: Record<string, VariableMapping>;
+}
+
+/**
+ * True when anything the confirmation would send differs from what the
+ * agent was shown. Each field is compared by identity: the composer
+ * replaces, never mutates, so a new object is an edit.
+ */
+export function draftChanged<Template>(
+  confirmed: BroadcastDraft<Template>,
+  current: BroadcastDraft<Template>
+): boolean {
+  return (
+    confirmed.name !== current.name ||
+    confirmed.template !== current.template ||
+    confirmed.audience !== current.audience ||
+    confirmed.variables !== current.variables
+  );
 }

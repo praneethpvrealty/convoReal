@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { CustomField, Tag } from '@/types';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Users,
   Tags,
@@ -13,27 +14,49 @@ import {
   ArrowRight,
   ArrowLeft,
   X,
+  RefreshCw,
 } from 'lucide-react';
+import {
+  useAudienceCount,
+  type AudienceConfig,
+  type CustomFieldFilter,
+  type CustomFieldOperator,
+} from '@/hooks/useBroadcastSending';
+import {
+  csvAudienceLine,
+  parseCsvAudience,
+} from '@/lib/broadcasts/csv-audience';
+import { MAX_CSV_CONTACTS } from '@/lib/broadcasts/audience';
+import { DEFAULT_COUNTRY_CODE } from '@/lib/whatsapp/phone-utils';
 
 type AudienceType = 'all' | 'tags' | 'custom_field' | 'csv';
-type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
-interface CustomFieldFilter {
-  fieldId: string;
-  operator: CustomFieldOperator;
-  value: string;
-}
-
-interface AudienceConfig {
-  type: AudienceType;
-  tagIds?: string[];
-  customField?: CustomFieldFilter;
-  csvContacts?: { phone: string; name?: string }[];
-  excludeTagIds?: string[];
+export function isAudienceComplete(
+  audience: AudienceConfig | null
+): audience is AudienceConfig {
+  if (!audience) return false;
+  switch (audience.type) {
+    case 'all':
+      return true;
+    case 'tags':
+      return (audience.tagIds?.length ?? 0) > 0;
+    case 'contacts':
+      return (audience.contactIds?.length ?? 0) > 0;
+    case 'custom_field':
+      return (
+        !!audience.customField?.fieldId &&
+        audience.customField.value.trim().length > 0
+      );
+    case 'csv':
+      return (
+        (audience.csvContacts?.length ?? 0) > 0 &&
+        (audience.csvContacts?.length ?? 0) <= MAX_CSV_CONTACTS
+      );
+  }
 }
 
 interface Step2Props {
-  audience: AudienceConfig;
+  audience: AudienceConfig | null;
   onUpdate: (audience: AudienceConfig) => void;
   onNext: () => void;
   onBack: () => void;
@@ -87,8 +110,24 @@ export function Step2SelectAudience({
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [loadingTags, setLoadingTags] = useState(false);
   const [loadingFields, setLoadingFields] = useState(false);
-  const [estimatedCount, setEstimatedCount] = useState<number | null>(null);
-  const [loadingCount, setLoadingCount] = useState(false);
+  const [csvText, setCsvText] = useState(() =>
+    (audience?.csvContacts ?? []).map(csvAudienceLine).join('\n')
+  );
+  const [csvSkipped, setCsvSkipped] = useState(0);
+
+  const [settledAudience, setSettledAudience] = useState(audience);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSettledAudience(audience), 300);
+    return () => clearTimeout(timer);
+  }, [audience]);
+
+  const complete = isAudienceComplete(audience);
+  const settled = settledAudience === audience;
+  const countQuery = useAudienceCount(
+    isAudienceComplete(settledAudience) ? settledAudience : null
+  );
+  const recipientCount = complete && settled ? countQuery.data : undefined;
 
   // Tags are used both by the primary "Filter by Tags" audience type
   // AND by the exclude-list below — so always load once on mount.
@@ -108,7 +147,7 @@ export function Step2SelectAudience({
 
   // Lazy-load custom fields only when that audience type is active.
   useEffect(() => {
-    if (audience.type !== 'custom_field') return;
+    if (audience?.type !== 'custom_field') return;
     async function fetchFields() {
       setLoadingFields(true);
       try {
@@ -123,95 +162,10 @@ export function Step2SelectAudience({
       }
     }
     fetchFields();
-  }, [audience.type]);
-
-  const fetchEstimatedCount = useCallback(async () => {
-    setLoadingCount(true);
-    try {
-      const supabase = createClient();
-
-      // Base query — produces the superset before exclude is applied.
-      let baseIds: Set<string> | null = null; // null means "all contacts"
-
-      if (audience.type === 'all') {
-        // Handled below — full-table count adjusted by excludes.
-      } else if (
-        audience.type === 'tags' &&
-        audience.tagIds &&
-        audience.tagIds.length > 0
-      ) {
-        const { data } = await supabase
-          .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', audience.tagIds);
-        baseIds = new Set((data ?? []).map((r) => r.contact_id));
-      } else if (
-        audience.type === 'custom_field' &&
-        audience.customField?.fieldId &&
-        audience.customField.value
-      ) {
-        const { fieldId, operator, value } = audience.customField;
-        let q = supabase
-          .from('contact_custom_values')
-          .select('contact_id')
-          .eq('custom_field_id', fieldId);
-        if (operator === 'is') q = q.eq('value', value);
-        else if (operator === 'is_not') q = q.neq('value', value);
-        else q = q.ilike('value', `%${value}%`);
-        const { data } = await q;
-        baseIds = new Set((data ?? []).map((r) => r.contact_id));
-      } else if (
-        audience.type === 'csv' &&
-        audience.csvContacts &&
-        audience.csvContacts.length > 0
-      ) {
-        setEstimatedCount(audience.csvContacts.length);
-        return;
-      } else {
-        // Partially-configured audience — wait for the user to finish.
-        setEstimatedCount(null);
-        return;
-      }
-
-      // Apply exclude tags
-      let excludeSet: Set<string> | null = null;
-      if (audience.excludeTagIds && audience.excludeTagIds.length > 0) {
-        const { data: excludeRows } = await supabase
-          .from('contact_tags')
-          .select('contact_id')
-          .in('tag_id', audience.excludeTagIds);
-        excludeSet = new Set((excludeRows ?? []).map((r) => r.contact_id));
-      }
-
-      if (baseIds) {
-        const effective = [...baseIds].filter((id) => !excludeSet?.has(id));
-        setEstimatedCount(effective.length);
-      } else {
-        // "All" — fetch the total, then subtract exclude set if any.
-        const { count } = await supabase
-          .from('contacts')
-          .select('*', { count: 'exact', head: true });
-        const total = count ?? 0;
-        setEstimatedCount(
-          excludeSet ? Math.max(0, total - excludeSet.size) : total
-        );
-      }
-    } finally {
-      setLoadingCount(false);
-    }
-  }, [
-    audience.type,
-    audience.tagIds,
-    audience.customField,
-    audience.csvContacts,
-    audience.excludeTagIds,
-  ]);
-
-  useEffect(() => {
-    fetchEstimatedCount();
-  }, [fetchEstimatedCount]);
+  }, [audience?.type]);
 
   function toggleTag(tagId: string) {
+    if (!audience) return;
     const current = audience.tagIds ?? [];
     const updated = current.includes(tagId)
       ? current.filter((id) => id !== tagId)
@@ -220,6 +174,7 @@ export function Step2SelectAudience({
   }
 
   function toggleExcludeTag(tagId: string) {
+    if (!audience) return;
     const current = audience.excludeTagIds ?? [];
     const updated = current.includes(tagId)
       ? current.filter((id) => id !== tagId)
@@ -228,6 +183,7 @@ export function Step2SelectAudience({
   }
 
   function updateCustomField(patch: Partial<CustomFieldFilter>) {
+    if (!audience) return;
     const prev = audience.customField ?? {
       fieldId: '',
       operator: 'is' as CustomFieldOperator,
@@ -236,17 +192,37 @@ export function Step2SelectAudience({
     onUpdate({ ...audience, customField: { ...prev, ...patch } });
   }
 
-  const isValid =
-    audience.type === 'all' ||
-    (audience.type === 'tags' &&
-      audience.tagIds &&
-      audience.tagIds.length > 0) ||
-    (audience.type === 'custom_field' &&
-      !!audience.customField?.fieldId &&
-      audience.customField.value.length > 0) ||
-    (audience.type === 'csv' &&
-      audience.csvContacts &&
-      audience.csvContacts.length > 0);
+  function retainedCsvContacts() {
+    if (!csvText.trim()) return undefined;
+    const { contacts, skipped } = parseCsvAudience(
+      csvText,
+      DEFAULT_COUNTRY_CODE
+    );
+    setCsvSkipped(skipped);
+    return contacts;
+  }
+
+  function applyCsv(text: string) {
+    setCsvText(text);
+    const { contacts, skipped } = parseCsvAudience(text, DEFAULT_COUNTRY_CODE);
+    setCsvSkipped(skipped);
+    onUpdate({
+      type: 'csv',
+      csvContacts: contacts,
+      excludeTagIds: audience?.excludeTagIds,
+    });
+  }
+
+  async function handleCsvFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    applyCsv(await file.text());
+  }
+
+  const csvCount = audience?.csvContacts?.length ?? 0;
+  const canContinue =
+    complete && recipientCount !== undefined && recipientCount > 0;
 
   return (
     <div className="space-y-6">
@@ -259,24 +235,28 @@ export function Step2SelectAudience({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {audienceOptions.map((option) => {
-          const isSelected = audience.type === option.type;
+          const isSelected = audience?.type === option.type;
           const Icon = option.icon;
           return (
             <button
               key={option.type}
+              type="button"
+              aria-pressed={isSelected}
               onClick={() =>
                 onUpdate({
-                  ...audience,
                   type: option.type,
-                  // Wipe shape fields from other types to avoid stale
-                  // config leaking across selections.
-                  tagIds: option.type === 'tags' ? audience.tagIds : undefined,
+                  excludeTagIds: audience?.excludeTagIds,
+                  tagIds: option.type === 'tags' ? audience?.tagIds : undefined,
                   customField:
                     option.type === 'custom_field'
-                      ? audience.customField
+                      ? audience?.customField
                       : undefined,
                   csvContacts:
-                    option.type === 'csv' ? audience.csvContacts : undefined,
+                    option.type !== 'csv'
+                      ? undefined
+                      : isSelected
+                        ? audience?.csvContacts
+                        : retainedCsvContacts(),
                 })
               }
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
@@ -305,7 +285,7 @@ export function Step2SelectAudience({
         })}
       </div>
 
-      {audience.type === 'tags' && (
+      {audience?.type === 'tags' && (
         <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
           <p className="mb-3 text-sm font-medium text-white">Select Tags</p>
           {loadingTags ? (
@@ -321,6 +301,8 @@ export function Step2SelectAudience({
                 return (
                   <button
                     key={tag.id}
+                    type="button"
+                    aria-pressed={isSelected}
                     onClick={() => toggleTag(tag.id)}
                     className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-all ${
                       isSelected
@@ -341,7 +323,45 @@ export function Step2SelectAudience({
         </div>
       )}
 
-      {audience.type === 'custom_field' && (
+      {audience?.type === 'csv' && (
+        <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium text-white">Phone numbers</p>
+            <label className="focus-within:ring-primary inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-300 focus-within:ring-2 hover:bg-slate-800">
+              <Upload className="h-3.5 w-3.5" />
+              Choose .csv file
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleCsvFile}
+                className="sr-only"
+              />
+            </label>
+          </div>
+          <Textarea
+            value={csvText}
+            onChange={(e) => applyCsv(e.target.value)}
+            rows={6}
+            aria-label="Paste phone numbers"
+            placeholder={
+              'One per line: phone, name (optional)\n9876543210, Asha\n+91 98765 43211'
+            }
+            className="border-slate-700 bg-slate-800 font-mono text-xs text-white placeholder:text-slate-500"
+          />
+          <p className="text-xs text-slate-400" aria-live="polite">
+            {csvCount.toLocaleString()} valid, {csvSkipped.toLocaleString()}{' '}
+            skipped
+          </p>
+          {csvCount > MAX_CSV_CONTACTS && (
+            <p className="text-xs text-red-400">
+              A list can hold up to {MAX_CSV_CONTACTS.toLocaleString()} numbers.
+              Split it into smaller broadcasts.
+            </p>
+          )}
+        </div>
+      )}
+
+      {audience?.type === 'custom_field' && (
         <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
           <p className="text-sm font-medium text-white">Custom Field Filter</p>
           {loadingFields ? (
@@ -391,63 +411,94 @@ export function Step2SelectAudience({
         </div>
       )}
 
-      {/* Exclude list — applies regardless of audience type */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <X className="h-4 w-4 text-red-400" />
-          <p className="text-sm font-medium text-white">
-            Exclude contacts with these tags
-          </p>
-          <span className="text-xs text-slate-500">(optional)</span>
-        </div>
-        {tags.length === 0 ? (
-          <p className="text-xs text-slate-500">No tags available.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag) => {
-              const isExcluded = audience.excludeTagIds?.includes(tag.id);
-              return (
-                <button
-                  key={tag.id}
-                  onClick={() => toggleExcludeTag(tag.id)}
-                  className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-all ${
-                    isExcluded
-                      ? 'border-red-500/30 bg-red-500/10 text-red-300'
-                      : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600'
-                  }`}
-                >
-                  <span
-                    className="mr-1.5 h-2 w-2 rounded-full"
-                    style={{ backgroundColor: tag.color }}
-                  />
-                  {tag.name}
-                </button>
-              );
-            })}
+      {audience && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <X className="h-4 w-4 text-red-400" />
+            <p className="text-sm font-medium text-white">
+              Exclude contacts with these tags
+            </p>
+            <span className="text-xs text-slate-500">(optional)</span>
           </div>
-        )}
-      </div>
+          {tags.length === 0 ? (
+            <p className="text-xs text-slate-500">No tags available.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {tags.map((tag) => {
+                const isExcluded = audience.excludeTagIds?.includes(tag.id);
+                return (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    aria-pressed={isExcluded}
+                    onClick={() => toggleExcludeTag(tag.id)}
+                    className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                      isExcluded
+                        ? 'border-red-500/30 bg-red-500/10 text-red-300'
+                        : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600'
+                    }`}
+                  >
+                    <span
+                      className="mr-1.5 h-2 w-2 rounded-full"
+                      style={{ backgroundColor: tag.color }}
+                    />
+                    {tag.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Audience Summary */}
-      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+      <div
+        className="rounded-xl border border-slate-800 bg-slate-900/50 p-4"
+        aria-live="polite"
+      >
         <p className="mb-2 text-sm font-medium text-white">Audience Summary</p>
-        {loadingCount ? (
+        {!complete ? (
+          <p className="text-xs text-slate-500">
+            {audience
+              ? 'Finish choosing the audience to see who will receive it.'
+              : 'Choose an audience to see who will receive it.'}
+          </p>
+        ) : settled && countQuery.isError ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-red-400">
+              Couldn&apos;t count the audience.
+            </span>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => countQuery.refetch()}
+              className="border-slate-700 text-slate-300"
+            >
+              <RefreshCw />
+              Retry
+            </Button>
+          </div>
+        ) : recipientCount === undefined || countQuery.isFetching ? (
           <div className="flex items-center gap-2">
             <Loader2 className="text-primary h-4 w-4 animate-spin" />
             <span className="text-xs text-slate-400">Calculating…</span>
           </div>
-        ) : estimatedCount !== null ? (
-          <div className="flex items-center gap-2">
-            <Users className="text-primary h-4 w-4" />
-            <span className="text-sm text-white">
-              {estimatedCount.toLocaleString()}
-            </span>
-            <span className="text-xs text-slate-400">estimated recipients</span>
-          </div>
         ) : (
-          <p className="text-xs text-slate-500">
-            Select an audience type to see the estimate.
-          </p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Users className="text-primary h-4 w-4" />
+              <span className="text-sm text-white">
+                {recipientCount.toLocaleString()}
+              </span>
+              <span className="text-xs text-slate-400">
+                {recipientCount === 1 ? 'recipient' : 'recipients'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">
+              {recipientCount === 0
+                ? 'Nobody in this audience can receive a WhatsApp broadcast.'
+                : 'Contacts without a WhatsApp number, who opted out, or are archived are left out.'}
+            </p>
+          </div>
         )}
       </div>
 
@@ -462,7 +513,7 @@ export function Step2SelectAudience({
         </Button>
         <Button
           onClick={onNext}
-          disabled={!isValid}
+          disabled={!canContinue || countQuery.isFetching}
           className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           Next

@@ -148,6 +148,12 @@ _A §2.8 gap, stated rather than silent._
 
 - [ ] **Re-engagement tab (mobile)**: The web dashboard's Re-engagement tab (`src/app/(dashboard)/reengagement/reengagement-content.tsx`, table in `src/components/reengagement/reengagement-outcome.tsx`) has no mobile screen. The lead order is chosen by the `reengagement_leads` function (`p_sort`, passed by `loadReengagementLeads` in `src/lib/reengagement/queries.ts`), so a mobile screen sorts by sending the same parameter, and its helpers (`nextLeadSort`, `leadSortDirection`, `maskPhoneLastFour`, `allLeadsMatched` in `src/lib/reengagement/funnel.ts`) are pure, so it can import them through `@shared/` once it exists.
 
+### Deferred: custom-field broadcast audiences on mobile
+
+_A §2.8 gap, stated rather than silent._
+
+- [ ] **Broadcast composer audiences (mobile)**: The web wizard can target a custom-field match; `mobile/app/(app)/broadcast-new.tsx` offers All contacts, By tag and a pasted list of numbers (parsed by the shared `src/lib/broadcasts/csv-audience.ts`). Both surfaces already count through `POST /api/broadcasts/audience-count`, which accepts every audience type, so closing the gap is a composer UI on mobile with no new rule.
+
 ### Deferred: account administration on mobile
 
 _§2.8 gaps, stated rather than silent. They share one root cause: the mobile app has no account-administration surface at all (no Members, Teams, Billing, Routing or Settings shell), so each of these would be the first of its kind rather than a screen added to an existing section._

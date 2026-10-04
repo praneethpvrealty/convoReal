@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast, BroadcastRecipient, RecipientStatus } from '@/types';
@@ -45,13 +46,18 @@ import { getBroadcastStatus, getRecipientStatus } from '@/lib/broadcast-status';
 interface StatCardProps {
   label: string;
   value: number;
-  total: number;
+  total?: number;
   icon: React.ReactNode;
   color: string;
 }
 
 function StatCard({ label, value, total, icon, color }: StatCardProps) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  const pct =
+    total === undefined
+      ? null
+      : total > 0
+        ? Math.round((value / total) * 100)
+        : 0;
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
       <div className="flex items-center justify-between">
@@ -60,7 +66,7 @@ function StatCard({ label, value, total, icon, color }: StatCardProps) {
         >
           {icon}
         </div>
-        <span className="text-xs text-slate-500">{pct}%</span>
+        {pct !== null && <span className="text-xs text-slate-500">{pct}%</span>}
       </div>
       <p className="mt-3 text-2xl font-bold text-white">
         {value.toLocaleString()}
@@ -76,23 +82,14 @@ interface FunnelStep {
   color: string;
 }
 
-/**
- * Pure-CSS funnel chart: decreasing-width rounded bars.
- * Width is relative to the largest step (typically Sent) so we
- * always render a full bar at the top and proportional tails.
- */
-function FunnelChart({ steps }: { steps: FunnelStep[] }) {
-  const max = Math.max(...steps.map((s) => s.value), 1);
+function FunnelChart({ steps, total }: { steps: FunnelStep[]; total: number }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
       <h3 className="mb-4 text-sm font-medium text-white">Funnel</h3>
       <div className="space-y-2">
         {steps.map((step) => {
-          const pctOfMax = Math.max(5, Math.round((step.value / max) * 100));
-          const pctOfSent =
-            steps[0].value > 0
-              ? Math.round((step.value / steps[0].value) * 100)
-              : 0;
+          const pctOfTotal =
+            total > 0 ? Math.round((step.value / total) * 100) : 0;
           return (
             <div key={step.label} className="flex items-center gap-3">
               <span className="w-20 shrink-0 text-xs text-slate-400">
@@ -101,11 +98,15 @@ function FunnelChart({ steps }: { steps: FunnelStep[] }) {
               <div className="relative h-7 flex-1 rounded-full bg-slate-800">
                 <div
                   className={`h-7 rounded-full ${step.color} transition-[width] duration-500`}
-                  style={{ width: `${pctOfMax}%` }}
+                  style={{
+                    width: `${Math.max(5, Math.min(100, pctOfTotal))}%`,
+                  }}
                 />
                 <span className="absolute inset-0 flex items-center px-3 text-xs font-medium text-white">
                   {step.value.toLocaleString()}
-                  <span className="ml-2 text-slate-300/80">({pctOfSent}%)</span>
+                  <span className="ml-2 text-slate-300/80">
+                    ({pctOfTotal}%)
+                  </span>
                 </span>
               </div>
             </div>
@@ -115,6 +116,9 @@ function FunnelChart({ steps }: { steps: FunnelStep[] }) {
     </div>
   );
 }
+
+const POLL_INTERVAL_MS = 5_000;
+const RECIPIENTS_POLL_INTERVAL_MS = 15_000;
 
 const RECIPIENT_STATUSES: readonly RecipientStatus[] = [
   'pending',
@@ -152,10 +156,6 @@ export default function BroadcastDetailPage() {
   const router = useRouter();
   const broadcastId = params.id as string;
 
-  const [broadcast, setBroadcast] = useState<Broadcast | null>(null);
-  const [recipients, setRecipients] = useState<BroadcastRecipient[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<RecipientStatus | 'all'>(
     'all'
   );
@@ -163,39 +163,51 @@ export default function BroadcastDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
+  const broadcastQuery = useQuery({
+    queryKey: ['broadcast', broadcastId],
+    queryFn: async () => {
+      const { data, error } = await createClient()
+        .from('broadcasts')
+        .select('*')
+        .eq('id', broadcastId)
+        .single();
+      if (error) throw error;
+      return data as Broadcast;
+    },
+    refetchInterval: (query) =>
+      query.state.data?.status === 'sending' ? POLL_INTERVAL_MS : false,
+  });
+
+  const isSending = broadcastQuery.data?.status === 'sending';
+
+  const recipientsQuery = useQuery({
+    queryKey: ['broadcast-recipients', broadcastId],
+    queryFn: async () => {
+      const { data, error } = await createClient()
+        .from('broadcast_recipients')
+        .select('*, contact:contacts(*)')
+        .eq('broadcast_id', broadcastId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as BroadcastRecipient[];
+    },
+    refetchInterval: isSending ? RECIPIENTS_POLL_INTERVAL_MS : false,
+  });
+
+  const { refetch: refetchRecipients } = recipientsQuery;
+  const wasSending = useRef(false);
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const supabase = createClient();
+    if (wasSending.current && !isSending) void refetchRecipients();
+    wasSending.current = isSending;
+  }, [isSending, refetchRecipients]);
 
-        const { data: bc, error: bcError } = await supabase
-          .from('broadcasts')
-          .select('*')
-          .eq('id', broadcastId)
-          .single();
-
-        if (bcError) throw bcError;
-        setBroadcast(bc);
-
-        const { data: recs, error: recsError } = await supabase
-          .from('broadcast_recipients')
-          .select('*, contact:contacts(*)')
-          .eq('broadcast_id', broadcastId)
-          .order('created_at', { ascending: false });
-
-        if (recsError) throw recsError;
-        setRecipients(recs ?? []);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to load broadcast'
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [broadcastId]);
+  const broadcast = broadcastQuery.data ?? null;
+  const recipients = useMemo(
+    () => recipientsQuery.data ?? [],
+    [recipientsQuery.data]
+  );
+  const loading = broadcastQuery.isPending || recipientsQuery.isPending;
+  const loadError = broadcastQuery.error ?? recipientsQuery.error;
 
   const filteredRecipients = useMemo(
     () =>
@@ -276,18 +288,7 @@ export default function BroadcastDetailPage() {
             : '')
       );
 
-      // Reload page data
-      const supabase = createClient();
-      const [{ data: bc }, { data: recs }] = await Promise.all([
-        supabase.from('broadcasts').select('*').eq('id', broadcastId).single(),
-        supabase
-          .from('broadcast_recipients')
-          .select('*, contact:contacts(*)')
-          .eq('broadcast_id', broadcastId)
-          .order('created_at', { ascending: false }),
-      ]);
-      if (bc) setBroadcast(bc);
-      if (recs) setRecipients(recs);
+      await Promise.all([broadcastQuery.refetch(), recipientsQuery.refetch()]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Retry failed');
     } finally {
@@ -309,13 +310,28 @@ export default function BroadcastDetailPage() {
     );
   }
 
-  if (error || !broadcast) {
+  if (!broadcast || !recipientsQuery.data) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-400">{error ?? 'Broadcast not found'}</p>
-        <Button variant="outline" onClick={() => router.push('/broadcasts')}>
-          Back to Broadcasts
-        </Button>
+        <p className="text-sm text-red-400">
+          {loadError instanceof Error
+            ? loadError.message
+            : 'Broadcast not found'}
+        </p>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              void broadcastQuery.refetch();
+              void recipientsQuery.refetch();
+            }}
+          >
+            Retry
+          </Button>
+          <Button variant="outline" onClick={() => router.push('/broadcasts')}>
+            Back to Broadcasts
+          </Button>
+        </div>
       </div>
     );
   }
@@ -346,6 +362,8 @@ export default function BroadcastDetailPage() {
             variant="outline"
             size="icon"
             onClick={() => router.push('/broadcasts')}
+            aria-label="Back to broadcasts"
+            title="Back to broadcasts"
             className="border-slate-700"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -442,7 +460,6 @@ export default function BroadcastDetailPage() {
         <StatCard
           label="Total Recipients"
           value={broadcast.total_recipients}
-          total={broadcast.total_recipients}
           icon={<Users className="h-4 w-4" />}
           color="bg-slate-800 text-slate-300"
         />
@@ -483,7 +500,7 @@ export default function BroadcastDetailPage() {
         />
       </div>
 
-      <FunnelChart steps={funnelSteps} />
+      <FunnelChart steps={funnelSteps} total={broadcast.total_recipients} />
 
       {/* Re-engagement outcome — only for batches sent on the
           enquiry-status template, where the send funnel above is just

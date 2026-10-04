@@ -13,7 +13,7 @@ function row(overrides: Partial<TemplateAnalyticsRow>): TemplateAnalyticsRow {
     name: 'welcome_lead',
     category: 'Marketing',
     language: 'en_US',
-    status: 'Approved',
+    status: 'APPROVED',
     quality_score: 'GREEN',
     broadcast_campaigns: 0,
     broadcast_sent: 0,
@@ -61,7 +61,7 @@ describe('summarizeTemplates', () => {
       }),
       row({
         template_id: 't2',
-        status: 'Draft',
+        status: 'DRAFT',
         direct_sends: 50,
         direct_read: 30,
       }),
@@ -78,5 +78,15 @@ describe('summarizeTemplates', () => {
     const totals = summarizeTemplates([row({})]);
     expect(totals.readRate).toBeNull();
     expect(totals.replyRate).toBeNull();
+  });
+
+  it('counts approved templates by their normalised status', () => {
+    const totals = summarizeTemplates([
+      row({ template_id: 'a', status: 'APPROVED' }),
+      row({ template_id: 'b', status: 'approved' }),
+      row({ template_id: 'c', status: 'PENDING' }),
+      row({ template_id: 'd', status: 'REJECTED' }),
+    ]);
+    expect(totals.approved).toBe(2);
   });
 });

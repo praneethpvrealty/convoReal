@@ -105,6 +105,10 @@ jobs:
               - 'src/lib/showcase/message-preview.ts'
               - 'src/lib/sweep/gap-actions.ts'
               - 'src/lib/today/insights.ts'
+              - 'src/lib/broadcasts/recount.ts'
+              - 'src/lib/broadcasts/csv-audience.ts'
+              - 'src/lib/format/phone.ts'
+              - 'src/lib/voice/campaign-settings.ts'
               - '.github/workflows/ci.yml'
             go:
               - 'go-ingress/**'

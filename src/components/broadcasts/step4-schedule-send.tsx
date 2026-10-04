@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useState } from 'react';
 import { MessageTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,12 +13,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Send, Loader2, Users, Save } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, Users, Save, RefreshCw } from 'lucide-react';
+import {
+  useAudienceCount,
+  type AudienceConfig,
+} from '@/hooks/useBroadcastSending';
 
-interface AudienceConfig {
-  type: string;
-  tagIds?: string[];
-  csvContacts?: { phone: string; name?: string }[];
+function contactsLabel(count: number): string {
+  return `${count.toLocaleString()} contact${count === 1 ? '' : 's'}`;
 }
 
 interface Step4Props {
@@ -46,46 +47,15 @@ export function Step4ScheduleSend({
   progress,
 }: Step4Props) {
   const [showConfirm, setShowConfirm] = useState(false);
-  const [estimatedReach, setEstimatedReach] = useState<number>(0);
-  const [loadingReach, setLoadingReach] = useState(true);
-
-  useEffect(() => {
-    async function calculateReach() {
-      setLoadingReach(true);
-      try {
-        const supabase = createClient();
-
-        if (audience.type === 'all') {
-          const { count } = await supabase
-            .from('contacts')
-            .select('*', { count: 'exact', head: true });
-          setEstimatedReach(count ?? 0);
-        } else if (
-          audience.type === 'tags' &&
-          audience.tagIds &&
-          audience.tagIds.length > 0
-        ) {
-          const { data: contactTags } = await supabase
-            .from('contact_tags')
-            .select('contact_id')
-            .in('tag_id', audience.tagIds);
-
-          const uniqueIds = new Set(
-            (contactTags ?? []).map((ct) => ct.contact_id)
-          );
-          setEstimatedReach(uniqueIds.size);
-        } else if (audience.type === 'csv' && audience.csvContacts) {
-          setEstimatedReach(audience.csvContacts.length);
-        } else {
-          setEstimatedReach(0);
-        }
-      } finally {
-        setLoadingReach(false);
-      }
-    }
-
-    calculateReach();
-  }, [audience]);
+  const countQuery = useAudienceCount(audience);
+  const reach = countQuery.data;
+  const confirmedReach =
+    reach !== undefined &&
+    reach > 0 &&
+    !countQuery.isFetching &&
+    !countQuery.isError
+      ? reach
+      : null;
 
   const audienceLabel =
     audience.type === 'all'
@@ -93,8 +63,10 @@ export function Step4ScheduleSend({
       : audience.type === 'tags'
         ? `Tags (${audience.tagIds?.length ?? 0} selected)`
         : audience.type === 'csv'
-          ? 'CSV Upload'
-          : 'Custom';
+          ? `CSV Upload (${audience.csvContacts?.length ?? 0} numbers)`
+          : audience.type === 'custom_field'
+            ? 'Custom Field'
+            : `Selected contacts (${audience.contactIds?.length ?? 0})`;
 
   return (
     <div className="space-y-6">
@@ -131,15 +103,30 @@ export function Step4ScheduleSend({
             <p className="text-white">{audienceLabel}</p>
           </div>
           <div>
-            <p className="text-xs text-slate-400">Estimated Reach</p>
-            <div className="flex items-center gap-1.5">
-              {loadingReach ? (
+            <p className="text-xs text-slate-400">Recipients</p>
+            <div className="flex items-center gap-1.5" aria-live="polite">
+              {countQuery.isError ? (
+                <>
+                  <span className="text-xs text-red-400">
+                    Couldn&apos;t count
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => countQuery.refetch()}
+                    className="border-slate-700 text-slate-300"
+                  >
+                    <RefreshCw />
+                    Retry
+                  </Button>
+                </>
+              ) : reach === undefined ? (
                 <Loader2 className="text-primary h-3 w-3 animate-spin" />
               ) : (
                 <>
                   <Users className="text-primary h-3.5 w-3.5" />
                   <p className="font-medium text-white">
-                    {estimatedReach.toLocaleString()}
+                    {reach.toLocaleString()}
                   </p>
                 </>
               )}
@@ -199,11 +186,22 @@ export function Step4ScheduleSend({
             </Button>
           )}
 
-          <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+          <Dialog
+            open={showConfirm}
+            onOpenChange={(open) => {
+              setShowConfirm(open);
+              if (open) void countQuery.refetch();
+            }}
+          >
             <DialogTrigger
               render={
                 <Button
-                  disabled={!name.trim() || isProcessing}
+                  disabled={
+                    !name.trim() ||
+                    isProcessing ||
+                    countQuery.isError ||
+                    reach === 0
+                  }
                   className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 />
               }
@@ -219,14 +217,22 @@ export function Step4ScheduleSend({
                 <DialogDescription className="text-slate-400">
                   You are about to send this broadcast to{' '}
                   <span className="font-medium text-white">
-                    {estimatedReach.toLocaleString()}
+                    {confirmedReach !== null
+                      ? contactsLabel(confirmedReach)
+                      : '…'}
                   </span>{' '}
-                  contacts using the{' '}
+                  using the{' '}
                   <span className="font-medium text-white">
                     {template.name}
                   </span>{' '}
                   template. This action cannot be undone.
                 </DialogDescription>
+                {countQuery.isError && !countQuery.isFetching && (
+                  <p role="alert" className="text-sm text-red-400">
+                    Couldn&apos;t recount the recipients, so sending is paused.
+                    Retry to confirm the number first.
+                  </p>
+                )}
               </DialogHeader>
               <DialogFooter>
                 <Button
@@ -236,16 +242,33 @@ export function Step4ScheduleSend({
                 >
                   Cancel
                 </Button>
-                <Button
-                  onClick={() => {
-                    setShowConfirm(false);
-                    onSend();
-                  }}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
-                >
-                  <Send className="h-4 w-4" />
-                  Confirm & Send
-                </Button>
+                {countQuery.isError && !countQuery.isFetching ? (
+                  <Button
+                    onClick={() => countQuery.refetch()}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Retry count
+                  </Button>
+                ) : (
+                  <Button
+                    disabled={confirmedReach === null}
+                    onClick={() => {
+                      setShowConfirm(false);
+                      onSend();
+                    }}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    {confirmedReach !== null ? (
+                      <Send className="h-4 w-4" />
+                    ) : (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                    {confirmedReach !== null
+                      ? `Send to ${contactsLabel(confirmedReach)}`
+                      : 'Counting recipients…'}
+                  </Button>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>

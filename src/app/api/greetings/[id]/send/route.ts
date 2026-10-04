@@ -100,19 +100,17 @@ export async function POST(
     }
     const template = templateState.template;
 
-    const resolved = await resolveAudienceOnServer(
-      ctx.supabase,
-      ctx.accountId,
-      ctx.userId,
-      audience
-    );
     // resolveAudienceOnServer already drops declined contacts; the
     // strict mode narrows a Marketing-category send to explicit grants
     // (contacts are asked free-form the first time they message in —
     // see src/lib/buyer/consent-ask.ts for why there is no ask template).
-    const contacts = optedInOnly
-      ? resolved.filter((c) => c.buyer_alerts_consent === 'granted')
-      : resolved;
+    const contacts = await resolveAudienceOnServer(
+      ctx.supabase,
+      ctx.accountId,
+      ctx.userId,
+      audience,
+      { optedInOnly }
+    );
     if (contacts.length === 0) {
       return NextResponse.json(
         {

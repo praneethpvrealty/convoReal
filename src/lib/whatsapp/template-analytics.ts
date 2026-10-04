@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { daysAgoStart } from '@/lib/dashboard/date-utils';
+import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize';
 
 export interface TemplateAnalyticsRow {
   template_id: string;
@@ -68,7 +69,7 @@ export function summarizeTemplates(
   let directRead = 0;
 
   for (const row of rows) {
-    if (row.status === 'Approved') approved++;
+    if (normalizeStatus(row.status) === 'APPROVED') approved++;
     broadcastSent += row.broadcast_sent;
     broadcastRead += row.broadcast_read;
     broadcastReplied += row.broadcast_replied;
