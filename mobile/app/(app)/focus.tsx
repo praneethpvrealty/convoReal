@@ -16,6 +16,7 @@ import {
 import { ConvoRealLoader } from '@/components/loader';
 import { Avatar, SectionLabel, Tag, nameTagCap } from '@/components/ui';
 import { retryAnalyticsRequest } from '@/lib/analytics-request';
+import { useAuthStore } from '@/lib/auth-store';
 import {
   deadlineLabel,
   fetchFocus,
@@ -82,6 +83,7 @@ export default function FocusScreen() {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const now = new Date();
+  const accountId = useAuthStore((state) => state.profile?.account_id);
 
   const focus = useQuery({
     queryKey: ['focus'],
@@ -89,8 +91,9 @@ export default function FocusScreen() {
     retry: retryAnalyticsRequest,
   });
   const insights = useQuery({
-    queryKey: ['today-insights'],
-    queryFn: fetchTodayInsights,
+    queryKey: ['today-insights', accountId],
+    enabled: Boolean(accountId),
+    queryFn: () => fetchTodayInsights(accountId!),
     retry: retryAnalyticsRequest,
   });
   const sessions = useQuery({

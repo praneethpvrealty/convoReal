@@ -300,7 +300,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
     let cancelled = false;
     Promise.resolve().then(() => {
       setInsightsLoading(true);
-      loadRangeInsights(createClient(), range[0], range[1])
+      loadRangeInsights(createClient(), accountId, range[0], range[1])
         .then((data) => {
           if (!cancelled) setInsights(data);
         })

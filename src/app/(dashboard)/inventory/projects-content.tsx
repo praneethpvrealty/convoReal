@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Building2, Loader2, MapPin, Plus, Layers } from 'lucide-react';
+import { Building2, Loader2, MapPin, Pencil, Plus, Layers } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -21,12 +21,13 @@ import {
   projectBhkRange,
   projectPriceHeadline,
   projectRateHeadline,
+  projectSoldPercent,
 } from '@/lib/inventory/project-pricing';
 import { ProjectFormDialog } from '@/components/inventory/project-form-dialog';
 import { ProjectUnitsDialog } from '@/components/inventory/project-units-dialog';
 import type { Project } from '@/types';
 
-function ProjectCard({
+export function ProjectCard({
   project,
   onEdit,
   onManageUnits,
@@ -38,13 +39,24 @@ function ProjectCard({
   const where = [project.sublocality, project.city].filter(Boolean).join(', ');
   const rate = projectRateHeadline(project.stats);
   const bhk = projectBhkRange(project.stats);
+  const soldPercent = projectSoldPercent(project.stats);
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 backdrop-blur-sm">
+    <div
+      data-testid="project-card"
+      className="group relative flex flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-4 backdrop-blur-sm transition-colors focus-within:border-slate-600 hover:border-slate-600"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-base font-bold text-white">
-            {project.name}
+            <button
+              type="button"
+              onClick={onManageUnits}
+              aria-label={`Open units of ${project.name}`}
+              className="cursor-pointer text-left after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none"
+            >
+              {project.name}
+            </button>
           </h3>
           {where && (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400">
@@ -70,26 +82,49 @@ function ProjectCard({
         {bhk && <span className="text-xs text-slate-400">{bhk}</span>}
       </div>
 
-      <p className="mt-1 text-xs text-slate-400">
-        {projectAvailabilityLine(project.stats)}
-      </p>
+      <div className="mt-3">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-slate-300">
+            {projectAvailabilityLine(project.stats)}
+          </span>
+          {project.stats.units > 0 && (
+            <span className="text-slate-400">{soldPercent}%</span>
+          )}
+        </div>
+        {project.stats.units > 0 && (
+          <div
+            role="progressbar"
+            aria-label="Units sold"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={soldPercent}
+            className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-800"
+          >
+            <div
+              className="bg-primary h-full rounded-full"
+              style={{ width: `${soldPercent}%` }}
+            />
+          </div>
+        )}
+      </div>
 
-      <div className="mt-3 flex gap-2">
+      <div className="pointer-events-none relative z-10 mt-auto flex gap-2 pt-4">
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           onClick={onManageUnits}
-          className="h-8 cursor-pointer border border-slate-800 text-xs text-slate-200 hover:bg-slate-800"
+          className="pointer-events-auto h-8 cursor-pointer border-slate-700 bg-slate-800 text-xs font-semibold text-slate-100 hover:bg-slate-700"
         >
           <Layers className="mr-1 size-3.5" />
-          Units
+          Manage units
         </Button>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           onClick={onEdit}
-          className="h-8 cursor-pointer text-xs text-slate-400 hover:text-white"
+          className="pointer-events-auto h-8 cursor-pointer border-slate-700 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
         >
+          <Pencil className="mr-1 size-3.5" />
           Edit
         </Button>
       </div>
