@@ -1030,9 +1030,9 @@ describe('[INB-026] the version a contact card confirms', () => {
   ]);
 
   it('names the draft version and the contacts the card shows', () => {
-    expect(contactCardVersion(at, card)).toMatch(
-      new RegExp(`^${at.replace(/[.+]/g, '\\$&')}#[0-9a-f]{16}$`)
-    );
+    const version = contactCardVersion(at, card);
+    expect(version.startsWith(`${at}#`)).toBe(true);
+    expect(version.slice(at.length + 1)).toMatch(/^[0-9a-f]{16}$/);
     expect(contactCardVersion(at, card)).toBe(contactCardVersion(at, card));
   });
 
