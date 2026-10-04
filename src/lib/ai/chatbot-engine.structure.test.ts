@@ -78,8 +78,16 @@ describe('[INB-025] starting a contact draft', () => {
     expect(announcer).toContain('for (;;) {');
     expect(announcer).not.toMatch(/attempt < \d/);
     expect(announcer.indexOf('await sendContactDraftPreview(')).toBeLessThan(
-      announcer.indexOf('await findContactDraftSession(')
+      announcer.indexOf('await readCurrentContactDraft(')
     );
+    expect(announcer).toContain('if (latest === undefined) {');
+
+    const reader = source.slice(
+      source.indexOf('async function readCurrentContactDraft('),
+      source.indexOf('async function announceLatestContactDraft(')
+    );
+    expect(reader).toContain('if (!error) return data;');
+    expect(reader).toContain('return undefined;');
     expect(announcer).toContain(
       'if (!latest || latest.updated_at === row.updated_at) return;'
     );
@@ -91,12 +99,10 @@ describe('[INB-025] starting a contact draft', () => {
     expect(handling).not.toContain('mutation.next');
 
     const createdPath = insert.slice(
-      insert.indexOf(
-        'const { data: createdSession } = await findContactDraftSession('
-      )
+      insert.indexOf('const createdSession = await readCurrentContactDraft(')
     );
     expect(createdPath).toMatch(
-      /^const \{ data: createdSession \} = await findContactDraftSession\(\s*supabaseAdmin\(\),\s*contactRecord\.id,\s*accountId\s*\);\s*if \(createdSession\) \{\s*await announceLatestContactDraft\(/
+      /^const createdSession = await readCurrentContactDraft\(\s*contactRecord\.id,\s*accountId\s*\);\s*if \(createdSession\) \{\s*await announceLatestContactDraft\(/
     );
   });
 

@@ -844,6 +844,26 @@ async function sendContactDraftPreview(
 }
 
 /**
+ * The current contact draft for a sender, or undefined when it could not
+ * be read. A row that is gone (confirmed or cancelled) reads as null.
+ */
+async function readCurrentContactDraft(
+  contactId: string,
+  accountId: string
+): Promise<ContactDraftSessionRow | null | undefined> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { data, error } = await findContactDraftSession(
+      supabaseAdmin(),
+      contactId,
+      accountId
+    );
+    if (!error) return data;
+    await new Promise((resolve) => setTimeout(resolve, 100 * 2 ** attempt));
+  }
+  return undefined;
+}
+
+/**
  * Sends the preview for a contact draft row, then re-reads the row and
  * sends again while another handler has written it since, so the last
  * card in the chat is always the draft a Confirm would save.
@@ -872,11 +892,13 @@ async function announceLatestContactDraft(
       conversationId,
       accountId
     );
-    const { data: latest } = await findContactDraftSession(
-      supabaseAdmin(),
-      contactId,
-      accountId
-    );
+    const latest = await readCurrentContactDraft(contactId, accountId);
+    if (latest === undefined) {
+      console.error(
+        `[chatbot-engine] could not confirm the contact draft preview for ${contactId} is current`
+      );
+      return;
+    }
     if (!latest || latest.updated_at === row.updated_at) return;
     row = latest;
     title = `📝 *Contact Drafts Updated:*`;
@@ -4192,8 +4214,7 @@ export async function processOwnerChatbotMessage(
           return true;
         }
 
-        const { data: createdSession } = await findContactDraftSession(
-          supabaseAdmin(),
+        const createdSession = await readCurrentContactDraft(
           contactRecord.id,
           accountId
         );
