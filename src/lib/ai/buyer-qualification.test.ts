@@ -1110,6 +1110,22 @@ describe('[INB-029] a lead naming their location replaces the enquiry locality',
     ).toBeNull();
   });
 
+  it('reads an additive word about an area already saved as a move away from it', () => {
+    expect(
+      restatedAreas(
+        'HSR is too expensive; 4 BHK near Horamavu',
+        ['Horamavu'],
+        null,
+        ['HSR']
+      )
+    ).toEqual(['Horamavu']);
+    expect(
+      restatedAreas('Hebbal also fine', ['Whitefield', 'Hebbal'], null, [
+        'Whitefield',
+      ])
+    ).toBeNull();
+  });
+
   it('files Horamavu alone over the Koramangala enquiry area', () => {
     const text = "I'm looking near horamavu";
     const restated = restatedAreas(text, ['Horamavu'], 'Horamavu');

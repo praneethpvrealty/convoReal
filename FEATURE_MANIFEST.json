@@ -514,6 +514,10 @@
             {
               "file": "src/app/api/leads/email-webhook/route.test.ts",
               "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/ai/requirement-signal.test.ts",
+              "case": "[INB-029]"
             }
           ]
         }

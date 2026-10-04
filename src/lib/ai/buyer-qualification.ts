@@ -1019,14 +1019,30 @@ const ADDITIVE_AREA_PATTERN =
  * Koramangala listing and answered "I'm looking near Horamavu" was sent
  * Koramangala houses. A message that adds an area ("Hebbal also") is
  * not a restatement, even when it resolves to one locality, so nothing
- * is dropped.
+ * is dropped. Only a marker in the same clause as an area the contact
+ * has not already got counts: "HSR is too expensive; near Horamavu"
+ * moves away from HSR, it does not add to it.
  */
 export function restatedAreas(
   text: string,
   areas: string[],
-  resolvedLocation: string | null
+  resolvedLocation: string | null,
+  savedAreas: string[] = []
 ): string[] | null {
-  if (ADDITIVE_AREA_PATTERN.test(text)) return null;
+  const candidates = resolvedLocation ? [...areas, resolvedLocation] : areas;
+  const addsArea = text
+    .split(/[.;,!?\n]+|\bbut\b/i)
+    .some(
+      (clause) =>
+        ADDITIVE_AREA_PATTERN.test(clause) &&
+        candidates.some(
+          (area) =>
+            area.trim() &&
+            textNamesLocality(clause, area) &&
+            !savedAreas.some((saved) => localityLabelsMatch(saved, area))
+        )
+    );
+  if (addsArea) return null;
   if (resolvedLocation) return [resolvedLocation];
   const named = areas.filter(
     (area) => area.trim() && textNamesLocality(text, area)
@@ -1625,7 +1641,12 @@ export async function processBuyerQualificationMessage(
         await clearBudgetAnchor(db, accountId, contact.id);
       }
 
-      const restated = restatedAreas(text, extracted.areas, resolvedLocation);
+      const restated = restatedAreas(
+        text,
+        extracted.areas,
+        resolvedLocation,
+        prefs.areas
+      );
       if (restated) extracted = { ...extracted, areas: restated };
 
       // The message added nothing the contact didn't already say — it's
