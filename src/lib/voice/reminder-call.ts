@@ -12,7 +12,7 @@ import { startOutboundCall } from './outbound-call';
  * preferred_update_channel is voice_call, when the account has an
  * active voice config with reminder calls opted in and a default
  * agent_ref. Charged like any other call attempt
- * (AI_FEATURE_COSTS.voice_campaign_call, idempotent per reminder via
+ * (AI_FEATURE_COSTS.voice_campaign_call, one charge per claim run via
  * retryKey) and refunded when the call fails to start; the caller
  * falls back to the WhatsApp template so the reminder still lands.
  */

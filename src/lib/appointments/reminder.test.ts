@@ -168,6 +168,10 @@ vi.mock('@/lib/voice/reminder-audio', async (importOriginal) => ({
 vi.mock('@/lib/voice/config', () => ({
   getVoiceConfig: async () => ({ reminder_audio_enabled: true }),
 }));
+const placeReminderCall = vi.fn();
+vi.mock('@/lib/voice/reminder-call', () => ({
+  placeReminderCall: (...args: unknown[]) => placeReminderCall(...args),
+}));
 
 import {
   buildReminderTemplateContent,
@@ -227,6 +231,8 @@ const REARMED_AT = '2026-08-01T05:30:00.000Z';
 beforeEach(() => {
   enqueueReminderAudioJob.mockReset();
   enqueueReminderAudioJob.mockResolvedValue(true);
+  placeReminderCall.mockReset();
+  placeReminderCall.mockResolvedValue(true);
   sendWhatsAppMessageAndPersist.mockReset();
   sendWhatsAppMessageAndPersist.mockResolvedValue({
     success: true,
@@ -467,6 +473,66 @@ describe('checkAndSendAppointmentReminders', () => {
     await checkAndSendAppointmentReminders(quietEnd);
 
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('reminder call charge key', () => {
+  const retryKeyOf = (call: number) =>
+    placeReminderCall.mock.calls[call][0].retryKey as string;
+
+  beforeEach(() => {
+    tables.contacts = [
+      {
+        id: 'c-visit',
+        name: 'Meera',
+        phone: '+919876543211',
+        preferred_update_channel: 'voice_call',
+      },
+    ];
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+  });
+
+  it('[CRD-004] names the claim run it was placed under', async () => {
+    await checkAndSendAppointmentReminders(NOW);
+
+    expect(placeReminderCall).toHaveBeenCalledTimes(1);
+    const held = tables.appointment_reminder_log[0];
+    expect(retryKeyOf(0)).toBe(
+      `voice-reminder:${held.id}:${new Date(held.created_at as string).getTime()}`
+    );
+  });
+
+  it('[CRD-004] gives a claim taken over after a lost send a key of its own', async () => {
+    await checkAndSendAppointmentReminders(NOW);
+    const held = tables.appointment_reminder_log[0];
+    held.sent_at = null;
+    held.created_at = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    tables.appointments[0].reminder_morning_sent = false;
+    tables.appointments[0].reminder_1h_sent = false;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    await checkAndSendAppointmentReminders(NOW);
+
+    expect(placeReminderCall).toHaveBeenCalledTimes(2);
+    expect(tables.appointment_reminder_log).toHaveLength(1);
+    expect(retryKeyOf(1)).toContain(`voice-reminder:${held.id}:`);
+    expect(retryKeyOf(1)).not.toBe(retryKeyOf(0));
+  });
+
+  it('[CRD-004] gives a claim taken over after a re-arm a key of its own', async () => {
+    await checkAndSendAppointmentReminders(NOW);
+    const held = tables.appointment_reminder_log[0];
+    tables.appointments[0].reminders_rearmed_at = REARMED_AT;
+    tables.appointments[0].reminder_morning_sent = false;
+    tables.appointments[0].reminder_1h_sent = false;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+
+    await checkAndSendAppointmentReminders(NOW);
+
+    expect(placeReminderCall).toHaveBeenCalledTimes(2);
+    expect(tables.appointment_reminder_log).toHaveLength(1);
+    expect(retryKeyOf(1)).toContain(`voice-reminder:${held.id}:`);
+    expect(retryKeyOf(1)).not.toBe(retryKeyOf(0));
   });
 });
 

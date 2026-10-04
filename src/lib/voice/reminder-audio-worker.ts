@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { loadTemplateForContact } from '@/lib/whatsapp/template-language';
@@ -238,8 +239,11 @@ export async function processReminderAudioJob(
 
   let audioUrl: string | null = null;
   let charged = false;
+  const burnKey = job.claimedAt
+    ? `reminder-audio:${job.claimId}:${new Date(job.claimedAt).getTime()}`
+    : newBurnKey('reminder_audio');
   const burn = await burnCredits(job.accountId, 'reminder_audio', cost, {
-    retryKey: `reminder-audio:${job.appointmentId}:${job.contactId}:${job.reminderType}`,
+    retryKey: burnKey,
   });
   if (burn.success) {
     charged = true;
@@ -277,8 +281,8 @@ export async function processReminderAudioJob(
   if (audioUrl) {
     if ((await claimGate(admin, job)) !== 'send') {
       if (charged) {
-        await refundCredits(job.accountId, 'reminder_audio', cost, {
-          description: `reminder audio refund (${job.appointmentId}/${job.contactId}/${job.reminderType})`,
+        await refundBurn(job.accountId, 'reminder_audio', burnKey, {
+          reason: `reminder audio refund (${job.appointmentId}/${job.contactId}/${job.reminderType})`,
         });
       }
       return;
@@ -307,8 +311,8 @@ export async function processReminderAudioJob(
     );
   }
   if (charged) {
-    await refundCredits(job.accountId, 'reminder_audio', cost, {
-      description: `reminder audio refund (${job.appointmentId}/${job.contactId}/${job.reminderType})`,
+    await refundBurn(job.accountId, 'reminder_audio', burnKey, {
+      reason: `reminder audio refund (${job.appointmentId}/${job.contactId}/${job.reminderType})`,
     });
   }
 

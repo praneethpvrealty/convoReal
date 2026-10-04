@@ -44,7 +44,7 @@ const call = {
   accountId: 'acct-1',
   contactId: 'contact-1',
   phone: '+919999999999',
-  retryKey: 'voice-reminder:appt-1:contact-1:24h',
+  retryKey: 'voice-reminder:claim-1:1790000000000',
   context: {},
 };
 

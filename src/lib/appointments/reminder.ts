@@ -672,7 +672,7 @@ async function sendToAllRecipients(
         accountId: appt.account_id,
         contactId: contact.id,
         phone: contact.phone!,
-        retryKey: `voice-reminder:${appt.id}:${contact.id}:${reminderType}`,
+        retryKey: `voice-reminder:${claim.id}:${new Date(claim.created_at).getTime()}`,
         context: {
           contact_name: clientName,
           appointment_title: visitTitle,
