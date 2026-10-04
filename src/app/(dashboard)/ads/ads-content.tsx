@@ -12,8 +12,6 @@ import {
   ExternalLink,
   RefreshCw,
 } from 'lucide-react';
-import { SignalWaveLoader } from '@/components/ui/signal-wave-loader';
-import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -163,6 +161,24 @@ export default function AdsPage() {
     </span>
   );
 
+  const tableHead = (
+    <thead>
+      <tr className="bg-muted/40 text-muted-foreground border-b text-left text-xs">
+        <th className="p-3 font-medium">Property</th>
+        <th className="p-3 font-medium">Status</th>
+        <th className="p-3 font-medium">Daily budget</th>
+        <th className="p-3 font-medium">Spend{metaExpired && staleMark}</th>
+        <th className="p-3 font-medium">Reach{metaExpired && staleMark}</th>
+        <th className="p-3 font-medium">
+          Chats started (Meta){metaExpired && staleMark}
+        </th>
+        <th className="p-3 font-medium">Leads in Engine</th>
+        <th className="p-3 font-medium">Cost/lead{metaExpired && staleMark}</th>
+        <th className="p-3 font-medium"></th>
+      </tr>
+    </thead>
+  );
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -214,14 +230,36 @@ export default function AdsPage() {
       )}
 
       {loading ? (
-        <div className="text-muted-foreground flex flex-col items-center justify-center py-16">
-          <SignalWaveLoader
-            size={104}
-            label="Loading ad campaigns"
-            className="mb-3"
-          />
-          <ConvoRealLoader size={20} className="mb-2" />
-          <p className="text-sm">Loading ad campaigns...</p>
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label="Loading ad campaigns"
+          className="overflow-x-auto rounded-lg border"
+        >
+          <table className="w-full text-sm">
+            {tableHead}
+            <tbody>
+              {[0, 1, 2].map((row) => (
+                <tr key={row} className="border-b last:border-0">
+                  <td className="p-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="bg-muted h-9 w-9 shrink-0 animate-pulse rounded" />
+                      <div className="space-y-1.5">
+                        <div className="bg-muted h-3 w-36 animate-pulse rounded" />
+                        <div className="bg-muted h-2.5 w-16 animate-pulse rounded" />
+                      </div>
+                    </div>
+                  </td>
+                  {Array.from({ length: 7 }, (_, cell) => (
+                    <td key={cell} className="p-3">
+                      <div className="bg-muted h-3 w-12 animate-pulse rounded" />
+                    </td>
+                  ))}
+                  <td className="p-3" />
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : !campaigns || campaigns.length === 0 ? (
         <div className="space-y-3 rounded-lg border py-16 text-center">
@@ -242,27 +280,7 @@ export default function AdsPage() {
       ) : (
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/40 text-muted-foreground border-b text-left text-xs">
-                <th className="p-3 font-medium">Property</th>
-                <th className="p-3 font-medium">Status</th>
-                <th className="p-3 font-medium">Daily budget</th>
-                <th className="p-3 font-medium">
-                  Spend{metaExpired && staleMark}
-                </th>
-                <th className="p-3 font-medium">
-                  Reach{metaExpired && staleMark}
-                </th>
-                <th className="p-3 font-medium">
-                  Chats started (Meta){metaExpired && staleMark}
-                </th>
-                <th className="p-3 font-medium">Leads in Engine</th>
-                <th className="p-3 font-medium">
-                  Cost/lead{metaExpired && staleMark}
-                </th>
-                <th className="p-3 font-medium"></th>
-              </tr>
-            </thead>
+            {tableHead}
             <tbody>
               {campaigns.map((c) => (
                 <tr key={c.id} className="border-b last:border-0">
