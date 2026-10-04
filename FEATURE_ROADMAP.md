@@ -161,6 +161,14 @@ _§2.8 gaps, stated rather than silent. They share one root cause: the mobile ap
 
 ---
 
+### Deferred: projects on mobile
+
+_A §2.8 gap, stated rather than silent._
+
+- [ ] **The Projects tab** (`src/app/(dashboard)/inventory/projects-content.tsx`, `src/components/inventory/project-form-dialog.tsx`, `project-units-dialog.tsx`): grouping flats under one development, with the shared pin, brochure and amenities stored once and the "from" price recomputed from `project_unit_stats`, exists on web only. Mobile shows each unit as its own listing and has no project screen. Closing it means a read-only project card on the mobile property screen (name, where, "N of M units sold") before any editing.
+
+---
+
 ### Deferred: portal posting on mobile
 
 _Posting to a portal is desktop-only by design, not a missing feature: it runs through the Chrome extension, which phone browsers cannot run. What remains is the record-keeping around it, stated rather than silent._

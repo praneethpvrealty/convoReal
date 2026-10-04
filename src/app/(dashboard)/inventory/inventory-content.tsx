@@ -1525,8 +1525,9 @@ export default function InventoryPage() {
                     ? 'Ordered by distance while a location filter is on. Clear the location to sort another way.'
                     : undefined
                 }
-                className="h-9 w-full border-slate-700 bg-slate-800 text-xs font-semibold text-white disabled:opacity-60 md:w-48"
+                className="h-9 w-full border-slate-700 bg-slate-800 text-xs font-semibold text-white disabled:opacity-60 md:w-52"
               >
+                <span className="font-normal text-slate-400">Sort:</span>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">

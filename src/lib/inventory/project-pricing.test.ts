@@ -6,6 +6,7 @@ import {
   projectBhkRange,
   projectPriceHeadline,
   projectRateHeadline,
+  projectSoldPercent,
   unitPremiumPercent,
   unitRatePerSqft,
   unitStatsFromProperties,
@@ -121,13 +122,13 @@ describe('projectBhkRange', () => {
 });
 
 describe('projectAvailabilityLine', () => {
-  it('counts the units and names the sold ones', () => {
-    expect(projectAvailabilityLine(stats())).toBe('12 units · 3 sold');
+  it('[PRP-036] reads as progress: sold of total', () => {
+    expect(projectAvailabilityLine(stats())).toBe('3 of 12 units sold');
   });
 
-  it('says nothing about sold when none are', () => {
+  it('[PRP-036] still counts from zero when none are sold', () => {
     expect(projectAvailabilityLine(stats({ sold_or_contract: 0 }))).toBe(
-      '12 units'
+      '0 of 12 units sold'
     );
   });
 
@@ -136,7 +137,7 @@ describe('projectAvailabilityLine', () => {
       projectAvailabilityLine(
         stats({ units: 1, available: 1, sold_or_contract: 0 })
       )
-    ).toBe('1 unit');
+    ).toBe('0 of 1 unit sold');
   });
 
   it('tells the agent an empty project is empty', () => {
@@ -256,5 +257,23 @@ describe('unitStatsFromProperties', () => {
     expect(stats.min_price).toBeNull();
     expect(stats.min_rate_per_sqft).toBeNull();
     expect(projectPriceHeadline(stats)).toBe('Price on request');
+  });
+});
+
+describe('projectSoldPercent', () => {
+  it('[PRP-036] is the sold share of all units, rounded', () => {
+    expect(projectSoldPercent(stats())).toBe(25);
+    expect(projectSoldPercent(stats({ units: 3, sold_or_contract: 1 }))).toBe(
+      33
+    );
+  });
+
+  it('[PRP-036] is zero for an empty project and never above 100', () => {
+    expect(projectSoldPercent(stats({ units: 0, sold_or_contract: 0 }))).toBe(
+      0
+    );
+    expect(projectSoldPercent(stats({ units: 4, sold_or_contract: 9 }))).toBe(
+      100
+    );
   });
 });
