@@ -4045,12 +4045,74 @@ export async function processOwnerChatbotMessage(
         const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
         // Insert new active session
-        await insertContactDraftSession(supabaseAdmin(), {
-          account_id: accountId,
-          contact_id: contactRecord.id,
-          draft_data: parsedContainer,
-          status: initialStatus,
-        });
+        const { error: insertErr } = await insertContactDraftSession(
+          supabaseAdmin(),
+          {
+            account_id: accountId,
+            contact_id: contactRecord.id,
+            draft_data: parsedContainer,
+            status: initialStatus,
+          }
+        );
+
+        if (insertErr) {
+          const { data: existingSession } =
+            insertErr.code === '23505'
+              ? await findContactDraftSession(supabaseAdmin(), contactRecord.id)
+              : { data: null };
+
+          if (!existingSession) {
+            console.error(
+              '[chatbot-engine] Failed to save contact draft session:',
+              insertErr
+            );
+            if (!cardContainer) {
+              await refundCredits(
+                accountId,
+                'contact_parse',
+                AI_FEATURE_COSTS.contact_parse,
+                { description: 'contact draft could not be saved' }
+              ).catch(() => undefined);
+            }
+            const reply =
+              "❌ *Couldn't save the contact draft.* Please send it again.";
+            const sendRes = await sendTextMessage({
+              phoneNumberId,
+              accessToken,
+              to: contactRecord.phone,
+              text: reply,
+            });
+            await saveBotMessage(conversation.id, reply, sendRes.messageId);
+            return true;
+          }
+
+          const { container: mergedContainer, replaced } =
+            reconcileContactDrafts(existingSession.draft_data, parsedContainer);
+          const merged = validateContactDraftsContainer(mergedContainer);
+          const mergedStatus = merged.isValid
+            ? 'awaiting_confirmation'
+            : 'collecting';
+          await overwriteContactDraftSession(
+            supabaseAdmin(),
+            existingSession.id,
+            mergedContainer,
+            mergedStatus
+          );
+          await sendContactDraftPreview(
+            phoneNumberId,
+            accessToken,
+            contactRecord.phone,
+            replaced
+              ? `📝 *New Contact Draft — previous one discarded:*`
+              : `📝 *Contact Drafts Updated:*`,
+            mergedContainer,
+            mergedStatus,
+            merged.missingFields,
+            conversation.id,
+            accountId
+          );
+          return true;
+        }
 
         await sendContactDraftPreview(
           phoneNumberId,
