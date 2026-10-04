@@ -70,7 +70,7 @@ function isDisabled(el: Element | null) {
 afterEach(cleanup);
 
 describe('FlowBuilder', () => {
-  it('lets a read-only member open and close every node but change nothing', () => {
+  it('[ACC-002] lets a read-only member open and close every node but change nothing', () => {
     mount(true);
 
     const toggle = screen.getByRole('button', { name: /greet/ });

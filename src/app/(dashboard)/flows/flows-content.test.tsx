@@ -112,7 +112,7 @@ describe('FlowsPage', () => {
     await screen.findByText('No flows yet');
   });
 
-  it('disables creating and activating flows for a read-only member', async () => {
+  it('[ACC-002] disables creating and activating flows for a read-only member', async () => {
     auth.isReadOnly = true;
     renderFlows((url) =>
       url === '/api/flows'

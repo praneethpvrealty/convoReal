@@ -122,7 +122,7 @@ beforeEach(() => {
 describe.each([
   ['PUT', put],
   ['DELETE', del],
-])('%s /api/flows/[id]', (_method, call) => {
+])('[ACC-002] %s /api/flows/[id]', (_method, call) => {
   it.each([
     ['a read-only agent', READ_ONLY_AGENT],
     ['a viewer', VIEWER],

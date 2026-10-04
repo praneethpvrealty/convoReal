@@ -101,7 +101,7 @@ beforeEach(() => {
   state.updates = [];
 });
 
-describe('POST /api/flows/[id]/activate', () => {
+describe('[ACC-002] POST /api/flows/[id]/activate', () => {
   it.each([
     ['a read-only agent', READ_ONLY_AGENT],
     ['a viewer', VIEWER],

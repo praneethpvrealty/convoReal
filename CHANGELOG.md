@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **Read-only members can no longer create or change automations and flows.**
+  Creating an automation, running one by hand, and creating, editing,
+  activating or deleting a flow (marketplace flows included) are refused for a
+  read-only member by the API and by the database's row-level security, and
+  the Automations and Flows screens hide or disable those actions; the flow
+  editor opens read-only. **Migration required:**
+  `20261004155516_flow_automation_write_read_only_rls.sql`. Invariant ACC-002.
 - **A failed reminder voice note or reminder call returns only its own
   charge.** The voice note's charge was keyed to the reminder rather than to the
   one run, so a replayed job, or a reminder re-armed after a call had gone out,

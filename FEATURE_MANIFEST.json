@@ -4030,6 +4030,66 @@
             "supabase/migrations/20261004090500_bootstrap_staff_account.sql",
             "supabase/migrations/20261004140500_bootstrap_staff_account_invite_redeem.sql"
           ]
+        },
+        {
+          "id": "ACC-002",
+          "rule": "A read-only member (profiles.is_read_only, stored as an agent-level org_agent) cannot create, change, run or delete automations or flows, nor activate or buy a marketplace flow. Every mutating route for them (POST /api/automations, POST /api/automations/engine, POST /api/flows, PUT and DELETE /api/flows/[id], POST /api/flows/[id]/activate, POST /api/marketplace/items/[id]/activate and /checkout) uses requireWriteRole('agent') and answers 403 before writing, while their GET routes stay open to read-only members. The database refuses the same writes on its own: the write policies on flows, flow_nodes, automations and automation_steps use is_account_writer(), which is is_account_member() plus the read-only check, so a read-only member's own JWT cannot write them through PostgREST either. The web UI matches with useCan('make-changes') (canSendMessages && !isReadOnly): create, edit, delete and activate actions are hidden or disabled, and the flow editor opens read-only with every mutation a no-op and no media upload, while node disclosures and canvas navigation stay usable.",
+          "tests": [
+            {
+              "file": "src/app/api/automations/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/automations/engine/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/flows/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/flows/[id]/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/flows/[id]/activate/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/marketplace/items/[id]/activate/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/lib/auth/read-only-rls.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/hooks/useCan.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/(dashboard)/flows/flows-content.test.tsx",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/components/flows/flow-editor-provider.test.tsx",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/components/flows/flow-builder.test.tsx",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/components/flows/forms/node-config-form.test.tsx",
+              "case": "[ACC-002]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261004155516_flow_automation_write_read_only_rls.sql",
+            "src/lib/auth/account.ts",
+            "src/hooks/useCan.ts",
+            "src/components/flows/flow-editor-state.tsx"
+          ]
         }
       ]
     },

@@ -86,7 +86,7 @@ beforeEach(() => {
   state.runs = [];
 });
 
-describe('POST /api/automations/engine', () => {
+describe('[ACC-002] POST /api/automations/engine', () => {
   it.each([
     ['a read-only agent', READ_ONLY_AGENT],
     ['a viewer', VIEWER],

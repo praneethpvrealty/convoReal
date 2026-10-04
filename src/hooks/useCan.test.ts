@@ -22,7 +22,7 @@ describe("useCan('make-changes')", () => {
     expect(useCan('make-changes')).toBe(true);
   });
 
-  it('refuses a read-only agent that send-messages still lets through', () => {
+  it('[ACC-002] refuses a read-only agent that send-messages still lets through', () => {
     auth.isReadOnly = true;
     auth.canSendMessages = true;
     expect(useCan('send-messages')).toBe(true);

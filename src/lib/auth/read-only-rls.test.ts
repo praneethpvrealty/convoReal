@@ -27,7 +27,7 @@ function policy(table: string, name: string) {
   return migration.slice(start, migration.indexOf(';', start));
 }
 
-describe('read-only RLS on flows and automations', () => {
+describe('[ACC-002] read-only RLS on flows and automations', () => {
   it('defines is_account_writer as membership that refuses read-only members', () => {
     expect(migration).toMatch(
       /CREATE OR REPLACE FUNCTION public\.is_account_writer\([\s\S]*?SECURITY DEFINER[\s\S]*?is_account_member\(target_account_id, min_role\)[\s\S]*?AND p\.is_read_only/

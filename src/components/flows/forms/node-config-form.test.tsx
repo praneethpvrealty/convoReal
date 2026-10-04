@@ -45,7 +45,7 @@ afterEach(() => {
 });
 
 describe('SendMediaForm', () => {
-  it('uploads nothing for a read-only member', () => {
+  it('[ACC-002] uploads nothing for a read-only member', () => {
     const [node] = initialBuilderNodes(rows);
     const { container } = render(
       <FlowEditorProvider initialFlow={flow} initialNodes={rows} readOnly>

@@ -104,7 +104,7 @@ beforeEach(() => {
   state.inserted = [];
 });
 
-describe('POST /api/automations', () => {
+describe('[ACC-002] POST /api/automations', () => {
   it.each([
     ['a read-only agent', READ_ONLY_AGENT],
     ['a viewer', VIEWER],

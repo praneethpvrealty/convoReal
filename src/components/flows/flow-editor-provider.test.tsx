@@ -99,7 +99,7 @@ describe('FlowEditorProvider', () => {
     expect(editor.current.canActivate).toBe(true);
   });
 
-  it('ignores every edit and action for a read-only member', async () => {
+  it('[ACC-002] ignores every edit and action for a read-only member', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const editor = mount(true);

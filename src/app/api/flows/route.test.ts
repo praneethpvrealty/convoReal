@@ -106,7 +106,7 @@ beforeEach(() => {
   state.inserted = { flows: [], flow_nodes: [] };
 });
 
-describe('POST /api/flows', () => {
+describe('[ACC-002] POST /api/flows', () => {
   it.each([
     ['a read-only agent', READ_ONLY_AGENT],
     ['a viewer', VIEWER],
