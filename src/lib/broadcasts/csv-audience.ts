@@ -69,9 +69,25 @@ function toPhone(raw: string): string | null {
   return digits.length >= min && digits.length <= 15 ? `+${digits}` : null;
 }
 
+function records(text: string): string[] {
+  const out: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (const char of text) {
+    if (char === '"') inQuotes = !inQuotes;
+    if (!inQuotes && (char === '\n' || char === '\r')) {
+      out.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  out.push(current);
+  return out;
+}
+
 export function parseCsvAudience(text: string): CsvAudienceResult {
-  const lines = text
-    .split(/\r?\n/)
+  const lines = records(text)
     .map((line) => line.trim())
     .filter(Boolean);
 

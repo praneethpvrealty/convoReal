@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -167,11 +167,31 @@ export default function NewBroadcastScreen() {
 
   const recipientsLabel = contactsLabel(recipientCount ?? 0);
 
+  const latestAudience = useRef(audience);
+  useEffect(() => {
+    latestAudience.current = audience;
+  }, [audience]);
+
   async function confirmSend() {
+    if (!template || !audience) return;
     haptic.tap();
+    const snapshot = {
+      name: name.trim(),
+      template,
+      audience,
+      variables,
+    };
     setConfirming(true);
     const outcome = recountOutcome(await recount());
     setConfirming(false);
+    if (latestAudience.current !== snapshot.audience) {
+      dialog.show({
+        title: 'The audience changed',
+        message:
+          'You changed the audience while it was being counted. Nothing was sent. Check it and tap Send again.',
+      });
+      return;
+    }
     if (outcome.kind === 'failed') {
       dialog.show({
         title: 'Could not count recipients',
@@ -190,7 +210,7 @@ export default function NewBroadcastScreen() {
     }
     dialog.show({
       title: 'Send this broadcast?',
-      message: `“${name.trim()}” goes to ${outcome.label} now. Sending cannot be undone.`,
+      message: `“${snapshot.name}” goes to ${outcome.label} now. Sending cannot be undone.`,
       actions: [
         { label: 'Cancel', variant: 'muted', onPress: dialog.close },
         {
@@ -198,26 +218,26 @@ export default function NewBroadcastScreen() {
           variant: 'primary',
           onPress: () => {
             dialog.close();
-            void send();
+            void send(snapshot);
           },
         },
       ],
     });
   }
 
-  async function send() {
-    if (!template || !audience || sending) return;
+  async function send(payload: {
+    name: string;
+    template: MessageTemplate;
+    audience: NonNullable<typeof audience>;
+    variables: Record<string, VariableMapping>;
+  }) {
+    if (sending) return;
     setSending(true);
     setError(null);
     try {
       const res = await apiFetch<{ broadcastId: string }>('/api/broadcasts', {
         method: 'POST',
-        body: JSON.stringify({
-          name: name.trim(),
-          template,
-          audience,
-          variables,
-        }),
+        body: JSON.stringify(payload),
       });
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['broadcasts'] });

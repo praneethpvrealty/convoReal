@@ -47,6 +47,7 @@ import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { InfoHint } from '@/components/ui/info-hint';
 import { LoadError } from '@/components/broadcasts/load-error';
+import { voiceCampaignSettingsErrors } from '@/lib/voice/campaign-settings';
 
 interface RecipientCounts {
   queued?: number;
@@ -482,12 +483,8 @@ function CreateCampaignDialog({
   const [maxAttempts, setMaxAttempts] = useState(3);
   const [seed, setSeed] = useState(true);
 
-  const windowError =
-    endHour <= startHour ? '“Until” must be after “Calls from”.' : null;
-  const attemptsError =
-    !Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 10
-      ? 'Max attempts must be a whole number from 1 to 10.'
-      : null;
+  const { window: windowError, attempts: attemptsError } =
+    voiceCampaignSettingsErrors(startHour, endHour, maxAttempts);
 
   const propertiesQuery = useQuery({
     queryKey: ['voice-campaigns', 'properties', accountId],

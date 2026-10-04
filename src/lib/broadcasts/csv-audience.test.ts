@@ -96,6 +96,18 @@ describe('parseCsvAudience', () => {
     });
   });
 
+  it('keeps a newline inside a quoted name in the same record', () => {
+    expect(
+      parseCsvAudience('9876543210,"Asha\nPatel"\r\n9876543211,Ravi')
+    ).toEqual({
+      contacts: [
+        { phone: '+919876543210', name: 'Asha\nPatel' },
+        { phone: '+919876543211', name: 'Ravi' },
+      ],
+      skipped: 0,
+    });
+  });
+
   it('returns nothing for empty input', () => {
     expect(parseCsvAudience('  \n ')).toEqual({ contacts: [], skipped: 0 });
   });
