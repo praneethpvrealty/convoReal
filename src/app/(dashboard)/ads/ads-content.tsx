@@ -156,7 +156,8 @@ export default function AdsPage() {
   const needsReconnect =
     status === 'token_expired' || status === 'disconnected';
   const connected = status === 'connected' && !!connection?.adAccountId;
-  const notConnected = !connected && !needsReconnect;
+  const needsSetup = status === 'connected' && !connection?.adAccountId;
+  const notConnected = !connected && !needsReconnect && !needsSetup;
   const canManage = canEdit && connected;
   const manageHint = canManage ? undefined : 'Reconnect Meta to manage this ad';
 
@@ -334,6 +335,27 @@ export default function AdsPage() {
                 className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-amber-500 px-3 text-sm font-semibold text-slate-950 hover:bg-amber-400"
               >
                 Reconnect Meta
+              </a>
+            </div>
+          )}
+
+          {needsSetup && (
+            <div
+              role="status"
+              className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">Finish connecting Meta</p>
+                <p className="text-muted-foreground text-xs">
+                  Meta is connected. Choose the ad account and Facebook Page to
+                  run ads from.
+                </p>
+              </div>
+              <a
+                href="/settings?tab=ads"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-8 shrink-0 items-center justify-center rounded-md px-3 text-sm font-medium"
+              >
+                Choose ad account
               </a>
             </div>
           )}

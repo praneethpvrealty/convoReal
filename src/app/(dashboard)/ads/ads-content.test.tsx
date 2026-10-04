@@ -42,7 +42,12 @@ const CAMPAIGN = {
   costPerLeadInr: 250,
 };
 
-const CONNECTED = {
+const CONNECTED: {
+  status: string;
+  adAccountId: string | null;
+  pageId: string | null;
+  currency: string | null;
+} = {
   status: 'connected',
   adAccountId: 'act_123',
   pageId: 'page_1',
@@ -164,6 +169,19 @@ describe('AdsPage Meta connection state', () => {
     expect(screen.queryByText('No campaigns yet')).toBeNull();
     expect(
       screen.getByRole('link', { name: 'Connect Meta' }).getAttribute('href')
+    ).toBe('/settings?tab=ads');
+  });
+
+  it('[PRP-029] asks to finish setup, not to connect, when Meta is connected without an ad account', async () => {
+    mockCampaigns({ ...connection('connected'), adAccountId: null }, []);
+
+    await renderAds('Finish connecting Meta');
+
+    expect(screen.queryByText('Connect Meta to start advertising')).toBeNull();
+    expect(
+      screen
+        .getByRole('link', { name: 'Choose ad account' })
+        .getAttribute('href')
     ).toBe('/settings?tab=ads');
   });
 
