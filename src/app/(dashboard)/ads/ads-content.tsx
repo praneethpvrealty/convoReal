@@ -420,10 +420,10 @@ export default function AdsPage() {
                 <tbody>
                   {campaigns.map((c) => {
                     const live = c.status === 'ACTIVE' || c.status === 'PAUSED';
+                    const archived = c.status === 'ARCHIVED';
                     const showAsOf =
-                      c.status !== 'ARCHIVED' &&
                       !!c.insights?.fetchedAt &&
-                      (c.insights.stale || needsReconnect);
+                      (archived || c.insights.stale || needsReconnect);
                     const noLeadsYet =
                       c.costPerLeadInr === null &&
                       !!c.insights &&
@@ -542,7 +542,11 @@ export default function AdsPage() {
                         </td>
                         <td className="p-3 font-medium">{c.leadsInEngine}</td>
                         <td className={metaCell}>
-                          {c.costPerLeadInr !== null ? (
+                          {archived ? (
+                            <span title="Spend was frozen when this ad was archived, while leads keep counting over a rolling 30 days, so the two no longer match.">
+                              —
+                            </span>
+                          ) : c.costPerLeadInr !== null ? (
                             formatAdMoney(c.costPerLeadInr, c.currency)
                           ) : noLeadsYet ? (
                             <span className="text-xs">No leads yet</span>

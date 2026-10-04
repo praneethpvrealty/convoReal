@@ -69,10 +69,10 @@ function expiryNotice(
   tokenExpiresAt: string | null | undefined
 ): string | null {
   if (!tokenExpiresAt) return null;
-  const days = Math.ceil(
-    (new Date(tokenExpiresAt).getTime() - Date.now()) / DAY_MS
-  );
-  if (Number.isNaN(days) || days >= EXPIRY_WARNING_DAYS) return null;
+  const remainingMs = new Date(tokenExpiresAt).getTime() - Date.now();
+  if (Number.isNaN(remainingMs) || remainingMs >= EXPIRY_WARNING_DAYS * DAY_MS)
+    return null;
+  const days = Math.ceil(remainingMs / DAY_MS);
   if (days <= 0) return 'Connection expires today';
   return `Connection expires in ${days} ${days === 1 ? 'day' : 'days'}`;
 }

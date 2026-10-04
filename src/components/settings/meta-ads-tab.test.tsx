@@ -45,6 +45,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('MetaAdsTab', () => {
@@ -102,6 +103,40 @@ describe('MetaAdsTab', () => {
     render(<MetaAdsTab />);
 
     await screen.findByText(/Connection expires in [45] days/);
+  });
+
+  it('[PRP-036] warns at 13 days 23 hours left', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-04T00:00:00Z'));
+    stubConfig({
+      connected: true,
+      status: 'connected',
+      adAccountId: 'act_1',
+      pageId: 'p1',
+      currency: 'INR',
+      tokenExpiresAt: '2026-10-17T23:00:00Z',
+    });
+    render(<MetaAdsTab />);
+
+    await screen.findByText('Connection expires in 14 days');
+  });
+
+  it('[PRP-036] stays quiet at exactly 14 days left', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-04T00:00:00Z'));
+    stubConfig({
+      connected: true,
+      status: 'connected',
+      adAccountId: 'act_1',
+      pageId: 'p1',
+      currency: 'INR',
+      tokenExpiresAt: '2026-10-18T00:00:00Z',
+    });
+    render(<MetaAdsTab />);
+
+    await screen.findByText('Connected');
+
+    expect(screen.queryByText(/Connection expires/)).toBeNull();
   });
 
   it('[PRP-036] stays quiet when the connection has more than 14 days left', async () => {

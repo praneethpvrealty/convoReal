@@ -2,12 +2,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   tables: {} as Record<string, unknown>,
+  errors: {} as Record<string, unknown>,
   filters: [] as Array<[string, string, unknown]>,
   insightsCalls: 0,
+  rpcCalls: [] as Array<[string, Record<string, unknown>]>,
+  adContactCounts: [] as Array<{ source_id: string; contacts: number }>,
+  rpcError: null as unknown,
 }));
 
 vi.mock('@/lib/auth/account', () => ({
-  requireRole: async () => ({ accountId: 'acct-1', userId: 'user-1' }),
+  requireRole: async () => ({
+    accountId: 'acct-1',
+    userId: 'user-1',
+    supabase: {
+      rpc: async (fn: string, args: Record<string, unknown>) => {
+        state.rpcCalls.push([fn, args]);
+        return state.rpcError
+          ? { data: null, error: state.rpcError }
+          : { data: state.adContactCounts, error: null };
+      },
+    },
+  }),
   toErrorResponse: (err: unknown) =>
     Response.json({ error: String(err) }, { status: 500 }),
 }));
@@ -37,7 +52,7 @@ vi.mock('@/lib/supabase/admin', () => ({
         const data = state.tables[table];
         return {
           data: Array.isArray(data) ? data : (data ?? null),
-          error: null,
+          error: state.errors[table] ?? null,
         };
       };
       const builder: Record<string, unknown> = {
@@ -89,8 +104,12 @@ const CAMPAIGN = {
 
 beforeEach(() => {
   state.tables = {};
+  state.errors = {};
   state.filters.length = 0;
   state.insightsCalls = 0;
+  state.rpcCalls.length = 0;
+  state.adContactCounts = [];
+  state.rpcError = null;
 });
 
 describe('GET /api/meta-ads/campaigns', () => {
@@ -112,7 +131,6 @@ describe('GET /api/meta-ads/campaigns', () => {
     state.tables = {
       ad_campaigns: [CAMPAIGN],
       properties: [{ id: 'prop-1', title: 'Maple Grove', images: [] }],
-      ctwa_referrals: [],
       meta_ads_config: {
         status: 'token_expired',
         access_token: 'enc',
@@ -134,15 +152,10 @@ describe('GET /api/meta-ads/campaigns', () => {
     expect(body.campaigns[0].currency).toBe('USD');
   });
 
-  it('[PRP-029] counts a contact who tapped the ad twice as one lead and prices the cost per lead on that', async () => {
+  it('[PRP-029] counts leads per ad in SQL over the same 30-day window and prices the cost per lead on that', async () => {
     state.tables = {
       ad_campaigns: [CAMPAIGN],
       properties: [{ id: 'prop-1', title: 'Maple Grove', images: [] }],
-      ctwa_referrals: [
-        { source_id: 'ad-1', contact_id: 'c-1' },
-        { source_id: 'ad-1', contact_id: 'c-1' },
-        { source_id: 'ad-1', contact_id: 'c-2' },
-      ],
       meta_ads_config: {
         status: 'connected',
         access_token: 'enc',
@@ -151,15 +164,46 @@ describe('GET /api/meta-ads/campaigns', () => {
         currency: 'USD',
       },
     };
+    state.adContactCounts = [{ source_id: 'ad-1', contacts: 2 }];
+    const before = Date.now();
 
     const body = await (await GET()).json();
 
     expect(body.campaigns[0].leadsInEngine).toBe(2);
     expect(body.campaigns[0].costPerLeadInr).toBe(45);
-    expect(
-      state.filters.some(
-        ([t, c]) => t === 'ctwa_referrals' && c === 'created_at'
-      )
-    ).toBe(true);
+    expect(state.rpcCalls).toHaveLength(1);
+    const [fn, args] = state.rpcCalls[0];
+    expect(fn).toBe('ad_contact_counts');
+    expect(args.p_account_id).toBe('acct-1');
+    expect(args.p_ad_ids).toEqual(['ad-1']);
+    const since = new Date(args.p_since as string).getTime();
+    const windowMs = 30 * 24 * 60 * 60 * 1000;
+    expect(since).toBeGreaterThanOrEqual(before - windowMs - 1000);
+    expect(since).toBeLessThanOrEqual(Date.now() - windowMs);
+  });
+
+  it('[PRP-029] fails the load instead of reporting zero leads when the lead count errors', async () => {
+    state.tables = {
+      ad_campaigns: [CAMPAIGN],
+      properties: [{ id: 'prop-1', title: 'Maple Grove', images: [] }],
+      meta_ads_config: null,
+    };
+    state.rpcError = { message: 'boom' };
+
+    const res = await GET();
+
+    expect(res.status).toBe(500);
+  });
+
+  it('[PRP-029] fails the load instead of reporting not_connected when the config read errors', async () => {
+    state.tables = { ad_campaigns: [], meta_ads_config: null };
+    state.errors = { meta_ads_config: { message: 'timeout' } };
+
+    const res = await GET();
+    const body = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(body.error).toBe('Failed to load campaigns');
+    expect(body.connection).toBeUndefined();
   });
 });

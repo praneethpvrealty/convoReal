@@ -252,14 +252,16 @@ describe('AdsPage figures', () => {
     expect(screen.queryByRole('button', { name: /^Pause/ })).toBeNull();
   });
 
-  it('[PRP-029] hides the as-of time on archived rows', async () => {
-    mockCampaigns(connection('token_expired'), [
-      { ...CAMPAIGN, status: 'ARCHIVED' },
-    ]);
+  it("[PRP-029] dates an archived row's frozen figures and withholds its cost per lead", async () => {
+    mockCampaigns(CONNECTED, [{ ...CAMPAIGN, status: 'ARCHIVED' }]);
 
     await renderAds();
 
-    expect(screen.queryByText(/^as of /)).toBeNull();
+    expect(screen.getByText(/^as of /)).toBeTruthy();
+    expect(screen.queryByText(/250/)).toBeNull();
+    expect(
+      screen.getByTitle(/frozen when this ad was archived/).textContent
+    ).toBe('—');
     expect(screen.queryByRole('button', { name: /^More actions/ })).toBeNull();
   });
 });

@@ -1,19 +1,13 @@
-interface ReferralRow {
+interface AdContactCountRow {
   source_id: string | null;
-  contact_id: string | null;
+  contacts: number | string | null;
 }
 
-export function countDistinctContactsByAd(
-  rows: ReferralRow[]
-): Map<string, number> {
-  const contactsByAd = new Map<string, Set<string>>();
+export function leadCountsByAd(rows: AdContactCountRow[]): Map<string, number> {
+  const counts = new Map<string, number>();
   for (const row of rows) {
-    if (!row.source_id || !row.contact_id) continue;
-    const contacts = contactsByAd.get(row.source_id) ?? new Set<string>();
-    contacts.add(row.contact_id);
-    contactsByAd.set(row.source_id, contacts);
+    if (!row.source_id) continue;
+    counts.set(row.source_id, Number(row.contacts ?? 0));
   }
-  return new Map(
-    [...contactsByAd].map(([adId, contacts]) => [adId, contacts.size])
-  );
+  return counts;
 }

@@ -24,7 +24,7 @@ import {
   clampRadiusKm,
   buildTargeting,
 } from '@/lib/meta-ads/campaign-build';
-import { countDistinctContactsByAd } from '@/lib/meta-ads/lead-counts';
+import { leadCountsByAd } from '@/lib/meta-ads/lead-counts';
 
 // POST /api/meta-ads/campaigns
 // Creates a Click-to-WhatsApp campaign promoting one property.
@@ -416,18 +416,19 @@ export async function GET() {
     const ctx = await requireRole('viewer');
     const db = supabaseAdmin();
 
-    const [{ data: campaigns, error }, { data: config }] = await Promise.all([
-      db
-        .from('ad_campaigns')
-        .select('*')
-        .eq('account_id', ctx.accountId)
-        .order('created_at', { ascending: false }),
-      db
-        .from('meta_ads_config')
-        .select('access_token, status, ad_account_id, page_id, currency')
-        .eq('account_id', ctx.accountId)
-        .maybeSingle(),
-    ]);
+    const [{ data: campaigns, error }, { data: config, error: configError }] =
+      await Promise.all([
+        db
+          .from('ad_campaigns')
+          .select('*')
+          .eq('account_id', ctx.accountId)
+          .order('created_at', { ascending: false }),
+        db
+          .from('meta_ads_config')
+          .select('access_token, status, ad_account_id, page_id, currency')
+          .eq('account_id', ctx.accountId)
+          .maybeSingle(),
+      ]);
 
     let connectionStatus: string = config?.status ?? 'not_connected';
     const connection = () => ({
@@ -437,8 +438,11 @@ export async function GET() {
       currency: (config?.currency as string | null) ?? null,
     });
 
-    if (error) {
-      console.error('[GET /api/meta-ads/campaigns] fetch error:', error);
+    if (error || configError) {
+      console.error(
+        '[GET /api/meta-ads/campaigns] fetch error:',
+        error ?? configError
+      );
       return NextResponse.json(
         { error: 'Failed to load campaigns' },
         { status: 500 }
@@ -462,18 +466,27 @@ export async function GET() {
     const now = Date.now();
     let leadCountByAdId = new Map<string, number>();
     if (adIds.length > 0) {
-      const { data: referrals } = await db
-        .from('ctwa_referrals')
-        .select('source_id, contact_id')
-        .eq('account_id', ctx.accountId)
-        .in('source_id', adIds)
-        .gte(
-          'created_at',
-          new Date(
+      const { data: counts, error: countsError } = await ctx.supabase.rpc(
+        'ad_contact_counts',
+        {
+          p_account_id: ctx.accountId,
+          p_ad_ids: adIds,
+          p_since: new Date(
             now - INSIGHTS_WINDOW_DAYS * 24 * 60 * 60 * 1000
-          ).toISOString()
+          ).toISOString(),
+        }
+      );
+      if (countsError) {
+        console.error(
+          '[GET /api/meta-ads/campaigns] lead count error:',
+          countsError
         );
-      leadCountByAdId = countDistinctContactsByAd(referrals ?? []);
+        return NextResponse.json(
+          { error: 'Failed to load campaigns' },
+          { status: 500 }
+        );
+      }
+      leadCountByAdId = leadCountsByAd(counts ?? []);
     }
 
     // Refresh stale insights for live campaigns only — no point
