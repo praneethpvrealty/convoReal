@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/client';
 import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
+import { safeNextPath } from '@/lib/auth/next-path';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -103,9 +104,11 @@ export default function BuyerVerifyPhonePage() {
     await fetch('/api/buyer/auth/complete', { method: 'POST' }).catch(
       () => null
     );
-    const target =
-      new URLSearchParams(window.location.search).get('next') || '';
-    window.location.href = /^\/buyer(\/|$)/.test(target) ? target : '/buyer';
+    window.location.href = safeNextPath(
+      new URLSearchParams(window.location.search).get('next'),
+      '/buyer',
+      '/buyer'
+    );
   };
 
   return (

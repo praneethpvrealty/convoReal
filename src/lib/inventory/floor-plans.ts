@@ -13,7 +13,7 @@
 // untrusted payloads with sanitizeFloorPlans().
 // ============================================================
 
-export interface FloorPlan {
+export type FloorPlan = {
   /** Floor/unit label, or sketch name for land. */
   floor: string;
   /** Stored image path ("property-images/<account>/img-...jpg"), or an
@@ -27,7 +27,7 @@ export interface FloorPlan {
    *  an extracted drawing to its floor at intake, and kept afterwards
    *  so a re-import can tell which floors came from the document. */
   page?: number | null;
-}
+};
 
 export const PLAN_IMAGE_MIME_TYPES = [
   'image/jpeg',

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { safeNextPath } from '@/lib/auth/next-path';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -10,13 +11,16 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      const next = requestUrl.searchParams.get('next') || '/dashboard';
+      const next = safeNextPath(
+        requestUrl.searchParams.get('next'),
+        '/dashboard'
+      );
       if (invite) {
         return NextResponse.redirect(
           `${requestUrl.origin}/join/${encodeURIComponent(invite)}`
         );
       }
-      return NextResponse.redirect(`${requestUrl.origin}${next}`);
+      return NextResponse.redirect(new URL(next, requestUrl.origin));
     }
   }
 
