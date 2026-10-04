@@ -30,8 +30,27 @@ describe('[INB-024] an external listing session on the owner number', () => {
       "if (propSessionData?.session_mode === 'external') {\n    return processExternalListingMessage("
     );
     expect(handoff).toBeGreaterThan(-1);
-    expect(handoff).toBeLessThan(
-      ownerFlow.indexOf('let propSession = propSessionData;')
+    expect(handoff).toBeLessThan(ownerFlow.indexOf('const cleanedText ='));
+    const beforeHandoff = ownerFlow.slice(
+      ownerFlow.indexOf('let propSession = propSessionData;'),
+      handoff
+    );
+    expect(beforeHandoff).not.toMatch(/propSession[.?)]/);
+  });
+
+  it('hands a voice correction over as its transcript', () => {
+    const ownerFlow = source.slice(
+      source.indexOf('export async function processOwnerChatbotMessage('),
+      source.indexOf('export async function processExternalListingMessage(')
+    );
+    const handoff = ownerFlow.indexOf(
+      "if (propSessionData?.session_mode === 'external') {"
+    );
+    expect(
+      ownerFlow.indexOf('spokenText = await transcribeVoiceNote(')
+    ).toBeLessThan(handoff);
+    expect(ownerFlow.slice(handoff)).toMatch(
+      /^if \(propSessionData\?\.session_mode === 'external'\) \{\s*return processExternalListingMessage\(\s*message,\s*spokenText \|\| contentText,/
     );
   });
 });

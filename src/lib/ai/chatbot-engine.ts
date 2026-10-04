@@ -878,18 +878,6 @@ export async function processOwnerChatbotMessage(
     );
   }
 
-  if (propSessionData?.session_mode === 'external') {
-    return processExternalListingMessage(
-      message,
-      contentText,
-      contactRecord,
-      conversation,
-      accountId,
-      accessToken,
-      phoneNumberId
-    );
-  }
-
   let propSession = propSessionData;
   let contactSession = contactSessionData;
 
@@ -940,6 +928,18 @@ export async function processOwnerChatbotMessage(
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
       return true;
     }
+  }
+
+  if (propSessionData?.session_mode === 'external') {
+    return processExternalListingMessage(
+      message,
+      spokenText || contentText,
+      contactRecord,
+      conversation,
+      accountId,
+      accessToken,
+      phoneNumberId
+    );
   }
 
   const cleanedText = (spokenText || contentText || '').trim();
