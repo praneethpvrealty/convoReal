@@ -4031,6 +4031,28 @@
           ]
         }
       ]
+    },
+    {
+      "id": "credits",
+      "name": "AI credits wallet and transaction history",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "CRD-001",
+          "rule": "The credits history names what each row was for, never the marker the ledger stores: a refund reads \"Refund — <feature>\" and a charge reads the feature's name, whether its description is a refund marker (refund:<burn id>), a retry key (retry:<key>) or \"<feature> burn\", while a description a person wrote is kept as written. Web (including its CSV export) and mobile render the one label from the same function, so the two surfaces cannot disagree about it.",
+          "tests": [
+            {
+              "file": "src/lib/format/ledger-label.test.ts",
+              "case": "[CRD-001]"
+            }
+          ],
+          "guards": [
+            "src/lib/format/ledger-label.ts",
+            "src/components/settings/CreditLedger.tsx",
+            "mobile/app/(app)/credits.tsx"
+          ]
+        }
+      ]
     }
   ]
 }

@@ -30,6 +30,7 @@ import { SHOW_PURCHASE_LINKS } from '@/lib/store-policy';
 import { supabase } from '@/lib/supabase';
 import { onGradient, radius, spacing, useTheme, fonts } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { ledgerLabel } from '@shared/lib/format/ledger-label';
 
 interface WalletRow {
   total_credits: number;
@@ -49,6 +50,7 @@ interface CreditTx {
   amount: number;
   balance_after: number;
   description?: string | null;
+  ai_feature?: string | null;
   created_at: string;
 }
 
@@ -305,7 +307,7 @@ export default function CreditsScreen() {
                   }}
                   numberOfLines={1}
                 >
-                  {tx.description || tx.type.replace(/_/g, ' ')}
+                  {ledgerLabel(tx)}
                 </Text>
                 <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
                   {chatListTime(tx.created_at)} · balance {tx.balance_after}

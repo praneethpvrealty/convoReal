@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **The credits history says what each charge and refund was for.** Rows
+  read "Refund — Photo enhancement" or "Daily conversation review" instead of
+  `refund:<id>`, `retry:<key>` or `chatbot_classify burn`, on web (including the
+  CSV export) and mobile alike; a description a person wrote is kept as written.
+  Invariant CRD-001.
 - **Roles can no longer be self-edited.** A signed-in member's own profile
   update could change their account, role, team, platform role or read-only
   status directly, which every role-based permission reads, and a Portfolio
