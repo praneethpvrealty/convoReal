@@ -164,6 +164,35 @@ describe('recordRadarSendProgress and finishRadarSend', () => {
   });
 });
 
+describe('recordRadarSendProgress on a write error', () => {
+  it('[RDR-001] stops the batch when a delivery cannot be recorded', async () => {
+    const failing = {
+      from: () => {
+        const builder = {
+          update: () => builder,
+          eq: () => builder,
+          select: () => builder,
+          maybeSingle: async () => ({
+            data: null,
+            error: { message: 'connection reset' },
+          }),
+        };
+        return builder;
+      },
+    } as unknown as SupabaseClient;
+
+    expect(
+      await recordRadarSendProgress(
+        failing,
+        'account-1',
+        'event-1',
+        now.toISOString(),
+        ['target-1']
+      )
+    ).toBe(false);
+  });
+});
+
 describe('radarSendRefusalMessage', () => {
   it('[RDR-001] names both refusals and nothing else', () => {
     expect(radarSendRefusalMessage('SEND_IN_PROGRESS')).toBe(

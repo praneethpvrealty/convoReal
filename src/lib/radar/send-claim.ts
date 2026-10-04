@@ -114,7 +114,7 @@ export async function recordRadarSendProgress(
     .maybeSingle();
   if (error) {
     console.error('[radar/send] progress write failed:', error.message);
-    return true;
+    return false;
   }
   return Boolean(data);
 }
