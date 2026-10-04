@@ -329,6 +329,51 @@ describe('POST /api/radar/send claim', () => {
     expect(recipients()).toEqual([]);
   });
 
+  it('[RDR-001] keeps a recipient recorded when a failed send may have reached Meta', async () => {
+    sendWhatsAppMessageAndPersist.mockResolvedValueOnce({
+      success: false,
+      error: 'Sent to Meta but DB insert failed',
+      reachedMeta: true,
+    });
+    const response = await POST(
+      request({ eventId: 'event-1', targetIds: ['matched-1'] })
+    );
+
+    expect(await response.json()).toMatchObject({
+      sent: 0,
+      failed: 1,
+      results: [{ id: 'matched-1', status: 'failed' }],
+    });
+    expect(eventRow).toMatchObject({
+      send_claimed_at: null,
+      sent_target_ids: ['matched-1'],
+    });
+    sendWhatsAppMessageAndPersist.mockClear();
+    const retry = await POST(
+      request({ eventId: 'event-1', targetIds: ['matched-1'] })
+    );
+    expect(retry.status).toBe(409);
+    expect(recipients()).toEqual([]);
+  });
+
+  it('[RDR-001] keeps a recipient recorded when the photo went out but the details failed', async () => {
+    (tables.properties[0] as { images: string[] }).images = [
+      'https://cdn.example.com/plot.jpg',
+    ];
+    sendWhatsAppMessageAndPersist
+      .mockResolvedValueOnce({ success: true })
+      .mockResolvedValueOnce({ success: false, error: 'Meta refused' });
+    await POST(request({ eventId: 'event-1', targetIds: ['matched-1'] }));
+
+    expect(eventRow.sent_target_ids).toEqual(['matched-1']);
+    sendWhatsAppMessageAndPersist.mockClear();
+    const retry = await POST(
+      request({ eventId: 'event-1', targetIds: ['matched-1'] })
+    );
+    expect(retry.status).toBe(409);
+    expect(recipients()).toEqual([]);
+  });
+
   it('[RDR-001] keeps what was delivered when a later target throws', async () => {
     sendWhatsAppMessageAndPersist
       .mockResolvedValueOnce({ success: true })

@@ -51,6 +51,7 @@ function makeDb(
     marketingSuppressionCode?: number | null;
     /** Rows the swap lookup finds for the template name. */
     templateVariants?: Row[];
+    messageInsertError?: { message: string };
   } = {}
 ) {
   const inserts: Record<string, Row[]> = {
@@ -201,6 +202,12 @@ function makeDb(
           });
         }
         if (table === 'messages') {
+          if (overrides.messageInsertError) {
+            return Promise.resolve({
+              data: null,
+              error: overrides.messageInsertError,
+            });
+          }
           const inserted = inserts.messages.at(-1);
           return Promise.resolve({
             data: { id: 'msg-new', ...inserted },
@@ -671,6 +678,69 @@ describe('sendWhatsAppMessageAndPersist', () => {
     expect(result.success).toBe(true);
     expect(result.messageId).toBe('msg-new');
     expect(db._inserts.messages).toHaveLength(1);
+  });
+
+  describe('reachedMeta', () => {
+    const send = async (db: ReturnType<typeof makeDb>) => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
+      return sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: 'text',
+        senderType: 'agent',
+        text: 'A new listing matches your search',
+        customDbClient: db,
+      });
+    };
+
+    it('[RDR-001] reports a failure after Meta accepted the message', async () => {
+      const result = await send(
+        makeDb({
+          existingConversation: { id: 'conv-existing' },
+          messageInsertError: { message: 'insert failed' },
+        })
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.reachedMeta).toBe(true);
+    });
+
+    it('[RDR-001] reports a request whose outcome is unknown', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => {
+          throw new TypeError('fetch failed');
+        })
+      );
+      const result = await send(
+        makeDb({ existingConversation: { id: 'conv-existing' } })
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.reachedMeta).toBe(true);
+    });
+
+    it('[RDR-001] leaves it unset when Meta refused the message', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                error: { code: 131026, message: 'Message undeliverable' },
+              }),
+              { status: 400 }
+            )
+        )
+      );
+      const result = await send(
+        makeDb({ existingConversation: { id: 'conv-existing' } })
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.reachedMeta).toBeUndefined();
+    });
   });
 
   it("persists the quoted row id, not Meta's wamid", async () => {

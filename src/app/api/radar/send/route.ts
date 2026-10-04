@@ -248,12 +248,15 @@ export async function POST(request: NextRequest) {
       delivered.splice(delivered.indexOf(id), 1);
       return false;
     };
-    const settle = async (id: string, status: string) => {
-      if (status === 'sent') {
+    const settle = async (
+      id: string,
+      outcome: { status: string; reachedMeta?: boolean }
+    ) => {
+      if (outcome.status === 'sent') {
         sentNow += 1;
         return;
       }
-      if (alreadyDelivered.has(id)) return;
+      if (outcome.reachedMeta || alreadyDelivered.has(id)) return;
       delivered.splice(delivered.indexOf(id), 1);
       await persistDelivered();
     };
@@ -311,6 +314,7 @@ export async function POST(request: NextRequest) {
         status: 'sent' | 'templateMissing' | 'failed';
         channel?: 'freeform' | 'template';
         error?: string;
+        reachedMeta?: boolean;
       }> => {
         const session = await sessionState(db, ctx.accountId, contactId);
 
@@ -318,8 +322,9 @@ export async function POST(request: NextRequest) {
           const firstImage = (property.images || []).find(
             (img) => img && img.trim()
           );
+          let imageReachedMeta = false;
           if (firstImage) {
-            await sendWhatsAppMessageAndPersist({
+            const image = await sendWhatsAppMessageAndPersist({
               accountId: ctx.accountId,
               userId: ctx.userId,
               contactId,
@@ -329,6 +334,7 @@ export async function POST(request: NextRequest) {
               mediaCaption: property.title,
               senderType: 'agent',
             });
+            imageReachedMeta = image.success || Boolean(image.reachedMeta);
           }
           const res = await sendWhatsAppMessageAndPersist({
             accountId: ctx.accountId,
@@ -338,7 +344,13 @@ export async function POST(request: NextRequest) {
             text: propertyMessage(property, baseUrl, contactId),
             senderType: 'agent',
           });
-          if (!res.success) return { status: 'failed', error: res.error };
+          if (!res.success) {
+            return {
+              status: 'failed',
+              error: res.error,
+              reachedMeta: imageReachedMeta || Boolean(res.reachedMeta),
+            };
+          }
 
           await logPropertyShare(
             db,
@@ -427,7 +439,13 @@ export async function POST(request: NextRequest) {
           templateRow: alertTemplate,
           text: resolveTemplateBodyText(alertTemplate.body_text, bodyParams),
         });
-        if (!res.success) return { status: 'failed', error: res.error };
+        if (!res.success) {
+          return {
+            status: 'failed',
+            error: res.error,
+            reachedMeta: Boolean(res.reachedMeta),
+          };
+        }
         await logPropertyShare(
           db,
           ctx.accountId,
@@ -479,8 +497,9 @@ export async function POST(request: NextRequest) {
             nameById.get(contactId) ?? null,
             typedProperty
           );
-          results.push({ id: contactId, ...outcome });
-          await settle(contactId, outcome.status);
+          const { reachedMeta, ...result } = outcome;
+          results.push({ id: contactId, ...result });
+          await settle(contactId, { status: outcome.status, reachedMeta });
         }
       } else {
         // buyer_updated: send each selected property to the event's contact
@@ -512,8 +531,9 @@ export async function POST(request: NextRequest) {
             (contactRow?.name as string | null) ?? null,
             property
           );
-          results.push({ id: property.id, ...outcome });
-          await settle(property.id, outcome.status);
+          const { reachedMeta, ...result } = outcome;
+          results.push({ id: property.id, ...result });
+          await settle(property.id, { status: outcome.status, reachedMeta });
         }
       }
 
