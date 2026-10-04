@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
+import { ledgerLabel } from '@/lib/format/ledger-label';
 import type {
   CreditTransaction,
   CreditTransactionType,
@@ -69,7 +70,7 @@ export function CreditLedger() {
       ...data.transactions.map((tx) => [
         new Date(tx.created_at).toISOString(),
         tx.type,
-        tx.description ?? '',
+        ledgerLabel(tx),
         String(tx.amount),
         String(tx.balance_after),
       ]),
@@ -136,7 +137,7 @@ export function CreditLedger() {
               >
                 <div className="min-w-0">
                   <p className="truncate text-xs font-medium text-slate-200">
-                    {tx.description ?? tx.type}
+                    {ledgerLabel(tx)}
                   </p>
                   <p className="text-[10px] text-slate-500">
                     {new Date(tx.created_at).toLocaleString()}

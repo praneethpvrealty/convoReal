@@ -17,7 +17,7 @@ import { brokerageAmount } from './brokerage';
 
 export interface DealMoneyInput {
   value?: number | string | null;
-  brokerage_type?: 'percentage' | 'fixed' | null;
+  brokerage_type?: string | null;
   brokerage_value?: number | string | null;
   brokerage_amount?: number | string | null;
   co_broker_payout_total?: number | string | null;

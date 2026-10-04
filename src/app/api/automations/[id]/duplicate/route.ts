@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requireWriteRole, toErrorResponse } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export async function POST(
@@ -8,12 +8,12 @@ export async function POST(
 ) {
   const { id } = await params;
 
-  // Creating an automation — the same 'agent' gate the other
-  // automation mutations carry.
+  // Creating an automation — the same write gate the update and delete
+  // routes carry, so a read-only member cannot copy one.
   let userId: string;
   let accountId: string;
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     userId = ctx.userId;
     accountId = ctx.accountId;
   } catch (error) {

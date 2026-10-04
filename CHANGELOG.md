@@ -19,6 +19,20 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **The credits history says what each charge and refund was for.** Rows
+  read "Refund — Photo enhancement" or "Daily conversation review" instead of
+  `refund:<id>`, `retry:<key>` or `chatbot_classify burn`, on web (including the
+  CSV export) and mobile alike; a description a person wrote is kept as written.
+  Invariant CRD-001.
+- **Roles can no longer be self-edited.** A signed-in member's own profile
+  update could change their account, role, team, platform role or read-only
+  status directly, which every role-based permission reads, and a Portfolio
+  owner or buyer login could create a profile row of its own, or ask the
+  profile-setup step to create a brokerage account for it. The database now
+  refuses those columns and that insert from a client, and profile setup
+  creates an account only for a login holding a live invitation, exactly as
+  sign-up does and claiming each seat once; the member management screens and invitations keep
+  working through their server functions.
 - **Deals screens lead with what matters.** The stat strip above the board
   shows Pipeline value, Weighted revenue and Won this month, with the other
   three tiles one **More** away, remembered per device. The Journeys tab
