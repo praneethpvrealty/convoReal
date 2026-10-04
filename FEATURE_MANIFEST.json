@@ -2829,6 +2829,25 @@
             "src/components/deals/deal-milestones-panel.tsx",
             "mobile/app/(app)/deal/[id].tsx"
           ]
+        },
+        {
+          "id": "TXW-032",
+          "rule": "A timeline entry is attributed to the member who made it, to the stakeholder who acknowledged an update over WhatsApp, or otherwise to \"System\" when no member is behind it, whatever free text the writer stored; the source is shown only for mobile and API entries. Web and mobile apply the same rule.",
+          "tests": [
+            {
+              "file": "src/lib/deals/events.test.ts",
+              "case": "[TXW-032]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-032]"
+            }
+          ],
+          "guards": [
+            "src/lib/deals/events.ts",
+            "src/components/deals/deal-timeline-panel.tsx",
+            "mobile/lib/deal-workspace.ts"
+          ]
         }
       ]
     },

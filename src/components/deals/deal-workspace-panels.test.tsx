@@ -192,7 +192,7 @@ describe('Empty Tasks and Documents tabs', () => {
     expect(
       screen.getByText('Tasks you add here also show in Calendar and Today.')
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Add the first task' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add a task' }));
     expect(document.activeElement).toBe(
       screen.getByPlaceholderText('What needs doing?')
     );
@@ -225,9 +225,7 @@ describe('Empty Tasks and Documents tabs', () => {
     );
     await screen.findByText('No tasks on this deal');
     await screen.findByText('Nothing filed against this deal yet');
-    expect(screen.queryByRole('button', { name: 'Add the first task' })).toBe(
-      null
-    );
+    expect(screen.queryByRole('button', { name: 'Add a task' })).toBe(null);
     expect(screen.queryByRole('button', { name: 'Upload a document' })).toBe(
       null
     );

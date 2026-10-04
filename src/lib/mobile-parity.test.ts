@@ -2664,6 +2664,29 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     );
   });
 
+  it('[TXW-032] attributes a timeline entry by the same rule on both surfaces', () => {
+    for (const fn of ['timelineActorLabel', 'timelineSourceLabel']) {
+      const body = (source: string) =>
+        source.match(
+          new RegExp(
+            `export function ${fn}\\([\\s\\S]*?\\): string \\| null \\{([\\s\\S]*?\\n)\\}\\n`
+          )
+        )?.[1];
+      const web = body(webSource('lib/deals/events.ts'));
+      expect(web, `web is missing ${fn}`).toBeDefined();
+      expect(body(mobileVocab), `mobile ${fn} has drifted`).toBe(web);
+    }
+    const eventRow = mobileVocab.match(
+      /export interface DealEventRow \{[^}]*\}/
+    )?.[0];
+    expect(eventRow).toContain('actor_id: string | null;');
+    expect(eventRow).toContain("source: 'web' | 'mobile' | 'api' | 'system';");
+    expect(mobileScreen).toContain('timelineActorLabel(ev)');
+    expect(mobileScreen).toContain('timelineSourceLabel(ev)');
+    expect(mobileScreen).toContain('eventByline(latest)');
+    expect(mobileScreen).not.toMatch(/\.actor_name \? ` · \$\{/);
+  });
+
   it('[TXW-004] names the same TDS states and computes no money of its own', () => {
     for (const [status, label] of Object.entries(TDS_STATUS_LABELS)) {
       expect(

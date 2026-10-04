@@ -348,11 +348,37 @@ export interface DealEventRow {
   id: string;
   event_type: DealEventType;
   source: 'web' | 'mobile' | 'api' | 'system';
+  actor_id: string | null;
   actor_name: string | null;
   title: string;
   metadata: Record<string, unknown>;
   visibility: DealVisibility;
   created_at: string;
+}
+
+/**
+ * Who a timeline entry is attributed to: the member, the stakeholder
+ * who acknowledged an update, or "System" for any other entry with no
+ * member behind it. Mirrored from src/lib/deals/events.ts; guarded by
+ * mobile-parity.test.ts.
+ */
+export function timelineActorLabel(
+  ev: Pick<DealEventRow, 'actor_id' | 'actor_name' | 'event_type' | 'source'>
+): string | null {
+  const name = ev.actor_name?.trim() || null;
+  if (ev.actor_id) return name;
+  if (ev.event_type === 'update_acknowledged') return name;
+  if (ev.source === 'system') return 'System';
+  return name;
+}
+
+/** The source suffix after the actor, or null when it adds nothing.
+ *  Mirrored from src/lib/deals/events.ts; guarded by
+ *  mobile-parity.test.ts. */
+export function timelineSourceLabel(
+  ev: Pick<DealEventRow, 'source'>
+): string | null {
+  return ev.source === 'mobile' || ev.source === 'api' ? ev.source : null;
 }
 
 export type TdsStatus =
@@ -674,6 +700,7 @@ export interface BundleMemberRow {
   id: string;
   title: string;
   value: number | null;
+  currency: string | null;
   stage:
     | { name: string; color: string | null }
     | { name: string; color: string | null }[]

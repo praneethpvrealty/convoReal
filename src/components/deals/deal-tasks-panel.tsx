@@ -188,7 +188,7 @@ export function DealTasksPanel({
               onClick={() => titleInput.current?.focus()}
             >
               <Plus className="h-4 w-4" />
-              Add the first task
+              Add a task
             </Button>
           )}
         </div>
