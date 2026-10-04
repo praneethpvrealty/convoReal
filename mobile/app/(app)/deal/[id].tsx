@@ -3463,8 +3463,8 @@ function DocumentsTab({
 
               {doc.extraction_status === 'failed' && (
                 <Text style={[styles.cardMeta, { color: colors.danger }]}>
-                  Could not read this one. Any credits charged are refunded
-                  automatically.
+                  Could not read this one. Try again, or check your credit
+                  history to see whether credits were returned.
                 </Text>
               )}
 

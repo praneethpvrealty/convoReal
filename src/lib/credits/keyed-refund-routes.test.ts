@@ -115,3 +115,16 @@ describe('what a route tells the user about a refund [CRD-003]', () => {
     }
   });
 });
+
+describe('the failed deal document line promises no refund [CRD-003]', () => {
+  it('does not claim a refund on web or mobile, where only the status is persisted', () => {
+    for (const path of [
+      'src/components/deals/deal-documents-panel.tsx',
+      'mobile/app/(app)/deal/[id].tsx',
+    ]) {
+      const source = read(path);
+      expect(source, path).toContain('Could not read this one.');
+      expect(source, path).not.toMatch(/credits (were|are) refunded/);
+    }
+  });
+});
