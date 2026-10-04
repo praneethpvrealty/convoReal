@@ -117,4 +117,14 @@ describe('property-form.tsx stays split into its tab components', () => {
     );
     expect(form).toContain('id="pf-publish"');
   });
+
+  it('keeps the AI description in-flight flag above the unmounting form, so a reopen cannot submit twice', () => {
+    const form = inventorySource('property-form.tsx');
+    const section = inventorySource('property-form/description-section.tsx');
+    expect(form).toContain(
+      'const [generatingDescription, setGeneratingDescription] = useState(false);'
+    );
+    expect(form).toContain('generatingDescription={generatingDescription}');
+    expect(section).not.toContain('useState(');
+  });
 });

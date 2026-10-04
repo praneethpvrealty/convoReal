@@ -282,6 +282,7 @@ export function PropertyForm({
   const [searchingProjects, setSearchingProjects] = useState(false);
 
   const [saving, setSaving] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
   const [contactedContactIds, setContactedContactIds] = useState<Set<string>>(
     new Set()
   );
@@ -2657,6 +2658,8 @@ export function PropertyForm({
                     set={set}
                     isLand={isLand}
                     locationGuarded={locationGuarded}
+                    generatingDescription={generatingDescription}
+                    setGeneratingDescription={setGeneratingDescription}
                   />
 
                   {/* Owner & Leads */}

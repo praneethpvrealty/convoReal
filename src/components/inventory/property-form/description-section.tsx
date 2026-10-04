@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
@@ -18,6 +18,8 @@ interface DescriptionSectionProps {
   set: SetPropertyFormField;
   isLand: boolean;
   locationGuarded: boolean;
+  generatingDescription: boolean;
+  setGeneratingDescription: Dispatch<SetStateAction<boolean>>;
 }
 
 export function DescriptionSection({
@@ -25,6 +27,8 @@ export function DescriptionSection({
   set,
   isLand,
   locationGuarded,
+  generatingDescription,
+  setGeneratingDescription,
 }: DescriptionSectionProps) {
   const router = useRouter();
   const { openTopupModal } = useTopupModal();
@@ -46,7 +50,6 @@ export function DescriptionSection({
     address,
     features,
   } = values;
-  const [generatingDescription, setGeneratingDescription] = useState(false);
 
   async function handleGenerateAIDescription() {
     if (!title.trim()) {
