@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 
 export interface OnboardingStatus {

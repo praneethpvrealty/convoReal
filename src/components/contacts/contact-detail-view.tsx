@@ -37,7 +37,7 @@ import {
   type SharedProperty,
 } from '@/lib/contacts/detail-queries';
 import { resolveConversation } from '@/lib/conversations/resolve';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type {
   Tag,
@@ -56,7 +56,7 @@ import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
 import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { PartyPanel } from '@/components/contacts/party-panel';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import {
   LogCallPrompt,
   type PendingDial,

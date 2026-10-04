@@ -23,7 +23,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import { openRazorpayCheckout } from '@/lib/marketplace/checkout';
 import { Button } from '@/components/ui/button';
 import { GatedButton } from '@/components/ui/gated-button';

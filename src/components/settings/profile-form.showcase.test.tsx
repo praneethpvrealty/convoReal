@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const updates: Array<Record<string, unknown>> = [];
 let profile: Record<string, unknown>;
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
     user: { id: 'user-1', created_at: '2026-01-01T00:00:00Z' },
     profile,

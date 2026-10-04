@@ -28,7 +28,7 @@ import {
   type PartyCandidate,
 } from '@/lib/contacts/detail-queries';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { SearchableContactSelect } from '@/components/ui/searchable-contact-select';
 import {

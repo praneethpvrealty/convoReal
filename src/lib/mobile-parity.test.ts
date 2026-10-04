@@ -2598,7 +2598,7 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
 
   it('[PIPE-001] opens the Deals board flat on both surfaces and remembers the choice under one key', () => {
     const mobileHook = mobileSource('lib/board-layout-preference.ts');
-    const webHook = webSource('hooks/use-board-layout.ts');
+    const webHook = webSource('hooks/useBoardLayout.ts');
     for (const source of [mobileHook, webHook]) {
       expect(source).toContain('BOARD_LAYOUT_STORAGE_KEY');
       expect(source).toContain('parseBoardLayout(');

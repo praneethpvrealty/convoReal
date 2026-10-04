@@ -20,7 +20,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 
-vi.mock('@/hooks/use-can', () => ({ useCan: () => true }));
+vi.mock('@/hooks/useCan', () => ({ useCan: () => true }));
 
 const toastError = vi.fn();
 vi.mock('sonner', () => ({ toast: { error: (m: string) => toastError(m) } }));

@@ -2,8 +2,8 @@
 
 import { Check } from 'lucide-react';
 
-import { useTheme } from '@/hooks/use-theme';
-import { useLocale } from '@/hooks/use-locale';
+import { useTheme } from '@/hooks/useTheme';
+import { useLocale } from '@/hooks/useLocale';
 import { THEMES, type ThemeId } from '@/lib/themes';
 import {
   LANGUAGE_CODES,

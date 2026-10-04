@@ -29,7 +29,7 @@ import { ActiveUsers } from '@/components/dashboard/active-users';
 import { TeamWorkload } from '@/components/dashboard/team-workload';
 import { NetworkReach } from '@/components/dashboard/network-reach';
 import { getCurrencyIcon, formatCurrency } from '@/lib/currency-utils';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 
 type RangeDays = 7 | 30 | 90;
 

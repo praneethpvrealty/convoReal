@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import type { Property } from '@/types';
 import { Button } from '@/components/ui/button';
 import { TabsContent } from '@/components/ui/tabs';

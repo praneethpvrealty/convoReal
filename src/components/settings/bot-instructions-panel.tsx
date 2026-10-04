@@ -14,7 +14,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { SUPPORTED_LANGUAGES } from '@/lib/languages';
 import type { BotInstructionInfluence } from '@/lib/ai/bot-instructions';
 

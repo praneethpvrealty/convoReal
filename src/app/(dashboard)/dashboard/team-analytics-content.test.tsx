@@ -6,7 +6,7 @@ import type { ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TeamAnalyticsContent from './team-analytics-content';
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
     accountId: 'acct-1',
     isOrgManager: true,

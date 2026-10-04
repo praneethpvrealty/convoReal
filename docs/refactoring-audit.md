@@ -52,7 +52,6 @@ The draft-session half is done (#1217). `src/lib/ai/chatbot-engine.ts` is still 
 - Each chain step still writes its own Supabase queries; the next pass on `src/lib/whatsapp/inbound/chain/steps/` is to give the biggest steps (lead-conversation, lead-question, specific-property-interest, shared-contacts) their own unit tests over a stubbed context.
 - Seven single `count: 'exact'` calls remain in browser code, each on an action rather than a page load (the inventory star cap, pipeline deletion, audience sizing, journey sheets). The mobile dashboard still issues eight on load; fold them into one aggregate the way the web dashboard did in migration 169.
 - `getInitials` has three copies, `truncate` two, and `normalizePhone` two (`src/lib/deals/stakeholders.ts` versus `src/lib/whatsapp/phone-utils.ts`), where divergence is a correctness risk.
-- Hook files mix kebab-case (`use-auth.tsx`) and camelCase (`useCredits.ts`); §2.4 asks for camelCase.
 - `src/lib/whatsapp/` holds 105 files flat, thirteen of them `template-*`. Subfolders for templates, digests and inbound handlers, done alongside item 1.
 - 1,467 bare `console.error` calls and no logger.
 - A NUL byte sits inside a template literal at line 134 of `src/lib/contacts/parties.ts` as a map-key separator. It works, and it makes grep treat the file as binary; write it as `\u0000`.

@@ -6,8 +6,8 @@ import type { GateStatsMap } from '@/lib/inventory/gate-stats';
 import { GateRequestsDrawer } from '@/components/inventory/gate-requests-drawer';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
-import { useCan } from '@/hooks/use-can';
-import { useAuth } from '@/hooks/use-auth';
+import { useCan } from '@/hooks/useCan';
+import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Property, ShowcaseSettings } from '@/types';
@@ -56,7 +56,7 @@ import {
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyMapView } from '@/components/inventory/property-map-view';
-import { useT } from '@/hooks/use-locale';
+import { useT } from '@/hooks/useLocale';
 import { PropertyList } from '@/components/inventory/property-list';
 import { PropertyTable } from '@/components/inventory/property-table';
 import {
