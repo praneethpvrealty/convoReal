@@ -131,6 +131,7 @@ import {
   validateDraft,
   validateContactDraftsContainer,
   reconcileContactDrafts,
+  absorbContactDrafts,
   applyExplicitContactDraftUpdate,
   formatDraftPreviewMessage,
   formatContactDraftsPreview,
@@ -238,6 +239,17 @@ async function gatedBurn(
   accountId: string,
   feature: AiFeatureKey
 ): Promise<boolean> {
+  return (await gatedBurnReceipt(accountId, feature)).allowed;
+}
+
+/**
+ * gatedBurn that also says whether credits actually left the account,
+ * so a later refund never returns credits a fail-open burn did not take.
+ */
+async function gatedBurnReceipt(
+  accountId: string,
+  feature: AiFeatureKey
+): Promise<{ allowed: boolean; charged: boolean }> {
   try {
     const result = await burnCredits(
       accountId,
@@ -251,13 +263,13 @@ async function gatedBurn(
         `[chatbot-engine] blocked '${feature}' for account ${accountId}: ${result.deficit} credits short`
       );
     }
-    return result.success;
+    return { allowed: result.success, charged: result.success };
   } catch (err) {
     console.error(
       `[chatbot-engine] gatedBurn failed (fail-open) for '${feature}':`,
       err
     );
-    return true;
+    return { allowed: true, charged: false };
   }
 }
 
@@ -4000,10 +4012,13 @@ export async function processOwnerChatbotMessage(
         ? contactDraftsFromCards(cleanedText)
         : null;
 
+      let parseCharged = false;
       if (!cardContainer) {
         // Gate the parse burn before announcing "Analyzing…" so a
         // drained balance produces the lock reply, not a dead promise.
-        if (!(await gatedBurn(accountId, 'contact_parse'))) {
+        const parseBurn = await gatedBurnReceipt(accountId, 'contact_parse');
+        parseCharged = parseBurn.charged;
+        if (!parseBurn.allowed) {
           return await sendCreditsLockedReply(
             phoneNumberId,
             accessToken,
@@ -4059,28 +4074,30 @@ export async function processOwnerChatbotMessage(
         if (insertErr) {
           const { data: existingSession } =
             insertErr.code === '23505'
-              ? await findContactDraftSession(supabaseAdmin(), contactRecord.id)
+              ? await findContactDraftSession(
+                  supabaseAdmin(),
+                  contactRecord.id,
+                  accountId
+                )
               : { data: null };
 
-          let replaced = false;
           const mutation = existingSession
             ? await mutateContactDraft(
                 supabaseAdmin(),
                 existingSession.id,
                 (latestSession) => {
-                  const reconciled = reconcileContactDrafts(
+                  const absorbed = absorbContactDrafts(
                     latestSession.draft_data,
                     parsedContainer
                   );
-                  replaced = reconciled.replaced;
                   return {
-                    draft_data: reconciled.container,
-                    status: validateContactDraftsContainer(reconciled.container)
-                      .isValid
+                    draft_data: absorbed,
+                    status: validateContactDraftsContainer(absorbed).isValid
                       ? 'awaiting_confirmation'
                       : 'collecting',
                   };
-                }
+                },
+                accountId
               )
             : null;
 
@@ -4089,7 +4106,7 @@ export async function processOwnerChatbotMessage(
               '[chatbot-engine] Failed to save contact draft session:',
               mutation ?? insertErr
             );
-            if (!cardContainer) {
+            if (parseCharged) {
               await refundCredits(
                 accountId,
                 'contact_parse',
@@ -4114,9 +4131,7 @@ export async function processOwnerChatbotMessage(
             phoneNumberId,
             accessToken,
             contactRecord.phone,
-            replaced
-              ? `📝 *New Contact Draft — previous one discarded:*`
-              : `📝 *Contact Drafts Updated:*`,
+            `📝 *Contact Drafts Updated:*`,
             merged.draft_data,
             merged.status,
             validateContactDraftsContainer(merged.draft_data).missingFields,

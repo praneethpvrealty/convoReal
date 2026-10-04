@@ -117,13 +117,15 @@ export async function findPropertyDraftSessionById(
 
 export async function findContactDraftSession(
   db: DB,
-  contactId: string
+  contactId: string,
+  accountId?: string
 ): Promise<SingleResult<ContactDraftSessionRow>> {
-  const { data, error } = await db
+  let query = db
     .from('contact_draft_sessions')
     .select('*')
-    .eq('contact_id', contactId)
-    .maybeSingle();
+    .eq('contact_id', contactId);
+  if (accountId) query = query.eq('account_id', accountId);
+  const { data, error } = await query.maybeSingle();
   return { data: data as ContactDraftSessionRow | null, error };
 }
 
@@ -197,16 +199,15 @@ async function mutateDraftRow<
   table: 'property_draft_sessions' | 'contact_draft_sessions',
   id: string,
   next: (row: Row) => Promise<Next | null> | Next | null,
-  onMissingRow: 'report' | 'retry'
+  onMissingRow: 'report' | 'retry',
+  accountId?: string
 ): Promise<MutateDraftResult<Row, Next>> {
   let attempts = 0;
 
   while (attempts < DRAFT_MUTATION_MAX_ATTEMPTS) {
-    const { data, error: fetchErr } = await db
-      .from(table)
-      .select('*')
-      .eq('id', id)
-      .single();
+    let read = db.from(table).select('*').eq('id', id);
+    if (accountId) read = read.eq('account_id', accountId);
+    const { data, error: fetchErr } = await read.single();
     const latest = data as Row | null;
 
     if (onMissingRow === 'retry') {
@@ -222,7 +223,7 @@ async function mutateDraftRow<
     const nextDraft = await next(latest);
     if (!nextDraft) return { status: 'skipped' };
 
-    const { data: updateData, error: updateErr } = await db
+    let write = db
       .from(table)
       .update({
         draft_data: nextDraft.draft_data,
@@ -230,8 +231,9 @@ async function mutateDraftRow<
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .eq('updated_at', latest.updated_at)
-      .select();
+      .eq('updated_at', latest.updated_at);
+    if (accountId) write = write.eq('account_id', accountId);
+    const { data: updateData, error: updateErr } = await write.select();
     const written = updateData as Row[] | null;
 
     if (!updateErr && written && written.length > 0) {
@@ -268,14 +270,16 @@ export function mutateContactDraft(
   id: string,
   next: (
     row: ContactDraftSessionRow
-  ) => Promise<NextContactDraft | null> | NextContactDraft | null
+  ) => Promise<NextContactDraft | null> | NextContactDraft | null,
+  accountId?: string
 ): Promise<MutateContactDraftResult> {
   return mutateDraftRow<ContactDraftSessionRow, NextContactDraft>(
     db,
     'contact_draft_sessions',
     id,
     next,
-    'report'
+    'report',
+    accountId
   );
 }
 

@@ -35,17 +35,47 @@ describe('[INB-025] starting a contact draft', () => {
     expect(insert.indexOf('if (insertErr) {')).toBeLessThan(created);
   });
 
-  it('merges into a session created concurrently through the compare-and-swap mutation and refunds a failed save', () => {
+  it('absorbs both cards into a session created concurrently, within the account, through the compare-and-swap mutation', () => {
     const handling = insert.slice(0, created);
     expect(handling).toContain("insertErr.code === '23505'");
+    expect(handling).toMatch(
+      /findContactDraftSession\(\s*supabaseAdmin\(\),\s*contactRecord\.id,\s*accountId\s*\)/
+    );
     expect(handling).toContain('await mutateContactDraft(');
+    expect(handling).toMatch(/},\s*accountId\s*\)\s*: null;/);
+    expect(handling).toContain('absorbContactDrafts(');
+    expect(handling).not.toContain('reconcileContactDrafts(');
+    expect(handling).not.toContain('previous one discarded');
     expect(handling).not.toContain('overwriteContactDraftSession(');
     expect(handling).toContain("if (mutation?.status !== 'ok') {");
     expect(handling.indexOf("if (mutation?.status !== 'ok') {")).toBeLessThan(
       handling.indexOf('`📝 *Contact Drafts Updated:*`')
     );
-    expect(handling).toContain('await refundCredits(');
     expect(handling).toContain("Couldn't save the contact draft.");
+  });
+
+  it('refunds a failed save only when the parse was actually charged', () => {
+    const flow = source.slice(
+      source.lastIndexOf(
+        "if (classification === 'contact') {",
+        source.indexOf('await insertContactDraftSession(')
+      )
+    );
+    expect(flow).toContain(
+      "const parseBurn = await gatedBurnReceipt(accountId, 'contact_parse');"
+    );
+    expect(flow).toContain('parseCharged = parseBurn.charged;');
+    const handling = insert.slice(0, created);
+    expect(handling).toMatch(/if \(parseCharged\) \{\s*await refundCredits\(/);
+    expect(handling.match(/refundCredits\(/g)).toHaveLength(1);
+  });
+
+  it('reports no charge when billing fails open', () => {
+    const receipt = source.slice(
+      source.indexOf('async function gatedBurnReceipt(')
+    );
+    const catchBlock = receipt.slice(receipt.indexOf('} catch (err) {'));
+    expect(catchBlock).toContain('return { allowed: true, charged: false };');
   });
 });
 

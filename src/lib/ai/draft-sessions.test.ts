@@ -198,6 +198,17 @@ describe('draft session finders', () => {
       terminal: 'maybeSingle',
     });
   });
+
+  it('[INB-025] scopes the contact session to the account when given one', async () => {
+    const { client, calls } = stubClient(() => ok(null));
+
+    await findContactDraftSession(client, 'c1', 'acct-1');
+
+    expect(calls[0].filters).toEqual([
+      ['contact_id', 'c1'],
+      ['account_id', 'acct-1'],
+    ]);
+  });
 });
 
 describe('draft session writes', () => {
@@ -655,6 +666,32 @@ describe('[INB-025] mutateContactDraft', () => {
     expect(result.status).toBe('ok');
     expect(callback).toHaveBeenCalledTimes(2);
     expect(callback).toHaveBeenLastCalledWith(sessionRow({ updated_at: 'v2' }));
+  });
+
+  it('scopes the read and the write to the account when given one', async () => {
+    const { client, calls } = stubClient((call) =>
+      call.op === 'select' ? ok(sessionRow()) : ok([sessionRow()])
+    );
+
+    await mutateContactDraft(client, 'c1', nextContact, 'acct-1');
+
+    expect(calls.map((c) => [c.op, c.filters])).toEqual([
+      [
+        'select',
+        [
+          ['id', 'c1'],
+          ['account_id', 'acct-1'],
+        ],
+      ],
+      [
+        'update',
+        [
+          ['id', 'c1'],
+          ['updated_at', '2026-10-01T00:00:00.000Z'],
+          ['account_id', 'acct-1'],
+        ],
+      ],
+    ]);
   });
 
   it('reports a deleted contact session as gone', async () => {
