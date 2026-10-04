@@ -415,7 +415,7 @@
         },
         {
           "id": "INB-024",
-          "rule": "An external listing session (a listing or requirement-link submission) open on the account owner's own WhatsApp number is continued by the external listing flow, not adopted by the owner chatbot as an owner draft, so an owner trying their own link sees what a lead sees and the submission keeps its requirement link.",
+          "rule": "An external listing session open on the account owner's own WhatsApp number (one a listing-collection flow started when the owner tried it on themselves, or one opened before the number was recognised as the owner's) is continued by the external listing flow, not adopted by the owner chatbot as an owner draft, so its corrections, confirm and attribution follow the external path the session was opened for.",
           "tests": [
             {
               "file": "src/lib/ai/chatbot-engine.structure.test.ts",
