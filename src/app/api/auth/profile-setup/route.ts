@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { signupRefusalMessage } from '@/lib/auth/signup-eligibility';
-import { resolveStaffBootstrapGate } from '@/lib/auth/staff-bootstrap';
+
+const REFUSAL_CODES = new Set(['42501', '22023']);
 
 export async function POST(req: Request) {
   try {
@@ -29,129 +29,33 @@ export async function POST(req: Request) {
       );
     }
 
-    // Use admin client (bypasses RLS) to query profiles & create account securely
-    const admin = supabaseAdmin();
-
-    const { data: existingProfile } = await admin
-      .from('profiles')
-      .select('id, account_id, account_role, org_role')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    let resolvedAccountId = existingProfile?.account_id;
-
-    if (!resolvedAccountId) {
-      const appContext =
-        user.user_metadata?.app_context ?? user.app_metadata?.app_context;
-      const [den, buyer] = await Promise.all([
-        admin
-          .from('den_users')
-          .select('id')
-          .eq('auth_user_id', user.id)
-          .maybeSingle(),
-        admin
-          .from('buyer_users')
-          .select('id')
-          .eq('auth_user_id', user.id)
-          .maybeSingle(),
-      ]);
-      if (
-        appContext === 'den' ||
-        appContext === 'buyer' ||
-        den.data ||
-        buyer.data
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              'Portfolio owner and buyer logins cannot create a brokerage account. Sign up with an invitation link instead.',
-          },
-          { status: 403 }
-        );
-      }
-      const gate = await resolveStaffBootstrapGate(admin, user);
-      if (!gate.allowed) {
-        return NextResponse.json(
-          { error: signupRefusalMessage(gate.reason) },
-          { status: 403 }
-        );
-      }
-      console.log(
-        '[SETUP API] No account linked. Bootstrapping account via Admin Client...'
-      );
-      // 1. Insert new account (no RLS constraints since it's service role!)
-      const { data: newAccount, error: accError } = await admin
-        .from('accounts')
-        .insert({
-          name: `${nameVal}'s Account`,
-          owner_user_id: user.id, // Explicitly link owner ID
-          ...(gate.betaInvite
-            ? {
-                beta_invite_id: gate.betaInvite.id,
-                invite_quota: gate.betaInvite.quota,
-              }
-            : {}),
-        })
-        .select('id')
-        .maybeSingle();
-
-      if (accError || !newAccount) {
-        console.error('[SETUP API] Account insertion failed:', accError);
-        return NextResponse.json(
-          {
-            error: `Failed to bootstrap account: ${accError?.message || 'Unknown error'}`,
-          },
-          { status: 500 }
-        );
-      }
-
-      resolvedAccountId = newAccount.id;
-
-      if (gate.betaInvite) {
-        await admin
-          .from('beta_invites')
-          .update({
-            status: 'accepted',
-            accepted_at: new Date().toISOString(),
-            accepted_by_user_id: user.id,
-            accepted_account_id: newAccount.id,
-            seat_number: gate.betaInvite.seat,
-          })
-          .eq('id', gate.betaInvite.id);
-      }
-    }
-
-    // 2. Upsert profile row (linked to the resolved account) using Admin Client
-    const upsertPayload: Record<string, string | null> = {
-      user_id: user.id,
-      full_name: nameVal,
-      email: emailVal,
-      account_id: resolvedAccountId,
-      account_role: existingProfile?.account_role || 'owner',
-    };
-
-    // If org_role is present or needed, preserve or set it
-    if (existingProfile?.org_role) {
-      upsertPayload.org_role = existingProfile.org_role;
-    } else {
-      upsertPayload.org_role = 'org_manager';
-    }
-
-    const { error: profileError } = await admin
-      .from('profiles')
-      .upsert(upsertPayload, {
-        onConflict: 'user_id',
+    const { data: accountId, error: bootstrapError } =
+      await supabaseAdmin().rpc('bootstrap_staff_account', {
+        p_user_id: user.id,
+        p_full_name: nameVal,
+        p_email: emailVal,
       });
 
-    if (profileError) {
-      console.error('[SETUP API] Profile upsert failed:', profileError);
+    if (bootstrapError) {
+      if (REFUSAL_CODES.has(bootstrapError.code)) {
+        return NextResponse.json(
+          { error: bootstrapError.message },
+          { status: 403 }
+        );
+      }
+      console.error('[SETUP API] Bootstrap failed:', bootstrapError);
       return NextResponse.json(
-        { error: `Failed to save profile: ${profileError.message}` },
+        { error: `Failed to save profile: ${bootstrapError.message}` },
+        { status: 500 }
+      );
+    }
+    if (!accountId) {
+      return NextResponse.json(
+        { error: 'Failed to bootstrap account' },
         { status: 500 }
       );
     }
 
-    // 3. Attempt to link/update the email address in Supabase Auth user metadata
     try {
       await supabase.auth.updateUser({ email: emailVal });
     } catch (authErr) {
