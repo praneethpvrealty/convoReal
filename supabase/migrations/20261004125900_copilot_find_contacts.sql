@@ -6,8 +6,12 @@
 -- parses the question into locality stems, type probes, a BHK band, a
 -- budget band and deal types; this function does the matching in SQL
 -- so an account with thousands of contacts never ships them to Node
--- (§2.6 of AGENTS.md). Guarded by is_account_member(), like every
--- other SECURITY DEFINER aggregate here.
+-- (§2.6 of AGENTS.md). It runs as SECURITY INVOKER on purpose: the
+-- contacts_select policy (migration 162) is narrower than account
+-- membership — an org_agent sees only contacts assigned to them or
+-- their team — and the Helper must never list a contact the caller's
+-- own Contacts page would hide. The is_account_member() guard stays
+-- as the cheap early exit; RLS does the per-row scoping.
 --
 -- A contact's requirement lives in three places and all three count:
 -- the flat columns an agent typed (areas_of_interest, min/max_budget,
@@ -57,8 +61,16 @@ AS $$
     SELECT p ->> p_key
     WHERE jsonb_typeof(p -> p_key) IN ('string', 'number')
   ) AS vals
-  WHERE COALESCE((p ->> 'active')::BOOLEAN, TRUE)
+  WHERE (jsonb_typeof(p -> 'active') <> 'boolean' OR (p ->> 'active')::BOOLEAN)
     AND NULLIF(BTRIM(vals.v), '') IS NOT NULL;
+$$;
+
+CREATE OR REPLACE FUNCTION public.copilot_regex_literal(p_text TEXT)
+RETURNS TEXT
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT regexp_replace(LOWER(COALESCE(p_text, '')), '([.^$*+?()\[\]{}|\\-])', '\\\1', 'g');
 $$;
 
 CREATE OR REPLACE FUNCTION public.copilot_find_contacts(
@@ -86,7 +98,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 STABLE
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = public
 AS $$
   WITH probes AS (
@@ -181,7 +193,7 @@ AS $$
           WHERE jsonb_typeof(ps) = 'array'
             AND jsonb_array_length(ps) > 0
             AND (
-              SELECT BOOL_AND(LOWER(a) ~ ('\m' || LOWER(s)))
+              SELECT BOOL_AND(LOWER(a) ~ ('\m' || public.copilot_regex_literal(s)))
               FROM jsonb_array_elements_text(ps) AS s
             )
         )
@@ -194,19 +206,19 @@ AS $$
         WHERE jsonb_typeof(ps) = 'array'
           AND jsonb_array_length(ps) > 0
           AND (
-            SELECT BOOL_AND(b.requirements ~ ('\m' || LOWER(s)))
+            SELECT BOOL_AND(b.requirements ~ ('\m' || public.copilot_regex_literal(s)))
             FROM jsonb_array_elements_text(ps) AS s
           )
       ) AS area_in_text,
       EXISTS (
         SELECT 1
         FROM UNNEST(b.types) AS t, UNNEST((SELECT types FROM probes)) AS pr
-        WHERE t ~ ('\m' || LOWER(pr) || '\M')
+        WHERE t ~ ('\m' || public.copilot_regex_literal(pr) || '\M')
       ) AS type_match,
       EXISTS (
         SELECT 1
         FROM UNNEST((SELECT types FROM probes)) AS pr
-        WHERE b.requirements ~ ('\m' || LOWER(pr) || '\M')
+        WHERE b.requirements ~ ('\m' || public.copilot_regex_literal(pr) || '\M')
       ) AS type_in_text
     FROM base b
   ),
@@ -271,5 +283,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.copilot_profile_values(JSONB, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.copilot_profile_values(JSONB, TEXT) TO authenticated;
+REVOKE ALL ON FUNCTION public.copilot_regex_literal(TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.copilot_regex_literal(TEXT) TO authenticated;
 REVOKE ALL ON FUNCTION public.copilot_find_contacts(UUID, JSONB, TEXT[], INT, INT, NUMERIC, NUMERIC, TEXT[], INT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.copilot_find_contacts(UUID, JSONB, TEXT[], INT, INT, NUMERIC, NUMERIC, TEXT[], INT) TO authenticated;

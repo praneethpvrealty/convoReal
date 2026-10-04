@@ -6,7 +6,7 @@ import type {
 import { bhkRangeFromRequirement } from '@/lib/ai/preference-extraction';
 import { PROPERTY_CATEGORY_VALUES } from '@/lib/ai/preference-types';
 import { normalizePropertyType } from '@/lib/property-types';
-import { localityStems } from '@/lib/locality-match';
+import { localityStems, normalizeLocalityLabel } from '@/lib/locality-match';
 import { formatInrCompact } from '@/lib/format/currency';
 import { entityHref } from './entities';
 import type { CopilotNavigationLink } from './engine';
@@ -92,43 +92,69 @@ const SPECIFIC_TYPE_PATTERNS: RegExp[] = [
 ];
 
 const SUBJECT =
-  '(?:contacts?|buyers?|leads?|clients?|customers?|people|persons?|anyone|someone|investors?|tenants?|parties|who)';
+  '(?:contacts?|buyers?|leads?|clients?|customers?|people|persons?|anyone|someone|investors?|tenants?|parties)';
 const NEED =
   '(?:looking|wants?|wanted|wanting|interested|searching|seeking|hunting|needs?|requires?|requirements?|enquir(?:ed|ing|y)|inquir(?:ed|ing|y)|asking|asked|chahiye|dhoond|dhundh|khoj|talash)';
+const WHO_NEED =
+  "who(?:\\s+(?:is|are|all|'s))?\\s+(?:looking|wants?|interested|searching|seeking|hunting|enquir(?:ed|ing)|inquir(?:ed|ing))";
 const FIND =
   '(?:find|list|show|get|give|pull|fetch|search|filter|which|any|do\\s+(?:i|we)\\s+have|is\\s+there|are\\s+there|kaun|kon|koi)';
 
 const INSTRUCTIONAL =
-  /\b(?:how\s+(?:do|can|should|to)\b|show\s+me\s+how|where\s+(?:do|can)\s+i)/i;
+  /\b(?:how\s+(?:do|can|should|to)\b|show\s+me\s+how|where\s+(?:do|can)\s+i|why\b|is\s+there\s+a\s+way|can\s+(?:i|we)\b|could\s+(?:i|we)\b|not\s+(?:showing|coming|syncing|working|loading|appearing|updating)|isn't|aren't|doesn't|don't|didn't)/i;
 const ADD_INTENT = /^\s*(?:please\s+)?(?:add|create|save|new|import)\b/i;
 const OUTBOUND_INTENT = /\b(?:share|send|forward|broadcast)\b/i;
+const INVENTORY_OBJECT =
+  /\b(?:find|show|have|any|list|get|search|fetch|pull)\b\s+(?:me\s+)?(?:a|an|the|some|all|any|few)?\s*(?:\d+\s*-?\s*bhks?\s+)?(?:property|properties|listings?|inventory|flats?|apartments?|villas?|houses?|plots?|sites?|lands?|offices?|shops?|deals?|campaigns?|templates?|broadcasts?|flows?|automations?)\b/i;
 
 const LOCALITY_STOP =
-  '(?:under|below|above|over|upto|up\\s+to|within|with|for|budget|between|who|whose|that|which|and|or|around|near|looking|interested|searching|wanting|want|wants|needs?|rent|lease|buy|sale|purchase|bhk|from|at|in|mein|me)';
+  '(?:under|below|above|over|upto|up\\s+to|within|with|for|budget|between|who|whose|that|which|and|or|around|near|looking|interested|searching|wanting|want|wants|needs?|rent|lease|buy|sale|purchase|bhk|bhks|from|at|in|mein|me|cr|crores?|lakhs?|lacs?|l|k|rs|inr)';
 const LOCALITY_PATTERN = new RegExp(
-  String.raw`\b(?:in|at|near|around|from)\s+(?:the\s+)?([^,.?!;]+?)(?=\s+${LOCALITY_STOP}\b|\s*[,.?!;]|\s*$)`,
+  String.raw`\b(?:in|at|near|around)\s+(?:the\s+)?([^,.?!;\d₹]+?)(?=\s+${LOCALITY_STOP}\b|\s*[,.?!;\d₹]|\s*$)`,
   'gi'
+);
+const LOCALITY_CONTINUATION = new RegExp(
+  String.raw`^\s+(?:or|and|/)\s+(?:the\s+)?([^,.?!;\d₹]+?)(?=\s+${LOCALITY_STOP}\b|\s*[,.?!;\d₹]|\s*$)`,
+  'i'
 );
 const LOCALITY_TRAILERS =
   /\s+(?:area|areas|locality|location|side|region|zone|vicinity)$/i;
+const NOT_A_LOCALITY =
+  /^(?:a|an|the|my|our|this|that|any|some|me|us|here|there|it|them|property|properties|listing|listings|flat|flats|house|houses|budget|contacts?|leads?|list|crm|app|system|database|inventory|inbox|today|yesterday|tomorrow|bulk|pipeline|pipelines|campaign|campaigns|ads|facebook|google|instagram|magicbricks|housing|99acres|whatsapp|excel|csv|dashboard|calendar|journey|radar|pulse|settings|india|bangalore|bengaluru)$/i;
 
 const NUMBER = String.raw`(\d[\d,]*(?:\.\d+)?)`;
-const UNIT = String.raw`\s*(crores?|cr|lakhs?|lacs?|lakh|l|thousand|k)?`;
-const AMOUNT = `(?:₹|rs\\.?|inr)?\\s*${NUMBER}${UNIT}`;
+const UNIT = String.raw`(crores?|cr|lakhs?|lacs?|lakh|l|thousand|k)`;
+const CURRENCY = String.raw`(?:₹|rs\.?|inr)`;
+const AMOUNT = String.raw`${CURRENCY}?\s*${NUMBER}\s*${UNIT}?`;
+const UNIT_AMOUNT = String.raw`(?:${CURRENCY}\s*${NUMBER}\s*${UNIT}?|${NUMBER}\s*${UNIT})`;
 const BUDGET_RANGE = new RegExp(
   String.raw`(?:between\s+)?${AMOUNT}\s*(?:-|–|—|to|and)\s*${AMOUNT}\b`,
   'i'
 );
 const BUDGET_MAX = new RegExp(
-  String.raw`\b(?:under|below|upto|up\s+to|max(?:imum)?|within|less\s+than|not\s+more\s+than|budget(?:\s+of)?|around|approx(?:imately)?|about|for)\s*${AMOUNT}\b`,
+  String.raw`\b(?:under|below|upto|up\s+to|max(?:imum)?|within|less\s+than|not\s+more\s+than|budget(?:\s+of|\s+is)?|tak)\s*${AMOUNT}\b`,
+  'i'
+);
+const BUDGET_MAX_UNIT = new RegExp(
+  String.raw`\b(?:around|approx(?:imately)?|about|for|of)\s*${UNIT_AMOUNT}\b`,
   'i'
 );
 const BUDGET_MIN = new RegExp(
-  String.raw`\b(?:above|over|more\s+than|min(?:imum)?|at\s+least|starting(?:\s+at|\s+from)?|from)\s*${AMOUNT}\b`,
+  String.raw`\b(?:above|over|more\s+than|min(?:imum)?|at\s+least|starting(?:\s+at|\s+from)?)\s*${AMOUNT}\b`,
   'i'
 );
+const BARE_UNIT_AMOUNT = new RegExp(String.raw`\b${UNIT_AMOUNT}\b`, 'i');
+const MEASUREMENT = new RegExp(
+  String.raw`\b\d+(?:\.\d+)?\s*(?:(?:-|–|—|to|or|/)\s*\d+(?:\.\d+)?\s*)?-?\s*(?:bhks?|beds?|bedrooms?|rooms?|sq\.?\s*ft\.?|sqft|sft|sq\.?\s*(?:feet|yards?|m)|sq|acres?|guntas?|cents?|x\s*\d+|years?|months?|days?|%)\b`,
+  'gi'
+);
+const YEAR = /\b(?:19|20)\d{2}\b(?!\s*(?:cr|crore|lakh|lac|l|k)\b)/gi;
 
-function toRupees(value: string, unit: string | undefined): number | null {
+function toRupees(
+  value: string,
+  unit: string | undefined,
+  rent: boolean
+): number | null {
   const amount = Number(value.replace(/,/g, ''));
   if (!Number.isFinite(amount) || amount <= 0) return null;
   const u = unit?.toLowerCase();
@@ -136,27 +162,56 @@ function toRupees(value: string, unit: string | undefined): number | null {
   if (u === 'l' || u?.startsWith('lac') || u?.startsWith('lakh'))
     return amount * 100_000;
   if (u === 'k' || u === 'thousand') return amount * 1_000;
+  if (rent) return amount < 1_000 ? amount * 1_000 : amount;
   if (amount <= 60) return amount * 10_000_000;
   if (amount <= 999) return amount * 100_000;
   return amount;
 }
 
-function parseBudget(text: string): { min: number | null; max: number | null } {
-  const stripped = text.replace(/\b\d+(?:\.5)?\s*-?\s*bhk\b/gi, ' ');
+function parseBudget(
+  text: string,
+  rent: boolean
+): { min: number | null; max: number | null } {
+  const stripped = text.replace(MEASUREMENT, ' ').replace(YEAR, ' ');
   const range = BUDGET_RANGE.exec(stripped);
   if (range) {
-    const first = toRupees(range[1], range[2] ?? range[4]);
-    const second = toRupees(range[3], range[4] ?? range[2]);
+    const first = toRupees(range[1], range[2] ?? range[4], rent);
+    const second = toRupees(range[3], range[4] ?? range[2], rent);
     if (first != null && second != null) {
       return { min: Math.min(first, second), max: Math.max(first, second) };
     }
   }
   const max = BUDGET_MAX.exec(stripped);
   const min = BUDGET_MIN.exec(stripped);
-  return {
-    min: min ? toRupees(min[1], min[2]) : null,
-    max: max ? toRupees(max[1], max[2]) : null,
-  };
+  let budgetMax = max ? toRupees(max[1], max[2], rent) : null;
+  if (budgetMax == null) {
+    const unitMax = BUDGET_MAX_UNIT.exec(stripped);
+    if (unitMax) {
+      budgetMax = toRupees(
+        unitMax[1] ?? unitMax[3],
+        unitMax[2] ?? unitMax[4],
+        rent
+      );
+    }
+  }
+  const budgetMin = min ? toRupees(min[1], min[2], rent) : null;
+  if (budgetMax == null && budgetMin == null) {
+    const bare = BARE_UNIT_AMOUNT.exec(stripped);
+    if (bare) {
+      budgetMax = toRupees(bare[1] ?? bare[3], bare[2] ?? bare[4], rent);
+    }
+  }
+  return { min: budgetMin, max: budgetMax };
+}
+
+function parseBhk(text: string): { min: number | null; max: number | null } {
+  const normalized = text
+    .replace(
+      /\b(\d+(?:\.5)?)\s*(?:or|\/)\s*(\d+(?:\.5)?)\s*-?\s*(?:bhks?|beds?|bedrooms?)\b/gi,
+      '$1-$2 bhk'
+    )
+    .replace(/\b(\d+(?:\.5)?)\s*-?\s*(?:bhks|beds?|bedrooms?)\b/gi, '$1 bhk');
+  return bhkRangeFromRequirement(normalized);
 }
 
 function isNegated(text: string, index: number): boolean {
@@ -194,26 +249,48 @@ function parsePropertyTypes(text: string): string[] {
   return [...types];
 }
 
-function parseAreas(message: string): string[] {
-  const text = message.replace(/\binterested\s+in\s+/gi, 'interested ');
-  const candidates: string[] = [];
-  for (const match of text.matchAll(LOCALITY_PATTERN)) {
-    const raw = match[1].replace(LOCALITY_TRAILERS, '').trim();
-    if (!raw || /^\d/.test(raw)) continue;
-    if (/^(?:a|an|the|my|our|this|that|any|some)$/i.test(raw)) continue;
-    const lower = raw.toLowerCase();
-    if (parseCategories(lower).length && localityStems(lower).length === 0)
-      continue;
-    if (SPECIFIC_TYPE_PATTERNS.some((re) => re.test(lower))) continue;
-    if (
-      /^(?:property|properties|listing|listings|flat|flats|house|houses|budget|contacts?|list|crm|app|system|database|inventory)$/i.test(
-        lower
-      )
-    )
-      continue;
-    candidates.push(raw.slice(0, 60));
+function joinInitials(text: string): string {
+  return text.replace(
+    /\b(?:[A-Za-z]\.\s?){2,}/g,
+    (run) => `${run.replace(/[.\s]/g, '')} `
+  );
+}
+
+function localityCandidate(raw: string): string | null {
+  const clean = raw
+    .replace(/^(?:from|of|to)\s+/i, '')
+    .replace(LOCALITY_TRAILERS, '')
+    .trim();
+  if (!clean || !/[a-z0-9]/i.test(clean) || NOT_A_LOCALITY.test(clean)) {
+    return null;
   }
-  return candidates.length ? [candidates[0]] : [];
+  const lower = clean.toLowerCase();
+  if (parseCategories(lower).length && localityStems(lower).length === 0)
+    return null;
+  if (SPECIFIC_TYPE_PATTERNS.some((re) => re.test(lower))) return null;
+  return clean.slice(0, 60);
+}
+
+function parseAreas(message: string): string[] {
+  const text = joinInitials(message).replace(
+    /\binterested\s+in\s+/gi,
+    'interested '
+  );
+  const areas: string[] = [];
+  for (const match of text.matchAll(LOCALITY_PATTERN)) {
+    const first = localityCandidate(match[1]);
+    if (!first) continue;
+    areas.push(first);
+    let rest = text.slice(match.index + match[0].length);
+    for (;;) {
+      const next = LOCALITY_CONTINUATION.exec(rest);
+      if (!next) break;
+      const candidate = localityCandidate(next[1]);
+      if (candidate) areas.push(candidate);
+      rest = rest.slice(next[0].length);
+    }
+  }
+  return [...new Set(areas)].slice(0, 3);
 }
 
 function parseListingTypes(text: string): ListingType[] {
@@ -230,6 +307,15 @@ function parseListingTypes(text: string): ListingType[] {
   return [...types];
 }
 
+function safeProbe(value: string): string | null {
+  const clean = value
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /[a-z0-9]/.test(clean) ? clean : null;
+}
+
 export function typeProbesFor(
   categories: PropertyCategory[],
   propertyTypes: string[]
@@ -239,8 +325,8 @@ export function typeProbesFor(
     for (const probe of CATEGORY_PROBES[category]) probes.add(probe);
   }
   for (const type of propertyTypes) {
-    for (const part of type.toLowerCase().split('/')) {
-      const clean = part.trim();
+    for (const part of type.split('/')) {
+      const clean = safeProbe(part);
       if (clean && clean !== 'others') probes.add(clean);
     }
   }
@@ -250,39 +336,14 @@ export function typeProbesFor(
 export function areaProbesFor(areas: string[]): string[][] {
   return areas
     .map((area) => {
-      const stems = localityStems(area);
-      const probes = stems.length ? stems : [area.trim().toLowerCase()];
-      return [...new Set(probes.filter(Boolean))];
+      const label = normalizeLocalityLabel(joinInitials(area));
+      const stems = localityStems(label);
+      const probes = (stems.length ? stems : [label])
+        .map(safeProbe)
+        .filter((probe): probe is string => !!probe);
+      return [...new Set(probes)];
     })
     .filter((probes) => probes.length > 0);
-}
-
-export function isContactSearchQuestion(message: string): boolean {
-  const text = message.trim();
-  if (!text || text.length > 500) return false;
-  if (INSTRUCTIONAL.test(text) || ADD_INTENT.test(text)) return false;
-  if (OUTBOUND_INTENT.test(text)) return false;
-  if (/[#@&]\S/.test(text)) return false;
-  const subjectThenNeed = new RegExp(
-    String.raw`\b${SUBJECT}\b[\s\S]{0,40}\b${NEED}\b`,
-    'i'
-  );
-  const findThenSubject = new RegExp(
-    String.raw`\b${FIND}\b[\s\S]{0,30}\b${SUBJECT}\b`,
-    'i'
-  );
-  const subjectThenPlace = new RegExp(
-    String.raw`\b${SUBJECT}\b[\s\S]{0,30}\b(?:in|for|near|around|with)\b`,
-    'i'
-  );
-  return (
-    subjectThenNeed.test(text) ||
-    findThenSubject.test(text) ||
-    (subjectThenPlace.test(text) &&
-      /\b(?:contacts?|buyers?|leads?|clients?|customers?|investors?|tenants?)\b/i.test(
-        text
-      ))
-  );
 }
 
 export function hasSearchCriteria(query: ContactSearchQuery): boolean {
@@ -300,8 +361,12 @@ export function parseContactSearchQuery(message: string): ContactSearchQuery {
   const areas = parseAreas(message);
   const categories = parseCategories(message);
   const propertyTypes = parsePropertyTypes(message);
-  const bhk = bhkRangeFromRequirement(message);
-  const budget = parseBudget(message);
+  const bhk = parseBhk(message);
+  const listingTypes = parseListingTypes(message);
+  const budget = parseBudget(
+    message,
+    listingTypes.includes('Rent') && !listingTypes.includes('Sale')
+  );
   return {
     areas,
     areaProbes: areaProbesFor(areas),
@@ -312,8 +377,34 @@ export function parseContactSearchQuery(message: string): ContactSearchQuery {
     bhkMax: bhk.max,
     budgetMin: budget.min,
     budgetMax: budget.max,
-    listingTypes: parseListingTypes(message),
+    listingTypes,
   };
+}
+
+export function isContactSearchQuestion(message: string): boolean {
+  const text = message.trim();
+  if (!text || text.length > 500) return false;
+  if (INSTRUCTIONAL.test(text) || ADD_INTENT.test(text)) return false;
+  if (OUTBOUND_INTENT.test(text) || INVENTORY_OBJECT.test(text)) return false;
+  if (/[#@&]\S/.test(text)) return false;
+  const subjectThenNeed = new RegExp(
+    String.raw`\b${SUBJECT}\b[\s\S]{0,40}\b${NEED}\b`,
+    'i'
+  );
+  const whoNeeds = new RegExp(String.raw`\b${WHO_NEED}\b`, 'i');
+  if (subjectThenNeed.test(text) || whoNeeds.test(text)) return true;
+  const findThenSubject = new RegExp(
+    String.raw`\b${FIND}\b[\s\S]{0,30}\b${SUBJECT}\b`,
+    'i'
+  );
+  const subjectThenPlace = new RegExp(
+    String.raw`\b${SUBJECT}\b[\s\S]{0,30}\b(?:in|for|near|around|with)\b`,
+    'i'
+  );
+  if (!findThenSubject.test(text) && !subjectThenPlace.test(text)) {
+    return false;
+  }
+  return hasSearchCriteria(parseContactSearchQuery(text));
 }
 
 export function contactSearchFromPreferences(

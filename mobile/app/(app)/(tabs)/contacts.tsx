@@ -501,7 +501,10 @@ export default function ContactsScreen() {
   const wide = width >= 700;
   const insets = useSafeAreaInsets();
   const accountId = useAuthStore((state) => state.profile?.account_id);
-  const { search: searchParam } = useLocalSearchParams<{ search?: string }>();
+  const params = useLocalSearchParams<{ search?: string | string[] }>();
+  const searchParam = Array.isArray(params.search)
+    ? params.search[0]
+    : params.search;
   const [search, setSearch] = useState(
     typeof searchParam === 'string' ? searchParam : ''
   );

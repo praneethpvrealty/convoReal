@@ -26,6 +26,19 @@ describe('isContactSearchQuestion', () => {
   });
 
   it.each([
+    'Why are my leads not showing up in the inbox?',
+    'Is there a way to tag contacts in bulk?',
+    'Which leads came in today?',
+    'show me leads from Facebook ads',
+    'Leads not coming in from MagicBricks',
+    'Can I import contacts with a CSV?',
+    'Show deals for client Ramesh',
+    'Which contacts replied to my campaign?',
+    'Who needs to approve templates?',
+    'Do we have any 3 BHK flats in HSR for my client?',
+    'Find a property for my buyer in JP Nagar',
+    'contacts in |',
+    'contacts near me',
     'How do I add a contact?',
     'how to find contacts in the app',
     'Add a contact who is looking for a flat in JP Nagar',
@@ -106,6 +119,105 @@ describe('parseContactSearchQuery', () => {
   it('[CPL-002] reports no criteria for a bare contact question', () => {
     const query = parseContactSearchQuery('which contacts are looking?');
     expect(hasSearchCriteria(query)).toBe(false);
+  });
+});
+
+describe('parseContactSearchQuery review cases', () => {
+  it('never reads a BHK, size, year or measurement as money', () => {
+    expect(
+      parseContactSearchQuery('buyers looking for 2 or 3 BHK in HSR')
+    ).toMatchObject({
+      bhkMin: 2,
+      bhkMax: 3,
+      budgetMax: null,
+    });
+    expect(
+      parseContactSearchQuery('buyers looking for 3 bhks in HSR')
+    ).toMatchObject({
+      bhkMin: 3,
+      budgetMax: null,
+    });
+    expect(
+      parseContactSearchQuery('buyers looking for 3 bedroom flats in HSR')
+    ).toMatchObject({
+      bhkMin: 3,
+      budgetMax: null,
+      propertyTypes: ['Flat/ Apartment'],
+    });
+    expect(
+      parseContactSearchQuery(
+        'contacts looking for 1200 sqft office in Koramangala'
+      )
+    ).toMatchObject({
+      budgetMax: null,
+      propertyTypes: ['Commercial Office Space'],
+    });
+    expect(
+      parseContactSearchQuery(
+        'buyers in HSR who enquired between 2023 and 2024'
+      )
+    ).toMatchObject({
+      budgetMin: null,
+      budgetMax: null,
+    });
+  });
+
+  it('reads a bare rent figure as thousands per month and a unit amount without a keyword', () => {
+    expect(
+      parseContactSearchQuery('tenants looking for rent under 40 in HSR')
+        .budgetMax
+    ).toBe(40_000);
+    expect(
+      parseContactSearchQuery('buyers in Whitefield 80 lakhs')
+    ).toMatchObject({
+      areas: ['Whitefield'],
+      budgetMax: 8_000_000,
+    });
+    expect(
+      parseContactSearchQuery('buyers in Whitefield 1.5 cr budget')
+    ).toMatchObject({
+      areas: ['Whitefield'],
+      budgetMax: 15_000_000,
+    });
+  });
+
+  it('normalises dotted or spaced initials and keeps every named area', () => {
+    expect(parseContactSearchQuery('buyers in J.P. Nagar').areaProbes).toEqual([
+      ['jp'],
+    ]);
+    expect(parseContactSearchQuery('buyers in J P Nagar').areaProbes).toEqual([
+      ['jp'],
+    ]);
+    expect(
+      parseContactSearchQuery('buyers looking in JP Nagar or Jayanagar').areas
+    ).toEqual(['JP Nagar', 'Jayanagar']);
+  });
+
+  it('does not take a lead source after "from" as the locality', () => {
+    expect(
+      parseContactSearchQuery(
+        'NRI clients from Dubai looking for villas in Whitefield'
+      ).areas
+    ).toEqual(['Whitefield']);
+    expect(
+      parseContactSearchQuery('leads from MagicBricks looking for 3 BHK in HSR')
+        .areas
+    ).toEqual(['HSR']);
+  });
+
+  it('[CPL-002] never lets a regex metacharacter reach the database as a probe', () => {
+    expect(parseContactSearchQuery('contacts in |').areaProbes).toEqual([]);
+    expect(parseContactSearchQuery('contacts in (').areaProbes).toEqual([]);
+    expect(
+      contactSearchFromPreferences({
+        ...EMPTY_PREFERENCES,
+        property_types: ['flat (apartment)'],
+        areas: ['HSR [east]'],
+      })
+    ).toMatchObject({
+      typeProbes: ['flat apartment'],
+      areaProbes: [['hsr', 'east']],
+    });
   });
 });
 
