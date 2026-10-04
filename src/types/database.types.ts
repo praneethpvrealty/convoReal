@@ -14761,6 +14761,18 @@ export type Database = {
           language: string;
         }[];
       };
+      today_insights: {
+        Args: { p_account_id: string; p_end: string; p_start: string };
+        Returns: {
+          inbound_conversations: number;
+          messages_received: number;
+          messages_sent: number;
+          new_contacts: number;
+          new_inquiries: number;
+          responded_conversations: number;
+          showcase_opens: number;
+        }[];
+      };
       transaction_workspace_index: {
         Args: { target_account_id: string };
         Returns: {

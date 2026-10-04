@@ -99,6 +99,7 @@ jobs:
               - 'src/lib/radar/alert-defaults.ts'
               - 'src/lib/showcase/message-preview.ts'
               - 'src/lib/sweep/gap-actions.ts'
+              - 'src/lib/today/insights.ts'
               - '.github/workflows/ci.yml'
             go:
               - 'go-ingress/**'
