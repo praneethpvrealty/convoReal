@@ -32,8 +32,14 @@ guarded by `is_account_member()` that matches the flat columns, the
 merged, archived, dead and parked contacts, and returns the top four with
 a total. The answer carries one `links[]` entry per contact (name,
 classification, budget band, matched area — never a phone number) that
-opens the contact card on web and natively on mobile, and a "See all" link
-into the Contacts list search. The result is built from live rows for one
+opens the contact card on web and natively on mobile, and always a link into
+the Contacts list. That link carries the criteria through one contract,
+`contactListFilterParams`: a `search` phrase in the grammar both list
+parsers read ("3 bhk flat in HSR Layout under 2 cr", naming the first area,
+since neither parser reads two — `src/lib/search-parser.ts`
+on web, the locality expansion in `mobile/lib/contact-area-options.ts` on
+mobile) plus `budget_min` / `budget_max`, which the mobile tab seeds into its
+budget filters because its search box does not parse prices. The result is built from live rows for one
 account, so it returns before the shared cache and is never stored there.
 
 ## Confirmed actions

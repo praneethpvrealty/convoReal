@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildContactSearchAnswer,
+  contactListFilterParams,
   contactSearchFromPreferences,
   contactSearchListUrl,
   describeContactSearch,
@@ -251,9 +252,29 @@ describe('buildContactSearchAnswer', () => {
     expect(describeContactSearch(query)).toBe(
       'residential in JP Nagar under ₹2 Cr'
     );
+    expect(contactListFilterParams(query)).toEqual({
+      search: 'residential in JP Nagar under 2 cr',
+      budget_max: '20000000',
+    });
     expect(contactSearchListUrl(query)).toBe(
-      '/contacts?search=JP%20Nagar%20residential'
+      '/contacts?search=residential%20in%20JP%20Nagar%20under%202%20cr&budget_max=20000000'
     );
+    expect(
+      contactListFilterParams(
+        parseContactSearchQuery(
+          'tenants looking to rent a 2 or 3 bhk villa in Whitefield or Jayanagar between 80 lakh and 1.2 cr'
+        )
+      )
+    ).toEqual({
+      search: '2 bhk villa in Whitefield 80 lakh to 1.2 cr',
+      budget_min: '8000000',
+      budget_max: '12000000',
+    });
+    expect(
+      contactSearchListUrl(
+        parseContactSearchQuery('which contacts are looking?')
+      )
+    ).toBe('/contacts');
   });
 
   it('[CPL-003] returns one contact-card link per match and a see-all link', () => {
@@ -294,9 +315,33 @@ describe('buildContactSearchAnswer', () => {
       },
       {
         label: 'See all 12 in Contacts',
-        navigateTo: '/contacts?search=JP%20Nagar%20residential',
+        navigateTo:
+          '/contacts?search=residential%20in%20JP%20Nagar%20under%202%20cr&budget_max=20000000',
       },
     ]);
+  });
+
+  it('[CPL-003] still links to the Contacts list when every match is shown', () => {
+    const answer = buildContactSearchAnswer(query, {
+      total: 1,
+      matches: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          label: 'Praveen',
+          classification: 'Buyer',
+          budgetMin: null,
+          budgetMax: null,
+          matchedArea: 'JP Nagar',
+        },
+      ],
+    });
+    expect(answer.links.map((link) => link.label)).toEqual([
+      'Praveen',
+      'Open in Contacts',
+    ]);
+    expect(answer.links[1].navigateTo).toBe(
+      '/contacts?search=residential%20in%20JP%20Nagar%20under%202%20cr&budget_max=20000000'
+    );
   });
 
   it('[CPL-003] answers an empty result with a next step instead of a tour', () => {
@@ -305,7 +350,8 @@ describe('buildContactSearchAnswer', () => {
     expect(answer.links).toEqual([
       {
         label: 'Open Contacts',
-        navigateTo: '/contacts?search=JP%20Nagar%20residential',
+        navigateTo:
+          '/contacts?search=residential%20in%20JP%20Nagar%20under%202%20cr&budget_max=20000000',
       },
     ]);
   });

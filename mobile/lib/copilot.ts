@@ -136,9 +136,15 @@ export function appHrefForWebRoute(route: string | undefined): string | null {
     const params = new URLSearchParams(route.split('?')[1]);
     const contactId = params.get('contactId');
     if (contactId) return `/(app)/contact/${encodeURIComponent(contactId)}`;
-    const search = params.get('search');
-    if (search) {
-      return `/(app)/(tabs)/contacts?search=${encodeURIComponent(search)}`;
+    const listParams = [
+      ['search', params.get('search')],
+      ['budgetMin', params.get('budget_min')],
+      ['budgetMax', params.get('budget_max')],
+    ].filter((entry): entry is [string, string] => !!entry[1]);
+    if (listParams.length) {
+      return `/(app)/(tabs)/contacts?${listParams
+        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+        .join('&')}`;
     }
   }
   if (route?.startsWith('/calendar?')) {

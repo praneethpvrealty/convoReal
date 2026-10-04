@@ -63,7 +63,7 @@ describe('Copilot contact search intent', () => {
         },
         {
           label: 'See all 3 in Contacts',
-          navigateTo: '/contacts?search=JP%20Nagar%20residential',
+          navigateTo: '/contacts?search=residential%20in%20JP%20Nagar',
         },
       ]);
       expect(answer.coverage).toBe(platform === 'mobile' ? 'full' : undefined);
@@ -131,7 +131,8 @@ describe('Copilot contact search intent', () => {
     expect(answer.links).toEqual([
       {
         label: 'Open Contacts',
-        navigateTo: '/contacts?search=Whitefield%20Villa',
+        navigateTo:
+          '/contacts?search=villa%20in%20Whitefield%20under%203%20cr&budget_max=30000000',
       },
     ]);
   });

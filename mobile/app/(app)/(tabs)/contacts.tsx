@@ -283,6 +283,15 @@ async function areaOptions(): Promise<AreaOption[]> {
   });
 }
 
+function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function paramNumber(value: string | string[] | undefined): number | null {
+  const parsed = Number(firstParam(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 async function fetchContacts(
   search: string,
   segment: SegmentKey,
@@ -501,24 +510,36 @@ export default function ContactsScreen() {
   const wide = width >= 700;
   const insets = useSafeAreaInsets();
   const accountId = useAuthStore((state) => state.profile?.account_id);
-  const params = useLocalSearchParams<{ search?: string | string[] }>();
-  const searchParam = Array.isArray(params.search)
-    ? params.search[0]
-    : params.search;
-  const [search, setSearch] = useState(
-    typeof searchParam === 'string' ? searchParam : ''
-  );
-  const [seededSearch, setSeededSearch] = useState(searchParam);
-  if (searchParam !== seededSearch) {
-    setSeededSearch(searchParam);
-    if (typeof searchParam === 'string' && searchParam.trim()) {
-      setSearch(searchParam);
-    }
-  }
+  const params = useLocalSearchParams<{
+    search?: string | string[];
+    budgetMin?: string | string[];
+    budgetMax?: string | string[];
+  }>();
+  const searchParam = firstParam(params.search);
+  const budgetMinParam = paramNumber(params.budgetMin);
+  const budgetMaxParam = paramNumber(params.budgetMax);
+  const seedKey = `${searchParam ?? ''}|${budgetMinParam ?? ''}|${budgetMaxParam ?? ''}`;
+  const [search, setSearch] = useState(searchParam ?? '');
   const [segment, setSegment] = useState<SegmentKey>('active');
   const [interest, setInterest] = useState<InterestFilter | null>(null);
   const [interestOpen, setInterestOpen] = useState(false);
-  const [filters, setFilters] = useState<ContactFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<ContactFilters>(() => ({
+    ...EMPTY_FILTERS,
+    minBudget: budgetMinParam,
+    maxBudget: budgetMaxParam,
+  }));
+  const [seeded, setSeeded] = useState(seedKey);
+  if (seedKey !== seeded) {
+    setSeeded(seedKey);
+    if (searchParam?.trim()) setSearch(searchParam);
+    if (budgetMinParam !== null || budgetMaxParam !== null) {
+      setFilters((prev) => ({
+        ...prev,
+        minBudget: budgetMinParam,
+        maxBudget: budgetMaxParam,
+      }));
+    }
+  }
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [favoritingIds, setFavoritingIds] = useState<Set<string>>(new Set());

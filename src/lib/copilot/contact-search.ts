@@ -462,11 +462,45 @@ export function describeContactSearch(query: ContactSearchQuery): string {
   return [subject, listing, area, budget].filter(Boolean).join(' ');
 }
 
+function amountWords(amount: number): string {
+  const trim = (value: number) => String(Math.round(value * 100) / 100);
+  if (amount >= 10_000_000) return `${trim(amount / 10_000_000)} cr`;
+  if (amount >= 100_000) return `${trim(amount / 100_000)} lakh`;
+  return String(Math.round(amount));
+}
+
+export function contactListFilterParams(
+  query: ContactSearchQuery
+): Record<string, string> {
+  const phrase: string[] = [];
+  if (query.bhkMin != null || query.bhkMax != null) {
+    phrase.push(`${query.bhkMin ?? query.bhkMax} bhk`);
+  }
+  const what = query.propertyTypes[0] ?? query.categories[0];
+  if (what) phrase.push(what.split('/')[0].trim().toLowerCase());
+  if (query.areas[0]) phrase.push(`in ${query.areas[0]}`);
+  if (query.budgetMin != null && query.budgetMax != null) {
+    phrase.push(
+      `${amountWords(query.budgetMin)} to ${amountWords(query.budgetMax)}`
+    );
+  } else if (query.budgetMax != null) {
+    phrase.push(`under ${amountWords(query.budgetMax)}`);
+  } else if (query.budgetMin != null) {
+    phrase.push(`above ${amountWords(query.budgetMin)}`);
+  }
+  const params: Record<string, string> = {};
+  if (phrase.length) params.search = phrase.join(' ');
+  if (query.budgetMin != null) params.budget_min = String(query.budgetMin);
+  if (query.budgetMax != null) params.budget_max = String(query.budgetMax);
+  return params;
+}
+
 export function contactSearchListUrl(query: ContactSearchQuery): string {
-  const term = [query.areas[0], query.propertyTypes[0] ?? query.categories[0]]
-    .filter(Boolean)
-    .join(' ');
-  return term ? `/contacts?search=${encodeURIComponent(term)}` : '/contacts';
+  const entries = Object.entries(contactListFilterParams(query));
+  if (!entries.length) return '/contacts';
+  return `/contacts?${entries
+    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+    .join('&')}`;
 }
 
 function matchSubtitle(match: ContactSearchMatch): string | undefined {
@@ -503,12 +537,13 @@ export function buildContactSearchAnswer(
     subtitle: matchSubtitle(match),
     navigateTo: entityHref('contact', match.id),
   }));
-  if (result.total > shown) {
-    links.push({
-      label: `See all ${result.total} in Contacts`,
-      navigateTo: contactSearchListUrl(query),
-    });
-  }
+  links.push({
+    label:
+      result.total > shown
+        ? `See all ${result.total} in Contacts`
+        : 'Open in Contacts',
+    navigateTo: contactSearchListUrl(query),
+  });
   return {
     reply: `${headline}\n${result.matches.map((m) => `• ${m.label}${matchSubtitle(m) ? ` — ${matchSubtitle(m)}` : ''}`).join('\n')}\n\nTap a name to open the contact.`,
     links,
