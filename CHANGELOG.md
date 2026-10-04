@@ -17,6 +17,13 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 4 October 2026
+
+- **Reply quotes no longer show raw WhatsApp markers.** When a contact
+  replies to a digest, the quoted original above their reply now shows
+  its header in bold instead of `*Your Property Update*`, on web and
+  mobile alike. Invariant INB-024.
+
 #### 3 October 2026
 
 - **The showcase share message reads like the message the client gets.**
