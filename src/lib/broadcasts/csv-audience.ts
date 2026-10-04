@@ -10,13 +10,30 @@ export interface CsvAudienceResult {
   skipped: number;
 }
 
+const DELIMITERS = new Set([',', ';', '\t']);
+
 function cells(line: string): string[] {
-  return line.split(/[,;\t]/).map((cell) =>
-    cell
-      .trim()
-      .replace(/^["']|["']$/g, '')
-      .trim()
-  );
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (!inQuotes && DELIMITERS.has(char)) {
+      values.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current);
+  return values.map((cell) => cell.trim().replace(/^'|'$/g, '').trim());
 }
 
 function toPhone(raw: string): string | null {

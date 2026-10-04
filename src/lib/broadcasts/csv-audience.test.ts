@@ -45,6 +45,19 @@ describe('parseCsvAudience', () => {
     ]);
   });
 
+  it('keeps a delimiter inside a quoted name', () => {
+    const result = parseCsvAudience(
+      '9876543210,"Patel, Asha"\n9876543211;"Rao; Kiran"\n9876543212\t"Shah\tMeera"\n9876543213,"Asha ""Ash"" Patel"'
+    );
+    expect(result.contacts.map((c) => c.name)).toEqual([
+      'Patel, Asha',
+      'Rao; Kiran',
+      'Shah\tMeera',
+      'Asha "Ash" Patel',
+    ]);
+    expect(result.skipped).toBe(0);
+  });
+
   it('returns nothing for empty input', () => {
     expect(parseCsvAudience('  \n ')).toEqual({ contacts: [], skipped: 0 });
   });
