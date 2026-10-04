@@ -29,6 +29,7 @@ than a written entry. Newest first.
   stored on the announcement, and every failure returns that charge and no
   other; an announcement the queue could not take is marked failed instead of
   staying in "generating" with the credits gone. Invariant CRD-005.
+  **Migration required:** `20261004190000_voice_announcements_burn_key.sql`.
 - **A failed AI call returns exactly the credits it took, and a refund that
   fails is retried.** Ad copy, photo enhancement, listing descriptions,
   greetings, event and call analysis, share emails, deal document reads,
