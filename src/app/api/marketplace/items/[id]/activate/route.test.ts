@@ -50,7 +50,7 @@ beforeEach(() => {
 describe.each([
   ['activate', activate],
   ['checkout', checkout],
-])('POST /api/marketplace/items/[id]/%s', (_name, handler) => {
+])('[ACC-002] POST /api/marketplace/items/[id]/%s', (_name, handler) => {
   it('[ACC-002] refuses a read-only member before touching the item', async () => {
     state.readOnly = true;
 

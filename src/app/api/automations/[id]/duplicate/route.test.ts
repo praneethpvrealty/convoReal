@@ -163,7 +163,7 @@ beforeEach(() => {
   ];
 });
 
-describe('POST /api/automations/[id]/duplicate', () => {
+describe('[ACC-002] POST /api/automations/[id]/duplicate', () => {
   it.each([
     ['a read-only agent', READ_ONLY_AGENT],
     ['a viewer', VIEWER],
