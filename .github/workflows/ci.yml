@@ -81,6 +81,8 @@ jobs:
               - 'mobile/**'
               # Web modules the mobile bundle imports through @shared/;
               # [SHR-003] in src/lib/mobile-parity.test.ts keeps this list whole.
+              - 'src/lib/automations/step-tree.ts'
+              - 'src/lib/automations/trigger-meta.ts'
               - 'src/lib/calendar/archive-sort.ts'
               - 'src/lib/calendar/todo-groups.ts'
               - 'src/lib/contacts/list-columns.ts'

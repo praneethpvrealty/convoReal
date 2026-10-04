@@ -163,6 +163,62 @@ describe('validateStepsForActivation', () => {
     ]);
   });
 
+  it('matches the engine for message_content: value, not operand', () => {
+    expect(
+      validateStepsForActivation([
+        {
+          step_type: 'condition',
+          step_config: {
+            subject: 'message_content',
+            operand: '',
+            value: 'price',
+          },
+        },
+      ])
+    ).toEqual([]);
+    expect(
+      validateStepsForActivation([
+        {
+          step_type: 'condition',
+          step_config: { subject: 'message_content', operand: 'x', value: '' },
+        },
+      ])
+    ).toEqual([
+      { path: 'steps[0].value', message: 'text to look for is required' },
+    ]);
+  });
+
+  it('names the missing operand per condition subject', () => {
+    const messages = ['tag_presence', 'contact_field', 'time_of_day'].map(
+      (subject) =>
+        validateStepsForActivation([
+          { step_type: 'condition', step_config: { subject } },
+        ])[0]?.message
+    );
+    expect(messages).toEqual([
+      'tag is required',
+      'field is required',
+      'pick both a start and an end time',
+    ]);
+  });
+
+  it('requires both ends of a time-of-day window', () => {
+    const check = (operand: string) =>
+      validateStepsForActivation([
+        {
+          step_type: 'condition',
+          step_config: { subject: 'time_of_day', operand },
+        },
+      ]);
+    expect(check('18:00-09:00')).toEqual([]);
+    expect(check('18:00-')).toEqual([
+      {
+        path: 'steps[0].operand',
+        message: 'pick both a start and an end time',
+      },
+    ]);
+  });
+
   it('flags condition subject/operand independently', () => {
     const issues = validateStepsForActivation([
       { step_type: 'condition', step_config: {} },

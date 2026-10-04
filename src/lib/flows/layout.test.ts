@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { autoLayout, shouldAutoLayout } from './layout';
+import { autoLayout, layoutUnpositioned, shouldAutoLayout } from './layout';
 
 describe('shouldAutoLayout', () => {
   it('returns false for an empty list', () => {
@@ -109,5 +109,57 @@ describe('autoLayout', () => {
     // Wider nodes don't shift vertical spacing on a single chain
     // (rank gap is fixed) but they DO offset x to keep nodes centered.
     expect(narrow.get('a')!.y).toBe(wide.get('a')!.y);
+  });
+});
+
+describe('layoutUnpositioned', () => {
+  const nodes = [
+    { node_key: 'start' },
+    { node_key: 'menu', position_x: 0, position_y: 0 },
+    { node_key: 'yes' },
+    { node_key: 'no' },
+  ];
+  const edges = [
+    { source: 'start', target: 'menu' },
+    { source: 'menu', target: 'yes' },
+    { source: 'menu', target: 'no' },
+  ];
+
+  it('nodes with no positions get laid out and keep them after one is moved', () => {
+    const laid = layoutUnpositioned(nodes, edges);
+    expect(shouldAutoLayout(laid)).toBe(false);
+    const byKey = new Map(laid.map((n) => [n.node_key, n]));
+    expect(byKey.get('start')!.position_y).toBeLessThan(
+      byKey.get('menu')!.position_y!
+    );
+    expect(byKey.get('yes')!.position_x).not.toBe(byKey.get('no')!.position_x);
+
+    const moved = laid.map((n) =>
+      n.node_key === 'yes' ? { ...n, position_x: 900, position_y: 900 } : n
+    );
+    const relaid = layoutUnpositioned(moved, edges);
+    expect(relaid).toBe(moved);
+    for (const n of relaid) {
+      if (n.node_key === 'yes') continue;
+      expect(n.position_x).toBe(byKey.get(n.node_key)!.position_x);
+      expect(n.position_y).toBe(byKey.get(n.node_key)!.position_y);
+    }
+  });
+
+  it('returns the same array when a node already has a position', () => {
+    const placed = [
+      { node_key: 'a', position_x: 40, position_y: 10 },
+      { node_key: 'b' },
+    ];
+    expect(layoutUnpositioned(placed, [{ source: 'a', target: 'b' }])).toBe(
+      placed
+    );
+  });
+
+  it('writes whole-pixel positions', () => {
+    for (const n of layoutUnpositioned(nodes, edges)) {
+      expect(Number.isInteger(n.position_x)).toBe(true);
+      expect(Number.isInteger(n.position_y)).toBe(true);
+    }
   });
 });

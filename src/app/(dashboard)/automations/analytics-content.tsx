@@ -4,7 +4,14 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { CheckCircle2, GitBranch, Workflow, XCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  GitBranch,
+  History,
+  Pencil,
+  Workflow,
+  XCircle,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import {
@@ -14,17 +21,47 @@ import {
   loadAutomationAnalytics,
   loadFlowAnalytics,
   loadFlowNodeFunnel,
-  successRate,
+  type AutomationAnalyticsRow,
 } from '@/lib/automations/analytics';
+import { triggerMeta } from '@/lib/automations/trigger-meta';
+import { graphWalkOrder, orderFunnelRows } from '@/lib/flows/funnel-order';
+import type { FlowNodeRow, FlowRow } from '@/lib/flows/types';
+import {
+  NODE_META,
+  summarizeNode,
+  type BuilderNode,
+  type NodeType,
+} from '@/components/flows/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { TabSkeleton } from '@/components/dashboard/skeleton';
 import { cn } from '@/lib/utils';
 
 type Range = 7 | 30 | 90;
 
 const RANGES: Range[] = [7, 30, 90];
 
+interface FlowGraph {
+  flow: Pick<FlowRow, 'entry_node_id'>;
+  nodes: FlowNodeRow[];
+}
+
+async function fetchFlowGraph(flowId: string): Promise<FlowGraph> {
+  const res = await fetch(`/api/flows/${flowId}`);
+  if (!res.ok) throw new Error('Failed to load flow');
+  return (await res.json()) as FlowGraph;
+}
+
+function settledRate(
+  row: Pick<AutomationAnalyticsRow, 'runs' | 'succeeded' | 'partial'>
+): number | null {
+  const settled = row.runs - row.partial;
+  if (settled <= 0) return null;
+  return (row.succeeded / settled) * 100;
+}
+
 function rateChip(rate: number | null, goodAt = 90, okAt = 60) {
-  if (rate == null) return <span className="text-slate-600">—</span>;
+  if (rate == null) return <span className="text-slate-400">—</span>;
   return (
     <span
       className={cn(
@@ -69,20 +106,41 @@ export default function AutomationAnalyticsContent() {
     enabled: !!accountId && !!activeFlowId,
   });
 
+  const graphQuery = useQuery({
+    queryKey: ['flow-graph', activeFlowId],
+    queryFn: () => fetchFlowGraph(activeFlowId!),
+    enabled: !!activeFlowId,
+  });
+
+  const graphNodes = useMemo<BuilderNode[]>(
+    () =>
+      (graphQuery.data?.nodes ?? []).map((n) => ({
+        node_key: n.node_key,
+        node_type: n.node_type as NodeType,
+        config: n.config as Record<string, unknown>,
+      })),
+    [graphQuery.data]
+  );
+
   if (automationsQuery.isLoading || flowsQuery.isLoading) {
-    return (
-      <p className="py-16 text-center text-sm text-slate-500">
-        Loading analytics...
-      </p>
-    );
+    return <TabSkeleton label="Loading analytics" tiles={4} cards={2} />;
   }
 
   if (automationsQuery.isError || flowsQuery.isError) {
     return (
-      <p className="py-16 text-center text-sm text-red-400">
-        Failed to load analytics. Ensure the automation and flow analytics
-        database functions are deployed (migration 182).
-      </p>
+      <div className="flex flex-col items-center gap-3 py-16 text-center">
+        <p className="text-sm text-red-400">Couldn&apos;t load analytics.</p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (automationsQuery.isError) automationsQuery.refetch();
+            if (flowsQuery.isError) flowsQuery.refetch();
+          }}
+        >
+          Retry
+        </Button>
+      </div>
     );
   }
 
@@ -93,11 +151,19 @@ export default function AutomationAnalyticsContent() {
     0
   );
   const automationFailed = automations.reduce((sum, a) => sum + a.failed, 0);
+  const automationWaiting = automations.reduce((sum, a) => sum + a.partial, 0);
+  const automationSettled = automationRuns - automationWaiting;
   const flowRuns = flows.reduce((sum, f) => sum + f.runs, 0);
   const flowCompleted = flows.reduce((sum, f) => sum + f.completed, 0);
 
   const activeFlow = flows.find((f) => f.flow_id === activeFlowId) ?? null;
-  const funnelSteps = buildFunnelSteps(funnelQuery.data ?? []);
+  const funnelSteps = buildFunnelSteps(
+    orderFunnelRows(
+      funnelQuery.data ?? [],
+      graphWalkOrder(graphNodes, graphQuery.data?.flow.entry_node_id ?? null)
+    )
+  );
+  const nodeByKey = new Map(graphNodes.map((n) => [n.node_key, n]));
 
   const tiles = [
     {
@@ -109,10 +175,10 @@ export default function AutomationAnalyticsContent() {
     {
       title: 'Automation Success',
       value:
-        automationRuns > 0
-          ? `${((automationSucceeded / automationRuns) * 100).toFixed(0)}%`
+        automationSettled > 0
+          ? `${((automationSucceeded / automationSettled) * 100).toFixed(0)}%`
           : '—',
-      sub: `${automationFailed.toLocaleString()} failed`,
+      sub: `${automationFailed.toLocaleString()} failed · ${automationWaiting.toLocaleString()} waiting`,
       icon: CheckCircle2,
     },
     {
@@ -143,12 +209,13 @@ export default function AutomationAnalyticsContent() {
             <button
               key={r}
               type="button"
+              aria-pressed={range === r}
               onClick={() => setRange(r)}
               className={cn(
                 'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
                 range === r
                   ? 'bg-primary/20 text-primary'
-                  : 'text-slate-500 hover:text-slate-300'
+                  : 'text-slate-400 hover:text-slate-200'
               )}
             >
               {r}d
@@ -194,9 +261,12 @@ export default function AutomationAnalyticsContent() {
                   <th className="px-4 py-3">Trigger</th>
                   <th className="px-4 py-3 text-right">Runs</th>
                   <th className="px-4 py-3 text-right">Success</th>
-                  <th className="px-4 py-3 text-right">Partial</th>
+                  <th className="px-4 py-3 text-right">Waiting</th>
                   <th className="px-4 py-3 text-right">Failed</th>
                   <th className="px-4 py-3 text-right">Last Run</th>
+                  <th className="px-4 py-3 text-right">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -219,13 +289,13 @@ export default function AutomationAnalyticsContent() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-slate-400">
-                      {row.trigger_type.replace(/_/g, ' ')}
+                      {triggerMeta(row.trigger_type).label}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-300">
                       {row.runs.toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {rateChip(successRate(row))}
+                      {rateChip(settledRate(row))}
                     </td>
                     <td className="px-4 py-3 text-right text-slate-300">
                       {row.partial.toLocaleString()}
@@ -237,6 +307,32 @@ export default function AutomationAnalyticsContent() {
                       {row.last_run_at
                         ? format(new Date(row.last_run_at), 'd MMM, HH:mm')
                         : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1">
+                        <Link
+                          href={`/automations/${row.automation_id}/edit`}
+                          aria-label={`Edit ${row.name}`}
+                          className={buttonVariants({
+                            variant: 'ghost',
+                            size: 'sm',
+                          })}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Link>
+                        <Link
+                          href={`/automations/${row.automation_id}/logs`}
+                          aria-label={`Logs for ${row.name}`}
+                          className={buttonVariants({
+                            variant: 'ghost',
+                            size: 'sm',
+                          })}
+                        >
+                          <History className="h-3.5 w-3.5" />
+                          Logs
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -271,22 +367,23 @@ export default function AutomationAnalyticsContent() {
                   <th className="px-4 py-3 text-right">Completion</th>
                   <th className="px-4 py-3 text-right">Median Duration</th>
                   <th className="px-4 py-3 text-right">Avg Reprompts</th>
+                  <th className="px-4 py-3 text-right">
+                    <span className="sr-only">Funnel</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {flows.map((row) => (
                   <tr
                     key={row.flow_id}
-                    onClick={() => setSelectedFlowId(row.flow_id)}
                     className={cn(
-                      'cursor-pointer border-b border-slate-800/60 transition-colors last:border-0 hover:bg-slate-800/40',
+                      'border-b border-slate-800/60 transition-colors last:border-0',
                       activeFlowId === row.flow_id && 'bg-primary/5'
                     )}
                   >
                     <td className="px-4 py-3">
                       <Link
                         href={`/flows/${row.flow_id}/runs`}
-                        onClick={(e) => e.stopPropagation()}
                         className="font-medium text-slate-200 hover:text-white hover:underline"
                       >
                         {row.name}
@@ -327,6 +424,16 @@ export default function AutomationAnalyticsContent() {
                         ? '—'
                         : Number(row.avg_reprompts).toFixed(1)}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-pressed={activeFlowId === row.flow_id}
+                        onClick={() => setSelectedFlowId(row.flow_id)}
+                      >
+                        View funnel
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -344,7 +451,7 @@ export default function AutomationAnalyticsContent() {
             Distinct runs that reached each node. The red badge is the drop-off
             from the step above.
           </p>
-          {funnelQuery.isLoading ? (
+          {funnelQuery.isLoading || graphQuery.isLoading ? (
             <p className="py-6 text-center text-sm text-slate-500">
               Loading funnel...
             </p>
@@ -354,41 +461,53 @@ export default function AutomationAnalyticsContent() {
             </p>
           ) : (
             <div className="space-y-2">
-              {funnelSteps.map((step) => (
-                <div key={step.node_key} className="flex items-center gap-3">
-                  <div className="w-40 shrink-0 truncate text-right">
-                    <span className="text-sm font-medium text-slate-300">
-                      {step.node_key}
-                    </span>
-                    {step.node_type && (
-                      <span className="block text-xs text-slate-600">
-                        {step.node_type.replace(/_/g, ' ')}
+              {funnelSteps.map((step) => {
+                const node = nodeByKey.get(step.node_key);
+                const typeLabel = step.node_type
+                  ? (NODE_META[step.node_type as NodeType]?.label ??
+                    step.node_type.replace(/_/g, ' '))
+                  : null;
+                const label =
+                  (node && summarizeNode(node)) ?? typeLabel ?? step.node_key;
+                return (
+                  <div key={step.node_key} className="flex items-center gap-3">
+                    <div className="w-40 shrink-0 text-right">
+                      <span
+                        className="block truncate text-sm font-medium text-slate-300"
+                        title={label}
+                      >
+                        {label}
                       </span>
-                    )}
-                  </div>
-                  <div className="h-7 flex-1 rounded-md bg-slate-800/60">
-                    <div
-                      className="flex h-7 items-center rounded-md bg-violet-500/70 px-2"
-                      style={{ width: `${Math.max(step.pctOfStarted, 4)}%` }}
-                    >
-                      <span className="text-xs font-semibold text-white">
-                        {step.runs_entered.toLocaleString()}
-                      </span>
+                      {typeLabel && label !== typeLabel && (
+                        <span className="block truncate text-xs text-slate-400">
+                          {typeLabel}
+                        </span>
+                      )}
+                    </div>
+                    <div className="h-7 flex-1 rounded-md bg-slate-800/60">
+                      <div
+                        className="flex h-7 items-center rounded-md bg-violet-500/70 px-2"
+                        style={{ width: `${Math.max(step.pctOfStarted, 4)}%` }}
+                      >
+                        <span className="text-xs font-semibold text-white">
+                          {step.runs_entered.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-24 shrink-0 text-right">
+                      {step.dropOffPct != null && step.dropOffPct > 0 ? (
+                        <span className="rounded-md bg-red-500/10 px-1.5 py-0.5 text-xs font-medium text-red-400">
+                          −{step.dropOffPct.toFixed(0)}%
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          {step.pctOfStarted.toFixed(0)}%
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="w-24 shrink-0 text-right">
-                    {step.dropOffPct != null && step.dropOffPct > 0 ? (
-                      <span className="rounded-md bg-red-500/10 px-1.5 py-0.5 text-xs font-medium text-red-400">
-                        −{step.dropOffPct.toFixed(0)}%
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-600">
-                        {step.pctOfStarted.toFixed(0)}%
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

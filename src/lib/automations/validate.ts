@@ -146,10 +146,25 @@ function validateOne(
           message: 'condition subject is required',
         });
       }
-      if (!nonEmpty(c.operand)) {
+      if (c.subject === 'message_content') {
+        if (!nonEmpty(c.value)) {
+          issues.push({
+            path: `${path}.value`,
+            message: 'text to look for is required',
+          });
+        }
+      } else if (
+        !nonEmpty(c.operand) ||
+        (c.subject === 'time_of_day' &&
+          String(c.operand)
+            .split('-')
+            .filter((part) => part.trim() !== '').length !== 2)
+      ) {
         issues.push({
           path: `${path}.operand`,
-          message: 'condition operand is required',
+          message:
+            CONDITION_OPERAND_MESSAGES[String(c.subject)] ??
+            'condition operand is required',
         });
       }
       break;
@@ -225,6 +240,12 @@ export function validateTriggerForActivation(
 
   return issues;
 }
+
+const CONDITION_OPERAND_MESSAGES: Record<string, string> = {
+  tag_presence: 'tag is required',
+  contact_field: 'field is required',
+  time_of_day: 'pick both a start and an end time',
+};
 
 function nonEmpty(v: unknown): boolean {
   return typeof v === 'string' && v.trim().length > 0;

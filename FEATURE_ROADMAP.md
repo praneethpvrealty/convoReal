@@ -190,6 +190,17 @@ _A party is several people on one requirement — a couple buying together, or t
 
 ---
 
+### Deferred: automation and flow insight on mobile
+
+_A §2.8 gap, stated rather than silent. Building and editing automations and flows is web-only by design today (the canvas and step builder need a desktop pointer), and the mobile Automations screen (`mobile/app/(app)/automations.tsx`) lists automations with an on/off switch and lists flows read-only. What it does not have:_
+
+- [ ] **Automation logs (mobile)**: the per-automation execution log on web (`src/app/(dashboard)/automations/[id]/logs/page.tsx`) — status filter, step results, links to the contact and the chat — has no mobile screen. It reads `automation_logs` and `conversations` under RLS, so a mobile screen can run the same reads.
+- [ ] **Automation analytics (mobile)**: the Analytics tab (`src/app/(dashboard)/automations/analytics-content.tsx`) — runs, success rate with waiting runs excluded, flow completion and the node funnel — is web-only. The numbers come from the `automation_analytics`, `flow_analytics` and `flow_node_funnel` functions and the funnel order from `src/lib/flows/funnel-order.ts`, which is pure and can be imported through `@shared/`.
+- [ ] **Flow runs (mobile)**: the run history at `/flows/[id]/runs` is web-only; `GET /api/flows/[id]/runs` already accepts the mobile bearer token.
+- [ ] **Flow activate / pause (mobile)**: turning a flow on or off goes through `POST /api/flows/[id]/activate`, which already accepts the mobile bearer token, but mobile lists flows without a switch. Closing it means the same switch the automation rows have, showing the activation issues the route returns.
+
+---
+
 ### Deferred: the referrer picker on mobile
 
 _On web, a contact's Reference field suggests existing contacts as you type and links the one you pick (`referrer_contact_id`), through a bounded server-side search (`searchReferrerCandidates` in `src/lib/contacts/detail-queries.ts`). Mobile edits Reference as free text only, so a referrer typed there never links to a contact._

@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ConvoRealLoader } from '@/components/loader';
 import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
@@ -19,11 +20,17 @@ import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AutomationRow, FlowRow } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { describeIssue } from '@shared/lib/automations/step-tree';
+import {
+  triggerActivationSentence,
+  triggerLabel,
+} from '@shared/lib/automations/trigger-meta';
 
 export default function AutomationsScreen() {
   const { colors, fonts: f } = useTheme();
   const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const { show, close, dialogProps } = useAppDialog();
 
   const automationsQuery = useQuery({
     queryKey: ['automations'],
@@ -50,12 +57,35 @@ export default function AutomationsScreen() {
       });
       queryClient.invalidateQueries({ queryKey: ['automations'] });
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : 'Could not update automation.'
-      );
+      setError(toggleErrorText(err));
     } finally {
       setTogglingId(null);
     }
+  }
+
+  function requestToggle(automation: AutomationRow, next: boolean) {
+    if (!next) {
+      toggle(automation, false);
+      return;
+    }
+    show({
+      title: `Turn on “${automation.name}”?`,
+      message: triggerActivationSentence(
+        automation.trigger_type,
+        automation.trigger_config
+      ),
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Turn on',
+          variant: 'primary',
+          onPress: () => {
+            close();
+            toggle(automation, true);
+          },
+        },
+      ],
+    });
   }
 
   const pull = usePullRefresh(() =>
@@ -115,7 +145,7 @@ export default function AutomationsScreen() {
                 {a.name}
               </Text>
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                {a.trigger_type.replace(/_/g, ' ')}
+                {triggerLabel(a.trigger_type)}
                 {typeof a.execution_count === 'number'
                   ? ` · ran ${a.execution_count}×`
                   : ''}
@@ -126,7 +156,7 @@ export default function AutomationsScreen() {
             ) : (
               <Switch
                 value={a.is_active}
-                onValueChange={(v) => toggle(a, v)}
+                onValueChange={(v) => requestToggle(a, v)}
                 trackColor={{ true: colors.primary, false: colors.border }}
                 thumbColor="#fff"
               />
@@ -195,8 +225,24 @@ export default function AutomationsScreen() {
         Flow activation involves canvas validation — manage flow status on the
         web.
       </Text>
+      <AppDialog {...dialogProps} />
     </ScrollView>
   );
+}
+
+function toggleErrorText(err: unknown): string {
+  if (!(err instanceof ApiError)) return 'Could not update automation.';
+  const issues = (err.data as { issues?: unknown } | undefined)?.issues;
+  if (!Array.isArray(issues) || issues.length === 0) return err.message;
+  const lines = issues
+    .filter(
+      (i): i is { path: string; message: string } =>
+        typeof i?.path === 'string' && typeof i?.message === 'string'
+    )
+    .map((i) => `• ${describeIssue(i)}`);
+  return lines.length > 0
+    ? `Fix these on the web before turning it on:\n${lines.join('\n')}`
+    : err.message;
 }
 
 function SectionLabel({ text }: { text: string }) {
