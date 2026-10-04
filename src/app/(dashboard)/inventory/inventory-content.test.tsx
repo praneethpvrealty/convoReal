@@ -485,6 +485,7 @@ describe('inventory sort and filters', () => {
     });
     const trigger = screen.getByLabelText('Sort listings');
     expect(trigger.textContent).toContain('Recently added');
+    expect(trigger.textContent).toMatch(/Sort:\s*Recently added/);
     expect(trigger.textContent).not.toContain('created_at');
     const params = new URLSearchParams(
       propertiesCalls(fetchMock).at(-1)!.split('?')[1]

@@ -40,6 +40,7 @@ import {
   emptyPhotoLabel,
   internalPhotoSources,
 } from '@/lib/inventory/photo-sources';
+import { listingCardStatus } from '@/lib/inventory/card-badges';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import { CheckSquare, Square } from 'lucide-react';
 import { PropertyImportsDialog } from '@/components/inventory/property-imports-dialog';
@@ -187,7 +188,6 @@ export function PropertyList({
   }
 
   const statusColors: Record<string, string> = {
-    Available: 'bg-green-500/10 text-green-400 border-green-500/30',
     'Under Contract': 'bg-amber-500/10 text-amber-400 border-amber-500/30',
     Sold: 'bg-slate-800 text-slate-400 border-slate-700',
     'Off Market': 'bg-red-500/10 text-red-400 border-red-500/30',
@@ -400,18 +400,20 @@ export function PropertyList({
                         ? 'Built to Suit'
                         : 'For Sale'}
                 </Badge>
-                <Badge
-                  className={
-                    property.status === 'Sold'
-                      ? 'scale-105 animate-pulse rounded-full border border-red-500 bg-red-600 px-2.5 py-0.5 text-xs font-black tracking-wider text-white uppercase shadow-md shadow-red-950/50'
-                      : `rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-wider uppercase ${
-                          statusColors[property.status] ||
-                          'border-slate-700 bg-slate-800 text-slate-300'
-                        }`
-                  }
-                >
-                  {property.status}
-                </Badge>
+                {listingCardStatus(property.status) && (
+                  <Badge
+                    className={
+                      property.status === 'Sold'
+                        ? 'scale-105 animate-pulse rounded-full border border-red-500 bg-red-600 px-2.5 py-0.5 text-xs font-black tracking-wider text-white uppercase shadow-md shadow-red-950/50'
+                        : `rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-wider uppercase ${
+                            statusColors[property.status] ||
+                            'border-slate-700 bg-slate-800 text-slate-300'
+                          }`
+                    }
+                  >
+                    {listingCardStatus(property.status)}
+                  </Badge>
+                )}
                 {property.listing_source === 'agent' && (
                   <Badge className="rounded-full border-sky-600 bg-sky-500/90 px-2 py-0.5 text-[11px] font-semibold tracking-wider text-white uppercase">
                     Agent Referred

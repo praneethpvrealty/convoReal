@@ -60,12 +60,17 @@ export function projectBhkRange(stats: ProjectUnitStats): string {
   return `${min}–${max} BHK`;
 }
 
-/** "12 units · 3 sold" — the availability line under the headline. */
+/** "3 of 12 units sold" — the progress line under the headline. */
 export function projectAvailabilityLine(stats: ProjectUnitStats): string {
   if (stats.units === 0) return 'No units added yet';
-  const parts = [`${stats.units} unit${stats.units === 1 ? '' : 's'}`];
-  if (stats.sold_or_contract > 0) parts.push(`${stats.sold_or_contract} sold`);
-  return parts.join(' · ');
+  return `${stats.sold_or_contract} of ${stats.units} unit${stats.units === 1 ? '' : 's'} sold`;
+}
+
+/** Share of the project's units sold or under contract, 0–100. */
+export function projectSoldPercent(stats: ProjectUnitStats): number {
+  if (stats.units <= 0) return 0;
+  const ratio = stats.sold_or_contract / stats.units;
+  return Math.round(Math.min(1, Math.max(0, ratio)) * 100);
 }
 
 /**
