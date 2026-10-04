@@ -158,6 +158,7 @@ import {
   findPropertyDraftSession,
   findPropertyDraftSessionById,
   insertContactDraftSession,
+  mutateContactDraft,
   insertPropertyDraftSession,
   isDraftSessionExpired,
   mutatePropertyDraft,
@@ -4061,10 +4062,32 @@ export async function processOwnerChatbotMessage(
               ? await findContactDraftSession(supabaseAdmin(), contactRecord.id)
               : { data: null };
 
-          if (!existingSession) {
+          let replaced = false;
+          const mutation = existingSession
+            ? await mutateContactDraft(
+                supabaseAdmin(),
+                existingSession.id,
+                (latestSession) => {
+                  const reconciled = reconcileContactDrafts(
+                    latestSession.draft_data,
+                    parsedContainer
+                  );
+                  replaced = reconciled.replaced;
+                  return {
+                    draft_data: reconciled.container,
+                    status: validateContactDraftsContainer(reconciled.container)
+                      .isValid
+                      ? 'awaiting_confirmation'
+                      : 'collecting',
+                  };
+                }
+              )
+            : null;
+
+          if (mutation?.status !== 'ok') {
             console.error(
               '[chatbot-engine] Failed to save contact draft session:',
-              insertErr
+              mutation ?? insertErr
             );
             if (!cardContainer) {
               await refundCredits(
@@ -4086,18 +4109,7 @@ export async function processOwnerChatbotMessage(
             return true;
           }
 
-          const { container: mergedContainer, replaced } =
-            reconcileContactDrafts(existingSession.draft_data, parsedContainer);
-          const merged = validateContactDraftsContainer(mergedContainer);
-          const mergedStatus = merged.isValid
-            ? 'awaiting_confirmation'
-            : 'collecting';
-          await overwriteContactDraftSession(
-            supabaseAdmin(),
-            existingSession.id,
-            mergedContainer,
-            mergedStatus
-          );
+          const merged = mutation.next;
           await sendContactDraftPreview(
             phoneNumberId,
             accessToken,
@@ -4105,9 +4117,9 @@ export async function processOwnerChatbotMessage(
             replaced
               ? `📝 *New Contact Draft — previous one discarded:*`
               : `📝 *Contact Drafts Updated:*`,
-            mergedContainer,
-            mergedStatus,
-            merged.missingFields,
+            merged.draft_data,
+            merged.status,
+            validateContactDraftsContainer(merged.draft_data).missingFields,
             conversation.id,
             accountId
           );

@@ -35,11 +35,14 @@ describe('starting a contact draft', () => {
     expect(insert.indexOf('if (insertErr) {')).toBeLessThan(created);
   });
 
-  it('merges into a session created concurrently and refunds a failed save', () => {
+  it('merges into a session created concurrently through the compare-and-swap mutation and refunds a failed save', () => {
     const handling = insert.slice(0, created);
     expect(handling).toContain("insertErr.code === '23505'");
-    expect(handling).toContain(
-      'reconcileContactDrafts(existingSession.draft_data'
+    expect(handling).toContain('await mutateContactDraft(');
+    expect(handling).not.toContain('overwriteContactDraftSession(');
+    expect(handling).toContain("if (mutation?.status !== 'ok') {");
+    expect(handling.indexOf("if (mutation?.status !== 'ok') {")).toBeLessThan(
+      handling.indexOf('`📝 *Contact Drafts Updated:*`')
     );
     expect(handling).toContain('await refundCredits(');
     expect(handling).toContain("Couldn't save the contact draft.");
