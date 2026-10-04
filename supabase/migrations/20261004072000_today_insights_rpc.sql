@@ -1,5 +1,10 @@
 -- 20261004072000_today_insights_rpc.sql
 -- One round trip for the Today insights bar on web and mobile.
+--
+-- SECURITY INVOKER on purpose: the queries it replaces ran under RLS,
+-- which limits agents and leaders to the conversations assigned to them
+-- or their team (migration 162). Counting as the caller keeps every
+-- person's numbers exactly what they were.
 
 CREATE OR REPLACE FUNCTION public.today_insights(
   p_account_id UUID,
@@ -17,7 +22,7 @@ RETURNS TABLE (
 )
 LANGUAGE sql
 STABLE
-SECURITY DEFINER
+SECURITY INVOKER
 SET search_path = public
 AS $$
   WITH per_conversation AS (

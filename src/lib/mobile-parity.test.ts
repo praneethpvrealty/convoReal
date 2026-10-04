@@ -4801,7 +4801,8 @@ describe('the Today insights come from one SQL aggregate on both surfaces', () =
   });
 
   it('the aggregate is member-guarded, account-scoped and keeps the old filters', () => {
-    expect(migration).toContain('SECURITY DEFINER');
+    expect(migration).toContain('SECURITY INVOKER');
+    expect(migration).not.toContain('SECURITY DEFINER');
     expect(migration).toContain('SET search_path = public');
     expect(migration).toContain('WHERE is_account_member(p_account_id);');
     for (const alias of ['m', 'c', 'ct', 'se']) {
