@@ -69,7 +69,8 @@ import {
   plansWithImages,
 } from '@/lib/inventory/floor-plans';
 import { checkAccountPropertyLimit } from '@/lib/billing/gates';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import {
@@ -249,13 +250,14 @@ async function gatedBurn(
 async function gatedBurnReceipt(
   accountId: string,
   feature: AiFeatureKey
-): Promise<{ allowed: boolean; charged: boolean }> {
+): Promise<{ allowed: boolean; burnKey: string | null }> {
+  const burnKey = newBurnKey(feature);
   try {
     const result = await burnCredits(
       accountId,
       feature,
       AI_FEATURE_COSTS[feature],
-      { hardBlock: true }
+      { hardBlock: true, retryKey: burnKey }
     );
     notifyBalanceThreshold(accountId, result);
     if (!result.success) {
@@ -263,13 +265,16 @@ async function gatedBurnReceipt(
         `[chatbot-engine] blocked '${feature}' for account ${accountId}: ${result.deficit} credits short`
       );
     }
-    return { allowed: result.success, charged: result.success };
+    return {
+      allowed: result.success,
+      burnKey: result.success ? burnKey : null,
+    };
   } catch (err) {
     console.error(
       `[chatbot-engine] gatedBurn failed (fail-open) for '${feature}':`,
       err
     );
-    return { allowed: true, charged: false };
+    return { allowed: true, burnKey };
   }
 }
 
@@ -283,21 +288,19 @@ async function readForwardedEKhata(
   buffer: Buffer,
   mimeType: string
 ): Promise<EKhataFields | null> {
-  if (!(await gatedBurn(accountId, 'listing_parse'))) return null;
+  const readBurn = await gatedBurnReceipt(accountId, 'listing_parse');
+  if (!readBurn.allowed) return null;
   try {
     const fields = await extractEKhata({ buffer, mimeType });
     if (isReadableEKhata(fields)) return fields;
   } catch (err) {
     console.warn('[chatbot-engine] e-Khata read failed:', err);
   }
-  await refundCredits(
-    accountId,
-    'listing_parse',
-    AI_FEATURE_COSTS.listing_parse,
-    {
-      description: 'e-Khata read failed',
-    }
-  ).catch(() => undefined);
+  if (readBurn.burnKey) {
+    await refundBurn(accountId, 'listing_parse', readBurn.burnKey, {
+      reason: 'e-Khata read failed',
+    });
+  }
   return null;
 }
 
@@ -4166,12 +4169,12 @@ export async function processOwnerChatbotMessage(
         ? contactDraftsFromCards(cleanedText)
         : null;
 
-      let parseCharged = false;
+      let parseBurnKey: string | null = null;
       if (!cardContainer) {
         // Gate the parse burn before announcing "Analyzing…" so a
         // drained balance produces the lock reply, not a dead promise.
         const parseBurn = await gatedBurnReceipt(accountId, 'contact_parse');
-        parseCharged = parseBurn.charged;
+        parseBurnKey = parseBurn.burnKey;
         if (!parseBurn.allowed) {
           return await sendCreditsLockedReply(
             phoneNumberId,
@@ -4261,17 +4264,9 @@ export async function processOwnerChatbotMessage(
               '[chatbot-engine] Failed to save contact draft session:',
               mutation ?? insertErr
             );
-            if (parseCharged) {
-              await refundCredits(
-                accountId,
-                'contact_parse',
-                AI_FEATURE_COSTS.contact_parse,
-                { description: 'contact draft could not be saved' }
-              ).catch((refundErr) => {
-                console.error(
-                  `[chatbot-engine] contact_parse refund of ${AI_FEATURE_COSTS.contact_parse} credits for account ${accountId} failed; reconcile manually:`,
-                  refundErr
-                );
+            if (parseBurnKey) {
+              await refundBurn(accountId, 'contact_parse', parseBurnKey, {
+                reason: 'contact draft could not be saved',
               });
             }
             const reply =
