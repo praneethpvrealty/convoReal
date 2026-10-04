@@ -20,9 +20,9 @@ than a written entry. Newest first.
 #### 4 October 2026
 
 - **Roles can no longer be self-edited.** A signed-in member's own profile
-  update could change their account, role or read-only status directly,
-  which every role-based permission reads. The database now refuses those
-  columns from a client; the member management screens and invitations keep
+  update could change their account, role, team, platform role or read-only
+  status directly, which every role-based permission reads. The database now
+  refuses those columns from a client; the member management screens and invitations keep
   working through their server functions.
 - **Only agents and above can change portal ad records.** Marking a portal
   ad posted or removed, or changing its expiry date, is now refused by the
