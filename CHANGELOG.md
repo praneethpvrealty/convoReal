@@ -24,8 +24,9 @@ than a written entry. Newest first.
   status directly, which every role-based permission reads, and a Portfolio
   owner or buyer login could create a profile row of its own, or ask the
   profile-setup step to create a brokerage account for it. The database now
-  refuses those columns and that insert from a client, profile setup refuses
-  Portfolio logins; the member management screens and invitations keep
+  refuses those columns and that insert from a client, and profile setup
+  creates an account only for a login holding a live invitation, exactly as
+  sign-up does; the member management screens and invitations keep
   working through their server functions.
 - **Only agents and above can change portal ad records.** Marking a portal
   ad posted or removed, or changing its expiry date, is now refused by the

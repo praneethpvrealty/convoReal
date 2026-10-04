@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { signupRefusalMessage } from '@/lib/auth/signup-eligibility';
+import { resolveStaffBootstrapGate } from '@/lib/auth/staff-bootstrap';
 
 export async function POST(req: Request) {
   try {
@@ -67,6 +69,13 @@ export async function POST(req: Request) {
           { status: 403 }
         );
       }
+      const gate = await resolveStaffBootstrapGate(admin, user);
+      if (!gate.allowed) {
+        return NextResponse.json(
+          { error: signupRefusalMessage(gate.reason) },
+          { status: 403 }
+        );
+      }
       console.log(
         '[SETUP API] No account linked. Bootstrapping account via Admin Client...'
       );
@@ -76,6 +85,12 @@ export async function POST(req: Request) {
         .insert({
           name: `${nameVal}'s Account`,
           owner_user_id: user.id, // Explicitly link owner ID
+          ...(gate.betaInvite
+            ? {
+                beta_invite_id: gate.betaInvite.id,
+                invite_quota: gate.betaInvite.quota,
+              }
+            : {}),
         })
         .select('id')
         .maybeSingle();
@@ -91,6 +106,19 @@ export async function POST(req: Request) {
       }
 
       resolvedAccountId = newAccount.id;
+
+      if (gate.betaInvite) {
+        await admin
+          .from('beta_invites')
+          .update({
+            status: 'accepted',
+            accepted_at: new Date().toISOString(),
+            accepted_by_user_id: user.id,
+            accepted_account_id: newAccount.id,
+            seat_number: gate.betaInvite.seat,
+          })
+          .eq('id', gate.betaInvite.id);
+      }
     }
 
     // 2. Upsert profile row (linked to the resolved account) using Admin Client

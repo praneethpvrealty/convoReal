@@ -3876,7 +3876,7 @@
       "invariants": [
         {
           "id": "ACC-001",
-          "rule": "A member's account, role and read-only status change only through the member RPCs (set_member_role, set_member_org_role, set_member_team, transfer_account_ownership, remove_account_member, redeem_invitation) and server-side setup; a signed-in client cannot insert a profile row, and updating its own row cannot change account_id, account_role, org_role, is_read_only, team_id or the platform role column, so no role-, team- or platform-admin-gated check can be cleared by self-edit or by a persona without a profile (Portfolio owner or buyer) creating one, and the profile-setup route refuses to bootstrap a brokerage account for a Portfolio owner or buyer login.",
+          "rule": "A member's account, role and read-only status change only through the member RPCs (set_member_role, set_member_org_role, set_member_team, transfer_account_ownership, remove_account_member, redeem_invitation) and server-side setup; a signed-in client cannot insert a profile row, and updating its own row cannot change account_id, account_role, org_role, is_read_only, team_id or the platform role column, so no role-, team- or platform-admin-gated check can be cleared by self-edit or by a persona without a profile (Portfolio owner or buyer) creating one, and the profile-setup route bootstraps a brokerage account only for a login that passes the same invite gate as sign-up (a live beta or team invitation while the gate is on) and never for a Portfolio owner or buyer identity.",
           "tests": [
             {
               "file": "src/lib/migrations/profiles-role-guard.test.ts",
@@ -3889,7 +3889,8 @@
           ],
           "guards": [
             "supabase/migrations/20261004080500_profiles_privileged_columns_guard.sql",
-            "src/app/api/auth/profile-setup/route.ts"
+            "src/app/api/auth/profile-setup/route.ts",
+            "src/lib/auth/staff-bootstrap.ts"
           ]
         }
       ]
