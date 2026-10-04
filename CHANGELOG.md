@@ -19,6 +19,9 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **One badge per idea on listing cards.** An available listing shows "For
+  Sale" or "For Rent" alone; the status badge appears only when it says
+  something — Under Contract, Sold, Off Market, Pending Review or Archived.
 - **Fix a portal-ad mismatch from the phone.** Each finding in the portal
   drift banner on mobile now has **Update portal listing**, which opens the
   listing's portal ads to change an expiry date or **Mark removed** once the
