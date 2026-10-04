@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **A voice note that fails to render, or cannot be queued, is refunded
+  exactly once.** The charge for an audio announcement now carries its own key,
+  stored on the announcement, and every failure returns that charge and no
+  other; an announcement the queue could not take is marked failed instead of
+  staying in "generating" with the credits gone. Invariant CRD-005.
 - **A failed AI call returns exactly the credits it took, and a refund that
   fails is retried.** Ad copy, photo enhancement, listing descriptions,
   greetings, event and call analysis, share emails, deal document reads,

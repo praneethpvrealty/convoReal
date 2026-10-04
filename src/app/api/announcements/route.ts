@@ -134,6 +134,17 @@ export async function POST(request: NextRequest) {
           accountId: ctx.accountId,
         })
       );
+    } catch (err) {
+      await refundBurn(ctx.accountId, 'audio_announcement', burnKey, {
+        reason: 'audio_announcement could not be queued',
+      });
+      await ctx.supabase
+        .from('voice_announcements')
+        .update({ status: 'failed', error: 'Could not be queued' })
+        .eq('id', announcement.id)
+        .eq('account_id', ctx.accountId)
+        .select('id');
+      throw err;
     } finally {
       redis.disconnect();
     }

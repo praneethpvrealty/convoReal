@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
+  routeUpdates: [] as Record<string, unknown>[],
   burnCredits: vi.fn(),
   refundBurn: vi.fn(),
   refundCredits: vi.fn(),
@@ -61,6 +62,11 @@ vi.mock('@/lib/auth/account', () => ({
     userId: 'user-1',
     supabase: {
       from: () => ({
+        update: (patch: Record<string, unknown>) => {
+          h.routeUpdates.push(patch);
+          const chain = { eq: () => chain, select: async () => ({ data: [] }) };
+          return chain;
+        },
         insert: (row: Record<string, unknown>) => {
           h.insert(row);
           return {
@@ -133,6 +139,8 @@ const post = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   h.updates.length = 0;
+  h.routeUpdates.length = 0;
+  h.rpush.mockResolvedValue(1);
   h.insertFails = false;
   h.announcementRow.current = null;
   h.burnCredits.mockResolvedValue({
@@ -222,6 +230,26 @@ describe('creating an announcement [CRD-005]', () => {
     );
     expect(h.refundCredits).not.toHaveBeenCalled();
     expect(h.rpush).not.toHaveBeenCalled();
+  });
+
+  it('refunds the charge by its key and fails the row when the job cannot be queued', async () => {
+    h.rpush.mockRejectedValue(new Error('redis down'));
+
+    const res = await post();
+
+    expect(res.status).toBe(500);
+    const key = h.burnCredits.mock.calls[0][3].retryKey;
+    expect(h.refundBurn).toHaveBeenCalledTimes(1);
+    expect(h.refundBurn).toHaveBeenCalledWith(
+      'acct-1',
+      'audio_announcement',
+      key,
+      expect.objectContaining({ reason: expect.stringContaining('queued') })
+    );
+    expect(h.refundCredits).not.toHaveBeenCalled();
+    expect(h.routeUpdates).toEqual([
+      { status: 'failed', error: 'Could not be queued' },
+    ]);
   });
 
   it('refunds nothing when the burn was refused', async () => {
