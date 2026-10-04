@@ -443,15 +443,33 @@
         },
         {
           "id": "INB-026",
+          "rule": "Every contact draft card's Confirm button carries the version of the saved draft it shows together with a digest of the contact details it displays, including any number taken from an existing contact (an edit whose write fails sends no card, only a notice that the change was not saved), and Confirm saves only that version: a tap on a card whose draft or displayed details have since changed saves nothing and sends the current draft instead. A Confirm from a card sent before versions existed, or a typed \"confirm\", confirms the current draft as before.",
+          "tests": [
+            {
+              "file": "src/lib/ai/intake-core.test.ts",
+              "case": "[INB-026]"
+            },
+            {
+              "file": "src/lib/ai/draft-sessions.test.ts",
+              "case": "[INB-026]"
+            },
+            {
+              "file": "src/lib/ai/chatbot-engine.structure.test.ts",
+              "case": "[INB-026]"
+            }
+          ]
+        },
+        {
+          "id": "INB-027",
           "rule": "A reply quote shows the quoted message's WhatsApp formatting rather than its markers: on web and mobile the quote renders *bold*, _italic_, ~strike~ and ```monospace``` as formatting, while plain one-line previews such as the forward confirmation and pinned banner drop the markers, so a contact's reply to a digest never shows literal asterisks around the quoted header.",
           "tests": [
             {
               "file": "src/components/inbox/reply-quote.test.tsx",
-              "case": "[INB-026]"
+              "case": "[INB-027]"
             },
             {
               "file": "mobile/lib/message-actions.test.ts",
-              "case": "[INB-026]"
+              "case": "[INB-027]"
             }
           ]
         }

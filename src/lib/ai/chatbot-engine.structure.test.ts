@@ -193,3 +193,76 @@ describe('the external text correction', () => {
     expect(correction.match(/softBurn\(/g)).toHaveLength(1);
   });
 });
+
+describe('[INB-026] confirming a contact draft', () => {
+  it('builds the Confirm button from the version the card shows', () => {
+    expect(source).not.toContain("id: 'confirm_contact'");
+    expect(source).toMatch(
+      /id: contactConfirmButtonId\(\s*contactCardVersion\(version, resolvedContainer\)\s*\)/
+    );
+  });
+
+  it('passes a version to every contact preview', () => {
+    const calls = source.split('await sendContactDraftPreview(').slice(1);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const call of calls) {
+      const args = call.slice(0, call.indexOf(');'));
+      expect(args).toMatch(
+        /accountId,\s*(version|row\.updated_at|contactSession\.updated_at)\s*$/
+      );
+    }
+  });
+
+  it('sends no card when the draft write fails, so no card can confirm an unsaved draft', () => {
+    const writes = source
+      .split('const version = await overwriteContactDraftSession(')
+      .slice(1);
+    expect(writes).toHaveLength(4);
+    for (const write of writes) {
+      const afterWrite = write.slice(write.indexOf(');') + 2);
+      expect(afterWrite).toMatch(
+        /^\s*if \(!version\) \{\s*return await sendContactDraftSaveFailed\(/
+      );
+      expect(
+        afterWrite.indexOf('return await sendContactDraftSaveFailed(')
+      ).toBeLessThan(afterWrite.indexOf('await sendContactDraftPreview('));
+    }
+    const preview = source.slice(
+      source.indexOf('async function sendContactDraftPreview('),
+      source.indexOf(
+        '): Promise<void> {',
+        source.indexOf('async function sendContactDraftPreview(')
+      )
+    );
+    expect(preview).toMatch(/version: string\s*$/);
+  });
+
+  it('refuses a stale card before saving and shows the current draft instead', () => {
+    const handler = source.slice(
+      source.indexOf(
+        'const confirmRequest = readContactConfirm(buttonId, lowerText);'
+      )
+    );
+    const resolved = handler.indexOf(
+      'await resolveExactContactLinks(container, accountId)'
+    );
+    const staleCheck = handler.search(
+      /confirmRequest\.version !==\s*contactCardVersion\(contactSession\.updated_at, confirmedContainer\)/
+    );
+    const save = handler.indexOf('if (confirmRequest) {');
+    expect(resolved).toBeGreaterThan(-1);
+    expect(resolved).toBeLessThan(staleCheck);
+    expect(staleCheck).toBeGreaterThan(-1);
+    expect(
+      handler.slice(
+        save,
+        handler.indexOf('const { isValid, missingFields }', save)
+      )
+    ).not.toContain('resolveExactContactLinks(');
+    expect(staleCheck).toBeLessThan(save);
+    expect(handler.slice(staleCheck, save)).toContain(
+      'This draft changed after that card'
+    );
+    expect(handler.slice(staleCheck, save)).toContain('return true;');
+  });
+});

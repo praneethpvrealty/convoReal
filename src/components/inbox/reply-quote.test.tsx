@@ -3,7 +3,7 @@ import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ReplyQuote } from './reply-quote';
 
-describe('ReplyQuote [INB-026]', () => {
+describe('ReplyQuote [INB-027]', () => {
   it('renders the quoted digest header in bold without its asterisks', () => {
     const { container } = render(
       <ReplyQuote
