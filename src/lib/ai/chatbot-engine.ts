@@ -860,7 +860,7 @@ async function announceLatestContactDraft(
 ): Promise<void> {
   let row = shown;
   let title = header;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (;;) {
     await sendContactDraftPreview(
       phoneNumberId,
       accessToken,

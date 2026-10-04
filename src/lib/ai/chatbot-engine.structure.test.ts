@@ -75,9 +75,8 @@ describe('[INB-025] starting a contact draft', () => {
       source.indexOf('async function announceLatestContactDraft('),
       source.indexOf('export async function processOwnerChatbotMessage(')
     );
-    expect(announcer).toMatch(
-      /for \(let attempt = 0; attempt < 3; attempt\+\+\)/
-    );
+    expect(announcer).toContain('for (;;) {');
+    expect(announcer).not.toMatch(/attempt < \d/);
     expect(announcer.indexOf('await sendContactDraftPreview(')).toBeLessThan(
       announcer.indexOf('await findContactDraftSession(')
     );
