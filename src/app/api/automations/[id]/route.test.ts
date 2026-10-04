@@ -118,7 +118,12 @@ vi.mock('@/lib/supabase/admin', () => ({
 
 vi.mock('@/lib/automations/steps-tree', () => ({
   loadStepsTree: async () => [
-    { id: 'step-1', step_type: 'wait', step_config: {}, branches: {} },
+    {
+      id: 'step-1',
+      step_type: 'send_message',
+      step_config: { text: 'Hello' },
+      branches: {},
+    },
   ],
   replaceSteps: async (id: string, steps: unknown) => {
     state.replaceSteps.push({ id, steps });
@@ -259,5 +264,62 @@ describe('/api/automations/[id] is scoped to the account, not the creator', () =
     expect((await patch({ is_active: false })).status).toBe(401);
     expect((await del()).status).toBe(401);
     expect(automation()).toBeDefined();
+  });
+});
+
+describe('PATCH /api/automations/[id] trigger availability', () => {
+  beforeEach(() => {
+    Object.assign(automation()!, {
+      is_active: false,
+      trigger_type: 'tag_added',
+      trigger_config: { tag_id: 'tag-1' },
+    });
+  });
+
+  it.each(['conversation_assigned', 'tag_added', 'time_based'])(
+    'refuses to turn on an automation with the unavailable %s trigger',
+    async (trigger) => {
+      Object.assign(automation()!, { trigger_type: trigger });
+      const before = { ...automation() };
+      const res = await patch({ is_active: true });
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.issues).toHaveLength(1);
+      expect(body.issues[0].path).toBe('trigger.type');
+      expect(body.issues[0].message).toContain(trigger);
+      expect(body.data).toEqual({ issues: body.issues });
+      expect(automation()).toEqual(before);
+    }
+  );
+
+  it('still saves an unavailable-trigger automation while it stays paused', async () => {
+    const res = await patch({ name: 'Renamed', is_active: false });
+    expect(res.status).toBe(200);
+    expect(automation()).toMatchObject({
+      name: 'Renamed',
+      is_active: false,
+      trigger_type: 'tag_added',
+    });
+  });
+
+  it('turns on an automation whose trigger is available', async () => {
+    Object.assign(automation()!, {
+      trigger_type: 'new_contact_created',
+      trigger_config: {},
+    });
+    const res = await patch({ is_active: true });
+    expect(res.status).toBe(200);
+    expect(automation()).toMatchObject({ is_active: true });
+  });
+
+  it('lets a teammate turn on an available-trigger automation but not an unavailable one', async () => {
+    state.caller = TEAMMATE;
+    expect((await patch({ is_active: true })).status).toBe(400);
+    Object.assign(automation()!, {
+      trigger_type: 'new_contact_created',
+      trigger_config: {},
+    });
+    expect((await patch({ is_active: true })).status).toBe(200);
+    expect(automation()).toMatchObject({ is_active: true });
   });
 });

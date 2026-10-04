@@ -324,6 +324,7 @@ export interface AutomationRow {
   name: string;
   description?: string | null;
   trigger_type: string;
+  trigger_config?: Record<string, unknown> | null;
   is_active: boolean;
   execution_count?: number | null;
   last_executed_at?: string | null;

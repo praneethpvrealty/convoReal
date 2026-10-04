@@ -24,7 +24,7 @@ afterEach(() => {
   delete process.env.CRON_SECRET;
 });
 
-describe('[INB-027] credit-refunds cron', () => {
+describe('[INB-028] credit-refunds cron', () => {
   it('fails closed (503) when no secret is configured', async () => {
     const res = await GET(new Request(url));
     expect(res.status).toBe(503);

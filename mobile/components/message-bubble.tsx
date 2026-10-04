@@ -28,7 +28,7 @@ import { haptic } from '@/lib/haptics';
 import {
   deliveryFailurePresentation,
   messageAuthorLabel,
-  messagePreview,
+  quotedText,
   stripDeliveryFailure,
 } from '@/lib/message-actions';
 import {
@@ -253,7 +253,7 @@ export function QuotedMessage({
           style={{ fontSize: 12.5, color: colors.textMuted }}
           numberOfLines={2}
         >
-          {messagePreview(message)}
+          <FormattedText text={quotedText(message)} />
         </Text>
       </View>
       {onDismiss ? (

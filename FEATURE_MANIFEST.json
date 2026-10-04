@@ -425,7 +425,7 @@
         },
         {
           "id": "INB-025",
-          "rule": "A contact forwarded to the owner chatbot is announced as a saved draft only after a session row is written: a session row another call wrote for the same sender between the lookup and the insert (an insert conflict) keeps every card from both (the same person merged, anyone else appended, nothing discarded) through a compare-and-swap write scoped to the sender's account, while cards handled one after another under the conversation lease follow the later-forward rule (the same person merged, a different person replaces the draft and the owner is told), no preview is ever built from an unsaved local copy (a draft that could not be read back is reported as saved but unshown, one already confirmed or cancelled gets no preview), the last preview the owner receives is the saved draft (each handler re-reads after sending, retrying a failed read rather than taking it as an answer and, if it never succeeds, ending on a plain notice without a Confirm button, and sends again, without a cap, until the row it showed is still the saved one), and a draft that could not be saved refunds the parse charge against that charge's own key (INB-027) and tells the owner to send it again.",
+          "rule": "A contact forwarded to the owner chatbot is announced as a saved draft only after a session row is written: a session row another call wrote for the same sender between the lookup and the insert (an insert conflict) keeps every card from both (the same person merged, anyone else appended, nothing discarded) through a compare-and-swap write scoped to the sender's account, while cards handled one after another under the conversation lease follow the later-forward rule (the same person merged, a different person replaces the draft and the owner is told), no preview is ever built from an unsaved local copy (a draft that could not be read back is reported as saved but unshown, one already confirmed or cancelled gets no preview), the last preview the owner receives is the saved draft (each handler re-reads after sending, retrying a failed read rather than taking it as an answer and, if it never succeeds, ending on a plain notice without a Confirm button, and sends again, without a cap, until the row it showed is still the saved one), and a draft that could not be saved refunds the parse charge against that charge's own key (INB-028) and tells the owner to send it again.",
           "tests": [
             {
               "file": "src/lib/ai/chatbot-engine.structure.test.ts",
@@ -461,19 +461,33 @@
         },
         {
           "id": "INB-027",
+          "rule": "A reply quote shows the quoted message's WhatsApp formatting rather than its markers: on web and mobile the quote renders *bold*, _italic_, ~strike~ and ```monospace``` as formatting, while plain one-line previews such as the forward confirmation and pinned banner drop the markers, so a contact's reply to a digest never shows literal asterisks around the quoted header.",
+          "tests": [
+            {
+              "file": "src/components/inbox/reply-quote.test.tsx",
+              "case": "[INB-027]"
+            },
+            {
+              "file": "mobile/lib/message-actions.test.ts",
+              "case": "[INB-027]"
+            }
+          ]
+        },
+        {
+          "id": "INB-028",
           "rule": "Every AI charge the owner chatbot may later refund is burned under its own key, and the refund reverses only the ledger rows written under that key: at most once however often it is retried, never more than was charged, and nothing when the burn never landed. A refund call that keeps failing is queued in credit_refund_retries and retried by the hourly credit-refunds cron until it succeeds, the least-tried first; after ten failures each further failure is logged for manual reconciliation, and a refund that can be neither made nor queued is reported as failed, never as queued. Keyed burns keep the ordinary '<feature> burn' description in the credits history, and the older refund_credits_tx never takes a burn keyed '<feature>:…', so a legacy refund of the same feature cannot consume a keyed burn and leave its own charged.",
           "tests": [
             {
               "file": "src/lib/credits/refund-burn.test.ts",
-              "case": "[INB-027]"
+              "case": "[INB-028]"
             },
             {
               "file": "src/app/api/cron/credit-refunds/route.test.ts",
-              "case": "[INB-027]"
+              "case": "[INB-028]"
             },
             {
               "file": "src/lib/ai/chatbot-engine.structure.test.ts",
-              "case": "[INB-027]"
+              "case": "[INB-028]"
             }
           ]
         }
@@ -1666,14 +1680,26 @@
         },
         {
           "id": "PRP-029",
-          "rule": "When the Meta ads connection has expired, the Ads tab shows a readable warning with a Reconnect Meta button and marks Spend, Reach, Chats started and Cost/lead as last-sync figures, so a zero there is never read as current.",
+          "rule": "The Ads page always says whether Meta is connected: a not-connected intro with the three setup steps, a reconnect banner (ads keep running and billing on Meta; pausing or changing a budget needs a reconnect) when the connection expired or was disconnected, or a Connected chip, and a failed load shows an error with Retry rather than the empty state. Spend, reach, chats and cost per lead cover the last 30 days in the ad account's currency and show an as-of time once stale or archived, an archived ad shows no cost per lead because its spend froze at archival while leads keep a rolling window, Leads in Engine counts each contact once per ad in SQL rather than from a capped row fetch, a failed config or lead-count read fails the load rather than showing not connected or zero leads, and a budget edit submits once, cancels on Escape and shows the server's validation message inline.",
           "tests": [
             {
               "file": "src/app/(dashboard)/ads/ads-content.test.tsx",
               "case": "[PRP-029]"
+            },
+            {
+              "file": "src/app/api/meta-ads/campaigns/route.test.ts",
+              "case": "[PRP-029]"
+            },
+            {
+              "file": "src/lib/meta-ads/lead-counts.test.ts",
+              "case": "[PRP-029]"
             }
           ],
-          "guards": ["src/app/(dashboard)/ads/ads-content.tsx"]
+          "guards": [
+            "src/app/(dashboard)/ads/ads-content.tsx",
+            "src/lib/meta-ads/lead-counts.ts",
+            "src/lib/meta-ads/format.ts"
+          ]
         },
         {
           "id": "PRP-030",
@@ -1834,6 +1860,17 @@
           "guards": [
             "supabase/migrations/20261004073500_portal_listings_write_role.sql"
           ]
+        },
+        {
+          "id": "PRP-041",
+          "rule": "The Meta Ads settings tab shows one Reconnect action when the token expired, warns when the connection expires within 14 days, lists what happens next before Connect, offers Reconnect and Disconnect while the ad account is still to be chosen, and shows Connect, Reconnect and Disconnect to the account owner only, who is the only role the API accepts.",
+          "tests": [
+            {
+              "file": "src/components/settings/meta-ads-tab.test.tsx",
+              "case": "[PRP-041]"
+            }
+          ],
+          "guards": ["src/components/settings/meta-ads-tab.tsx"]
         }
       ]
     },
@@ -2394,7 +2431,7 @@
         },
         {
           "id": "PIPE-002",
-          "rule": "One fee rule on every board surface: a deal's fee is its saved brokerage amount, else its recorded rate applied to the value, net of co-broker payouts, and a deal with neither has no fee and says \"Fee not set\" — never a guessed 2%. A stage header leads with the deals' value and shows fees only once some are recorded; the first stat tile counts every deal the Focus / All switch is showing, lost ones included. Web and mobile compute these through the same module.",
+          "rule": "One fee rule on every board surface: a deal's fee is its saved brokerage amount, else its recorded rate applied to the value, net of co-broker payouts, and a deal with neither has no fee and says \"Fee not set\" — never a guessed 2%. A stage header leads with the deals' value and shows fees only once some are recorded; the Deals shown tile counts every deal the Focus / All switch is showing, lost ones included, the same number the switch carries. Web and mobile compute these through the same module.",
           "tests": [
             {
               "file": "src/lib/pipelines/deal-money.test.ts",
@@ -2727,7 +2764,7 @@
         },
         {
           "id": "TXW-017",
-          "rule": "Deals is one surface with three views of the same rows (Board, Journey, Records) on web and mobile; the old /pipelines, /journey and /automations?tab=pipelines addresses keep landing on the matching view with their query carried across, and Automations holds only flows and analytics.",
+          "rule": "Deals is one surface with three views of the same rows (Board, Journey, Records) on web and mobile; the old /pipelines, /journey and /automations?tab=pipelines addresses keep landing on the matching view with their query carried across, and Automations holds automations, flows and analytics.",
           "tests": [
             {
               "file": "src/lib/deals/routes.test.ts",
@@ -2957,6 +2994,26 @@
           "guards": [
             "src/components/deals/deal-milestones-panel.tsx",
             "mobile/app/(app)/deal/[id].tsx"
+          ]
+        },
+        {
+          "id": "TXW-032",
+          "rule": "A timeline entry is attributed to the member who made it, to the stakeholder who acknowledged an update over WhatsApp, or otherwise to \"System\" when no member is behind it, whatever free text or source the writer stored; the source is shown only for mobile and API entries. Web and mobile apply the same rule.",
+          "tests": [
+            {
+              "file": "src/lib/deals/events.test.ts",
+              "case": "[TXW-032]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-032]"
+            }
+          ],
+          "guards": [
+            "src/lib/deals/timeline-attribution.ts",
+            "src/lib/deals/events.ts",
+            "src/components/deals/deal-timeline-panel.tsx",
+            "mobile/lib/deal-workspace.ts"
           ]
         }
       ]

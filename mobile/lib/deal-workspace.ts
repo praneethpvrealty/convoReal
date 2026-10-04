@@ -348,12 +348,18 @@ export interface DealEventRow {
   id: string;
   event_type: DealEventType;
   source: 'web' | 'mobile' | 'api' | 'system';
+  actor_id: string | null;
   actor_name: string | null;
   title: string;
   metadata: Record<string, unknown>;
   visibility: DealVisibility;
   created_at: string;
 }
+
+export {
+  timelineActorLabel,
+  timelineSourceLabel,
+} from '@shared/lib/deals/timeline-attribution';
 
 export type TdsStatus =
   'not_applicable' | 'expected' | 'deducted' | 'deposited';
@@ -674,6 +680,7 @@ export interface BundleMemberRow {
   id: string;
   title: string;
   value: number | null;
+  currency: string | null;
   stage:
     | { name: string; color: string | null }
     | { name: string; color: string | null }[]

@@ -88,7 +88,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('[INB-027] refundBurn', () => {
+describe('[INB-028] refundBurn', () => {
   it('names a burn by its feature and a fresh id', () => {
     const a = newBurnKey('contact_parse');
     expect(a).toMatch(/^contact_parse:[0-9a-f-]{36}$/);
@@ -156,7 +156,7 @@ describe('[INB-027] refundBurn', () => {
   });
 });
 
-describe('[INB-027] a refund that can be neither made nor queued', () => {
+describe('[INB-028] a refund that can be neither made nor queued', () => {
   it('is reported as failed, never as queued', async () => {
     h.rpc.mockResolvedValue({ data: null, error: { message: 'db down' } });
     h.writeError = { message: 'db down' };
@@ -171,7 +171,7 @@ describe('[INB-027] a refund that can be neither made nor queued', () => {
   });
 });
 
-describe('[INB-027] retryQueuedRefunds', () => {
+describe('[INB-028] retryQueuedRefunds', () => {
   it('reads every open refund, however often it has failed', async () => {
     await retryQueuedRefunds();
 
@@ -246,7 +246,7 @@ describe('[INB-027] retryQueuedRefunds', () => {
   });
 });
 
-describe('[INB-027] the keyed refund migrations', () => {
+describe('[INB-028] the keyed refund migrations', () => {
   const refund = readFileSync(
     'supabase/migrations/20261004084500_credit_burn_keys.sql',
     'utf8'

@@ -267,7 +267,7 @@ describe('[INB-026] confirming a contact draft', () => {
   });
 });
 
-describe('[INB-027] chatbot refunds', () => {
+describe('[INB-028] chatbot refunds', () => {
   it('reverse the keyed burn and never fall back to refundCredits', () => {
     expect(source).not.toContain('refundCredits(');
     expect(source).toContain(
