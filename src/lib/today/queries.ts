@@ -1,15 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { startOfLocalDay } from '@/lib/dashboard/date-utils';
 import { loadPastEnquiryContacts } from '@/lib/journey/past-enquiry';
+import {
+  toRangeInsights,
+  type RangeInsights,
+  type TodayInsightsRow,
+} from '@/lib/today/insights';
 import type { Contact, Conversation } from '@/types';
 
 // ------------------------------------------------------------
-// "Today" command-center loaders. Same pattern as
-// src/lib/dashboard/queries.ts: all client-side aggregation over an
-// RLS-scoped supabase client. RLS pins every query to the signed-in
-// account, so the loaders take just the client. Perf is fine at the
-// current scale (low thousands of messages / contacts) — if a tenant
-// outgrows this we'd move the message walk into a SQL RPC.
+// "Today" command-center loaders over an RLS-scoped supabase client.
+// The range insights come from the today_insights SQL aggregate, which
+// names its account; the other loaders lean on RLS and take just the
+// client.
 // ------------------------------------------------------------
 
 type DB = SupabaseClient;
@@ -181,99 +184,28 @@ export async function loadHotGoingQuiet(db: DB): Promise<QuietHotLead[]> {
 
 // --- 3. Range insights: the daily numbers ------------------------------
 
-export interface RangeInsights {
-  /** Conversations opened in the range — new WhatsApp inquiries. */
-  newInquiries: number;
-  /** Contacts created in the range. */
-  newContacts: number;
-  /** Inbound customer messages in the range. */
-  messagesReceived: number;
-  /** Outbound messages in the range (agent + bot). */
-  messagesSent: number;
-  /** Conversations with ≥1 customer message in the range. */
-  inboundConversations: number;
-  /** Of those, how many got an outbound reply after the customer's
-   *  first message of the range. */
-  respondedConversations: number;
-  /** Showcase link opens (Pulse `open` events) in the range. */
-  showcaseOpens: number;
-}
+export type { RangeInsights } from '@/lib/today/insights';
 
 /**
  * Activity counters for an arbitrary local date range, powering the
- * insights bar on the Today page. Same client-side aggregation
- * trade-off as the loaders above: fine at current scale, move to an
- * RPC if a tenant outgrows it.
+ * insights bar on the Today page. One call to the account-scoped
+ * today_insights aggregate.
  */
 export async function loadRangeInsights(
   db: DB,
+  accountId: string,
   start: Date,
   end: Date
 ): Promise<RangeInsights> {
-  const startIso = start.toISOString();
-  const endIso = end.toISOString();
-
-  const [convRes, contactRes, msgRes, showcaseRes] = await Promise.all([
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', startIso)
-      .lte('created_at', endIso),
-    db
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', startIso)
-      .lte('created_at', endIso),
-    db
-      .from('messages')
-      .select('conversation_id, sender_type, created_at')
-      .gte('created_at', startIso)
-      .lte('created_at', endIso)
-      .order('conversation_id', { ascending: true })
-      .order('created_at', { ascending: true }),
-    db
-      .from('showcase_events')
-      .select('id', { count: 'exact', head: true })
-      .eq('event_type', 'open')
-      .gte('created_at', startIso)
-      .lte('created_at', endIso),
-  ]);
-  if (convRes.error) throw convRes.error;
-  if (contactRes.error) throw contactRes.error;
-  if (msgRes.error) throw msgRes.error;
-  if (showcaseRes.error) throw showcaseRes.error;
-
-  const rows = (msgRes.data ?? []) as {
-    conversation_id: string;
-    sender_type: string;
-  }[];
-
-  let messagesReceived = 0;
-  let messagesSent = 0;
-  // Walk per conversation (rows grouped by conversation_id, time-ordered
-  // within each group): a conversation counts as "responded" when any
-  // outbound message follows its first inbound message of the range.
-  const inbound = new Set<string>();
-  const responded = new Set<string>();
-  for (const row of rows) {
-    if (row.sender_type === 'customer') {
-      messagesReceived++;
-      inbound.add(row.conversation_id);
-    } else {
-      messagesSent++;
-      if (inbound.has(row.conversation_id)) responded.add(row.conversation_id);
-    }
-  }
-
-  return {
-    newInquiries: convRes.count ?? 0,
-    newContacts: contactRes.count ?? 0,
-    messagesReceived,
-    messagesSent,
-    inboundConversations: inbound.size,
-    respondedConversations: responded.size,
-    showcaseOpens: showcaseRes.count ?? 0,
-  };
+  const { data, error } = await db
+    .rpc('today_insights', {
+      p_account_id: accountId,
+      p_start: start.toISOString(),
+      p_end: end.toISOString(),
+    })
+    .maybeSingle<TodayInsightsRow>();
+  if (error) throw error;
+  return toRangeInsights(data);
 }
 
 // --- 4. Today's agenda: appointments + open todos ----------------------
