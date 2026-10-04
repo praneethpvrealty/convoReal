@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   absorbContactDrafts,
+  contactCardVersion,
   contactConfirmButtonId,
   readContactConfirm,
   applyExplicitContactDraftUpdate,
@@ -1019,5 +1020,34 @@ describe('[INB-026] the contact draft Confirm button', () => {
     expect(readContactConfirm('cancel_contact', 'cancel')).toBeNull();
     expect(readContactConfirm(null, 'confirmed it')).toBeNull();
     expect(readContactConfirm('link_contact:c1', 'use ravi')).toBeNull();
+  });
+});
+
+describe('[INB-026] the version a contact card confirms', () => {
+  const at = '2026-10-04T10:00:00.123456+00:00';
+  const card = makeContainer([
+    makeContact({ name: 'Ravi', phone: '9000000001' }),
+  ]);
+
+  it('names the draft version and the contacts the card shows', () => {
+    expect(contactCardVersion(at, card)).toMatch(
+      new RegExp(`^${at.replace(/[.+]/g, '\\$&')}#[0-9a-f]{16}$`)
+    );
+    expect(contactCardVersion(at, card)).toBe(contactCardVersion(at, card));
+  });
+
+  it('changes when a shown detail changes even though the draft row did not', () => {
+    const relinked = makeContainer([
+      makeContact({ name: 'Ravi', phone: '9000000002' }),
+    ]);
+    expect(contactCardVersion(at, relinked)).not.toBe(
+      contactCardVersion(at, card)
+    );
+  });
+
+  it('fits a WhatsApp button id', () => {
+    expect(
+      contactConfirmButtonId(contactCardVersion(at, card)).length
+    ).toBeLessThanOrEqual(256);
   });
 });

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 // ============================================================
 // Intake core — transport-free validation, status, and preview
 // formatting for the property/contact ingestion pipeline.
@@ -521,6 +522,17 @@ export function absorbContactDrafts(
 }
 
 export const CONTACT_CONFIRM_BUTTON = 'confirm_contact';
+
+export function contactCardVersion(
+  draftVersion: string,
+  container: ParsedContactDraftsContainer
+): string {
+  const digest = createHash('sha256')
+    .update(JSON.stringify(container.contacts ?? []))
+    .digest('hex')
+    .slice(0, 16);
+  return `${draftVersion}#${digest}`;
+}
 
 export function contactConfirmButtonId(version: string): string {
   return `${CONTACT_CONFIRM_BUTTON}:${version}`;

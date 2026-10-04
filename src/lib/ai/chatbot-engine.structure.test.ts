@@ -197,8 +197,8 @@ describe('the external text correction', () => {
 describe('[INB-026] confirming a contact draft', () => {
   it('builds the Confirm button from the version the card shows', () => {
     expect(source).not.toContain("id: 'confirm_contact'");
-    expect(source).toContain(
-      "{ id: contactConfirmButtonId(version), title: 'Confirm' }"
+    expect(source).toMatch(
+      /id: contactConfirmButtonId\(\s*contactCardVersion\(version, resolvedContainer\)\s*\)/
     );
   });
 
@@ -243,11 +243,22 @@ describe('[INB-026] confirming a contact draft', () => {
         'const confirmRequest = readContactConfirm(buttonId, lowerText);'
       )
     );
-    const staleCheck = handler.indexOf(
-      'confirmRequest.version !== contactSession.updated_at'
+    const resolved = handler.indexOf(
+      'await resolveExactContactLinks(container, accountId)'
+    );
+    const staleCheck = handler.search(
+      /confirmRequest\.version !==\s*contactCardVersion\(contactSession\.updated_at, confirmedContainer\)/
     );
     const save = handler.indexOf('if (confirmRequest) {');
+    expect(resolved).toBeGreaterThan(-1);
+    expect(resolved).toBeLessThan(staleCheck);
     expect(staleCheck).toBeGreaterThan(-1);
+    expect(
+      handler.slice(
+        save,
+        handler.indexOf('const { isValid, missingFields }', save)
+      )
+    ).not.toContain('resolveExactContactLinks(');
     expect(staleCheck).toBeLessThan(save);
     expect(handler.slice(staleCheck, save)).toContain(
       'This draft changed after that card'

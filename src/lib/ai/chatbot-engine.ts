@@ -132,6 +132,7 @@ import {
   validateContactDraftsContainer,
   reconcileContactDrafts,
   absorbContactDrafts,
+  contactCardVersion,
   contactConfirmButtonId,
   readContactConfirm,
   applyExplicitContactDraftUpdate,
@@ -809,7 +810,12 @@ async function sendContactDraftPreview(
   const buttons =
     resolvedStatus === 'awaiting_confirmation'
       ? [
-          { id: contactConfirmButtonId(version), title: 'Confirm' },
+          {
+            id: contactConfirmButtonId(
+              contactCardVersion(version, resolvedContainer)
+            ),
+            title: 'Confirm',
+          },
           { id: 'cancel_contact', title: 'Cancel' },
         ]
       : [{ id: 'cancel_contact', title: 'Cancel' }];
@@ -2918,9 +2924,13 @@ export async function processOwnerChatbotMessage(
 
     // Handle CONFIRM instruction
     const confirmRequest = readContactConfirm(buttonId, lowerText);
+    const confirmedContainer = confirmRequest
+      ? await resolveExactContactLinks(container, accountId)
+      : container;
     if (
       confirmRequest?.version &&
-      confirmRequest.version !== contactSession.updated_at
+      confirmRequest.version !==
+        contactCardVersion(contactSession.updated_at, confirmedContainer)
     ) {
       await sendContactDraftPreview(
         phoneNumberId,
@@ -2937,10 +2947,6 @@ export async function processOwnerChatbotMessage(
       return true;
     }
     if (confirmRequest) {
-      const confirmedContainer = await resolveExactContactLinks(
-        container,
-        accountId
-      );
       const { isValid, missingFields } =
         validateContactDraftsContainer(confirmedContainer);
       if (!isValid) {
