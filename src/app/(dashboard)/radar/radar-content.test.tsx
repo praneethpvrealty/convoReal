@@ -168,6 +168,33 @@ describe('Match Radar tab loading', () => {
   });
 });
 
+describe('Match Radar sending', () => {
+  it('locks every card while one send is in flight', async () => {
+    radar.loadMatchEvents.mockResolvedValue([
+      matchEvent('e1', 'First Plot'),
+      matchEvent('e2', 'Second Plot'),
+    ]);
+    const response = deferred<Response>();
+    const fetchMock = vi.fn(() => response.promise);
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      renderRadar(newClient());
+      const [first] = await screen.findAllByRole('button', {
+        name: /Send Match Alert/,
+      });
+      fireEvent.click(first);
+
+      expect(await screen.findByText('Sending...')).toBeTruthy();
+      const second = screen.getByRole('button', { name: /Send Match Alert/ });
+      expect((second as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(second);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe('Match Radar target selection', () => {
   it('pre-checks only 80%+ targets and toggles between 80%+ and all', async () => {
     radar.loadMatchEvents.mockResolvedValue([scoredEvent('e1', [100, 80, 65])]);

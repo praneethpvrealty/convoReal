@@ -7,7 +7,8 @@ vi.mock('@/lib/api', () => ({
 }));
 vi.mock('@/lib/supabase', () => ({ supabase: {} }));
 
-const { matchAlertTimeoutMs, sendMatchAlert } = await import('./radar');
+const { MATCH_ALERT_LOCK_MS, matchAlertTimeoutMs, sendMatchAlert } =
+  await import('./radar');
 
 describe('matchAlertTimeoutMs', () => {
   it('outlasts the default 20-second budget for a nine-target send', () => {
@@ -16,7 +17,7 @@ describe('matchAlertTimeoutMs', () => {
 
   it('grows with the batch and stays under the 300-second route limit', () => {
     expect(matchAlertTimeoutMs(1)).toBeLessThan(matchAlertTimeoutMs(5));
-    expect(matchAlertTimeoutMs(500)).toBeLessThan(300_000);
+    expect(matchAlertTimeoutMs(500)).toBeLessThan(MATCH_ALERT_LOCK_MS);
   });
 });
 
