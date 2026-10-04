@@ -12,13 +12,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FlowsPage, { formatItemPrice, goLiveConsequence } from './flows-content';
 
 const push = vi.fn();
+const auth = vi.hoisted(() => ({ isReadOnly: false }));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
 
 vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({ accountId: 'acct-1' }),
+  useAuth: () => ({ accountId: 'acct-1', isReadOnly: auth.isReadOnly }),
 }));
 
 vi.mock('@/hooks/useCan', () => ({ useCan: () => true }));
@@ -89,6 +90,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   push.mockReset();
+  auth.isReadOnly = false;
 });
 
 describe('FlowsPage', () => {
@@ -105,6 +107,21 @@ describe('FlowsPage', () => {
     fail = false;
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await screen.findByText('No flows yet');
+  });
+
+  it('disables creating and activating flows for a read-only member', async () => {
+    auth.isReadOnly = true;
+    renderFlows((url) =>
+      url === '/api/flows'
+        ? ok({ flows: [flow()] })
+        : ok({ templates: [], items: [item()] })
+    );
+    await screen.findByText('Welcome menu');
+    const newFlow = screen.getByRole('button', { name: /New flow/ });
+    expect((newFlow as HTMLButtonElement).disabled).toBe(true);
+    expect(newFlow.parentElement?.getAttribute('title')).toBe(
+      "Read-only — your role can't create flows"
+    );
   });
 
   it('shows when each flow last ran', async () => {

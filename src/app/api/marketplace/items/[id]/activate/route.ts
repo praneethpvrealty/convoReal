@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCurrentAccount } from '@/lib/auth/account';
+import { requireWriteRole } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
@@ -16,7 +16,7 @@ export async function POST(
 ) {
   const { id } = await params;
   try {
-    const ctx = await getCurrentAccount();
+    const ctx = await requireWriteRole('agent');
     const admin = supabaseAdmin();
 
     const { data: item, error: itemErr } = await admin
