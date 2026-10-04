@@ -134,6 +134,22 @@ describe('FlowsPage', () => {
     );
   });
 
+  it('[ACC-002] offers a read-only member View, not Edit, on an enabled marketplace flow', async () => {
+    auth.isReadOnly = true;
+    renderFlows((url) => {
+      if (url === '/api/flows') return ok({ flows: [] });
+      if (url === '/api/marketplace/items') {
+        return ok({
+          items: [item({ account_status: 'enabled', account_flow_id: 'f9' })],
+        });
+      }
+      return ok({ templates: [] });
+    });
+    await screen.findByText('Greeter');
+    expect(screen.getByRole('button', { name: /View/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Edit/ })).toBe(null);
+  });
+
   it('shows when each flow last ran', async () => {
     renderFlows((url) =>
       url === '/api/flows'

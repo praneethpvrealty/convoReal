@@ -772,7 +772,7 @@ function MarketplaceCard({
         {isEnabled ? (
           <Button variant="ghost" size="sm" onClick={onEdit}>
             <Pencil className="h-3.5 w-3.5" />
-            Edit
+            {canAct ? 'Edit' : 'View'}
           </Button>
         ) : isFree ? (
           <GatedButton
