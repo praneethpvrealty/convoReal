@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import { refundBurn } from '@/lib/credits/refund-burn';
 import { voiceCallCost } from '@/lib/credits/types';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { getVoiceConfig, resolveDialCredentials } from './config';
@@ -57,8 +58,8 @@ export async function placeReminderCall(args: {
     console.error(
       `[reminder-call] Call start failed for contact ${args.contactId}: ${result.error}`
     );
-    await refundCredits(args.accountId, 'voice_campaign_call', cost, {
-      description: `voice reminder start-failure refund (contact ${args.contactId})`,
+    await refundBurn(args.accountId, 'voice_campaign_call', args.retryKey, {
+      reason: `voice reminder start-failure refund (contact ${args.contactId})`,
     });
     return false;
   }
