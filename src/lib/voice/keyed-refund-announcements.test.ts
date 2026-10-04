@@ -318,7 +318,7 @@ describe('creating an announcement [CRD-005]', () => {
     expect(h.refundBurn).toHaveBeenCalledTimes(1);
   });
 
-  it('refunds and says to reconcile when the status update keeps failing', async () => {
+  it('holds the refund and names the charge when the status update keeps failing, since the job may have been queued', async () => {
     h.rpush.mockRejectedValue(new Error('redis down'));
     h.cancelResult = { data: null, error: { message: 'db down' } };
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -326,8 +326,11 @@ describe('creating an announcement [CRD-005]', () => {
     const res = await post();
 
     expect(res.status).toBe(500);
-    expect(h.refundBurn).toHaveBeenCalledTimes(1);
-    expect(logged).toHaveBeenCalledWith(expect.stringContaining('reconcile'));
+    expect(h.refundBurn).not.toHaveBeenCalled();
+    const key = h.burnCredits.mock.calls[0][3].retryKey;
+    expect(logged).toHaveBeenCalledWith(
+      expect.stringContaining(`${key} is held until reconciled manually`)
+    );
   });
 
   it('refunds nothing when the burn was refused', async () => {

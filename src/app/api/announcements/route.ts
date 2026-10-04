@@ -21,7 +21,8 @@ const TEXT_MAX = 1200;
 async function failUnqueuedAnnouncement(
   supabase: SupabaseClient,
   accountId: string,
-  announcementId: string
+  announcementId: string,
+  burnKey: string
 ): Promise<'failed' | 'taken' | 'unknown'> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const { data, error } = await supabase
@@ -35,7 +36,7 @@ async function failUnqueuedAnnouncement(
     await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** attempt));
   }
   console.error(
-    `[announcements] Announcement ${announcementId} for account ${accountId} could not be marked failed after its job was not queued; reconcile manually`
+    `[announcements] Announcement ${announcementId} for account ${accountId} could not be marked failed after its job was not queued; its charge ${burnKey} is held until reconciled manually`
   );
   return 'unknown';
 }
@@ -161,9 +162,10 @@ export async function POST(request: NextRequest) {
       const outcome = await failUnqueuedAnnouncement(
         ctx.supabase,
         ctx.accountId,
-        announcement.id
+        announcement.id,
+        burnKey
       );
-      if (outcome !== 'taken') {
+      if (outcome === 'failed') {
         await refundBurn(ctx.accountId, 'audio_announcement', burnKey, {
           reason: 'audio_announcement could not be queued',
         });
