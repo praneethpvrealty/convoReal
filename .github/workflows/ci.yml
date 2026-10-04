@@ -95,6 +95,7 @@ jobs:
               - 'src/lib/focus/requests.ts'
               - 'src/lib/format/currency.ts'
               - 'src/lib/format/date.ts'
+              - 'src/lib/format/ledger-label.ts'
               - 'src/lib/pipelines/board-layout.ts'
               - 'src/lib/pipelines/brokerage.ts'
               - 'src/lib/pipelines/deal-money.ts'
