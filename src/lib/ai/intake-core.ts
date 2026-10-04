@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 // ============================================================
 // Intake core — transport-free validation, status, and preview
 // formatting for the property/contact ingestion pipeline.
@@ -505,4 +506,64 @@ export function reconcileContactDrafts(
     merged[at] = mergeContactDraft(merged[at], inc);
   }
   return { container: { contacts: merged }, replaced: false };
+}
+
+export function absorbContactDrafts(
+  existing: ParsedContactDraftsContainer,
+  incoming: ParsedContactDraftsContainer
+): ParsedContactDraftsContainer {
+  const merged = [...(existing.contacts || [])];
+  for (const inc of incoming.contacts || []) {
+    const at = merged.findIndex((base) => sameDraftSubject(base, inc));
+    if (at === -1) merged.push(inc);
+    else merged[at] = mergeContactDraft(merged[at], inc);
+  }
+  return { contacts: merged };
+}
+
+export const CONTACT_CONFIRM_BUTTON = 'confirm_contact';
+
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [
+          key,
+          canonicalJson((value as Record<string, unknown>)[key]),
+        ])
+    );
+  }
+  return value;
+}
+
+export function contactCardVersion(
+  draftVersion: string,
+  container: ParsedContactDraftsContainer
+): string {
+  const digest = createHash('sha256')
+    .update(JSON.stringify(canonicalJson(container.contacts ?? [])))
+    .digest('hex')
+    .slice(0, 16);
+  return `${draftVersion}#${digest}`;
+}
+
+export function contactConfirmButtonId(version: string): string {
+  return `${CONTACT_CONFIRM_BUTTON}:${version}`;
+}
+
+export function readContactConfirm(
+  buttonId: string | null | undefined,
+  lowerText: string
+): { version: string | null } | null {
+  if (buttonId?.startsWith(`${CONTACT_CONFIRM_BUTTON}:`)) {
+    return {
+      version: buttonId.slice(CONTACT_CONFIRM_BUTTON.length + 1) || null,
+    };
+  }
+  if (buttonId === CONTACT_CONFIRM_BUTTON || lowerText === 'confirm') {
+    return { version: null };
+  }
+  return null;
 }

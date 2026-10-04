@@ -19,7 +19,7 @@
 import { useEffect, useState } from 'react';
 import { LayoutGrid, ListTree } from 'lucide-react';
 
-import { FlowBuilder } from './flow-builder';
+import { FlowBuilder, FlowTriggerPanel } from './flow-builder';
 import { FlowCanvas } from './flow-canvas';
 import { FlowEditorProvider } from './flow-editor-state';
 import { EditorHeader } from './header';
@@ -104,7 +104,14 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
           </div>
         )}
 
-        {effectiveView === 'canvas' ? <FlowCanvas /> : <FlowBuilder />}
+        {effectiveView === 'canvas' ? (
+          <>
+            <FlowTriggerPanel />
+            <FlowCanvas />
+          </>
+        ) : (
+          <FlowBuilder />
+        )}
 
         {/* Sticky-bottom validation panel mirrors the placement used
             when this lived inside FlowBuilder — the activate-readiness

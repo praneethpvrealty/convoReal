@@ -16,6 +16,7 @@ import {
   insertContactDraftSession,
   insertPropertyDraftSession,
   isDraftSessionExpired,
+  mutateContactDraft,
   mutatePropertyDraft,
   overwriteContactDraftSession,
   touchPropertyDraftSession,
@@ -197,6 +198,17 @@ describe('draft session finders', () => {
       terminal: 'maybeSingle',
     });
   });
+
+  it('[INB-025] scopes the contact session to the account when given one', async () => {
+    const { client, calls } = stubClient(() => ok(null));
+
+    await findContactDraftSession(client, 'c1', 'acct-1');
+
+    expect(calls[0].filters).toEqual([
+      ['contact_id', 'c1'],
+      ['account_id', 'acct-1'],
+    ]);
+  });
 });
 
 describe('draft session writes', () => {
@@ -251,16 +263,19 @@ describe('draft session writes', () => {
     });
   });
 
-  it('overwrites a contact session without a precondition', async () => {
-    const { client, calls } = stubClient(() => ok(null));
+  it('[INB-026] overwrites a contact session and returns the stored version', async () => {
+    const { client, calls } = stubClient(() =>
+      ok({ updated_at: '2026-10-04T10:00:00+00:00' })
+    );
 
-    await overwriteContactDraftSession(
+    const version = await overwriteContactDraftSession(
       client,
       'k1',
       CONTAINER,
       'awaiting_confirmation'
     );
 
+    expect(version).toBe('2026-10-04T10:00:00+00:00');
     expect(calls[0]).toMatchObject({
       table: 'contact_draft_sessions',
       op: 'update',
@@ -270,7 +285,8 @@ describe('draft session writes', () => {
         updated_at: '2026-10-04T10:00:00.000Z',
       },
       filters: [['id', 'k1']],
-      returning: false,
+      returning: true,
+      terminal: 'maybeSingle',
     });
   });
 
@@ -594,6 +610,102 @@ describe('mutatePropertyDraft', () => {
         'update',
         'select',
       ]);
+    });
+  });
+});
+
+describe('[INB-025] mutateContactDraft', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-04T10:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const nextContact = () => ({
+    draft_data: CONTAINER,
+    status: 'collecting' as const,
+  });
+
+  it('writes the contact session with the updated_at precondition', async () => {
+    const written = sessionRow({ updated_at: '2026-10-04T10:00:00.000Z' });
+    const { client, calls } = stubClient((call) =>
+      call.op === 'select' ? ok(sessionRow()) : ok([written])
+    );
+
+    const result = await mutateContactDraft(client, 'c1', nextContact);
+
+    expect(result).toEqual({ status: 'ok', row: written, next: nextContact() });
+    expect(calls.map((c) => [c.table, c.op, c.filters])).toEqual([
+      ['contact_draft_sessions', 'select', [['id', 'c1']]],
+      [
+        'contact_draft_sessions',
+        'update',
+        [
+          ['id', 'c1'],
+          ['updated_at', '2026-10-01T00:00:00.000Z'],
+        ],
+      ],
+    ]);
+  });
+
+  it('retries a lost race against the newer row instead of overwriting it', async () => {
+    const reads = [
+      sessionRow({ updated_at: 'v1' }),
+      sessionRow({ updated_at: 'v2' }),
+    ];
+    const updates: Result[] = [ok([]), ok([sessionRow({ updated_at: 'v3' })])];
+    const { client } = stubClient((call) =>
+      call.op === 'select' ? ok(reads.shift()) : updates.shift()!
+    );
+    const callback = vi.fn(nextContact);
+
+    const pending = mutateContactDraft(client, 'c1', callback);
+    await vi.runAllTimersAsync();
+    const result = await pending;
+
+    expect(result.status).toBe('ok');
+    expect(callback).toHaveBeenCalledTimes(2);
+    expect(callback).toHaveBeenLastCalledWith(sessionRow({ updated_at: 'v2' }));
+  });
+
+  it('scopes the read and the write to the account when given one', async () => {
+    const { client, calls } = stubClient((call) =>
+      call.op === 'select' ? ok(sessionRow()) : ok([sessionRow()])
+    );
+
+    await mutateContactDraft(client, 'c1', nextContact, 'acct-1');
+
+    expect(calls.map((c) => [c.op, c.filters])).toEqual([
+      [
+        'select',
+        [
+          ['id', 'c1'],
+          ['account_id', 'acct-1'],
+        ],
+      ],
+      [
+        'update',
+        [
+          ['id', 'c1'],
+          ['updated_at', '2026-10-01T00:00:00.000Z'],
+          ['account_id', 'acct-1'],
+        ],
+      ],
+    ]);
+  });
+
+  it('reports a deleted contact session as gone', async () => {
+    const { client } = stubClient(() => ({
+      data: null,
+      error: { code: 'PGRST116', message: 'no rows' },
+    }));
+
+    expect(await mutateContactDraft(client, 'c1', nextContact)).toEqual({
+      status: 'gone',
     });
   });
 });

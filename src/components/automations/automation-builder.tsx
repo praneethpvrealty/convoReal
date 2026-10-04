@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -24,6 +24,7 @@ import {
   Loader2,
   ArrowDown,
   ArrowUp,
+  AlertCircle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -32,11 +33,51 @@ import { PriceHint } from '@/components/ui/price-hint';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  MemberSelect,
+  PipelineSelect,
+  StageSelect,
+  TagSelect,
+  TemplateSelect,
+  selectClass,
+} from '@/components/automations/builder-pickers';
+import {
+  ROOT_SCOPE,
+  describeIssue,
+  hasChildren,
+  insertAt,
+  mapAtPath,
+  moveAt,
+  parseIssuePath,
+  pathInScope,
+  removeAt,
+  stepAtPath,
+  type ListScope,
+  type StepPath,
+} from '@/lib/automations/step-tree';
+import {
+  isTriggerAvailable,
+  triggerActivationSentence,
+  triggerLabel,
+} from '@/lib/automations/trigger-meta';
+import {
+  validateStepsForActivation,
+  validateTriggerForActivation,
+  type ValidationIssue,
+} from '@/lib/automations/validate';
 import type {
   AutomationStepType,
   AutomationTriggerType,
@@ -150,7 +191,7 @@ const TRIGGER_OPTIONS: {
   {
     value: 'new_message_received',
     label: 'New Message Received',
-    hint: 'Any incoming message',
+    hint: 'Any incoming message, including a repeat portal email lead. When a Flow answers the message, the Flow takes precedence and this does not run.',
   },
   {
     value: 'first_inbound_message',
@@ -160,24 +201,27 @@ const TRIGGER_OPTIONS: {
   {
     value: 'keyword_match',
     label: 'Keyword Match',
-    hint: 'Message contains specific keyword(s)',
+    hint: 'Message contains specific keyword(s). When a Flow answers the message, the Flow takes precedence.',
   },
   {
     value: 'new_contact_created',
     label: 'New Contact Created',
-    hint: 'When a contact is auto-created from an incoming message',
+    hint: 'When a new contact is created from an incoming WhatsApp message, a portal email lead or a voice call',
   },
-  {
-    value: 'conversation_assigned',
-    label: 'Conversation Assigned',
-    hint: 'When assigned to an agent',
-  },
-  {
-    value: 'tag_added',
-    label: 'Tag Added',
-    hint: 'When a tag is added to a contact',
-  },
-  { value: 'time_based', label: 'Time-Based', hint: 'On a recurring schedule' },
+];
+
+const CONDITION_SUBJECTS: { value: string; label: string }[] = [
+  { value: 'tag_presence', label: 'Contact has tag' },
+  { value: 'contact_field', label: 'Contact field equals' },
+  { value: 'message_content', label: 'Message contains' },
+  { value: 'time_of_day', label: 'Time of day' },
+];
+
+const CONTACT_FIELDS: { value: string; label: string }[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'company', label: 'Company' },
 ];
 
 function cid(): string {
@@ -217,6 +261,58 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
   }
 }
 
+function snapshot(s: BuilderInitial): string {
+  return JSON.stringify({
+    name: s.name,
+    description: s.description,
+    trigger_type: s.trigger_type,
+    trigger_config: s.trigger_config,
+    is_active: s.is_active,
+    steps: toApiSteps(s.steps),
+  });
+}
+
+function activationIssues(s: BuilderInitial): ValidationIssue[] {
+  return [
+    ...validateTriggerForActivation(s.trigger_type, s.trigger_config),
+    ...validateStepsForActivation(toApiSteps(s.steps)),
+  ];
+}
+
+type FieldErrors = Record<string, string>;
+
+interface IssueSummaryItem {
+  key: string;
+  text: string;
+  cid: string | null;
+}
+
+function resolveIssues(steps: BuilderStep[], issues: ValidationIssue[]) {
+  const byCid = new Map<string, FieldErrors>();
+  const trigger: FieldErrors = {};
+  const summary: IssueSummaryItem[] = issues.map((issue, i) => {
+    const parsed = parseIssuePath(issue.path);
+    const step = parsed ? stepAtPath(steps, parsed.path) : undefined;
+    if (step && parsed) {
+      const fields = byCid.get(step.cid) ?? {};
+      fields[parsed.field] ??= issue.message;
+      byCid.set(step.cid, fields);
+    } else if (issue.path.startsWith('trigger.')) {
+      trigger[issue.path.slice('trigger.'.length)] ??= issue.message;
+    }
+    return {
+      key: `${issue.path}-${i}`,
+      text: describeIssue(issue),
+      cid: step?.cid ?? null,
+    };
+  });
+  return { byCid, trigger, summary };
+}
+
+function issueCount(n: number): string {
+  return `${n} ${n === 1 ? 'issue' : 'issues'}`;
+}
+
 // ------------------------------------------------------------
 // Main builder component
 // ------------------------------------------------------------
@@ -235,6 +331,33 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const [state, setState] = useState<BuilderInitial>(initial);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [baseline, setBaseline] = useState(() => snapshot(initial));
+  const [savedActive, setSavedActive] = useState(initial.is_active);
+  const [showIssues, setShowIssues] = useState(false);
+  const [confirmActivate, setConfirmActivate] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<StepPath | null>(null);
+
+  const dirty = useMemo(() => snapshot(state) !== baseline, [state, baseline]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
+
+  const issues = useMemo(
+    () =>
+      resolveIssues(
+        state.steps,
+        showIssues && state.is_active ? activationIssues(state) : []
+      ),
+    [state, showIssues]
+  );
 
   function patchTop<K extends keyof BuilderInitial>(
     key: K,
@@ -253,7 +376,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   }
 
   function addStepAt(
-    parent: ParentScope,
+    scope: ListScope,
     index: number,
     type: AutomationStepType
   ) {
@@ -263,29 +386,58 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
       step_config: blankConfig(type),
       branches: type === 'condition' ? { yes: [], no: [] } : undefined,
     };
-    setState((s) => ({ ...s, steps: insertAt(s.steps, parent, index, node) }));
+    setState((s) => ({ ...s, steps: insertAt(s.steps, scope, index, node) }));
     setExpandedId(node.cid);
   }
 
-  function deleteStepAt(path: StepPath) {
+  function deleteStepAt(path: StepPath, step: BuilderStep) {
+    if (step.step_type === 'condition' && hasChildren(step)) {
+      setPendingDelete(path);
+      return;
+    }
     setState((s) => ({ ...s, steps: removeAt(s.steps, path) }));
+  }
+
+  function confirmDelete() {
+    const path = pendingDelete;
+    setPendingDelete(null);
+    if (path) setState((s) => ({ ...s, steps: removeAt(s.steps, path) }));
   }
 
   function moveStepAt(path: StepPath, direction: -1 | 1) {
     setState((s) => ({ ...s, steps: moveAt(s.steps, path, direction) }));
   }
 
+  function requestSave() {
+    if (readOnly) return;
+    if (state.is_active) {
+      const found = activationIssues(state);
+      if (found.length > 0) {
+        setShowIssues(true);
+        toast.error(`Fix ${issueCount(found.length)} before activating`);
+        return;
+      }
+      if (!savedActive) {
+        setConfirmActivate(true);
+        return;
+      }
+    }
+    void save();
+  }
+
   async function save() {
+    setConfirmActivate(false);
     if (readOnly) return;
     setSaving(true);
+    const sent = state;
     try {
       const payload = {
-        name: state.name || 'Untitled automation',
-        description: state.description || null,
-        trigger_type: state.trigger_type,
-        trigger_config: state.trigger_config,
-        is_active: state.is_active,
-        steps: toApiSteps(state.steps),
+        name: sent.name || 'Untitled automation',
+        description: sent.description || null,
+        trigger_type: sent.trigger_type,
+        trigger_config: sent.trigger_config,
+        is_active: sent.is_active,
+        steps: toApiSteps(sent.steps),
       };
 
       const res = isEditing
@@ -302,20 +454,22 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
 
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        // If the server blocked activation with validation issues,
-        // surface the first concrete problem so the user can fix it
-        // without opening DevTools for the full array.
-        const firstIssue: { path?: string; message?: string } | undefined =
-          body?.issues?.[0];
-        if (firstIssue?.message) {
-          toast.error(firstIssue.message, {
-            description: firstIssue.path ? `at ${firstIssue.path}` : undefined,
-          });
+        const serverIssues: ValidationIssue[] = Array.isArray(body?.issues)
+          ? body.issues
+          : [];
+        if (serverIssues.length > 0) {
+          setShowIssues(true);
+          toast.error(
+            `Fix ${issueCount(serverIssues.length)} before activating`
+          );
         } else {
           toast.error(body?.error ?? 'Save failed');
         }
         return;
       }
+      setBaseline(snapshot(sent));
+      setSavedActive(sent.is_active);
+      setShowIssues(false);
       toast.success(isEditing ? 'Automation saved' : 'Automation created');
       if (!isEditing && body?.automation?.id) {
         router.replace(`/automations/${body.automation.id}/edit`);
@@ -334,7 +488,9 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         <header className="flex flex-shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-900/80 px-3 py-3 sm:gap-3 sm:px-4">
           <button
             type="button"
-            onClick={() => router.push('/automations')}
+            onClick={() =>
+              dirty ? setConfirmLeave(true) : router.push('/automations')
+            }
             className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
             aria-label="Back to automations"
           >
@@ -358,12 +514,12 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
           </div>
           {readOnly ? null : (
             <Button
-              onClick={save}
+              onClick={requestSave}
               disabled={saving}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {isEditing ? 'Save' : 'Save Draft'}
+              {state.is_active ? 'Save & activate' : 'Save draft'}
             </Button>
           )}
         </header>
@@ -382,17 +538,25 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
         <div className="relative flex-1 overflow-y-auto">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,#1e293b_1px,transparent_1px)] [background-size:20px_20px]" />
           <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-0 px-4 py-10">
+            {issues.summary.length > 0 && (
+              <IssueSummary
+                items={issues.summary}
+                onPick={(id) => setExpandedId(id)}
+              />
+            )}
             <TriggerCard
               type={state.trigger_type}
               config={state.trigger_config}
+              errors={issues.trigger}
               onTypeChange={(t) => patchTop('trigger_type', t)}
               onConfigChange={(c) => patchTop('trigger_config', c)}
             />
             <StepList
               steps={state.steps}
-              parentPath={[]}
+              scope={ROOT_SCOPE}
               expandedId={expandedId}
               setExpandedId={setExpandedId}
+              issuesByCid={issues.byCid}
               updateStep={updateStep}
               addStepAt={addStepAt}
               deleteStepAt={deleteStepAt}
@@ -400,8 +564,122 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
             />
           </div>
         </div>
+
+        <Dialog
+          open={confirmActivate}
+          onOpenChange={(o) => !o && setConfirmActivate(false)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                Turn on “{state.name || 'Untitled automation'}”?
+              </DialogTitle>
+              <DialogDescription>
+                {triggerActivationSentence(
+                  state.trigger_type,
+                  state.trigger_config
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setConfirmActivate(false)}>
+                Cancel
+              </Button>
+              <Button onClick={() => void save()} disabled={saving}>
+                Confirm
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={confirmLeave}
+          onOpenChange={(o) => !o && setConfirmLeave(false)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Discard unsaved changes?</DialogTitle>
+              <DialogDescription>
+                Your edits to this automation have not been saved.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setConfirmLeave(false)}>
+                Keep editing
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setConfirmLeave(false);
+                  router.push('/automations');
+                }}
+              >
+                Discard
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={pendingDelete !== null}
+          onOpenChange={(o) => !o && setPendingDelete(null)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete this condition?</DialogTitle>
+              <DialogDescription>
+                Every step inside its Yes and No branches will be deleted too.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setPendingDelete(null)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDelete}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </ReadOnlyContext.Provider>
+  );
+}
+
+function IssueSummary({
+  items,
+  onPick,
+}: {
+  items: IssueSummaryItem[];
+  onPick: (cid: string) => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="z-10 mb-6 w-full max-w-[400px] rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm"
+    >
+      <div className="mb-2 flex items-center gap-2 font-medium text-red-300">
+        <AlertCircle className="h-4 w-4" />
+        Fix {issueCount(items.length)} before activating
+      </div>
+      <ul className="space-y-1 text-xs text-red-200">
+        {items.map((item) => (
+          <li key={item.key}>
+            {item.cid ? (
+              <button
+                type="button"
+                onClick={() => item.cid && onPick(item.cid)}
+                className="text-left underline-offset-2 hover:underline"
+              >
+                {item.text}
+              </button>
+            ) : (
+              item.text
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -412,21 +690,32 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
 function TriggerCard({
   type,
   config,
+  errors,
   onTypeChange,
   onConfigChange,
 }: {
   type: AutomationTriggerType;
   config: Record<string, unknown>;
+  errors: FieldErrors;
   onTypeChange: (t: AutomationTriggerType) => void;
   onConfigChange: (c: Record<string, unknown>) => void;
 }) {
   const [open, setOpen] = useState(false);
   const readOnly = useContext(ReadOnlyContext);
+  const hasErrors = Object.keys(errors).length > 0;
+  const expanded = open || hasErrors;
+  const available = isTriggerAvailable(type);
+  const option = TRIGGER_OPTIONS.find((o) => o.value === type);
   return (
     // Card width: full on mobile, fixed 320px on sm+. The canvas wrapper
     // (max-w-2xl + px-4) keeps this tidy on tablet/desktop.
     <div className="z-10 w-full max-w-[320px] sm:w-80">
-      <div className="rounded-lg border border-l-4 border-slate-800 border-l-blue-500 bg-slate-900 shadow-lg">
+      <div
+        className={cn(
+          'rounded-lg border border-l-4 border-slate-800 border-l-blue-500 bg-slate-900 shadow-lg',
+          hasErrors && 'border-red-500/70 border-l-red-500'
+        )}
+      >
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -440,17 +729,17 @@ function TriggerCard({
               Trigger
             </div>
             <div className="truncate text-sm font-medium text-white">
-              {TRIGGER_OPTIONS.find((o) => o.value === type)?.label ?? type}
+              {option?.label ?? triggerLabel(type)}
             </div>
           </div>
           <ChevronDown
             className={cn(
               'h-4 w-4 text-slate-400 transition-transform',
-              open && 'rotate-180'
+              expanded && 'rotate-180'
             )}
           />
         </button>
-        {open && (
+        {expanded && (
           <fieldset
             disabled={readOnly}
             className="min-w-0 space-y-3 border-t border-slate-800 px-4 py-3"
@@ -464,8 +753,14 @@ function TriggerCard({
                 onChange={(e) =>
                   onTypeChange(e.target.value as AutomationTriggerType)
                 }
+                aria-label="Trigger type"
                 className="focus:border-primary w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white focus:outline-none"
               >
+                {!available && (
+                  <option value={type} disabled>
+                    {triggerLabel(type)}
+                  </option>
+                )}
                 {TRIGGER_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -473,33 +768,17 @@ function TriggerCard({
                 ))}
               </select>
               <p className="mt-1 text-[11px] text-slate-500">
-                {TRIGGER_OPTIONS.find((o) => o.value === type)?.hint}
+                {option?.hint ?? triggerActivationSentence(type)}
               </p>
+              {errors.type && (
+                <p className="mt-1 text-[11px] text-red-400">{errors.type}</p>
+              )}
             </div>
             {type === 'keyword_match' && (
               <KeywordMatchConfig
                 config={config as unknown as KeywordMatchTriggerConfig}
+                errors={errors}
                 onChange={onConfigChange}
-              />
-            )}
-            {type === 'tag_added' && (
-              <Input
-                placeholder="Tag id"
-                value={(config.tag_id as string) ?? ''}
-                onChange={(e) =>
-                  onConfigChange({ ...config, tag_id: e.target.value })
-                }
-                className="bg-slate-800 text-white"
-              />
-            )}
-            {type === 'time_based' && (
-              <Input
-                placeholder="Cron expression or HH:mm"
-                value={(config.schedule as string) ?? ''}
-                onChange={(e) =>
-                  onConfigChange({ ...config, schedule: e.target.value })
-                }
-                className="bg-slate-800 text-white"
               />
             )}
           </fieldset>
@@ -511,18 +790,17 @@ function TriggerCard({
 
 function KeywordMatchConfig({
   config,
+  errors,
   onChange,
 }: {
   config: KeywordMatchTriggerConfig;
+  errors: FieldErrors;
   onChange: (c: Record<string, unknown>) => void;
 }) {
   const keywords = config?.keywords ?? [];
   return (
     <div className="space-y-2">
-      <div>
-        <label className="mb-1 block text-xs font-medium text-slate-400">
-          Keywords (comma-separated)
-        </label>
+      <FieldBlock label="Keywords (comma-separated)" error={errors.keywords}>
         <Input
           value={keywords.join(', ')}
           onChange={(e) =>
@@ -534,13 +812,11 @@ function KeywordMatchConfig({
                 .filter(Boolean),
             })
           }
+          aria-invalid={!!errors.keywords || undefined}
           className="bg-slate-800 text-white"
         />
-      </div>
-      <div>
-        <label className="mb-1 block text-xs font-medium text-slate-400">
-          Match type
-        </label>
+      </FieldBlock>
+      <FieldBlock label="Match type" error={errors.match_type}>
         <select
           value={config?.match_type ?? 'contains'}
           onChange={(e) =>
@@ -549,12 +825,12 @@ function KeywordMatchConfig({
               match_type: e.target.value as 'exact' | 'contains',
             })
           }
-          className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white focus:outline-none"
+          className={selectClass(!!errors.match_type)}
         >
           <option value="contains">Contains</option>
           <option value="exact">Exact</option>
         </select>
-      </div>
+      </FieldBlock>
     </div>
   );
 }
@@ -563,59 +839,37 @@ function KeywordMatchConfig({
 // Step list + card + connectors
 // ------------------------------------------------------------
 
-type ParentScope =
-  | { kind: 'root' }
-  | { kind: 'branch'; parentCid: string; branch: 'yes' | 'no' };
-
-type StepPath = (
-  | { kind: 'root'; index: number }
-  | { kind: 'branch'; parentCid: string; branch: 'yes' | 'no'; index: number }
-)[];
-
 interface StepListProps {
   steps: BuilderStep[];
-  parentPath: StepPath;
+  scope: ListScope;
   expandedId: string | null;
   setExpandedId: (id: string | null) => void;
+  issuesByCid: Map<string, FieldErrors>;
   updateStep: (
     path: StepPath,
     updater: (s: BuilderStep) => BuilderStep
   ) => void;
   addStepAt: (
-    parent: ParentScope,
+    scope: ListScope,
     index: number,
     type: AutomationStepType
   ) => void;
-  deleteStepAt: (path: StepPath) => void;
+  deleteStepAt: (path: StepPath, step: BuilderStep) => void;
   moveStepAt: (path: StepPath, direction: -1 | 1) => void;
 }
 
 function StepList(props: StepListProps) {
-  const { steps, parentPath, ...rest } = props;
-  const parentScope: ParentScope =
-    parentPath.length === 0
-      ? { kind: 'root' }
-      : (() => {
-          const last = parentPath[parentPath.length - 1];
-          if (last.kind !== 'branch') return { kind: 'root' } as const;
-          return {
-            kind: 'branch',
-            parentCid: last.parentCid,
-            branch: last.branch,
-          } as const;
-        })();
-
+  const { steps, scope, ...rest } = props;
   return (
     <div className="flex flex-col items-center">
-      <AddButton onPick={(t) => props.addStepAt(parentScope, 0, t)} />
+      <AddButton onPick={(t) => props.addStepAt(scope, 0, t)} />
       {steps.map((step, idx) => (
         <StepRenderer
           key={step.cid}
           step={step}
           index={idx}
           total={steps.length}
-          parentScope={parentScope}
-          parentPath={parentPath}
+          scope={scope}
           {...rest}
         />
       ))}
@@ -627,32 +881,22 @@ function StepRenderer({
   step,
   index,
   total,
-  parentScope,
-  parentPath,
+  scope,
   ...props
 }: {
   step: BuilderStep;
   index: number;
   total: number;
-  parentScope: ParentScope;
-  parentPath: StepPath;
-} & Omit<StepListProps, 'steps' | 'parentPath'>) {
-  const path: StepPath = [
-    ...parentPath,
-    parentScope.kind === 'root'
-      ? { kind: 'root', index }
-      : {
-          kind: 'branch',
-          parentCid: parentScope.parentCid,
-          branch: parentScope.branch,
-          index,
-        },
-  ];
+  scope: ListScope;
+} & Omit<StepListProps, 'steps' | 'scope'>) {
+  const path = pathInScope(scope, index);
   const meta = STEP_META[step.step_type];
   const Icon = meta.icon;
   const readOnly = useContext(ReadOnlyContext);
   const expanded = props.expandedId === step.cid;
   const isCondition = step.step_type === 'condition';
+  const errors = props.issuesByCid.get(step.cid);
+  const errorCount = errors ? Object.keys(errors).length : 0;
   // Card widths on mobile fill the full canvas column (max-w-2xl px-4
   // still keeps them reasonable). On sm+ the original fixed widths
   // come back so the flow visual stays recognisable.
@@ -666,7 +910,8 @@ function StepRenderer({
         <div
           className={cn(
             'rounded-lg border border-l-4 border-slate-800 bg-slate-900 shadow-lg',
-            meta.border
+            meta.border,
+            errorCount > 0 && 'border-red-500/70 border-l-red-500'
           )}
         >
           <button
@@ -692,9 +937,15 @@ function StepRenderer({
               <div className="truncate text-sm font-medium text-white">
                 {meta.label}
               </div>
-              <div className="truncate text-[11px] text-slate-500">
-                {previewFor(step)}
-              </div>
+              {errorCount > 0 ? (
+                <div className="truncate text-[11px] text-red-400">
+                  {issueCount(errorCount)} to fix
+                </div>
+              ) : (
+                <div className="truncate text-[11px] text-slate-500">
+                  {previewFor(step)}
+                </div>
+              )}
             </div>
             <ChevronDown
               className={cn(
@@ -708,6 +959,7 @@ function StepRenderer({
               <fieldset disabled={readOnly} className="min-w-0">
                 <StepEditor
                   step={step}
+                  errors={errors ?? {}}
                   onChange={(next) => props.updateStep(path, () => next)}
                 />
               </fieldset>
@@ -734,9 +986,10 @@ function StepRenderer({
                     </Button>
                   </div>
                   <Button
-                    variant="destructive"
+                    variant="ghost"
                     size="sm"
-                    onClick={() => props.deleteStepAt(path)}
+                    className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    onClick={() => props.deleteStepAt(path, step)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Delete
@@ -748,46 +1001,43 @@ function StepRenderer({
         </div>
 
         {isCondition && (
-          <ConditionBranches step={step} parentPath={path} {...props} />
+          <ConditionBranches step={step} path={path} {...props} />
         )}
       </div>
 
-      <AddButton onPick={(t) => props.addStepAt(parentScope, index + 1, t)} />
+      <AddButton onPick={(t) => props.addStepAt(scope, index + 1, t)} />
     </>
   );
 }
 
 function ConditionBranches({
   step,
-  parentPath,
+  path,
   ...props
 }: {
   step: BuilderStep;
-  parentPath: StepPath;
-} & Omit<StepListProps, 'steps' | 'parentPath'>) {
+  path: StepPath;
+} & Omit<StepListProps, 'steps' | 'scope'>) {
   const yes = step.branches?.yes ?? [];
   const no = step.branches?.no ?? [];
-  // Build the child scope by appending a branch marker. The scope the
-  // StepList uses is driven by the LAST element of parentPath, so the
-  // tail's `index` doesn't matter — it's replaced per child during walks.
-  const yesPath: StepPath = [
-    ...parentPath,
-    { kind: 'branch', parentCid: step.cid, branch: 'yes', index: 0 },
-  ];
-  const noPath: StepPath = [
-    ...parentPath,
-    { kind: 'branch', parentCid: step.cid, branch: 'no', index: 0 },
-  ];
   return (
     // Stack Yes/No vertically on mobile — two columns at 375px would
     // cram each branch to ~170px which is too narrow for the nested
     // cards. Two-column grid returns on sm+.
     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
       <BranchColumn label="Yes" color="text-primary">
-        <StepList {...props} steps={yes} parentPath={yesPath} />
+        <StepList
+          {...props}
+          steps={yes}
+          scope={{ parent: path, branch: 'yes' }}
+        />
       </BranchColumn>
       <BranchColumn label="No" color="text-rose-400">
-        <StepList {...props} steps={no} parentPath={noPath} />
+        <StepList
+          {...props}
+          steps={no}
+          scope={{ parent: path, branch: 'no' }}
+        />
       </BranchColumn>
     </div>
   );
@@ -851,54 +1101,51 @@ function AddButton({ onPick }: { onPick: (t: AutomationStepType) => void }) {
 
 function StepEditor({
   step,
+  errors,
   onChange,
 }: {
   step: BuilderStep;
+  errors: FieldErrors;
   onChange: (s: BuilderStep) => void;
 }) {
   const cfg = step.step_config;
   const set = (patch: Record<string, unknown>) =>
     onChange({ ...step, step_config: { ...cfg, ...patch } });
+  const str = (key: string) => (cfg[key] as string) ?? '';
+  const invalid = (key: string) => (errors[key] ? true : undefined);
 
   switch (step.step_type) {
     case 'send_message':
       return (
-        <FieldBlock label="Message text">
+        <FieldBlock label="Message text" error={errors.text}>
           <Textarea
-            value={(cfg.text as string) ?? ''}
+            value={str('text')}
             onChange={(e) => set({ text: e.target.value })}
             placeholder="Hi! Thanks for reaching out…"
+            aria-invalid={invalid('text')}
             className="min-h-24 bg-slate-800 text-white"
           />
         </FieldBlock>
       );
     case 'send_template':
       return (
-        <>
-          <FieldBlock label="Template name">
-            <Input
-              value={(cfg.template_name as string) ?? ''}
-              onChange={(e) => set({ template_name: e.target.value })}
-              className="bg-slate-800 text-white"
-            />
-          </FieldBlock>
-          <FieldBlock label="Language">
-            <Input
-              value={(cfg.language as string) ?? ''}
-              onChange={(e) => set({ language: e.target.value })}
-              className="bg-slate-800 text-white"
-            />
-          </FieldBlock>
-        </>
+        <FieldBlock label="Template" error={errors.template_name}>
+          <TemplateSelect
+            name={str('template_name')}
+            language={str('language')}
+            onChange={set}
+            invalid={invalid('template_name')}
+          />
+        </FieldBlock>
       );
     case 'add_tag':
     case 'remove_tag':
       return (
-        <FieldBlock label="Tag id">
-          <Input
-            value={(cfg.tag_id as string) ?? ''}
-            onChange={(e) => set({ tag_id: e.target.value })}
-            className="bg-slate-800 text-white"
+        <FieldBlock label="Tag" error={errors.tag_id}>
+          <TagSelect
+            value={str('tag_id')}
+            onChange={(v) => set({ tag_id: v })}
+            invalid={invalid('tag_id')}
           />
         </FieldBlock>
       );
@@ -909,18 +1156,18 @@ function StepEditor({
             <select
               value={(cfg.mode as string) ?? 'round_robin'}
               onChange={(e) => set({ mode: e.target.value })}
-              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white"
+              className={selectClass()}
             >
               <option value="round_robin">Round-robin</option>
               <option value="specific">Specific agent</option>
             </select>
           </FieldBlock>
           {cfg.mode === 'specific' && (
-            <FieldBlock label="Agent id">
-              <Input
-                value={(cfg.agent_id as string) ?? ''}
-                onChange={(e) => set({ agent_id: e.target.value })}
-                className="bg-slate-800 text-white"
+            <FieldBlock label="Agent" error={errors.agent_id}>
+              <MemberSelect
+                value={str('agent_id')}
+                onChange={(v) => set({ agent_id: v })}
+                invalid={invalid('agent_id')}
               />
             </FieldBlock>
           )}
@@ -929,21 +1176,22 @@ function StepEditor({
     case 'update_contact_field':
       return (
         <>
-          <FieldBlock label="Field">
+          <FieldBlock label="Field" error={errors.field}>
             <select
               value={(cfg.field as string) ?? 'name'}
               onChange={(e) => set({ field: e.target.value })}
-              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white"
+              className={selectClass(invalid('field'))}
             >
               <option value="name">Name</option>
               <option value="email">Email</option>
               <option value="company">Company</option>
             </select>
           </FieldBlock>
-          <FieldBlock label="Value">
+          <FieldBlock label="Value" error={errors.value}>
             <Input
-              value={(cfg.value as string) ?? ''}
+              value={str('value')}
               onChange={(e) => set({ value: e.target.value })}
+              aria-invalid={invalid('value')}
               className="bg-slate-800 text-white"
             />
           </FieldBlock>
@@ -952,24 +1200,26 @@ function StepEditor({
     case 'create_deal':
       return (
         <>
-          <FieldBlock label="Pipeline id">
-            <Input
-              value={(cfg.pipeline_id as string) ?? ''}
-              onChange={(e) => set({ pipeline_id: e.target.value })}
-              className="bg-slate-800 text-white"
+          <FieldBlock label="Pipeline" error={errors.pipeline_id}>
+            <PipelineSelect
+              value={str('pipeline_id')}
+              onChange={(v) => set({ pipeline_id: v, stage_id: '' })}
+              invalid={invalid('pipeline_id')}
             />
           </FieldBlock>
-          <FieldBlock label="Stage id">
-            <Input
-              value={(cfg.stage_id as string) ?? ''}
-              onChange={(e) => set({ stage_id: e.target.value })}
-              className="bg-slate-800 text-white"
+          <FieldBlock label="Stage" error={errors.stage_id}>
+            <StageSelect
+              pipelineId={str('pipeline_id')}
+              value={str('stage_id')}
+              onChange={(v) => set({ stage_id: v })}
+              invalid={invalid('stage_id')}
             />
           </FieldBlock>
-          <FieldBlock label="Title">
+          <FieldBlock label="Title" error={errors.title}>
             <Input
-              value={(cfg.title as string) ?? ''}
+              value={str('title')}
               onChange={(e) => set({ title: e.target.value })}
+              aria-invalid={invalid('title')}
               className="bg-slate-800 text-white"
             />
           </FieldBlock>
@@ -987,22 +1237,18 @@ function StepEditor({
     case 'wait':
       return (
         <div className="grid grid-cols-2 gap-2">
-          <FieldBlock label="Amount">
-            <Input
-              type="number"
-              min={1}
-              value={(cfg.amount as number) ?? 1}
-              onChange={(e) =>
-                set({ amount: Math.max(1, Number(e.target.value)) })
-              }
-              className="bg-slate-800 text-white"
+          <FieldBlock label="Amount" error={errors.amount}>
+            <WaitAmountInput
+              amount={cfg.amount}
+              onCommit={(amount) => set({ amount })}
+              invalid={invalid('amount')}
             />
           </FieldBlock>
-          <FieldBlock label="Unit">
+          <FieldBlock label="Unit" error={errors.unit}>
             <select
               value={(cfg.unit as string) ?? 'hours'}
               onChange={(e) => set({ unit: e.target.value })}
-              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white"
+              className={selectClass(invalid('unit'))}
             >
               <option value="minutes">Minutes</option>
               <option value="hours">Hours</option>
@@ -1013,60 +1259,28 @@ function StepEditor({
       );
     case 'condition':
       return (
-        <>
-          <FieldBlock label="Subject">
-            <select
-              value={(cfg.subject as string) ?? 'tag_presence'}
-              onChange={(e) => set({ subject: e.target.value })}
-              className="w-full rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white"
-            >
-              <option value="tag_presence">Tag presence</option>
-              <option value="contact_field">Contact field</option>
-              <option value="message_content">Message content</option>
-              <option value="time_of_day">Time of day</option>
-            </select>
-          </FieldBlock>
-          <FieldBlock label="Operand">
-            <Input
-              placeholder={
-                cfg.subject === 'time_of_day'
-                  ? 'HH:mm-HH:mm'
-                  : cfg.subject === 'contact_field'
-                    ? 'name / email / company'
-                    : cfg.subject === 'tag_presence'
-                      ? 'tag id'
-                      : ''
-              }
-              value={(cfg.operand as string) ?? ''}
-              onChange={(e) => set({ operand: e.target.value })}
-              className="bg-slate-800 text-white"
-            />
-          </FieldBlock>
-          {(cfg.subject === 'contact_field' ||
-            cfg.subject === 'message_content') && (
-            <FieldBlock label="Value">
-              <Input
-                value={(cfg.value as string) ?? ''}
-                onChange={(e) => set({ value: e.target.value })}
-                className="bg-slate-800 text-white"
-              />
-            </FieldBlock>
-          )}
-        </>
+        <ConditionEditor
+          subject={(cfg.subject as string) ?? 'tag_presence'}
+          operand={str('operand')}
+          value={str('value')}
+          errors={errors}
+          set={set}
+        />
       );
     case 'send_webhook':
       return (
         <>
-          <FieldBlock label="URL">
+          <FieldBlock label="URL" error={errors.url}>
             <Input
-              value={(cfg.url as string) ?? ''}
+              value={str('url')}
               onChange={(e) => set({ url: e.target.value })}
+              aria-invalid={invalid('url')}
               className="bg-slate-800 text-white"
             />
           </FieldBlock>
           <FieldBlock label="Body template (JSON)">
             <Textarea
-              value={(cfg.body_template as string) ?? ''}
+              value={str('body_template')}
               onChange={(e) => set({ body_template: e.target.value })}
               className="min-h-20 bg-slate-800 font-mono text-xs text-white"
             />
@@ -1085,11 +1299,150 @@ function StepEditor({
   }
 }
 
+function ConditionEditor({
+  subject,
+  operand,
+  value,
+  errors,
+  set,
+}: {
+  subject: string;
+  operand: string;
+  value: string;
+  errors: FieldErrors;
+  set: (patch: Record<string, unknown>) => void;
+}) {
+  const [from = '', to = ''] = operand.split('-');
+  return (
+    <>
+      <FieldBlock label="Check" error={errors.subject}>
+        <select
+          value={subject}
+          onChange={(e) =>
+            set({ subject: e.target.value, operand: '', value: '' })
+          }
+          className={selectClass(!!errors.subject)}
+        >
+          {CONDITION_SUBJECTS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </FieldBlock>
+      {subject === 'tag_presence' && (
+        <FieldBlock label="Tag" error={errors.operand}>
+          <TagSelect
+            value={operand}
+            onChange={(v) => set({ operand: v })}
+            invalid={!!errors.operand}
+          />
+        </FieldBlock>
+      )}
+      {subject === 'contact_field' && (
+        <div className="grid grid-cols-2 gap-2">
+          <FieldBlock label="Field" error={errors.operand}>
+            <select
+              value={operand}
+              onChange={(e) => set({ operand: e.target.value })}
+              className={selectClass(!!errors.operand)}
+            >
+              <option value="">Pick a field…</option>
+              {operand && !CONTACT_FIELDS.some((f) => f.value === operand) && (
+                <option value={operand}>{operand}</option>
+              )}
+              {CONTACT_FIELDS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          </FieldBlock>
+          <FieldBlock label="equals">
+            <Input
+              value={value}
+              onChange={(e) => set({ value: e.target.value })}
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+        </div>
+      )}
+      {subject === 'message_content' && (
+        <FieldBlock label="Message contains" error={errors.value}>
+          <Input
+            value={value}
+            onChange={(e) => set({ value: e.target.value })}
+            placeholder="e.g. price"
+            aria-invalid={errors.value ? true : undefined}
+            className="bg-slate-800 text-white"
+          />
+        </FieldBlock>
+      )}
+      {subject === 'time_of_day' && (
+        <FieldBlock label="Between … and …" error={errors.operand}>
+          <div className="flex items-center gap-2">
+            <Input
+              type="time"
+              aria-label="From"
+              value={from}
+              onChange={(e) => set({ operand: `${e.target.value}-${to}` })}
+              className="bg-slate-800 text-white"
+            />
+            <span className="text-xs text-slate-400">and</span>
+            <Input
+              type="time"
+              aria-label="To"
+              value={to}
+              onChange={(e) => set({ operand: `${from}-${e.target.value}` })}
+              className="bg-slate-800 text-white"
+            />
+          </div>
+        </FieldBlock>
+      )}
+    </>
+  );
+}
+
+function WaitAmountInput({
+  amount,
+  onCommit,
+  invalid,
+}: {
+  amount: unknown;
+  onCommit: (amount: number) => void;
+  invalid?: boolean;
+}) {
+  const [text, setText] = useState(
+    typeof amount === 'number' ? String(amount) : '1'
+  );
+  return (
+    <Input
+      type="number"
+      min={1}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        const n = Number(e.target.value);
+        if (e.target.value !== '' && Number.isFinite(n) && n >= 1) onCommit(n);
+      }}
+      onBlur={() => {
+        const n = Math.max(1, Number(text) || 1);
+        setText(String(n));
+        onCommit(n);
+      }}
+      aria-invalid={invalid}
+      className="bg-slate-800 text-white"
+    />
+  );
+}
+
 function FieldBlock({
   label,
+  error,
   children,
 }: {
   label: string;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -1098,6 +1451,7 @@ function FieldBlock({
         {label}
       </label>
       {children}
+      {error && <p className="mt-1 text-[11px] text-red-400">{error}</p>}
     </div>
   );
 }
@@ -1111,183 +1465,15 @@ function previewFor(step: BuilderStep): string {
     case 'wait':
       return `${step.step_config.amount ?? '?'} ${step.step_config.unit ?? ''}`;
     case 'condition':
-      return `when ${step.step_config.subject ?? '?'}`;
+      return (
+        CONDITION_SUBJECTS.find((s) => s.value === step.step_config.subject)
+          ?.label ?? 'pick a check'
+      );
     case 'send_webhook':
       return (step.step_config.url as string) || 'no url';
     default:
       return '';
   }
-}
-
-// ------------------------------------------------------------
-// Tree mutation helpers
-// ------------------------------------------------------------
-
-function insertAt(
-  steps: BuilderStep[],
-  parent: ParentScope,
-  index: number,
-  node: BuilderStep
-): BuilderStep[] {
-  if (parent.kind === 'root') {
-    const copy = [...steps];
-    copy.splice(index, 0, node);
-    return copy;
-  }
-  return steps.map((s) => {
-    if (s.cid !== parent.parentCid || !s.branches) return s;
-    const list = [...s.branches[parent.branch]];
-    list.splice(index, 0, node);
-    return { ...s, branches: { ...s.branches, [parent.branch]: list } };
-  });
-}
-
-function mapAtPath(
-  steps: BuilderStep[],
-  path: StepPath,
-  updater: (s: BuilderStep) => BuilderStep
-): BuilderStep[] {
-  if (path.length === 0) return steps;
-  const head = path[0];
-  const rest = path.slice(1);
-
-  if (head.kind === 'root') {
-    return steps.map((s, i) => {
-      if (i !== head.index) return s;
-      return rest.length === 0
-        ? updater(s)
-        : { ...s, branches: walkBranches(s.branches, rest, updater) };
-    });
-  }
-  return steps.map((s) => {
-    if (s.cid !== head.parentCid || !s.branches) return s;
-    const bucket = s.branches[head.branch];
-    const updated = bucket.map((child, i) => {
-      if (i !== head.index) return child;
-      return rest.length === 0
-        ? updater(child)
-        : { ...child, branches: walkBranches(child.branches, rest, updater) };
-    });
-    return { ...s, branches: { ...s.branches, [head.branch]: updated } };
-  });
-}
-
-function walkBranches(
-  branches: BuilderStep['branches'],
-  path: StepPath,
-  updater: (s: BuilderStep) => BuilderStep
-): BuilderStep['branches'] {
-  if (!branches) return branches;
-  const head = path[0];
-  if (head.kind !== 'branch') return branches;
-  const bucket = branches[head.branch];
-  const rest = path.slice(1);
-  const updated = bucket.map((child, i) => {
-    if (i !== head.index) return child;
-    return rest.length === 0
-      ? updater(child)
-      : { ...child, branches: walkBranches(child.branches, rest, updater) };
-  });
-  return { ...branches, [head.branch]: updated };
-}
-
-function removeAt(steps: BuilderStep[], path: StepPath): BuilderStep[] {
-  if (path.length === 0) return steps;
-  const head = path[0];
-  const rest = path.slice(1);
-  if (head.kind === 'root') {
-    if (rest.length === 0) return steps.filter((_, i) => i !== head.index);
-    return steps.map((s, i) =>
-      i !== head.index
-        ? s
-        : { ...s, branches: removeFromBranches(s.branches, rest) }
-    );
-  }
-  return steps.map((s) => {
-    if (s.cid !== head.parentCid || !s.branches) return s;
-    const bucket = s.branches[head.branch];
-    const next =
-      rest.length === 0
-        ? bucket.filter((_, i) => i !== head.index)
-        : bucket.map((child, i) =>
-            i !== head.index
-              ? child
-              : { ...child, branches: removeFromBranches(child.branches, rest) }
-          );
-    return { ...s, branches: { ...s.branches, [head.branch]: next } };
-  });
-}
-
-function removeFromBranches(
-  branches: BuilderStep['branches'],
-  path: StepPath
-): BuilderStep['branches'] {
-  if (!branches) return branches;
-  const head = path[0];
-  if (head.kind !== 'branch') return branches;
-  const rest = path.slice(1);
-  const bucket = branches[head.branch];
-  const next =
-    rest.length === 0
-      ? bucket.filter((_, i) => i !== head.index)
-      : bucket.map((child, i) =>
-          i !== head.index
-            ? child
-            : { ...child, branches: removeFromBranches(child.branches, rest) }
-        );
-  return { ...branches, [head.branch]: next };
-}
-
-function moveAt(
-  steps: BuilderStep[],
-  path: StepPath,
-  direction: -1 | 1
-): BuilderStep[] {
-  if (path.length === 0) return steps;
-  const head = path[0];
-  const rest = path.slice(1);
-  const swap = <T,>(arr: T[], i: number) => {
-    const j = i + direction;
-    if (j < 0 || j >= arr.length) return arr;
-    const copy = [...arr];
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-    return copy;
-  };
-  if (head.kind === 'root') {
-    if (rest.length === 0) return swap(steps, head.index);
-    return steps.map((s, i) =>
-      i !== head.index
-        ? s
-        : { ...s, branches: moveInBranches(s.branches, rest, direction) }
-    );
-  }
-  return steps.map((s) => {
-    if (s.cid !== head.parentCid || !s.branches) return s;
-    const bucket = s.branches[head.branch];
-    const next = rest.length === 0 ? swap(bucket, head.index) : bucket;
-    return { ...s, branches: { ...s.branches, [head.branch]: next } };
-  });
-}
-
-function moveInBranches(
-  branches: BuilderStep['branches'],
-  path: StepPath,
-  direction: -1 | 1
-): BuilderStep['branches'] {
-  if (!branches) return branches;
-  const head = path[0];
-  if (head.kind !== 'branch') return branches;
-  const rest = path.slice(1);
-  const bucket = branches[head.branch];
-  const swap = <T,>(arr: T[], i: number) => {
-    const j = i + direction;
-    if (j < 0 || j >= arr.length) return arr;
-    const copy = [...arr];
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-    return copy;
-  };
-  const next = rest.length === 0 ? swap(bucket, head.index) : bucket;
-  return { ...branches, [head.branch]: next };
 }
 
 // ------------------------------------------------------------

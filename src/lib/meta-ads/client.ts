@@ -439,8 +439,11 @@ interface RawInsightsRow {
   actions?: Array<{ action_type: string; value: string }>;
 }
 
+export const INSIGHTS_DATE_PRESET = 'last_30d';
+export const INSIGHTS_WINDOW_DAYS = 30;
+
 export interface CampaignInsights {
-  spendInr: number;
+  spend: number;
   impressions: number;
   reach: number;
   /** "Chats started" per Meta's own attribution — a Meta-side metric,
@@ -451,8 +454,9 @@ export interface CampaignInsights {
 const CONVERSATIONS_ACTION_TYPE =
   'onsite_conversion.messaging_conversation_started_7d';
 
-/** Lifetime insights for one campaign. Null if Meta has no data yet
- *  (e.g. a campaign that just went live). */
+/** Insights for one campaign over the last 30 days, in the ad account's
+ *  currency. Null if Meta has no data yet (e.g. a campaign that just went
+ *  live). */
 export async function getCampaignInsights(
   accessToken: string,
   campaignId: string
@@ -461,7 +465,10 @@ export async function getCampaignInsights(
     `${campaignId}/insights`,
     {
       accessToken,
-      params: { fields: 'spend,impressions,reach,actions' },
+      params: {
+        fields: 'spend,impressions,reach,actions',
+        date_preset: INSIGHTS_DATE_PRESET,
+      },
     }
   );
   const row = data.data?.[0];
@@ -472,7 +479,7 @@ export async function getCampaignInsights(
   );
 
   return {
-    spendInr: Number(row.spend ?? 0),
+    spend: Number(row.spend ?? 0),
     impressions: Number(row.impressions ?? 0),
     reach: Number(row.reach ?? 0),
     conversationsStarted: conversations ? Number(conversations.value) : 0,

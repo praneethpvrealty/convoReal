@@ -127,6 +127,21 @@ export const NODE_META: Record<
   end: { label: 'End', icon: Flag, color: 'text-slate-400' },
 };
 
+export const ADD_NODE_TYPES: NodeType[] = [
+  'start',
+  'send_buttons',
+  'send_list',
+  'send_message',
+  'send_media',
+  'send_property_listings',
+  'collect_input',
+  'condition',
+  'set_tag',
+  'handoff',
+  'start_property_intake',
+  'end',
+];
+
 // ============================================================
 // Pure editing helpers — used by forms in both views.
 // ============================================================
@@ -278,7 +293,11 @@ export function summarizeNode(node: BuilderNode): string | null {
     }
     case 'send_property_listings': {
       const filterType =
-        typeof cfg.filter_type === 'string' ? cfg.filter_type : '';
+        Array.isArray(cfg.filter_types) && cfg.filter_types.length > 0
+          ? (cfg.filter_types as string[]).join(', ')
+          : typeof cfg.filter_type === 'string'
+            ? cfg.filter_type
+            : '';
       const filterListing =
         typeof cfg.filter_listing_type === 'string'
           ? cfg.filter_listing_type

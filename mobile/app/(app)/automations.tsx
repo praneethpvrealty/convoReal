@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ConvoRealLoader } from '@/components/loader';
 import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
@@ -20,6 +21,12 @@ import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AutomationRow, FlowRow } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { describeIssue } from '@shared/lib/automations/step-tree';
+import {
+  isTriggerAvailable,
+  triggerActivationSentence,
+  triggerLabel,
+} from '@shared/lib/automations/trigger-meta';
 
 export default function AutomationsScreen() {
   const { colors, fonts: f } = useTheme();
@@ -29,6 +36,7 @@ export default function AutomationsScreen() {
   );
   const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const { show, close, dialogProps } = useAppDialog();
 
   const automationsQuery = useQuery({
     queryKey: ['automations'],
@@ -55,12 +63,35 @@ export default function AutomationsScreen() {
       });
       queryClient.invalidateQueries({ queryKey: ['automations'] });
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : 'Could not update automation.'
-      );
+      setError(toggleErrorText(err));
     } finally {
       setTogglingId(null);
     }
+  }
+
+  function requestToggle(automation: AutomationRow, next: boolean) {
+    if (!next) {
+      toggle(automation, false);
+      return;
+    }
+    show({
+      title: `Turn on “${automation.name}”?`,
+      message: triggerActivationSentence(
+        automation.trigger_type,
+        automation.trigger_config
+      ),
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Turn on',
+          variant: 'primary',
+          onPress: () => {
+            close();
+            toggle(automation, true);
+          },
+        },
+      ],
+    });
   }
 
   const pull = usePullRefresh(() =>
@@ -103,43 +134,57 @@ export default function AutomationsScreen() {
           subtitle="Create triggers and actions in the web app's Automations builder."
         />
       ) : (
-        (automationsQuery.data ?? []).map((a) => (
-          <View
-            key={a.id}
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.glass,
-                borderColor: colors.glassBorder,
-              },
-            ]}
-          >
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text
-                style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}
-              >
-                {a.name}
-              </Text>
-              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                {a.trigger_type.replace(/_/g, ' ')}
-                {typeof a.execution_count === 'number'
-                  ? ` · ran ${a.execution_count}×`
-                  : ''}
-              </Text>
+        (automationsQuery.data ?? []).map((a) => {
+          const blockedOn = !isTriggerAvailable(a.trigger_type) && !a.is_active;
+          return (
+            <View
+              key={a.id}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.glass,
+                  borderColor: colors.glassBorder,
+                },
+              ]}
+            >
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontFamily: f.bold,
+                    color: colors.text,
+                  }}
+                >
+                  {a.name}
+                </Text>
+                <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                  {triggerLabel(a.trigger_type)}
+                  {typeof a.execution_count === 'number'
+                    ? ` · ran ${a.execution_count}×`
+                    : ''}
+                </Text>
+              </View>
+              {togglingId === a.id ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Switch
+                  value={a.is_active}
+                  onValueChange={(v) => requestToggle(a, v)}
+                  disabled={!canEdit || blockedOn}
+                  accessibilityHint={
+                    !canEdit
+                      ? 'Your access is read-only.'
+                      : blockedOn
+                        ? 'This trigger is not yet available, so this automation cannot be turned on.'
+                        : undefined
+                  }
+                  trackColor={{ true: colors.primary, false: colors.border }}
+                  thumbColor="#fff"
+                />
+              )}
             </View>
-            {togglingId === a.id ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : (
-              <Switch
-                value={a.is_active}
-                onValueChange={(v) => toggle(a, v)}
-                disabled={!canEdit}
-                trackColor={{ true: colors.primary, false: colors.border }}
-                thumbColor="#fff"
-              />
-            )}
-          </View>
-        ))
+          );
+        })
       )}
 
       <SectionLabel text="WhatsApp Flows" />
@@ -202,8 +247,24 @@ export default function AutomationsScreen() {
         Flow activation involves canvas validation — manage flow status on the
         web.
       </Text>
+      <AppDialog {...dialogProps} />
     </ScrollView>
   );
+}
+
+function toggleErrorText(err: unknown): string {
+  if (!(err instanceof ApiError)) return 'Could not update automation.';
+  const issues = (err.data as { issues?: unknown } | undefined)?.issues;
+  if (!Array.isArray(issues) || issues.length === 0) return err.message;
+  const lines = issues
+    .filter(
+      (i): i is { path: string; message: string } =>
+        typeof i?.path === 'string' && typeof i?.message === 'string'
+    )
+    .map((i) => `• ${describeIssue(i)}`);
+  return lines.length > 0
+    ? `Fix these on the web before turning it on:\n${lines.join('\n')}`
+    : err.message;
 }
 
 function SectionLabel({ text }: { text: string }) {

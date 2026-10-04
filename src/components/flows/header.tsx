@@ -15,6 +15,7 @@
  * /flows/[id]/runs) — those don't belong in the hook.
  */
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -29,6 +30,14 @@ import {
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useFlowEditor, type BuilderState } from './flow-editor-state';
@@ -47,13 +56,19 @@ export function EditorHeader() {
     setStatus,
     deleteFlow,
   } = useFlowEditor();
+  const [leaveTo, setLeaveTo] = useState<string | null>(null);
+
+  const navigate = (href: string) => {
+    if (dirty) setLeaveTo(href);
+    else router.push(href);
+  };
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2 text-xs text-slate-500">
         <button
           type="button"
-          onClick={() => router.push('/flows')}
+          onClick={() => navigate('/flows')}
           className="inline-flex items-center gap-1 hover:text-slate-300"
         >
           <ArrowLeft className="h-3 w-3" />
@@ -85,7 +100,7 @@ export function EditorHeader() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push(`/flows/${flow.id}/runs`)}
+            onClick={() => navigate(`/flows/${flow.id}/runs`)}
           >
             <History className="h-3.5 w-3.5" />
             Runs
@@ -151,6 +166,35 @@ export function EditorHeader() {
         placeholder="Optional description (internal — customers don't see this)"
         className="bg-slate-900 text-sm"
       />
+      <Dialog
+        open={leaveTo !== null}
+        onOpenChange={(open) => !open && setLeaveTo(null)}
+      >
+        <DialogContent className="bg-slate-900 text-slate-100">
+          <DialogHeader>
+            <DialogTitle>Leave without saving?</DialogTitle>
+            <DialogDescription className="text-slate-300">
+              You have unsaved changes to this flow. They will be lost if you
+              leave now.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="border-slate-800 bg-slate-900">
+            <Button variant="ghost" onClick={() => setLeaveTo(null)}>
+              Stay
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const href = leaveTo;
+                setLeaveTo(null);
+                if (href) router.push(href);
+              }}
+            >
+              Leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

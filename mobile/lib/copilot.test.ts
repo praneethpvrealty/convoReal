@@ -36,6 +36,21 @@ describe('mobile Copilot actions', () => {
     );
   });
 
+  it('[CPL-003] maps a contact-card link and a contacts search to native screens', () => {
+    expect(
+      appHrefForWebRoute(
+        '/contacts?contactId=11111111-1111-4111-8111-111111111111'
+      )
+    ).toBe('/(app)/contact/11111111-1111-4111-8111-111111111111');
+    expect(
+      appHrefForWebRoute(
+        '/contacts?search=residential%20in%20JP%20Nagar%20under%202%20cr&budget_max=20000000'
+      )
+    ).toBe(
+      '/(app)/(tabs)/contacts?search=residential%20in%20JP%20Nagar%20under%202%20cr&budgetMax=20000000'
+    );
+  });
+
   it('maps audience sharing to the native listing-audience picker', () => {
     expect(
       appHrefForWebRoute(

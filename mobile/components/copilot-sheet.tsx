@@ -398,24 +398,37 @@ export function CopilotSheet({
     label: string,
     icon: keyof typeof Ionicons.glyphMap,
     onPress: () => void,
-    key?: string
+    key?: string,
+    subtitle?: string
   ) => (
     <Pressable
       key={key}
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={subtitle ? `${label}, ${subtitle}` : label}
       style={[styles.actionChip, { backgroundColor: colors.primarySoft }]}
     >
       <Ionicons name={icon} size={14} color={colors.primary} />
-      <Text
-        style={[
-          styles.actionChipLabel,
-          { fontFamily: f.semibold, color: colors.primary },
-        ]}
-      >
-        {label}
-      </Text>
+      <View style={styles.actionChipText}>
+        <Text
+          style={[
+            styles.actionChipLabel,
+            { fontFamily: f.semibold, color: colors.primary },
+          ]}
+        >
+          {label}
+        </Text>
+        {subtitle ? (
+          <Text
+            style={[
+              styles.actionChipSubtitle,
+              { fontFamily: f.medium, color: colors.primary },
+            ]}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   );
 
@@ -712,7 +725,8 @@ export function CopilotSheet({
                             onClose();
                             router.push(destination as Href);
                           },
-                          `${link.label}:${link.navigateTo ?? link.appUrl}`
+                          `${link.label}:${link.navigateTo ?? link.appUrl}`,
+                          link.subtitle
                         )
                       : null;
                   })}
@@ -1252,7 +1266,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 7,
   },
+  actionChipText: { flexShrink: 1 },
   actionChipLabel: { fontSize: 12.5 },
+  actionChipSubtitle: { fontSize: 10.5, opacity: 0.8 },
   hint: { fontSize: 11.5, lineHeight: 15 },
   supportCard: {
     alignSelf: 'stretch',
