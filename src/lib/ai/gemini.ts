@@ -820,7 +820,7 @@ function detectCommercialPlot(text: string | null | undefined): boolean {
   return /\bcommercial\s+(?:corner\s+)?(?:plot|site)\b/i.test(text);
 }
 
-export interface ParsedPropertyDraft {
+export type ParsedPropertyDraft = {
   title: string | null;
   price: number | null;
   location: string | null;
@@ -927,7 +927,7 @@ export interface ParsedPropertyDraft {
    *  The model supplies the labels and page numbers; the drawings
    *  themselves are matched in from the PDF's extracted images. */
   floor_plans?: FloorPlan[] | null;
-}
+};
 
 /**
  * Safely parse a JSON string returned by Gemini, with fallbacks for trailing commas, comments, and regex-based extraction.
@@ -1405,7 +1405,7 @@ export async function isContactMessage(text: string): Promise<boolean> {
   }
 }
 
-export interface ParsedContactDraft {
+export type ParsedContactDraft = {
   name: string | null;
   /** Short qualifier shown next to the name inside the Engine only
    *  (e.g. 'Advocate', 'Bank DSA') — kept out of outbound messages. */
@@ -1429,11 +1429,11 @@ export interface ParsedContactDraft {
   requirements: string | null;
   referrer_name: string | null;
   referrer_phone: string | null;
-}
+};
 
-export interface ParsedContactDraftsContainer {
+export type ParsedContactDraftsContainer = {
   contacts: ParsedContactDraft[];
-}
+};
 
 export function normalizeClassification(
   val?: string | null

@@ -20,6 +20,41 @@ describe('chatbot-engine draft session access', () => {
   });
 });
 
+describe('[INB-024] an external listing session on the owner number', () => {
+  it('is handed to the external flow before the owner flow reads it as its own draft', () => {
+    const ownerFlow = source.slice(
+      source.indexOf('export async function processOwnerChatbotMessage('),
+      source.indexOf('export async function processExternalListingMessage(')
+    );
+    const handoff = ownerFlow.indexOf(
+      "if (propSessionData?.session_mode === 'external') {\n    return processExternalListingMessage("
+    );
+    expect(handoff).toBeGreaterThan(-1);
+    expect(handoff).toBeLessThan(ownerFlow.indexOf('const cleanedText ='));
+    const beforeHandoff = ownerFlow.slice(
+      ownerFlow.indexOf('let propSession = propSessionData;'),
+      handoff
+    );
+    expect(beforeHandoff).not.toMatch(/propSession[.?)]/);
+  });
+
+  it('hands a voice correction over as its transcript', () => {
+    const ownerFlow = source.slice(
+      source.indexOf('export async function processOwnerChatbotMessage('),
+      source.indexOf('export async function processExternalListingMessage(')
+    );
+    const handoff = ownerFlow.indexOf(
+      "if (propSessionData?.session_mode === 'external') {"
+    );
+    expect(
+      ownerFlow.indexOf('spokenText = await transcribeVoiceNote(')
+    ).toBeLessThan(handoff);
+    expect(ownerFlow.slice(handoff)).toMatch(
+      /^if \(propSessionData\?\.session_mode === 'external'\) \{\s*return processExternalListingMessage\(\s*message,\s*spokenText \|\| contentText,/
+    );
+  });
+});
+
 describe('the external text correction', () => {
   it('charges once, on the first attempt that reaches the AI re-read, never per retry', () => {
     const externalFlow = source.slice(
