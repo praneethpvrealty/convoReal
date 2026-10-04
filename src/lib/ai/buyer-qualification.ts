@@ -31,10 +31,7 @@ import {
   type RankedPropertyMatch,
 } from '@/lib/radar/engine';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
-import {
-  carriesRequirementSignal,
-  statesBudget,
-} from '@/lib/ai/requirement-signal';
+import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
 import {
   applySizeAnchor,
   parseRelativeSizeSignal,
@@ -1005,8 +1002,28 @@ async function clearBudgetAnchor(
   }
 }
 
-const ADDITIVE_AREA_PATTERN =
-  /\b(?:also|too|as well|additionally|in addition|apart from|along with|plus)\b/i;
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Does the message add this area rather than move to it? "Whitefield
+ * too", "Hebbal also fine", "Also, Whitefield", "along with Hebbal".
+ * The marker has to sit against the area: "HSR is too expensive" is a
+ * complaint about HSR, not an addition.
+ */
+function addsArea(text: string, area: string): boolean {
+  const name = escapeRegExp(area.trim());
+  if (!name) return false;
+  const trailing = new RegExp(
+    `\\b${name}\\b[\\s,]*(?:too|also|as well)\\b(?!\\s+(?:expensive|costly|far|small|big|much|many|high|low|crowded|congested|old|pricey))`,
+    'i'
+  );
+  const leading = new RegExp(
+    `\\b(?:also|additionally|plus|in addition to|along with|apart from)\\b[\\s,:]*(?:[a-z]+\\s+){0,3}${name}\\b`,
+    'i'
+  );
+  return trailing.test(text) || leading.test(text);
+}
 
 /**
  * The areas this message states as where the lead wants to buy, or null
@@ -1019,8 +1036,8 @@ const ADDITIVE_AREA_PATTERN =
  * Koramangala listing and answered "I'm looking near Horamavu" was sent
  * Koramangala houses. A message that adds an area ("Hebbal also") is
  * not a restatement, even when it resolves to one locality, so nothing
- * is dropped. Only a marker in the same clause as an area the contact
- * has not already got counts: "HSR is too expensive; near Horamavu"
+ * is dropped. Only a marker against an area the contact has not
+ * already got counts (addsArea): "HSR is too expensive, near Horamavu"
  * moves away from HSR, it does not add to it.
  */
 export function restatedAreas(
@@ -1030,19 +1047,12 @@ export function restatedAreas(
   savedAreas: string[] = []
 ): string[] | null {
   const candidates = resolvedLocation ? [...areas, resolvedLocation] : areas;
-  const addsArea = text
-    .split(/[.;,!?\n]+|\bbut\b/i)
-    .some(
-      (clause) =>
-        ADDITIVE_AREA_PATTERN.test(clause) &&
-        candidates.some(
-          (area) =>
-            area.trim() &&
-            textNamesLocality(clause, area) &&
-            !savedAreas.some((saved) => localityLabelsMatch(saved, area))
-        )
-    );
-  if (addsArea) return null;
+  const adding = candidates.some(
+    (area) =>
+      !savedAreas.some((saved) => localityLabelsMatch(saved, area)) &&
+      addsArea(text, area)
+  );
+  if (adding) return null;
   if (resolvedLocation) return [resolvedLocation];
   const named = areas.filter(
     (area) => area.trim() && textNamesLocality(text, area)
@@ -1617,10 +1627,11 @@ export async function processBuyerQualificationMessage(
       // clears the bound it crosses, and a merge that ran afterwards
       // refilled that bound from the contact — storing 2,824–2,400
       // sq.ft., a band nothing can satisfy.
+      const read = await extractContactPreferences(sourceText);
       let extracted = withImpliedIntent(
         applySizeAnchor(
           mergeCurrentTurnPreferences(
-            await extractContactPreferences(sourceText),
+            read,
             prefs,
             latestIntentTurn(burst, text)
           ),
@@ -1632,11 +1643,13 @@ export async function processBuyerQualificationMessage(
         extracted = { ...extracted, areas: [resolvedLocation] };
       }
 
+      // The read before the saved brief is merged in: a maximum there
+      // is one the lead wrote, never the enquiry's seed, which is not in
+      // their text.
       if (
-        statesBudget(text) &&
         contact.pref_budget_anchor != null &&
-        extracted.budget_max != null &&
-        Number(contact.pref_budget_anchor) === extracted.budget_max
+        read.budget_max != null &&
+        Number(contact.pref_budget_anchor) === read.budget_max
       ) {
         await clearBudgetAnchor(db, accountId, contact.id);
       }

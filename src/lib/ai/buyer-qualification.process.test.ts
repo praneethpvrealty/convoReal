@@ -252,6 +252,39 @@ describe('processBuyerQualificationMessage — free-text requirement updates', (
     );
   });
 
+  it('[INB-029] keeps the enquiry anchor when the message states no budget of its own', async () => {
+    queues.contacts = [
+      contactRow({
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_budget_anchor: 20_000_000,
+        pref_areas: ['Koramangala'],
+      }),
+    ];
+    extractContactPreferences.mockResolvedValue({
+      ...fullPrefs,
+      budget_max: null,
+      areas: ['Horamavu'],
+    });
+
+    await processBuyerQualificationMessage(
+      'Commercial land near Horamavu, call me at 9876543210',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(updates).not.toContainEqual(
+      expect.objectContaining({
+        payload: expect.objectContaining({ pref_budget_anchor: null }),
+      })
+    );
+  });
+
   it('[INB-029] leaves a budget with no enquiry anchor untouched', async () => {
     queues.contacts = [
       contactRow({

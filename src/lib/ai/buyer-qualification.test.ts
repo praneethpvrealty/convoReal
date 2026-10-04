@@ -1110,6 +1110,25 @@ describe('[INB-029] a lead naming their location replaces the enquiry locality',
     ).toBeNull();
   });
 
+  it('reads an additive marker against a new area across punctuation', () => {
+    expect(
+      restatedAreas('Also, Whitefield', ['Whitefield'], null, ['HSR'])
+    ).toBeNull();
+    expect(
+      restatedAreas('Whitefield, too', ['Whitefield'], null, ['HSR'])
+    ).toBeNull();
+    expect(
+      restatedAreas('HSR is too expensive, near Horamavu', ['Horamavu'], null, [
+        'HSR',
+      ])
+    ).toEqual(['Horamavu']);
+    expect(
+      restatedAreas('near HSR and Horamavu', ['HSR', 'Horamavu'], null, [
+        'Whitefield',
+      ])
+    ).toEqual(['HSR', 'Horamavu']);
+  });
+
   it('reads an additive word about an area already saved as a move away from it', () => {
     expect(
       restatedAreas(
