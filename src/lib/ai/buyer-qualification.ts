@@ -1007,7 +1007,8 @@ const escapeRegExp = (value: string): string =>
 
 /**
  * Does the message add this area rather than move to it? "Whitefield
- * too", "Hebbal also fine", "Also, Whitefield", "along with Hebbal".
+ * too", "Whitefield works too", "Hebbal is also fine", "Also, Whitefield",
+ * "along with Hebbal".
  * The marker has to sit against the area: "HSR is too expensive" is a
  * complaint about HSR, not an addition.
  */
@@ -1015,7 +1016,7 @@ function addsArea(text: string, area: string): boolean {
   const name = escapeRegExp(area.trim());
   if (!name) return false;
   const trailing = new RegExp(
-    `\\b${name}\\b[\\s,]*(?:too|also|as well)\\b(?!\\s+(?:expensive|costly|far|small|big|much|many|high|low|crowded|congested|old|pricey))`,
+    `\\b${name}\\b[\\s,]*(?:(?:is|are|works|would|will|be|fine|ok|okay|good|great|suits|me|for)\\s+){0,3}(?:too|also|as well)\\b(?!\\s+(?:expensive|costly|far|small|big|much|many|high|low|crowded|congested|old|pricey))`,
     'i'
   );
   const leading = new RegExp(
