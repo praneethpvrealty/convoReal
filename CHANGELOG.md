@@ -17,6 +17,13 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 4 October 2026
+
+- **Only agents and above can change portal ad records.** Marking a portal
+  ad posted or removed, or changing its expiry date, is now refused by the
+  database for viewers and read-only members on web and mobile alike; every
+  member can still read the records.
+
 #### 3 October 2026
 
 - **The showcase share message reads like the message the client gets.**
