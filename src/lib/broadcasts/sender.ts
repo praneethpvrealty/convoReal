@@ -75,7 +75,7 @@ export function resolveVariables(
       // Meta rejects empty body params, failing that recipient's send —
       // a missing or placeholder name ("Housing Lead") resolves to a
       // greetable fallback instead.
-      const fieldMap: Record<string, string | undefined> = {
+      const fieldMap: Record<string, string | null | undefined> = {
         name: greetingName(contact.name),
         phone: contact.phone ?? undefined,
         email: contact.email,

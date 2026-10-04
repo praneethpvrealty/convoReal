@@ -104,7 +104,7 @@ export function formatInr(n: number | null | undefined): string {
 export function formatBudgetRange(
   min: number | null | undefined,
   max: number | null | undefined,
-  noBudget?: boolean
+  noBudget?: boolean | null
 ): string | null {
   if (noBudget) return 'No budget constraint';
   if (min && max) return `${formatInr(min)} – ${formatInr(max)}`;

@@ -828,7 +828,8 @@ export function PropertyShareDialog({
             (c.classification === 'Buyer' || c.classification === 'Agent') &&
             ((c.requirements || '').trim() ||
               (c.contact_notes || []).length > 0) &&
-            (!c.pref_extracted_at || c.updated_at > c.pref_extracted_at)
+            (!c.pref_extracted_at ||
+              (!!c.updated_at && c.updated_at > c.pref_extracted_at))
         )
         .slice(0, 25)
         .map((c) => c.id);
