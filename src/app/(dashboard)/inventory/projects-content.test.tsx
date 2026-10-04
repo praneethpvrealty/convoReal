@@ -69,6 +69,12 @@ describe('ProjectCard', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: /manage units/i }));
     expect(onManageUnits).toHaveBeenCalledTimes(2);
+    const actionRow = screen.getByRole('button', { name: /manage units/i })
+      .parentElement as HTMLElement;
+    expect(actionRow.className).toContain('pointer-events-none');
+    expect(screen.getByRole('button', { name: /edit/i }).className).toContain(
+      'pointer-events-auto'
+    );
     expect(onEdit).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: /edit/i }));
     expect(onEdit).toHaveBeenCalledTimes(1);

@@ -108,12 +108,12 @@ export function ProjectCard({
         )}
       </div>
 
-      <div className="relative z-10 mt-auto flex gap-2 pt-4">
+      <div className="pointer-events-none relative z-10 mt-auto flex gap-2 pt-4">
         <Button
           variant="outline"
           size="sm"
           onClick={onManageUnits}
-          className="h-8 cursor-pointer border-slate-700 bg-slate-800 text-xs font-semibold text-slate-100 hover:bg-slate-700"
+          className="pointer-events-auto h-8 cursor-pointer border-slate-700 bg-slate-800 text-xs font-semibold text-slate-100 hover:bg-slate-700"
         >
           <Layers className="mr-1 size-3.5" />
           Manage units
@@ -122,7 +122,7 @@ export function ProjectCard({
           variant="outline"
           size="sm"
           onClick={onEdit}
-          className="h-8 cursor-pointer border-slate-700 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
+          className="pointer-events-auto h-8 cursor-pointer border-slate-700 text-xs text-slate-300 hover:bg-slate-800 hover:text-white"
         >
           <Pencil className="mr-1 size-3.5" />
           Edit
