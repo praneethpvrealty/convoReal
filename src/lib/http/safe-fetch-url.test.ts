@@ -119,6 +119,21 @@ describe('assertSafeFetchUrl', () => {
     expect(url.href).toBe(raw.split('#')[0]);
   });
 
+  it('requests the same path and query as the parsed URL for every printable ASCII character', async () => {
+    for (let code = 0x20; code < 0x7f; code++) {
+      const char = String.fromCharCode(code);
+      const raw = `https://example.com/a${char}b/c${char}?d${char}e`;
+      const expected = new URL(raw);
+      const url = await assertSafeFetchUrl(raw);
+      expect(url.pathname, `path with ${JSON.stringify(char)}`).toBe(
+        expected.pathname
+      );
+      expect(url.search, `query with ${JSON.stringify(char)}`).toBe(
+        expected.search
+      );
+    }
+  });
+
   it('keeps a crafted path segment from adding structure to the request', async () => {
     const url = await assertSafeFetchUrl('https://example.com/a%2F..%2Fb/c d');
     expect(url.pathname).toBe('/a%2F..%2Fb/c%20d');
