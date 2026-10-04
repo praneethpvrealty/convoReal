@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { TypedSupabaseClient } from '@/lib/supabase/database';
 
 import {
   PARTY_CANDIDATE_COLUMNS,
@@ -84,7 +84,7 @@ function stubClient(resolve: (call: Call) => Result['data']) {
       return chain;
     },
   };
-  return { client: client as unknown as SupabaseClient, calls };
+  return { client: client as unknown as TypedSupabaseClient, calls };
 }
 
 const CONTACT = {
