@@ -54,7 +54,7 @@ describe('[INB-025] starting a contact draft', () => {
     expect(handling).toContain("Couldn't save the contact draft.");
   });
 
-  it('refunds a failed save only when the parse was actually charged', () => {
+  it("refunds a failed save against the parse charge's own key", () => {
     const flow = source.slice(
       source.lastIndexOf(
         "if (classification === 'contact') {",
@@ -64,15 +64,12 @@ describe('[INB-025] starting a contact draft', () => {
     expect(flow).toContain(
       "const parseBurn = await gatedBurnReceipt(accountId, 'contact_parse');"
     );
-    expect(flow).toContain('parseCharged = parseBurn.charged;');
+    expect(flow).toContain('parseBurnKey = parseBurn.burnKey;');
     const handling = insert.slice(0, created);
-    expect(handling).toMatch(/if \(parseCharged\) \{\s*await refundCredits\(/);
-    expect(handling.match(/refundCredits\(/g)).toHaveLength(1);
-    const refund = handling.slice(handling.indexOf('await refundCredits('));
-    expect(refund.slice(0, refund.indexOf('const reply'))).not.toContain(
-      '.catch(() => undefined)'
+    expect(handling).toMatch(
+      /if \(parseBurnKey\) \{\s*await refundBurn\(accountId, 'contact_parse', parseBurnKey,/
     );
-    expect(refund).toContain('reconcile manually');
+    expect(handling).not.toContain('refundCredits(');
   });
 
   it('announces the persisted row and re-sends while another handler has moved it on', () => {
@@ -128,12 +125,15 @@ describe('[INB-025] starting a contact draft', () => {
     expect(afterRead.match(/sendContactDraftPreview\(/g)).toBeNull();
   });
 
-  it('reports no charge when billing fails open', () => {
+  it('keys every chatbot burn so its refund can only reverse that burn', () => {
     const receipt = source.slice(
-      source.indexOf('async function gatedBurnReceipt(')
+      source.indexOf('async function gatedBurnReceipt('),
+      source.indexOf('async function readForwardedEKhata(')
     );
+    expect(receipt).toContain('const burnKey = newBurnKey(feature);');
+    expect(receipt).toContain('{ hardBlock: true, retryKey: burnKey }');
     const catchBlock = receipt.slice(receipt.indexOf('} catch (err) {'));
-    expect(catchBlock).toContain('return { allowed: true, charged: false };');
+    expect(catchBlock).toContain('return { allowed: true, burnKey };');
   });
 });
 
@@ -191,5 +191,28 @@ describe('the external text correction', () => {
       correction.indexOf('await updateListingDraft(')
     );
     expect(correction.match(/softBurn\(/g)).toHaveLength(1);
+  });
+});
+
+describe('[INB-027] chatbot refunds', () => {
+  it('reverse the keyed burn and never fall back to refundCredits', () => {
+    expect(source).not.toContain('refundCredits(');
+    expect(source).toContain(
+      "import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';"
+    );
+  });
+
+  it('refund an unreadable e-Khata against its own read charge', () => {
+    const ekhata = source.slice(
+      source.indexOf('async function readForwardedEKhata('),
+      source.indexOf('const CREDITS_LOCKED_REPLY')
+    );
+    expect(ekhata).toContain(
+      "const readBurn = await gatedBurnReceipt(accountId, 'listing_parse');"
+    );
+    expect(ekhata).toMatch(
+      /if \(readBurn\.burnKey\) \{\s*await refundBurn\(accountId, 'listing_parse', readBurn\.burnKey,/
+    );
+    expect(ekhata).not.toContain('.catch(() => undefined)');
   });
 });
