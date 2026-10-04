@@ -104,6 +104,14 @@ describe('[INB-025] starting a contact draft', () => {
     expect(createdPath).toMatch(
       /^const createdSession = await readCurrentContactDraft\(\s*contactRecord\.id,\s*accountId\s*\);\s*if \(createdSession\) \{\s*await announceLatestContactDraft\(/
     );
+    const afterRead = createdPath.slice(
+      0,
+      createdPath.indexOf('} catch (err) {')
+    );
+    expect(afterRead).toContain('} else if (createdSession === undefined) {');
+    expect(afterRead).toContain("couldn't load it to show you.");
+    expect(afterRead).not.toContain('parsedContainer');
+    expect(afterRead.match(/sendContactDraftPreview\(/g)).toBeNull();
   });
 
   it('reports no charge when billing fails open', () => {

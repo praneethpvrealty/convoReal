@@ -4131,9 +4131,10 @@ export async function processOwnerChatbotMessage(
           parsedContainer = await parseContactFromImageOrText(cleanedText);
         }
 
-        const { isValid, missingFields } =
-          validateContactDraftsContainer(parsedContainer);
-        const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+        const initialStatus = validateContactDraftsContainer(parsedContainer)
+          .isValid
+          ? 'awaiting_confirmation'
+          : 'collecting';
 
         // Insert new active session
         const { error: insertErr } = await insertContactDraftSession(
@@ -4229,20 +4230,17 @@ export async function processOwnerChatbotMessage(
             conversation.id,
             accountId
           );
-          return true;
+        } else if (createdSession === undefined) {
+          const reply =
+            "⚠️ *Your contact draft is saved, but I couldn't load it to show you.* Send the contact again in a moment to see it, or reply *cancel* to discard it.";
+          const sendRes = await sendTextMessage({
+            phoneNumberId,
+            accessToken,
+            to: contactRecord.phone,
+            text: reply,
+          });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
         }
-
-        await sendContactDraftPreview(
-          phoneNumberId,
-          accessToken,
-          contactRecord.phone,
-          `📝 *Contact Drafts Created!*`,
-          parsedContainer,
-          initialStatus,
-          missingFields,
-          conversation.id,
-          accountId
-        );
         return true;
       } catch (err) {
         console.error(
