@@ -14,8 +14,16 @@ const SIZE_SIGNAL =
   /\b\d[\d,.]*\s*(?:sq\.?\s*(?:ft|feet|yds?|yards?|mtrs?|m)|sqft|sft|square\s*(?:feet|foot|yards?|met(?:er|re)s?)|guntas?|grounds?)\b|\b\d{2,3}\s*(?:x|×|\*|by)\s*\d{2,3}\b/i;
 
 const RUPEE_FIGURE = /(?:₹|\brs\.?|\binr)\s*\d/i;
-const GROUPED_FIGURE = /\b\d{1,3}(?:,\d{2,3})+\b/;
-const BUDGET_WITH_FIGURE = /\bbudget\b[^\d]{0,20}\d/i;
+const NOT_A_MEASURE =
+  '(?![\\d,.]|\\s*(?:bhk|bed|bedrooms?|br\\b|rk\\b|sq\\w*|sft|ft|feet|acres?|cents?|guntas?|grounds?|floors?|stor(?:e)?y|years?|yrs?|months?|km|kms|mins?|minutes?)\\b)';
+const GROUPED_FIGURE = new RegExp(
+  `\\b\\d{1,3}(?:,\\d{2,3})+${NOT_A_MEASURE}`,
+  'i'
+);
+const BUDGET_WITH_FIGURE = new RegExp(
+  `\\bbudget\\b[^\\d]{0,20}\\d[\\d,.]*${NOT_A_MEASURE}`,
+  'i'
+);
 
 /** True when the message states a budget figure, in any of the forms
  *  the preference extraction can read: "2 Cr", "₹2,00,00,000",
@@ -39,7 +47,7 @@ export function carriesRequirementSignal(text?: string | null): boolean {
   if (!clean) return false;
   return (
     PROPERTY_TYPE_SIGNAL.test(clean) ||
-    BUDGET_SIGNAL.test(clean) ||
+    statesBudget(clean) ||
     SIZE_SIGNAL.test(clean)
   );
 }
