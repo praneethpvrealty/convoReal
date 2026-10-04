@@ -13,7 +13,7 @@ const sql = readFileSync(
 
 describe('profile role columns are not self-service', () => {
   it('[ACC-001] a signed-in client cannot move its own account, role, team, platform role or read-only flag', () => {
-    expect(sql).toContain("current_user IN ('authenticated', 'anon')");
+    expect(sql).toContain("current_user NOT IN ('authenticated', 'anon')");
     for (const column of [
       'account_id',
       'account_role',
