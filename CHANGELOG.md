@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **Ads loads into its table, not a splash screen.** The campaigns page
+  shows the table's header and placeholder rows while it loads, so nothing
+  jumps when the campaigns arrive.
+- **The AI Assistant button stays off the Help button.** Dragging the
+  launcher can no longer park it on top of Help & feedback; it now rests at
+  least a button's height above it.
 - **Fix a portal-ad mismatch from the phone.** Each finding in the portal
   drift banner on mobile now has **Update portal listing**, which opens the
   listing's portal ads to change an expiry date or **Mark removed** once the
