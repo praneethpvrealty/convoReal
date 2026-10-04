@@ -12,7 +12,23 @@ export interface CsvAudienceResult {
 
 const DELIMITERS = new Set([',', ';', '\t']);
 
+function recordDelimiter(line: string): string | null {
+  let inQuotes = false;
+  for (const char of line) {
+    if (char === '"') inQuotes = !inQuotes;
+    else if (!inQuotes && DELIMITERS.has(char)) return char;
+  }
+  return null;
+}
+
+export function csvAudienceLine(contact: CsvAudienceContact): string {
+  return contact.name
+    ? `${contact.phone},"${contact.name.replace(/"/g, '""')}"`
+    : contact.phone;
+}
+
 function cells(line: string): string[] {
+  const delimiter = recordDelimiter(line);
   const values: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -25,7 +41,7 @@ function cells(line: string): string[] {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (!inQuotes && DELIMITERS.has(char)) {
+    } else if (!inQuotes && char === delimiter) {
       values.push(current);
       current = '';
     } else {

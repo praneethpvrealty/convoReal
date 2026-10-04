@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCsvAudience } from './csv-audience';
+import { csvAudienceLine, parseCsvAudience } from './csv-audience';
 
 describe('parseCsvAudience', () => {
   it('reads phone and optional name, normalising to E.164', () => {
@@ -56,6 +56,28 @@ describe('parseCsvAudience', () => {
       'Asha "Ash" Patel',
     ]);
     expect(result.skipped).toBe(0);
+  });
+
+  it('splits each record on its first delimiter, so the other two stay in the name', () => {
+    const result = parseCsvAudience(
+      '9876543210;Patel, Asha\n9876543211,Rao; Kiran\n9876543212\tShah, Meera; Jr'
+    );
+    expect(result.contacts.map((c) => c.name)).toEqual([
+      'Patel, Asha',
+      'Rao; Kiran',
+      'Shah, Meera; Jr',
+    ]);
+  });
+
+  it('round-trips names through csvAudienceLine', () => {
+    const contacts = [
+      { phone: '+919876543210', name: 'Patel, Asha' },
+      { phone: '+919876543211', name: 'Asha "Ash" Patel' },
+      { phone: '+919876543212' },
+    ];
+    expect(
+      parseCsvAudience(contacts.map(csvAudienceLine).join('\n')).contacts
+    ).toEqual(contacts);
   });
 
   it('returns nothing for empty input', () => {

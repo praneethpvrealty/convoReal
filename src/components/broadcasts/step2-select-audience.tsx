@@ -22,7 +22,10 @@ import {
   type CustomFieldFilter,
   type CustomFieldOperator,
 } from '@/hooks/useBroadcastSending';
-import { parseCsvAudience } from '@/lib/broadcasts/csv-audience';
+import {
+  csvAudienceLine,
+  parseCsvAudience,
+} from '@/lib/broadcasts/csv-audience';
 import { MAX_CSV_CONTACTS } from '@/lib/broadcasts/audience';
 
 type AudienceType = 'all' | 'tags' | 'custom_field' | 'csv';
@@ -107,9 +110,7 @@ export function Step2SelectAudience({
   const [loadingTags, setLoadingTags] = useState(false);
   const [loadingFields, setLoadingFields] = useState(false);
   const [csvText, setCsvText] = useState(() =>
-    (audience?.csvContacts ?? [])
-      .map((c) => (c.name ? `${c.phone},${c.name}` : c.phone))
-      .join('\n')
+    (audience?.csvContacts ?? []).map(csvAudienceLine).join('\n')
   );
   const [csvSkipped, setCsvSkipped] = useState(0);
 
@@ -190,6 +191,13 @@ export function Step2SelectAudience({
     onUpdate({ ...audience, customField: { ...prev, ...patch } });
   }
 
+  function retainedCsvContacts() {
+    if (!csvText.trim()) return undefined;
+    const { contacts, skipped } = parseCsvAudience(csvText);
+    setCsvSkipped(skipped);
+    return contacts;
+  }
+
   function applyCsv(text: string) {
     setCsvText(text);
     const { contacts, skipped } = parseCsvAudience(text);
@@ -240,7 +248,11 @@ export function Step2SelectAudience({
                       ? audience?.customField
                       : undefined,
                   csvContacts:
-                    option.type === 'csv' ? audience?.csvContacts : undefined,
+                    option.type !== 'csv'
+                      ? undefined
+                      : isSelected
+                        ? audience?.csvContacts
+                        : retainedCsvContacts(),
                 })
               }
               className={`flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
