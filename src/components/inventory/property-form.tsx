@@ -120,14 +120,20 @@ import { ShareDocumentsDialog } from '@/components/inventory/share-documents-dia
 import { PropertyRequestsPanels } from '@/components/inventory/property-requests-panels';
 import { propertyFormSections } from '@/lib/inventory/property-form-sections';
 import {
+  buildPropertyPayload,
+  emptyFloorTenancy,
+  emptyPropertyFormValues,
+  propertyToFormValues,
+  validatePropertyForm,
+  type FloorTenancyDraft,
+} from '@/lib/inventory/property-form-state';
+import { usePropertyForm } from '@/hooks/usePropertyForm';
+import {
   looksLikeDocument,
   orderForCover,
   samplePixels,
 } from '@/lib/inventory/cover-photo';
-import {
-  FloorPlansEditor,
-  type FloorPlanDraft,
-} from '@/components/inventory/floor-plans-editor';
+import { FloorPlansEditor } from '@/components/inventory/floor-plans-editor';
 import { isPlanPdf, PLAN_IMAGE_MIME_TYPES } from '@/lib/inventory/floor-plans';
 import {
   isGuardedType,
@@ -272,109 +278,93 @@ export function PropertyForm({
     }
   }, [open, viewOnly, property]);
 
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [price, setPrice] = useState(''); // Whole rupee amount (INR)
-  // Final sale price, captured only when status is Sold. Optional —
-  // feeds the anonymized market-stats aggregation, never shown to buyers.
-  const [soldPrice, setSoldPrice] = useState('');
-  // What the seller will actually accept, as a total and/or a per-Sq.Ft.
-  // rate. Distinct from `price`, which is the advertised figure — this
-  // one never reaches a public surface.
-  const [sellerFinalPrice, setSellerFinalPrice] = useState('');
-  const [sellerFinalPricePerSqft, setSellerFinalPricePerSqft] = useState('');
-  const [listingType, setListingType] = useState<
-    'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'
-  >('Sale');
-  const [rentPerMonth, setRentPerMonth] = useState('');
-  const [maintenance, setMaintenance] = useState('');
-  const [advance, setAdvance] = useState('');
-  const [gst, setGst] = useState('');
-  // JV/JD deal terms
-  const [jvStructure, setJvStructure] = useState<
-    'Revenue Share' | 'Area Share' | 'Hybrid'
-  >('Revenue Share');
-  const [ownerSharePercent, setOwnerSharePercent] = useState('');
-  const [builderSharePercent, setBuilderSharePercent] = useState('');
-  const [goodwillAmount, setGoodwillAmount] = useState('');
-  // Built to Suit lease terms
-  const [btsLeaseYears, setBtsLeaseYears] = useState('');
-  const [btsLockInYears, setBtsLockInYears] = useState('');
-  const [btsEscalationPercent, setBtsEscalationPercent] = useState('');
-  const [type, setType] = useState('Flat/ Apartment');
-  const [status, setStatus] = useState('Available');
-  const [bedrooms, setBedrooms] = useState('');
-  const [bathrooms, setBathrooms] = useState('');
-  const [areaSqft, setAreaSqft] = useState('');
-  const [areaUnit, setAreaUnit] = useState('Sq.Ft.');
-  const [landArea, setLandArea] = useState('');
-  const [landAreaUnit, setLandAreaUnit] = useState('Sq.Ft.');
-  const [superBuiltArea, setSuperBuiltArea] = useState('');
-  const [frontage, setFrontage] = useState('');
-  const [depth, setDepth] = useState('');
-  const [sublocality, setSublocality] = useState('');
-  const [city, setCity] = useState('');
-  const [stateVal, setStateVal] = useState('');
-  const [address, setAddress] = useState('');
-  // Coordinates of the picked place. Declared with the rest of the
-  // location fields because the match preview reads them too, well
-  // above the autocomplete handlers that set them.
-  const [geoPick, setGeoPick] = useState<{
-    latitude: number;
-    longitude: number;
-    place_id: string;
-    canonical: string;
-  } | null>(null);
-  const [project, setProject] = useState('');
-  const [landZone, setLandZone] = useState('');
-  const [idealFor, setIdealFor] = useState('');
-  // Land/JV deal notes — prefill source for the "Share via Email" draft
-  const [ownershipStatus, setOwnershipStatus] = useState('');
-  const [landUseZoning, setLandUseZoning] = useState('');
-  const [legalStatus, setLegalStatus] = useState('');
-  const [conversionType, setConversionType] = useState('');
-  const [dealRemarks, setDealRemarks] = useState('');
-  const [dimensions, setDimensions] = useState('');
-  const [roadWidth, setRoadWidth] = useState('');
-  const [roadWidthUnit, setRoadWidthUnit] = useState('Feet');
-  const [facingDirection, setFacingDirection] = useState('');
-  const [khataEpid, setKhataEpid] = useState('');
-  const [khataForm, setKhataForm] = useState('');
-  const [yearBuilt, setYearBuilt] = useState('');
+  const { values, set, reset } = usePropertyForm(defaultOwnerId);
+  const {
+    title,
+    description,
+    price,
+    soldPrice,
+    sellerFinalPrice,
+    sellerFinalPricePerSqft,
+    listingType,
+    rentPerMonth,
+    maintenance,
+    advance,
+    gst,
+    jvStructure,
+    ownerSharePercent,
+    builderSharePercent,
+    goodwillAmount,
+    btsLeaseYears,
+    btsLockInYears,
+    btsEscalationPercent,
+    type,
+    status,
+    bedrooms,
+    bathrooms,
+    areaSqft,
+    areaUnit,
+    landArea,
+    landAreaUnit,
+    superBuiltArea,
+    frontage,
+    depth,
+    sublocality,
+    city,
+    stateVal,
+    address,
+    geoPick,
+    project,
+    landZone,
+    idealFor,
+    ownershipStatus,
+    landUseZoning,
+    legalStatus,
+    conversionType,
+    dealRemarks,
+    dimensions,
+    roadWidth,
+    roadWidthUnit,
+    facingDirection,
+    khataEpid,
+    khataForm,
+    yearBuilt,
+    furnishing,
+    possessionDate,
+    floorNumber,
+    totalFloors,
+    balconies,
+    flooring,
+    powerBackup,
+    isPublished,
+    features,
+    nearbyHighlights,
+    images,
+    privateImages,
+    defaultImageIndex,
+    videoRemoved,
+    documents,
+    googleMapLink,
+    locationPrivacy,
+    showcaseVisibility,
+    notes,
+    tags,
+    rentalIncome,
+    floorTenancies,
+    floorPlans,
+    ownerContactId,
+    listingSource,
+    interestedContactIds,
+    searchQuery,
+  } = values;
   const [readingEKhata, setReadingEKhata] = useState(false);
   const [eKhataReview, setEKhataReview] = useState<{
     fields: EKhataFields;
     changes: EKhataChange[];
   } | null>(null);
-  const [furnishing, setFurnishing] = useState('');
-  const [possessionDate, setPossessionDate] = useState('');
-  const [floorNumber, setFloorNumber] = useState('');
-  const [totalFloors, setTotalFloors] = useState('');
-  const [balconies, setBalconies] = useState('');
-  const [flooring, setFlooring] = useState('');
-  const [powerBackup, setPowerBackup] = useState('');
-  const [isPublished, setIsPublished] = useState(false);
-  const [features, setFeatures] = useState<string[]>([]);
-  const [nearbyHighlights, setNearbyHighlights] = useState<string[]>([]);
-  const [images, setImages] = useState<string[]>(['']);
-  const [privateImages, setPrivateImages] = useState<string[]>([]);
   const [lockingImagePath, setLockingImagePath] = useState<string | null>(null);
-  const [defaultImageIndex, setDefaultImageIndex] = useState(0);
-  const [videoRemoved, setVideoRemoved] = useState(false);
   const [removingVideo, setRemovingVideo] = useState(false);
-  const [documents, setDocuments] = useState<
-    Array<{ url: string; title: string }>
-  >([{ url: '', title: '' }]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
-  const [googleMapLink, setGoogleMapLink] = useState('');
-  const [locationPrivacy, setLocationPrivacy] = useState<
-    '' | 'exact' | 'locality'
-  >('');
-  const [showcaseVisibility, setShowcaseVisibility] = useState<'' | 'teaser'>(
-    ''
-  );
-  const [notes, setNotes] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
   const [tagSuggestions, setTagSuggestions] = useState<
     { tag: string; uses: number }[]
   >([]);
@@ -383,7 +373,6 @@ export function PropertyForm({
   const [localitiesDb, setLocalitiesDb] = useState<{
     detailed: string[];
   } | null>(null);
-  const [rentalIncome, setRentalIncome] = useState('');
   // A rental's price is its monthly rent, so it has no yield to show —
   // see src/lib/inventory/rental-yield.ts. The API derives the stored
   // figure the same way; this is only what the form previews.
@@ -392,43 +381,13 @@ export function PropertyForm({
     [listingType, price, rentalIncome]
   );
 
-  // Floor-wise tenancy (rent roll) for pre-leased commercial buildings
-  // under sale — string drafts of lib/inventory/floor-tenancies rows.
-  interface FloorTenancyDraft {
-    floor: string;
-    tenant_name: string;
-    area_sqft: string;
-    monthly_rent: string;
-    advance: string;
-    lease_start: string;
-    lease_end: string;
-    lock_in_months: string;
-    maintenance: string;
-    notes: string;
-    floor_plan: string;
-  }
-  const emptyFloorTenancy: FloorTenancyDraft = {
-    floor: '',
-    tenant_name: '',
-    area_sqft: '',
-    monthly_rent: '',
-    advance: '',
-    lease_start: '',
-    lease_end: '',
-    lock_in_months: '',
-    maintenance: '',
-    notes: '',
-    floor_plan: '',
-  };
-  const [floorTenancies, setFloorTenancies] = useState<FloorTenancyDraft[]>([]);
-  const [floorPlans, setFloorPlans] = useState<FloorPlanDraft[]>([]);
   const tenancyPlanInputs = useRef<Record<number, HTMLInputElement | null>>({});
   const updateFloorTenancy = (
     idx: number,
     key: keyof FloorTenancyDraft,
     value: string
   ) => {
-    setFloorTenancies((prev) =>
+    set('floorTenancies', (prev) =>
       prev.map((ft, i) => (i === idx ? { ...ft, [key]: value } : ft))
     );
   };
@@ -461,13 +420,6 @@ export function PropertyForm({
   const [searchingProjects, setSearchingProjects] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [ownerContactId, setOwnerContactId] = useState<string | null>(null);
-  const [listingSource, setListingSource] = useState<'owner' | 'agent'>(
-    'owner'
-  );
-  const [interestedContactIds, setInterestedContactIds] = useState<string[]>(
-    []
-  );
   const [contactedContactIds, setContactedContactIds] = useState<Set<string>>(
     new Set()
   );
@@ -684,7 +636,7 @@ export function PropertyForm({
       }
       setActiveTab(initialTab);
       if (!property) {
-        setInterestedContactIds([]);
+        set('interestedContactIds', []);
       }
     }
   }, [
@@ -696,6 +648,7 @@ export function PropertyForm({
     accountId,
     supabase,
     initialTab,
+    set,
   ]);
 
   useEffect(() => {
@@ -703,9 +656,9 @@ export function PropertyForm({
       const interested = contacts
         .filter((c) => c.last_inquired_property_id === property.id)
         .map((c) => c.id);
-      setInterestedContactIds(interested);
+      set('interestedContactIds', interested);
     }
-  }, [open, property, contacts]);
+  }, [open, property, contacts, set]);
 
   const matchedContacts = useMemo(() => {
     const fullLocation = [
@@ -777,7 +730,7 @@ export function PropertyForm({
   );
 
   function handleToggleFeature(feature: string) {
-    setFeatures((prev) =>
+    set('features', (prev) =>
       prev.includes(feature)
         ? prev.filter((f) => f !== feature)
         : [...prev, feature]
@@ -785,7 +738,7 @@ export function PropertyForm({
   }
 
   function handleToggleHighlight(highlight: string) {
-    setNearbyHighlights((prev) =>
+    set('nearbyHighlights', (prev) =>
       prev.includes(highlight)
         ? prev.filter((h) => h !== highlight)
         : [...prev, highlight]
@@ -862,7 +815,7 @@ export function PropertyForm({
       }
 
       const data = await response.json();
-      setDescription(data.description || '');
+      set('description', data.description || '');
       toast.success('Description generated successfully!');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -873,7 +826,6 @@ export function PropertyForm({
   }
 
   // Autocomplete states
-  const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const autocompleteRef = useRef<HTMLDivElement>(null);
 
@@ -932,8 +884,8 @@ export function PropertyForm({
   async function handleGooglePick(s: { place_id: string; main_text: string }) {
     setShowSuggestions(false);
     setGoogleSuggestions([]);
-    setSearchQuery(s.main_text);
-    setProject('');
+    set('searchQuery', s.main_text);
+    set('project', '');
     try {
       const session = googleSessionRef.current;
       googleSessionRef.current = null; // details pick closes the billing session
@@ -941,7 +893,7 @@ export function PropertyForm({
         `/api/maps/place-details?place_id=${encodeURIComponent(s.place_id)}${session ? `&session=${session}` : ''}`
       );
       if (!res.ok) {
-        setSublocality(s.main_text);
+        set('sublocality', s.main_text);
         return;
       }
       const { place } = (await res.json()) as {
@@ -955,10 +907,10 @@ export function PropertyForm({
           state: string | null;
         };
       };
-      setSublocality(place.sublocality || place.name);
-      if (place.city) setCity(place.city);
-      if (place.state) setStateVal(place.state);
-      setGeoPick({
+      set('sublocality', place.sublocality || place.name);
+      if (place.city) set('city', place.city);
+      if (place.state) set('stateVal', place.state);
+      set('geoPick', {
         latitude: place.latitude,
         longitude: place.longitude,
         place_id: place.place_id,
@@ -966,7 +918,7 @@ export function PropertyForm({
       });
     } catch {
       // Keep the typed text; server-side geocode fallback resolves it on save
-      setSublocality(s.main_text);
+      set('sublocality', s.main_text);
     }
   }
   const contactSearchRef = useRef<HTMLDivElement>(null);
@@ -1015,7 +967,7 @@ export function PropertyForm({
 
   const handleAddInterestedContact = (contactId: string) => {
     if (!interestedContactIds.includes(contactId)) {
-      setInterestedContactIds((prev) => [...prev, contactId]);
+      set('interestedContactIds', (prev) => [...prev, contactId]);
     }
     setContactSearchInput('');
     setIsContactDropdownOpen(false);
@@ -1038,254 +990,13 @@ export function PropertyForm({
         depth: false,
       };
       derivedDims.current = { landArea: false, frontage: false, depth: false };
+      reset(
+        property
+          ? propertyToFormValues(property, contacts)
+          : emptyPropertyFormValues(defaultOwnerId)
+      );
+      setTagInput('');
       if (property) {
-        setTitle(property.title);
-        setDescription(property.description ?? '');
-        setPrice(
-          property.price !== null && property.price !== undefined
-            ? String(property.price)
-            : ''
-        );
-        setListingType(property.listing_type ?? 'Sale');
-        setRentPerMonth(
-          property.rent_per_month !== null &&
-            property.rent_per_month !== undefined
-            ? String(property.rent_per_month)
-            : ''
-        );
-        setMaintenance(
-          property.maintenance !== null && property.maintenance !== undefined
-            ? String(property.maintenance)
-            : ''
-        );
-        setAdvance(
-          property.advance !== null && property.advance !== undefined
-            ? String(property.advance)
-            : ''
-        );
-        setGst(
-          property.gst !== null && property.gst !== undefined
-            ? String(property.gst)
-            : ''
-        );
-        setJvStructure(property.jv_structure ?? 'Revenue Share');
-        setOwnerSharePercent(
-          property.owner_share_percent !== null &&
-            property.owner_share_percent !== undefined
-            ? String(property.owner_share_percent)
-            : ''
-        );
-        setBuilderSharePercent(
-          property.builder_share_percent !== null &&
-            property.builder_share_percent !== undefined
-            ? String(property.builder_share_percent)
-            : ''
-        );
-        setGoodwillAmount(
-          property.goodwill_amount !== null &&
-            property.goodwill_amount !== undefined
-            ? String(property.goodwill_amount)
-            : ''
-        );
-        setBtsLeaseYears(
-          property.bts_lease_years !== null &&
-            property.bts_lease_years !== undefined
-            ? String(property.bts_lease_years)
-            : ''
-        );
-        setBtsLockInYears(
-          property.bts_lock_in_years !== null &&
-            property.bts_lock_in_years !== undefined
-            ? String(property.bts_lock_in_years)
-            : ''
-        );
-        setBtsEscalationPercent(
-          property.bts_escalation_percent !== null &&
-            property.bts_escalation_percent !== undefined
-            ? String(property.bts_escalation_percent)
-            : ''
-        );
-        setRentalIncome(
-          property.rental_income !== null &&
-            property.rental_income !== undefined
-            ? String(property.rental_income)
-            : ''
-        );
-        setFloorTenancies(
-          (property.floor_tenancies || []).map((ft) => ({
-            floor: ft.floor || '',
-            tenant_name: ft.tenant_name || '',
-            area_sqft:
-              ft.area_sqft !== null && ft.area_sqft !== undefined
-                ? String(ft.area_sqft)
-                : '',
-            monthly_rent:
-              ft.monthly_rent !== null && ft.monthly_rent !== undefined
-                ? String(ft.monthly_rent)
-                : '',
-            advance:
-              ft.advance !== null && ft.advance !== undefined
-                ? String(ft.advance)
-                : '',
-            lease_start: ft.lease_start || '',
-            lease_end: ft.lease_end || '',
-            lock_in_months:
-              ft.lock_in_months !== null && ft.lock_in_months !== undefined
-                ? String(ft.lock_in_months)
-                : '',
-            maintenance: ft.maintenance || '',
-            notes: ft.notes || '',
-            floor_plan: ft.floor_plan || '',
-          }))
-        );
-        setFloorPlans(
-          (property.floor_plans || []).map((fp) => ({
-            floor: fp.floor || '',
-            image: fp.image || '',
-            area_sqft:
-              fp.area_sqft !== null && fp.area_sqft !== undefined
-                ? String(fp.area_sqft)
-                : '',
-            notes: fp.notes || '',
-          }))
-        );
-        setType(property.type);
-        setStatus(property.status);
-        setSoldPrice(
-          property.sold_price !== null && property.sold_price !== undefined
-            ? String(property.sold_price)
-            : ''
-        );
-        setSellerFinalPrice(
-          property.seller_final_price !== null &&
-            property.seller_final_price !== undefined
-            ? String(property.seller_final_price)
-            : ''
-        );
-        setSellerFinalPricePerSqft(
-          property.seller_final_price_per_sqft !== null &&
-            property.seller_final_price_per_sqft !== undefined
-            ? String(property.seller_final_price_per_sqft)
-            : ''
-        );
-        setBedrooms(
-          property.bedrooms !== null && property.bedrooms !== undefined
-            ? String(property.bedrooms)
-            : ''
-        );
-        setBathrooms(
-          property.bathrooms !== null && property.bathrooms !== undefined
-            ? String(property.bathrooms)
-            : ''
-        );
-        setAreaSqft(
-          property.area_sqft !== null && property.area_sqft !== undefined
-            ? String(property.area_sqft)
-            : ''
-        );
-        setAreaUnit(property.area_unit ?? 'Sq.Ft.');
-        setLandArea(
-          property.land_area !== null && property.land_area !== undefined
-            ? String(property.land_area)
-            : ''
-        );
-        setLandAreaUnit(property.land_area_unit ?? 'Sq.Ft.');
-        setSuperBuiltArea(
-          property.super_built_area !== null &&
-            property.super_built_area !== undefined
-            ? String(property.super_built_area)
-            : ''
-        );
-        setSublocality(property.sublocality ?? '');
-        setCity(property.city ?? '');
-        setStateVal(property.state ?? '');
-        setProject(property.project ?? '');
-        setLandZone(property.land_zone ?? '');
-        setIdealFor(property.ideal_for ?? '');
-        setOwnershipStatus(property.ownership_status ?? '');
-        setLandUseZoning(property.land_use_zoning ?? '');
-        setLegalStatus(property.legal_status ?? '');
-        setConversionType(property.conversion_type ?? '');
-        setDealRemarks(property.deal_remarks ?? '');
-        const dims = property.dimensions ?? '';
-        setDimensions(dims);
-        if (dims && dims.includes('x')) {
-          const parts = dims.split('x');
-          if (parts.length === 2) {
-            setFrontage(parts[0].trim());
-            setDepth(parts[1].trim());
-          } else {
-            setFrontage('');
-            setDepth('');
-          }
-        } else {
-          setFrontage('');
-          setDepth('');
-        }
-        setRoadWidth(
-          property.road_width !== null && property.road_width !== undefined
-            ? String(property.road_width)
-            : ''
-        );
-        setRoadWidthUnit(property.road_width_unit ?? 'Feet');
-        setFacingDirection(property.facing_direction ?? '');
-        setKhataEpid(property.khata_epid ?? '');
-        setKhataForm(property.khata_form ?? '');
-        setYearBuilt(
-          property.year_built != null ? String(property.year_built) : ''
-        );
-        setFurnishing(property.furnishing ?? '');
-        setPossessionDate(property.possession_date ?? '');
-        setFloorNumber(
-          property.floor_number !== null && property.floor_number !== undefined
-            ? String(property.floor_number)
-            : ''
-        );
-        setTotalFloors(
-          property.total_floors !== null && property.total_floors !== undefined
-            ? String(property.total_floors)
-            : ''
-        );
-        setBalconies(
-          property.balconies !== null && property.balconies !== undefined
-            ? String(property.balconies)
-            : ''
-        );
-        setFlooring(property.flooring ?? '');
-        setPowerBackup(property.power_backup ?? '');
-        setIsPublished(property.is_published);
-        setFeatures(property.features || []);
-        setNearbyHighlights(property.nearby_highlights || []);
-        setImages(
-          property.images && property.images.length > 0 ? property.images : ['']
-        );
-        setPrivateImages(property.private_images || []);
-        setVideoRemoved(false);
-        setDefaultImageIndex(0); // Default image is always at index 0
-        const dbDocs =
-          property.documents && property.documents.length > 0
-            ? property.documents
-            : [];
-        const parsed = dbDocs.map((doc: unknown) => {
-          if (typeof doc === 'string') {
-            if (doc.trim().startsWith('{')) {
-              try {
-                const parsedDoc = JSON.parse(doc);
-                return {
-                  url: (parsedDoc?.url as string) || '',
-                  title: (parsedDoc?.title as string) || '',
-                };
-              } catch {
-                // fall through
-              }
-            }
-            return { url: doc, title: '' };
-          }
-          const typedDoc = doc as { url?: string; title?: string } | null;
-          return { url: typedDoc?.url || '', title: typedDoc?.title || '' };
-        });
-        setDocuments(parsed.length > 0 ? parsed : [{ url: '', title: '' }]);
-        setOwnerContactId(property.owner_contact_id ?? null);
         // Set owner search input to display the selected owner's name
         if (property.owner_contact_id) {
           const ownerContact = contacts?.find(
@@ -1295,167 +1006,13 @@ export function PropertyForm({
             setOwnerSearchInput(ownerContact.name || ownerContact.phone || '');
           }
         }
-        // The form's Owner/Agent toggle only models Engine-internal referral
-        // source; a WhatsApp self-listing is displayed as "Owner" here
-        // (the "Submitted via WhatsApp" badge in the list view already
-        // distinguishes it) rather than adding a third toggle state.
-        setListingSource(
-          property.listing_source === 'agent' ? 'agent' : 'owner'
-        );
-        setGoogleMapLink(property.google_map_link ?? '');
-        setLocationPrivacy(
-          property.location_privacy === 'exact' ||
-            property.location_privacy === 'locality'
-            ? property.location_privacy
-            : ''
-        );
-        setShowcaseVisibility(
-          property.showcase_visibility === 'teaser' ? 'teaser' : ''
-        );
-        setNotes(property.notes ?? '');
-        setTags(property.tags || []);
-        setTagInput('');
-        // Preserve saved coordinates unless the agent re-touches the location
-        setGeoPick(
-          property.latitude != null && property.longitude != null
-            ? {
-                latitude: Number(property.latitude),
-                longitude: Number(property.longitude),
-                place_id: property.locality_place_id || '',
-                canonical: property.locality_canonical || '',
-              }
-            : null
-        );
-
-        if (contacts && contacts.length > 0) {
-          const interested = contacts
-            .filter((c) => c.last_inquired_property_id === property.id)
-            .map((c) => c.id);
-          setInterestedContactIds(interested);
-        } else if (property.interested_contacts) {
-          setInterestedContactIds(
-            property.interested_contacts.map((c) => c.id)
-          );
-        } else {
-          setInterestedContactIds([]);
-        }
-
-        // Set unified query string on open
-        if (property.project) {
-          setSearchQuery(property.project);
-        } else {
-          setSearchQuery(property.sublocality ?? '');
-        }
-
-        // Recover `address` from the stored location by removing the
-        // parts that get re-appended on save (sublocality, city, state).
-        //
-        // Each of those is expanded into its OWN segments before the
-        // comparison. Comparing a whole location segment against the
-        // raw field breaks whenever `sublocality` spans more than one
-        // segment — "Agara, HSR Layout" never equals "Agara" or "HSR
-        // Layout", so nothing was stripped, and the save path then
-        // appended the sublocality a second time. Worse, it compounded:
-        // the next edit recovered the doubled text as `address` and
-        // appended again, which is how a row reached "JP Nagar, 5th
-        // phase" three times over.
-        const dropSegments = new Set(
-          [property.sublocality, property.city, property.state]
-            .filter((v): v is string => Boolean(v))
-            .flatMap((v) => v.split(',').map((s) => s.trim().toLowerCase()))
-            .filter(Boolean)
-        );
-
-        const seenSegments = new Set<string>();
-        const addrSegments = property.location
-          .split(',')
-          .map((s) => s.trim())
-          .filter((seg) => {
-            const key = seg.toLowerCase();
-            // Also drop repeats, so opening and saving a row that was
-            // already corrupted heals it instead of growing it again.
-            if (!key || dropSegments.has(key) || seenSegments.has(key))
-              return false;
-            seenSegments.add(key);
-            return true;
-          });
-        setAddress(addrSegments.join(', ') || '');
       } else {
-        setTitle('');
-        setDescription('');
-        setPrice('');
-        setListingType('Sale');
-        setRentPerMonth('');
-        setMaintenance('');
-        setAdvance('');
-        setGst('');
-        setJvStructure('Revenue Share');
-        setOwnerSharePercent('');
-        setBuilderSharePercent('');
-        setGoodwillAmount('');
-        setBtsLeaseYears('');
-        setBtsLockInYears('');
-        setBtsEscalationPercent('');
-        setRentalIncome('');
-        setFloorTenancies([]);
-        setFloorPlans([]);
-        setType('Flat/ Apartment');
-        setStatus('Available');
-        setBedrooms('');
-        setBathrooms('');
-        setAreaSqft('');
-        setAreaUnit('Sq.Ft.');
-        setLandArea('');
-        setLandAreaUnit('Sq.Ft.');
-        setSuperBuiltArea('');
-        setSublocality('');
-        setCity('');
-        setStateVal('');
-        setAddress('');
-        setProject('');
-        setLandZone('');
-        setIdealFor('');
-        setOwnershipStatus('');
-        setLandUseZoning('');
-        setLegalStatus('');
-        setConversionType('');
-        setDealRemarks('');
-        setDimensions('');
-        setFrontage('');
-        setDepth('');
-        setRoadWidth('');
-        setRoadWidthUnit('Feet');
-        setFacingDirection('');
-        setKhataEpid('');
-        setKhataForm('');
-        setYearBuilt('');
-        setFurnishing('');
-        setFloorNumber('');
-        setTotalFloors('');
-        setBalconies('');
-        setIsPublished(false);
-        setFeatures([]);
-        setNearbyHighlights([]);
-        setImages(['']);
-        setPrivateImages([]);
-        setVideoRemoved(false);
-        setDocuments([{ url: '', title: '' }]);
-        setSearchQuery('');
-        setGoogleMapLink('');
-        setLocationPrivacy('');
-        setShowcaseVisibility('');
-        setNotes('');
-        setTags([]);
-        setTagInput('');
-        setGeoPick(null);
         setGoogleSuggestions([]);
-        setOwnerContactId(defaultOwnerId ?? null);
-        setListingSource('owner');
       }
     } else {
       formResetKey.current = null;
     }
-  }, [open, property, defaultOwnerId, contacts]);
+  }, [open, property, defaultOwnerId, contacts, reset]);
 
   useEffect(() => {
     if (!open) return;
@@ -1495,11 +1052,11 @@ export function PropertyForm({
       ));
 
   function handleSearchQueryChange(val: string) {
-    setSearchQuery(val);
+    set('searchQuery', val);
     setShowSuggestions(true);
     // Typed text invalidates a previous Google pick — the server geocode
     // fallback re-resolves coordinates for the new text on save.
-    setGeoPick(null);
+    set('geoPick', null);
     if (googleDebounceRef.current) clearTimeout(googleDebounceRef.current);
     if (val.trim().length >= 2) {
       googleDebounceRef.current = setTimeout(
@@ -1515,28 +1072,28 @@ export function PropertyForm({
       (p) => p.name.toLowerCase() === val.trim().toLowerCase()
     );
     if (exactProj) {
-      setProject(exactProj.name);
-      setSublocality(exactProj.sublocality);
-      setCity(exactProj.city);
-      setStateVal(exactProj.state);
-      setAddress(exactProj.address);
+      set('project', exactProj.name);
+      set('sublocality', exactProj.sublocality);
+      set('city', exactProj.city);
+      set('stateVal', exactProj.state);
+      set('address', exactProj.address);
     } else {
       // Check if it matches a layout, sector, or main/cross (split by comma)
       const parts = val.split(',').map((s) => s.trim());
       if (parts.length > 1) {
-        setSublocality(parts[0]);
-        setAddress(parts[1]);
+        set('sublocality', parts[0]);
+        set('address', parts[1]);
       } else {
         const exactArea = POPULAR_SUBLOCALITIES.find(
           (a) => a.toLowerCase() === val.trim().toLowerCase()
         );
         if (exactArea) {
-          setSublocality(exactArea);
+          set('sublocality', exactArea);
         } else {
-          setSublocality(val);
+          set('sublocality', val);
         }
       }
-      setProject('');
+      set('project', '');
     }
   }
 
@@ -1570,7 +1127,7 @@ export function PropertyForm({
   };
 
   const handleLandAreaChange = (val: string) => {
-    setLandArea(val);
+    set('landArea', val);
     markDimTyped('landArea', val);
     if (!isLand) return;
     const typed = userTypedDims.current;
@@ -1581,11 +1138,11 @@ export function PropertyForm({
     if (!val || isNaN(aSqft) || aSqft <= 0) return;
 
     const deriveFrontage = () => {
-      setFrontage(String(round2(aSqft / dNum)));
+      set('frontage', String(round2(aSqft / dNum)));
       derived.frontage = true;
     };
     const deriveDepth = () => {
-      setDepth(String(round2(aSqft / fNum)));
+      set('depth', String(round2(aSqft / fNum)));
       derived.depth = true;
     };
 
@@ -1596,7 +1153,7 @@ export function PropertyForm({
   };
 
   const handleFrontageChange = (val: string) => {
-    setFrontage(val);
+    set('frontage', val);
     markDimTyped('frontage', val);
     if (!isLand) return;
     const typed = userTypedDims.current;
@@ -1607,11 +1164,11 @@ export function PropertyForm({
     if (!val || isNaN(fNum) || fNum <= 0) return;
 
     const deriveArea = () => {
-      setLandArea(String(round2((fNum * dNum) / sqftFactor())));
+      set('landArea', String(round2((fNum * dNum) / sqftFactor())));
       derived.landArea = true;
     };
     const deriveDepth = () => {
-      setDepth(String(round2(aSqft / fNum)));
+      set('depth', String(round2(aSqft / fNum)));
       derived.depth = true;
     };
 
@@ -1622,7 +1179,7 @@ export function PropertyForm({
   };
 
   const handleDepthChange = (val: string) => {
-    setDepth(val);
+    set('depth', val);
     markDimTyped('depth', val);
     if (!isLand) return;
     const typed = userTypedDims.current;
@@ -1633,11 +1190,11 @@ export function PropertyForm({
     if (!val || isNaN(dNum) || dNum <= 0) return;
 
     const deriveArea = () => {
-      setLandArea(String(round2((fNum * dNum) / sqftFactor())));
+      set('landArea', String(round2((fNum * dNum) / sqftFactor())));
       derived.landArea = true;
     };
     const deriveFrontage = () => {
-      setFrontage(String(round2(aSqft / dNum)));
+      set('frontage', String(round2(aSqft / dNum)));
       derived.frontage = true;
     };
 
@@ -1809,7 +1366,7 @@ export function PropertyForm({
           (u) => u.url
         );
         const documents = uploaded.filter((u) => u.document).length;
-        setImages((prev) => {
+        set('images', (prev) => {
           const filteredPrev = prev.filter((url) => url.trim().length > 0);
           return [...filteredPrev, ...uploadedUrls];
         });
@@ -1879,7 +1436,7 @@ export function PropertyForm({
         throw new Error(body.error || 'Could not read this e-Khata.');
       }
 
-      setDocuments((prev) => {
+      set('documents', (prev) => {
         const kept = prev
           .map((doc) =>
             typeof doc === 'string' ? { url: doc, title: '' } : doc
@@ -1927,14 +1484,14 @@ export function PropertyForm({
     if (!review) return;
     const { fields } = review;
     for (const key of keys) {
-      if (key === 'address' && fields.address) setAddress(fields.address);
-      if (key === 'city') setCity('Bengaluru');
+      if (key === 'address' && fields.address) set('address', fields.address);
+      if (key === 'city') set('city', 'Bengaluru');
       if (
         key === 'pin' &&
         fields.latitude !== undefined &&
         fields.longitude !== undefined
       ) {
-        setGeoPick({
+        set('geoPick', {
           latitude: fields.latitude,
           longitude: fields.longitude,
           place_id: '',
@@ -1942,27 +1499,27 @@ export function PropertyForm({
         });
       }
       if (key === 'land_area' && fields.site_area_sqft) {
-        setLandArea(String(fields.site_area_sqft));
-        setLandAreaUnit('Sq.Ft.');
+        set('landArea', String(fields.site_area_sqft));
+        set('landAreaUnit', 'Sq.Ft.');
       }
       if (
         key === 'dimensions' &&
         fields.site_frontage_ft &&
         fields.site_depth_ft
       ) {
-        setFrontage(String(fields.site_frontage_ft));
-        setDepth(String(fields.site_depth_ft));
-        setDimensions(`${fields.site_frontage_ft}x${fields.site_depth_ft}`);
+        set('frontage', String(fields.site_frontage_ft));
+        set('depth', String(fields.site_depth_ft));
+        set('dimensions', `${fields.site_frontage_ft}x${fields.site_depth_ft}`);
       }
       if (key === 'built_up_area' && fields.built_up_sqft) {
-        setAreaSqft(String(fields.built_up_sqft));
-        setAreaUnit('Sq.Ft.');
+        set('areaSqft', String(fields.built_up_sqft));
+        set('areaUnit', 'Sq.Ft.');
       }
       if (key === 'year_built' && fields.year_built)
-        setYearBuilt(String(fields.year_built));
-      if (key === 'khata_epid' && fields.epid) setKhataEpid(fields.epid);
+        set('yearBuilt', String(fields.year_built));
+      if (key === 'khata_epid' && fields.epid) set('khataEpid', fields.epid);
       if (key === 'khata_form' && fields.khata_form)
-        setKhataForm(fields.khata_form);
+        set('khataForm', fields.khata_form);
     }
     setEKhataReview(null);
     toast.success(
@@ -2026,7 +1583,7 @@ export function PropertyForm({
           return { url, title: cleanName };
         });
 
-        setDocuments((prev) => {
+        set('documents', (prev) => {
           const filteredPrev = prev
             .filter((doc) => {
               const url = typeof doc === 'string' ? doc : doc?.url;
@@ -2051,21 +1608,21 @@ export function PropertyForm({
   }
 
   function handleAddDocumentUrl() {
-    setDocuments((prev) => [...prev, { url: '', title: '' }]);
+    set('documents', (prev) => [...prev, { url: '', title: '' }]);
   }
 
   // Close owner dropdown on click outside helper
 
   function handleRemoveDocumentUrl(index: number) {
     if (documents.length === 1) {
-      setDocuments([{ url: '', title: '' }]);
+      set('documents', [{ url: '', title: '' }]);
     } else {
-      setDocuments((prev) => prev.filter((_, i) => i !== index));
+      set('documents', (prev) => prev.filter((_, i) => i !== index));
     }
   }
 
   function handleDocumentUrlChange(index: number, value: string) {
-    setDocuments((prev) => {
+    set('documents', (prev) => {
       const copy = [...prev];
       const target = copy[index];
       if (typeof target === 'string') {
@@ -2078,7 +1635,7 @@ export function PropertyForm({
   }
 
   function handleDocumentTitleChange(index: number, value: string) {
-    setDocuments((prev) => {
+    set('documents', (prev) => {
       const copy = [...prev];
       const target = copy[index];
       if (typeof target === 'string') {
@@ -2091,20 +1648,20 @@ export function PropertyForm({
   }
 
   function handleAddImageUrl() {
-    setImages((prev) => [...prev, '']);
+    set('images', (prev) => [...prev, '']);
   }
 
   function handleRemoveImageUrl(index: number) {
     if (images.length === 1) {
-      setImages(['']);
+      set('images', ['']);
     } else {
-      setImages((prev) => prev.filter((_, i) => i !== index));
+      set('images', (prev) => prev.filter((_, i) => i !== index));
     }
   }
 
   // Handle owner selection with auto-detection of listing source
   function handleOwnerSelect(contactId: string | null) {
-    setOwnerContactId(contactId);
+    set('ownerContactId', contactId);
     setIsOwnerDropdownOpen(false);
 
     // Set search input to display the selected contact's name
@@ -2118,9 +1675,9 @@ export function PropertyForm({
         const classification =
           selectedContact.classification?.toLowerCase() || '';
         if (classification === 'agent') {
-          setListingSource('agent');
+          set('listingSource', 'agent');
         } else {
-          setListingSource('owner');
+          set('listingSource', 'owner');
         }
       }
     } else {
@@ -2141,7 +1698,7 @@ export function PropertyForm({
   }, [contacts, ownerSearchInput]);
 
   function handleImageUrlChange(index: number, value: string) {
-    setImages((prev) => {
+    set('images', (prev) => {
       const copy = [...prev];
       copy[index] = value;
       return copy;
@@ -2149,7 +1706,7 @@ export function PropertyForm({
   }
 
   function handleSetDefaultImage(index: number) {
-    setDefaultImageIndex(index);
+    set('defaultImageIndex', index);
     toast.success('Selected image set as default listing photo');
   }
 
@@ -2172,8 +1729,8 @@ export function PropertyForm({
       if (!response.ok) {
         throw new Error(data.error || 'Failed to update photo privacy');
       }
-      setImages(data.data.images.length > 0 ? data.data.images : ['']);
-      setPrivateImages(data.data.private_images || []);
+      set('images', data.data.images.length > 0 ? data.data.images : ['']);
+      set('privateImages', data.data.private_images || []);
       toast.success(
         action === 'lock'
           ? 'Photo moved to private — revealed only on approved requests'
@@ -2202,7 +1759,7 @@ export function PropertyForm({
         const errData = await response.json();
         throw new Error(errData.error || 'Failed to remove the video');
       }
-      setVideoRemoved(true);
+      set('videoRemoved', true);
       toast.success(
         'Listing video removed — it no longer plays in the Showcase'
       );
@@ -2218,140 +1775,9 @@ export function PropertyForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!title.trim()) {
-      toast.error('Title is required');
-      return;
-    }
-
-    const isRent = listingType === 'Rent';
-    const isJV = listingType === 'JV/JD';
-    const isBTS = listingType === 'Built to Suit';
-    // BTS is leased out like Rent — same rent/maintenance/advance/gst fields.
-    const isRentLike = isRent || isBTS;
-
-    if (isRentLike) {
-      if (
-        !rentPerMonth.trim() ||
-        isNaN(Number(rentPerMonth)) ||
-        Number(rentPerMonth) < 0
-      ) {
-        toast.error(
-          isBTS
-            ? 'Expected rent must be a valid non-negative number'
-            : 'Rent per month must be a valid non-negative number'
-        );
-        return;
-      }
-      if (
-        maintenance &&
-        (isNaN(Number(maintenance)) || Number(maintenance) < 0)
-      ) {
-        toast.error('Maintenance must be a valid non-negative number');
-        return;
-      }
-      if (advance && (isNaN(Number(advance)) || Number(advance) < 0)) {
-        toast.error('Advance must be a valid non-negative number');
-        return;
-      }
-      if (gst && (isNaN(Number(gst)) || Number(gst) < 0)) {
-        toast.error('GST must be a valid non-negative number');
-        return;
-      }
-    } else if (isJV) {
-      if (price && (isNaN(Number(price)) || Number(price) < 0)) {
-        toast.error(
-          'Expected project value must be a valid non-negative number'
-        );
-        return;
-      }
-      if (
-        !ownerSharePercent.trim() ||
-        isNaN(Number(ownerSharePercent)) ||
-        Number(ownerSharePercent) <= 0 ||
-        Number(ownerSharePercent) >= 100
-      ) {
-        toast.error('Owner share % must be a valid number between 0 and 100');
-        return;
-      }
-      if (
-        !builderSharePercent.trim() ||
-        isNaN(Number(builderSharePercent)) ||
-        Number(builderSharePercent) <= 0 ||
-        Number(builderSharePercent) >= 100
-      ) {
-        toast.error('Builder share % must be a valid number between 0 and 100');
-        return;
-      }
-      if (
-        Math.round(Number(ownerSharePercent) + Number(builderSharePercent)) !==
-        100
-      ) {
-        toast.error('Owner share % and Builder share % must add up to 100');
-        return;
-      }
-      if (
-        goodwillAmount &&
-        (isNaN(Number(goodwillAmount)) || Number(goodwillAmount) < 0)
-      ) {
-        toast.error('Goodwill amount must be a valid non-negative number');
-        return;
-      }
-      if (advance && (isNaN(Number(advance)) || Number(advance) < 0)) {
-        toast.error('Advance must be a valid non-negative number');
-        return;
-      }
-    } else {
-      if (!price.trim() || isNaN(Number(price)) || Number(price) < 0) {
-        toast.error('Price must be a valid non-negative number');
-        return;
-      }
-    }
-
-    if (isBTS) {
-      if (
-        !btsLeaseYears.trim() ||
-        isNaN(Number(btsLeaseYears)) ||
-        Number(btsLeaseYears) <= 0
-      ) {
-        toast.error('Lease term (years) must be a valid positive number');
-        return;
-      }
-      if (
-        btsLockInYears &&
-        (isNaN(Number(btsLockInYears)) || Number(btsLockInYears) < 0)
-      ) {
-        toast.error('Lock-in period must be a valid non-negative number');
-        return;
-      }
-      if (btsLockInYears && Number(btsLockInYears) > Number(btsLeaseYears)) {
-        toast.error('Lock-in period cannot exceed the total lease term');
-        return;
-      }
-      if (
-        btsEscalationPercent &&
-        (isNaN(Number(btsEscalationPercent)) ||
-          Number(btsEscalationPercent) < 0)
-      ) {
-        toast.error('Rent escalation % must be a valid non-negative number');
-        return;
-      }
-    }
-
-    let finalSublocality = sublocality.trim();
-    if (!finalSublocality && searchQuery.trim()) {
-      finalSublocality = searchQuery.trim();
-    }
-
-    if (!finalSublocality || !city.trim() || !stateVal.trim()) {
-      toast.error('Location search query, City, and State are required');
-      return;
-    }
-
-    if (
-      isLand &&
-      (!landArea.trim() || isNaN(Number(landArea)) || Number(landArea) <= 0)
-    ) {
-      toast.error('Land Area is required and must be a valid positive number');
+    const validationError = validatePropertyForm(values);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
@@ -2361,247 +1787,7 @@ export function PropertyForm({
       if (!user || !accountId)
         throw new Error('Not authenticated or account not loaded');
 
-      const parsedPrice = isRentLike
-        ? Number(rentPerMonth) || 0
-        : isJV
-          ? price.trim() !== ''
-            ? Number(price)
-            : 0
-          : Number(price);
-      const parsedRentPerMonth = isRentLike ? Number(rentPerMonth) : null;
-      const parsedMaintenance =
-        isRentLike && maintenance.trim() !== '' ? Number(maintenance) : null;
-      const parsedAdvance =
-        (isRentLike || isJV) && advance.trim() !== '' ? Number(advance) : null;
-      const parsedGst = isRentLike && gst.trim() !== '' ? Number(gst) : null;
-      const parsedJvStructure = isJV ? jvStructure : null;
-      const parsedOwnerSharePercent =
-        isJV && ownerSharePercent.trim() !== ''
-          ? Number(ownerSharePercent)
-          : null;
-      const parsedBuilderSharePercent =
-        isJV && builderSharePercent.trim() !== ''
-          ? Number(builderSharePercent)
-          : null;
-      const parsedGoodwillAmount =
-        isJV && goodwillAmount.trim() !== '' ? Number(goodwillAmount) : null;
-      const parsedBtsLeaseYears =
-        isBTS && btsLeaseYears.trim() !== '' ? Number(btsLeaseYears) : null;
-      const parsedBtsLockInYears =
-        isBTS && btsLockInYears.trim() !== '' ? Number(btsLockInYears) : null;
-      const parsedBtsEscalationPercent =
-        isBTS && btsEscalationPercent.trim() !== ''
-          ? Number(btsEscalationPercent)
-          : null;
-      const parsedBedrooms =
-        hasBedsBaths && bedrooms.trim() !== '' ? Number(bedrooms) : null;
-      const parsedBathrooms =
-        hasBedsBaths && bathrooms.trim() !== '' ? Number(bathrooms) : null;
-      const parsedFloorNumber =
-        showFloorNumber && floorNumber.trim() !== ''
-          ? Number(floorNumber)
-          : null;
-      const parsedTotalFloors =
-        showTotalFloors && totalFloors.trim() !== ''
-          ? Number(totalFloors)
-          : null;
-      const parsedBalconies =
-        hasBedsBaths && balconies.trim() !== '' ? Number(balconies) : null;
-      const parsedAreaSqft =
-        !isLand && areaSqft.trim() !== '' ? Number(areaSqft) : null;
-      const parsedLandArea =
-        (isLand || !isApartment) && landArea.trim() !== ''
-          ? Number(landArea)
-          : null;
-      const parsedSuperBuiltArea =
-        !isLand && superBuiltArea.trim() !== '' ? Number(superBuiltArea) : null;
-      const parsedRoadWidth =
-        !isApartment && roadWidth.trim() !== '' ? Number(roadWidth) : null;
-
-      const parsedFeatures = features;
-      const parsedNearbyHighlights = nearbyHighlights;
-      const filteredImages = images
-        .map((img) => img.trim())
-        .filter((img) => img.length > 0);
-      // Reorder images so the default image is at index 0
-      const parsedImages =
-        filteredImages.length > 0 &&
-        defaultImageIndex > 0 &&
-        defaultImageIndex < filteredImages.length
-          ? [
-              filteredImages[defaultImageIndex],
-              ...filteredImages.filter((_, i) => i !== defaultImageIndex),
-            ]
-          : filteredImages;
-      const parsedDocuments = documents
-        .filter((doc) => doc.url.trim().length > 0)
-        .map((doc) => {
-          return JSON.stringify({
-            url: doc.url.trim(),
-            title: doc.title?.trim() || '',
-          });
-        });
-
-      // Construct formatted complete location string
-      const fullLocation = [
-        address.trim(),
-        finalSublocality,
-        city.trim(),
-        stateVal.trim(),
-      ]
-        .filter(Boolean)
-        .join(', ');
-
-      let finalDimensions = dimensions.trim();
-      if (isLand) {
-        if (frontage.trim() && depth.trim()) {
-          finalDimensions = `${frontage.trim()}x${depth.trim()}`;
-        } else {
-          finalDimensions = '';
-        }
-      } else if (isApartment) {
-        finalDimensions = '';
-      }
-
-      const payload = {
-        title: title.trim(),
-        description: description.trim() || null,
-        price: parsedPrice,
-        listing_type: listingType,
-        rent_per_month: parsedRentPerMonth,
-        maintenance: parsedMaintenance,
-        advance: parsedAdvance,
-        gst: parsedGst,
-        jv_structure: parsedJvStructure,
-        owner_share_percent: parsedOwnerSharePercent,
-        builder_share_percent: parsedBuilderSharePercent,
-        goodwill_amount: parsedGoodwillAmount,
-        bts_lease_years: parsedBtsLeaseYears,
-        bts_lock_in_years: parsedBtsLockInYears,
-        bts_escalation_percent: parsedBtsEscalationPercent,
-        location: fullLocation,
-        type,
-        status: isEdit ? status : 'Available', // Force Available for additions
-        // Only meaningful while Sold; sending null clears a stale value
-        // if the status moves away from Sold.
-        sold_price:
-          status === 'Sold' &&
-          soldPrice.trim() !== '' &&
-          !Number.isNaN(Number(soldPrice))
-            ? Number(soldPrice)
-            : null,
-        // Ignored by the create route's allowlist — a listing has no
-        // negotiated floor on the day it is entered.
-        seller_final_price:
-          sellerFinalPrice.trim() !== '' &&
-          !Number.isNaN(Number(sellerFinalPrice))
-            ? Number(sellerFinalPrice)
-            : null,
-        seller_final_price_per_sqft:
-          sellerFinalPricePerSqft.trim() !== '' &&
-          !Number.isNaN(Number(sellerFinalPricePerSqft))
-            ? Number(sellerFinalPricePerSqft)
-            : null,
-        bedrooms: parsedBedrooms,
-        bathrooms: parsedBathrooms,
-        furnishing: !isLand && furnishing ? furnishing : null,
-        possession_date: possessionDate || null,
-        floor_number: parsedFloorNumber,
-        total_floors: parsedTotalFloors,
-        balconies: parsedBalconies,
-        flooring: !isLand && flooring ? flooring : null,
-        power_backup: !isLand && powerBackup ? powerBackup : null,
-        area_sqft: parsedAreaSqft,
-        area_unit: isLand ? null : areaUnit,
-        land_area: parsedLandArea,
-        land_area_unit: isApartment ? null : landAreaUnit,
-        super_built_area: parsedSuperBuiltArea,
-        sublocality: finalSublocality,
-        city: city.trim(),
-        state: stateVal.trim(),
-        project: project.trim() || null,
-        land_zone: landZone.trim() || null,
-        ideal_for: idealFor.trim() || null,
-        ownership_status: ownershipStatus.trim() || null,
-        land_use_zoning: landUseZoning.trim() || null,
-        legal_status: isRawLand ? legalStatus.trim() || null : null,
-        conversion_type: isRawLand ? conversionType.trim() || null : null,
-        deal_remarks: dealRemarks.trim() || null,
-        dimensions: finalDimensions || null,
-        road_width: parsedRoadWidth,
-        road_width_unit: roadWidthUnit,
-        facing_direction: facingDirection || null,
-        khata_epid: khataEpid.trim() || null,
-        khata_form: khataForm || null,
-        year_built: isLand ? null : yearBuilt.trim() ? Number(yearBuilt) : null,
-        nearby_highlights: parsedNearbyHighlights,
-        is_published: isPublished,
-        features: parsedFeatures,
-        images: parsedImages,
-        documents: parsedDocuments,
-        owner_contact_id: ownerContactId,
-        listing_source: listingSource,
-        google_map_link: googleMapLink.trim() || null,
-        location_privacy: locationPrivacy || null,
-        showcase_visibility: showcaseVisibility || null,
-        rental_income:
-          hasCommercialBuildingFields && rentalIncome.trim() !== ''
-            ? Number(rentalIncome)
-            : null,
-        // Server-side sanitizeFloorTenancies() drops empty rows and
-        // re-validates every value.
-        floor_tenancies: hasCommercialBuildingFields
-          ? floorTenancies.map((ft) => ({
-              floor: ft.floor.trim(),
-              tenant_name: ft.tenant_name.trim() || null,
-              area_sqft:
-                ft.area_sqft.trim() !== '' &&
-                !Number.isNaN(Number(ft.area_sqft))
-                  ? Number(ft.area_sqft)
-                  : null,
-              monthly_rent:
-                ft.monthly_rent.trim() !== '' &&
-                !Number.isNaN(Number(ft.monthly_rent))
-                  ? Number(ft.monthly_rent)
-                  : null,
-              advance:
-                ft.advance.trim() !== '' && !Number.isNaN(Number(ft.advance))
-                  ? Number(ft.advance)
-                  : null,
-              lease_start: ft.lease_start || null,
-              lease_end: ft.lease_end || null,
-              lock_in_months:
-                ft.lock_in_months.trim() !== '' &&
-                !Number.isNaN(Number(ft.lock_in_months))
-                  ? Number(ft.lock_in_months)
-                  : null,
-              maintenance: ft.maintenance.trim() || null,
-              notes: ft.notes.trim() || null,
-              floor_plan: ft.floor_plan.trim() || null,
-            }))
-          : [],
-        // Server-side sanitizeFloorPlans() drops rows with neither a
-        // label nor a drawing.
-        floor_plans: floorPlans.map((fp) => ({
-          floor: fp.floor.trim(),
-          image: fp.image.trim() || null,
-          area_sqft:
-            fp.area_sqft.trim() !== '' && !Number.isNaN(Number(fp.area_sqft))
-              ? Number(fp.area_sqft)
-              : null,
-          notes: fp.notes.trim() || null,
-        })),
-        notes: notes.trim() || null,
-        tags,
-        // Coordinates from the Google Maps pick; nulls tell the server to
-        // geocode the (possibly changed) location text instead.
-        latitude: geoPick?.latitude ?? null,
-        longitude: geoPick?.longitude ?? null,
-        locality_place_id: geoPick?.place_id || null,
-        locality_canonical: geoPick?.canonical || null,
-        interested_contact_ids: interestedContactIds,
-        updated_at: new Date().toISOString(),
-      };
+      const payload = buildPropertyPayload(values, { isEdit });
 
       if (isEdit && property) {
         const response = await fetch(`/api/properties/${property.id}`, {
@@ -4074,7 +3260,7 @@ export function PropertyForm({
                       <Input
                         id="prop-title"
                         value={title}
-                        onChange={(e) => setTitle(e.target.value)}
+                        onChange={(e) => set('title', e.target.value)}
                         placeholder="e.g. Luxurious 3BHK Apartment in Downtown"
                         className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                         required
@@ -4092,7 +3278,8 @@ export function PropertyForm({
                         id="prop-listing-type"
                         value={listingType}
                         onChange={(e) =>
-                          setListingType(
+                          set(
+                            'listingType',
                             e.target.value as
                               'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'
                           )
@@ -4115,7 +3302,7 @@ export function PropertyForm({
                           id="prop-price"
                           type="number"
                           value={price}
-                          onChange={(e) => setPrice(e.target.value)}
+                          onChange={(e) => set('price', e.target.value)}
                           placeholder="e.g. 12000000"
                           className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           required
@@ -4133,7 +3320,9 @@ export function PropertyForm({
                             id="prop-rent"
                             type="number"
                             value={rentPerMonth}
-                            onChange={(e) => setRentPerMonth(e.target.value)}
+                            onChange={(e) =>
+                              set('rentPerMonth', e.target.value)
+                            }
                             placeholder="e.g. 45000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                             required
@@ -4152,7 +3341,7 @@ export function PropertyForm({
                             id="prop-maintenance"
                             type="number"
                             value={maintenance}
-                            onChange={(e) => setMaintenance(e.target.value)}
+                            onChange={(e) => set('maintenance', e.target.value)}
                             placeholder="e.g. 5000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -4170,7 +3359,7 @@ export function PropertyForm({
                             id="prop-advance"
                             type="number"
                             value={advance}
-                            onChange={(e) => setAdvance(e.target.value)}
+                            onChange={(e) => set('advance', e.target.value)}
                             placeholder="e.g. 200000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -4185,7 +3374,7 @@ export function PropertyForm({
                             id="prop-gst"
                             type="number"
                             value={gst}
-                            onChange={(e) => setGst(e.target.value)}
+                            onChange={(e) => set('gst', e.target.value)}
                             placeholder="e.g. 1800"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -4206,7 +3395,9 @@ export function PropertyForm({
                             id="prop-bts-rent"
                             type="number"
                             value={rentPerMonth}
-                            onChange={(e) => setRentPerMonth(e.target.value)}
+                            onChange={(e) =>
+                              set('rentPerMonth', e.target.value)
+                            }
                             placeholder="e.g. 250000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                             required
@@ -4225,7 +3416,7 @@ export function PropertyForm({
                             id="prop-bts-maintenance"
                             type="number"
                             value={maintenance}
-                            onChange={(e) => setMaintenance(e.target.value)}
+                            onChange={(e) => set('maintenance', e.target.value)}
                             placeholder="e.g. 15000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -4243,7 +3434,7 @@ export function PropertyForm({
                             id="prop-bts-advance"
                             type="number"
                             value={advance}
-                            onChange={(e) => setAdvance(e.target.value)}
+                            onChange={(e) => set('advance', e.target.value)}
                             placeholder="e.g. 1500000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -4261,7 +3452,7 @@ export function PropertyForm({
                             id="prop-bts-gst"
                             type="number"
                             value={gst}
-                            onChange={(e) => setGst(e.target.value)}
+                            onChange={(e) => set('gst', e.target.value)}
                             placeholder="e.g. 45000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -4280,7 +3471,9 @@ export function PropertyForm({
                             id="prop-bts-lease-years"
                             type="number"
                             value={btsLeaseYears}
-                            onChange={(e) => setBtsLeaseYears(e.target.value)}
+                            onChange={(e) =>
+                              set('btsLeaseYears', e.target.value)
+                            }
                             placeholder="e.g. 9"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                             required
@@ -4298,7 +3491,9 @@ export function PropertyForm({
                             id="prop-bts-lockin-years"
                             type="number"
                             value={btsLockInYears}
-                            onChange={(e) => setBtsLockInYears(e.target.value)}
+                            onChange={(e) =>
+                              set('btsLockInYears', e.target.value)
+                            }
                             placeholder="e.g. 3"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -4316,7 +3511,7 @@ export function PropertyForm({
                             type="number"
                             value={btsEscalationPercent}
                             onChange={(e) =>
-                              setBtsEscalationPercent(e.target.value)
+                              set('btsEscalationPercent', e.target.value)
                             }
                             placeholder="e.g. 5"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
@@ -4336,7 +3531,8 @@ export function PropertyForm({
                             id="prop-jv-structure"
                             value={jvStructure}
                             onChange={(e) =>
-                              setJvStructure(
+                              set(
+                                'jvStructure',
                                 e.target.value as
                                   'Revenue Share' | 'Area Share' | 'Hybrid'
                               )
@@ -4360,7 +3556,7 @@ export function PropertyForm({
                             id="prop-jv-price"
                             type="number"
                             value={price}
-                            onChange={(e) => setPrice(e.target.value)}
+                            onChange={(e) => set('price', e.target.value)}
                             placeholder="e.g. 50000000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -4381,7 +3577,7 @@ export function PropertyForm({
                             value={ownerSharePercent}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setOwnerSharePercent(val);
+                              set('ownerSharePercent', val);
                               const num = Number(val);
                               if (
                                 val.trim() !== '' &&
@@ -4389,7 +3585,7 @@ export function PropertyForm({
                                 num >= 0 &&
                                 num <= 100
                               ) {
-                                setBuilderSharePercent(String(100 - num));
+                                set('builderSharePercent', String(100 - num));
                               }
                             }}
                             placeholder="e.g. 40"
@@ -4412,7 +3608,7 @@ export function PropertyForm({
                             value={builderSharePercent}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setBuilderSharePercent(val);
+                              set('builderSharePercent', val);
                               const num = Number(val);
                               if (
                                 val.trim() !== '' &&
@@ -4420,7 +3616,7 @@ export function PropertyForm({
                                 num >= 0 &&
                                 num <= 100
                               ) {
-                                setOwnerSharePercent(String(100 - num));
+                                set('ownerSharePercent', String(100 - num));
                               }
                             }}
                             placeholder="e.g. 60"
@@ -4440,7 +3636,9 @@ export function PropertyForm({
                             id="prop-jv-goodwill"
                             type="number"
                             value={goodwillAmount}
-                            onChange={(e) => setGoodwillAmount(e.target.value)}
+                            onChange={(e) =>
+                              set('goodwillAmount', e.target.value)
+                            }
                             placeholder="e.g. 2000000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -4461,7 +3659,7 @@ export function PropertyForm({
                             id="prop-jv-advance"
                             type="number"
                             value={advance}
-                            onChange={(e) => setAdvance(e.target.value)}
+                            onChange={(e) => set('advance', e.target.value)}
                             placeholder="e.g. 1000000"
                             className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -4481,7 +3679,7 @@ export function PropertyForm({
                       <select
                         id="prop-type"
                         value={type}
-                        onChange={(e) => setType(e.target.value)}
+                        onChange={(e) => set('type', e.target.value)}
                         className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                       >
                         {propertyTypeGroups.map((g) => (
@@ -4507,7 +3705,7 @@ export function PropertyForm({
                         <select
                           id="prop-status"
                           value={status}
-                          onChange={(e) => setStatus(e.target.value)}
+                          onChange={(e) => set('status', e.target.value)}
                           className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                         >
                           {PROPERTY_STATUSES.map((s) => (
@@ -4543,7 +3741,7 @@ export function PropertyForm({
                               min="0"
                               value={sellerFinalPrice}
                               onChange={(e) =>
-                                setSellerFinalPrice(e.target.value)
+                                set('sellerFinalPrice', e.target.value)
                               }
                               placeholder={
                                 price ? `e.g. ${price}` : 'e.g. 42000000'
@@ -4565,7 +3763,7 @@ export function PropertyForm({
                               min="0"
                               value={sellerFinalPricePerSqft}
                               onChange={(e) =>
-                                setSellerFinalPricePerSqft(e.target.value)
+                                set('sellerFinalPricePerSqft', e.target.value)
                               }
                               placeholder="e.g. 10500"
                               className="border-slate-700 bg-slate-800 text-white"
@@ -4588,7 +3786,7 @@ export function PropertyForm({
                           type="number"
                           min="0"
                           value={soldPrice}
-                          onChange={(e) => setSoldPrice(e.target.value)}
+                          onChange={(e) => set('soldPrice', e.target.value)}
                           placeholder={price ? `e.g. ${price}` : 'e.g. 8500000'}
                           className="border-slate-700 bg-slate-800 text-white"
                         />
@@ -4660,13 +3858,13 @@ export function PropertyForm({
                                       key={p.name}
                                       type="button"
                                       onClick={() => {
-                                        setProject(p.name);
-                                        setSublocality(p.sublocality);
-                                        setCity(p.city);
-                                        setStateVal(p.state);
-                                        setAddress(p.address);
-                                        setSearchQuery(p.name);
-                                        setGeoPick(null); // registry pick has no coords; server geocodes on save
+                                        set('project', p.name);
+                                        set('sublocality', p.sublocality);
+                                        set('city', p.city);
+                                        set('stateVal', p.state);
+                                        set('address', p.address);
+                                        set('searchQuery', p.name);
+                                        set('geoPick', null); // registry pick has no coords; server geocodes on save
                                         setShowSuggestions(false);
                                       }}
                                       className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
@@ -4698,21 +3896,21 @@ export function PropertyForm({
                                       key={sub}
                                       type="button"
                                       onClick={() => {
-                                        setProject('');
+                                        set('project', '');
                                         const parts = sub
                                           .split(',')
                                           .map((s) => s.trim());
                                         if (parts.length > 1) {
-                                          setSublocality(parts[0]);
-                                          setAddress(parts[1]);
+                                          set('sublocality', parts[0]);
+                                          set('address', parts[1]);
                                         } else {
-                                          setSublocality(sub);
-                                          setAddress('');
+                                          set('sublocality', sub);
+                                          set('address', '');
                                         }
-                                        setCity('Bangalore');
-                                        setStateVal('Karnataka');
-                                        setSearchQuery(sub);
-                                        setGeoPick(null); // registry pick has no coords; server geocodes on save
+                                        set('city', 'Bangalore');
+                                        set('stateVal', 'Karnataka');
+                                        set('searchQuery', sub);
+                                        set('geoPick', null); // registry pick has no coords; server geocodes on save
                                         setShowSuggestions(false);
                                       }}
                                       className="w-full rounded px-3 py-1.5 text-left text-xs text-slate-200 transition-colors hover:bg-slate-700 hover:text-white"
@@ -4781,7 +3979,7 @@ export function PropertyForm({
                         <Input
                           id="prop-city"
                           value={city}
-                          onChange={(e) => setCity(e.target.value)}
+                          onChange={(e) => set('city', e.target.value)}
                           placeholder="e.g. Bangalore"
                           className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
                           required
@@ -4796,7 +3994,7 @@ export function PropertyForm({
                         <Input
                           id="prop-state"
                           value={stateVal}
-                          onChange={(e) => setStateVal(e.target.value)}
+                          onChange={(e) => set('stateVal', e.target.value)}
                           placeholder="e.g. Karnataka"
                           className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
                           required
@@ -4814,7 +4012,7 @@ export function PropertyForm({
                         <Input
                           id="prop-address"
                           value={address}
-                          onChange={(e) => setAddress(e.target.value)}
+                          onChange={(e) => set('address', e.target.value)}
                           placeholder="e.g. Near Metro Station"
                           className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={isProjectMatched}
@@ -4831,7 +4029,7 @@ export function PropertyForm({
                         <Input
                           id="prop-google-map-link"
                           value={googleMapLink}
-                          onChange={(e) => setGoogleMapLink(e.target.value)}
+                          onChange={(e) => set('googleMapLink', e.target.value)}
                           placeholder="e.g. https://maps.google.com/?q=..."
                         />
                         {mapPinDrift !== null && (
@@ -4869,7 +4067,8 @@ export function PropertyForm({
                           checked={locationGuarded}
                           onCheckedChange={(checked) => {
                             const next = checked ? 'locality' : 'exact';
-                            setLocationPrivacy(
+                            set(
+                              'locationPrivacy',
                               (guardedByType ? 'locality' : 'exact') === next
                                 ? ''
                                 : next
@@ -4897,7 +4096,7 @@ export function PropertyForm({
                           id="prop-showcase-gate"
                           checked={showcaseVisibility === 'teaser'}
                           onCheckedChange={(checked) =>
-                            setShowcaseVisibility(checked ? 'teaser' : '')
+                            set('showcaseVisibility', checked ? 'teaser' : '')
                           }
                         />
                       </div>
@@ -4915,7 +4114,7 @@ export function PropertyForm({
                         <Textarea
                           id="prop-notes"
                           value={notes}
-                          onChange={(e) => setNotes(e.target.value)}
+                          onChange={(e) => set('notes', e.target.value)}
                           placeholder="e.g. Near Garuda Mall, 3rd left from Metro Station. Owner available only on weekdays..."
                           className="min-h-[80px] resize-y border-slate-700 bg-slate-800 text-sm text-white placeholder:text-slate-500"
                           rows={3}
@@ -4948,7 +4147,10 @@ export function PropertyForm({
                               <button
                                 type="button"
                                 onClick={() =>
-                                  setTags(tags.filter((_, i) => i !== idx))
+                                  set(
+                                    'tags',
+                                    tags.filter((_, i) => i !== idx)
+                                  )
                                 }
                                 className="text-primary/70 hover:text-primary"
                               >
@@ -4971,7 +4173,7 @@ export function PropertyForm({
                                       t.toLowerCase() === next.toLowerCase()
                                   )
                                 ) {
-                                  setTags([...tags, next]);
+                                  set('tags', [...tags, next]);
                                 }
                                 setTagInput('');
                               } else if (
@@ -4979,7 +4181,7 @@ export function PropertyForm({
                                 !tagInput &&
                                 tags.length > 0
                               ) {
-                                setTags(tags.slice(0, -1));
+                                set('tags', tags.slice(0, -1));
                               }
                             }}
                             onBlur={() => {
@@ -4990,7 +4192,7 @@ export function PropertyForm({
                                   (t) => t.toLowerCase() === next.toLowerCase()
                                 )
                               ) {
-                                setTags([...tags, next]);
+                                set('tags', [...tags, next]);
                               }
                               setTagInput('');
                             }}
@@ -5027,7 +4229,7 @@ export function PropertyForm({
                                 <button
                                   key={s.tag}
                                   type="button"
-                                  onClick={() => setTags([...tags, s.tag])}
+                                  onClick={() => set('tags', [...tags, s.tag])}
                                   className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400 hover:border-slate-600 hover:text-slate-200"
                                 >
                                   <Plus className="size-2.5" />
@@ -5059,7 +4261,7 @@ export function PropertyForm({
                             <select
                               id="prop-land-zone"
                               value={landZone}
-                              onChange={(e) => setLandZone(e.target.value)}
+                              onChange={(e) => set('landZone', e.target.value)}
                               className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                             >
                               <option value="">Select Land Zone</option>
@@ -5084,7 +4286,7 @@ export function PropertyForm({
                             <Input
                               id="prop-ideal-for"
                               value={idealFor}
-                              onChange={(e) => setIdealFor(e.target.value)}
+                              onChange={(e) => set('idealFor', e.target.value)}
                               placeholder="e.g. Software, Bank, Clinic"
                               className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                             />
@@ -5103,7 +4305,7 @@ export function PropertyForm({
                                 type="number"
                                 value={rentalIncome}
                                 onChange={(e) =>
-                                  setRentalIncome(e.target.value)
+                                  set('rentalIncome', e.target.value)
                                 }
                                 placeholder="e.g. 250000"
                                 className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
@@ -5162,7 +4364,7 @@ export function PropertyForm({
                           variant="outline"
                           size="sm"
                           onClick={() =>
-                            setFloorTenancies((prev) => [
+                            set('floorTenancies', (prev) => [
                               ...prev,
                               { ...emptyFloorTenancy },
                             ])
@@ -5186,7 +4388,7 @@ export function PropertyForm({
                             <button
                               type="button"
                               onClick={() =>
-                                setFloorTenancies((prev) =>
+                                set('floorTenancies', (prev) =>
                                   prev.filter((_, i) => i !== idx)
                                 )
                               }
@@ -5511,7 +4713,7 @@ export function PropertyForm({
                             id="prop-bedrooms"
                             type="number"
                             value={bedrooms}
-                            onChange={(e) => setBedrooms(e.target.value)}
+                            onChange={(e) => set('bedrooms', e.target.value)}
                             placeholder="e.g. 3"
                             className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -5530,7 +4732,7 @@ export function PropertyForm({
                             id="prop-bathrooms"
                             type="number"
                             value={bathrooms}
-                            onChange={(e) => setBathrooms(e.target.value)}
+                            onChange={(e) => set('bathrooms', e.target.value)}
                             placeholder="e.g. 2"
                             className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -5559,7 +4761,9 @@ export function PropertyForm({
                             />
                             <select
                               value={landAreaUnit}
-                              onChange={(e) => setLandAreaUnit(e.target.value)}
+                              onChange={(e) =>
+                                set('landAreaUnit', e.target.value)
+                              }
                               className="focus:ring-primary h-9 w-28 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs font-medium text-white focus:ring-2 focus:outline-none"
                             >
                               {AREA_UNITS.map((unit) => (
@@ -5584,13 +4788,17 @@ export function PropertyForm({
                                 id="prop-area"
                                 type="number"
                                 value={areaSqft}
-                                onChange={(e) => setAreaSqft(e.target.value)}
+                                onChange={(e) =>
+                                  set('areaSqft', e.target.value)
+                                }
                                 placeholder="e.g. 1500"
                                 className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                               />
                               <select
                                 value={areaUnit}
-                                onChange={(e) => setAreaUnit(e.target.value)}
+                                onChange={(e) =>
+                                  set('areaUnit', e.target.value)
+                                }
                                 className="focus:ring-primary h-9 w-28 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs font-medium text-white focus:ring-2 focus:outline-none"
                               >
                                 {AREA_UNITS.map((unit) => (
@@ -5616,7 +4824,7 @@ export function PropertyForm({
                               type="number"
                               value={superBuiltArea}
                               onChange={(e) =>
-                                setSuperBuiltArea(e.target.value)
+                                set('superBuiltArea', e.target.value)
                               }
                               placeholder="e.g. 1800"
                               className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
@@ -5645,7 +4853,7 @@ export function PropertyForm({
                                 <select
                                   value={landAreaUnit}
                                   onChange={(e) =>
-                                    setLandAreaUnit(e.target.value)
+                                    set('landAreaUnit', e.target.value)
                                   }
                                   className="focus:ring-primary h-9 w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs font-medium text-white focus:ring-2 focus:outline-none"
                                 >
@@ -5712,7 +4920,9 @@ export function PropertyForm({
                             <Input
                               id="prop-dimensions"
                               value={dimensions}
-                              onChange={(e) => setDimensions(e.target.value)}
+                              onChange={(e) =>
+                                set('dimensions', e.target.value)
+                              }
                               placeholder="e.g. 30x40, 50x80 (Width x Length)"
                               className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                             />
@@ -5733,13 +4943,15 @@ export function PropertyForm({
                               id="prop-road-width"
                               type="number"
                               value={roadWidth}
-                              onChange={(e) => setRoadWidth(e.target.value)}
+                              onChange={(e) => set('roadWidth', e.target.value)}
                               placeholder="e.g. 40"
                               className="h-9 flex-1 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                             />
                             <select
                               value={roadWidthUnit}
-                              onChange={(e) => setRoadWidthUnit(e.target.value)}
+                              onChange={(e) =>
+                                set('roadWidthUnit', e.target.value)
+                              }
                               className="focus:ring-primary h-9 w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs font-medium text-white focus:ring-2 focus:outline-none"
                             >
                               <option value="Feet">Feet</option>
@@ -5758,7 +4970,9 @@ export function PropertyForm({
                         <select
                           id="prop-facing"
                           value={facingDirection}
-                          onChange={(e) => setFacingDirection(e.target.value)}
+                          onChange={(e) =>
+                            set('facingDirection', e.target.value)
+                          }
                           className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                         >
                           <option value="">Select Facing</option>
@@ -5780,7 +4994,7 @@ export function PropertyForm({
                         <Input
                           id="prop-khata-epid"
                           value={khataEpid}
-                          onChange={(e) => setKhataEpid(e.target.value)}
+                          onChange={(e) => set('khataEpid', e.target.value)}
                           placeholder="e.g. 7425317720"
                           className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                         />
@@ -5796,7 +5010,7 @@ export function PropertyForm({
                         <select
                           id="prop-khata-form"
                           value={khataForm}
-                          onChange={(e) => setKhataForm(e.target.value)}
+                          onChange={(e) => set('khataForm', e.target.value)}
                           className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                         >
                           <option value="">Not recorded</option>
@@ -5819,7 +5033,7 @@ export function PropertyForm({
                             min={1800}
                             max={2100}
                             value={yearBuilt}
-                            onChange={(e) => setYearBuilt(e.target.value)}
+                            onChange={(e) => set('yearBuilt', e.target.value)}
                             placeholder="e.g. 1998"
                             className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -5837,7 +5051,7 @@ export function PropertyForm({
                           <select
                             id="prop-furnishing"
                             value={furnishing}
-                            onChange={(e) => setFurnishing(e.target.value)}
+                            onChange={(e) => set('furnishing', e.target.value)}
                             className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                           >
                             <option value="">Select Furnishing</option>
@@ -5861,7 +5075,9 @@ export function PropertyForm({
                           id="prop-possession-date"
                           type="date"
                           value={possessionDate}
-                          onChange={(e) => setPossessionDate(e.target.value)}
+                          onChange={(e) =>
+                            set('possessionDate', e.target.value)
+                          }
                           className="h-9 border-slate-700 bg-slate-800 text-white [color-scheme:dark]"
                         />
                         <p className="text-[10px] text-slate-500">
@@ -5883,7 +5099,7 @@ export function PropertyForm({
                             <select
                               id="prop-flooring"
                               value={flooring}
-                              onChange={(e) => setFlooring(e.target.value)}
+                              onChange={(e) => set('flooring', e.target.value)}
                               className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                             >
                               <option value="">Select Flooring</option>
@@ -5905,7 +5121,9 @@ export function PropertyForm({
                             <select
                               id="prop-power-backup"
                               value={powerBackup}
-                              onChange={(e) => setPowerBackup(e.target.value)}
+                              onChange={(e) =>
+                                set('powerBackup', e.target.value)
+                              }
                               className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                             >
                               <option value="">Select Power Backup</option>
@@ -5931,7 +5149,7 @@ export function PropertyForm({
                             id="prop-balconies"
                             type="number"
                             value={balconies}
-                            onChange={(e) => setBalconies(e.target.value)}
+                            onChange={(e) => set('balconies', e.target.value)}
                             placeholder="e.g. 2"
                             className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -5950,7 +5168,7 @@ export function PropertyForm({
                             id="prop-floor-number"
                             type="number"
                             value={floorNumber}
-                            onChange={(e) => setFloorNumber(e.target.value)}
+                            onChange={(e) => set('floorNumber', e.target.value)}
                             placeholder="e.g. 4 (0 = Ground)"
                             className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -5968,7 +5186,7 @@ export function PropertyForm({
                             id="prop-total-floors"
                             type="number"
                             value={totalFloors}
-                            onChange={(e) => setTotalFloors(e.target.value)}
+                            onChange={(e) => set('totalFloors', e.target.value)}
                             placeholder="e.g. 12"
                             className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                           />
@@ -5992,7 +5210,7 @@ export function PropertyForm({
                               id="prop-ownership-status"
                               value={ownershipStatus}
                               onChange={(e) =>
-                                setOwnershipStatus(e.target.value)
+                                set('ownershipStatus', e.target.value)
                               }
                               className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                             >
@@ -6025,7 +5243,9 @@ export function PropertyForm({
                             <Input
                               id="prop-land-use-zoning"
                               value={landUseZoning}
-                              onChange={(e) => setLandUseZoning(e.target.value)}
+                              onChange={(e) =>
+                                set('landUseZoning', e.target.value)
+                              }
                               placeholder="e.g. Residential zone 26A 13G, Red Zone 5A 29G"
                               className="h-9 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                             />
@@ -6043,7 +5263,7 @@ export function PropertyForm({
                                   id="prop-legal-status"
                                   value={legalStatus}
                                   onChange={(e) =>
-                                    setLegalStatus(e.target.value)
+                                    set('legalStatus', e.target.value)
                                   }
                                   className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                                 >
@@ -6066,7 +5286,7 @@ export function PropertyForm({
                                   id="prop-conversion-type"
                                   value={conversionType}
                                   onChange={(e) =>
-                                    setConversionType(e.target.value)
+                                    set('conversionType', e.target.value)
                                   }
                                   className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                                 >
@@ -6092,7 +5312,7 @@ export function PropertyForm({
                                     id="prop-land-zone-res"
                                     value={landZone}
                                     onChange={(e) =>
-                                      setLandZone(e.target.value)
+                                      set('landZone', e.target.value)
                                     }
                                     className="focus:ring-primary flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm font-medium text-white focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:outline-none"
                                   >
@@ -6128,7 +5348,9 @@ export function PropertyForm({
                             <Textarea
                               id="prop-deal-remarks"
                               value={dealRemarks}
-                              onChange={(e) => setDealRemarks(e.target.value)}
+                              onChange={(e) =>
+                                set('dealRemarks', e.target.value)
+                              }
                               placeholder="e.g. Legal/aggregation status, road access, timeline for completion..."
                               className="min-h-16 border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                             />
@@ -6464,7 +5686,7 @@ export function PropertyForm({
                       <div className="col-span-2 space-y-3 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
                         <FloorPlansEditor
                           value={floorPlans}
-                          onChange={setFloorPlans}
+                          onChange={(next) => set('floorPlans', next)}
                           onUpload={uploadPlanImage}
                           disabled={!canEdit}
                           isLand={isLand}
@@ -6646,7 +5868,7 @@ export function PropertyForm({
                     <Textarea
                       id="prop-description"
                       value={description}
-                      onChange={(e) => setDescription(e.target.value)}
+                      onChange={(e) => set('description', e.target.value)}
                       placeholder="Describe the property's design, styling details, location benefits, etc..."
                       rows={4}
                       className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
@@ -6958,7 +6180,7 @@ export function PropertyForm({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setInterestedContactIds((prev) =>
+                                        set('interestedContactIds', (prev) =>
                                           prev.filter((id) => id !== c.id)
                                         );
                                       }}
@@ -6991,7 +6213,9 @@ export function PropertyForm({
                       <Switch
                         id="prop-published"
                         checked={isPublished}
-                        onCheckedChange={setIsPublished}
+                        onCheckedChange={(checked) =>
+                          set('isPublished', checked)
+                        }
                       />
                       <Label
                         htmlFor="prop-published"
