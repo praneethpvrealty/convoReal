@@ -523,12 +523,27 @@ export function absorbContactDrafts(
 
 export const CONTACT_CONFIRM_BUTTON = 'confirm_contact';
 
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [
+          key,
+          canonicalJson((value as Record<string, unknown>)[key]),
+        ])
+    );
+  }
+  return value;
+}
+
 export function contactCardVersion(
   draftVersion: string,
   container: ParsedContactDraftsContainer
 ): string {
   const digest = createHash('sha256')
-    .update(JSON.stringify(container.contacts ?? []))
+    .update(JSON.stringify(canonicalJson(container.contacts ?? [])))
     .digest('hex')
     .slice(0, 16);
   return `${draftVersion}#${digest}`;

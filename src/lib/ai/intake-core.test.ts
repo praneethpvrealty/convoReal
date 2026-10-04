@@ -1045,6 +1045,23 @@ describe('[INB-026] the version a contact card confirms', () => {
     );
   });
 
+  it('ignores key order, which a JSONB round trip does not keep', () => {
+    const shown = makeContainer([
+      makeContact({ name: 'Ravi', phone: '9000000001', email: 'r@x.com' }),
+    ]);
+    const stored = JSON.parse(
+      JSON.stringify({
+        contacts: shown.contacts.map((c) =>
+          Object.fromEntries(Object.entries(c).reverse())
+        ),
+      })
+    );
+    expect(JSON.stringify(stored.contacts)).not.toBe(
+      JSON.stringify(shown.contacts)
+    );
+    expect(contactCardVersion(at, stored)).toBe(contactCardVersion(at, shown));
+  });
+
   it('fits a WhatsApp button id', () => {
     expect(
       contactConfirmButtonId(contactCardVersion(at, card)).length
