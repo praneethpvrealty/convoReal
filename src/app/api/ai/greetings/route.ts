@@ -6,7 +6,8 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { generateText } from '@/lib/ai/gemini';
 import {
@@ -53,7 +54,10 @@ export async function POST(request: Request) {
     }
 
     // Burn credits
-    const burn = await burnCredits(ctx.accountId, 'greetings_generate', cost);
+    const burnKey = newBurnKey('greetings_generate');
+    const burn = await burnCredits(ctx.accountId, 'greetings_generate', cost, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -107,7 +111,7 @@ export async function POST(request: Request) {
       });
     } catch (generationErr) {
       // Refund credits on failure
-      await refundCredits(ctx.accountId, 'greetings_generate', cost);
+      await refundBurn(ctx.accountId, 'greetings_generate', burnKey);
       throw generationErr;
     }
   } catch (err) {

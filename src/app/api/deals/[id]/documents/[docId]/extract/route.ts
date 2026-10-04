@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import {
+  newBurnKey,
+  refundBurn,
+  refundOutcomeNotice,
+} from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
   extractDocumentFields,
@@ -72,14 +77,14 @@ export async function POST(
     // Burned before the AI call, never after — the ordering the credit
     // engine requires. Refunded below if the read fails.
     //
-    // No retry key. A key fixed to the document made a second attempt
-    // within 60 seconds free, but the failure path refunds regardless —
-    // so two failed reads burned once and refunded twice, minting the
-    // difference. Every attempt now burns and every refund matches a
+    // The key is minted per request, never derived from the document, so
+    // a second attempt always burns and its refund reverses exactly this
     // burn. A double submit costs twice, which the disabled button and
-    // the rate limit above already bound, and is the side to err on
-    // when the alternative is a wallet that grows by retrying.
-    const burn = await burnCredits(ctx.accountId, FEATURE, COST);
+    // the rate limit above already bound.
+    const burnKey = newBurnKey(FEATURE);
+    const burn = await burnCredits(ctx.accountId, FEATURE, COST, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -133,8 +138,8 @@ export async function POST(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
 
-      await refundCredits(ctx.accountId, FEATURE, COST, {
-        description: 'deal document read failed',
+      const refund = await refundBurn(ctx.accountId, FEATURE, burnKey, {
+        reason: 'deal document read failed',
       });
 
       await ctx.supabase
@@ -149,7 +154,9 @@ export async function POST(
 
       console.error('[deal-document-extract] failed:', message);
       return NextResponse.json(
-        { error: 'Could not read this document. Your credits were refunded.' },
+        {
+          error: `Could not read this document. ${refundOutcomeNotice(refund)}`,
+        },
         { status: 502 }
       );
     }
