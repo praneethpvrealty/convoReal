@@ -1,18 +1,3 @@
--- ============================================================
--- Read-only members cannot write flows or automations through RLS.
---
--- is_account_member() ranks a legacy read-only member (org_agent with
--- profiles.is_read_only) as agent-level, so the agent write policies on
--- flows, flow_nodes, automations and automation_steps let them insert,
--- update and delete with their own JWT, bypassing requireWriteRole() in
--- the API routes. is_account_writer() is is_account_member() plus the
--- read-only check, and those write policies now use it. Read policies
--- are unchanged.
---
--- Not additive: it replaces existing policies. Apply after the PR is
--- merged into main.
--- ============================================================
-
 CREATE OR REPLACE FUNCTION public.is_account_writer(
   target_account_id UUID,
   min_role account_role_enum DEFAULT 'agent'
