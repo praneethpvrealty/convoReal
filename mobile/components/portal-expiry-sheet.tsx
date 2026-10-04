@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,11 @@ import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { Banner, PrimaryButton } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
+import {
+  canEditExpiry,
+  canMarkRemoved,
+  portalRowStatusLabel,
+} from '@/lib/portal-drift';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -88,6 +94,7 @@ export function PortalExpirySheet({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftDate, setDraftDate] = useState(defaultExpiry);
   const [saving, setSaving] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const queryKey = ['portal-listings', accountId, propertyId];
   const listings = useQuery({
@@ -131,6 +138,51 @@ export function PortalExpirySheet({
     await queryClient.invalidateQueries({ queryKey });
   }
 
+  function confirmRemoved(row: PortalListingRow) {
+    haptic.tap();
+    Alert.alert(
+      `Mark ${PORTAL_LABELS[row.portal]} ad removed?`,
+      'Use this once the ad is taken down on the portal. ConvoReal stops tracking its expiry.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Mark removed',
+          style: 'destructive',
+          onPress: () => void markRemoved(row),
+        },
+      ]
+    );
+  }
+
+  async function markRemoved(row: PortalListingRow) {
+    if (!accountId) return;
+    setRemovingId(row.id);
+    setError(null);
+    const { data, error: updateError } = await supabase
+      .from('property_portal_listings')
+      .update({ status: 'removed' })
+      .eq('id', row.id)
+      .eq('account_id', accountId)
+      .eq('property_id', propertyId)
+      .select('id')
+      .maybeSingle();
+    setRemovingId(null);
+    if (updateError || !data) {
+      haptic.warn();
+      setError('Could not mark the ad removed. Please try again.');
+      return;
+    }
+    haptic.success();
+    if (editingId === row.id) {
+      setEditingId(null);
+      setPickerOpen(false);
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey }),
+      queryClient.invalidateQueries({ queryKey: ['portal-drift'] }),
+    ]);
+  }
+
   function closeSheet() {
     setEditingId(null);
     setPickerOpen(false);
@@ -139,11 +191,7 @@ export function PortalExpirySheet({
   }
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={closeSheet}
-      title="Portal expiry dates"
-    >
+    <BottomSheet visible={visible} onClose={closeSheet} title="Portal listings">
       <ScrollView
         style={sheetScrollArea}
         contentContainerStyle={styles.content}
@@ -168,6 +216,8 @@ export function PortalExpirySheet({
         ) : listings.data?.length ? (
           listings.data.map((row) => {
             const editing = editingId === row.id;
+            const removed = !canEditExpiry(row);
+            const statusLabel = portalRowStatusLabel(row.status);
             return (
               <View
                 key={row.id}
@@ -175,9 +225,11 @@ export function PortalExpirySheet({
                   styles.card,
                   {
                     backgroundColor: colors.glass,
-                    borderColor: row.expires_on
-                      ? colors.glassBorder
-                      : colors.warning,
+                    borderColor:
+                      row.expires_on || removed
+                        ? colors.glassBorder
+                        : colors.warning,
+                    opacity: removed ? 0.6 : 1,
                   },
                 ]}
               >
@@ -191,50 +243,91 @@ export function PortalExpirySheet({
                       }}
                     >
                       {PORTAL_LABELS[row.portal]}
+                      {statusLabel ? ` · ${statusLabel}` : ''}
                     </Text>
                     <Text
                       style={{
-                        color: row.expires_on
-                          ? colors.textMuted
-                          : colors.warning,
+                        color:
+                          row.expires_on || removed
+                            ? colors.textMuted
+                            : colors.warning,
                         fontSize: 12.5,
                       }}
                     >
-                      {displayDate(row.expires_on)}
+                      {removed && !row.expires_on
+                        ? 'No expiry tracked'
+                        : displayDate(row.expires_on)}
                       {row.portal_listing_id
                         ? ` · Ad ${row.portal_listing_id}`
                         : ''}
                     </Text>
                   </View>
-                  <Pressable
-                    onPress={() => edit(row)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Set ${PORTAL_LABELS[row.portal]} expiry date`}
-                    style={[
-                      styles.editButton,
-                      {
-                        backgroundColor: colors.primarySoft,
-                        borderColor: colors.primary,
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name="calendar-outline"
-                      size={15}
-                      color={colors.primary}
-                    />
-                    <Text
-                      style={{
-                        color: colors.primary,
-                        fontFamily: f.bold,
-                        fontSize: 12,
-                      }}
-                    >
-                      {row.expires_on ? 'Change' : 'Set date'}
-                    </Text>
-                  </Pressable>
+                  {removed ? null : (
+                    <View style={styles.actionColumn}>
+                      <Pressable
+                        onPress={() => edit(row)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Set ${PORTAL_LABELS[row.portal]} expiry date`}
+                        style={[
+                          styles.editButton,
+                          {
+                            backgroundColor: colors.primarySoft,
+                            borderColor: colors.primary,
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name="calendar-outline"
+                          size={15}
+                          color={colors.primary}
+                        />
+                        <Text
+                          style={{
+                            color: colors.primary,
+                            fontFamily: f.bold,
+                            fontSize: 12,
+                          }}
+                        >
+                          {row.expires_on ? 'Change' : 'Set date'}
+                        </Text>
+                      </Pressable>
+                      {canMarkRemoved(row) ? (
+                        <Pressable
+                          onPress={() => confirmRemoved(row)}
+                          disabled={removingId === row.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Mark ${PORTAL_LABELS[row.portal]} ad removed`}
+                          accessibilityState={{
+                            busy: removingId === row.id,
+                            disabled: removingId === row.id,
+                          }}
+                          style={[
+                            styles.editButton,
+                            { borderColor: colors.danger },
+                          ]}
+                        >
+                          <Ionicons
+                            name="trash-outline"
+                            size={15}
+                            color={colors.danger}
+                          />
+                          <Text
+                            style={{
+                              color: colors.danger,
+                              fontFamily: f.bold,
+                              fontSize: 12,
+                            }}
+                          >
+                            {removingId === row.id
+                              ? 'Removing…'
+                              : 'Mark removed'}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  )}
                 </View>
-                {editing ? (
+                {editing && !removed ? (
                   <View style={styles.editor}>
                     <Pressable
                       onPress={() => setPickerOpen(true)}
@@ -310,8 +403,8 @@ export function PortalExpirySheet({
                 textAlign: 'center',
               }}
             >
-              Add or sync the listing from Post to Portals on the web. It will
-              then appear here with its own expiry date.
+              Posting to portals runs through the Chrome extension on desktop.
+              Once an ad is recorded it appears here with its own expiry date.
             </Text>
           </View>
         )}
@@ -343,6 +436,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
+  actionColumn: { gap: spacing.sm, alignItems: 'flex-end' },
   editButton: {
     minHeight: 40,
     borderRadius: radius.full,

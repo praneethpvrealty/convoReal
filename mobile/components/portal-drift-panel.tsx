@@ -12,6 +12,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
+import { PortalExpirySheet } from '@/components/portal-expiry-sheet';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { formatInr } from '@/lib/format';
@@ -90,9 +91,9 @@ function findingDetail(f: PortalDriftFinding): string {
   const leads = `${f.leadCount} lead${f.leadCount === 1 ? '' : 's'}`;
   switch (f.driftKind) {
     case 'withdrawn_stock':
-      return `${leads} in the last 30 days, but the listing is ${f.propertyStatus}. You are paying for an ad on withdrawn stock — take it down, or relist the property.`;
+      return `${leads} in the last 30 days, but the listing is ${f.propertyStatus}. You are paying for an ad on withdrawn stock — take it down, then mark it removed.`;
     case 'stale_expiry':
-      return `${leads} arrived after ${expiryLabel(f.expiresOn)}, so the ad is still live and the recorded expiry is stale. Update it from the web Post to Portals dialog.`;
+      return `${leads} arrived after ${expiryLabel(f.expiresOn)}, so the ad is still live and the recorded expiry is stale. Update the expiry date below.`;
     case 'likely_lapsed':
       return `No leads since it expired on ${expiryLabel(f.expiresOn)}. Renew it on the portal, or mark it removed.`;
     case 'details_drift': {
@@ -127,6 +128,7 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
   const storageKey = accountId ? `${DISMISS_KEY_PREFIX}:${accountId}` : null;
   const [isDismissed, setIsDismissed] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [sheetPropertyId, setSheetPropertyId] = useState<string | null>(null);
 
   const { data: findings, isLoading } = useQuery({
     queryKey: ['portal-drift'],
@@ -308,6 +310,31 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
               <Pressable
                 onPress={() => {
                   haptic.tap();
+                  setSheetPropertyId(item.propertyId);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Update portal listing for ${item.propertyTitle || 'this listing'}`}
+                style={[
+                  styles.actionButton,
+                  {
+                    borderColor: colors.warning,
+                    backgroundColor: colors.warning,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontFamily: f.bold,
+                    color: colors.onWarning,
+                  }}
+                >
+                  Update portal listing
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  haptic.tap();
                   router.push(propertyHref(item.propertyId) as never);
                 }}
                 accessibilityRole="button"
@@ -349,6 +376,11 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
             </View>
           </View>
         ))}
+      <PortalExpirySheet
+        visible={sheetPropertyId !== null}
+        onClose={() => setSheetPropertyId(null)}
+        propertyId={sheetPropertyId ?? ''}
+      />
     </View>
   );
 }

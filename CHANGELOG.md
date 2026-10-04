@@ -17,6 +17,14 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 4 October 2026
+
+- **Fix a portal-ad mismatch from the phone.** Each finding in the portal
+  drift banner on mobile now has **Update portal listing**, which opens the
+  listing's portal ads to change an expiry date or **Mark removed** once the
+  ad is down, and the banner refreshes on its own. Posting to a portal stays
+  on desktop, where the Chrome extension runs.
+
 #### 3 October 2026
 
 - **The showcase share message reads like the message the client gets.**
