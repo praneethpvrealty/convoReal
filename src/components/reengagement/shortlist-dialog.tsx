@@ -91,7 +91,11 @@ export function ShortlistDialog({
       const res = await fetch('/api/radar/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ eventId, targetIds: Array.from(selected) }),
+        body: JSON.stringify({
+          eventId,
+          targetIds: Array.from(selected),
+          resend: lead?.matchEventStatus === 'sent',
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Send failed');
