@@ -39,8 +39,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { useAuth } from '@/hooks/useAuth';
-import { useCan } from '@/hooks/useCan';
 import { cn } from '@/lib/utils';
 import { useFlowEditor, type BuilderState } from './flow-editor-state';
 
@@ -57,9 +55,9 @@ export function EditorHeader() {
     save,
     setStatus,
     deleteFlow,
+    readOnly,
   } = useFlowEditor();
-  const { isReadOnly } = useAuth();
-  const canEdit = useCan('send-messages') && !isReadOnly;
+  const canEdit = !readOnly;
   const [leaveTo, setLeaveTo] = useState<string | null>(null);
 
   const navigate = (href: string) => {

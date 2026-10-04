@@ -239,6 +239,7 @@ function FlowCanvasInner() {
     updateNodePosition,
     removeNode,
     flashKey,
+    readOnly,
   } = useFlowEditor();
   const reactFlow = useReactFlow();
   const builderNodes = state.nodes;
@@ -448,8 +449,9 @@ function FlowCanvasInner() {
           onEdgesDelete={handleEdgesDelete}
           // Default is "Backspace" only — accept both so Mac users
           // hitting Delete (Fn+Backspace) get the same behavior.
-          deleteKeyCode={['Backspace', 'Delete']}
-          nodesConnectable={true}
+          deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']}
+          nodesDraggable={!readOnly}
+          nodesConnectable={!readOnly}
           edgesFocusable={true}
           elementsSelectable={true}
           // Lower default min/max zoom than the lib's defaults; the

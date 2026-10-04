@@ -117,6 +117,9 @@ export interface FlowEditorContextValue {
    */
   flashKey: string | null;
   requestFlash: (key: string) => void;
+
+  /** True for a read-only member: every mutation and action is a no-op. */
+  readOnly: boolean;
 }
 
 // ============================================================
@@ -244,12 +247,14 @@ export function useFlowEditor(): FlowEditorContextValue {
 interface ProviderProps {
   initialFlow: FlowRow;
   initialNodes: FlowNodeRow[];
+  readOnly?: boolean;
   children: ReactNode;
 }
 
 export function FlowEditorProvider({
   initialFlow,
   initialNodes,
+  readOnly = false,
   children,
 }: ProviderProps) {
   const router = useRouter();
@@ -511,24 +516,40 @@ export function FlowEditorProvider({
     () => ({
       flow: initialFlow,
       state,
-      setState,
       dirty,
       saving,
       activating,
       issues,
       canActivate,
-      addNode,
-      updateNode,
-      updateNodeConfig,
-      updateNodePosition,
-      removeNode,
-      save,
-      setStatus,
-      deleteFlow,
       flashKey,
       requestFlash,
+      readOnly,
+      ...(readOnly
+        ? {
+            setState: () => {},
+            addNode: () => '',
+            updateNode: () => {},
+            updateNodeConfig: () => {},
+            updateNodePosition: () => {},
+            removeNode: () => {},
+            save: async () => false,
+            setStatus: async () => {},
+            deleteFlow: async () => {},
+          }
+        : {
+            setState,
+            addNode,
+            updateNode,
+            updateNodeConfig,
+            updateNodePosition,
+            removeNode,
+            save,
+            setStatus,
+            deleteFlow,
+          }),
     }),
     [
+      readOnly,
       initialFlow,
       state,
       setState,

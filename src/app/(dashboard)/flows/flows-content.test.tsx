@@ -122,6 +122,13 @@ describe('FlowsPage', () => {
     expect(newFlow.parentElement?.getAttribute('title')).toBe(
       "Read-only — your role can't create flows"
     );
+    expect(screen.queryByRole('button', { name: /Delete/ })).toBe(null);
+    expect(screen.getByRole('button', { name: /View/ })).toBeTruthy();
+    const activate = await screen.findByRole('button', { name: /Activate/ });
+    expect((activate as HTMLButtonElement).disabled).toBe(true);
+    expect(activate.parentElement?.getAttribute('title')).toBe(
+      "Read-only — your role can't change flows"
+    );
   });
 
   it('shows when each flow last ran', async () => {

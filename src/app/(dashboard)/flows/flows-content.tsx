@@ -425,6 +425,7 @@ export default function FlowsPage() {
             <FlowCard
               key={flow.id}
               flow={flow}
+              canEdit={canCreate}
               onEdit={() => router.push(`/flows/${flow.id}`)}
               onDelete={() => handleDelete(flow)}
             />
@@ -447,6 +448,7 @@ export default function FlowsPage() {
                 key={item.id}
                 item={item}
                 activating={activatingId === item.id}
+                canAct={canCreate}
                 onActivate={() => setConfirmItem(item)}
                 onBuy={() => handleBuyMarketplaceItem(item)}
                 onEdit={() =>
@@ -613,10 +615,12 @@ function EmptyState({
 
 function FlowCard({
   flow,
+  canEdit,
   onEdit,
   onDelete,
 }: {
   flow: FlowRow;
+  canEdit: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -665,17 +669,19 @@ function FlowCard({
       <div className="mt-4 flex items-center justify-end gap-2 border-t border-slate-800 pt-3">
         <Button variant="ghost" size="sm" onClick={onEdit}>
           <Pencil className="h-3.5 w-3.5" />
-          Edit
+          {canEdit ? 'Edit' : 'View'}
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onDelete}
-          className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-          Delete
-        </Button>
+        {canEdit && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDelete}
+            className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -698,12 +704,14 @@ function describeTrigger(flow: FlowRow): string {
 function MarketplaceCard({
   item,
   activating,
+  canAct,
   onActivate,
   onBuy,
   onEdit,
 }: {
   item: MarketplaceItemSummary;
   activating: boolean;
+  canAct: boolean;
   onActivate: () => void;
   onBuy: () => void;
   onEdit: () => void;
@@ -767,29 +775,47 @@ function MarketplaceCard({
             Edit
           </Button>
         ) : isFree ? (
-          <Button size="sm" onClick={onActivate} disabled={activating}>
+          <GatedButton
+            size="sm"
+            canAct={canAct}
+            gateReason="change flows"
+            onClick={onActivate}
+            disabled={activating}
+          >
             {activating && (
               <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
             )}
             <Power className="mr-1 h-3.5 w-3.5" />
             Activate
-          </Button>
+          </GatedButton>
         ) : isPurchased ? (
-          <Button size="sm" onClick={onActivate} disabled={activating}>
+          <GatedButton
+            size="sm"
+            canAct={canAct}
+            gateReason="change flows"
+            onClick={onActivate}
+            disabled={activating}
+          >
             {activating && (
               <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
             )}
             <Power className="mr-1 h-3.5 w-3.5" />
             Enable
-          </Button>
+          </GatedButton>
         ) : (
-          <Button size="sm" onClick={onBuy} disabled={activating}>
+          <GatedButton
+            size="sm"
+            canAct={canAct}
+            gateReason="change flows"
+            onClick={onBuy}
+            disabled={activating}
+          >
             {activating && (
               <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
             )}
             <ShoppingCart className="mr-1 h-3.5 w-3.5" />
             Buy
-          </Button>
+          </GatedButton>
         )}
       </div>
     </div>

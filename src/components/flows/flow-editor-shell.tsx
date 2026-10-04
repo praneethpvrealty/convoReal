@@ -24,6 +24,8 @@ import { FlowCanvas } from './flow-canvas';
 import { FlowEditorProvider } from './flow-editor-state';
 import { EditorHeader } from './header';
 import { ValidationPanel } from './validation-panel';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { cn } from '@/lib/utils';
 import type { FlowRow, FlowNodeRow } from '@/lib/flows/types';
 import { readStored, writeStored } from '@/lib/safe-storage';
@@ -65,6 +67,8 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
   // breakpoint regardless of `view` — but we keep `view` itself
   // intact so the user's preference comes back when they widen
   // again (e.g. rotating a tablet, resizing a window).
+  const { isReadOnly } = useAuth();
+  const readOnly = !useCan('send-messages') || isReadOnly;
   const isMobile = useMatchMedia(MOBILE_BREAKPOINT);
   const effectiveView: View = isMobile ? 'list' : view;
 
@@ -78,7 +82,11 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
   };
 
   return (
-    <FlowEditorProvider initialFlow={initialFlow} initialNodes={initialNodes}>
+    <FlowEditorProvider
+      initialFlow={initialFlow}
+      initialNodes={initialNodes}
+      readOnly={readOnly}
+    >
       <div className="mx-auto flex h-full max-w-4xl flex-col gap-6 p-6">
         <EditorHeader />
         {!isMobile && (
@@ -104,14 +112,19 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
           </div>
         )}
 
-        {effectiveView === 'canvas' ? (
-          <>
-            <FlowTriggerPanel />
-            <FlowCanvas />
-          </>
-        ) : (
-          <FlowBuilder />
-        )}
+        <fieldset
+          disabled={readOnly}
+          className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0"
+        >
+          {effectiveView === 'canvas' ? (
+            <>
+              <FlowTriggerPanel />
+              <FlowCanvas />
+            </>
+          ) : (
+            <FlowBuilder />
+          )}
+        </fieldset>
 
         {/* Sticky-bottom validation panel mirrors the placement used
             when this lived inside FlowBuilder — the activate-readiness
