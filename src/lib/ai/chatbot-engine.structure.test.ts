@@ -19,3 +19,21 @@ describe('chatbot-engine draft session access', () => {
     expect(source).not.toContain("code === 'PGRST116'");
   });
 });
+
+describe('the external text correction', () => {
+  it('charges once before the optimistic-lock retries, never per attempt', () => {
+    const externalFlow = source.slice(
+      source.indexOf('export async function processExternalListingMessage(')
+    );
+    const correction = externalFlow.slice(
+      externalFlow.lastIndexOf('if (cleanedText) {')
+    );
+    const burn = correction.indexOf(
+      "await softBurn(accountId, 'chatbot_classify');"
+    );
+    const loop = correction.indexOf('await mutatePropertyDraft(');
+    expect(burn).toBeGreaterThan(-1);
+    expect(burn).toBeLessThan(loop);
+    expect(correction.slice(loop)).not.toContain('softBurn(');
+  });
+});

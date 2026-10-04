@@ -4598,12 +4598,12 @@ export async function processExternalListingMessage(
   // build on the same stale base and the second write silently
   // clobbers the first.
   if (cleanedText) {
+    await softBurn(accountId, 'chatbot_classify');
     const mutation = await mutatePropertyDraft(
       supabaseAdmin(),
       propSession.id,
       async (latestSession) => {
         const currentDraft = latestSession.draft_data;
-        await softBurn(accountId, 'chatbot_classify');
         let updatedDraft = await updateListingDraft(currentDraft, cleanedText);
         updatedDraft = await backfillLocationFromMapLink(updatedDraft);
 
