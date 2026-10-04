@@ -165,6 +165,7 @@ import {
   mutatePropertyDraft,
   overwriteContactDraftSession,
   touchPropertyDraftSession,
+  type ContactDraftSessionRow,
 } from '@/lib/ai/draft-sessions';
 import { recordRequirementResponse } from '@/lib/requirements/respond';
 
@@ -840,6 +841,46 @@ async function sendContactDraftPreview(
   });
 
   await saveBotMessage(conversationId, reply, sendRes.messageId);
+}
+
+/**
+ * Sends the preview for a contact draft row, then re-reads the row and
+ * sends again while another handler has written it since, so the last
+ * card in the chat is always the draft a Confirm would save.
+ */
+async function announceLatestContactDraft(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  header: string,
+  shown: ContactDraftSessionRow,
+  contactId: string,
+  conversationId: string,
+  accountId: string
+): Promise<void> {
+  let row = shown;
+  let title = header;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await sendContactDraftPreview(
+      phoneNumberId,
+      accessToken,
+      to,
+      title,
+      row.draft_data,
+      row.status,
+      validateContactDraftsContainer(row.draft_data).missingFields,
+      conversationId,
+      accountId
+    );
+    const { data: latest } = await findContactDraftSession(
+      supabaseAdmin(),
+      contactId,
+      accountId
+    );
+    if (!latest || latest.updated_at === row.updated_at) return;
+    row = latest;
+    title = `📝 *Contact Drafts Updated:*`;
+  }
 }
 
 /**
@@ -4138,15 +4179,32 @@ export async function processOwnerChatbotMessage(
             return true;
           }
 
-          const merged = mutation.next;
-          await sendContactDraftPreview(
+          await announceLatestContactDraft(
             phoneNumberId,
             accessToken,
             contactRecord.phone,
             `📝 *Contact Drafts Updated:*`,
-            merged.draft_data,
-            merged.status,
-            validateContactDraftsContainer(merged.draft_data).missingFields,
+            mutation.row,
+            contactRecord.id,
+            conversation.id,
+            accountId
+          );
+          return true;
+        }
+
+        const { data: createdSession } = await findContactDraftSession(
+          supabaseAdmin(),
+          contactRecord.id,
+          accountId
+        );
+        if (createdSession) {
+          await announceLatestContactDraft(
+            phoneNumberId,
+            accessToken,
+            contactRecord.phone,
+            `📝 *Contact Drafts Created!*`,
+            createdSession,
+            contactRecord.id,
             conversation.id,
             accountId
           );

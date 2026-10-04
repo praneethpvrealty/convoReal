@@ -70,6 +70,37 @@ describe('[INB-025] starting a contact draft', () => {
     expect(handling.match(/refundCredits\(/g)).toHaveLength(1);
   });
 
+  it('announces the persisted row and re-sends while another handler has moved it on', () => {
+    const announcer = source.slice(
+      source.indexOf('async function announceLatestContactDraft('),
+      source.indexOf('export async function processOwnerChatbotMessage(')
+    );
+    expect(announcer).toMatch(
+      /for \(let attempt = 0; attempt < 3; attempt\+\+\)/
+    );
+    expect(announcer.indexOf('await sendContactDraftPreview(')).toBeLessThan(
+      announcer.indexOf('await findContactDraftSession(')
+    );
+    expect(announcer).toContain(
+      'if (!latest || latest.updated_at === row.updated_at) return;'
+    );
+
+    const handling = insert.slice(0, created);
+    expect(handling).toMatch(
+      /announceLatestContactDraft\([\s\S]*?`📝 \*Contact Drafts Updated:\*`,\s*mutation\.row,/
+    );
+    expect(handling).not.toContain('mutation.next');
+
+    const createdPath = insert.slice(
+      insert.indexOf(
+        'const { data: createdSession } = await findContactDraftSession('
+      )
+    );
+    expect(createdPath).toMatch(
+      /^const \{ data: createdSession \} = await findContactDraftSession\(\s*supabaseAdmin\(\),\s*contactRecord\.id,\s*accountId\s*\);\s*if \(createdSession\) \{\s*await announceLatestContactDraft\(/
+    );
+  });
+
   it('reports no charge when billing fails open', () => {
     const receipt = source.slice(
       source.indexOf('async function gatedBurnReceipt(')
