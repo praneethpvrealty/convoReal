@@ -13,6 +13,7 @@ import { useSearchParams } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/client';
 import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
+import { safeNextPath } from '@/lib/auth/next-path';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,9 +42,8 @@ function BuyerLoginPageInner() {
   // shortlist is a poor first screen for someone who has never
   // shortlisted anything.
   const searchParams = useSearchParams();
-  const nextParam = searchParams.get('next') || '';
   // Same-origin buyer paths only — never a caller-supplied redirect.
-  const next = /^\/buyer(\/|$)/.test(nextParam) ? nextParam : '/buyer';
+  const next = safeNextPath(searchParams.get('next'), '/buyer', '/buyer');
 
   const [phone, setPhone] = useState('');
   const [otpValues, setOtpValues] = useState<string[]>(Array(6).fill(''));
