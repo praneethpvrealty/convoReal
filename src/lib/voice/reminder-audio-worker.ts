@@ -239,9 +239,7 @@ export async function processReminderAudioJob(
 
   let audioUrl: string | null = null;
   let charged = false;
-  const burnKey = job.claimedAt
-    ? `reminder-audio:${job.claimId}:${new Date(job.claimedAt).getTime()}`
-    : newBurnKey('reminder_audio');
+  const burnKey = newBurnKey('reminder_audio');
   const burn = await burnCredits(job.accountId, 'reminder_audio', cost, {
     retryKey: burnKey,
   });

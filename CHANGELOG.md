@@ -19,11 +19,10 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
-- **A failed match unlock, voice reminder note or reminder call returns only
-  its own charge.** Their charges were keyed to the property or reminder
-  rather than to the one attempt, so two unlock requests racing for the same
-  property could refund the winner's charge, and a re-armed reminder could
-  reverse an earlier call that had gone out. Each attempt now has its own key
+- **A failed reminder voice note or reminder call returns only its own
+  charge.** The voice note's charge was keyed to the reminder rather than to the
+  one run, so a replayed job, or a reminder re-armed after a call had gone out,
+  could reverse an earlier charge that was kept. Each run now has its own key
   and a refund reverses that key alone. Invariant CRD-004.
 - **A failed AI call returns exactly the credits it took, and a refund that
   fails is retried.** Ad copy, photo enhancement, listing descriptions,

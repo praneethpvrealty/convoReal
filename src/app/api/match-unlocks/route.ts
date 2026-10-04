@@ -5,9 +5,8 @@
 // 'deal_mode' card shows a masked cross-tenant property; unlocking
 // burns credits from the CALLER's account wallet and returns the full
 // listing + the owner's contact card. One unlock per (account,
-// property) — the UNIQUE index is the double-billing backstop: every
-// request burns under its own key, and a request that loses the insert
-// refunds only that burn.
+// property) — the UNIQUE index is the double-billing backstop, and a
+// retryKey makes the burn idempotent against double-clicks.
 //
 // Refund policy: unlocks are final, EXCEPT the race where the owner
 // turned Deal Mode off between the card appearing and the unlock —
@@ -25,8 +24,7 @@ import {
 import { denAdmin } from '@/lib/den/auth';
 import { matchUnlockCost } from '@/lib/den/costs';
 import { UNLOCKED_PROPERTY_SELECT } from '@/lib/den/masking';
-import { burnCredits } from '@/lib/credits/burn';
-import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
+import { burnCredits, refundCredits } from '@/lib/credits/burn';
 
 interface UnlockRow {
   id: string;
@@ -162,9 +160,8 @@ export async function POST(req: NextRequest) {
     }
 
     const cost = matchUnlockCost(score);
-    const burnKey = newBurnKey('match_unlock');
     const burn = await burnCredits(ctx.accountId, 'match_unlock', cost, {
-      retryKey: burnKey,
+      retryKey: `unlock:${ctx.accountId}:${propertyId}`,
       hardBlock: true,
     });
     if (!burn.success) {
@@ -188,7 +185,7 @@ export async function POST(req: NextRequest) {
         match_event_id: matchEventId,
         score,
         credits_burned: cost,
-        retry_key: burnKey,
+        retry_key: `unlock:${ctx.accountId}:${propertyId}`,
       })
       .select('*')
       .single();
@@ -197,9 +194,11 @@ export async function POST(req: NextRequest) {
       if (insertErr?.code === '23505') {
         // A concurrent request won the unique index — refund this burn
         // and hand back the winner's row.
-        await refundBurn(ctx.accountId, 'match_unlock', burnKey, {
-          reason: 'match_unlock duplicate refund',
-        });
+        await refundCredits(ctx.accountId, 'match_unlock', cost, {
+          description: 'match_unlock duplicate refund',
+        }).catch((err) =>
+          console.error('[match-unlocks] duplicate refund failed:', err)
+        );
         const { data: winner } = await db
           .from('den_match_unlocks')
           .select('*')
@@ -216,9 +215,11 @@ export async function POST(req: NextRequest) {
       }
       console.error('[match-unlocks] insert failed:', insertErr);
       // Credits were burned but the unlock wasn't recorded — refund.
-      await refundBurn(ctx.accountId, 'match_unlock', burnKey, {
-        reason: 'match_unlock failed-insert refund',
-      });
+      await refundCredits(ctx.accountId, 'match_unlock', cost, {
+        description: 'match_unlock failed-insert refund',
+      }).catch((err) =>
+        console.error('[match-unlocks] failure refund failed:', err)
+      );
       return NextResponse.json(
         { error: 'Could not complete the unlock' },
         { status: 500 }

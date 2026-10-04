@@ -4092,10 +4092,10 @@
         },
         {
           "id": "CRD-004",
-          "rule": "A match unlock, a reminder voice note and a reminder call are each charged under a key that names one charge, never the subject: a match unlock under a key minted per request (match_unlock:<uuid>), so two requests racing for the same property each burn and refund their own and the one that loses the unique unlock insert returns only its own charge; a reminder voice note and a reminder call under a key built from the reminder claim's id and the time it was taken (reminder-audio:<claim>:<claimedAt>, voice-reminder:<claim>:<createdAt>), so a duplicate within one claim shares the key and a re-armed or taken-over claim gets a new one. Each failure refunds that key through refundBurn, which reverses only the rows written under it, and none of these three features is refunded by feature and amount.",
+          "rule": "A reminder voice note and a reminder call are each charged under a key that names one charge, never the subject: a reminder voice note under a key minted for each run of the worker (reminder_audio:<uuid>), so a replayed job or a claim taken over after a lost send never shares a charge with an earlier run, and a reminder call under a key minted for the call (voice_campaign_call:<uuid>), so a re-armed or taken-over reminder never shares a charge with an earlier call. Each failure refunds that key through refundBurn, which reverses only the rows written under it, and neither feature is refunded by feature and amount. A match unlock is not covered: it still refunds by feature and amount until its charge and the unlock row are written atomically.",
           "tests": [
             {
-              "file": "src/lib/credits/keyed-refund-unlock-audio.test.ts",
+              "file": "src/lib/credits/keyed-refund-reminders.test.ts",
               "case": "[CRD-004]"
             },
             {
@@ -4104,7 +4104,6 @@
             }
           ],
           "guards": [
-            "src/app/api/match-unlocks/route.ts",
             "src/lib/voice/reminder-audio-worker.ts",
             "src/lib/voice/reminder-call.ts",
             "src/lib/appointments/reminder.ts"

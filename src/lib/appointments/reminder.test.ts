@@ -492,14 +492,11 @@ describe('reminder call charge key', () => {
     tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
   });
 
-  it('[CRD-004] names the claim run it was placed under', async () => {
+  it('[CRD-004] charges the call under a key minted for it', async () => {
     await checkAndSendAppointmentReminders(NOW);
 
     expect(placeReminderCall).toHaveBeenCalledTimes(1);
-    const held = tables.appointment_reminder_log[0];
-    expect(retryKeyOf(0)).toBe(
-      `voice-reminder:${held.id}:${new Date(held.created_at as string).getTime()}`
-    );
+    expect(retryKeyOf(0)).toMatch(/^voice_campaign_call:/);
   });
 
   it('[CRD-004] gives a claim taken over after a lost send a key of its own', async () => {
@@ -515,13 +512,11 @@ describe('reminder call charge key', () => {
 
     expect(placeReminderCall).toHaveBeenCalledTimes(2);
     expect(tables.appointment_reminder_log).toHaveLength(1);
-    expect(retryKeyOf(1)).toContain(`voice-reminder:${held.id}:`);
     expect(retryKeyOf(1)).not.toBe(retryKeyOf(0));
   });
 
   it('[CRD-004] gives a claim taken over after a re-arm a key of its own', async () => {
     await checkAndSendAppointmentReminders(NOW);
-    const held = tables.appointment_reminder_log[0];
     tables.appointments[0].reminders_rearmed_at = REARMED_AT;
     tables.appointments[0].reminder_morning_sent = false;
     tables.appointments[0].reminder_1h_sent = false;
@@ -531,7 +526,6 @@ describe('reminder call charge key', () => {
 
     expect(placeReminderCall).toHaveBeenCalledTimes(2);
     expect(tables.appointment_reminder_log).toHaveLength(1);
-    expect(retryKeyOf(1)).toContain(`voice-reminder:${held.id}:`);
     expect(retryKeyOf(1)).not.toBe(retryKeyOf(0));
   });
 });
