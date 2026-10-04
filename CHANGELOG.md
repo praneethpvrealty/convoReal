@@ -42,6 +42,14 @@ than a written entry. Newest first.
   ad is down, and the banner refreshes on its own. Viewers and read-only
   members see the findings without those actions. Posting to a portal stays
   on desktop, where the Chrome extension runs.
+- **Anyone on the team can open, edit and switch a colleague's automation.**
+  Opening an automation someone else created, from the Automations list or
+  from Analytics, showed "Failed to load (404)", and switching it on or off
+  in the mobile app answered "Not found". An automation now belongs to the
+  account: every member can read it, and an agent or above can edit, toggle
+  or delete it. Read-only members can look but not change: the builder on
+  web and the switches on mobile are locked for them and say so. An
+  automation in another account still answers "Not found".
 
 #### 3 October 2026
 

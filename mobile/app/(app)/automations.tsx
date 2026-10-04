@@ -14,6 +14,7 @@ import {
 import { ConvoRealLoader } from '@/components/loader';
 import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -22,6 +23,10 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 export default function AutomationsScreen() {
   const { colors, fonts: f } = useTheme();
+  const profile = useAuthStore((s) => s.profile);
+  const canEdit = Boolean(
+    profile && profile.account_role !== 'viewer' && !profile.is_read_only
+  );
   const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -85,8 +90,9 @@ export default function AutomationsScreen() {
 
       <SectionLabel text="Automations" />
       <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-        Toggle automations you created on or off. Building and editing them
-        happens on the web.
+        {canEdit
+          ? 'Toggle any automation in your account on or off. Building and editing them happens on the web.'
+          : "Every automation in your account. Your access is read-only, so you can't switch them on or off."}
       </Text>
       {automationsQuery.isLoading ? (
         <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
@@ -127,6 +133,7 @@ export default function AutomationsScreen() {
               <Switch
                 value={a.is_active}
                 onValueChange={(v) => toggle(a, v)}
+                disabled={!canEdit}
                 trackColor={{ true: colors.primary, false: colors.border }}
                 thumbColor="#fff"
               />
