@@ -4,6 +4,7 @@ const CODEX_LOGIN = 'chatgpt-codex-connector[bot]';
 const HOLD_MARKER = 'release-timer:held';
 
 const MOBILE_UPDATE_WORKFLOW = '.github/workflows/eas-update.yml';
+export const MOBILE_UPDATE_PENDING_LABEL = 'mobile-update-pending';
 
 export const RELEASE_WINDOW_MINUTES = 120;
 export const REVIEW_SETTLE_MINUTES = 15;
@@ -65,6 +66,48 @@ async function releaseTouchesMobileBundle(
       : [file.filename]
   );
   return touchesMobileBundle(changed, mobileUpdatePaths(workflow));
+}
+
+async function publishMobileUpdate(github, core, owner, repo, pullNumber) {
+  await github.rest.actions.createWorkflowDispatch({
+    owner,
+    repo,
+    workflow_id: 'eas-update.yml',
+    ref: 'main',
+    inputs: { channel: 'preview' },
+  });
+  await github.rest.issues.removeLabel({
+    owner,
+    repo,
+    issue_number: pullNumber,
+    name: MOBILE_UPDATE_PENDING_LABEL,
+  });
+  core.notice(`dispatched EAS Update for #${pullNumber}`);
+}
+
+async function publishPendingMobileUpdates(github, core, owner, repo, dryRun) {
+  const pending = await github.paginate(github.rest.issues.listForRepo, {
+    owner,
+    repo,
+    state: 'closed',
+    labels: MOBILE_UPDATE_PENDING_LABEL,
+    per_page: 100,
+  });
+  for (const issue of pending) {
+    if (!issue.pull_request) continue;
+    if (dryRun) {
+      core.info(`#${issue.number}: mobile update still to publish`);
+    } else if (issue.pull_request.merged_at) {
+      await publishMobileUpdate(github, core, owner, repo, issue.number);
+    } else {
+      await github.rest.issues.removeLabel({
+        owner,
+        repo,
+        issue_number: issue.number,
+        name: MOBILE_UPDATE_PENDING_LABEL,
+      });
+    }
+  }
 }
 
 function minutesSince(from, now) {
@@ -528,6 +571,22 @@ async function shipBranch({
     };
   }
 
+  const publishMobile = await releaseTouchesMobileBundle(
+    github,
+    owner,
+    repo,
+    releasePr.number,
+    releasePr.headSha
+  );
+  if (publishMobile) {
+    await github.rest.issues.addLabels({
+      owner,
+      repo,
+      issue_number: releasePr.number,
+      labels: [MOBILE_UPDATE_PENDING_LABEL],
+    });
+  }
+
   let merged;
   try {
     ({ data: merged } = await github.rest.pulls.merge({
@@ -566,23 +625,8 @@ async function shipBranch({
     workflow_id: 'branch-cleanup.yml',
     ref: 'main',
   });
-  if (
-    await releaseTouchesMobileBundle(
-      github,
-      owner,
-      repo,
-      releasePr.number,
-      merged.sha
-    )
-  ) {
-    await github.rest.actions.createWorkflowDispatch({
-      owner,
-      repo,
-      workflow_id: 'eas-update.yml',
-      ref: 'main',
-      inputs: { channel: 'preview' },
-    });
-    core.notice('dispatched EAS Update: the release changed the mobile bundle');
+  if (publishMobile) {
+    await publishMobileUpdate(github, core, owner, repo, releasePr.number);
   }
   return decision;
 }
@@ -612,6 +656,12 @@ export async function run({
     state: 'open',
     per_page: 100,
   });
+
+  try {
+    await publishPendingMobileUpdates(github, core, owner, repo, dryRun);
+  } catch (error) {
+    core.setFailed(`pending mobile updates: ${error.message}`);
+  }
 
   /** @type {Record<string, { action: string, reason: string }>} */
   const results = {};
