@@ -51,7 +51,7 @@ describe('messagePreview', () => {
     ).toBe('🏠 New Property Match');
   });
 
-  it('drops WhatsApp formatting markers from the quoted text [INB-026]', () => {
+  it('drops WhatsApp formatting markers from the quoted text [INB-027]', () => {
     expect(
       messagePreview(
         message({
@@ -76,7 +76,7 @@ describe('messagePreview', () => {
   });
 });
 
-describe('quotedText [INB-026]', () => {
+describe('quotedText [INB-027]', () => {
   it('keeps the formatting markers for the quote to render', () => {
     expect(
       quotedText(

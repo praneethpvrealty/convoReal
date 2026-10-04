@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   absorbContactDrafts,
+  contactCardVersion,
+  contactConfirmButtonId,
+  readContactConfirm,
   applyExplicitContactDraftUpdate,
   deriveDraftStatus,
   validateDraft,
@@ -989,5 +992,79 @@ describe('[INB-025] absorbContactDrafts', () => {
     expect(out.contacts).toHaveLength(2);
     expect(out.contacts[0].email).toBe('a@x.com');
     expect(out.contacts[1].name).toBe('Chetan');
+  });
+});
+
+describe('[INB-026] the contact draft Confirm button', () => {
+  const version = '2026-10-04T10:00:00.123456+00:00';
+
+  it('carries the version of the draft the card shows', () => {
+    expect(contactConfirmButtonId(version)).toBe(`confirm_contact:${version}`);
+    expect(contactConfirmButtonId(version).length).toBeLessThanOrEqual(256);
+  });
+
+  it('reads the version back from a tap, even though the tap text is the title', () => {
+    expect(
+      readContactConfirm(contactConfirmButtonId(version), 'confirm')
+    ).toEqual({ version });
+  });
+
+  it('accepts a card sent before versions and a typed confirm without a version', () => {
+    expect(readContactConfirm('confirm_contact', 'confirm')).toEqual({
+      version: null,
+    });
+    expect(readContactConfirm(null, 'confirm')).toEqual({ version: null });
+  });
+
+  it('ignores every other tap and text', () => {
+    expect(readContactConfirm('cancel_contact', 'cancel')).toBeNull();
+    expect(readContactConfirm(null, 'confirmed it')).toBeNull();
+    expect(readContactConfirm('link_contact:c1', 'use ravi')).toBeNull();
+  });
+});
+
+describe('[INB-026] the version a contact card confirms', () => {
+  const at = '2026-10-04T10:00:00.123456+00:00';
+  const card = makeContainer([
+    makeContact({ name: 'Ravi', phone: '9000000001' }),
+  ]);
+
+  it('names the draft version and the contacts the card shows', () => {
+    const version = contactCardVersion(at, card);
+    expect(version.startsWith(`${at}#`)).toBe(true);
+    expect(version.slice(at.length + 1)).toMatch(/^[0-9a-f]{16}$/);
+    expect(contactCardVersion(at, card)).toBe(contactCardVersion(at, card));
+  });
+
+  it('changes when a shown detail changes even though the draft row did not', () => {
+    const relinked = makeContainer([
+      makeContact({ name: 'Ravi', phone: '9000000002' }),
+    ]);
+    expect(contactCardVersion(at, relinked)).not.toBe(
+      contactCardVersion(at, card)
+    );
+  });
+
+  it('ignores key order, which a JSONB round trip does not keep', () => {
+    const shown = makeContainer([
+      makeContact({ name: 'Ravi', phone: '9000000001', email: 'r@x.com' }),
+    ]);
+    const stored = JSON.parse(
+      JSON.stringify({
+        contacts: shown.contacts.map((c) =>
+          Object.fromEntries(Object.entries(c).reverse())
+        ),
+      })
+    );
+    expect(JSON.stringify(stored.contacts)).not.toBe(
+      JSON.stringify(shown.contacts)
+    );
+    expect(contactCardVersion(at, stored)).toBe(contactCardVersion(at, shown));
+  });
+
+  it('fits a WhatsApp button id', () => {
+    expect(
+      contactConfirmButtonId(contactCardVersion(at, card)).length
+    ).toBeLessThanOrEqual(256);
   });
 });

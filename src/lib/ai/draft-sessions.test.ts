@@ -263,16 +263,19 @@ describe('draft session writes', () => {
     });
   });
 
-  it('overwrites a contact session without a precondition', async () => {
-    const { client, calls } = stubClient(() => ok(null));
+  it('[INB-026] overwrites a contact session and returns the stored version', async () => {
+    const { client, calls } = stubClient(() =>
+      ok({ updated_at: '2026-10-04T10:00:00+00:00' })
+    );
 
-    await overwriteContactDraftSession(
+    const version = await overwriteContactDraftSession(
       client,
       'k1',
       CONTAINER,
       'awaiting_confirmation'
     );
 
+    expect(version).toBe('2026-10-04T10:00:00+00:00');
     expect(calls[0]).toMatchObject({
       table: 'contact_draft_sessions',
       op: 'update',
@@ -282,7 +285,8 @@ describe('draft session writes', () => {
         updated_at: '2026-10-04T10:00:00.000Z',
       },
       filters: [['id', 'k1']],
-      returning: false,
+      returning: true,
+      terminal: 'maybeSingle',
     });
   });
 

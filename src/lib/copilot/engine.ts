@@ -33,8 +33,17 @@ import {
   resolveCopilotAction,
   type CopilotActionProposal,
 } from './actions';
+import {
+  buildContactSearchAnswer,
+  contactSearchFromPreferences,
+  hasSearchCriteria,
+  isContactSearchQuestion,
+  parseContactSearchQuery,
+  type ContactSearchExecutor,
+} from './contact-search';
 import { DEFAULT_LANGUAGE, type LanguageCode } from '@/lib/languages';
 import { hasGeminiKey } from '@/lib/ai/gemini-keys';
+import { extractContactPreferences } from '@/lib/ai/preference-extraction';
 
 /**
  * The helper's answer engine, shared by all three surfaces: the staff
@@ -78,6 +87,10 @@ export interface AnswerRequest {
   language?: LanguageCode;
   entities?: EntityReference[];
   canExecuteActions?: boolean;
+  /** Account-scoped contact lookup for "which contacts are looking
+   *  for X?" questions. Supplied by the staff route only; the answer
+   *  is built from live rows and never enters the shared cache. */
+  contactSearch?: ContactSearchExecutor;
 }
 
 export interface AnswerResult {
@@ -97,6 +110,7 @@ export interface AnswerResult {
 
 export interface CopilotNavigationLink {
   label: string;
+  subtitle?: string;
   navigateTo?: string;
   appUrl?: string;
 }
@@ -124,6 +138,52 @@ function parseModelJson(raw: string): {
     return parsed && typeof parsed === 'object' ? parsed : null;
   } catch {
     return null;
+  }
+}
+
+const CONTACT_SEARCH_CRITERIA_REPLY =
+  'Tell me what to look for — an area, a property type, a BHK or a budget. For example: "buyers looking for 3 BHK in HSR Layout under 2 Cr".';
+const CONTACT_SEARCH_FAILED_REPLY =
+  'I could not search your contacts just now. Open Contacts and use the Area and type filters to find them.';
+
+async function answerContactSearch(
+  message: string,
+  search: ContactSearchExecutor,
+  mobile: boolean
+): Promise<AnswerResult> {
+  const coverage = mobile ? { coverage: 'full' as const } : {};
+  let query = parseContactSearchQuery(message);
+  if (!hasSearchCriteria(query) && (await hasGeminiKey())) {
+    try {
+      query = contactSearchFromPreferences(
+        await extractContactPreferences(message)
+      );
+    } catch (err) {
+      console.warn(
+        '[Copilot] contact search extraction failed:',
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
+  if (!hasSearchCriteria(query)) {
+    return { reply: CONTACT_SEARCH_CRITERIA_REPLY, ...coverage };
+  }
+  try {
+    const { reply, links } = buildContactSearchAnswer(
+      query,
+      await search(query)
+    );
+    return { reply, links, ...coverage };
+  } catch (err) {
+    console.warn(
+      '[Copilot] contact search failed:',
+      err instanceof Error ? err.message : err
+    );
+    return {
+      reply: CONTACT_SEARCH_FAILED_REPLY,
+      links: [{ label: 'Open Contacts', navigateTo: '/contacts' }],
+      ...coverage,
+    };
   }
 }
 
@@ -214,6 +274,9 @@ export async function answerQuestion(
         action,
         ...(mobile ? { coverage: 'full' as const } : {}),
       };
+    }
+    if (req.contactSearch && isContactSearchQuestion(message)) {
+      return answerContactSearch(message, req.contactSearch, mobile);
     }
   }
 

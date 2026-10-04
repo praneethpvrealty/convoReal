@@ -34,7 +34,7 @@ than a written entry. Newest first.
 - **Reply quotes no longer show raw WhatsApp markers.** When a contact
   replies to a digest, the quoted original above their reply now shows
   its header in bold instead of `*Your Property Update*`, on web and
-  mobile alike. Invariant INB-026.
+  mobile alike. Invariant INB-027.
 - **Only agents and above can change portal ad records.** Marking a portal
   ad posted or removed, or changing its expiry date, is now refused by the
   database for viewers and read-only members on web and mobile alike; every
