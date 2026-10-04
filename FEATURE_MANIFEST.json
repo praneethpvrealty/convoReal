@@ -4068,6 +4068,26 @@
             "src/lib/voice/reminder-call.ts",
             "src/lib/video/listing-video-worker.ts"
           ]
+        },
+        {
+          "id": "CRD-003",
+          "rule": "An AI feature that charges credits before its call and returns them when the call fails does so by the charge it made: the route mints one burn key per request, burns under it, and every failure path refunds that key through refundBurn, so a refund reverses at most the rows written under that key and a refund that fails is queued for the hourly credit-refunds cron instead of failing the route. No route refunds by feature and amount.",
+          "tests": [
+            {
+              "file": "src/lib/credits/keyed-refund-routes.test.ts",
+              "case": "[CRD-003]"
+            },
+            {
+              "file": "src/app/api/greetings/generate/route.test.ts",
+              "case": "[CRD-003]"
+            }
+          ],
+          "guards": [
+            "src/lib/credits/refund-burn.ts",
+            "src/app/api/ai/ad-copy/route.ts",
+            "src/app/api/properties/e-khata/route.ts",
+            "src/app/api/guidance-value/lookup/route.ts"
+          ]
         }
       ]
     }
