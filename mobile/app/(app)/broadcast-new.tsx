@@ -10,6 +10,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -26,13 +27,16 @@ import { TourTarget } from '@/components/copilot-tour';
 import { apiFetch, ApiError } from '@/lib/api';
 import {
   buildAudience,
+  buildCsvAudience,
   CONTACT_FIELDS,
   defaultVariableMappings,
   mappingsComplete,
   previewBody,
+  readCsvAudience,
   templateVariableKeys,
   type VariableMapping,
 } from '@/lib/broadcast-compose';
+import { MAX_CSV_CONTACTS } from '@shared/lib/broadcasts/csv-audience';
 import { contactsLabel, recountOutcome } from '@shared/lib/broadcasts/recount';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -48,15 +52,18 @@ import type { MessageTemplate, Tag } from '@/lib/types';
  * per-user rate limit and sends — so this screen only assembles the
  * payload that route already accepts from the web wizard.
  *
- * Audience is All or by tag, which is what a phone can sensibly offer;
- * CSV upload and custom-field filters stay on the web wizard.
+ * Audience is All, by tag, or a pasted list of numbers; custom-field
+ * filters stay on the web wizard.
  */
 export default function NewBroadcastScreen() {
   const { colors, fonts: f } = useTheme();
   const [name, setName] = useState('');
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
-  const [audienceType, setAudienceType] = useState<'all' | 'tags' | null>(null);
+  const [audienceType, setAudienceType] = useState<
+    'all' | 'tags' | 'csv' | null
+  >(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
+  const [csvText, setCsvText] = useState('');
   const [excludeTagIds, setExcludeTagIds] = useState<string[]>([]);
   const [variables, setVariables] = useState<Record<string, VariableMapping>>(
     {}
@@ -107,13 +114,16 @@ export default function NewBroadcastScreen() {
     },
   });
 
-  const audience = useMemo(
-    () =>
-      audienceType === 'all' || (audienceType === 'tags' && tagIds.length > 0)
-        ? buildAudience(audienceType, tagIds, excludeTagIds)
-        : null,
-    [audienceType, tagIds, excludeTagIds]
-  );
+  const csvDraft = useMemo(() => readCsvAudience(csvText), [csvText]);
+
+  const audience = useMemo(() => {
+    if (audienceType === 'csv')
+      return buildCsvAudience(csvDraft, excludeTagIds);
+    return audienceType === 'all' ||
+      (audienceType === 'tags' && tagIds.length > 0)
+      ? buildAudience(audienceType, tagIds, excludeTagIds)
+      : null;
+  }, [audienceType, tagIds, excludeTagIds, csvDraft]);
 
   const {
     data: recipientCount,
@@ -371,7 +381,13 @@ export default function NewBroadcastScreen() {
                   text="Who receives it"
                   style={{ color: colors.textMuted }}
                 />
-                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: spacing.sm,
+                  }}
+                >
                   <FilterChip
                     label="All contacts"
                     active={audienceType === 'all'}
@@ -386,6 +402,14 @@ export default function NewBroadcastScreen() {
                     onPress={() => {
                       haptic.tap();
                       setAudienceType('tags');
+                    }}
+                  />
+                  <FilterChip
+                    label="CSV / pasted numbers"
+                    active={audienceType === 'csv'}
+                    onPress={() => {
+                      haptic.tap();
+                      setAudienceType('csv');
                     }}
                   />
                 </View>
@@ -406,6 +430,49 @@ export default function NewBroadcastScreen() {
                         onPress={() => toggle(tagIds, setTagIds, tag.id)}
                       />
                     ))}
+                  </View>
+                ) : null}
+
+                {audienceType === 'csv' ? (
+                  <View style={{ gap: spacing.sm }}>
+                    <TextInput
+                      value={csvText}
+                      onChangeText={setCsvText}
+                      multiline
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      accessibilityLabel="Paste phone numbers"
+                      placeholder={
+                        'One per line: phone, name (optional)\n9876543210, Asha\n+91 98765 43211'
+                      }
+                      placeholderTextColor={colors.textFaint}
+                      style={[
+                        styles.csvInput,
+                        {
+                          backgroundColor: colors.surface,
+                          borderColor: colors.border,
+                          color: colors.text,
+                          fontFamily: f.regular,
+                        },
+                      ]}
+                    />
+                    <Text
+                      accessibilityLiveRegion="polite"
+                      style={{ fontSize: 12, color: colors.textMuted }}
+                    >
+                      {`${csvDraft.contacts.length.toLocaleString('en-IN')} valid, ${csvDraft.skipped.toLocaleString('en-IN')} skipped`}
+                    </Text>
+                    {csvDraft.overCap ? (
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontFamily: f.semibold,
+                          color: colors.danger,
+                        }}
+                      >
+                        {`A list can hold up to ${MAX_CSV_CONTACTS.toLocaleString('en-IN')} numbers. Split it into smaller broadcasts.`}
+                      </Text>
+                    ) : null}
                   </View>
                 ) : null}
 
@@ -448,11 +515,15 @@ export default function NewBroadcastScreen() {
                       ? 'Choose who receives it'
                       : audienceType === 'tags' && tagIds.length === 0
                         ? 'Pick at least one tag'
-                        : counting
-                          ? 'Counting recipients…'
-                          : countFailed
-                            ? 'Couldn’t count the audience'
-                            : `${recipientCount ?? 0} recipient${(recipientCount ?? 0) === 1 ? '' : 's'}`}
+                        : audienceType === 'csv' && audience === null
+                          ? csvDraft.overCap
+                            ? 'Too many numbers for one broadcast'
+                            : 'Paste at least one valid number'
+                          : counting
+                            ? 'Counting recipients…'
+                            : countFailed
+                              ? 'Couldn’t count the audience'
+                              : `${recipientCount ?? 0} recipient${(recipientCount ?? 0) === 1 ? '' : 's'}`}
                   </Text>
                   {countFailed && !counting ? (
                     <Pressable
@@ -626,5 +697,15 @@ const styles = StyleSheet.create({
     gap: 6,
     borderRadius: radius.md,
     padding: spacing.md,
+  },
+  csvInput: {
+    minHeight: 120,
+    maxHeight: 240,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    textAlignVertical: 'top',
   },
 });

@@ -1,4 +1,6 @@
-import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { phoneWithCountryCode } from '../format/phone';
+
+export const MAX_CSV_CONTACTS = 5000;
 
 export interface CsvAudienceContact {
   phone: string;
@@ -56,15 +58,18 @@ function isExplicitlyInternational(raw: string): boolean {
   return /^\s*(\+|00)/.test(raw);
 }
 
-export function csvPhoneDigits(raw: string): string {
+export function csvPhoneDigits(
+  raw: string,
+  defaultCountryCode: string
+): string {
   if (isExplicitlyInternational(raw)) {
     return raw.replace(/\D/g, '').replace(/^00/, '');
   }
-  return normalizePhoneWithCountryCode(raw).replace(/\D/g, '');
+  return phoneWithCountryCode(raw, defaultCountryCode).replace(/\D/g, '');
 }
 
-function toPhone(raw: string): string | null {
-  const digits = csvPhoneDigits(raw);
+function toPhone(raw: string, defaultCountryCode: string): string | null {
+  const digits = csvPhoneDigits(raw, defaultCountryCode);
   const min = isExplicitlyInternational(raw) ? 8 : 11;
   return digits.length >= min && digits.length <= 15 ? `+${digits}` : null;
 }
@@ -86,7 +91,10 @@ function records(text: string): string[] {
   return out;
 }
 
-export function parseCsvAudience(text: string): CsvAudienceResult {
+export function parseCsvAudience(
+  text: string,
+  defaultCountryCode: string
+): CsvAudienceResult {
   const lines = records(text)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -98,7 +106,7 @@ export function parseCsvAudience(text: string): CsvAudienceResult {
   lines.forEach((line, index) => {
     const [rawPhone = '', rawName = ''] = cells(line);
     if (index === 0 && !/\d/.test(rawPhone)) return;
-    const phone = toPhone(rawPhone);
+    const phone = toPhone(rawPhone, defaultCountryCode);
     if (!phone || seen.has(phone)) {
       skipped++;
       return;

@@ -5,6 +5,12 @@
 //
 // Mirrors the types in src/lib/broadcasts/sender.ts.
 
+import {
+  MAX_CSV_CONTACTS,
+  parseCsvAudience,
+  type CsvAudienceContact,
+} from '@shared/lib/broadcasts/csv-audience';
+
 export type VariableMapping =
   | { type: 'static'; value: string }
   | { type: 'field'; value: string }
@@ -14,6 +20,15 @@ export interface AudienceConfig {
   type: 'all' | 'tags' | 'custom_field' | 'csv';
   tagIds?: string[];
   excludeTagIds?: string[];
+  csvContacts?: CsvAudienceContact[];
+}
+
+export const CSV_DEFAULT_COUNTRY_CODE = '91';
+
+export interface CsvAudienceDraft {
+  contacts: CsvAudienceContact[];
+  skipped: number;
+  overCap: boolean;
 }
 
 /** Contact columns a placeholder can be filled from on mobile. */
@@ -94,6 +109,27 @@ export function buildAudience(
 ): AudienceConfig {
   const audience: AudienceConfig = { type };
   if (type === 'tags') audience.tagIds = tagIds;
+  if (excludeTagIds.length > 0) audience.excludeTagIds = excludeTagIds;
+  return audience;
+}
+
+export function readCsvAudience(text: string): CsvAudienceDraft {
+  const { contacts, skipped } = parseCsvAudience(
+    text,
+    CSV_DEFAULT_COUNTRY_CODE
+  );
+  return { contacts, skipped, overCap: contacts.length > MAX_CSV_CONTACTS };
+}
+
+export function buildCsvAudience(
+  draft: CsvAudienceDraft,
+  excludeTagIds: string[]
+): AudienceConfig | null {
+  if (draft.contacts.length === 0 || draft.overCap) return null;
+  const audience: AudienceConfig = {
+    type: 'csv',
+    csvContacts: draft.contacts,
+  };
   if (excludeTagIds.length > 0) audience.excludeTagIds = excludeTagIds;
   return audience;
 }

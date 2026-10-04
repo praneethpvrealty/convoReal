@@ -1,8 +1,9 @@
+import { MAX_CSV_CONTACTS } from './csv-audience';
 import type { AudienceConfig, CustomFieldFilter } from './sender';
 
 export const MAX_AUDIENCE_CONTACT_IDS = 1000;
 export const MAX_AUDIENCE_TAG_IDS = 100;
-export const MAX_CSV_CONTACTS = 5000;
+export { MAX_CSV_CONTACTS };
 
 const OPERATORS: readonly CustomFieldFilter['operator'][] = [
   'is',

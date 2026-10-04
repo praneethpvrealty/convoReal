@@ -83,6 +83,8 @@ jobs:
               # [SHR-003] in src/lib/mobile-parity.test.ts keeps this list whole.
               - 'src/lib/automations/step-tree.ts'
               - 'src/lib/broadcasts/recount.ts'
+              - 'src/lib/broadcasts/csv-audience.ts'
+              - 'src/lib/format/phone.ts'
               - 'src/lib/voice/campaign-settings.ts'
               - 'src/lib/automations/trigger-meta.ts'
               - 'src/lib/calendar/archive-sort.ts'

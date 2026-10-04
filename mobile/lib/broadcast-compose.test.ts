@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
 
+import { MAX_CSV_CONTACTS } from '@shared/lib/broadcasts/csv-audience';
+
 import {
   buildAudience,
+  buildCsvAudience,
   defaultVariableMappings,
   mappingsComplete,
   previewBody,
+  readCsvAudience,
   templateVariableKeys,
 } from './broadcast-compose';
 
@@ -120,5 +124,80 @@ describe('buildAudience', () => {
       type: 'all',
       excludeTagIds: ['opt-out'],
     });
+  });
+});
+
+describe('readCsvAudience', () => {
+  it('counts valid and skipped numbers in a pasted list', () => {
+    const draft = readCsvAudience(
+      'Phone,Name\n9876543210, Asha\n12345\n+91 98765 43210\n+44 7700 900123'
+    );
+    expect(draft).toEqual({
+      contacts: [
+        { phone: '+919876543210', name: 'Asha' },
+        { phone: '+447700900123' },
+      ],
+      skipped: 2,
+      overCap: false,
+    });
+  });
+
+  it('flags a list longer than one broadcast can hold', () => {
+    const lines = Array.from(
+      { length: MAX_CSV_CONTACTS + 1 },
+      (_, i) => `9${String(i).padStart(9, '0')}`
+    );
+    const draft = readCsvAudience(lines.join('\n'));
+    expect(draft.contacts).toHaveLength(MAX_CSV_CONTACTS + 1);
+    expect(draft.overCap).toBe(true);
+  });
+});
+
+describe('buildCsvAudience', () => {
+  it('sends the parsed numbers with any exclusions', () => {
+    expect(
+      buildCsvAudience(readCsvAudience('9876543210,Asha\n9876543211'), [
+        'opt-out',
+      ])
+    ).toEqual({
+      type: 'csv',
+      csvContacts: [
+        { phone: '+919876543210', name: 'Asha' },
+        { phone: '+919876543211' },
+      ],
+      excludeTagIds: ['opt-out'],
+    });
+  });
+
+  it('omits exclusions when none are picked', () => {
+    expect(buildCsvAudience(readCsvAudience('9876543210'), [])).toEqual({
+      type: 'csv',
+      csvContacts: [{ phone: '+919876543210' }],
+    });
+  });
+
+  it('gives no audience for an empty or unusable paste', () => {
+    expect(buildCsvAudience(readCsvAudience(''), [])).toBeNull();
+    expect(buildCsvAudience(readCsvAudience('  \n\n'), [])).toBeNull();
+    expect(
+      buildCsvAudience(readCsvAudience('12345\nnot a phone'), [])
+    ).toBeNull();
+  });
+
+  it('gives no audience for a list over the cap', () => {
+    const lines = Array.from(
+      { length: MAX_CSV_CONTACTS + 1 },
+      (_, i) => `9${String(i).padStart(9, '0')}`
+    );
+    expect(buildCsvAudience(readCsvAudience(lines.join('\n')), [])).toBeNull();
+  });
+
+  it('accepts a list exactly at the cap', () => {
+    const lines = Array.from(
+      { length: MAX_CSV_CONTACTS },
+      (_, i) => `9${String(i).padStart(9, '0')}`
+    );
+    const audience = buildCsvAudience(readCsvAudience(lines.join('\n')), []);
+    expect(audience?.csvContacts).toHaveLength(MAX_CSV_CONTACTS);
   });
 });

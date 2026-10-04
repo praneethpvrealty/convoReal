@@ -1,6 +1,6 @@
 'use client';
 
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -898,12 +898,15 @@ function SendGreetingDialog({
   };
 
   const sendMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (payload: {
+      audience: typeof audience;
+      optedInOnly: boolean;
+    }) =>
       api<{ broadcastId: string; recipientsCount: number }>(
         `/api/greetings/${greeting!.id}/send`,
         {
           method: 'POST',
-          body: JSON.stringify({ audience, optedInOnly }),
+          body: JSON.stringify(payload),
         }
       ),
     onSuccess: (result) => {
@@ -916,10 +919,23 @@ function SendGreetingDialog({
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const latestSelection = useRef({ audience, optedInOnly });
+  useEffect(() => {
+    latestSelection.current = { audience, optedInOnly };
+  }, [audience, optedInOnly]);
+
   const sendAfterRecount = async () => {
     const shown = recipientCount;
+    const snapshot = { audience, optedInOnly };
     const outcome = recountOutcome(await countQuery.refetch(), shown);
-    if (outcome.kind === 'failed') {
+    if (
+      latestSelection.current.audience !== snapshot.audience ||
+      latestSelection.current.optedInOnly !== snapshot.optedInOnly
+    ) {
+      toast.info(
+        'You changed the audience while it was being counted. Nothing was sent. Check it and send again.'
+      );
+    } else if (outcome.kind === 'failed') {
       toast.error(
         "Couldn't recount the audience, so nothing was sent. Try again."
       );
@@ -932,7 +948,7 @@ function SendGreetingDialog({
         `The audience changed to ${outcome.label}. Check the number and send again.`
       );
     } else {
-      sendMutation.mutate();
+      sendMutation.mutate(snapshot);
     }
   };
 

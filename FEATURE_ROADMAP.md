@@ -148,11 +148,11 @@ _A §2.8 gap, stated rather than silent._
 
 - [ ] **Re-engagement tab (mobile)**: The web dashboard's Re-engagement tab (`src/app/(dashboard)/reengagement/reengagement-content.tsx`, table in `src/components/reengagement/reengagement-outcome.tsx`) has no mobile screen. The lead order is chosen by the `reengagement_leads` function (`p_sort`, passed by `loadReengagementLeads` in `src/lib/reengagement/queries.ts`), so a mobile screen sorts by sending the same parameter, and its helpers (`nextLeadSort`, `leadSortDirection`, `maskPhoneLastFour`, `allLeadsMatched` in `src/lib/reengagement/funnel.ts`) are pure, so it can import them through `@shared/` once it exists.
 
-### Deferred: CSV and custom-field broadcast audiences on mobile
+### Deferred: custom-field broadcast audiences on mobile
 
 _A §2.8 gap, stated rather than silent._
 
-- [ ] **Broadcast composer audiences (mobile)**: The web wizard can target a pasted or uploaded CSV of numbers and a custom-field match; `mobile/app/(app)/broadcast-new.tsx` offers only All contacts and By tag. Both surfaces already count through `POST /api/broadcasts/audience-count`, which accepts every audience type, so closing the gap is a composer UI on mobile with no new rule.
+- [ ] **Broadcast composer audiences (mobile)**: The web wizard can target a custom-field match; `mobile/app/(app)/broadcast-new.tsx` offers All contacts, By tag and a pasted list of numbers (parsed by the shared `src/lib/broadcasts/csv-audience.ts`). Both surfaces already count through `POST /api/broadcasts/audience-count`, which accepts every audience type, so closing the gap is a composer UI on mobile with no new rule.
 
 ### Deferred: account administration on mobile
 

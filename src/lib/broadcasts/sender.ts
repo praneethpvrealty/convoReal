@@ -6,6 +6,7 @@ import { ENQUIRY_NOTICE_TEMPLATE_NAMES } from '@/lib/whatsapp/enquiry-notice-tem
 import { resolveLanguage } from '@/lib/whatsapp/template-language';
 import { metaLanguageCode } from '@/lib/languages';
 import { csvPhoneDigits } from '@/lib/broadcasts/csv-audience';
+import { DEFAULT_COUNTRY_CODE } from '@/lib/whatsapp/phone-utils';
 import {
   loadEnquiryNoticeContext,
   resolveEnquiryNoticeParams,
@@ -178,7 +179,7 @@ async function audienceContactIds(
 }
 
 function csvPhoneKey(phone: string): string {
-  return csvPhoneDigits(phone);
+  return csvPhoneDigits(phone, DEFAULT_COUNTRY_CODE);
 }
 
 function storedPhoneDigits(key: string): string[] {

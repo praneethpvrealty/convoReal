@@ -27,6 +27,7 @@ import {
   parseCsvAudience,
 } from '@/lib/broadcasts/csv-audience';
 import { MAX_CSV_CONTACTS } from '@/lib/broadcasts/audience';
+import { DEFAULT_COUNTRY_CODE } from '@/lib/whatsapp/phone-utils';
 
 type AudienceType = 'all' | 'tags' | 'custom_field' | 'csv';
 
@@ -193,14 +194,17 @@ export function Step2SelectAudience({
 
   function retainedCsvContacts() {
     if (!csvText.trim()) return undefined;
-    const { contacts, skipped } = parseCsvAudience(csvText);
+    const { contacts, skipped } = parseCsvAudience(
+      csvText,
+      DEFAULT_COUNTRY_CODE
+    );
     setCsvSkipped(skipped);
     return contacts;
   }
 
   function applyCsv(text: string) {
     setCsvText(text);
-    const { contacts, skipped } = parseCsvAudience(text);
+    const { contacts, skipped } = parseCsvAudience(text, DEFAULT_COUNTRY_CODE);
     setCsvSkipped(skipped);
     onUpdate({
       type: 'csv',

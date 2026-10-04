@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -811,12 +811,15 @@ function SendGreetingSheet({
   });
 
   const sendMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (payload: {
+      audience: typeof audience;
+      optedInOnly: boolean;
+    }) =>
       apiFetch<{ data: { broadcastId: string; recipientsCount: number } }>(
         `/api/greetings/${greeting!.id}/send`,
         {
           method: 'POST',
-          body: JSON.stringify({ audience, optedInOnly }),
+          body: JSON.stringify(payload),
         }
       ),
     onSuccess: ({ data }) => {
@@ -835,10 +838,25 @@ function SendGreetingSheet({
       dialog.show({ title: 'Could not send', message: err.message }),
   });
 
+  const latestSelection = useRef({ audience, optedInOnly });
+  useEffect(() => {
+    latestSelection.current = { audience, optedInOnly };
+  }, [audience, optedInOnly]);
+
   const sendAfterRecount = async () => {
     const shown = reach;
+    const snapshot = { audience, optedInOnly };
     const outcome = recountOutcome(await recount(), shown);
-    if (outcome.kind === 'failed') {
+    if (
+      latestSelection.current.audience !== snapshot.audience ||
+      latestSelection.current.optedInOnly !== snapshot.optedInOnly
+    ) {
+      dialog.show({
+        title: 'The audience changed',
+        message:
+          'You changed the audience while it was being counted. Nothing was sent. Check it and send again.',
+      });
+    } else if (outcome.kind === 'failed') {
       dialog.show({
         title: 'Could not count recipients',
         message:
@@ -856,7 +874,7 @@ function SendGreetingSheet({
         message: `It now reaches ${outcome.label}. Check the number and send again.`,
       });
     } else {
-      sendMutation.mutate();
+      sendMutation.mutate(snapshot);
     }
   };
 
