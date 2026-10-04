@@ -5,7 +5,6 @@ type Lookup = 'stands' | 'gone' | 'renewed' | 'rearmed' | 'moved' | 'error';
 const state = vi.hoisted(() => ({
   lookups: [] as Lookup[],
   burns: 0,
-  refunds: 0,
   sends: 0,
   requeued: [] as Array<{ attempts?: number }>,
   mutations: [] as Array<[string, Array<[string, unknown]>]>,
@@ -89,9 +88,6 @@ vi.mock('@/lib/credits/burn', () => ({
     state.burns += 1;
     return { success: false };
   },
-  refundCredits: async () => {
-    state.refunds += 1;
-  },
 }));
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
@@ -152,7 +148,6 @@ const job = {
 function reset(lookups: Lookup[]) {
   state.lookups = lookups;
   state.burns = 0;
-  state.refunds = 0;
   state.sends = 0;
   state.requeued = [];
   state.mutations = [];
