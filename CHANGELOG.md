@@ -39,7 +39,8 @@ than a written entry. Newest first.
 - **Fix a portal-ad mismatch from the phone.** Each finding in the portal
   drift banner on mobile now has **Update portal listing**, which opens the
   listing's portal ads to change an expiry date or **Mark removed** once the
-  ad is down, and the banner refreshes on its own. Posting to a portal stays
+  ad is down, and the banner refreshes on its own. Viewers and read-only
+  members see the findings without those actions. Posting to a portal stays
   on desktop, where the Chrome extension runs.
 
 #### 3 October 2026

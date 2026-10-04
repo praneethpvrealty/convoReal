@@ -19,6 +19,7 @@ import { haptic } from '@/lib/haptics';
 import {
   canEditExpiry,
   canMarkRemoved,
+  canUpdatePortalListings,
   portalRowStatusLabel,
 } from '@/lib/portal-drift';
 import { queryClient } from '@/lib/query';
@@ -89,7 +90,9 @@ export function PortalExpirySheet({
   propertyId: string;
 }) {
   const { colors, fonts: f } = useTheme();
-  const accountId = useAuthStore((state) => state.profile?.account_id);
+  const profile = useAuthStore((state) => state.profile);
+  const accountId = profile?.account_id;
+  const canWrite = canUpdatePortalListings(profile);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftDate, setDraftDate] = useState(defaultExpiry);
@@ -112,7 +115,7 @@ export function PortalExpirySheet({
   }
 
   async function save() {
-    if (!accountId || !editingId) return;
+    if (!accountId || !editingId || !canWrite) return;
     setSaving(true);
     setError(null);
     const { data, error: updateError } = await supabase
@@ -158,7 +161,7 @@ export function PortalExpirySheet({
   }
 
   async function markRemoved(row: PortalListingRow) {
-    if (!accountId) return;
+    if (!accountId || !canWrite) return;
     setRemovingId(row.id);
     setError(null);
     const { data, error: updateError } = await supabase
@@ -205,6 +208,12 @@ export function PortalExpirySheet({
           days before expiry, on expiry day, and weekly afterwards until the
           listing is renewed or removed.
         </Text>
+        {canWrite ? null : (
+          <Banner
+            kind="info"
+            text="Only agents and admins can change expiry dates or mark an ad removed."
+          />
+        )}
         {error ? <Banner kind="error" text={error} /> : null}
         {listings.isLoading ? (
           <View style={styles.loading}>
@@ -265,7 +274,7 @@ export function PortalExpirySheet({
                         : ''}
                     </Text>
                   </View>
-                  {removed ? null : (
+                  {removed || !canWrite ? null : (
                     <View style={styles.actionColumn}>
                       <Pressable
                         onPress={() => edit(row)}

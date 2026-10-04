@@ -18,6 +18,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import {
+  canUpdatePortalListings,
   driftHeadline,
   driftToggleLabel,
   propertyHref,
@@ -124,7 +125,9 @@ function findingDetail(f: PortalDriftFinding): string {
 export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
   const { colors, fonts: f } = useTheme();
   const router = useRouter();
-  const accountId = useAuthStore((s) => s.profile?.account_id);
+  const profile = useAuthStore((s) => s.profile);
+  const accountId = profile?.account_id;
+  const canWrite = canUpdatePortalListings(profile);
   const storageKey = accountId ? `${DISMISS_KEY_PREFIX}:${accountId}` : null;
   const [isDismissed, setIsDismissed] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -307,31 +310,33 @@ export function PortalDriftPanel({ style }: { style?: ViewStyle }) {
               </Text>
             </View>
             <View style={styles.actions}>
-              <Pressable
-                onPress={() => {
-                  haptic.tap();
-                  setSheetPropertyId(item.propertyId);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={`Update portal listing for ${item.propertyTitle || 'this listing'}`}
-                style={[
-                  styles.actionButton,
-                  {
-                    borderColor: colors.warning,
-                    backgroundColor: colors.warning,
-                  },
-                ]}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontFamily: f.bold,
-                    color: colors.onWarning,
+              {canWrite ? (
+                <Pressable
+                  onPress={() => {
+                    haptic.tap();
+                    setSheetPropertyId(item.propertyId);
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Update portal listing for ${item.propertyTitle || 'this listing'}`}
+                  style={[
+                    styles.actionButton,
+                    {
+                      borderColor: colors.warning,
+                      backgroundColor: colors.warning,
+                    },
+                  ]}
                 >
-                  Update portal listing
-                </Text>
-              </Pressable>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontFamily: f.bold,
+                      color: colors.onWarning,
+                    }}
+                  >
+                    Update portal listing
+                  </Text>
+                </Pressable>
+              ) : null}
               <Pressable
                 onPress={() => {
                   haptic.tap();

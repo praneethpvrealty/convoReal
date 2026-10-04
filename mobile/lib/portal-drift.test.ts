@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canEditExpiry,
   canMarkRemoved,
+  canUpdatePortalListings,
   driftHeadline,
   driftToggleLabel,
   portalRowStatusLabel,
@@ -38,6 +39,23 @@ describe('portal drift banner', () => {
     expect(canMarkRemoved({ status: 'removed' })).toBe(false);
     expect(canEditExpiry({ status: 'removed' })).toBe(false);
     expect(canEditExpiry({ status: 'active' })).toBe(true);
+  });
+
+  it('[PRP-028] agents and above can update portal listings', () => {
+    expect(canUpdatePortalListings({ account_role: 'agent' })).toBe(true);
+    expect(canUpdatePortalListings({ account_role: 'admin' })).toBe(true);
+    expect(
+      canUpdatePortalListings({ account_role: 'owner', is_read_only: false })
+    ).toBe(true);
+  });
+
+  it('[PRP-028] viewers and read-only members only read portal listings', () => {
+    expect(canUpdatePortalListings({ account_role: 'viewer' })).toBe(false);
+    expect(
+      canUpdatePortalListings({ account_role: 'agent', is_read_only: true })
+    ).toBe(false);
+    expect(canUpdatePortalListings(null)).toBe(false);
+    expect(canUpdatePortalListings(undefined)).toBe(false);
   });
 
   it('[PRP-028] row status label names expired and removed ads only', () => {
