@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { loadMatchEvents } from '@/lib/radar/queries';
+import { radarSendRefusalMessage } from '@/lib/radar/send-refusal';
 import {
   DEFAULT_ALERT_MIN_SCORE,
   defaultSelectedTargetIds,
@@ -200,6 +201,12 @@ export default function RadarPage() {
       });
 
       const data = await res.json();
+      const refusal = res.status === 409 && radarSendRefusalMessage(data.code);
+      if (refusal) {
+        toast.info(refusal);
+        queryClient.invalidateQueries({ queryKey: eventsQueryKey });
+        return;
+      }
       if (!res.ok) {
         throw new Error(data.error || 'Broadcast dispatch failed');
       }

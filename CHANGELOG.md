@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **A Match Radar alert can no longer reach the same recipient twice.** The
+  send route now claims the event before sending, refuses a second send while
+  the first is still going out, and records each recipient as their alert
+  lands, so a resubmit from a stale screen or a retry after a crash reaches
+  only the recipients who do not have it yet. Web and mobile say "This alert is already being sent" and
+  refresh the feed instead of resending. **Migration required:**
+  `20261004140649_match_event_send_claim.sql`. Invariant RDR-001.
 - **A voice call that never connects, and a listing video that fails to
   render, are refunded exactly once, and a refund that fails is retried.** They
   used to be returned by feature and amount, which takes the most recent

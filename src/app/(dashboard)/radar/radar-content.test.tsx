@@ -16,6 +16,15 @@ const radar = vi.hoisted(() => ({
   loadMatchEvents: vi.fn(),
 }));
 
+const toast = vi.hoisted(() => ({
+  info: vi.fn(),
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+}));
+
+vi.mock('sonner', () => ({ toast }));
+
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ accountId: 'acct-1' }),
 }));
@@ -98,6 +107,7 @@ function renderRadar(client: QueryClient) {
 afterEach(() => {
   cleanup();
   radar.loadMatchEvents.mockReset();
+  Object.values(toast).forEach((fn) => fn.mockReset());
 });
 
 describe('Match Radar tab loading', () => {
@@ -189,6 +199,39 @@ describe('Match Radar sending', () => {
       expect((second as HTMLButtonElement).disabled).toBe(true);
       fireEvent.click(second);
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('[RDR-001] shows a server refusal and refreshes the feed instead of resending', async () => {
+    radar.loadMatchEvents.mockResolvedValue([matchEvent('e1', 'First Plot')]);
+    const fetchMock = vi.fn(async () =>
+      Response.json(
+        {
+          error: 'This alert is already being sent.',
+          code: 'SEND_IN_PROGRESS',
+        },
+        { status: 409 }
+      )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      renderRadar(newClient());
+      fireEvent.click(
+        await screen.findByRole('button', { name: /Send Match Alert/ })
+      );
+
+      await waitFor(() =>
+        expect(toast.info).toHaveBeenCalledWith(
+          'This alert is already being sent.'
+        )
+      );
+      await waitFor(() =>
+        expect(radar.loadMatchEvents).toHaveBeenCalledTimes(2)
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(toast.error).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();
     }
