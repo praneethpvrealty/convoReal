@@ -4009,7 +4009,7 @@
       "invariants": [
         {
           "id": "ACC-001",
-          "rule": "A member's account, role and read-only status change only through the member RPCs (set_member_role, set_member_org_role, set_member_team, transfer_account_ownership, remove_account_member, redeem_invitation) and server-side setup; a signed-in client cannot insert a profile row, and updating its own row cannot change account_id, account_role, org_role, is_read_only, team_id or the platform role column, so no role-, team- or platform-admin-gated check can be cleared by self-edit or by a persona without a profile (Portfolio owner or buyer) creating one, and the profile-setup route bootstraps a brokerage account only through bootstrap_staff_account, a service-role-only database function that re-runs the sign-up invite gate under row locks (a live beta or team invitation while the gate is on, one seat per invitation) and never for a Portfolio owner or buyer identity.",
+          "rule": "A member's account, role and read-only status change only through the member RPCs (set_member_role, set_member_org_role, set_member_team, transfer_account_ownership, remove_account_member, redeem_invitation) and server-side setup; a signed-in client cannot insert a profile row, and updating its own row cannot change account_id, account_role, org_role, is_read_only, team_id or the platform role column, so no role-, team- or platform-admin-gated check can be cleared by self-edit or by a persona without a profile (Portfolio owner or buyer) creating one, and the profile-setup route bootstraps a brokerage account only through bootstrap_staff_account, a service-role-only database function that holds a per-user lock before it looks for a profile, so overlapping calls return the one account instead of minting an orphan tenant; redeems a live team invitation under a row lock by marking it accepted and attaching the user to the inviting account with the invited role, never creating an account for it; re-runs the sign-up invite gate under row locks for a new tenant (a live beta invitation while the gate is on, one seat per invitation); and never runs for a Portfolio owner or buyer identity.",
           "tests": [
             {
               "file": "src/lib/migrations/profiles-role-guard.test.ts",
@@ -4027,7 +4027,8 @@
           "guards": [
             "supabase/migrations/20261004080500_profiles_privileged_columns_guard.sql",
             "src/app/api/auth/profile-setup/route.ts",
-            "supabase/migrations/20261004090500_bootstrap_staff_account.sql"
+            "supabase/migrations/20261004090500_bootstrap_staff_account.sql",
+            "supabase/migrations/20261004140500_bootstrap_staff_account_invite_redeem.sql"
           ]
         }
       ]
@@ -4067,6 +4068,26 @@
             "src/app/api/webhooks/voice-agent/route.ts",
             "src/lib/voice/reminder-call.ts",
             "src/lib/video/listing-video-worker.ts"
+          ]
+        },
+        {
+          "id": "CRD-003",
+          "rule": "The AI routes named in keyed-refund-routes.test.ts (ad copy, photo enhancement, listing descriptions, greetings, event parsing, share email, call analysis and call action items, deal document reads, guidance value lookups and e-Khata reads) charge credits before their call and return them when it fails by the charge they made: the route mints one burn key per request, burns under it, and every failure path refunds that key through refundBurn, so a refund reverses at most the rows written under that key and a refund that fails is queued for the hourly credit-refunds cron instead of failing the route. What the route then tells the user follows the refund's outcome, and never says credits were refunded unless they were.",
+          "tests": [
+            {
+              "file": "src/lib/credits/keyed-refund-routes.test.ts",
+              "case": "[CRD-003]"
+            },
+            {
+              "file": "src/app/api/greetings/generate/route.test.ts",
+              "case": "[CRD-003]"
+            }
+          ],
+          "guards": [
+            "src/lib/credits/refund-burn.ts",
+            "src/app/api/ai/ad-copy/route.ts",
+            "src/app/api/properties/e-khata/route.ts",
+            "src/app/api/guidance-value/lookup/route.ts"
           ]
         }
       ]

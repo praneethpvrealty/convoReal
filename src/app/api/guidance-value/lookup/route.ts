@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 
 import { toErrorResponse } from '@/lib/auth/account';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import {
+  newBurnKey,
+  refundBurn,
+  refundOutcomeNotice,
+} from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
   SCHEDULE_MAX_BYTES,
@@ -66,6 +71,8 @@ async function readSchedule(
   );
   if (!burst.success) return rateLimitResponse(burst);
 
+  const burnKey = newBurnKey(FEATURE);
+
   if (caller.kind === 'portal') {
     const daily = await checkRateLimit(
       `guidanceReadDaily:${caller.userId}`,
@@ -73,7 +80,9 @@ async function readSchedule(
     );
     if (!daily.success) return rateLimitResponse(daily);
   } else {
-    const burn = await burnCredits(caller.ctx.accountId, FEATURE, COST);
+    const burn = await burnCredits(caller.ctx.accountId, FEATURE, COST, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -95,17 +104,17 @@ async function readSchedule(
       '[guidance-value] schedule read failed:',
       err instanceof Error ? err.message : err
     );
-    if (caller.kind === 'staff') {
-      await refundCredits(caller.ctx.accountId, FEATURE, COST, {
-        description: 'guidance value schedule read failed',
-      });
-    }
+    const refund =
+      caller.kind === 'staff'
+        ? await refundBurn(caller.ctx.accountId, FEATURE, burnKey, {
+            reason: 'guidance value schedule read failed',
+          })
+        : null;
     return NextResponse.json(
       {
-        error:
-          caller.kind === 'staff'
-            ? 'Could not read this schedule. Your credits were refunded.'
-            : 'Could not read this schedule. Try a clearer photo or PDF.',
+        error: refund
+          ? `Could not read this schedule. ${refundOutcomeNotice(refund)}`
+          : 'Could not read this schedule. Try a clearer photo or PDF.',
       },
       { status: 502 }
     );
