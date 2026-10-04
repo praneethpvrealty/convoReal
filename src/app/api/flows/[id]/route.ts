@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { getCurrentAccount } from '@/lib/auth/account';
-import { hasMinRole, type AccountRole } from '@/lib/auth/roles';
+import { getCurrentAccount, requireWriteRole } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
@@ -21,7 +20,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 async function requireOwnership(
   flowId: string,
-  minRole: AccountRole = 'viewer'
+  write = false
 ): Promise<
   | {
       ok: true;
@@ -32,20 +31,16 @@ async function requireOwnership(
 > {
   let ctx;
   try {
-    ctx = await getCurrentAccount();
+    ctx = write ? await requireWriteRole('agent') : await getCurrentAccount();
   } catch (err) {
     const status = (err as { status?: number })?.status ?? 401;
     return {
       ok: false,
       status,
-      body: { error: status === 403 ? 'Forbidden' : 'Unauthorized' },
-    };
-  }
-  if (!hasMinRole(ctx.role, minRole)) {
-    return {
-      ok: false,
-      status: 403,
-      body: { error: `This action requires the '${minRole}' role or higher` },
+      body: {
+        error:
+          status === 403 && err instanceof Error ? err.message : 'Unauthorized',
+      },
     };
   }
   // RLS scopes this to the caller's account — a flow in another
@@ -105,7 +100,7 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  const guard = await requireOwnership(id, 'agent');
+  const guard = await requireOwnership(id, true);
   if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status });
 
   const body = (await request.json().catch(() => null)) as PutBody | null;
@@ -191,7 +186,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  const guard = await requireOwnership(id, 'agent');
+  const guard = await requireOwnership(id, true);
   if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status });
 
   // Clear active_flow_id on contacts referencing this flow to prevent foreign key constraint violation

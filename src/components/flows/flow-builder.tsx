@@ -77,6 +77,7 @@ export function FlowBuilder() {
     updateNode,
     updateNodeConfig,
     removeNode: removeNodeCtx,
+    readOnly,
   } = useFlowEditor();
 
   // List-only UI state: which cards are expanded + scroll refs for
@@ -151,14 +152,14 @@ export function FlowBuilder() {
     <div className="flex flex-col gap-6">
       <FlowTriggerPanel />
 
-      <EntryPicker state={state} setState={setState} />
+      <EntryPicker state={state} setState={setState} readOnly={readOnly} />
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-white">
             Nodes ({state.nodes.length})
           </h2>
-          <AddNodeButton onAdd={addNode} />
+          {!readOnly && <AddNodeButton onAdd={addNode} />}
         </div>
 
         {state.nodes.length === 0 ? (
@@ -176,6 +177,7 @@ export function FlowBuilder() {
               expanded={expandedWithFlash.has(node.node_key)}
               isEntry={state.entry_node_id === node.node_key}
               isFlashed={flashKey === node.node_key}
+              readOnly={readOnly}
               cardRef={setNodeRef(node.node_key)}
               issues={issues.filter(
                 (i) => i.scope === 'node' && i.node_key === node.node_key
@@ -200,11 +202,12 @@ export function FlowBuilder() {
 // ============================================================
 
 export function FlowTriggerPanel() {
-  const { state, setState, issues } = useFlowEditor();
+  const { state, setState, issues, readOnly } = useFlowEditor();
   return (
     <TriggerPanel
       state={state}
       setState={setState}
+      readOnly={readOnly}
       triggerIssues={issues.filter((i) => i.scope === 'trigger')}
     />
   );
@@ -213,16 +216,21 @@ export function FlowTriggerPanel() {
 function TriggerPanel({
   state,
   setState,
+  readOnly,
   triggerIssues,
 }: {
   state: BuilderState;
   setState: React.Dispatch<React.SetStateAction<BuilderState>>;
+  readOnly: boolean;
   triggerIssues: ValidationIssue[];
 }) {
   return (
     <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
       <h2 className="mb-3 text-sm font-semibold text-white">Trigger</h2>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <fieldset
+        disabled={readOnly}
+        className="m-0 grid min-w-0 grid-cols-1 gap-3 border-0 p-0 md:grid-cols-2"
+      >
         <div>
           <label className="mb-1 block text-xs text-slate-400">When…</label>
           <Select
@@ -280,7 +288,7 @@ function TriggerPanel({
             />
           </div>
         )}
-      </div>
+      </fieldset>
       {triggerIssues.length > 0 && (
         <div className="mt-3 flex flex-col gap-1">
           {triggerIssues.map((i, ix) => (
@@ -299,22 +307,29 @@ function TriggerPanel({
 function EntryPicker({
   state,
   setState,
+  readOnly,
 }: {
   state: BuilderState;
   setState: React.Dispatch<React.SetStateAction<BuilderState>>;
+  readOnly: boolean;
 }) {
   if (state.nodes.length === 0) return null;
   return (
     <section className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 p-3">
       <CornerDownRight className="text-primary h-4 w-4 shrink-0" />
       <span className="text-xs text-slate-400">Entry node:</span>
-      <NodeKeySelect
-        value={state.entry_node_id}
-        nodes={state.nodes}
-        onChange={(key) => setState((s) => ({ ...s, entry_node_id: key }))}
-        placeholder="Pick the first node…"
-        className="max-w-xs flex-1"
-      />
+      <fieldset
+        disabled={readOnly}
+        className="m-0 flex max-w-xs min-w-0 flex-1 border-0 p-0"
+      >
+        <NodeKeySelect
+          value={state.entry_node_id}
+          nodes={state.nodes}
+          onChange={(key) => setState((s) => ({ ...s, entry_node_id: key }))}
+          placeholder="Pick the first node…"
+          className="flex-1"
+        />
+      </fieldset>
     </section>
   );
 }
@@ -329,6 +344,7 @@ function NodeCard({
   expanded,
   isEntry,
   isFlashed,
+  readOnly,
   cardRef,
   issues,
   onToggle,
@@ -342,6 +358,7 @@ function NodeCard({
   expanded: boolean;
   isEntry: boolean;
   isFlashed: boolean;
+  readOnly: boolean;
   cardRef: (el: HTMLDivElement | null) => void;
   issues: ValidationIssue[];
   onToggle: () => void;
@@ -407,27 +424,30 @@ function NodeCard({
           <NodeConfigWithAdvanced
             node={node}
             allNodes={allNodes}
+            readOnly={readOnly}
             onUpdate={onUpdate}
             onUpdateConfig={onUpdateConfig}
           />
-          <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3">
-            <div className="flex items-center gap-2">
-              {!isEntry && (
-                <Button variant="ghost" size="sm" onClick={onSetEntry}>
-                  Set as entry
-                </Button>
-              )}
+          {!readOnly && (
+            <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3">
+              <div className="flex items-center gap-2">
+                {!isEntry && (
+                  <Button variant="ghost" size="sm" onClick={onSetEntry}>
+                    Set as entry
+                  </Button>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onRemove}
+                className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove node
+              </Button>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onRemove}
-              className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Remove node
-            </Button>
-          </div>
+          )}
           {issues.length > 0 && (
             <div className="mt-3 flex flex-col gap-1 rounded-md bg-red-500/5 p-2">
               {issues.map((i, ix) => (
@@ -450,11 +470,13 @@ function NodeCard({
 function NodeConfigWithAdvanced({
   node,
   allNodes,
+  readOnly,
   onUpdate,
   onUpdateConfig,
 }: {
   node: BuilderNode;
   allNodes: BuilderNode[];
+  readOnly: boolean;
   onUpdate: (patch: Partial<BuilderNode>) => void;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
@@ -463,12 +485,17 @@ function NodeConfigWithAdvanced({
     node.node_type === 'send_buttons' || node.node_type === 'send_list';
   return (
     <div className="flex flex-col gap-3">
-      <NodeConfigForm
-        node={node}
-        allNodes={allNodes}
-        showAdvanced={showAdvanced}
-        onUpdateConfig={onUpdateConfig}
-      />
+      <fieldset
+        disabled={readOnly}
+        className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0"
+      >
+        <NodeConfigForm
+          node={node}
+          allNodes={allNodes}
+          showAdvanced={showAdvanced}
+          onUpdateConfig={onUpdateConfig}
+        />
+      </fieldset>
       <div className="border-t border-slate-800 pt-3">
         <button
           type="button"
@@ -489,6 +516,7 @@ function NodeConfigWithAdvanced({
                 Node key (internal identifier — keep stable for analytics)
               </label>
               <Input
+                disabled={readOnly}
                 value={node.node_key}
                 onChange={(e) =>
                   onUpdate({ node_key: slugify(e.target.value, node.node_key) })

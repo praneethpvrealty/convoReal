@@ -63,10 +63,14 @@ function Probe({
   return null;
 }
 
-function mount() {
+function mount(readOnly = false) {
   const editor = {} as { current: FlowEditorContextValue };
   render(
-    <FlowEditorProvider initialFlow={flow} initialNodes={rows}>
+    <FlowEditorProvider
+      initialFlow={flow}
+      initialNodes={rows}
+      readOnly={readOnly}
+    >
       <Probe capture={(value) => (editor.current = value)} />
     </FlowEditorProvider>
   );
@@ -93,6 +97,28 @@ describe('FlowEditorProvider', () => {
     const editor = mount();
     expect(editor.current.dirty).toBe(false);
     expect(editor.current.canActivate).toBe(true);
+  });
+
+  it('[ACC-002] ignores every edit and action for a read-only member', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const editor = mount(true);
+    expect(editor.current.readOnly).toBe(true);
+    act(() => {
+      editor.current.setState((s) => ({ ...s, name: 'Changed' }));
+      editor.current.addNode('end');
+      editor.current.removeNode('bye');
+      editor.current.updateNodePosition('bye', 40, 40);
+    });
+    expect(editor.current.state.name).toBe('Menu');
+    expect(editor.current.state.nodes).toHaveLength(2);
+    expect(editor.current.dirty).toBe(false);
+    await act(async () => {
+      expect(await editor.current.save()).toBe(false);
+      await editor.current.setStatus('active');
+      await editor.current.deleteFlow();
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('keeps edits made while a save is in flight marked unsaved', async () => {

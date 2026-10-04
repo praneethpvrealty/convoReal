@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   toErrorResponse,
-  getCurrentAccount,
+  requireWriteRole,
   type AccountContext,
 } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -29,7 +29,7 @@ export async function POST(
 
   let ctx: AccountContext;
   try {
-    ctx = await getCurrentAccount();
+    ctx = await requireWriteRole('agent');
   } catch (err) {
     return toErrorResponse(err);
   }

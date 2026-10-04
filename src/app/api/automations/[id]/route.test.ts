@@ -248,7 +248,7 @@ describe('/api/automations/[id] is scoped to the account, not the creator', () =
     expect(automation()).toEqual(before);
   });
 
-  it('refuses a read-only member the changes an agent can make', async () => {
+  it('[ACC-002] refuses a read-only member the changes an agent can make', async () => {
     state.caller = READ_ONLY_AGENT;
     const before = { ...automation() };
     expect((await get()).status).toBe(200);

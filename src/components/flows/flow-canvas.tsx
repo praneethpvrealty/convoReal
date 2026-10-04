@@ -239,6 +239,7 @@ function FlowCanvasInner() {
     updateNodePosition,
     removeNode,
     flashKey,
+    readOnly,
   } = useFlowEditor();
   const reactFlow = useReactFlow();
   const builderNodes = state.nodes;
@@ -426,7 +427,7 @@ function FlowCanvasInner() {
     return (
       <div className="flex h-[60vh] flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-slate-700 bg-slate-950 text-sm text-slate-500">
         <p>No nodes yet.</p>
-        <CanvasAddNodeButton />
+        {!readOnly && <CanvasAddNodeButton />}
       </div>
     );
   }
@@ -448,8 +449,9 @@ function FlowCanvasInner() {
           onEdgesDelete={handleEdgesDelete}
           // Default is "Backspace" only — accept both so Mac users
           // hitting Delete (Fn+Backspace) get the same behavior.
-          deleteKeyCode={['Backspace', 'Delete']}
-          nodesConnectable={true}
+          deleteKeyCode={readOnly ? null : ['Backspace', 'Delete']}
+          nodesDraggable={!readOnly}
+          nodesConnectable={!readOnly}
           edgesFocusable={true}
           elementsSelectable={true}
           // Lower default min/max zoom than the lib's defaults; the
@@ -470,9 +472,11 @@ function FlowCanvasInner() {
             maskColor="rgba(15, 23, 42, 0.7)"
             className="!border !border-slate-700 !bg-slate-900"
           />
-          <Panel position="bottom-right" className="!right-4 !bottom-4">
-            <CanvasAddNodeButton />
-          </Panel>
+          {!readOnly && (
+            <Panel position="bottom-right" className="!right-4 !bottom-4">
+              <CanvasAddNodeButton />
+            </Panel>
+          )}
         </ReactFlow>
       </div>
 
@@ -484,6 +488,7 @@ function FlowCanvasInner() {
         onUpdateConfig={onSelectedUpdateConfig}
         onDelete={handleDeleteSelected}
         onSetEntry={handleSetEntry}
+        readOnly={readOnly}
       />
     </>
   );
@@ -503,6 +508,7 @@ function NodeEditSheet({
   onUpdateConfig,
   onDelete,
   onSetEntry,
+  readOnly,
 }: {
   node: BuilderNode | null;
   isEntry: boolean;
@@ -511,6 +517,7 @@ function NodeEditSheet({
   onUpdateConfig: (patch: Record<string, unknown>) => void;
   onDelete: () => void;
   onSetEntry: () => void;
+  readOnly: boolean;
 }) {
   // Sheet is controlled — opens when a node is selected, closes via
   // Esc / overlay / close button (all delegated to onClose).
@@ -545,33 +552,38 @@ function NodeEditSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
+        <fieldset
+          disabled={readOnly}
+          className="m-0 flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto border-0 px-5 py-4"
+        >
           <NodeConfigForm
             node={node}
             allNodes={allNodes}
             showAdvanced={false}
             onUpdateConfig={onUpdateConfig}
           />
-        </div>
+        </fieldset>
 
-        <SheetFooter className="border-t border-slate-800 px-5 py-3 sm:flex-row sm:justify-between">
-          {!isEntry ? (
-            <Button variant="ghost" size="sm" onClick={onSetEntry}>
-              Set as entry
+        {!readOnly && (
+          <SheetFooter className="border-t border-slate-800 px-5 py-3 sm:flex-row sm:justify-between">
+            {!isEntry ? (
+              <Button variant="ghost" size="sm" onClick={onSetEntry}>
+                Set as entry
+              </Button>
+            ) : (
+              <span />
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete node
             </Button>
-          ) : (
-            <span />
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDelete}
-            className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete node
-          </Button>
-        </SheetFooter>
+          </SheetFooter>
+        )}
       </SheetContent>
     </Sheet>
   );

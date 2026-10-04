@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **Read-only members can no longer create or change automations and flows.**
+  Creating an automation, running one by hand, and creating, editing,
+  activating or deleting a flow (marketplace flows included) are refused for a
+  read-only member by the API and by the database's row-level security, and
+  the Automations and Flows screens hide or disable those actions; the flow
+  editor opens read-only. **Migration required:**
+  `20261004155516_flow_automation_write_read_only_rls.sql`. Invariant ACC-002.
 - **A Match Radar alert can no longer reach the same recipient twice.** The
   send route now claims the event before sending, refuses a second send while
   the first is still going out, and records each recipient before their alert

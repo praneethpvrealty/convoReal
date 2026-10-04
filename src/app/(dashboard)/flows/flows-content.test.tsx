@@ -12,16 +12,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import FlowsPage, { formatItemPrice, goLiveConsequence } from './flows-content';
 
 const push = vi.fn();
+const auth = vi.hoisted(() => ({ isReadOnly: false }));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push }),
 }));
 
 vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({ accountId: 'acct-1' }),
+  useAuth: () => ({ accountId: 'acct-1', isReadOnly: auth.isReadOnly }),
 }));
 
-vi.mock('@/hooks/useCan', () => ({ useCan: () => true }));
+vi.mock('@/hooks/useCan', () => ({
+  useCan: (action: string) =>
+    action === 'make-changes' ? !auth.isReadOnly : true,
+}));
 
 vi.mock('@/lib/marketplace/checkout', () => ({
   openRazorpayCheckout: vi.fn(),
@@ -89,6 +93,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   push.mockReset();
+  auth.isReadOnly = false;
 });
 
 describe('FlowsPage', () => {
@@ -105,6 +110,44 @@ describe('FlowsPage', () => {
     fail = false;
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await screen.findByText('No flows yet');
+  });
+
+  it('[ACC-002] disables creating and activating flows for a read-only member', async () => {
+    auth.isReadOnly = true;
+    renderFlows((url) =>
+      url === '/api/flows'
+        ? ok({ flows: [flow()] })
+        : ok({ templates: [], items: [item()] })
+    );
+    await screen.findByText('Welcome menu');
+    const newFlow = screen.getByRole('button', { name: /New flow/ });
+    expect((newFlow as HTMLButtonElement).disabled).toBe(true);
+    expect(newFlow.parentElement?.getAttribute('title')).toBe(
+      "Read-only — your role can't create flows"
+    );
+    expect(screen.queryByRole('button', { name: /Delete/ })).toBe(null);
+    expect(screen.getByRole('button', { name: /View/ })).toBeTruthy();
+    const activate = await screen.findByRole('button', { name: /Activate/ });
+    expect((activate as HTMLButtonElement).disabled).toBe(true);
+    expect(activate.parentElement?.getAttribute('title')).toBe(
+      "Read-only — your role can't change flows"
+    );
+  });
+
+  it('[ACC-002] offers a read-only member View, not Edit, on an enabled marketplace flow', async () => {
+    auth.isReadOnly = true;
+    renderFlows((url) => {
+      if (url === '/api/flows') return ok({ flows: [] });
+      if (url === '/api/marketplace/items') {
+        return ok({
+          items: [item({ account_status: 'enabled', account_flow_id: 'f9' })],
+        });
+      }
+      return ok({ templates: [] });
+    });
+    await screen.findByText('Greeter');
+    expect(screen.getByRole('button', { name: /View/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Edit/ })).toBe(null);
   });
 
   it('shows when each flow last ran', async () => {

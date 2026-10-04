@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   getCurrentAccount,
-  requireRole,
+  requireWriteRole,
   toErrorResponse,
 } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   let userId: string;
   let accountId: string;
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     userId = ctx.userId;
     accountId = ctx.accountId;
   } catch (error) {
