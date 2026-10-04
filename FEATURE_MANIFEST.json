@@ -442,6 +442,24 @@
           ]
         },
         {
+          "id": "INB-026",
+          "rule": "Every contact draft card's Confirm button carries the version of the saved draft it shows together with a digest of the contact details it displays, including any number taken from an existing contact (an edit whose write fails sends no card, only a notice that the change was not saved), and Confirm saves only that version: a tap on a card whose draft or displayed details have since changed saves nothing and sends the current draft instead. A Confirm from a card sent before versions existed, or a typed \"confirm\", confirms the current draft as before.",
+          "tests": [
+            {
+              "file": "src/lib/ai/intake-core.test.ts",
+              "case": "[INB-026]"
+            },
+            {
+              "file": "src/lib/ai/draft-sessions.test.ts",
+              "case": "[INB-026]"
+            },
+            {
+              "file": "src/lib/ai/chatbot-engine.structure.test.ts",
+              "case": "[INB-026]"
+            }
+          ]
+        },
+        {
           "id": "INB-027",
           "rule": "Every AI charge the owner chatbot may later refund is burned under its own key, and the refund reverses only the ledger rows written under that key: at most once however often it is retried, never more than was charged, and nothing when the burn never landed. A refund call that keeps failing is queued in credit_refund_retries and retried by the hourly credit-refunds cron until it succeeds, the least-tried first; after ten failures each further failure is logged for manual reconciliation, and a refund that can be neither made nor queued is reported as failed, never as queued. Keyed burns keep the ordinary '<feature> burn' description in the credits history.",
           "tests": [
@@ -3799,6 +3817,28 @@
             }
           ],
           "guards": ["src/lib/copilot/launcher-placement.ts"]
+        },
+        {
+          "id": "CPL-003",
+          "rule": "A staff question asking which contacts are looking for an area, property type, BHK or budget is answered from the account's own contact rows: a bounded list of matching contacts, each a link that opens that contact's card on web and mobile, plus a link to the filtered Contacts list, with no phone numbers in the answer, no tour offered in its place, and never served from or stored in the shared answer cache.",
+          "tests": [
+            {
+              "file": "src/lib/copilot/contact-search.test.ts",
+              "case": "[CPL-003]"
+            },
+            {
+              "file": "src/lib/copilot/engine.contact-search.test.ts",
+              "case": "[CPL-003]"
+            },
+            {
+              "file": "src/lib/copilot/contact-search-query.test.ts",
+              "case": "[CPL-003]"
+            },
+            { "file": "mobile/lib/copilot.test.ts", "case": "[CPL-003]" }
+          ],
+          "guards": [
+            "supabase/migrations/20261004125900_copilot_find_contacts.sql"
+          ]
         }
       ]
     },

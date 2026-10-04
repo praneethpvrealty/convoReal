@@ -133,6 +133,9 @@ import {
   validateContactDraftsContainer,
   reconcileContactDrafts,
   absorbContactDrafts,
+  contactCardVersion,
+  contactConfirmButtonId,
+  readContactConfirm,
   applyExplicitContactDraftUpdate,
   formatDraftPreviewMessage,
   formatContactDraftsPreview,
@@ -788,7 +791,8 @@ async function sendContactDraftPreview(
   nextStatus: string,
   missingFields: string[],
   conversationId: string,
-  accountId: string
+  accountId: string,
+  version: string
 ): Promise<void> {
   const resolvedContainer = await resolveExactContactLinks(
     container,
@@ -809,7 +813,12 @@ async function sendContactDraftPreview(
   const buttons =
     resolvedStatus === 'awaiting_confirmation'
       ? [
-          { id: 'confirm_contact', title: 'Confirm' },
+          {
+            id: contactConfirmButtonId(
+              contactCardVersion(version, resolvedContainer)
+            ),
+            title: 'Confirm',
+          },
           { id: 'cancel_contact', title: 'Cancel' },
         ]
       : [{ id: 'cancel_contact', title: 'Cancel' }];
@@ -858,6 +867,24 @@ async function readCurrentContactDraft(
   return undefined;
 }
 
+async function sendContactDraftSaveFailed(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  conversationId: string
+): Promise<boolean> {
+  const reply =
+    "❌ *Couldn't save that change to the draft.* Your last draft card still stands — send the change again.";
+  const sendRes = await sendTextMessage({
+    phoneNumberId,
+    accessToken,
+    to,
+    text: reply,
+  });
+  await saveBotMessage(conversationId, reply, sendRes.messageId);
+  return true;
+}
+
 async function announceLatestContactDraft(
   phoneNumberId: string,
   accessToken: string,
@@ -880,7 +907,8 @@ async function announceLatestContactDraft(
       row.status,
       validateContactDraftsContainer(row.draft_data).missingFields,
       conversationId,
-      accountId
+      accountId,
+      row.updated_at
     );
     const latest = await readCurrentContactDraft(contactId, accountId);
     if (latest === undefined) {
@@ -2867,12 +2895,20 @@ export async function processOwnerChatbotMessage(
         validateContactDraftsContainer(linkedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
-      await overwriteContactDraftSession(
+      const version = await overwriteContactDraftSession(
         supabaseAdmin(),
         contactSession.id,
         linkedContainer,
         nextStatus
       );
+      if (!version) {
+        return await sendContactDraftSaveFailed(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
+      }
 
       await sendContactDraftPreview(
         phoneNumberId,
@@ -2883,17 +2919,37 @@ export async function processOwnerChatbotMessage(
         nextStatus,
         missingFields,
         conversation.id,
-        accountId
+        accountId,
+        version
       );
       return true;
     }
 
     // Handle CONFIRM instruction
-    if (buttonId === 'confirm_contact' || lowerText === 'confirm') {
-      const confirmedContainer = await resolveExactContactLinks(
+    const confirmRequest = readContactConfirm(buttonId, lowerText);
+    const confirmedContainer = confirmRequest
+      ? await resolveExactContactLinks(container, accountId)
+      : container;
+    if (
+      confirmRequest?.version &&
+      confirmRequest.version !==
+        contactCardVersion(contactSession.updated_at, confirmedContainer)
+    ) {
+      await sendContactDraftPreview(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        `📝 *This draft changed after that card — here's the latest:*`,
         container,
-        accountId
+        contactSession.status,
+        validateContactDraftsContainer(container).missingFields,
+        conversation.id,
+        accountId,
+        contactSession.updated_at
       );
+      return true;
+    }
+    if (confirmRequest) {
       const { isValid, missingFields } =
         validateContactDraftsContainer(confirmedContainer);
       if (!isValid) {
@@ -3443,12 +3499,20 @@ export async function processOwnerChatbotMessage(
           validateContactDraftsContainer(mergedContainer);
         const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
-        await overwriteContactDraftSession(
+        const version = await overwriteContactDraftSession(
           supabaseAdmin(),
           contactSession.id,
           mergedContainer,
           nextStatus
         );
+        if (!version) {
+          return await sendContactDraftSaveFailed(
+            phoneNumberId,
+            accessToken,
+            contactRecord.phone,
+            conversation.id
+          );
+        }
 
         await sendContactDraftPreview(
           phoneNumberId,
@@ -3461,7 +3525,8 @@ export async function processOwnerChatbotMessage(
           nextStatus,
           missingFields,
           conversation.id,
-          accountId
+          accountId,
+          version
         );
         return true;
       } catch (err) {
@@ -3497,12 +3562,20 @@ export async function processOwnerChatbotMessage(
         validateContactDraftsContainer(mergedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
-      await overwriteContactDraftSession(
+      const version = await overwriteContactDraftSession(
         supabaseAdmin(),
         contactSession.id,
         mergedContainer,
         nextStatus
       );
+      if (!version) {
+        return await sendContactDraftSaveFailed(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
+      }
 
       await sendContactDraftPreview(
         phoneNumberId,
@@ -3515,7 +3588,8 @@ export async function processOwnerChatbotMessage(
         nextStatus,
         missingFields,
         conversation.id,
-        accountId
+        accountId,
+        version
       );
       return true;
     }
@@ -3541,12 +3615,20 @@ export async function processOwnerChatbotMessage(
         validateContactDraftsContainer(updatedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
-      await overwriteContactDraftSession(
+      const version = await overwriteContactDraftSession(
         supabaseAdmin(),
         contactSession.id,
         updatedContainer,
         nextStatus
       );
+      if (!version) {
+        return await sendContactDraftSaveFailed(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
+      }
 
       await sendContactDraftPreview(
         phoneNumberId,
@@ -3557,7 +3639,8 @@ export async function processOwnerChatbotMessage(
         nextStatus,
         missingFields,
         conversation.id,
-        accountId
+        accountId,
+        version
       );
       return true;
     }
