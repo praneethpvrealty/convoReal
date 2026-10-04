@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 const sql = readFileSync(
   join(
     process.cwd(),
-    'supabase/migrations/20261004090500_bootstrap_staff_account.sql'
+    'supabase/migrations/20261004140500_bootstrap_staff_account_invite_redeem.sql'
   ),
   'utf8'
 );
@@ -49,5 +49,55 @@ describe('bootstrap_staff_account claims a seat atomically', () => {
     expect(sql).toContain(
       "VALUES (p_user_id, p_full_name, p_email, v_account_id, 'owner')"
     );
+  });
+});
+
+describe('bootstrap_staff_account redeems a team invitation and serialises per user', () => {
+  const body = sql.slice(sql.indexOf('BEGIN'), sql.indexOf('END;\n$$;'));
+  const teamPath = body.slice(
+    body.indexOf("v_team_token := NULLIF(v_meta->>'team_invite', '');"),
+    body.indexOf('FROM beta_program WHERE id FOR UPDATE')
+  );
+
+  it('[ACC-001] takes a per-user advisory lock before it looks for a profile', () => {
+    const lock = body.indexOf(
+      "PERFORM pg_advisory_xact_lock(hashtextextended('bootstrap_staff_account:' || p_user_id::text, 0));"
+    );
+    const lookup = body.indexOf(
+      'SELECT * INTO v_existing FROM profiles WHERE user_id = p_user_id;'
+    );
+    expect(lock).toBeGreaterThan(-1);
+    expect(lookup).toBeGreaterThan(lock);
+    expect(body.slice(0, lock).trim()).toBe('BEGIN');
+  });
+
+  it('[ACC-001] locks and validates the team invitation the way redeem_invitation does', () => {
+    expect(teamPath).toMatch(
+      /SELECT \* INTO v_inv FROM account_invitations\s+WHERE token_hash = hash_beta_token\(v_team_token\)\s+FOR UPDATE;/
+    );
+    expect(teamPath).toContain(
+      'IF FOUND AND v_inv.accepted_at IS NULL AND v_inv.expires_at > NOW() THEN'
+    );
+    expect(body.indexOf(teamPath)).toBeGreaterThan(
+      body.indexOf("v_meta->>'app_context' IN ('den', 'buyer')")
+    );
+  });
+
+  it('[ACC-001] attaches the user to the inviting account with the invited role and spends the invitation', () => {
+    expect(teamPath).toContain(
+      'VALUES (p_user_id, p_full_name, p_email, v_inv.account_id, v_inv.role)'
+    );
+    expect(teamPath).toMatch(
+      /UPDATE account_invitations\s+SET accepted_at = NOW\(\),\s+accepted_by_user_id = p_user_id\s+WHERE id = v_inv\.id;\s+RETURN v_inv\.account_id;/
+    );
+  });
+
+  it('[ACC-001] never creates an account for a redeemed team invitation', () => {
+    expect(teamPath).not.toContain('INSERT INTO accounts');
+    expect(teamPath).not.toContain("'owner'");
+    expect(body.indexOf('RETURN v_inv.account_id;')).toBeLessThan(
+      body.indexOf('INSERT INTO accounts')
+    );
+    expect(body).not.toContain('v_team_ok');
   });
 });
