@@ -1,9 +1,14 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
-import { AI_FEATURE_COSTS, voiceCallCost } from '@/lib/credits/types';
+import { burnCredits } from '@/lib/credits/burn';
+import { refundBurn } from '@/lib/credits/refund-burn';
+import { voiceCallCost } from '@/lib/credits/types';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { isWithinCallWindow, STALE_CALLING_MS } from '@/lib/voice/campaigns';
+import {
+  isWithinCallWindow,
+  STALE_CALLING_MS,
+  voiceCallBurnKey,
+} from '@/lib/voice/campaigns';
 import {
   getVoiceConfig,
   resolveDialCredentials,
@@ -38,9 +43,6 @@ const CAMPAIGNS_PER_RUN = 20;
 // VOICE_CALL_CHANNELS to match the plan when it changes.
 const CALLS_PER_RUN = Math.max(1, Number(process.env.VOICE_CALL_CHANNELS) || 4);
 const CALLS_PER_CAMPAIGN = Math.min(5, CALLS_PER_RUN);
-/** Falls back to the platform-paid price for attempts charged before
- *  migration 279 recorded what each one cost. */
-const FALLBACK_CALL_COST = AI_FEATURE_COSTS.voice_campaign_call;
 
 export async function GET(request: Request) {
   const expected =
@@ -84,7 +86,7 @@ export async function GET(request: Request) {
     ).toISOString();
     const { data: staleRows } = await supabase
       .from('voice_campaign_recipients')
-      .select('id, account_id, charged_credits')
+      .select('id, account_id, attempts')
       .eq('status', 'calling')
       .lt('last_attempt_at', staleBefore)
       .limit(200);
@@ -97,13 +99,11 @@ export async function GET(request: Request) {
         .select('id');
       if (!requeuedRow || requeuedRow.length === 0) continue;
       requeued++;
-      await refundCredits(
+      await refundBurn(
         stale.account_id,
         'voice_campaign_call',
-        stale.charged_credits ?? FALLBACK_CALL_COST,
-        {
-          description: `voice_campaign_call stale refund (recipient ${stale.id})`,
-        }
+        voiceCallBurnKey(stale.id, stale.attempts),
+        { reason: `voice_campaign_call stale refund (recipient ${stale.id})` }
       );
     }
 
@@ -215,7 +215,7 @@ export async function GET(request: Request) {
           campaign.account_id,
           'voice_campaign_call',
           callCost,
-          { retryKey: `voice-call:${recipient.id}:${recipient.attempts + 1}` }
+          { retryKey: voiceCallBurnKey(recipient.id, recipient.attempts + 1) }
         );
         if (!burn.success) {
           creditBlocked++;
@@ -287,12 +287,12 @@ export async function GET(request: Request) {
             .eq('id', recipient.id)
             .eq('status', 'calling')
             .select('id');
-          await refundCredits(
+          await refundBurn(
             campaign.account_id,
             'voice_campaign_call',
-            callCost,
+            voiceCallBurnKey(recipient.id, recipient.attempts + 1),
             {
-              description: `voice_campaign_call start-failure refund (recipient ${recipient.id})`,
+              reason: `voice_campaign_call start-failure refund (recipient ${recipient.id})`,
             }
           );
         }
