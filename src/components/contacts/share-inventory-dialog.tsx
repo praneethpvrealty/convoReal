@@ -18,7 +18,7 @@ import {
   formatShareAmount,
   propertyShowcaseUrl,
 } from '@/lib/share-message-builder';
-import type { Property } from '@/types';
+import type { PickerProperty } from '@/lib/contacts/detail-queries';
 
 interface ShareInventoryDialogProps {
   open: boolean;
@@ -26,7 +26,7 @@ interface ShareInventoryDialogProps {
   contactId: string;
   contactName: string;
   contactPhone: string;
-  properties: Property[];
+  properties: PickerProperty[];
   showcaseBaseUrl: string;
 }
 

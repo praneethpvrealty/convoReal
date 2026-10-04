@@ -11,7 +11,11 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import {
   loadAllProperties,
@@ -23,18 +27,19 @@ import {
   loadContactTags,
   loadDetailShowcaseSettings,
   loadPropertyMessageStatus,
-  loadReferrerCandidates,
   loadSharedProperties,
+  searchReferrerCandidates,
   type ContactDetailBundle,
   type ContactTagsBundle,
+  type PickerProperty,
   type PropertyMessageStatus,
+  type ReferrerCandidate,
   type SharedProperty,
 } from '@/lib/contacts/detail-queries';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type {
-  Contact,
   Tag,
   ContactNote,
   Deal,
@@ -173,7 +178,8 @@ import { isLocationGuarded } from '@/lib/inventory/location-guard';
 import { formatCurrency } from '@/lib/format/currency';
 
 const NO_PROPERTIES: Property[] = [];
-const NO_CONTACTS: Contact[] = [];
+const NO_PICKER_PROPERTIES: PickerProperty[] = [];
+const NO_REFERRERS: ReferrerCandidate[] = [];
 const NO_TAGS: Tag[] = [];
 const NO_IDS: string[] = [];
 const NO_NOTES: ContactNote[] = [];
@@ -391,7 +397,7 @@ export function ContactDetailView({
     queryFn: () => loadAllProperties(supabase),
     enabled,
   });
-  const allProperties = allPropertiesQuery.data ?? NO_PROPERTIES;
+  const allProperties = allPropertiesQuery.data ?? NO_PICKER_PROPERTIES;
 
   const associatedPropertiesQuery = useQuery({
     queryKey: ['contact', contactId, 'properties'],
@@ -772,30 +778,42 @@ export function ContactDetailView({
     }
   }, [contactId, invalidateDetail, onUpdated]);
 
-  const referrerCandidatesQuery = useQuery({
-    queryKey: ['contacts', 'referrer-candidates'],
-    queryFn: () => loadReferrerCandidates(supabase),
-    enabled: Boolean(contactId),
+  const [referrerSearch, setReferrerSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setReferrerSearch(editReferrer.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [editReferrer]);
+
+  const referrerSearchQuery = useQuery({
+    queryKey: [
+      'contacts',
+      'referrer-search',
+      accountId,
+      contactId,
+      referrerSearch,
+    ],
+    queryFn: () =>
+      searchReferrerCandidates(
+        supabase,
+        accountId!,
+        referrerSearch,
+        contactId!
+      ),
+    enabled:
+      enabled &&
+      Boolean(accountId) &&
+      showReferrerSuggestions &&
+      referrerSearch.length > 0,
+    placeholderData: keepPreviousData,
   });
-  const contactsList = referrerCandidatesQuery.data ?? NO_CONTACTS;
 
   // Linking a party writes contact data, so it takes the same agent+
   // gate the API route enforces.
   const canEditContacts = useCan('send-messages');
 
-  const filteredReferrerContacts = useMemo(() => {
-    if (!editReferrer.trim()) return [];
-    return contactsList
-      .filter(
-        (c) =>
-          c.id !== contactId &&
-          (contactFullName(c)
-            .toLowerCase()
-            .includes(editReferrer.toLowerCase()) ||
-            (c.phone && c.phone.includes(editReferrer)))
-      )
-      .slice(0, 5);
-  }, [contactsList, editReferrer, contactId]);
+  const filteredReferrerContacts = editReferrer.trim()
+    ? (referrerSearchQuery.data ?? NO_REFERRERS)
+    : NO_REFERRERS;
 
   // Applied tags lead; the rest keep their alphabetical order behind
   // them (sort is stable, and the query already orders by name).
@@ -819,7 +837,7 @@ export function ContactDetailView({
       // Mark as attempted so we don't scan again for this contactId during this drawer session
       autoMapAttemptedRef.current[contactId] = true;
       // Find matching property in notes
-      let matchedProperty: Property | null = null;
+      let matchedProperty: PickerProperty | null = null;
 
       for (const note of notes) {
         const text = note.note_text || '';
@@ -2393,7 +2411,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     {contactId && (
                       <PartyPanel
                         contactId={contactId}
-                        contacts={contactsList}
                         canEdit={canEditContacts}
                       />
                     )}
