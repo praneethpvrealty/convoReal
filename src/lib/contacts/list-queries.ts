@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { TypedSupabaseClient } from '@/lib/supabase/database';
 import type { Contact, ShowcaseSettings, Tag } from '@/types';
 import { CONTACT_LIST_COLUMNS } from '@/lib/contacts/list-columns';
 import {
@@ -11,7 +11,7 @@ import { projectOptions } from '@/lib/contacts/contact-interest';
 import { parsePropertyQuery } from '@/lib/search-parser';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 
-type DB = SupabaseClient;
+type DB = TypedSupabaseClient;
 
 export const CONTACTS_PAGE_SIZE = 25;
 
@@ -78,13 +78,13 @@ export async function loadContactsShowcaseSettings(
     .select('*')
     .eq('account_id', accountId)
     .maybeSingle();
-  return data ?? null;
+  return (data as ShowcaseSettings | null) ?? null;
 }
 
 export async function loadTagsMap(db: DB): Promise<Record<string, Tag>> {
   const { data } = await db.from('tags').select('*');
   const map: Record<string, Tag> = {};
-  (data ?? []).forEach((t) => (map[t.id] = t));
+  ((data ?? []) as Tag[]).forEach((t) => (map[t.id] = t));
   return map;
 }
 
@@ -264,7 +264,11 @@ async function runContactsPage(
         .select('contact_id')
         .eq('status', 'won');
       const transactedContactIds = Array.from(
-        new Set(wonDeals?.map((d) => d.contact_id).filter(Boolean) || [])
+        new Set(
+          wonDeals
+            ?.map((d) => d.contact_id)
+            .filter((id): id is string => Boolean(id)) || []
+        )
       );
       if (transactedContactIds.length > 0) {
         query = query.in('id', transactedContactIds);
@@ -454,7 +458,7 @@ async function runContactsPage(
           .select('contact_id')
           .eq('account_id', accountId)
           .or(locFilters);
-        return (data as { contact_id: string }[]) || [];
+        return data || [];
       };
 
       const getTypeNotes = async (): Promise<{ contact_id: string }[]> => {
@@ -467,7 +471,7 @@ async function runContactsPage(
           .select('contact_id')
           .eq('account_id', accountId)
           .or(typeFilters);
-        return (data as { contact_id: string }[]) || [];
+        return data || [];
       };
 
       const getBedNotes = async (): Promise<{ contact_id: string }[]> => {
@@ -479,7 +483,7 @@ async function runContactsPage(
           .select('contact_id')
           .eq('account_id', accountId)
           .or(bedFilters);
-        return (data as { contact_id: string }[]) || [];
+        return data || [];
       };
 
       // 2. Fetch contact IDs from tags matching types
@@ -656,14 +660,7 @@ async function runContactsPage(
   // live in SQL, shared with the mobile tab.
   const { data: tabCountsRow, error: tabCountsError } = await db
     .rpc('contacts_tab_counts', { p_account_id: accountId })
-    .maybeSingle<{
-      active: number;
-      pending_review: number;
-      favorites: number;
-      transacted: number;
-      market_active: number;
-      archived: number;
-    }>();
+    .maybeSingle();
   if (tabCountsError) {
     console.error('Error loading contact tab counts:', tabCountsError);
   }
@@ -676,7 +673,7 @@ async function runContactsPage(
     archivedCount: tabCountsRow?.archived ?? 0,
   };
 
-  const contacts: Contact[] = data ?? [];
+  const contacts = (data ?? []) as Contact[];
   if (contacts.length === 0) {
     return {
       contacts,
