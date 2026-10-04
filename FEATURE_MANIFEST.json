@@ -443,7 +443,7 @@
         },
         {
           "id": "INB-027",
-          "rule": "Every AI charge the owner chatbot may later refund is burned under its own key, and the refund reverses only the ledger rows written under that key: at most once however often it is retried, never more than was charged, and nothing when the burn never landed. A refund call that keeps failing is queued in credit_refund_retries and retried by the hourly credit-refunds cron. Keyed burns keep the ordinary '<feature> burn' description in the credits history.",
+          "rule": "Every AI charge the owner chatbot may later refund is burned under its own key, and the refund reverses only the ledger rows written under that key: at most once however often it is retried, never more than was charged, and nothing when the burn never landed. A refund call that keeps failing is queued in credit_refund_retries and retried by the hourly credit-refunds cron until it succeeds, the least-tried first; after ten failures each further failure is logged for manual reconciliation, and a refund that can be neither made nor queued is reported as failed, never as queued. Keyed burns keep the ordinary '<feature> burn' description in the credits history.",
           "tests": [
             {
               "file": "src/lib/credits/refund-burn.test.ts",

@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   rpc: vi.fn(),
   queued: [] as Record<string, unknown>[],
   selectFilters: [] as Array<[string, unknown]>,
+  orders: [] as Array<[string, unknown]>,
   writes: [] as Write[],
   writeError: null as { message: string } | null,
 }));
@@ -48,7 +49,8 @@ vi.mock('@/lib/supabase/admin', () => ({
           h.selectFilters.push(['lt:' + column, value]);
           return select;
         },
-        order() {
+        order(column: string, options: unknown) {
+          h.orders.push([column, options]);
           return select;
         },
         limit() {
@@ -69,7 +71,7 @@ const {
   newBurnKey,
   refundBurn,
   retryQueuedRefunds,
-  QUEUED_REFUND_ATTEMPT_LIMIT,
+  QUEUED_REFUND_ALERT_ATTEMPTS,
 } = await import('./refund-burn');
 
 beforeEach(() => {
@@ -77,6 +79,7 @@ beforeEach(() => {
   h.rpc.mockReset();
   h.queued = [];
   h.selectFilters = [];
+  h.orders = [];
   h.writes = [];
   h.writeError = null;
 });
@@ -169,13 +172,36 @@ describe('[INB-027] a refund that can be neither made nor queued', () => {
 });
 
 describe('[INB-027] retryQueuedRefunds', () => {
-  it('reads only open refunds under the attempt limit', async () => {
+  it('reads every open refund, however often it has failed', async () => {
     await retryQueuedRefunds();
 
-    expect(h.selectFilters).toEqual([
-      ['is:resolved_at', null],
-      ['lt:attempts', QUEUED_REFUND_ATTEMPT_LIMIT],
+    expect(h.selectFilters).toEqual([['is:resolved_at', null]]);
+    expect(h.orders).toEqual([
+      ['attempts', { ascending: true }],
+      ['created_at', { ascending: true }],
     ]);
+  });
+
+  it('keeps retrying past the alert threshold and flags the refund for reconciliation', async () => {
+    h.queued = [
+      {
+        id: 'q9',
+        account_id: 'a9',
+        feature: 'contact_parse',
+        burn_key: 'k9',
+        attempts: QUEUED_REFUND_ALERT_ATTEMPTS - 1,
+      },
+    ];
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'still down' } });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(await retryQueuedRefunds()).toEqual({ resolved: 0, failed: 1 });
+    expect(h.writes[0].payload).toEqual({
+      attempts: QUEUED_REFUND_ALERT_ATTEMPTS,
+      last_error: '[refundBurn] RPC failed: still down',
+    });
+    expect(logged.mock.calls[0][0]).toContain('reconcile manually');
+    logged.mockRestore();
   });
 
   it('resolves a refund that now succeeds and counts one that still fails', async () => {

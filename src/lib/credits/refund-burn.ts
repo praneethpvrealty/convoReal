@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { BillableFeatureKey } from './types';
 
 const REFUND_ATTEMPTS = 3;
-export const QUEUED_REFUND_ATTEMPT_LIMIT = 10;
+export const QUEUED_REFUND_ALERT_ATTEMPTS = 10;
 
 export type RefundBurnResult =
   | { status: 'refunded'; refunded: number }
@@ -79,7 +79,7 @@ export async function retryQueuedRefunds(
     .from('credit_refund_retries')
     .select('id, account_id, feature, burn_key, attempts')
     .is('resolved_at', null)
-    .lt('attempts', QUEUED_REFUND_ATTEMPT_LIMIT)
+    .order('attempts', { ascending: true })
     .order('created_at', { ascending: true })
     .limit(limit);
   if (error) throw new Error(`[retryQueuedRefunds] ${error.message}`);
@@ -99,13 +99,16 @@ export async function retryQueuedRefunds(
         .eq('id', row.id);
       resolved++;
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       await db
         .from('credit_refund_retries')
-        .update({
-          attempts: row.attempts + 1,
-          last_error: err instanceof Error ? err.message : String(err),
-        })
+        .update({ attempts: row.attempts + 1, last_error: message })
         .eq('id', row.id);
+      if (row.attempts + 1 >= QUEUED_REFUND_ALERT_ATTEMPTS) {
+        console.error(
+          `[retryQueuedRefunds] ${row.feature} refund ${row.burn_key} for account ${row.account_id} has failed ${row.attempts + 1} times and is still retried; reconcile manually: ${message}`
+        );
+      }
       failed++;
     }
   }
