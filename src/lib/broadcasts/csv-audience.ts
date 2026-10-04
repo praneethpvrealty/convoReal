@@ -52,10 +52,21 @@ function cells(line: string): string[] {
   return values.map((cell) => cell.trim().replace(/^'|'$/g, '').trim());
 }
 
+function isExplicitlyInternational(raw: string): boolean {
+  return /^\s*(\+|00)/.test(raw);
+}
+
+export function csvPhoneDigits(raw: string): string {
+  if (isExplicitlyInternational(raw)) {
+    return raw.replace(/\D/g, '').replace(/^00/, '');
+  }
+  return normalizePhoneWithCountryCode(raw).replace(/\D/g, '');
+}
+
 function toPhone(raw: string): string | null {
-  const phone = normalizePhoneWithCountryCode(raw);
-  const digits = phone.replace(/\D/g, '');
-  return digits.length >= 11 && digits.length <= 15 ? phone : null;
+  const digits = csvPhoneDigits(raw);
+  const min = isExplicitlyInternational(raw) ? 8 : 11;
+  return digits.length >= min && digits.length <= 15 ? `+${digits}` : null;
 }
 
 export function parseCsvAudience(text: string): CsvAudienceResult {

@@ -5,7 +5,7 @@ import { greetingName } from '@/lib/contacts/lead-placeholder';
 import { ENQUIRY_NOTICE_TEMPLATE_NAMES } from '@/lib/whatsapp/enquiry-notice-template';
 import { resolveLanguage } from '@/lib/whatsapp/template-language';
 import { metaLanguageCode } from '@/lib/languages';
-import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { csvPhoneDigits } from '@/lib/broadcasts/csv-audience';
 import {
   loadEnquiryNoticeContext,
   resolveEnquiryNoticeParams,
@@ -178,7 +178,7 @@ async function audienceContactIds(
 }
 
 function csvPhoneKey(phone: string): string {
-  return normalizePhoneWithCountryCode(phone).replace(/\D/g, '');
+  return csvPhoneDigits(phone);
 }
 
 function storedPhoneDigits(key: string): string[] {

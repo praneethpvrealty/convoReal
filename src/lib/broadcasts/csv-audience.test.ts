@@ -80,6 +80,22 @@ describe('parseCsvAudience', () => {
     ).toEqual(contacts);
   });
 
+  it('keeps an explicitly international number as written, even with ten digits', () => {
+    expect(
+      parseCsvAudience(
+        '+679 1234567,Fiji\n00679 7654321\n+354 5123456\n+44 20 7946 0958\n+12345'
+      )
+    ).toEqual({
+      contacts: [
+        { phone: '+6791234567', name: 'Fiji' },
+        { phone: '+6797654321' },
+        { phone: '+3545123456' },
+        { phone: '+442079460958' },
+      ],
+      skipped: 1,
+    });
+  });
+
   it('returns nothing for empty input', () => {
     expect(parseCsvAudience('  \n ')).toEqual({ contacts: [], skipped: 0 });
   });

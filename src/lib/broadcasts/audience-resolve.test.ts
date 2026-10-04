@@ -333,6 +333,31 @@ describe('broadcast audience resolution', () => {
     expect(sending.inserted).toEqual([]);
   });
 
+  it('matches an explicitly international ten-digit number without the default country code', async () => {
+    const tables = {
+      contacts: [contact('c1', { phone: '+679 123 4567' })],
+    };
+    const audience = {
+      type: 'csv' as const,
+      csvContacts: [{ phone: '+6791234567' }, { phone: '+6797654321' }],
+    };
+
+    const sending = fakeDb(tables);
+    const resolved = await resolveAudienceOnServer(
+      sending.db,
+      'a1',
+      'u1',
+      audience
+    );
+    expect(resolved.map((c) => c.phone).sort()).toEqual([
+      '+679 123 4567',
+      '+6797654321',
+    ]);
+    expect(
+      (sending.inserted as { phone: string }[]).map((r) => r.phone)
+    ).toEqual(['+6797654321']);
+  });
+
   it.each([
     ['declined', { buyer_alerts_consent: 'declined' }],
     ['dead', { is_dead: true }],
