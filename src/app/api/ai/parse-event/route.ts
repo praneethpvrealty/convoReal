@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
   parseEventFromInput,
@@ -55,7 +56,10 @@ export async function POST(request: NextRequest) {
 
     const feature = audioBase64 ? 'voice_event_parse' : 'event_parse';
     const cost = AI_FEATURE_COSTS[feature];
-    const burn = await burnCredits(ctx.accountId, feature, cost);
+    const burnKey = newBurnKey(feature);
+    const burn = await burnCredits(ctx.accountId, feature, cost, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -84,7 +88,7 @@ export async function POST(request: NextRequest) {
           .filter(Boolean) as string[],
       });
     } catch (apiErr) {
-      await refundCredits(ctx.accountId, feature, cost);
+      await refundBurn(ctx.accountId, feature, burnKey);
       console.error('[parse-event] Gemini call failed:', apiErr);
       return NextResponse.json(
         { error: 'Could not understand that. Please try again.' },

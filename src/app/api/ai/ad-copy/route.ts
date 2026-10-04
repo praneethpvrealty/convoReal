@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { generateText } from '@/lib/ai/gemini';
 import {
@@ -63,7 +64,10 @@ export async function POST(request: NextRequest) {
     }
 
     const cost = AI_FEATURE_COSTS[AI_FEATURE];
-    const burn = await burnCredits(ctx.accountId, AI_FEATURE, cost);
+    const burnKey = newBurnKey(AI_FEATURE);
+    const burn = await burnCredits(ctx.accountId, AI_FEATURE, cost, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -83,14 +87,14 @@ export async function POST(request: NextRequest) {
         { feature: 'ad_copy' }
       );
     } catch (apiErr) {
-      await refundCredits(ctx.accountId, AI_FEATURE, cost);
+      await refundBurn(ctx.accountId, AI_FEATURE, burnKey);
       throw apiErr;
     }
 
     const copy = parseAdCopy(raw);
     if (!copy) {
       // Model returned unusable output — refund and let the user retry.
-      await refundCredits(ctx.accountId, AI_FEATURE, cost);
+      await refundBurn(ctx.accountId, AI_FEATURE, burnKey);
       return NextResponse.json(
         { error: 'Could not generate ad copy. Please try again.' },
         { status: 502 }

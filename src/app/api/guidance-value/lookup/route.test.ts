@@ -7,6 +7,8 @@ let extractFails = false;
 let burnOk = true;
 const burns: string[] = [];
 const refunds: string[] = [];
+const burnKeys: (string | undefined)[] = [];
+const refundKeys: string[] = [];
 const limits: string[] = [];
 const lookups: unknown[] = [];
 
@@ -16,12 +18,24 @@ vi.mock('@/lib/auth/account', () => ({
 }));
 
 vi.mock('@/lib/credits/burn', () => ({
-  burnCredits: async (accountId: string) => {
+  burnCredits: async (
+    accountId: string,
+    _feature: string,
+    _cost: number,
+    opts?: { retryKey?: string }
+  ) => {
     burns.push(accountId);
+    burnKeys.push(opts?.retryKey);
     return burnOk ? { success: true } : { success: false, deficit: 3 };
   },
-  refundCredits: async (accountId: string) => {
+}));
+
+vi.mock('@/lib/credits/refund-burn', () => ({
+  newBurnKey: (feature: string) => `${feature}:key-1`,
+  refundBurn: async (accountId: string, _feature: string, burnKey: string) => {
     refunds.push(accountId);
+    refundKeys.push(burnKey);
+    return { status: 'refunded', refunded: 5 };
   },
 }));
 
@@ -103,6 +117,8 @@ beforeEach(() => {
   burnOk = true;
   burns.length = 0;
   refunds.length = 0;
+  burnKeys.length = 0;
+  refundKeys.length = 0;
   limits.length = 0;
   lookups.length = 0;
 });
@@ -123,6 +139,8 @@ describe('POST /api/guidance-value/lookup', () => {
     const res = await upload();
     expect(res.status).toBe(502);
     expect(refunds).toEqual(['acc-1']);
+    expect(burnKeys).toEqual(['guidance_value_lookup:key-1']);
+    expect(refundKeys).toEqual(burnKeys);
   });
 
   it('refuses a read when the wallet is short', async () => {

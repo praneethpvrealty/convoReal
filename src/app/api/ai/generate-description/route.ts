@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { generateText } from '@/lib/ai/gemini';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 
@@ -82,7 +83,15 @@ export async function POST(request: NextRequest) {
     // Burn before the external call, per credit engine convention —
     // never charge for a call that didn't happen, never skip
     // charging one that did.
-    const burn = await burnCredits(ctx.accountId, 'property_description', cost);
+    const burnKey = newBurnKey('property_description');
+    const burn = await burnCredits(
+      ctx.accountId,
+      'property_description',
+      cost,
+      {
+        retryKey: burnKey,
+      }
+    );
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -98,7 +107,7 @@ export async function POST(request: NextRequest) {
     try {
       description = await generateText(prompt, systemInstruction);
     } catch (apiErr: unknown) {
-      await refundCredits(ctx.accountId, 'property_description', cost);
+      await refundBurn(ctx.accountId, 'property_description', burnKey);
       const msg = apiErr instanceof Error ? apiErr.message : String(apiErr);
       console.error(
         '[AI Description] generateText failed, refunded credits. Error:',
