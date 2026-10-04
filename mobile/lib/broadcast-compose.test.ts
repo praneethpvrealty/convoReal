@@ -6,6 +6,7 @@ import {
   buildAudience,
   buildCsvAudience,
   defaultVariableMappings,
+  draftChanged,
   mappingsComplete,
   previewBody,
   readCsvAudience,
@@ -199,5 +200,52 @@ describe('buildCsvAudience', () => {
     );
     const audience = buildCsvAudience(readCsvAudience(lines.join('\n')), []);
     expect(audience?.csvContacts).toHaveLength(MAX_CSV_CONTACTS);
+  });
+});
+
+describe('readCsvAudience country code', () => {
+  it('dials a local number under the configured country code', () => {
+    expect(readCsvAudience('7700900123', '44').contacts).toEqual([
+      { phone: '+447700900123' },
+    ]);
+  });
+
+  it('keeps an explicitly international number as written', () => {
+    expect(readCsvAudience('+919876543210', '44').contacts).toEqual([
+      { phone: '+919876543210' },
+    ]);
+  });
+});
+
+describe('draftChanged', () => {
+  const template = { id: 't1' };
+  const audience = buildAudience('all', [], []);
+  const variables = defaultVariableMappings(['1']);
+  const draft = { name: 'Diwali', template, audience, variables };
+
+  it('is false when nothing was replaced', () => {
+    expect(draftChanged(draft, { ...draft })).toBe(false);
+  });
+
+  it('catches a different template', () => {
+    expect(draftChanged(draft, { ...draft, template: { id: 't2' } })).toBe(
+      true
+    );
+  });
+
+  it('catches an edited variable', () => {
+    expect(
+      draftChanged(draft, {
+        ...draft,
+        variables: { 1: { type: 'static', value: 'Asha' } },
+      })
+    ).toBe(true);
+  });
+
+  it('catches a renamed broadcast and a new audience', () => {
+    expect(draftChanged(draft, { ...draft, name: 'Holi' })).toBe(true);
+    expect(
+      draftChanged(draft, { ...draft, audience: buildAudience('all', [], []) })
+    ).toBe(true);
   });
 });

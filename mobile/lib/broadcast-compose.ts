@@ -23,7 +23,13 @@ export interface AudienceConfig {
   csvContacts?: CsvAudienceContact[];
 }
 
-export const CSV_DEFAULT_COUNTRY_CODE = '91';
+/**
+ * Country code a local number in a pasted CSV is dialled under. The
+ * mobile twin of the web's NEXT_PUBLIC_DEFAULT_COUNTRY_CODE: a deployment
+ * outside India sets both, or a local number becomes an Indian one.
+ */
+export const CSV_DEFAULT_COUNTRY_CODE =
+  process.env.EXPO_PUBLIC_DEFAULT_COUNTRY_CODE?.replace(/\D/g, '') || '91';
 
 export interface CsvAudienceDraft {
   contacts: CsvAudienceContact[];
@@ -113,11 +119,11 @@ export function buildAudience(
   return audience;
 }
 
-export function readCsvAudience(text: string): CsvAudienceDraft {
-  const { contacts, skipped } = parseCsvAudience(
-    text,
-    CSV_DEFAULT_COUNTRY_CODE
-  );
+export function readCsvAudience(
+  text: string,
+  defaultCountryCode: string = CSV_DEFAULT_COUNTRY_CODE
+): CsvAudienceDraft {
+  const { contacts, skipped } = parseCsvAudience(text, defaultCountryCode);
   return { contacts, skipped, overCap: contacts.length > MAX_CSV_CONTACTS };
 }
 
@@ -132,4 +138,28 @@ export function buildCsvAudience(
   };
   if (excludeTagIds.length > 0) audience.excludeTagIds = excludeTagIds;
   return audience;
+}
+
+export interface BroadcastDraft<Template = unknown> {
+  name: string;
+  template: Template;
+  audience: AudienceConfig | null;
+  variables: Record<string, VariableMapping>;
+}
+
+/**
+ * True when anything the confirmation would send differs from what the
+ * agent was shown. Each field is compared by identity: the composer
+ * replaces, never mutates, so a new object is an edit.
+ */
+export function draftChanged<Template>(
+  confirmed: BroadcastDraft<Template>,
+  current: BroadcastDraft<Template>
+): boolean {
+  return (
+    confirmed.name !== current.name ||
+    confirmed.template !== current.template ||
+    confirmed.audience !== current.audience ||
+    confirmed.variables !== current.variables
+  );
 }

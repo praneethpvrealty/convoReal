@@ -30,10 +30,12 @@ import {
   buildCsvAudience,
   CONTACT_FIELDS,
   defaultVariableMappings,
+  draftChanged,
   mappingsComplete,
   previewBody,
   readCsvAudience,
   templateVariableKeys,
+  type BroadcastDraft,
   type VariableMapping,
 } from '@/lib/broadcast-compose';
 import { MAX_CSV_CONTACTS } from '@shared/lib/broadcasts/csv-audience';
@@ -177,10 +179,12 @@ export default function NewBroadcastScreen() {
 
   const recipientsLabel = contactsLabel(recipientCount ?? 0);
 
-  const latestAudience = useRef(audience);
+  const latestDraft = useRef<BroadcastDraft<MessageTemplate> | null>(null);
   useEffect(() => {
-    latestAudience.current = audience;
-  }, [audience]);
+    latestDraft.current = template
+      ? { name: name.trim(), template, audience, variables }
+      : null;
+  }, [name, template, audience, variables]);
 
   async function confirmSend() {
     if (!template || !audience) return;
@@ -194,11 +198,11 @@ export default function NewBroadcastScreen() {
     setConfirming(true);
     const outcome = recountOutcome(await recount());
     setConfirming(false);
-    if (latestAudience.current !== snapshot.audience) {
+    if (!latestDraft.current || draftChanged(snapshot, latestDraft.current)) {
       dialog.show({
-        title: 'The audience changed',
+        title: 'The broadcast changed',
         message:
-          'You changed the audience while it was being counted. Nothing was sent. Check it and tap Send again.',
+          'You edited the broadcast while the audience was being counted. Nothing was sent. Check it and tap Send again.',
       });
       return;
     }
