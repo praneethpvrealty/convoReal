@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { formatDate } from '@/lib/format/date';
 import { loadReengagementBatches } from '@/lib/reengagement/queries';
 import { ReengagementOutcome } from '@/components/reengagement/reengagement-outcome';

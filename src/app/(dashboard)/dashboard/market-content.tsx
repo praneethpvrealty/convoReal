@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import { median } from '@/lib/market/stats-engine';
 import {

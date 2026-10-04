@@ -22,7 +22,7 @@ import { Sparkles, X } from 'lucide-react';
 import { useCopilot } from './copilot-context';
 import { CopilotPanel } from './copilot-panel';
 import { useCopilotNudges } from '@/hooks/useCopilotNudges';
-import { useT } from '@/hooks/use-locale';
+import { useT } from '@/hooks/useLocale';
 import { COPILOT_ENABLED } from '@/lib/copilot/config';
 import { readStored, writeStored } from '@/lib/safe-storage';
 import {

@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl } from '@/lib/navigation';
 import { useEffect, useMemo, type KeyboardEvent } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { useDashboardTabCounts } from '@/lib/dashboard/tab-counts';
 import DashboardContent from './dashboard-content';
 import FocusContent from './focus-content';

@@ -6,8 +6,8 @@ import NextImage from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { storagePublicUrl } from '@/lib/storage/url';
-import { useAuth } from '@/hooks/use-auth';
-import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/useAuth';
+import { useCan } from '@/hooks/useCan';
 import { toast } from 'sonner';
 import type { Property } from '@/types';
 import {

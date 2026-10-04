@@ -13,7 +13,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import type { CopilotNudge } from '@/lib/copilot/nudges';
 import { readStored, readStoredJson, writeStored } from '@/lib/safe-storage';
 

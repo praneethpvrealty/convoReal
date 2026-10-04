@@ -12,7 +12,7 @@ import { Building2, UserRound } from 'lucide-react';
 
 import { dealsHref } from '@/lib/deals/routes';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Dialog,
   DialogContent,

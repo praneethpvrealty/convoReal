@@ -39,7 +39,7 @@ import {
 
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { resolveConversation } from '@/lib/conversations/resolve';
 import { buildCheckInMessage } from '@/lib/journey/checkin-message';
 import {

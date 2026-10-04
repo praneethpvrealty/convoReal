@@ -16,7 +16,7 @@ const radar = vi.hoisted(() => ({
   loadMatchEvents: vi.fn(),
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ accountId: 'acct-1' }),
 }));
 

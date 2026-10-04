@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { MessageCircle, UserPlus } from 'lucide-react';
 import { LeadBot } from '@/components/chat/lead-bot';
-import { useLeadFunnel, type LeadFunnelApi } from '@/hooks/use-lead-funnel';
+import { useLeadFunnel, type LeadFunnelApi } from '@/hooks/useLeadFunnel';
 import {
   FUNNEL_ENGINE,
   FUNNEL_END,

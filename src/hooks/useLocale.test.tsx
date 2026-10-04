@@ -17,7 +17,7 @@ import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 
 // No profile and no Supabase in these tests: the provider must work off
 // its localStorage cache alone, which is exactly the cold-load path.
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ profile: null, refreshProfile: async () => {} }),
 }));
 vi.mock('@/lib/supabase/client', () => ({
@@ -32,7 +32,7 @@ const {
   sanitizeLanguageSet,
   LOCALE_STORAGE_KEY,
   LOCALE_SET_STORAGE_KEY,
-} = await import('./use-locale');
+} = await import('./useLocale');
 
 function Probe() {
   const { language, languages, setLanguage, setLanguages, t } = useLocale();

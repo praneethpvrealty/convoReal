@@ -4,7 +4,7 @@ import { useAuthStore } from './auth-store';
 import { normalizeUiLanguage, translate, type UiMessageKey } from './i18n';
 
 /**
- * The mobile counterpart of the web's useT() (src/hooks/use-locale.tsx).
+ * The mobile counterpart of the web's useT() (src/hooks/useLocale.tsx).
  * The web header toggle persists the agent's choice to
  * profiles.active_ui_language (migration 247) precisely so the app can
  * read it here through the same RLS — an agent who picks Kannada on the

@@ -47,7 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import type { OrgRole } from '@/lib/auth/roles';
 import type { AccountMember, Team } from '@/types';
 
