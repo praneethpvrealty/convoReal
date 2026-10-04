@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ClipboardList, Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -37,6 +37,7 @@ export function DealTasksPanel({
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<DealTask['priority']>('medium');
   const [busyId, setBusyId] = useState<string | null>(null);
+  const titleInput = useRef<HTMLInputElement>(null);
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['deal-tasks', dealId],
@@ -128,6 +129,7 @@ export function DealTasksPanel({
         <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
           <div className="min-w-[200px] flex-1">
             <Input
+              ref={titleInput}
               placeholder="What needs doing?"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -176,6 +178,19 @@ export function DealTasksPanel({
           <p className="mt-3 text-sm font-medium text-slate-300">
             No tasks on this deal
           </p>
+          <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+            Tasks you add here also show in Calendar and Today.
+          </p>
+          {canEdit && (
+            <Button
+              size="sm"
+              className="mt-4"
+              onClick={() => titleInput.current?.focus()}
+            >
+              <Plus className="h-4 w-4" />
+              Add the first task
+            </Button>
+          )}
         </div>
       ) : (
         <ul className="space-y-2">

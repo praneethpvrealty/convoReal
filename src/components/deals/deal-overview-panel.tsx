@@ -8,7 +8,12 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { netOfPayouts } from '@/lib/deals/co-broking';
-import { DEAL_EVENT_LABELS, type DealEvent } from '@/lib/deals/events';
+import {
+  DEAL_EVENT_LABELS,
+  timelineActorLabel,
+  timelineSourceLabel,
+  type DealEvent,
+} from '@/lib/deals/events';
 import { milestoneProgress, type DealMilestone } from '@/lib/deals/milestones';
 import {
   STAKEHOLDER_ROLE_LABELS,
@@ -348,7 +353,14 @@ export function DealOverviewPanel({
             </p>
             <p className="mt-0.5 text-[11px] text-slate-500">
               {DEAL_EVENT_LABELS[latestEvent.event_type] ??
-                latestEvent.event_type}{' '}
+                latestEvent.event_type}
+              {[
+                timelineActorLabel(latestEvent),
+                timelineSourceLabel(latestEvent),
+              ]
+                .filter(Boolean)
+                .map((part) => ` · ${part}`)
+                .join('')}{' '}
               ·{' '}
               {formatDistanceToNow(new Date(latestEvent.created_at), {
                 addSuffix: true,

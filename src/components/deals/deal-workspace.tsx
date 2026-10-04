@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Building2,
+  ChevronDown,
   Layers,
   Loader2,
   Scale,
@@ -303,20 +304,26 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         </h1>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
           {canEdit && stages.length > 0 ? (
-            <select
-              aria-label="Pipeline stage"
-              title="Move this deal to another pipeline stage"
-              className="h-7 cursor-pointer rounded-full border border-slate-700 bg-slate-950 px-2 text-xs text-white disabled:cursor-wait disabled:opacity-60"
-              value={deal.stage_id}
-              disabled={movingStage}
-              onChange={(e) => pickStage(e.target.value)}
-            >
-              {stages.map((stage) => (
-                <option key={stage.id} value={stage.id}>
-                  {stage.name}
-                </option>
-              ))}
-            </select>
+            <label className="inline-flex items-center gap-1.5">
+              <span className="text-[11px] text-slate-500">Stage</span>
+              <span className="relative inline-flex">
+                <select
+                  aria-label="Pipeline stage"
+                  title="Move this deal to another pipeline stage"
+                  className="focus-visible:ring-primary/50 h-7 cursor-pointer appearance-none rounded-full border border-slate-700 bg-slate-950 pr-7 pl-2.5 text-xs text-white transition-colors outline-none hover:border-slate-500 focus-visible:ring-2 disabled:cursor-wait disabled:opacity-60"
+                  value={deal.stage_id}
+                  disabled={movingStage}
+                  onChange={(e) => pickStage(e.target.value)}
+                >
+                  {stages.map((stage) => (
+                    <option key={stage.id} value={stage.id}>
+                      {stage.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute top-1/2 right-2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              </span>
+            </label>
           ) : (
             deal.stage?.name && (
               <span className="rounded-full border border-slate-700 px-2 py-0.5">

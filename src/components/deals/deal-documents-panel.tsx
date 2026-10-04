@@ -255,6 +255,21 @@ export function DealDocumentsPanel({
           <p className="mt-3 text-sm font-medium text-slate-300">
             Nothing filed against this deal yet
           </p>
+          <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+            Upload Aadhaar, PAN, agreement drafts or old deeds. Every view goes
+            through a signed link that expires.
+          </p>
+          {canEdit && (
+            <Button
+              size="sm"
+              className="mt-4"
+              onClick={() => fileInput.current?.click()}
+              disabled={uploading}
+            >
+              <Upload className="h-4 w-4" />
+              Upload a document
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
