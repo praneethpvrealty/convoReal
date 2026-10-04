@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **One badge per idea on listing cards.** An available listing shows "For
+  Sale" or "For Rent" alone; the status badge appears only when it says
+  something — Under Contract, Sold, Off Market, Pending Review or Archived.
+  Mobile cards gain the same status chip, so an unavailable listing no
+  longer looks like an available one when unavailable listings are shown.
 - **Project cards show progress and open with one click.** Each card on the
   Projects tab now reads "3 of 12 units sold" with a bar at the sold share,
   the whole card opens its units, and **Manage units** and **Edit** are
