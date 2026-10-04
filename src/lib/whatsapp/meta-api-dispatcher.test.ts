@@ -721,6 +721,19 @@ describe('sendWhatsAppMessageAndPersist', () => {
       expect(result.reachedMeta).toBe(true);
     });
 
+    it('[RDR-001] reports a success response that could not be read', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => new Response('<html>', { status: 200 }))
+      );
+      const result = await send(
+        makeDb({ existingConversation: { id: 'conv-existing' } })
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.reachedMeta).toBe(true);
+    });
+
     it('[RDR-001] leaves it unset when Meta refused the message', async () => {
       vi.stubGlobal(
         'fetch',

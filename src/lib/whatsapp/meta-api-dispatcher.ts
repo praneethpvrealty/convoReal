@@ -10,6 +10,7 @@ import {
   sendInteractiveList,
   sendProductMessage,
   sendFlowMessage,
+  MetaRequestRefusedError,
   type MediaKind,
   type InteractiveButton,
   type InteractiveListSection,
@@ -843,7 +844,7 @@ export async function sendWhatsAppMessageAndPersist(
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (!isRecipientNotAllowedError(msg)) {
-          reachedMeta = !(err instanceof Error) || isTransportError(err);
+          reachedMeta = !(err instanceof MetaRequestRefusedError);
           throw err;
         }
         lastError = err;
@@ -1094,12 +1095,4 @@ export async function sendWhatsAppMessageAndPersist(
       ...(reachedMeta ? { reachedMeta: true } : {}),
     };
   }
-}
-
-function isTransportError(err: Error): boolean {
-  return (
-    err.name === 'TypeError' ||
-    err.name === 'AbortError' ||
-    err.name === 'TimeoutError'
-  );
 }
