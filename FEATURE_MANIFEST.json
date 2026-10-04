@@ -1708,7 +1708,7 @@
         },
         {
           "id": "PRP-039",
-          "rule": "A listing card badges its status only when the status is not Available: an available listing shows its listing type alone, and Sold, Under Contract, Off Market, Pending Review, Rejected and Archived still show.",
+          "rule": "A listing card, on web and mobile, badges its status only when the status is not Available: an available listing shows its listing type alone, and Sold, Under Contract, Off Market, Pending Review, Rejected and Archived still show.",
           "tests": [
             {
               "file": "src/lib/inventory/card-badges.test.ts",
