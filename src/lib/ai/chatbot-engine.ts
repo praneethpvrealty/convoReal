@@ -878,6 +878,18 @@ export async function processOwnerChatbotMessage(
     );
   }
 
+  if (propSessionData?.session_mode === 'external') {
+    return processExternalListingMessage(
+      message,
+      contentText,
+      contactRecord,
+      conversation,
+      accountId,
+      accessToken,
+      phoneNumberId
+    );
+  }
+
   let propSession = propSessionData;
   let contactSession = contactSessionData;
 
