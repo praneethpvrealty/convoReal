@@ -24,8 +24,9 @@ than a written entry. Newest first.
   from Analytics, showed "Failed to load (404)", and switching it on or off
   in the mobile app answered "Not found". An automation now belongs to the
   account: every member can read it, and an agent or above can edit, toggle
-  or delete it. Read-only members can look but not change, and an automation
-  in another account still answers "Not found".
+  or delete it. Read-only members can look but not change: the builder on
+  web and the switches on mobile are locked for them and say so. An
+  automation in another account still answers "Not found".
 
 #### 3 October 2026
 
