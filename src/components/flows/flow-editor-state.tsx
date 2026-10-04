@@ -118,7 +118,6 @@ export interface FlowEditorContextValue {
   flashKey: string | null;
   requestFlash: (key: string) => void;
 
-  /** True for a read-only member: every mutation and action is a no-op. */
   readOnly: boolean;
 }
 

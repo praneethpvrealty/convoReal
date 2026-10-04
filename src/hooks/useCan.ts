@@ -57,8 +57,6 @@ export function useCan(action: CanAction): boolean {
     case 'send-messages':
       return canSendMessages;
     case 'make-changes':
-      // What requireWriteRole('agent') lets through on the server: the
-      // agent role and not flagged read-only.
       return canSendMessages && !isReadOnly;
     case 'view-only':
       // Old 'viewer' role folds into org_agent + is_read_only (082) —

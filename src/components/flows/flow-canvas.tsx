@@ -486,6 +486,7 @@ function FlowCanvasInner() {
         onUpdateConfig={onSelectedUpdateConfig}
         onDelete={handleDeleteSelected}
         onSetEntry={handleSetEntry}
+        readOnly={readOnly}
       />
     </>
   );
@@ -505,6 +506,7 @@ function NodeEditSheet({
   onUpdateConfig,
   onDelete,
   onSetEntry,
+  readOnly,
 }: {
   node: BuilderNode | null;
   isEntry: boolean;
@@ -513,6 +515,7 @@ function NodeEditSheet({
   onUpdateConfig: (patch: Record<string, unknown>) => void;
   onDelete: () => void;
   onSetEntry: () => void;
+  readOnly: boolean;
 }) {
   // Sheet is controlled — opens when a node is selected, closes via
   // Esc / overlay / close button (all delegated to onClose).
@@ -547,33 +550,38 @@ function NodeEditSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
+        <fieldset
+          disabled={readOnly}
+          className="m-0 flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto border-0 px-5 py-4"
+        >
           <NodeConfigForm
             node={node}
             allNodes={allNodes}
             showAdvanced={false}
             onUpdateConfig={onUpdateConfig}
           />
-        </div>
+        </fieldset>
 
-        <SheetFooter className="border-t border-slate-800 px-5 py-3 sm:flex-row sm:justify-between">
-          {!isEntry ? (
-            <Button variant="ghost" size="sm" onClick={onSetEntry}>
-              Set as entry
+        {!readOnly && (
+          <SheetFooter className="border-t border-slate-800 px-5 py-3 sm:flex-row sm:justify-between">
+            {!isEntry ? (
+              <Button variant="ghost" size="sm" onClick={onSetEntry}>
+                Set as entry
+              </Button>
+            ) : (
+              <span />
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete node
             </Button>
-          ) : (
-            <span />
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDelete}
-            className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete node
-          </Button>
-        </SheetFooter>
+          </SheetFooter>
+        )}
       </SheetContent>
     </Sheet>
   );
