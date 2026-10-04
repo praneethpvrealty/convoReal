@@ -522,10 +522,8 @@ export function absorbContactDrafts(
 
 export const CONTACT_CONFIRM_BUTTON = 'confirm_contact';
 
-export function contactConfirmButtonId(version: string | null): string {
-  return version
-    ? `${CONTACT_CONFIRM_BUTTON}:${version}`
-    : CONTACT_CONFIRM_BUTTON;
+export function contactConfirmButtonId(version: string): string {
+  return `${CONTACT_CONFIRM_BUTTON}:${version}`;
 }
 
 export function readContactConfirm(

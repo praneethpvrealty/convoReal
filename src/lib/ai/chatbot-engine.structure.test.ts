@@ -213,6 +213,30 @@ describe('[INB-026] confirming a contact draft', () => {
     }
   });
 
+  it('sends no card when the draft write fails, so no card can confirm an unsaved draft', () => {
+    const writes = source
+      .split('const version = await overwriteContactDraftSession(')
+      .slice(1);
+    expect(writes).toHaveLength(4);
+    for (const write of writes) {
+      const afterWrite = write.slice(write.indexOf(');') + 2);
+      expect(afterWrite).toMatch(
+        /^\s*if \(!version\) \{\s*return await sendContactDraftSaveFailed\(/
+      );
+      expect(
+        afterWrite.indexOf('return await sendContactDraftSaveFailed(')
+      ).toBeLessThan(afterWrite.indexOf('await sendContactDraftPreview('));
+    }
+    const preview = source.slice(
+      source.indexOf('async function sendContactDraftPreview('),
+      source.indexOf(
+        '): Promise<void> {',
+        source.indexOf('async function sendContactDraftPreview(')
+      )
+    );
+    expect(preview).toMatch(/version: string\s*$/);
+  });
+
   it('refuses a stale card before saving and shows the current draft instead', () => {
     const handler = source.slice(
       source.indexOf(

@@ -788,7 +788,7 @@ async function sendContactDraftPreview(
   missingFields: string[],
   conversationId: string,
   accountId: string,
-  version: string | null
+  version: string
 ): Promise<void> {
   const resolvedContainer = await resolveExactContactLinks(
     container,
@@ -856,6 +856,24 @@ async function readCurrentContactDraft(
     await new Promise((resolve) => setTimeout(resolve, 100 * 2 ** attempt));
   }
   return undefined;
+}
+
+async function sendContactDraftSaveFailed(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  conversationId: string
+): Promise<boolean> {
+  const reply =
+    "❌ *Couldn't save that change to the draft.* Your last draft card still stands — send the change again.";
+  const sendRes = await sendTextMessage({
+    phoneNumberId,
+    accessToken,
+    to,
+    text: reply,
+  });
+  await saveBotMessage(conversationId, reply, sendRes.messageId);
+  return true;
 }
 
 async function announceLatestContactDraft(
@@ -2874,6 +2892,14 @@ export async function processOwnerChatbotMessage(
         linkedContainer,
         nextStatus
       );
+      if (!version) {
+        return await sendContactDraftSaveFailed(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
+      }
 
       await sendContactDraftPreview(
         phoneNumberId,
@@ -3470,6 +3496,14 @@ export async function processOwnerChatbotMessage(
           mergedContainer,
           nextStatus
         );
+        if (!version) {
+          return await sendContactDraftSaveFailed(
+            phoneNumberId,
+            accessToken,
+            contactRecord.phone,
+            conversation.id
+          );
+        }
 
         await sendContactDraftPreview(
           phoneNumberId,
@@ -3525,6 +3559,14 @@ export async function processOwnerChatbotMessage(
         mergedContainer,
         nextStatus
       );
+      if (!version) {
+        return await sendContactDraftSaveFailed(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
+      }
 
       await sendContactDraftPreview(
         phoneNumberId,
@@ -3570,6 +3612,14 @@ export async function processOwnerChatbotMessage(
         updatedContainer,
         nextStatus
       );
+      if (!version) {
+        return await sendContactDraftSaveFailed(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          conversation.id
+        );
+      }
 
       await sendContactDraftPreview(
         phoneNumberId,

@@ -999,7 +999,6 @@ describe('[INB-026] the contact draft Confirm button', () => {
 
   it('carries the version of the draft the card shows', () => {
     expect(contactConfirmButtonId(version)).toBe(`confirm_contact:${version}`);
-    expect(contactConfirmButtonId(null)).toBe('confirm_contact');
     expect(contactConfirmButtonId(version).length).toBeLessThanOrEqual(256);
   });
 
