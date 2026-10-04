@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { burnCredits } from '@/lib/credits/burn';
-import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
+import {
+  newBurnKey,
+  refundBurn,
+  refundOutcomeNotice,
+} from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
   extractDocumentFields,
@@ -134,7 +138,7 @@ export async function POST(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
 
-      await refundBurn(ctx.accountId, FEATURE, burnKey, {
+      const refund = await refundBurn(ctx.accountId, FEATURE, burnKey, {
         reason: 'deal document read failed',
       });
 
@@ -150,7 +154,9 @@ export async function POST(
 
       console.error('[deal-document-extract] failed:', message);
       return NextResponse.json(
-        { error: 'Could not read this document. Your credits were refunded.' },
+        {
+          error: `Could not read this document. ${refundOutcomeNotice(refund)}`,
+        },
         { status: 502 }
       );
     }

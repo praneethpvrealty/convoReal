@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { refundOutcomeNotice } from './refund-burn';
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), 'utf8');
 
@@ -32,7 +33,7 @@ describe.each(routes)(
 
     it('takes newBurnKey and refundBurn from the keyed refund module', () => {
       expect(source).toMatch(
-        /import \{ newBurnKey, refundBurn \} from '@\/lib\/credits\/refund-burn';/
+        /import \{\s*newBurnKey,\s*refundBurn,?\s*(?:refundOutcomeNotice,?\s*)?\} from '@\/lib\/credits\/refund-burn';/
       );
     });
 
@@ -85,8 +86,32 @@ describe('the guidance schedule read [CRD-003]', () => {
   });
 
   it('refunds only staff, who are the only callers charged', () => {
-    expect(source).toMatch(
-      /if \(caller\.kind === 'staff'\) \{\s+await refundBurn\(/
+    expect(source).toMatch(/caller\.kind === 'staff'\s+\? await refundBurn\(/);
+  });
+});
+
+describe('what a route tells the user about a refund [CRD-003]', () => {
+  it('says refunded only when it was, pending when queued, and support when neither', () => {
+    expect(refundOutcomeNotice({ status: 'refunded', refunded: 5 })).toBe(
+      'Your credits were refunded.'
     );
+    expect(refundOutcomeNotice({ status: 'queued' })).toBe(
+      'Your credits will be refunded within the hour.'
+    );
+    expect(refundOutcomeNotice({ status: 'failed' })).toBe(
+      'We could not refund your credits automatically; please contact support.'
+    );
+  });
+
+  it('builds every refund claim from the outcome, never from a fixed sentence', () => {
+    for (const path of [
+      'src/app/api/properties/e-khata/route.ts',
+      'src/app/api/guidance-value/lookup/route.ts',
+      'src/app/api/deals/[id]/documents/[docId]/extract/route.ts',
+    ]) {
+      const source = read(path);
+      expect(source, path).toContain('refundOutcomeNotice(');
+      expect(source, path).not.toContain('Your credits were refunded');
+    }
   });
 });

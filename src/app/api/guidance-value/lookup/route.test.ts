@@ -5,6 +5,7 @@ let caller:
   | { kind: 'portal'; userId: string };
 let extractFails = false;
 let burnOk = true;
+let refundStatus: 'refunded' | 'queued' | 'failed' = 'refunded';
 const burns: string[] = [];
 const refunds: string[] = [];
 const burnKeys: (string | undefined)[] = [];
@@ -30,12 +31,15 @@ vi.mock('@/lib/credits/burn', () => ({
   },
 }));
 
-vi.mock('@/lib/credits/refund-burn', () => ({
+vi.mock('@/lib/credits/refund-burn', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/credits/refund-burn')>()),
   newBurnKey: (feature: string) => `${feature}:key-1`,
   refundBurn: async (accountId: string, _feature: string, burnKey: string) => {
     refunds.push(accountId);
     refundKeys.push(burnKey);
-    return { status: 'refunded', refunded: 5 };
+    return refundStatus === 'refunded'
+      ? { status: 'refunded', refunded: 5 }
+      : { status: refundStatus };
   },
 }));
 
@@ -115,6 +119,7 @@ beforeEach(() => {
   caller = { kind: 'staff', userId: 'u1', ctx: { accountId: 'acc-1' } };
   extractFails = false;
   burnOk = true;
+  refundStatus = 'refunded';
   burns.length = 0;
   refunds.length = 0;
   burnKeys.length = 0;
@@ -141,6 +146,22 @@ describe('POST /api/guidance-value/lookup', () => {
     expect(refunds).toEqual(['acc-1']);
     expect(burnKeys).toEqual(['guidance_value_lookup:key-1']);
     expect(refundKeys).toEqual(burnKeys);
+    expect((await res.json()).error).toBe(
+      'Could not read this schedule. Your credits were refunded.'
+    );
+  });
+
+  it('[CRD-003] does not tell staff their credits were refunded when the refund is only queued or failed', async () => {
+    extractFails = true;
+    refundStatus = 'queued';
+    const queued = await upload();
+    expect((await queued.json()).error).toBe(
+      'Could not read this schedule. Your credits will be refunded within the hour.'
+    );
+    refundStatus = 'failed';
+    const failed = (await (await upload()).json()).error as string;
+    expect(failed).toContain('please contact support');
+    expect(failed).not.toContain('were refunded');
   });
 
   it('refuses a read when the wallet is short', async () => {
