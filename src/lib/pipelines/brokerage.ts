@@ -14,7 +14,7 @@ export type BrokerageType = 'percentage' | 'fixed';
 
 export interface BrokerageInput {
   dealValue: number | string | null | undefined;
-  type: BrokerageType | null | undefined;
+  type: string | null | undefined;
   /** The percentage when `type` is 'percentage', the amount when 'fixed'. */
   value: number | string | null | undefined;
 }

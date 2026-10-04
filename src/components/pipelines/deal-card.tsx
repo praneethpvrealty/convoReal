@@ -21,7 +21,7 @@ function formatDate(dateStr: string) {
   });
 }
 
-function initials(name?: string, fallback?: string) {
+function initials(name?: string | null, fallback?: string | null) {
   const source = (name || fallback || '?').trim();
   if (!source) return '?';
   return source.charAt(0).toUpperCase();
@@ -101,7 +101,7 @@ export function DealCard({
       {/* Contact row */}
       <div className="mt-2 flex items-center gap-2">
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-700 text-[11px] font-semibold text-slate-200">
-          {initials(deal.contact?.name, deal.contact?.phone ?? undefined)}
+          {initials(deal.contact?.name, deal.contact?.phone)}
         </span>
         <span className="flex min-w-0 items-center gap-1 text-xs text-slate-400">
           <span className="truncate">{contactLabel}</span>
