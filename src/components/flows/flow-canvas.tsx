@@ -427,7 +427,7 @@ function FlowCanvasInner() {
     return (
       <div className="flex h-[60vh] flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-slate-700 bg-slate-950 text-sm text-slate-500">
         <p>No nodes yet.</p>
-        <CanvasAddNodeButton />
+        {!readOnly && <CanvasAddNodeButton />}
       </div>
     );
   }
@@ -472,9 +472,11 @@ function FlowCanvasInner() {
             maskColor="rgba(15, 23, 42, 0.7)"
             className="!border !border-slate-700 !bg-slate-900"
           />
-          <Panel position="bottom-right" className="!right-4 !bottom-4">
-            <CanvasAddNodeButton />
-          </Panel>
+          {!readOnly && (
+            <Panel position="bottom-right" className="!right-4 !bottom-4">
+              <CanvasAddNodeButton />
+            </Panel>
+          )}
         </ReactFlow>
       </div>
 

@@ -110,19 +110,14 @@ export function FlowEditorShell({ initialFlow, initialNodes }: Props) {
           </div>
         )}
 
-        <fieldset
-          disabled={readOnly}
-          className="m-0 flex min-w-0 flex-col gap-6 border-0 p-0"
-        >
-          {effectiveView === 'canvas' ? (
-            <>
-              <FlowTriggerPanel />
-              <FlowCanvas />
-            </>
-          ) : (
-            <FlowBuilder />
-          )}
-        </fieldset>
+        {effectiveView === 'canvas' ? (
+          <>
+            <FlowTriggerPanel />
+            <FlowCanvas />
+          </>
+        ) : (
+          <FlowBuilder />
+        )}
 
         {/* Sticky-bottom validation panel mirrors the placement used
             when this lived inside FlowBuilder — the activate-readiness
