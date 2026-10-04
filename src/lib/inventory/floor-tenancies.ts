@@ -13,7 +13,7 @@
 import { isoDateOrNull } from './iso-date';
 import { sanitizeFloorPlanImage } from './floor-plans';
 
-export interface FloorTenancy {
+export type FloorTenancy = {
   /** Floor / unit label, e.g. "Ground Floor", "2nd + 3rd Floor". */
   floor: string;
   area_sqft: number | null;
@@ -36,7 +36,7 @@ export interface FloorTenancy {
    *  Same shape as FloorPlan.image — a rent-roll floor keeps its
    *  layout beside its tenant rather than in a parallel list. */
   floor_plan?: string | null;
-}
+};
 
 const MAX_FLOORS = 60;
 const MAX_TEXT = 300;

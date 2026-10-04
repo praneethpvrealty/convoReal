@@ -1,10 +1,11 @@
-import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
+import type { PostgrestError } from '@supabase/supabase-js';
+import type { Tables, TypedSupabaseClient } from '@/lib/supabase/database';
 import type {
   ParsedContactDraftsContainer,
   ParsedPropertyDraft,
 } from '@/lib/ai/gemini';
 
-type DB = SupabaseClient;
+type DB = TypedSupabaseClient;
 
 // How long a draft stays answerable after the last message on it. The
 // confirmation card is often read long after it lands, so Confirm,
@@ -18,27 +19,22 @@ export type DraftSessionStatus = 'collecting' | 'awaiting_confirmation';
 
 export type PropertyDraftSessionMode = 'owner' | 'external';
 
-export interface PropertyDraftSessionRow {
-  id: string;
-  account_id: string;
-  contact_id: string;
+export type PropertyDraftSessionRow = Omit<
+  Tables<'property_draft_sessions'>,
+  'draft_data' | 'status' | 'session_mode'
+> & {
   draft_data: ParsedPropertyDraft;
   status: DraftSessionStatus;
   session_mode: PropertyDraftSessionMode;
-  requirement_link_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
+};
 
-export interface ContactDraftSessionRow {
-  id: string;
-  account_id: string;
-  contact_id: string;
+export type ContactDraftSessionRow = Omit<
+  Tables<'contact_draft_sessions'>,
+  'draft_data' | 'status'
+> & {
   draft_data: ParsedContactDraftsContainer;
   status: DraftSessionStatus;
-  created_at: string;
-  updated_at: string;
-}
+};
 
 export type PropertyDraftSessionInsert = Pick<
   PropertyDraftSessionRow,

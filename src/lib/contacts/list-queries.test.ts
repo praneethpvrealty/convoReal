@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { TypedSupabaseClient } from '@/lib/supabase/database';
 
 import { CONTACT_LIST_COLUMNS } from './list-columns';
 import {
@@ -65,7 +65,7 @@ function stubDb(
     rpcs.push({ fn, args });
     return { maybeSingle: async () => ({ data: tabCounts, error: null }) };
   };
-  return { db: { from, rpc } as unknown as SupabaseClient, calls, rpcs };
+  return { db: { from, rpc } as unknown as TypedSupabaseClient, calls, rpcs };
 }
 
 const baseParams: ContactListParams = {
@@ -234,7 +234,7 @@ describe('loadContactsPage', () => {
         return chain;
       },
       rpc: () => ({ maybeSingle: () => new Promise(() => undefined) }),
-    } as unknown as SupabaseClient;
+    } as unknown as TypedSupabaseClient;
     const result = loadContactsPage(hanging, baseParams, async () => []);
     const settled = result.then(
       () => 'resolved',

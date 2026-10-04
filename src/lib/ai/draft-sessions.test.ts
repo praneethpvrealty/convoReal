@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { TypedSupabaseClient } from '@/lib/supabase/database';
 
 import type {
   ParsedContactDraftsContainer,
@@ -96,7 +96,7 @@ function stubClient(respond: (call: Call) => Result) {
       return chain;
     },
   };
-  return { client: client as unknown as SupabaseClient, calls };
+  return { client: client as unknown as TypedSupabaseClient, calls };
 }
 
 const ok = (data: unknown): Result => ({ data, error: null });

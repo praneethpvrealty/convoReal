@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { TypedSupabaseClient } from '@/lib/supabase/database';
 import type {
   CallLog,
   Contact,
@@ -8,10 +8,13 @@ import type {
   ShowcaseSettings,
   Tag,
 } from '@/types';
-import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
+import {
+  scanMessagesForProperties,
+  type ScannableMessage,
+} from '@/lib/journey/chat-scan';
 import { ilikeAcross, ilikeTerm } from '@/lib/v1/query';
 
-type DB = SupabaseClient;
+type DB = TypedSupabaseClient;
 
 export interface ContactDetailBundle {
   contact: Contact;
@@ -81,7 +84,7 @@ export async function loadDetailShowcaseSettings(
       .from('showcase_settings')
       .select('*')
       .maybeSingle();
-    return data ?? null;
+    return (data as ShowcaseSettings | null) ?? null;
   } catch (err) {
     console.error('Failed to load showcase settings:', err);
     return null;
@@ -160,7 +163,7 @@ export async function loadContactDetail(
       .select('*')
       .eq('id', data.last_inquired_property_id)
       .maybeSingle();
-    inquiredProperty = propData || null;
+    inquiredProperty = (propData as Property | null) || null;
   }
 
   // Is the portal ad this lead quoted already mapped to a listing?
@@ -198,7 +201,7 @@ export async function loadContactDetail(
       .from('properties')
       .select('*')
       .in('id', propertyIds);
-    inquiredProperties = props || [];
+    inquiredProperties = (props as Property[] | null) || [];
   }
 
   return {
@@ -223,7 +226,7 @@ export async function loadAssociatedProperties(
     console.error('Error fetching associated properties:', error);
     throw error;
   }
-  return data || [];
+  return (data as Property[] | null) || [];
 }
 
 export async function loadPropertyMessageStatus(
@@ -310,7 +313,10 @@ export async function loadSharedProperties(
   // Shared scan logic with /journey's "Import from chat"
   // (src/lib/journey/chat-scan.ts): matches by showcase
   // property_id link, property code, or long exact title.
-  const found = scanMessagesForProperties(messages ?? [], allProperties);
+  const found = scanMessagesForProperties(
+    (messages ?? []) as ScannableMessage[],
+    allProperties
+  );
   const sharedProps: SharedProperty[] = [];
   found.forEach((sharedAt, propId) => {
     const prop = allProperties.find((p) => p.id === propId);
@@ -331,7 +337,7 @@ export async function loadContactTags(
 
   const ids = (contactTagsRes.data ?? []).map((ct) => ct.tag_id);
   return {
-    allTags: tagsRes.data ?? [],
+    allTags: (tagsRes.data ?? []) as Tag[],
     contactTagIds: ids,
     // Snapshot for ordering only. Pinned at load rather than tracking
     // contactTagIds, so toggling a tag doesn't slide the next one out
@@ -350,7 +356,7 @@ export async function loadContactNotes(
     .eq('contact_id', contactId)
     .order('created_at', { ascending: false });
 
-  return data ?? [];
+  return (data ?? []) as ContactNote[];
 }
 
 export async function loadContactDeals(
