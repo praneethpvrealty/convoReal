@@ -23,7 +23,7 @@ import {
   Tag,
 } from '@/components/ui';
 import { MatchTargetRow } from '@/components/match-target-row';
-import { ApiError } from '@/lib/api';
+import { ApiError, isTimeout } from '@/lib/api';
 import { auditDateTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -146,7 +146,7 @@ export default function RadarScreen() {
 
   async function send(evt: MatchEvent) {
     const targetIds = Array.from(selectionFor(evt));
-    if (targetIds.length === 0) return;
+    if (targetIds.length === 0 || sendingId) return;
     haptic.send();
     setError(null);
     setNotice(null);
@@ -188,9 +188,16 @@ export default function RadarScreen() {
         queryClient.invalidateQueries({ queryKey: ['radar-events'] });
       }
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : 'Could not send match alerts.'
-      );
+      if (isTimeout(err)) {
+        setError(
+          'No reply yet — the alerts may still be going out. Refresh before sending again so no one gets them twice.'
+        );
+        queryClient.invalidateQueries({ queryKey: ['radar-events'] });
+      } else {
+        setError(
+          err instanceof ApiError ? err.message : 'Could not send match alerts.'
+        );
+      }
     } finally {
       setSendingId(null);
     }
@@ -250,6 +257,7 @@ export default function RadarScreen() {
                 event={item}
                 selected={selectionFor(item)}
                 sending={sendingId === item.id}
+                sendLocked={sendingId !== null}
                 dismissing={dismissingId === item.id}
                 templateMissing={templateMissingFor[item.id]}
                 manualContacts={manualContacts[item.id] ?? NO_CONTACTS}
@@ -303,6 +311,7 @@ function EventCard({
   event,
   selected,
   sending,
+  sendLocked,
   dismissing,
   templateMissing,
   manualContacts,
@@ -316,6 +325,7 @@ function EventCard({
   event: MatchEvent;
   selected: Set<string>;
   sending: boolean;
+  sendLocked: boolean;
   dismissing: boolean;
   templateMissing?: string[];
   manualContacts: Contact[];
@@ -513,7 +523,7 @@ function EventCard({
         label={`Send Match Alert (${selected.size})`}
         icon="paper-plane-outline"
         busy={sending}
-        disabled={selected.size === 0 || dismissing}
+        disabled={selected.size === 0 || dismissing || sendLocked}
         onPress={onSend}
       />
     </View>

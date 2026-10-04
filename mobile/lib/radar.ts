@@ -63,6 +63,16 @@ export function searchRadarContacts(eventId: string, query: string) {
   ).then((result) => result.data);
 }
 
+/**
+ * POST /api/radar/send hands each target to Meta one after another, up
+ * to three messages apiece, so nine targets outlast the default 20-second
+ * budget while the server is still sending. Scale with the batch and
+ * stay under the route's 300-second function limit.
+ */
+export function matchAlertTimeoutMs(targetCount: number): number {
+  return Math.min(60_000 + Math.max(0, targetCount) * 10_000, 280_000);
+}
+
 export function sendMatchAlert(
   eventId: string,
   targetIds: string[],
@@ -70,6 +80,7 @@ export function sendMatchAlert(
 ) {
   return apiFetch<RadarSendResult>('/api/radar/send', {
     method: 'POST',
+    timeoutMs: matchAlertTimeoutMs(targetIds.length),
     body: JSON.stringify({ eventId, targetIds, manualContactIds }),
   });
 }
