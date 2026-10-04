@@ -177,6 +177,7 @@ export default function RadarPage() {
 
   // Trigger Send Match Alert API
   const handleSend = async (event: MatchEvent) => {
+    if (sendingId) return;
     const selectedIds = Array.from(selectionFor(event));
     if (selectedIds.length === 0) {
       toast.error('Please select at least one match target to send');
@@ -700,7 +701,7 @@ export default function RadarPage() {
                         <Button
                           size="sm"
                           disabled={
-                            selectedIds.size === 0 || sendingId === evt.id
+                            selectedIds.size === 0 || sendingId !== null
                           }
                           onClick={() => handleSend(evt)}
                           className="bg-primary hover:bg-primary/95 text-primary-foreground h-9 cursor-pointer rounded-xl px-4 text-xs font-semibold"

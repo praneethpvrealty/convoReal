@@ -280,15 +280,7 @@ export function ContactDetailView({
   });
   const showcaseSettings = showcaseSettingsQuery.data ?? null;
   const currency = showcaseSettings?.currency || 'INR';
-  const [editClassification, setEditClassification] = useState<
-    | 'Owner'
-    | 'Seller'
-    | 'Buyer'
-    | 'Agent'
-    | 'Developer'
-    | 'Owner & Buyer'
-    | 'Others'
-  >('Others');
+  const [editClassification, setEditClassification] = useState('Others');
 
   // A classification change can hide the active tab's trigger — fall back
   useEffect(() => {
@@ -306,12 +298,8 @@ export function ContactDetailView({
       setActiveTab('details');
     }
   }, [activeTab, editClassification]);
-  const [editLeadTemp, setEditLeadTemp] = useState<
-    'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''
-  >('');
-  const [editPreferredLanguage, setEditPreferredLanguage] = useState<
-    LanguageCode | ''
-  >('');
+  const [editLeadTemp, setEditLeadTemp] = useState('');
+  const [editPreferredLanguage, setEditPreferredLanguage] = useState('');
   const [editLastInquiredPropertyId, setEditLastInquiredPropertyId] = useState<
     string | null
   >(null);
@@ -351,9 +339,7 @@ export function ContactDetailView({
   const [editRequiresTenanted, setEditRequiresTenanted] = useState(false);
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [editDob, setEditDob] = useState('');
-  const [editFeedbackStatus, setEditFeedbackStatus] = useState<
-    'not_requested' | 'requested' | 'collected'
-  >('not_requested');
+  const [editFeedbackStatus, setEditFeedbackStatus] = useState('not_requested');
 
   // Associated Properties for Owner/Seller/Agent
   const [propertyFormOpen, setPropertyFormOpen] = useState(false);
@@ -2415,18 +2401,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       </Label>
                       <select
                         value={editClassification}
-                        onChange={(e) =>
-                          setEditClassification(
-                            e.target.value as
-                              | 'Owner'
-                              | 'Seller'
-                              | 'Buyer'
-                              | 'Agent'
-                              | 'Developer'
-                              | 'Owner & Buyer'
-                              | 'Others'
-                          )
-                        }
+                        onChange={(e) => setEditClassification(e.target.value)}
                         className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none"
                       >
                         <option value="Others">Others</option>
@@ -2464,12 +2439,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       </Label>
                       <select
                         value={editLeadTemp}
-                        onChange={(e) =>
-                          setEditLeadTemp(
-                            e.target.value as
-                              'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''
-                          )
-                        }
+                        onChange={(e) => setEditLeadTemp(e.target.value)}
                         className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none"
                       >
                         <option value="">None</option>
@@ -2489,9 +2459,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       <select
                         value={editPreferredLanguage}
                         onChange={(e) =>
-                          setEditPreferredLanguage(
-                            e.target.value as LanguageCode | ''
-                          )
+                          setEditPreferredLanguage(e.target.value)
                         }
                         className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none"
                       >
@@ -2542,10 +2510,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         <select
                           value={editFeedbackStatus}
                           onChange={(e) =>
-                            setEditFeedbackStatus(
-                              e.target.value as
-                                'not_requested' | 'requested' | 'collected'
-                            )
+                            setEditFeedbackStatus(e.target.value)
                           }
                           className="focus:border-primary mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:outline-none"
                         >
