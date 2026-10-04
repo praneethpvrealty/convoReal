@@ -1,7 +1,7 @@
 'use client';
 
 // ============================================================
-// "Help & feedback" — floating pill on every dashboard route, plus
+// "Help & feedback" — floating icon button on every dashboard route, plus
 // Ctrl/Cmd+Shift+B. Named for help, not just defects: it is the only
 // always-visible support channel, and copy elsewhere points users at
 // it for questions ("this isn't enabled for my account") as much as

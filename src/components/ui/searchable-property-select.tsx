@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ChevronDown, X, Check, Tag, ImageOff } from 'lucide-react';
-import { useAnchoredDropdown } from '@/hooks/use-anchored-dropdown';
+import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import { storagePublicUrl } from '@/lib/storage/url';
 

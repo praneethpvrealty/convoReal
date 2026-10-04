@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import type { JourneyEnquiryEntry } from '@/lib/journey/enquiries';
 import type { JourneyMode } from './shared';
 

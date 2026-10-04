@@ -31,7 +31,7 @@ beforeEach(() => {
 
 describe('Copilot contact search intent', () => {
   it.each(['web', 'mobile'] as const)(
-    '[CPL-002] answers the reported question with contact-card links on %s, without a tour or a model call',
+    '[CPL-003] answers the reported question with contact-card links on %s, without a tour or a model call',
     async (platform) => {
       const contactSearch = vi
         .fn()
@@ -72,7 +72,7 @@ describe('Copilot contact search intent', () => {
     }
   );
 
-  it('[CPL-002] stays on the generic path when no contact search is wired', async () => {
+  it('[CPL-003] stays on the generic path when no contact search is wired', async () => {
     hasGeminiKey.mockResolvedValue(false);
     const answer = await answerQuestion({
       audience: 'agent',

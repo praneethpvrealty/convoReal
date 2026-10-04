@@ -21,7 +21,7 @@ describe('isContactSearchQuestion', () => {
     'is there a buyer for 2bhk flat in Koramangala',
     'koi buyer hai jo JP Nagar mein flat chahiye',
     'buyers in Jayanagar',
-  ])('[CPL-002] recognises "%s"', (message) => {
+  ])('[CPL-003] recognises "%s"', (message) => {
     expect(isContactSearchQuestion(message)).toBe(true);
   });
 
@@ -46,13 +46,13 @@ describe('isContactSearchQuestion', () => {
     'What is a lead temperature?',
     'open @Praveen',
     'send a broadcast to all buyers',
-  ])('[CPL-002] leaves "%s" to the other intents', (message) => {
+  ])('[CPL-003] leaves "%s" to the other intents', (message) => {
     expect(isContactSearchQuestion(message)).toBe(false);
   });
 });
 
 describe('parseContactSearchQuery', () => {
-  it('[CPL-002] reads area, category and locality stems from the reported question', () => {
+  it('[CPL-003] reads area, category and locality stems from the reported question', () => {
     const query = parseContactSearchQuery(
       'Contact who is looking for residential property in JP Nagar'
     );
@@ -116,7 +116,7 @@ describe('parseContactSearchQuery', () => {
     expect(query.categories).toEqual(['residential']);
   });
 
-  it('[CPL-002] reports no criteria for a bare contact question', () => {
+  it('[CPL-003] reports no criteria for a bare contact question', () => {
     const query = parseContactSearchQuery('which contacts are looking?');
     expect(hasSearchCriteria(query)).toBe(false);
   });
@@ -205,7 +205,7 @@ describe('parseContactSearchQuery review cases', () => {
     ).toEqual(['HSR']);
   });
 
-  it('[CPL-002] never lets a regex metacharacter reach the database as a probe', () => {
+  it('[CPL-003] never lets a regex metacharacter reach the database as a probe', () => {
     expect(parseContactSearchQuery('contacts in |').areaProbes).toEqual([]);
     expect(parseContactSearchQuery('contacts in (').areaProbes).toEqual([]);
     expect(
@@ -256,7 +256,7 @@ describe('buildContactSearchAnswer', () => {
     );
   });
 
-  it('[CPL-002] returns one contact-card link per match and a see-all link', () => {
+  it('[CPL-003] returns one contact-card link per match and a see-all link', () => {
     const answer = buildContactSearchAnswer(query, {
       total: 12,
       matches: [
@@ -299,7 +299,7 @@ describe('buildContactSearchAnswer', () => {
     ]);
   });
 
-  it('[CPL-002] answers an empty result with a next step instead of a tour', () => {
+  it('[CPL-003] answers an empty result with a next step instead of a tour', () => {
     const answer = buildContactSearchAnswer(query, { total: 0, matches: [] });
     expect(answer.reply).toMatch(/^No contacts are looking for residential/);
     expect(answer.links).toEqual([

@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { AuthProvider, useAuth } from '@/hooks/use-auth';
-import { LocaleProvider } from '@/hooks/use-locale';
+import { AuthProvider, useAuth } from '@/hooks/useAuth';
+import { LocaleProvider } from '@/hooks/useLocale';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { useOnboarding } from '@/hooks/useOnboarding';
@@ -72,7 +72,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       if (profileError) {
         // A failed fetch is not the same as "no profile row" — redirecting
         // here is what caused the /dashboard <-> /profile-setup loop (see
-        // profileError doc in use-auth.tsx). Stay put; the render below
+        // profileError doc in useAuth.tsx). Stay put; the render below
         // shows a retry state instead.
         console.warn(
           '[SHELL GATE] profile fetch failed, holding on dashboard for retry...'

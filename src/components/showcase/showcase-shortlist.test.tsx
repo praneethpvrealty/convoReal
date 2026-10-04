@@ -8,7 +8,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { ShowcaseShortlist } from './showcase-shortlist';
-import { useShowcaseShortlist } from '@/hooks/use-showcase-shortlist';
+import { useShowcaseShortlist } from '@/hooks/useShowcaseShortlist';
 import { readShortlistIds } from '@/lib/showcase/shortlist';
 import type { Property } from '@/types';
 

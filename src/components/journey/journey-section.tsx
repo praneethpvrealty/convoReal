@@ -32,7 +32,7 @@ import {
 import { toast } from 'sonner';
 
 import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import {

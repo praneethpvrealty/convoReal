@@ -22,7 +22,7 @@ import { DEAD_CONTACT_NOTICE } from '@/lib/contacts/lifecycle';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { GatedButton } from '@/components/ui/gated-button';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import { cn } from '@/lib/utils';
 import {
   pickVoiceNoteMime,

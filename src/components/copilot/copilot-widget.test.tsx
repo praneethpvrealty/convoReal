@@ -27,7 +27,7 @@ vi.mock('@/hooks/useCopilotNudges', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-locale', () => ({
+vi.mock('@/hooks/useLocale', () => ({
   useT: () => (key: string) =>
     key === 'copilot.assistant' ? 'AI Assistant' : 'Open the helper',
 }));

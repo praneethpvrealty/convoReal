@@ -13,7 +13,7 @@ describe('findCopilotContacts', () => {
     'buyers looking for 3 bhk flats in HSR Layout under 2 cr to buy'
   );
 
-  it('[CPL-002] calls the account-scoped function with the parsed probes', async () => {
+  it('[CPL-003] calls the account-scoped function with the parsed probes', async () => {
     const { client, rpc } = clientWith(
       [
         {

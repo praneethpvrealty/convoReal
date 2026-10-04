@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { useCan } from '@/hooks/use-can';
+import { useCan } from '@/hooks/useCan';
 import {
   CONSENT_HINTS,
   CONSENT_LABELS,

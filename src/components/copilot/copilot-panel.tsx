@@ -33,7 +33,7 @@ import {
 import { cn } from '@/lib/utils';
 import { TOURS } from '@/lib/copilot/tours';
 import { useCopilot } from './copilot-context';
-import { useT } from '@/hooks/use-locale';
+import { useT } from '@/hooks/useLocale';
 import {
   activeEntityQuery,
   entitySymbolForKind,

@@ -33,7 +33,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: nav.push, replace: vi.fn() }),
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => auth.current,
 }));
 

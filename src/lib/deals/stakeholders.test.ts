@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   defaultSideForRole,
   isSamePerson,
-  normalizePhone,
   parseStakeholderInput,
+  parseStakeholderPhone,
 } from './stakeholders';
 
 describe('parseStakeholderInput', () => {
@@ -73,8 +73,35 @@ describe('parseStakeholderInput', () => {
   });
 
   it('normalises phones to digits within E.164 length', () => {
-    expect(normalizePhone('+91-98450-12345')).toBe('919845012345');
-    expect(normalizePhone('12345')).toBeNull();
+    expect(parseStakeholderPhone('+91-98450-12345')).toBe('919845012345');
+    expect(parseStakeholderPhone('12345')).toBeNull();
+  });
+
+  it('accepts eight to fifteen digits and nothing outside that', () => {
+    expect(parseStakeholderPhone('1234-5678')).toBe('12345678');
+    expect(parseStakeholderPhone('1234567')).toBeNull();
+    expect(parseStakeholderPhone('+123 456 789 012 345')).toBe(
+      '123456789012345'
+    );
+    expect(parseStakeholderPhone('1234567890123456')).toBeNull();
+  });
+
+  it('counts only digits toward the length', () => {
+    expect(parseStakeholderPhone('phone: +91 (98450) 12345 ext')).toBe(
+      '919845012345'
+    );
+    expect(parseStakeholderPhone('no digits here')).toBeNull();
+  });
+
+  it('rejects a phone outside E.164 length when parsing a stakeholder', () => {
+    expect(
+      parseStakeholderInput({
+        name: 'Rao',
+        role: 'advocate',
+        side: 'seller',
+        phone: '98450',
+      })
+    ).toEqual({ ok: false, error: 'Phone number looks wrong' });
   });
 });
 

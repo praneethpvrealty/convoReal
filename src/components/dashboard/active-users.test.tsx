@@ -12,7 +12,7 @@ const tables = vi.hoisted(() => ({
   contacts: [] as unknown[],
 }));
 
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'viewer' }, accountId: 'acct-1' }),
 }));
 

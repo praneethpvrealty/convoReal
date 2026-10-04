@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -43,6 +43,7 @@ import type {
   KeywordMatchTriggerConfig,
 } from '@/types';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -220,9 +221,17 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
 // Main builder component
 // ------------------------------------------------------------
 
+// A read-only member can open every card to look through an automation;
+// the fields inside are disabled and the add, move and delete controls
+// are not rendered.
+const ReadOnlyContext = createContext(false);
+
 export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   const router = useRouter();
   const isEditing = !!initial.id;
+  const { profileLoading, orgRole, isReadOnly } = useAuth();
+  const accessKnown = !profileLoading && !!orgRole;
+  const readOnly = !accessKnown || isReadOnly;
   const [state, setState] = useState<BuilderInitial>(initial);
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -267,6 +276,7 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   }
 
   async function save() {
+    if (readOnly) return;
     setSaving(true);
     try {
       const payload = {
@@ -316,66 +326,82 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-slate-950">
-      {/* Top bar. At sub-sm widths the "Active" label is hidden and the
+    <ReadOnlyContext.Provider value={readOnly}>
+      <div className="fixed inset-0 flex flex-col bg-slate-950">
+        {/* Top bar. At sub-sm widths the "Active" label is hidden and the
           switch moves to the right of the save button, so the name input
           gets maximum width. */}
-      <header className="flex flex-shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-900/80 px-3 py-3 sm:gap-3 sm:px-4">
-        <button
-          type="button"
-          onClick={() => router.push('/automations')}
-          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
-          aria-label="Back to automations"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <input
-          value={state.name}
-          onChange={(e) => patchTop('name', e.target.value)}
-          placeholder="Untitled automation"
-          className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 text-sm font-semibold text-white placeholder:text-slate-500 focus:bg-slate-800 focus:outline-none sm:text-base"
-        />
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span className="hidden sm:inline">Active</span>
-          <Switch
-            checked={state.is_active}
-            onCheckedChange={(v) => patchTop('is_active', !!v)}
-            aria-label="Active"
+        <header className="flex flex-shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-900/80 px-3 py-3 sm:gap-3 sm:px-4">
+          <button
+            type="button"
+            onClick={() => router.push('/automations')}
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+            aria-label="Back to automations"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <input
+            value={state.name}
+            onChange={(e) => patchTop('name', e.target.value)}
+            placeholder="Untitled automation"
+            readOnly={readOnly}
+            className="min-w-0 flex-1 rounded-md bg-transparent px-2 py-1 text-sm font-semibold text-white placeholder:text-slate-500 focus:bg-slate-800 focus:outline-none sm:text-base"
           />
-        </div>
-        <Button
-          onClick={save}
-          disabled={saving}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          {isEditing ? 'Save' : 'Save Draft'}
-        </Button>
-      </header>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span className="hidden sm:inline">Active</span>
+            <Switch
+              checked={state.is_active}
+              onCheckedChange={(v) => patchTop('is_active', !!v)}
+              aria-label="Active"
+              disabled={readOnly}
+            />
+          </div>
+          {readOnly ? null : (
+            <Button
+              onClick={save}
+              disabled={saving}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {isEditing ? 'Save' : 'Save Draft'}
+            </Button>
+          )}
+        </header>
+        {readOnly ? (
+          <p
+            role="status"
+            className="flex-shrink-0 border-b border-slate-800 bg-slate-900/60 px-4 py-2 text-xs text-slate-300"
+          >
+            {accessKnown
+              ? "Your access is read-only. You can look through this automation, but you can't change it."
+              : 'Checking your access…'}
+          </p>
+        ) : null}
 
-      {/* Canvas */}
-      <div className="relative flex-1 overflow-y-auto">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,#1e293b_1px,transparent_1px)] [background-size:20px_20px]" />
-        <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-0 px-4 py-10">
-          <TriggerCard
-            type={state.trigger_type}
-            config={state.trigger_config}
-            onTypeChange={(t) => patchTop('trigger_type', t)}
-            onConfigChange={(c) => patchTop('trigger_config', c)}
-          />
-          <StepList
-            steps={state.steps}
-            parentPath={[]}
-            expandedId={expandedId}
-            setExpandedId={setExpandedId}
-            updateStep={updateStep}
-            addStepAt={addStepAt}
-            deleteStepAt={deleteStepAt}
-            moveStepAt={moveStepAt}
-          />
+        {/* Canvas */}
+        <div className="relative flex-1 overflow-y-auto">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,#1e293b_1px,transparent_1px)] [background-size:20px_20px]" />
+          <div className="relative mx-auto flex max-w-2xl flex-col items-center gap-0 px-4 py-10">
+            <TriggerCard
+              type={state.trigger_type}
+              config={state.trigger_config}
+              onTypeChange={(t) => patchTop('trigger_type', t)}
+              onConfigChange={(c) => patchTop('trigger_config', c)}
+            />
+            <StepList
+              steps={state.steps}
+              parentPath={[]}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              updateStep={updateStep}
+              addStepAt={addStepAt}
+              deleteStepAt={deleteStepAt}
+              moveStepAt={moveStepAt}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </ReadOnlyContext.Provider>
   );
 }
 
@@ -395,6 +421,7 @@ function TriggerCard({
   onConfigChange: (c: Record<string, unknown>) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const readOnly = useContext(ReadOnlyContext);
   return (
     // Card width: full on mobile, fixed 320px on sm+. The canvas wrapper
     // (max-w-2xl + px-4) keeps this tidy on tablet/desktop.
@@ -424,7 +451,10 @@ function TriggerCard({
           />
         </button>
         {open && (
-          <div className="space-y-3 border-t border-slate-800 px-4 py-3">
+          <fieldset
+            disabled={readOnly}
+            className="min-w-0 space-y-3 border-t border-slate-800 px-4 py-3"
+          >
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-400">
                 Trigger type
@@ -472,7 +502,7 @@ function TriggerCard({
                 className="bg-slate-800 text-white"
               />
             )}
-          </div>
+          </fieldset>
         )}
       </div>
     </div>
@@ -620,6 +650,7 @@ function StepRenderer({
   ];
   const meta = STEP_META[step.step_type];
   const Icon = meta.icon;
+  const readOnly = useContext(ReadOnlyContext);
   const expanded = props.expandedId === step.cid;
   const isCondition = step.step_type === 'condition';
   // Card widths on mobile fill the full canvas column (max-w-2xl px-4
@@ -674,40 +705,44 @@ function StepRenderer({
           </button>
           {expanded && (
             <div className="border-t border-slate-800 px-4 py-3">
-              <StepEditor
-                step={step}
-                onChange={(next) => props.updateStep(path, () => next)}
-              />
-              <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
-                <div className="flex gap-1">
+              <fieldset disabled={readOnly} className="min-w-0">
+                <StepEditor
+                  step={step}
+                  onChange={(next) => props.updateStep(path, () => next)}
+                />
+              </fieldset>
+              {readOnly ? null : (
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={index === 0}
+                      aria-label="Move up"
+                      onClick={() => props.moveStepAt(path, -1)}
+                    >
+                      <ArrowUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={index === total - 1}
+                      aria-label="Move down"
+                      onClick={() => props.moveStepAt(path, 1)}
+                    >
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={index === 0}
-                    aria-label="Move up"
-                    onClick={() => props.moveStepAt(path, -1)}
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => props.deleteStepAt(path)}
                   >
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={index === total - 1}
-                    aria-label="Move down"
-                    onClick={() => props.moveStepAt(path, 1)}
-                  >
-                    <ArrowDown className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Delete
                   </Button>
                 </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => props.deleteStepAt(path)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Delete
-                </Button>
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -778,6 +813,8 @@ function BranchColumn({
 }
 
 function AddButton({ onPick }: { onPick: (t: AutomationStepType) => void }) {
+  const readOnly = useContext(ReadOnlyContext);
+  if (readOnly) return <div className="h-8 w-[2px] bg-slate-700" aria-hidden />;
   return (
     <div className="relative flex flex-col items-center">
       <div className="h-4 w-[2px] bg-slate-700" aria-hidden />

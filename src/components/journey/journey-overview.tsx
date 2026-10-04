@@ -65,7 +65,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import {
   CLOSED_JOURNEY_STATUS_META,
   matchesJourneySearch,

@@ -36,7 +36,7 @@ import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
 import { pushUrl } from '@/lib/navigation';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { TabSkeleton } from '@/components/dashboard/skeleton';
 import { JourneyEmbed } from '@/components/journey/journey-embed';

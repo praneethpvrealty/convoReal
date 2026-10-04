@@ -17,7 +17,7 @@ const tables = vi.hoisted(() => ({
 }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock('@/hooks/use-auth', () => ({
+vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
     user: { id: 'u1' },
     profile: { id: 'p1' },
@@ -26,7 +26,7 @@ vi.mock('@/hooks/use-auth', () => ({
     canViewGuardedLocations: true,
   }),
 }));
-vi.mock('@/hooks/use-can', () => ({ useCan: () => true }));
+vi.mock('@/hooks/useCan', () => ({ useCan: () => true }));
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     from: (table: string) => {

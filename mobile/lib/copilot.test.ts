@@ -36,7 +36,7 @@ describe('mobile Copilot actions', () => {
     );
   });
 
-  it('[CPL-002] maps a contact-card link and a contacts search to native screens', () => {
+  it('[CPL-003] maps a contact-card link and a contacts search to native screens', () => {
     expect(
       appHrefForWebRoute(
         '/contacts?contactId=11111111-1111-4111-8111-111111111111'

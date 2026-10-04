@@ -360,3 +360,35 @@ describe('PropertyList — Meta ad badge', () => {
     expect(screen.queryByText('Ad paused')).toBeNull();
   });
 });
+
+const cardRoot = (title: string) => card(title).parentElement as HTMLElement;
+
+describe('PropertyList — status badge', () => {
+  it('[PRP-039] shows the listing type alone while a listing is available', () => {
+    render(
+      <PropertyList
+        properties={[listing('p1', 'Sarjapur Villa')]}
+        {...baseProps}
+      />
+    );
+    const scope = within(cardRoot('Sarjapur Villa'));
+    expect(scope.getByText('For Sale')).toBeTruthy();
+    expect(scope.queryByText('Available')).toBeNull();
+  });
+
+  it('[PRP-039] badges any status that is not available', () => {
+    render(
+      <PropertyList
+        properties={[
+          listing('p1', 'Sarjapur Villa', { status: 'Sold' }),
+          listing('p2', 'HSR Flat', { status: 'Under Contract' }),
+        ]}
+        {...baseProps}
+      />
+    );
+    expect(within(cardRoot('Sarjapur Villa')).getByText('Sold')).toBeTruthy();
+    expect(
+      within(cardRoot('HSR Flat')).getByText('Under Contract')
+    ).toBeTruthy();
+  });
+});

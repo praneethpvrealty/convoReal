@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { deriveCreditStatus, type CreditStatus } from '@/lib/credits/types';
-import { useAuth } from './use-auth';
+import { useAuth } from './useAuth';
 
 export interface CreditState {
   total: number;
