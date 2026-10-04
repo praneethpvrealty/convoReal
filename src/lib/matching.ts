@@ -820,7 +820,15 @@ function matchContactsSingleProfile(
     const aiAreas = (sourceContact.pref_areas || [])
       .map(cleanArea)
       .filter((a) => a && !isPlaceholderArea(a));
-    const textZones = extractBengaluruZones(combinedText).map(cleanArea);
+    // Zones and localities read from the requirement text stand in for
+    // stated areas only when there are none: the extraction reads the
+    // same text, so stated areas already carry every place the contact
+    // still wants, and the text keeps the ones a later answer replaced
+    // (INB-029).
+    const hasStatedAreas = explicitAreas.length > 0 || aiAreas.length > 0;
+    const textZones = hasStatedAreas
+      ? []
+      : extractBengaluruZones(combinedText).map(cleanArea);
     const zoneComparableText = combinedText.replace(/bangalore/g, 'bengaluru');
     const wantedAreas = [
       ...new Set([...explicitAreas, ...aiAreas, ...textZones]),
@@ -1129,11 +1137,8 @@ function matchContactsSingleProfile(
     // Direct mention of the property's locality/project/internal tag in
     // requirements or notes counts as a match. Tags are Engine-only, but
     // this lets an agent's own builder/campaign shorthand find inventory.
-    // A locality mention counts only for a contact with no stated areas:
-    // the extraction reads the same text, so stated areas already carry
-    // every locality the contact still wants, and the text keeps the ones
-    // a later answer replaced (INB-029).
-    const hasStatedAreas = explicitAreas.length > 0 || aiAreas.length > 0;
+    // A locality mention counts only for a contact with no stated areas,
+    // for the same reason as textZones above.
     if (locationVerdict !== 'match' && combinedText) {
       if (
         (!hasStatedAreas &&

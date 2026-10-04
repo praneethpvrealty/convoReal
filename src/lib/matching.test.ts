@@ -801,6 +801,26 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(hsrHouse, [unextracted])).toHaveLength(1);
     });
 
+    it('[INB-029] ignores a zone the requirement history names once the contact has stated areas', () => {
+      const bellandurHouse = createTestProperty({
+        type: 'Residential House',
+        price: 40000000,
+        location: 'Bellandur, Outer Ring Road, Bangalore',
+        sublocality: 'Bellandur',
+        listing_type: 'Sale',
+        latitude: null,
+        longitude: null,
+      });
+      const restated = createTestContact({
+        requirements: '4 BHK house on ORR\nPreferred location: Horamavu',
+        pref_property_types: ['Residential House'],
+        pref_areas: ['Horamavu'],
+        pref_listing_types: ['Sale'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      expect(getMatchingContacts(bellandurHouse, [restated])).toHaveLength(0);
+    });
+
     it('[INB-029] keeps the implied floor once a stated budget replaces the enquiry anchor', () => {
       const contact = createTestContact({
         pref_property_types: ['Residential House'],
