@@ -1707,6 +1707,32 @@
           "guards": ["src/app/globals.css", "mobile/lib/theme.ts"]
         },
         {
+          "id": "PRP-036",
+          "rule": "A project card on the Projects tab is one click to its units anywhere on the card, keeps Edit as a separate button, and reads sales as progress: \"N of M units sold\" with a bar at the sold share.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/project-pricing.test.ts",
+              "case": "[PRP-036]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/projects-content.test.tsx",
+              "case": "[PRP-036]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/inventory/projects-content.tsx"]
+        },
+        {
+          "id": "PRP-037",
+          "rule": "The inventory sort control says what it is: its trigger reads \"Sort: <order>\", never a bare order name.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "names the sort in force"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/inventory/inventory-content.tsx"]
+        },
+        {
           "id": "PRP-038",
           "rule": "While the Ads page loads it shows the campaigns table shape (the real header and placeholder rows marked busy), never a full-page splash, so the layout does not jump when campaigns arrive.",
           "tests": [

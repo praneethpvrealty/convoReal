@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **Project cards show progress and open with one click.** Each card on the
+  Projects tab now reads "3 of 12 units sold" with a bar at the sold share,
+  the whole card opens its units, and **Manage units** and **Edit** are
+  proper buttons instead of plain text.
+- **The inventory sort says what it is.** The control reads "Sort: Recently
+  added" rather than a bare "Recently added".
 - **Ads loads into its table, not a splash screen.** The campaigns page
   shows the table's header and placeholder rows while it loads, so nothing
   jumps when the campaigns arrive.
