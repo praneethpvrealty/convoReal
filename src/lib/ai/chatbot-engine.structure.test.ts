@@ -21,19 +21,23 @@ describe('chatbot-engine draft session access', () => {
 });
 
 describe('the external text correction', () => {
-  it('charges once before the optimistic-lock retries, never per attempt', () => {
+  it('charges once, on the first attempt that reaches the AI re-read, never per retry', () => {
     const externalFlow = source.slice(
       source.indexOf('export async function processExternalListingMessage(')
     );
     const correction = externalFlow.slice(
       externalFlow.lastIndexOf('if (cleanedText) {')
     );
-    const burn = correction.indexOf(
-      "await softBurn(accountId, 'chatbot_classify');"
-    );
     const loop = correction.indexOf('await mutatePropertyDraft(');
-    expect(burn).toBeGreaterThan(-1);
-    expect(burn).toBeLessThan(loop);
-    expect(correction.slice(loop)).not.toContain('softBurn(');
+    expect(correction.slice(0, loop)).not.toContain('softBurn(');
+    expect(correction.slice(0, loop)).toContain('let charged = false;');
+    const guardedBurn = correction.indexOf(
+      "if (!charged) {\n          charged = true;\n          await softBurn(accountId, 'chatbot_classify');\n        }"
+    );
+    expect(guardedBurn).toBeGreaterThan(loop);
+    expect(guardedBurn).toBeLessThan(
+      correction.indexOf('await updateListingDraft(')
+    );
+    expect(correction.match(/softBurn\(/g)).toHaveLength(1);
   });
 });
