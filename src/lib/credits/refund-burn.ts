@@ -6,7 +6,9 @@ const REFUND_ATTEMPTS = 3;
 export const QUEUED_REFUND_ATTEMPT_LIMIT = 10;
 
 export type RefundBurnResult =
-  { status: 'refunded'; refunded: number } | { status: 'queued' };
+  | { status: 'refunded'; refunded: number }
+  | { status: 'queued' }
+  | { status: 'failed' };
 
 export function newBurnKey(feature: BillableFeatureKey): string {
   return `${feature}:${randomUUID()}`;
@@ -61,9 +63,10 @@ export async function refundBurn(
     );
   if (error) {
     console.error(
-      `[refundBurn] could not queue the ${feature} refund ${burnKey} for account ${accountId}:`,
+      `[refundBurn] ${feature} refund ${burnKey} for account ${accountId} was neither made nor queued; reconcile manually:`,
       error
     );
+    return { status: 'failed' };
   }
   return { status: 'queued' };
 }

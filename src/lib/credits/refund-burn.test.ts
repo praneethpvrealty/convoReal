@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   queued: [] as Record<string, unknown>[],
   selectFilters: [] as Array<[string, unknown]>,
   writes: [] as Write[],
+  writeError: null as { message: string } | null,
 }));
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -32,8 +33,8 @@ vi.mock('@/lib/supabase/admin', () => ({
             entry.filters.push([column, value]);
             return chain;
           },
-          then(resolve: (v: { error: null }) => unknown) {
-            return Promise.resolve({ error: null }).then(resolve);
+          then(resolve: (v: { error: { message: string } | null }) => unknown) {
+            return Promise.resolve({ error: h.writeError }).then(resolve);
           },
         };
         return chain;
@@ -77,6 +78,7 @@ beforeEach(() => {
   h.queued = [];
   h.selectFilters = [];
   h.writes = [];
+  h.writeError = null;
 });
 
 afterEach(() => {
@@ -148,6 +150,21 @@ describe('[INB-027] refundBurn', () => {
         filters: [],
       },
     ]);
+  });
+});
+
+describe('[INB-027] a refund that can be neither made nor queued', () => {
+  it('is reported as failed, never as queued', async () => {
+    h.rpc.mockResolvedValue({ data: null, error: { message: 'db down' } });
+    h.writeError = { message: 'db down' };
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const pending = refundBurn('acct-1', 'contact_parse', 'contact_parse:k3');
+    await vi.runAllTimersAsync();
+
+    expect(await pending).toEqual({ status: 'failed' });
+    expect(logged.mock.calls[0][0]).toContain('reconcile manually');
+    logged.mockRestore();
   });
 });
 
@@ -233,6 +250,9 @@ describe('[INB-027] the keyed refund migrations', () => {
     );
     expect(refund).toContain(
       'ALTER TABLE credit_refund_retries ENABLE ROW LEVEL SECURITY;'
+    );
+    expect(refund).toContain(
+      'GRANT EXECUTE ON FUNCTION public.refund_burn_tx(UUID, TEXT, TEXT)\n  TO service_role;'
     );
   });
 

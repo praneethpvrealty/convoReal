@@ -130,3 +130,5 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.refund_burn_tx(UUID, TEXT, TEXT)
   FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.refund_burn_tx(UUID, TEXT, TEXT)
+  TO service_role;
