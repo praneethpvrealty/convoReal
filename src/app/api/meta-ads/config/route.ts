@@ -19,7 +19,7 @@ export async function GET() {
     const { data: config, error } = await supabaseAdmin()
       .from('meta_ads_config')
       .select(
-        'status, ad_account_id, page_id, ig_account_id, currency, connected_at, fb_user_id'
+        'status, ad_account_id, page_id, ig_account_id, currency, connected_at, token_expires_at, fb_user_id'
       )
       .eq('account_id', ctx.accountId)
       .maybeSingle();
@@ -47,6 +47,7 @@ export async function GET() {
       igAccountId: config.ig_account_id,
       currency: config.currency,
       connectedAt: config.connected_at,
+      tokenExpiresAt: config.token_expires_at,
       // Whether the asset-selection step (§4.2) still needs completing.
       needsAssetSelection:
         config.status === 'connected' && !config.ad_account_id,

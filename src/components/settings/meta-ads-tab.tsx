@@ -30,6 +30,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { usePlan } from '@/hooks/usePlan';
+import { useAuth } from '@/hooks/use-auth';
 
 interface ConfigResponse {
   connected: boolean;
@@ -39,6 +40,7 @@ interface ConfigResponse {
   igAccountId?: string | null;
   currency?: string | null;
   connectedAt?: string | null;
+  tokenExpiresAt?: string | null;
   needsAssetSelection?: boolean;
   reason?: string;
 }
@@ -52,6 +54,27 @@ interface PageOption {
   id: string;
   name: string;
   instagramAccountId: string | null;
+}
+
+const EXPIRY_WARNING_DAYS = 14;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const CONNECT_EXPECTATIONS = [
+  'Only the account owner can connect Meta.',
+  'Meta will ask for permission to manage ads on your behalf.',
+  'Afterwards, you pick the ad account and Facebook Page to run ads from.',
+];
+
+function expiryNotice(
+  tokenExpiresAt: string | null | undefined
+): string | null {
+  if (!tokenExpiresAt) return null;
+  const days = Math.ceil(
+    (new Date(tokenExpiresAt).getTime() - Date.now()) / DAY_MS
+  );
+  if (Number.isNaN(days) || days >= EXPIRY_WARNING_DAYS) return null;
+  if (days <= 0) return 'Connection expires today';
+  return `Connection expires in ${days} ${days === 1 ? 'day' : 'days'}`;
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -71,6 +94,7 @@ export function MetaAdsTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { plan, isLoading: planLoading } = usePlan();
+  const { isOwner, profileLoading } = useAuth();
 
   const [config, setConfig] = useState<ConfigResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -103,6 +127,16 @@ export function MetaAdsTab() {
   useEffect(() => {
     void loadConfig();
   }, [loadConfig]);
+
+  useEffect(() => {
+    const resetConnecting = () => setConnecting(false);
+    window.addEventListener('focus', resetConnecting);
+    window.addEventListener('pageshow', resetConnecting);
+    return () => {
+      window.removeEventListener('focus', resetConnecting);
+      window.removeEventListener('pageshow', resetConnecting);
+    };
+  }, []);
 
   // One-time toast for the OAuth callback's redirect params, then
   // strip them from the URL so a refresh doesn't re-toast.
@@ -141,8 +175,8 @@ export function MetaAdsTab() {
   }, []);
 
   useEffect(() => {
-    if (config?.needsAssetSelection) void loadAssetOptions();
-  }, [config?.needsAssetSelection, loadAssetOptions]);
+    if (config?.needsAssetSelection && isOwner) void loadAssetOptions();
+  }, [config?.needsAssetSelection, isOwner, loadAssetOptions]);
 
   async function handleConnect() {
     setConnecting(true);
@@ -196,13 +230,15 @@ export function MetaAdsTab() {
     }
   }
 
-  if (loading || planLoading) {
+  if (loading || planLoading || profileLoading) {
     return (
       <div className="text-muted-foreground flex items-center justify-center py-16">
         <Loader2 className="h-5 w-5 animate-spin" />
       </div>
     );
   }
+
+  const expiry = expiryNotice(config?.tokenExpiresAt);
 
   if (plan === 'starter') {
     return (
@@ -250,21 +286,35 @@ export function MetaAdsTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!config?.connected && (
-            <>
-              <Button onClick={handleConnect} disabled={connecting}>
-                {connecting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Megaphone className="mr-2 h-4 w-4" />
-                )}
-                Connect Meta account
-              </Button>
+          {!config?.connected && config?.status !== 'token_expired' && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium">What happens next</p>
+                <ul className="text-muted-foreground list-disc space-y-1 pl-5 text-sm">
+                  {CONNECT_EXPECTATIONS.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+              {isOwner ? (
+                <Button onClick={handleConnect} disabled={connecting}>
+                  {connecting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Megaphone className="mr-2 h-4 w-4" />
+                  )}
+                  Connect Meta account
+                </Button>
+              ) : (
+                <p className="text-sm font-medium">
+                  Ask the account owner to connect
+                </p>
+              )}
               <p className="text-muted-foreground text-xs">
                 Ad spend is billed by Meta directly to your own card. ConvoReal
                 never charges for ad delivery.
               </p>
-            </>
+            </div>
           )}
 
           {config?.status === 'token_expired' && (
@@ -272,11 +322,25 @@ export function MetaAdsTab() {
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="flex items-center justify-between gap-4 text-sm">
                 <span>
-                  Your Meta connection expired. Reconnect to keep running ads.
+                  Your Meta connection expired. Your ads keep running on Meta;
+                  reconnect to manage them here.
                 </span>
-                <Button size="sm" onClick={handleConnect} disabled={connecting}>
-                  Reconnect
-                </Button>
+                {isOwner ? (
+                  <Button
+                    size="sm"
+                    onClick={handleConnect}
+                    disabled={connecting}
+                  >
+                    {connecting && (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    )}
+                    Reconnect
+                  </Button>
+                ) : (
+                  <span className="font-medium">
+                    Ask the account owner to reconnect
+                  </span>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -287,7 +351,11 @@ export function MetaAdsTab() {
                 Choose which ad account and Facebook Page to run property ads
                 from.
               </p>
-              {assetsLoading ? (
+              {!isOwner ? (
+                <p className="text-sm font-medium">
+                  Ask the account owner to finish connecting
+                </p>
+              ) : assetsLoading ? (
                 <div className="text-muted-foreground flex items-center gap-2 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading your ad
                   accounts…
@@ -295,10 +363,14 @@ export function MetaAdsTab() {
               ) : assetOptions ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <label className="text-muted-foreground text-xs font-medium">
+                    <label
+                      htmlFor="meta-ads-ad-account"
+                      className="text-muted-foreground text-xs font-medium"
+                    >
                       Ad account
                     </label>
                     <select
+                      id="meta-ads-ad-account"
                       value={selectedAdAccount}
                       onChange={(e) => setSelectedAdAccount(e.target.value)}
                       className="bg-background h-9 w-full rounded-md border px-3 text-sm"
@@ -312,10 +384,14 @@ export function MetaAdsTab() {
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-muted-foreground text-xs font-medium">
+                    <label
+                      htmlFor="meta-ads-page"
+                      className="text-muted-foreground text-xs font-medium"
+                    >
                       Facebook Page
                     </label>
                     <select
+                      id="meta-ads-page"
                       value={selectedPage}
                       onChange={(e) => setSelectedPage(e.target.value)}
                       className="bg-background h-9 w-full rounded-md border px-3 text-sm"
@@ -359,6 +435,28 @@ export function MetaAdsTab() {
                   and reconnect.
                 </p>
               )}
+              {isOwner && (
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleConnect}
+                    disabled={connecting}
+                  >
+                    {connecting && (
+                      <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                    )}
+                    Reconnect
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setConfirmDisconnect(true)}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
@@ -372,13 +470,15 @@ export function MetaAdsTab() {
                     <Badge variant="secondary">{config.currency}</Badge>
                   )}
                 </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setConfirmDisconnect(true)}
-                >
-                  Disconnect
-                </Button>
+                {isOwner && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setConfirmDisconnect(true)}
+                  >
+                    Disconnect
+                  </Button>
+                )}
               </div>
               <p className="text-muted-foreground text-xs">
                 Ad account:{' '}
@@ -387,6 +487,24 @@ export function MetaAdsTab() {
               <p className="text-muted-foreground text-xs">
                 Page: <span className="font-mono">{config.pageId}</span>
               </p>
+              {expiry && (
+                <div className="flex items-center justify-between gap-3 rounded-md bg-amber-500/10 px-3 py-2">
+                  <p className="text-xs font-medium text-amber-200">{expiry}</p>
+                  {isOwner && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleConnect}
+                      disabled={connecting}
+                    >
+                      {connecting && (
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      )}
+                      Reconnect
+                    </Button>
+                  )}
+                </div>
+              )}
               {config.connectedAt && (
                 <p className="text-muted-foreground text-xs">
                   Connected{' '}

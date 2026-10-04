@@ -14,6 +14,7 @@ import {
   deleteObject,
   resolveCityGeoKey,
   getCampaignInsights,
+  INSIGHTS_WINDOW_DAYS,
   isTokenError,
   MetaAdsApiError,
 } from '@/lib/meta-ads/client';
@@ -23,6 +24,7 @@ import {
   clampRadiusKm,
   buildTargeting,
 } from '@/lib/meta-ads/campaign-build';
+import { countDistinctContactsByAd } from '@/lib/meta-ads/lead-counts';
 
 // POST /api/meta-ads/campaigns
 // Creates a Click-to-WhatsApp campaign promoting one property.
@@ -402,9 +404,11 @@ export async function POST(request: NextRequest) {
 // minutes (or has never been fetched); on a Meta failure for an
 // individual campaign, serves its last cached numbers with
 // `stale: true` rather than failing the whole list. "Leads in Engine" is
-// computed from OUR OWN ctwa_referrals table (real contacts created),
-// never from Meta's numbers — the two are deliberately kept distinct
-// (see docs/meta-ads-integration-plan.md §6).
+// computed from OUR OWN ctwa_referrals table (distinct contacts, over the
+// same last-30-days window as Meta's insights), never from Meta's numbers
+// — the two are deliberately kept distinct (see
+// docs/meta-ads-integration-plan.md §6). The connection state is always
+// returned so the dashboard can say whether managing ads will work.
 const INSIGHTS_STALE_MS = 15 * 60 * 1000;
 
 export async function GET() {
@@ -412,11 +416,26 @@ export async function GET() {
     const ctx = await requireRole('viewer');
     const db = supabaseAdmin();
 
-    const { data: campaigns, error } = await db
-      .from('ad_campaigns')
-      .select('*')
-      .eq('account_id', ctx.accountId)
-      .order('created_at', { ascending: false });
+    const [{ data: campaigns, error }, { data: config }] = await Promise.all([
+      db
+        .from('ad_campaigns')
+        .select('*')
+        .eq('account_id', ctx.accountId)
+        .order('created_at', { ascending: false }),
+      db
+        .from('meta_ads_config')
+        .select('access_token, status, ad_account_id, page_id, currency')
+        .eq('account_id', ctx.accountId)
+        .maybeSingle(),
+    ]);
+
+    let connectionStatus: string = config?.status ?? 'not_connected';
+    const connection = () => ({
+      status: connectionStatus,
+      adAccountId: (config?.ad_account_id as string | null) ?? null,
+      pageId: (config?.page_id as string | null) ?? null,
+      currency: (config?.currency as string | null) ?? null,
+    });
 
     if (error) {
       console.error('[GET /api/meta-ads/campaigns] fetch error:', error);
@@ -426,7 +445,7 @@ export async function GET() {
       );
     }
     if (!campaigns || campaigns.length === 0) {
-      return NextResponse.json({ campaigns: [], connectionStatus: null });
+      return NextResponse.json({ campaigns: [], connection: connection() });
     }
 
     // Hydrate property thumbnail/title for each campaign row.
@@ -437,30 +456,28 @@ export async function GET() {
       .in('id', propertyIds);
     const propertyById = new Map((properties ?? []).map((p) => [p.id, p]));
 
-    // Leads in Engine per ad_id — count of distinct contacts whose first
-    // touch was this ad, from our own attribution table.
     const adIds = campaigns
       .map((c) => c.ad_id)
       .filter((id): id is string => !!id);
-    const leadCountByAdId = new Map<string, number>();
+    const now = Date.now();
+    let leadCountByAdId = new Map<string, number>();
     if (adIds.length > 0) {
       const { data: referrals } = await db
         .from('ctwa_referrals')
         .select('source_id, contact_id')
         .eq('account_id', ctx.accountId)
-        .in('source_id', adIds);
-      for (const r of referrals ?? []) {
-        if (!r.source_id) continue;
-        leadCountByAdId.set(
-          r.source_id,
-          (leadCountByAdId.get(r.source_id) ?? 0) + 1
+        .in('source_id', adIds)
+        .gte(
+          'created_at',
+          new Date(
+            now - INSIGHTS_WINDOW_DAYS * 24 * 60 * 60 * 1000
+          ).toISOString()
         );
-      }
+      leadCountByAdId = countDistinctContactsByAd(referrals ?? []);
     }
 
     // Refresh stale insights for live campaigns only — no point
     // spending a Meta call on an already-archived/errored row.
-    const now = Date.now();
     const needsRefresh = campaigns.filter(
       (c) =>
         ['ACTIVE', 'PAUSED'].includes(c.status) &&
@@ -469,19 +486,12 @@ export async function GET() {
           now - new Date(c.last_insights_at).getTime() > INSIGHTS_STALE_MS)
     );
 
-    let connectionStatus: string | null = null;
     const refreshedById = new Map<
       string,
       { insights: Record<string, unknown>; fetchedAt: string }
     >();
 
     if (needsRefresh.length > 0) {
-      const { data: config } = await db
-        .from('meta_ads_config')
-        .select('access_token, status')
-        .eq('account_id', ctx.accountId)
-        .maybeSingle();
-
       if (config?.status === 'connected' && config.access_token) {
         const accessToken = decrypt(config.access_token as string);
         let tokenExpired = false;
@@ -495,7 +505,7 @@ export async function GET() {
             );
             const fetchedAt = new Date().toISOString();
             const payload = {
-              spend: insights?.spendInr ?? 0,
+              spend: insights?.spend ?? 0,
               impressions: insights?.impressions ?? 0,
               reach: insights?.reach ?? 0,
               conversations: insights?.conversationsStarted ?? 0,
@@ -518,9 +528,7 @@ export async function GET() {
             // (served below with stale: true); keep refreshing the rest.
           }
         }
-        connectionStatus = tokenExpired ? 'token_expired' : 'connected';
-      } else {
-        connectionStatus = config?.status ?? 'not_connected';
+        if (tokenExpired) connectionStatus = 'token_expired';
       }
     }
 
@@ -565,7 +573,7 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ campaigns: result, connectionStatus });
+    return NextResponse.json({ campaigns: result, connection: connection() });
   } catch (err) {
     return toErrorResponse(err);
   }
