@@ -26,8 +26,7 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS contacts_clear_stale_budget_anchor ON public.contacts;
-CREATE TRIGGER contacts_clear_stale_budget_anchor
+CREATE OR REPLACE TRIGGER contacts_clear_stale_budget_anchor
   BEFORE UPDATE OF pref_budget_max ON public.contacts
   FOR EACH ROW
   EXECUTE FUNCTION public.contacts_clear_stale_budget_anchor();
