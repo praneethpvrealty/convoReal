@@ -150,6 +150,20 @@ import {
   buildPinParkedMessage,
 } from '@/lib/maps/pending-pin';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import {
+  DRAFT_SESSION_TIMEOUT_MS,
+  deleteContactDraftSession,
+  deletePropertyDraftSession,
+  findContactDraftSession,
+  findPropertyDraftSession,
+  findPropertyDraftSessionById,
+  insertContactDraftSession,
+  insertPropertyDraftSession,
+  isDraftSessionExpired,
+  mutatePropertyDraft,
+  overwriteContactDraftSession,
+  touchPropertyDraftSession,
+} from '@/lib/ai/draft-sessions';
 import { recordRequirementResponse } from '@/lib/requirements/respond';
 
 // Debounces the low-balance WhatsApp ping per account so a Manager
@@ -440,11 +454,7 @@ async function sendPropertyDraftPreview(
 // write and yields — the user gets ONE final card, not one per photo.
 const DRAFT_PREVIEW_DEBOUNCE_MS = 8000;
 
-// How long a draft stays answerable after the last message on it. The
-// confirmation card is often read long after it lands, so Confirm,
-// Cancel and plain-language corrections all keep working for an hour
-// before the draft is discarded.
-export const DRAFT_SESSION_TIMEOUT_MS = 60 * 60 * 1000;
+export { DRAFT_SESSION_TIMEOUT_MS };
 
 /** Lightweight per-media ack: a reaction on the user's own message
  *  (⏳ while uploading, ✅ when attached) instead of a chat bubble.
@@ -478,10 +488,7 @@ async function reactToInboundMessage(
  *  write and yields its confirmation card to this one. */
 async function touchDraftSession(sessionId: string): Promise<void> {
   try {
-    await supabaseAdmin()
-      .from('property_draft_sessions')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', sessionId);
+    await touchPropertyDraftSession(supabaseAdmin(), sessionId);
   } catch (err) {
     console.warn(
       '[chatbot-engine] draft arrival touch failed (non-fatal):',
@@ -529,11 +536,10 @@ async function sendPropertyDraftPreviewDebounced(
     );
 
     // Query database to see if a newer update was made
-    const { data: currentSession } = await supabaseAdmin()
-      .from('property_draft_sessions')
-      .select('*')
-      .eq('id', sessionId)
-      .maybeSingle();
+    const { data: currentSession } = await findPropertyDraftSessionById(
+      supabaseAdmin(),
+      sessionId
+    );
 
     // If session was deleted (confirmed/cancelled) or has a newer timestamp, exit silently
     if (!currentSession) return;
@@ -853,18 +859,11 @@ export async function processOwnerChatbotMessage(
   phoneNumberId: string
 ): Promise<boolean> {
   // 1. Fetch active sessions for this contact
-  const { data: propSessionData, error: propSessionErr } = await supabaseAdmin()
-    .from('property_draft_sessions')
-    .select('*')
-    .eq('contact_id', contactRecord.id)
-    .maybeSingle();
+  const { data: propSessionData, error: propSessionErr } =
+    await findPropertyDraftSession(supabaseAdmin(), contactRecord.id);
 
   const { data: contactSessionData, error: contactSessionErr } =
-    await supabaseAdmin()
-      .from('contact_draft_sessions')
-      .select('*')
-      .eq('contact_id', contactRecord.id)
-      .maybeSingle();
+    await findContactDraftSession(supabaseAdmin(), contactRecord.id);
 
   if (propSessionErr) {
     console.error(
@@ -1002,17 +1001,15 @@ export async function processOwnerChatbotMessage(
         while (pollCount < maxPolls && !propSession && !contactSession) {
           await new Promise((resolve) => setTimeout(resolve, 500));
 
-          const { data: latestProp } = await supabaseAdmin()
-            .from('property_draft_sessions')
-            .select('*')
-            .eq('contact_id', contactRecord.id)
-            .maybeSingle();
+          const { data: latestProp } = await findPropertyDraftSession(
+            supabaseAdmin(),
+            contactRecord.id
+          );
 
-          const { data: latestContact } = await supabaseAdmin()
-            .from('contact_draft_sessions')
-            .select('*')
-            .eq('contact_id', contactRecord.id)
-            .maybeSingle();
+          const { data: latestContact } = await findContactDraftSession(
+            supabaseAdmin(),
+            contactRecord.id
+          );
 
           if (latestProp) {
             propSession = latestProp;
@@ -1041,29 +1038,21 @@ export async function processOwnerChatbotMessage(
   const now = Date.now();
 
   if (propSession) {
-    const updatedAt = new Date(propSession.updated_at).getTime();
-    if (now - updatedAt > DRAFT_SESSION_TIMEOUT_MS) {
+    if (isDraftSessionExpired(propSession, now)) {
       console.log(
         `[chatbot-engine] Expiring inactive property draft session ${propSession.id}`
       );
-      await supabaseAdmin()
-        .from('property_draft_sessions')
-        .delete()
-        .eq('id', propSession.id);
+      await deletePropertyDraftSession(supabaseAdmin(), propSession.id);
       propSession = null;
     }
   }
 
   if (contactSession) {
-    const updatedAt = new Date(contactSession.updated_at).getTime();
-    if (now - updatedAt > DRAFT_SESSION_TIMEOUT_MS) {
+    if (isDraftSessionExpired(contactSession, now)) {
       console.log(
         `[chatbot-engine] Expiring inactive contact draft session ${contactSession.id}`
       );
-      await supabaseAdmin()
-        .from('contact_draft_sessions')
-        .delete()
-        .eq('id', contactSession.id);
+      await deleteContactDraftSession(supabaseAdmin(), contactSession.id);
       contactSession = null;
     }
   }
@@ -1817,10 +1806,7 @@ export async function processOwnerChatbotMessage(
     console.log(
       `[chatbot-engine] Discarding active property session ${propSession.id} for a shared contact card`
     );
-    await supabaseAdmin()
-      .from('property_draft_sessions')
-      .delete()
-      .eq('id', propSession.id);
+    await deletePropertyDraftSession(supabaseAdmin(), propSession.id);
     propSession = null;
   }
 
@@ -1842,10 +1828,7 @@ export async function processOwnerChatbotMessage(
       console.log(
         `[chatbot-engine] Discarding active property session ${propSession.id} to start contact flow`
       );
-      await supabaseAdmin()
-        .from('property_draft_sessions')
-        .delete()
-        .eq('id', propSession.id);
+      await deletePropertyDraftSession(supabaseAdmin(), propSession.id);
       propSession = null;
     }
   }
@@ -1871,10 +1854,7 @@ export async function processOwnerChatbotMessage(
         console.log(
           `[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`
         );
-        await supabaseAdmin()
-          .from('contact_draft_sessions')
-          .delete()
-          .eq('id', contactSession.id);
+        await deleteContactDraftSession(supabaseAdmin(), contactSession.id);
         contactSession = null;
       } else if (imgClass === 'client_reply') {
         // A client's status reply is context to log, not contact
@@ -1922,19 +1902,13 @@ export async function processOwnerChatbotMessage(
         console.log(
           `[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`
         );
-        await supabaseAdmin()
-          .from('contact_draft_sessions')
-          .delete()
-          .eq('id', contactSession.id);
+        await deleteContactDraftSession(supabaseAdmin(), contactSession.id);
         contactSession = null;
       } else if (classification === 'contact' && isNewContactForward) {
         console.log(
           `[chatbot-engine] Discarding old contact session ${contactSession.id} to start fresh contact flow`
         );
-        await supabaseAdmin()
-          .from('contact_draft_sessions')
-          .delete()
-          .eq('id', contactSession.id);
+        await deleteContactDraftSession(supabaseAdmin(), contactSession.id);
         contactSession = null;
       }
     }
@@ -1946,10 +1920,7 @@ export async function processOwnerChatbotMessage(
 
     // Handle CANCEL instruction
     if (buttonId === 'cancel_property' || lowerText === 'cancel') {
-      await supabaseAdmin()
-        .from('property_draft_sessions')
-        .delete()
-        .eq('id', propSession.id);
+      await deletePropertyDraftSession(supabaseAdmin(), propSession.id);
 
       const reply =
         '❌ *Property draft discarded.* Send another property details text or listing screenshot to start a new draft.';
@@ -2181,10 +2152,7 @@ export async function processOwnerChatbotMessage(
       }
 
       // Delete active draft session
-      await supabaseAdmin()
-        .from('property_draft_sessions')
-        .delete()
-        .eq('id', propSession.id);
+      await deletePropertyDraftSession(supabaseAdmin(), propSession.id);
 
       if (prop && prop.id) {
         autoSyncPropertyCatalogIfNeeded(
@@ -2290,75 +2258,46 @@ export async function processOwnerChatbotMessage(
           mimeType
         );
 
-        let updatedDraft = draft;
-        let nextStatus = propSession.status;
-        let success = false;
-        let retryCount = 0;
-        const maxRetries = 5;
-        let finalUpdateData: { updated_at: string }[] | null = null;
+        const mutation = await mutatePropertyDraft(
+          supabaseAdmin(),
+          propSession.id,
+          (latestSession) => {
+            const currentDraft = latestSession.draft_data;
+            const currentImages = currentDraft.images || [];
+            const updatedImages = currentImages.includes(publicUrl)
+              ? currentImages
+              : [...currentImages, publicUrl];
 
-        while (retryCount < maxRetries && !success) {
-          const { data: latestSession, error: fetchErr } = await supabaseAdmin()
-            .from('property_draft_sessions')
-            .select('*')
-            .eq('id', propSession.id)
-            .single();
+            const updatedDraft = { ...currentDraft, images: updatedImages };
 
-          if (fetchErr || !latestSession) {
-            if (fetchErr?.code === 'PGRST116') {
-              console.log(
-                '[chatbot-engine] Active session was deleted concurrently. Exiting photo upload flow.'
-              );
-              return true;
-            }
-            throw (
-              fetchErr ||
-              new Error('Session not found during image append retry')
-            );
+            const validation = validateDraft(updatedDraft);
+            const nextStatus = validation.isValid
+              ? 'awaiting_confirmation'
+              : 'collecting';
+            return { draft_data: updatedDraft, status: nextStatus };
           }
+        );
 
-          const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
-          const currentImages = currentDraft.images || [];
-          const updatedImages = currentImages.includes(publicUrl)
-            ? currentImages
-            : [...currentImages, publicUrl];
-
-          updatedDraft = { ...currentDraft, images: updatedImages };
-
-          const validation = validateDraft(updatedDraft);
-          nextStatus = validation.isValid
-            ? 'awaiting_confirmation'
-            : 'collecting';
-
-          const { data: updateData, error: updateErr } = await supabaseAdmin()
-            .from('property_draft_sessions')
-            .update({
-              draft_data: updatedDraft,
-              status: nextStatus,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', propSession.id)
-            .eq('updated_at', latestSession.updated_at)
-            .select();
-
-          if (!updateErr && updateData && updateData.length > 0) {
-            success = true;
-            finalUpdateData = updateData;
-          } else {
-            retryCount++;
-            await new Promise((resolve) =>
-              setTimeout(resolve, Math.random() * 200 + 50)
-            );
-          }
+        if (mutation.status === 'gone') {
+          console.log(
+            '[chatbot-engine] Active session was deleted concurrently. Exiting photo upload flow.'
+          );
+          return true;
         }
-
-        if (!success || !finalUpdateData || finalUpdateData.length === 0) {
+        if (mutation.status === 'error') {
+          throw (
+            mutation.error ||
+            new Error('Session not found during image append retry')
+          );
+        }
+        if (mutation.status !== 'ok') {
           throw new Error(
             'Failed to update draft session due to concurrent modifications'
           );
         }
 
-        const savedTime = finalUpdateData[0].updated_at;
+        const updatedDraft = mutation.next.draft_data;
+        const savedTime = mutation.row.updated_at;
 
         // Flip the ⏳ to ✅ on the user's photo — the only per-photo ack.
         void reactToInboundMessage(
@@ -2440,69 +2379,40 @@ export async function processOwnerChatbotMessage(
           mimeType
         );
 
-        let updatedDraft = draft;
-        let success = false;
-        let retryCount = 0;
-        const maxRetries = 5;
-        let finalUpdateData: { updated_at: string }[] | null = null;
+        const mutation = await mutatePropertyDraft(
+          supabaseAdmin(),
+          propSession.id,
+          (latestSession) => {
+            const currentDraft = latestSession.draft_data;
+            const updatedDraft = { ...currentDraft, video_url: publicUrl };
 
-        while (retryCount < maxRetries && !success) {
-          const { data: latestSession, error: fetchErr } = await supabaseAdmin()
-            .from('property_draft_sessions')
-            .select('*')
-            .eq('id', propSession.id)
-            .single();
-
-          if (fetchErr || !latestSession) {
-            if (fetchErr?.code === 'PGRST116') {
-              console.log(
-                '[chatbot-engine] Active session was deleted concurrently. Exiting video upload flow.'
-              );
-              return true;
-            }
-            throw (
-              fetchErr ||
-              new Error('Session not found during video append retry')
-            );
+            const validation = validateDraft(updatedDraft);
+            const nextStatus = validation.isValid
+              ? 'awaiting_confirmation'
+              : 'collecting';
+            return { draft_data: updatedDraft, status: nextStatus };
           }
+        );
 
-          const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
-          updatedDraft = { ...currentDraft, video_url: publicUrl };
-
-          const validation = validateDraft(updatedDraft);
-          const nextStatus = validation.isValid
-            ? 'awaiting_confirmation'
-            : 'collecting';
-
-          const { data: updateData, error: updateErr } = await supabaseAdmin()
-            .from('property_draft_sessions')
-            .update({
-              draft_data: updatedDraft,
-              status: nextStatus,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', propSession.id)
-            .eq('updated_at', latestSession.updated_at)
-            .select();
-
-          if (!updateErr && updateData && updateData.length > 0) {
-            success = true;
-            finalUpdateData = updateData;
-          } else {
-            retryCount++;
-            await new Promise((resolve) =>
-              setTimeout(resolve, Math.random() * 200 + 50)
-            );
-          }
+        if (mutation.status === 'gone') {
+          console.log(
+            '[chatbot-engine] Active session was deleted concurrently. Exiting video upload flow.'
+          );
+          return true;
         }
-
-        if (!success || !finalUpdateData || finalUpdateData.length === 0) {
+        if (mutation.status === 'error') {
+          throw (
+            mutation.error ||
+            new Error('Session not found during video append retry')
+          );
+        }
+        if (mutation.status !== 'ok') {
           throw new Error(
             'Failed to update draft session due to concurrent modifications'
           );
         }
 
-        const savedTime = finalUpdateData[0].updated_at;
+        const savedTime = mutation.row.updated_at;
 
         void reactToInboundMessage(
           phoneNumberId,
@@ -2585,96 +2495,71 @@ export async function processOwnerChatbotMessage(
           ? await readForwardedEKhata(accountId, buffer!, mimeType!)
           : null;
 
-        let updatedDraft = draft;
-        let nextStatus = propSession.status;
-        let success = false;
-        let retryCount = 0;
-        const maxRetries = 5;
-        let finalUpdateData: { updated_at: string }[] | null = null;
+        const mutation = await mutatePropertyDraft(
+          supabaseAdmin(),
+          propSession.id,
+          (latestSession) => {
+            const currentDraft = latestSession.draft_data;
+            const currentDocs = currentDraft.documents || [];
+            const updatedDocs =
+              !publicUrl || currentDocs.includes(publicUrl)
+                ? currentDocs
+                : [...currentDocs, publicUrl];
 
-        while (retryCount < maxRetries && !success) {
-          const { data: latestSession, error: fetchErr } = await supabaseAdmin()
-            .from('property_draft_sessions')
-            .select('*')
-            .eq('id', propSession.id)
-            .single();
+            const { plans, unused } = pinBrochurePlans(
+              currentDraft.floor_plans,
+              brochure.planCandidates
+            );
+            const mergedImages = Array.from(
+              new Set([
+                ...(currentDraft.images || []),
+                ...brochure.photos,
+                ...unused,
+              ])
+            );
 
-          if (fetchErr || !latestSession) {
-            if (fetchErr?.code === 'PGRST116') {
-              console.log(
-                '[chatbot-engine] Active session was deleted concurrently. Exiting document upload flow.'
+            let updatedDraft: ParsedPropertyDraft = {
+              ...currentDraft,
+              documents: updatedDocs,
+              images: mergedImages,
+              floor_plans:
+                plans.length > 0 ? plans : (currentDraft.floor_plans ?? null),
+            };
+            if (khata)
+              updatedDraft = applyEKhataToDraft(
+                updatedDraft,
+                khata,
+                'fill_gaps'
               );
-              return true;
-            }
-            throw (
-              fetchErr ||
-              new Error('Session not found during document append retry')
-            );
+
+            const validation = validateDraft(updatedDraft);
+            const nextStatus = validation.isValid
+              ? 'awaiting_confirmation'
+              : 'collecting';
+            return { draft_data: updatedDraft, status: nextStatus };
           }
+        );
 
-          const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
-          const currentDocs = currentDraft.documents || [];
-          const updatedDocs =
-            !publicUrl || currentDocs.includes(publicUrl)
-              ? currentDocs
-              : [...currentDocs, publicUrl];
-
-          const { plans, unused } = pinBrochurePlans(
-            currentDraft.floor_plans,
-            brochure.planCandidates
+        if (mutation.status === 'gone') {
+          console.log(
+            '[chatbot-engine] Active session was deleted concurrently. Exiting document upload flow.'
           );
-          const mergedImages = Array.from(
-            new Set([
-              ...(currentDraft.images || []),
-              ...brochure.photos,
-              ...unused,
-            ])
-          );
-
-          updatedDraft = {
-            ...currentDraft,
-            documents: updatedDocs,
-            images: mergedImages,
-            floor_plans:
-              plans.length > 0 ? plans : (currentDraft.floor_plans ?? null),
-          };
-          if (khata)
-            updatedDraft = applyEKhataToDraft(updatedDraft, khata, 'fill_gaps');
-
-          const validation = validateDraft(updatedDraft);
-          nextStatus = validation.isValid
-            ? 'awaiting_confirmation'
-            : 'collecting';
-
-          const { data: updateData, error: updateErr } = await supabaseAdmin()
-            .from('property_draft_sessions')
-            .update({
-              draft_data: updatedDraft,
-              status: nextStatus,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', propSession.id)
-            .eq('updated_at', latestSession.updated_at)
-            .select();
-
-          if (!updateErr && updateData && updateData.length > 0) {
-            success = true;
-            finalUpdateData = updateData;
-          } else {
-            retryCount++;
-            await new Promise((resolve) =>
-              setTimeout(resolve, Math.random() * 200 + 50)
-            );
-          }
+          return true;
         }
-
-        if (!success || !finalUpdateData || finalUpdateData.length === 0) {
+        if (mutation.status === 'error') {
+          throw (
+            mutation.error ||
+            new Error('Session not found during document append retry')
+          );
+        }
+        if (mutation.status !== 'ok') {
           throw new Error(
             'Failed to update draft session due to concurrent modifications'
           );
         }
 
-        const savedTime = finalUpdateData[0].updated_at;
+        const updatedDraft = mutation.next.draft_data;
+        const savedTime = mutation.row.updated_at;
 
         void reactToInboundMessage(
           phoneNumberId,
@@ -2738,13 +2623,6 @@ export async function processOwnerChatbotMessage(
     // stale base and the second write silently clobbers the first —
     // a field the user just provided reverts to "Missing".
     if (cleanedText) {
-      let updatedDraft = draft;
-      let nextStatus: string = propSession.status;
-      let success = false;
-      let retryCount = 0;
-      const maxRetries = 5;
-      let finalUpdateData: { updated_at: string }[] | null = null;
-
       // Burn once, before the optimistic-lock retry loop — retries
       // re-run the AI merge but must not re-charge the account.
       if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
@@ -2756,61 +2634,42 @@ export async function processOwnerChatbotMessage(
         );
       }
 
-      while (retryCount < maxRetries && !success) {
-        const { data: latestSession, error: fetchErr } = await supabaseAdmin()
-          .from('property_draft_sessions')
-          .select('*')
-          .eq('id', propSession.id)
-          .single();
-
-        if (fetchErr || !latestSession) {
-          if (fetchErr?.code === 'PGRST116') {
-            console.log(
-              '[chatbot-engine] Active session was deleted concurrently. Exiting text update flow.'
-            );
-            return true;
-          }
-          throw (
-            fetchErr || new Error('Session not found during text update retry')
+      const mutation = await mutatePropertyDraft(
+        supabaseAdmin(),
+        propSession.id,
+        async (latestSession) => {
+          const currentDraft = latestSession.draft_data;
+          let updatedDraft = await updateListingDraft(
+            currentDraft,
+            cleanedText
           );
+          // Same rule as fresh intake: a card re-forwarded into an open
+          // draft still states the person's name outright, and the model
+          // guesses at it just as readily on this path as on that one.
+          updatedDraft = applySharedCardOwner(updatedDraft, cleanedText);
+          updatedDraft = await backfillLocationFromMapLink(updatedDraft);
+
+          const validation = validateDraft(updatedDraft);
+          const nextStatus = validation.isValid
+            ? 'awaiting_confirmation'
+            : 'collecting';
+          return { draft_data: updatedDraft, status: nextStatus };
         }
+      );
 
-        const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
-        updatedDraft = await updateListingDraft(currentDraft, cleanedText);
-        // Same rule as fresh intake: a card re-forwarded into an open
-        // draft still states the person's name outright, and the model
-        // guesses at it just as readily on this path as on that one.
-        updatedDraft = applySharedCardOwner(updatedDraft, cleanedText);
-        updatedDraft = await backfillLocationFromMapLink(updatedDraft);
-
-        const validation = validateDraft(updatedDraft);
-        nextStatus = validation.isValid
-          ? 'awaiting_confirmation'
-          : 'collecting';
-
-        const { data: updateData, error: updateErr } = await supabaseAdmin()
-          .from('property_draft_sessions')
-          .update({
-            draft_data: updatedDraft,
-            status: nextStatus,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', propSession.id)
-          .eq('updated_at', latestSession.updated_at)
-          .select();
-
-        if (!updateErr && updateData && updateData.length > 0) {
-          success = true;
-          finalUpdateData = updateData;
-        } else {
-          retryCount++;
-          await new Promise((resolve) =>
-            setTimeout(resolve, Math.random() * 200 + 50)
-          );
-        }
+      if (mutation.status === 'gone') {
+        console.log(
+          '[chatbot-engine] Active session was deleted concurrently. Exiting text update flow.'
+        );
+        return true;
       }
-
-      if (!success || !finalUpdateData || finalUpdateData.length === 0) {
+      if (mutation.status === 'error') {
+        throw (
+          mutation.error ||
+          new Error('Session not found during text update retry')
+        );
+      }
+      if (mutation.status !== 'ok') {
         const reply =
           "⚠️ *Couldn't save your update due to a conflicting change.* Please resend it.";
         const sendRes = await sendTextMessage({
@@ -2823,7 +2682,8 @@ export async function processOwnerChatbotMessage(
         return true;
       }
 
-      const actualSavedTime = finalUpdateData[0].updated_at;
+      const updatedDraft = mutation.next.draft_data;
+      const actualSavedTime = mutation.row.updated_at;
 
       // A card shared into an open draft is still a person shared. File
       // them here too, or an agent who forwards the card a second time
@@ -2866,10 +2726,7 @@ export async function processOwnerChatbotMessage(
 
     // Handle CANCEL instruction
     if (buttonId === 'cancel_contact' || lowerText === 'cancel') {
-      await supabaseAdmin()
-        .from('contact_draft_sessions')
-        .delete()
-        .eq('id', contactSession.id);
+      await deleteContactDraftSession(supabaseAdmin(), contactSession.id);
 
       const reply =
         '❌ *Contact drafts discarded.* Send another contact text details or screenshot to start a new contact draft.';
@@ -2923,14 +2780,12 @@ export async function processOwnerChatbotMessage(
         validateContactDraftsContainer(linkedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
-      await supabaseAdmin()
-        .from('contact_draft_sessions')
-        .update({
-          draft_data: linkedContainer,
-          status: nextStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', contactSession.id);
+      await overwriteContactDraftSession(
+        supabaseAdmin(),
+        contactSession.id,
+        linkedContainer,
+        nextStatus
+      );
 
       await sendContactDraftPreview(
         phoneNumberId,
@@ -3243,10 +3098,7 @@ export async function processOwnerChatbotMessage(
             : `⚠️ *All contacts already exist in ${BRANDING.name}:* \n` +
               duplicates.map((d) => `• ${d}`).join('\n') +
               `\n\nContact draft session discarded.`;
-        await supabaseAdmin()
-          .from('contact_draft_sessions')
-          .delete()
-          .eq('id', contactSession.id);
+        await deleteContactDraftSession(supabaseAdmin(), contactSession.id);
         const sendRes = await sendTextMessage({
           phoneNumberId,
           accessToken,
@@ -3407,10 +3259,7 @@ export async function processOwnerChatbotMessage(
       }
 
       // Delete contact draft session
-      await supabaseAdmin()
-        .from('contact_draft_sessions')
-        .delete()
-        .eq('id', contactSession.id);
+      await deleteContactDraftSession(supabaseAdmin(), contactSession.id);
 
       let reply = `✅ *Successfully saved ${inserted.length} new contact(s) to ${BRANDING.name}!*\n\n`;
       inserted.forEach((c: Contact) => {
@@ -3507,14 +3356,12 @@ export async function processOwnerChatbotMessage(
           validateContactDraftsContainer(mergedContainer);
         const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
-        await supabaseAdmin()
-          .from('contact_draft_sessions')
-          .update({
-            draft_data: mergedContainer,
-            status: nextStatus,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', contactSession.id);
+        await overwriteContactDraftSession(
+          supabaseAdmin(),
+          contactSession.id,
+          mergedContainer,
+          nextStatus
+        );
 
         await sendContactDraftPreview(
           phoneNumberId,
@@ -3563,14 +3410,12 @@ export async function processOwnerChatbotMessage(
         validateContactDraftsContainer(mergedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
-      await supabaseAdmin()
-        .from('contact_draft_sessions')
-        .update({
-          draft_data: mergedContainer,
-          status: nextStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', contactSession.id);
+      await overwriteContactDraftSession(
+        supabaseAdmin(),
+        contactSession.id,
+        mergedContainer,
+        nextStatus
+      );
 
       await sendContactDraftPreview(
         phoneNumberId,
@@ -3609,14 +3454,12 @@ export async function processOwnerChatbotMessage(
         validateContactDraftsContainer(updatedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
-      await supabaseAdmin()
-        .from('contact_draft_sessions')
-        .update({
-          draft_data: updatedContainer,
-          status: nextStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', contactSession.id);
+      await overwriteContactDraftSession(
+        supabaseAdmin(),
+        contactSession.id,
+        updatedContainer,
+        nextStatus
+      );
 
       await sendContactDraftPreview(
         phoneNumberId,
@@ -3912,15 +3755,13 @@ export async function processOwnerChatbotMessage(
         const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
         // Insert new active session
-        const { data: insertedData, error: insertErr } = await supabaseAdmin()
-          .from('property_draft_sessions')
-          .insert({
+        const { data: insertedData, error: insertErr } =
+          await insertPropertyDraftSession(supabaseAdmin(), {
             account_id: accountId,
             contact_id: contactRecord.id,
             draft_data: parsedDraft,
             status: initialStatus,
-          })
-          .select();
+          });
 
         if (insertErr) {
           // If a concurrent thread created the session first, fall back to merging or appending
@@ -3928,11 +3769,10 @@ export async function processOwnerChatbotMessage(
             console.log(
               '[chatbot-engine] Session already initialized by concurrent request. Falling back to merge/append flow.'
             );
-            const { data: existingSession } = await supabaseAdmin()
-              .from('property_draft_sessions')
-              .select('*')
-              .eq('contact_id', contactRecord.id)
-              .maybeSingle();
+            const { data: existingSession } = await findPropertyDraftSession(
+              supabaseAdmin(),
+              contactRecord.id
+            );
 
             if (existingSession) {
               const currentDraft =
@@ -3959,25 +3799,13 @@ export async function processOwnerChatbotMessage(
               }
 
               // 2. Otherwise, merge the newly parsed details/images into the existing fresh session
-              let success = false;
-              let retryCount = 0;
-              const maxRetries = 5;
-              let mergedDraft = currentDraft;
-              let nextStatus = existingSession.status;
-              let finalUpdateData: { updated_at: string }[] | null = null;
+              const mutation = await mutatePropertyDraft(
+                supabaseAdmin(),
+                existingSession.id,
+                (latestSession) => {
+                  const latestDraft = latestSession.draft_data;
 
-              while (retryCount < maxRetries && !success) {
-                const { data: latestSession } = await supabaseAdmin()
-                  .from('property_draft_sessions')
-                  .select('*')
-                  .eq('id', existingSession.id)
-                  .single();
-
-                if (latestSession) {
-                  const latestDraft =
-                    latestSession.draft_data as ParsedPropertyDraft;
-
-                  mergedDraft = applyListingDerivations({
+                  const mergedDraft = applyListingDerivations({
                     title: latestDraft.title || parsedDraft.title,
                     description:
                       latestDraft.description || parsedDraft.description,
@@ -4085,38 +3913,16 @@ export async function processOwnerChatbotMessage(
                   });
 
                   const validation = validateDraft(mergedDraft);
-                  nextStatus = validation.isValid
+                  const nextStatus = validation.isValid
                     ? 'awaiting_confirmation'
                     : 'collecting';
+                  return { draft_data: mergedDraft, status: nextStatus };
+                },
+                { onMissingRow: 'retry' }
+              );
 
-                  const { data: updateData, error: updateErr } =
-                    await supabaseAdmin()
-                      .from('property_draft_sessions')
-                      .update({
-                        draft_data: mergedDraft,
-                        status: nextStatus,
-                        updated_at: new Date().toISOString(),
-                      })
-                      .eq('id', existingSession.id)
-                      .eq('updated_at', latestSession.updated_at)
-                      .select();
-
-                  if (!updateErr && updateData && updateData.length > 0) {
-                    success = true;
-                    finalUpdateData = updateData;
-                  } else {
-                    retryCount++;
-                    await new Promise((resolve) =>
-                      setTimeout(resolve, Math.random() * 200 + 50)
-                    );
-                  }
-                } else {
-                  retryCount++;
-                }
-              }
-
-              if (success && finalUpdateData && finalUpdateData.length > 0) {
-                const savedTime = finalUpdateData[0].updated_at;
+              if (mutation.status === 'ok') {
+                const savedTime = mutation.row.updated_at;
                 sendPropertyDraftPreviewDebounced(
                   existingSession.id,
                   savedTime,
@@ -4239,7 +4045,7 @@ export async function processOwnerChatbotMessage(
         const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
         // Insert new active session
-        await supabaseAdmin().from('contact_draft_sessions').insert({
+        await insertContactDraftSession(supabaseAdmin(), {
           account_id: accountId,
           contact_id: contactRecord.id,
           draft_data: parsedContainer,
@@ -4420,12 +4226,12 @@ export async function processExternalListingMessage(
   accessToken: string,
   phoneNumberId: string
 ): Promise<boolean> {
-  const { data: propSessionData, error: propSessionErr } = await supabaseAdmin()
-    .from('property_draft_sessions')
-    .select('*')
-    .eq('contact_id', contactRecord.id)
-    .eq('session_mode', 'external')
-    .maybeSingle();
+  const { data: propSessionData, error: propSessionErr } =
+    await findPropertyDraftSession(
+      supabaseAdmin(),
+      contactRecord.id,
+      'external'
+    );
 
   if (propSessionErr) {
     console.error(
@@ -4438,15 +4244,11 @@ export async function processExternalListingMessage(
   if (!propSession) return false;
 
   // Session Expiry Timeout (an hour of inactivity) — mirrors the owner flow.
-  const updatedAt = new Date(propSession.updated_at).getTime();
-  if (Date.now() - updatedAt > DRAFT_SESSION_TIMEOUT_MS) {
+  if (isDraftSessionExpired(propSession, Date.now())) {
     console.log(
       `[chatbot-engine] Expiring inactive external listing session ${propSession.id}`
     );
-    await supabaseAdmin()
-      .from('property_draft_sessions')
-      .delete()
-      .eq('id', propSession.id);
+    await deletePropertyDraftSession(supabaseAdmin(), propSession.id);
 
     // If this is a template button tap (e.g. "Tell me more" on a digest),
     // silently expire the session and fall through. Sending an expiration
@@ -4495,10 +4297,7 @@ export async function processExternalListingMessage(
 
   // Handle CANCEL instruction
   if (buttonId === 'cancel_property' || lowerText === 'cancel') {
-    await supabaseAdmin()
-      .from('property_draft_sessions')
-      .delete()
-      .eq('id', propSession.id);
+    await deletePropertyDraftSession(supabaseAdmin(), propSession.id);
 
     const reply =
       '❌ *Listing draft discarded.* Send another property details text or photo to start again, or tap "List My Property" from the menu.';
@@ -4636,10 +4435,7 @@ export async function processExternalListingMessage(
       return true;
     }
 
-    await supabaseAdmin()
-      .from('property_draft_sessions')
-      .delete()
-      .eq('id', propSession.id);
+    await deletePropertyDraftSession(supabaseAdmin(), propSession.id);
 
     // Deliberately no autoSyncPropertyCatalogIfNeeded call here — this
     // listing is unpublished and pending review; it must not reach the
@@ -4707,73 +4503,46 @@ export async function processExternalListingMessage(
 
       const publicUrl = await uploadPropertyImage(accountId, buffer, mimeType);
 
-      let updatedDraft = draft;
-      let success = false;
-      let retryCount = 0;
-      const maxRetries = 5;
-      let finalUpdateData: { updated_at: string }[] | null = null;
+      const mutation = await mutatePropertyDraft(
+        supabaseAdmin(),
+        propSession.id,
+        (latestSession) => {
+          const currentDraft = latestSession.draft_data;
+          const currentImages = currentDraft.images || [];
+          const updatedImages = currentImages.includes(publicUrl)
+            ? currentImages
+            : [...currentImages, publicUrl];
 
-      while (retryCount < maxRetries && !success) {
-        const { data: latestSession, error: fetchErr } = await supabaseAdmin()
-          .from('property_draft_sessions')
-          .select('*')
-          .eq('id', propSession.id)
-          .single();
+          const updatedDraft = { ...currentDraft, images: updatedImages };
 
-        if (fetchErr || !latestSession) {
-          if (fetchErr?.code === 'PGRST116') {
-            console.log(
-              '[chatbot-engine] Active external session was deleted concurrently. Exiting photo upload flow.'
-            );
-            return true;
-          }
-          throw (
-            fetchErr || new Error('Session not found during image append retry')
-          );
+          const validation = validateDraft(updatedDraft);
+          const nextStatus = validation.isValid
+            ? 'awaiting_confirmation'
+            : 'collecting';
+          return { draft_data: updatedDraft, status: nextStatus };
         }
+      );
 
-        const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
-        const currentImages = currentDraft.images || [];
-        const updatedImages = currentImages.includes(publicUrl)
-          ? currentImages
-          : [...currentImages, publicUrl];
-
-        updatedDraft = { ...currentDraft, images: updatedImages };
-
-        const validation = validateDraft(updatedDraft);
-        const nextStatus = validation.isValid
-          ? 'awaiting_confirmation'
-          : 'collecting';
-
-        const { data: updateData, error: updateErr } = await supabaseAdmin()
-          .from('property_draft_sessions')
-          .update({
-            draft_data: updatedDraft,
-            status: nextStatus,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', propSession.id)
-          .eq('updated_at', latestSession.updated_at)
-          .select();
-
-        if (!updateErr && updateData && updateData.length > 0) {
-          success = true;
-          finalUpdateData = updateData;
-        } else {
-          retryCount++;
-          await new Promise((resolve) =>
-            setTimeout(resolve, Math.random() * 200 + 50)
-          );
-        }
+      if (mutation.status === 'gone') {
+        console.log(
+          '[chatbot-engine] Active external session was deleted concurrently. Exiting photo upload flow.'
+        );
+        return true;
       }
-
-      if (!success || !finalUpdateData || finalUpdateData.length === 0) {
+      if (mutation.status === 'error') {
+        throw (
+          mutation.error ||
+          new Error('Session not found during image append retry')
+        );
+      }
+      if (mutation.status !== 'ok') {
         throw new Error(
           'Failed to update external draft session due to concurrent modifications'
         );
       }
 
-      const savedTime = finalUpdateData[0].updated_at;
+      const updatedDraft = mutation.next.draft_data;
+      const savedTime = mutation.row.updated_at;
 
       void reactToInboundMessage(
         phoneNumberId,
@@ -4829,63 +4598,36 @@ export async function processExternalListingMessage(
   // build on the same stale base and the second write silently
   // clobbers the first.
   if (cleanedText) {
-    let updatedDraft = draft;
-    let nextStatus: string = propSession.status;
-    let success = false;
-    let retryCount = 0;
-    const maxRetries = 5;
-    let finalUpdateData: { updated_at: string }[] | null = null;
+    const mutation = await mutatePropertyDraft(
+      supabaseAdmin(),
+      propSession.id,
+      async (latestSession) => {
+        const currentDraft = latestSession.draft_data;
+        await softBurn(accountId, 'chatbot_classify');
+        let updatedDraft = await updateListingDraft(currentDraft, cleanedText);
+        updatedDraft = await backfillLocationFromMapLink(updatedDraft);
 
-    while (retryCount < maxRetries && !success) {
-      const { data: latestSession, error: fetchErr } = await supabaseAdmin()
-        .from('property_draft_sessions')
-        .select('*')
-        .eq('id', propSession.id)
-        .single();
-
-      if (fetchErr || !latestSession) {
-        if (fetchErr?.code === 'PGRST116') {
-          console.log(
-            '[chatbot-engine] Active external session was deleted concurrently. Exiting text update flow.'
-          );
-          return true;
-        }
-        throw (
-          fetchErr || new Error('Session not found during text update retry')
-        );
+        const validation = validateDraft(updatedDraft);
+        const nextStatus = validation.isValid
+          ? 'awaiting_confirmation'
+          : 'collecting';
+        return { draft_data: updatedDraft, status: nextStatus };
       }
+    );
 
-      const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
-      await softBurn(accountId, 'chatbot_classify');
-      updatedDraft = await updateListingDraft(currentDraft, cleanedText);
-      updatedDraft = await backfillLocationFromMapLink(updatedDraft);
-
-      const validation = validateDraft(updatedDraft);
-      nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
-
-      const { data: updateData, error: updateErr } = await supabaseAdmin()
-        .from('property_draft_sessions')
-        .update({
-          draft_data: updatedDraft,
-          status: nextStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', propSession.id)
-        .eq('updated_at', latestSession.updated_at)
-        .select();
-
-      if (!updateErr && updateData && updateData.length > 0) {
-        success = true;
-        finalUpdateData = updateData;
-      } else {
-        retryCount++;
-        await new Promise((resolve) =>
-          setTimeout(resolve, Math.random() * 200 + 50)
-        );
-      }
+    if (mutation.status === 'gone') {
+      console.log(
+        '[chatbot-engine] Active external session was deleted concurrently. Exiting text update flow.'
+      );
+      return true;
     }
-
-    if (!success || !finalUpdateData || finalUpdateData.length === 0) {
+    if (mutation.status === 'error') {
+      throw (
+        mutation.error ||
+        new Error('Session not found during text update retry')
+      );
+    }
+    if (mutation.status !== 'ok') {
       const reply =
         "⚠️ *Couldn't save your update due to a conflicting change.* Please resend it.";
       const sendRes = await sendTextMessage({
@@ -4898,7 +4640,7 @@ export async function processExternalListingMessage(
       return true;
     }
 
-    const actualSavedTime = finalUpdateData[0].updated_at;
+    const actualSavedTime = mutation.row.updated_at;
 
     sendPropertyDraftPreviewDebounced(
       propSession.id,
