@@ -4,7 +4,9 @@ import {
   RELEASE_WINDOW_MINUTES,
   REVIEW_SETTLE_MINUTES,
   decideRelease,
+  mobileUpdatePaths,
   run,
+  touchesMobileBundle,
 } from './release-timer.mjs';
 
 const NOW = Date.parse('2026-09-28T12:00:00Z');
@@ -156,6 +158,7 @@ function fakeGithub({
   movedTip,
   behindAtMerge = behindBy,
   threadPages = [[]] as boolean[][],
+  releaseFiles = [] as { filename: string; previous_filename?: string }[],
 }: {
   pulls: Pull[];
   created?: string;
@@ -170,8 +173,10 @@ function fakeGithub({
   movedTip?: string;
   behindAtMerge?: number;
   threadPages?: boolean[][];
+  releaseFiles?: { filename: string; previous_filename?: string }[];
 }) {
   const listBranches = vi.fn();
+  const listFiles = vi.fn();
   let releaseReads = 0;
   let compares = 0;
   const pullsList = vi.fn(
@@ -192,6 +197,7 @@ function fakeGithub({
         ];
       }
       if (method === listComments) return [];
+      if (method === listFiles) return releaseFiles;
       return pulls.filter(
         (pull) =>
           (params.state === 'all' || pull.state === params.state) &&
@@ -211,6 +217,13 @@ function fakeGithub({
       }),
       listActivities: vi.fn(async () => ({ data: [{ timestamp: created }] })),
       getCommit: vi.fn(),
+      getContent: vi.fn(async () => ({
+        data: {
+          content: Buffer.from(
+            readFileSync('.github/workflows/eas-update.yml', 'utf8')
+          ).toString('base64'),
+        },
+      })),
       compareCommitsWithBasehead: vi.fn(async () => {
         compares += 1;
         return { data: { behind_by: compares > 1 ? behindAtMerge : behindBy } };
@@ -221,6 +234,7 @@ function fakeGithub({
       get: vi.fn(async () => ({ data: { mergeable } })),
       create: vi.fn(async () => ({ data: { number: 50 } })),
       merge: vi.fn(async () => ({ data: { sha: 'merged' } })),
+      listFiles,
       update: vi.fn(
         async ({
           pull_number,
@@ -404,6 +418,81 @@ describe('run', () => {
       workflow_id: 'branch-cleanup.yml',
       ref: 'main',
     });
+  });
+
+  it('publishes the mobile update after a release that changed the mobile bundle', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      releaseFiles: [
+        { filename: 'src/app/page.tsx' },
+        { filename: 'mobile/app/(app)/automations.tsx' },
+      ],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    expect(rest.repos.getContent).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      path: '.github/workflows/eas-update.yml',
+      ref: 'merged',
+    });
+    expect(rest.actions.createWorkflowDispatch).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      workflow_id: 'eas-update.yml',
+      ref: 'main',
+      inputs: { channel: 'preview' },
+    });
+  });
+
+  it('publishes for a shared web module the mobile bundle imports', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      releaseFiles: [{ filename: 'src/lib/format/date.ts' }],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    expect(rest.actions.createWorkflowDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ workflow_id: 'eas-update.yml' })
+    );
+  });
+
+  it('leaves the mobile update alone when the release only touched web or mobile docs', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      releaseFiles: [
+        { filename: 'src/app/page.tsx' },
+        { filename: 'mobile/README.md' },
+      ],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    expect(rest.pulls.merge).toHaveBeenCalled();
+    expect(rest.actions.createWorkflowDispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ workflow_id: 'eas-update.yml' })
+    );
+  });
+
+  it('does not publish the mobile update when it does not merge', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      threadPages: [[false]],
+      releaseFiles: [{ filename: 'mobile/app/(app)/index.tsx' }],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
+    expect(rest.actions.createWorkflowDispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ workflow_id: 'eas-update.yml' })
+    );
   });
 
   it('moves members still open after the extra period to a next release branch', async () => {
@@ -732,5 +821,33 @@ describe('the CI run the timer dispatches', () => {
   it('posts that status last, after every failing step has had its say', () => {
     const steps = gate.split('\n      - name: ');
     expect(steps.at(-1)).toMatch(/^Report the result as the CI commit status/);
+  });
+});
+
+describe('the mobile update the timer dispatches', () => {
+  const workflow = readFileSync('.github/workflows/eas-update.yml', 'utf8');
+  const paths = mobileUpdatePaths(workflow);
+
+  it('reads the push paths eas-update.yml publishes on', () => {
+    expect(paths).toContain('mobile/**');
+    expect(paths).toContain('!mobile/**.md');
+    expect(paths).toContain('src/lib/format/date.ts');
+  });
+
+  it('matches the way the push trigger does, with a later exclusion winning', () => {
+    expect(touchesMobileBundle(['mobile/app/(app)/index.tsx'], paths)).toBe(
+      true
+    );
+    expect(touchesMobileBundle(['mobile/AGENTS.md'], paths)).toBe(false);
+    expect(touchesMobileBundle(['mobile/docs/notes.md'], paths)).toBe(false);
+    expect(touchesMobileBundle(['src/app/page.tsx'], paths)).toBe(false);
+    expect(touchesMobileBundle([], paths)).toBe(false);
+  });
+
+  it('accepts a manual run on the channel the installed apps follow', () => {
+    expect(workflow).toMatch(
+      /\n  workflow_dispatch:\n {4}inputs:\n {6}channel:/
+    );
+    expect(workflow).toContain("CHANNEL: ${{ inputs.channel || 'preview' }}");
   });
 });

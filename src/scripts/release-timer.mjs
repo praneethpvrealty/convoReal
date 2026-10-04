@@ -3,8 +3,69 @@ const MINUTE_MS = 60_000;
 const CODEX_LOGIN = 'chatgpt-codex-connector[bot]';
 const HOLD_MARKER = 'release-timer:held';
 
+const MOBILE_UPDATE_WORKFLOW = '.github/workflows/eas-update.yml';
+
 export const RELEASE_WINDOW_MINUTES = 120;
 export const REVIEW_SETTLE_MINUTES = 15;
+
+export function mobileUpdatePaths(workflow) {
+  const block = workflow.match(/\n {4}paths:\n((?: {6}(?:- .*|#.*)\n)+)/)?.[1];
+  if (!block) return [];
+  return [...block.matchAll(/^ {6}- '([^']+)'$/gm)].map((match) => match[1]);
+}
+
+function globToRegExp(glob) {
+  const source = glob
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '\u0000')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')
+    .replace(/\u0000/g, '.*');
+  return new RegExp(`^${source}$`);
+}
+
+export function touchesMobileBundle(files, patterns) {
+  const rules = patterns.map((pattern) =>
+    pattern.startsWith('!')
+      ? { include: false, test: globToRegExp(pattern.slice(1)) }
+      : { include: true, test: globToRegExp(pattern) }
+  );
+  return files.some((file) => {
+    let included = false;
+    for (const rule of rules) {
+      if (rule.test.test(file)) included = rule.include;
+    }
+    return included;
+  });
+}
+
+async function releaseTouchesMobileBundle(
+  github,
+  owner,
+  repo,
+  pullNumber,
+  sha
+) {
+  const files = await github.paginate(github.rest.pulls.listFiles, {
+    owner,
+    repo,
+    pull_number: pullNumber,
+    per_page: 100,
+  });
+  const { data } = await github.rest.repos.getContent({
+    owner,
+    repo,
+    path: MOBILE_UPDATE_WORKFLOW,
+    ref: sha,
+  });
+  const workflow = Buffer.from(data.content, 'base64').toString('utf8');
+  const changed = files.flatMap((file) =>
+    file.previous_filename
+      ? [file.filename, file.previous_filename]
+      : [file.filename]
+  );
+  return touchesMobileBundle(changed, mobileUpdatePaths(workflow));
+}
 
 function minutesSince(from, now) {
   return Math.floor((now - new Date(from).getTime()) / MINUTE_MS);
@@ -505,6 +566,24 @@ async function shipBranch({
     workflow_id: 'branch-cleanup.yml',
     ref: 'main',
   });
+  if (
+    await releaseTouchesMobileBundle(
+      github,
+      owner,
+      repo,
+      releasePr.number,
+      merged.sha
+    )
+  ) {
+    await github.rest.actions.createWorkflowDispatch({
+      owner,
+      repo,
+      workflow_id: 'eas-update.yml',
+      ref: 'main',
+      inputs: { channel: 'preview' },
+    });
+    core.notice('dispatched EAS Update: the release changed the mobile bundle');
+  }
   return decision;
 }
 
