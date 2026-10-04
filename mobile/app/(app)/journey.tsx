@@ -25,6 +25,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   Avatar,
+  ConversationSkeleton,
   EmptyState,
   FilterChip,
   PrimaryButton,
@@ -1272,7 +1273,13 @@ export function JourneyBody() {
         </ScrollView>
       ) : null}
 
-      {!isLoading && buckets.length === 0 ? (
+      {isLoading && buckets.length === 0 ? (
+        <View style={{ marginHorizontal: -spacing.lg }}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <ConversationSkeleton key={i} />
+          ))}
+        </View>
+      ) : buckets.length === 0 ? (
         <EmptyState
           icon="map-outline"
           title={

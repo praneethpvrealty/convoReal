@@ -201,6 +201,14 @@ _A §2.8 gap, stated rather than silent. Building and editing automations and fl
 
 ---
 
+### Deferred: Ads on mobile
+
+_A §2.8 gap, stated rather than silent._
+
+- [ ] **Ads screen (mobile)**: the web Ads page (`src/app/(dashboard)/ads/ads-content.tsx`) has no mobile screen. The minimum a phone needs is the campaign list with spend and New contacts, pause and resume, and the daily budget on a spending ad, because an agent who sees money going out should be able to stop it without a laptop. All of it is mobile-reachable already: `GET /api/meta-ads/campaigns` returns the rows plus the connection state, and `PATCH /api/meta-ads/campaigns/[id]` takes `pause`, `resume`, `archive` and `set_budget`, both behind bearer-auth role checks. Money formatting is `formatAdMoney` in `src/lib/meta-ads/format.ts` and the per-ad lead count is `leadCountsByAd` in `src/lib/meta-ads/lead-counts.ts`, both pure, so a mobile screen imports them through `@shared/` once it exists. Connecting Meta (the OAuth redirect and the ad account and Page choice in Settings → Ads) stays web-only, as a browser-bound flow.
+
+---
+
 ### Deferred: the referrer picker on mobile
 
 _On web, a contact's Reference field suggests existing contacts as you type and links the one you pick (`referrer_contact_id`), through a bounded server-side search (`searchReferrerCandidates` in `src/lib/contacts/detail-queries.ts`). Mobile edits Reference as free text only, so a referrer typed there never links to a contact._

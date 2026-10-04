@@ -91,6 +91,7 @@ jobs:
               - 'src/lib/deals/co-broking.ts'
               - 'src/lib/deals/deadline-rules.ts'
               - 'src/lib/deals/routes.ts'
+              - 'src/lib/deals/timeline-attribution.ts'
               - 'src/lib/focus/requests.ts'
               - 'src/lib/format/currency.ts'
               - 'src/lib/format/date.ts'

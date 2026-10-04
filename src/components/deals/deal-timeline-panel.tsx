@@ -8,7 +8,12 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { DEAL_EVENT_LABELS, type DealEvent } from '@/lib/deals/events';
+import {
+  DEAL_EVENT_LABELS,
+  timelineActorLabel,
+  timelineSourceLabel,
+  type DealEvent,
+} from '@/lib/deals/events';
 import {
   DEAL_VISIBILITIES,
   DEAL_VISIBILITY_LABELS,
@@ -25,6 +30,7 @@ export function DealTimelinePanel({ dealId, canEdit }: DealTimelinePanelProps) {
   const [note, setNote] = useState('');
   const [visibility, setVisibility] = useState<DealVisibility>('internal');
   const [saving, setSaving] = useState(false);
+  const [composerOpen, setComposerOpen] = useState<boolean | null>(null);
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['deal-events', dealId],
@@ -51,6 +57,7 @@ export function DealTimelinePanel({ dealId, canEdit }: DealTimelinePanelProps) {
       if (!response.ok)
         throw new Error(json?.error || 'Could not add the note');
       setNote('');
+      setComposerOpen(false);
       await queryClient.invalidateQueries({
         queryKey: ['deal-events', dealId],
       });
@@ -63,6 +70,9 @@ export function DealTimelinePanel({ dealId, canEdit }: DealTimelinePanelProps) {
     }
   }
 
+  const showComposer =
+    canEdit && (composerOpen ?? (!isLoading && events.length === 0));
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -73,13 +83,26 @@ export function DealTimelinePanel({ dealId, canEdit }: DealTimelinePanelProps) {
             or removed.
           </p>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400">
-          <Lock className="h-3 w-3" />
-          Immutable
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 px-2 py-0.5 text-[11px] text-slate-400">
+            <Lock className="h-3 w-3" />
+            Immutable
+          </span>
+          {canEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              aria-expanded={showComposer}
+              onClick={() => setComposerOpen(!showComposer)}
+            >
+              <MessageSquarePlus className="h-4 w-4" />
+              Add a note
+            </Button>
+          )}
+        </div>
       </div>
 
-      {canEdit && (
+      {showComposer && (
         <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-3">
           <Textarea
             rows={2}
@@ -134,6 +157,8 @@ export function DealTimelinePanel({ dealId, canEdit }: DealTimelinePanelProps) {
               typeof ev.metadata?.note === 'string'
                 ? ev.metadata.note
                 : null;
+            const actor = timelineActorLabel(ev);
+            const source = timelineSourceLabel(ev);
             return (
               <li
                 key={ev.id}
@@ -151,8 +176,8 @@ export function DealTimelinePanel({ dealId, canEdit }: DealTimelinePanelProps) {
                 </div>
                 <p className="mt-0.5 text-[11px] text-slate-500">
                   {DEAL_EVENT_LABELS[ev.event_type] ?? ev.event_type}
-                  {ev.actor_name ? ` · ${ev.actor_name}` : ''}
-                  {ev.source !== 'web' ? ` · ${ev.source}` : ''}
+                  {actor ? ` · ${actor}` : ''}
+                  {source ? ` · ${source}` : ''}
                   {ev.visibility && ev.visibility !== 'internal'
                     ? ` · ${DEAL_VISIBILITY_LABELS[ev.visibility]}`
                     : ''}

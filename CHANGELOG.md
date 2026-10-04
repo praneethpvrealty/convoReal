@@ -19,6 +19,18 @@ than a written entry. Newest first.
 
 #### 4 October 2026
 
+- **Deals screens lead with what matters.** The stat strip above the board
+  shows Pipeline value, Weighted revenue and Won this month, with the other
+  three tiles one **More** away, remembered per device. The Journeys tab
+  holds its layout while it loads instead of flashing a full-page loader.
+  On a closing record, Stakeholders and Timeline show their list first,
+  with **Add stakeholder** and **Add a note** in the header; empty Tasks
+  and Documents tabs say what happens next and offer the first step; the
+  timeline names the member who made each change, or System when nobody
+  did; and the stage in the record header reads as a control. The
+  journeys you hid now say **hidden by you** and why. Same on mobile for
+  the record tabs and timeline names; mobile Journeys load behind skeleton
+  rows, and a bundle's linked deals print in each deal's own currency.
 - **Reply quotes no longer show raw WhatsApp markers.** When a contact
   replies to a digest, the quoted original above their reply now shows
   its header in bold instead of `*Your Property Update*`, on web and
