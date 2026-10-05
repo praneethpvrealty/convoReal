@@ -3,64 +3,74 @@ import { NextResponse } from 'next/server';
 import { requireWriteRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { uploadPropertyImage } from '@/lib/storage/upload';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
-const MAX_FILES_PER_REQUEST = 10;
-const MAX_FILE_BYTES = 15 * 1024 * 1024;
+const BUCKET = 'property-images';
+const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
 
 // POST /api/properties/images
 //
-// multipart/form-data with one or more `files`. Runs each photo through
-// the shared Sharp pipeline (1200px, JPEG q75) so a camera original from
-// the mobile editor is stored at the same size as a web or WhatsApp
-// upload, and returns the bucket-relative paths for the caller to add to
-// the listing.
+// Body: { path: "property-images/<accountId>/..." } — a photo the caller
+// has just uploaded straight to storage, which carries no request-size
+// limit. The server runs it through the shared Sharp pipeline (1200px,
+// JPEG q75), stores the result under a new path, removes the original and
+// returns the new path, so a camera original from the mobile editor ends
+// up the same size as a web or WhatsApp upload.
 export async function POST(request: Request) {
   try {
     const ctx = await requireWriteRole('agent');
 
     const limit = await checkRateLimit(`propertyImages:${ctx.userId}`, {
-      limit: 30,
+      limit: 60,
       windowMs: 60_000,
     });
     if (!limit.success) return rateLimitResponse(limit);
 
-    const form = await request.formData().catch(() => null);
-    const files = (form?.getAll('files') ?? []).filter(
-      (f): f is File => f instanceof File
-    );
-    if (files.length === 0) {
+    const body = (await request.json().catch(() => null)) as {
+      path?: unknown;
+    } | null;
+    const path = typeof body?.path === 'string' ? body.path.trim() : '';
+    if (
+      !path.startsWith(`${BUCKET}/${ctx.accountId}/`) ||
+      path.includes('..')
+    ) {
       return NextResponse.json(
-        { error: 'No photos provided' },
+        { error: 'Upload the photo first.' },
         { status: 400 }
       );
     }
-    if (files.length > MAX_FILES_PER_REQUEST) {
-      return NextResponse.json(
-        { error: `Upload at most ${MAX_FILES_PER_REQUEST} photos at a time` },
-        { status: 400 }
-      );
-    }
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) {
+
+    const objectPath = path.slice(BUCKET.length + 1);
+    const storage = supabaseAdmin().storage.from(BUCKET);
+    try {
+      const { data: blob, error } = await storage.download(objectPath);
+      if (error || !blob) {
         return NextResponse.json(
-          { error: `${file.name || 'File'} is not an image` },
+          { error: 'Photo not found. Upload it again.' },
+          { status: 404 }
+        );
+      }
+      if (!blob.type.startsWith('image/')) {
+        return NextResponse.json(
+          { error: 'Only photos can be added here.' },
           { status: 415 }
         );
       }
-      if (file.size > MAX_FILE_BYTES) {
+      if (blob.size > MAX_SOURCE_BYTES) {
         return NextResponse.json(
-          { error: `${file.name || 'File'} is larger than 15 MB` },
+          { error: 'Photo is larger than 25 MB.' },
           { status: 413 }
         );
       }
+      const resized = await uploadPropertyImage(
+        ctx.accountId,
+        Buffer.from(await blob.arrayBuffer()),
+        blob.type
+      );
+      return NextResponse.json({ data: { path: resized } });
+    } finally {
+      await storage.remove([objectPath]);
     }
-
-    const paths: string[] = [];
-    for (const file of files) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      paths.push(await uploadPropertyImage(ctx.accountId, buffer, file.type));
-    }
-    return NextResponse.json({ data: { paths } });
   } catch (err) {
     return toErrorResponse(err);
   }

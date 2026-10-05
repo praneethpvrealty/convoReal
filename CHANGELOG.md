@@ -23,9 +23,9 @@ than a written entry. Newest first.
   resizer.** Every photo the resizer touched counted against the Pro plan's 100
   origin images per billing cycle, and the showcase, ads and promote screens
   had pushed it to 375. Web, WhatsApp and portal uploads are already shrunk to
-  1200px JPEG, and the mobile photo editor now uploads through the new
-  `POST /api/properties/images`, which applies the same resize instead of
-  storing the camera original. A test fails if anything requests the resizer
+  1200px JPEG, and the mobile photo editor now hands each upload to the new
+  `POST /api/properties/images`, which applies the same resize and removes
+  the camera original. A test fails if anything requests the resizer
   again.
 
 #### 4 October 2026

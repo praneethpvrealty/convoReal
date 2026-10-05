@@ -28,42 +28,6 @@ function decodeBase64(b64: string): Uint8Array {
   return bytes;
 }
 
-async function uploadResized(asset: {
-  uri: string;
-  fileName?: string | null;
-  mimeType?: string | null;
-}): Promise<string> {
-  const form = new FormData();
-  form.append('files', {
-    uri: asset.uri,
-    name: asset.fileName ?? `photo-${Date.now()}.jpg`,
-    type: asset.mimeType ?? 'image/jpeg',
-  } as unknown as Blob);
-  const { data } = await apiFetch<{ data: { paths: string[] } }>(
-    '/api/properties/images',
-    { method: 'POST', body: form }
-  );
-  return data.paths[0];
-}
-
-async function uploadAsset(asset: {
-  uri: string;
-  fileName?: string | null;
-  mimeType?: string | null;
-  base64?: string | null;
-}): Promise<string> {
-  try {
-    return await uploadResized(asset);
-  } catch (e) {
-    if (!(e instanceof ApiError)) throw e;
-    if (e.status === 413 && asset.base64) return uploadOriginal(asset.base64);
-    if (e.status !== 429) throw e;
-    const waitSeconds = Math.min(e.retryAfterSeconds ?? 60, 60);
-    await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
-    return uploadResized(asset);
-  }
-}
-
 async function uploadOriginal(base64: string): Promise<string> {
   const accountId = useAuthStore.getState().profile?.account_id;
   if (!accountId) throw new Error('Not signed in');
@@ -80,14 +44,33 @@ async function uploadOriginal(base64: string): Promise<string> {
   return `${BUCKET}/${path}`;
 }
 
+async function resize(path: string): Promise<string> {
+  const { data } = await apiFetch<{ data: { path: string } }>(
+    '/api/properties/images',
+    { method: 'POST', body: JSON.stringify({ path }) }
+  );
+  return data.path;
+}
+
+async function uploadAsset(base64: string): Promise<string> {
+  const original = await uploadOriginal(base64);
+  try {
+    return await resize(original);
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== 429) throw e;
+    const waitSeconds = Math.min(e.retryAfterSeconds ?? 60, 60);
+    await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
+    return resize(original);
+  }
+}
+
 /**
- * Property photos editor: pick from the library, upload through
- * `/api/properties/images` (which resizes to the same 1200px the web
- * form stores), then keep the returned bucket-relative paths in the
- * images array. A photo too large for the API's request body falls back
- * to a direct `property-images` upload so it still attaches. Index 0 is the cover;
- * tapping ☆ moves a photo to the front. Removing just drops it from the
- * array — the row is saved with the parent form.
+ * Property photos editor: pick from the library, upload the original to
+ * `property-images`, have `/api/properties/images` resize it to the same
+ * 1200px the web form stores, then keep the returned bucket-relative
+ * paths in the images array. Index 0 is the cover; tapping ☆ moves a
+ * photo to the front. Removing just drops it from the array — the row is
+ * saved with the parent form.
  */
 export function PropertyPhotoEditor({
   images,
@@ -135,7 +118,8 @@ export function PropertyPhotoEditor({
     const uploaded: string[] = [];
     try {
       for (const asset of result.assets) {
-        uploaded.push(await uploadAsset(asset));
+        if (!asset.base64) continue;
+        uploaded.push(await uploadAsset(asset.base64));
       }
       haptic.success();
     } catch (e) {
