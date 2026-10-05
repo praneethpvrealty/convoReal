@@ -43,6 +43,7 @@ on:
       - 'src/lib/calendar/archive-sort.ts'
       - 'src/lib/calendar/todo-groups.ts'
       - 'src/lib/contacts/list-columns.ts'
+      - 'src/lib/conversations/inbox-search.ts'
       - 'src/lib/conversations/text-format.ts'
       - 'src/lib/dashboard/approval-order.ts'
       - 'src/lib/deals/co-broking.ts'

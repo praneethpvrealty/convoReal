@@ -520,6 +520,16 @@
               "case": "[INB-029]"
             }
           ]
+        },
+        {
+          "id": "INB-030",
+          "rule": "Inbox search on web and mobile matches the text of every message in a conversation, not only the contact's name, phone, close reason and latest message: a query of two or more characters asks search_inbox_messages, which runs with the caller's own message RLS (so team and assignment scoping still apply), skips deleted messages, treats % and _ literally, searches only the archive view being shown so the other view's hits cannot crowd out its own, and returns the newest matching message per conversation; the row then previews that message, starting near the match even when the match is in a header line the normal preview hides.",
+          "tests": [
+            {
+              "file": "src/lib/conversations/inbox-search.test.ts",
+              "case": "[INB-030]"
+            }
+          ]
         }
       ]
     },
