@@ -2350,7 +2350,7 @@
         },
         {
           "id": "JRN-019",
-          "rule": "A client who answers an inbox check-in by typing a requirement (a property type, budget or size, such as \"Hsr layout 30x40 north and east facing only\") that names no check-back date is not treated as an update on the checked-in listing: nothing is logged on that listing's journey, no note, deal note or notification is written for it, and the timeline question is not sent; the message falls through to requirement qualification, which files it on the contact and replies with matching listings. A reply that also names a check-back date still files the check-back as JRN-015 describes.",
+          "rule": "A client who answers an inbox check-in by typing a requirement (a property type, budget or size, such as \"Hsr layout 30x40 north and east facing only\") that names no check-back date is not treated as an update on the checked-in listing: nothing is logged on that listing's journey, no note, deal note or notification is written for it, and the timeline question is not sent; the message falls through to requirement qualification, which files it on the contact and replies with matching listings. A reply that rejects the listing or asks a question about it is still handled as a check-in reply, and a reply that asks to be checked back on at a date (\"check back in a week\") still files the check-back as JRN-015 describes; a date stated as part of the requirement (\"available next week\") does not.",
           "tests": [
             {
               "file": "src/lib/journey/typed-check-back.test.ts",

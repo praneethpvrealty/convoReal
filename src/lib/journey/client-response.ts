@@ -32,6 +32,7 @@ import {
 import { looksLikeQuestion } from '@/lib/ai/lead-question';
 import { appendRequirement } from '@/lib/ai/buyer-qualification';
 import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
+import { isPropertyDisinterest } from '@/lib/whatsapp/property-disinterest';
 import { syncContactPreferences } from '@/lib/contacts/preference-sync';
 import {
   CLIENT_QUESTION_PROMPT,
@@ -2303,6 +2304,15 @@ export function isJourneyCheckinText(text?: string | null): boolean {
 const CHECKIN_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const RESPONSE_REASON_LIMIT = 280;
 
+const CHECK_BACK_CUE =
+  /\b(?:check(?:ing)? back|get back|come back|call (?:me )?(?:back|again|later)|wait|follow[- ]?up|remind|ping me|reach out|contact me|(?:talk|speak) later)\b/i;
+
+export function statesNewRequirement(text: string): boolean {
+  if (!carriesRequirementSignal(text)) return false;
+  if (looksLikeQuestion(text) || isPropertyDisinterest(text)) return false;
+  return !(CHECK_BACK_CUE.test(text) && parseCheckBackDate(text));
+}
+
 export type InboxCheckinOutcome = 'not_checkin' | 'logged' | 'logged_and_asked';
 
 export interface InboxCheckinReplyArgs {
@@ -2348,12 +2358,7 @@ export async function handleInboxCheckinReply(
     fromButton,
   } = args;
 
-  if (
-    !fromButton &&
-    carriesRequirementSignal(responseText) &&
-    !parseCheckBackDate(responseText)
-  )
-    return 'not_checkin';
+  if (!fromButton && statesNewRequirement(responseText)) return 'not_checkin';
 
   const { data: outboundData } = await db
     .from('messages')

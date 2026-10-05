@@ -28,6 +28,7 @@ const {
   handleCheckBackConfirmReply,
   handleInboxCheckinReply,
   parseCheckBackConfirmReplyId,
+  statesNewRequirement,
 } = await import('./client-response');
 
 const NOW = new Date(2026, 8, 29, 18, 28);
@@ -390,6 +391,37 @@ describe('[JRN-019] a requirement typed in reply to the check-in', () => {
     expect(ensureJourneyItem).not.toHaveBeenCalled();
     expect(createNotification).not.toHaveBeenCalled();
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'Hsr layout 30x40 north and east facing only',
+    'I need a villa available next week',
+    '2 BHK in Whitefield under 90 lakh',
+  ])('reads %j as a new requirement', (text) => {
+    expect(statesNewRequirement(text)).toBe(true);
+  });
+
+  it.each([
+    'not interested in this plot',
+    'Does this villa have clear title?',
+    'Check back in a week, need a 30x40 plot',
+    'You need to wait for a week',
+    'Ok thanks',
+  ])('does not read %j as a new requirement', (text) => {
+    expect(statesNewRequirement(text)).toBe(false);
+  });
+
+  it('still logs a question about the listing on its journey', async () => {
+    const outcome = await reply('Does this plot have clear title?');
+
+    expect(outcome).not.toBe('not_checkin');
+    expect(
+      writes.some(
+        (w) =>
+          w.table === 'journey_events' &&
+          w.row.reason === 'Does this plot have clear title?'
+      )
+    ).toBe(true);
   });
 
   it('still files the check-back when the reply also names a date', async () => {
