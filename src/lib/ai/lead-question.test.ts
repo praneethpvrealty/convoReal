@@ -90,6 +90,8 @@ describe('call-intent matching on hostile input', () => {
       fill("don't a "),
       fill('let me give you a '),
       fill('i going to gonna '),
+      fill("don't call me "),
+      fill('call me '),
     ]) {
       const started = performance.now();
       requestsHumanContact(text);
@@ -160,6 +162,9 @@ describe('requestsHumanContact', () => {
       "Don't hesitate to call me",
       'why not call me',
       'Not interested in the plot, but call me about villas',
+      "I don't know please call me",
+      'No need to wait please call me',
+      "Please don't hesitate to call me",
     ]) {
       expect(requestsHumanContact(text), text).toBe(true);
     }

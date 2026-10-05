@@ -220,23 +220,51 @@ export const CALLBACK_HANDOVER_TEXT =
  *
  * Read clause by clause. "I'll call you" and "I'll call back tomorrow"
  * are the lead offering to ring us, not asking us to, so that offer is
- * struck out first. A clause carrying a refusal ("please don't ever call
- * me", "I don't want to talk to an agent") asks for nobody; "don't
- * hesitate to call me" is not a refusal.
+ * struck out first. A request is refused only when the negation governs
+ * it ("please don't ever call me", "I don't want to talk to an agent");
+ * "I don't know, please call me" and "don't hesitate to call me" still
+ * ask for a person.
  */
 const CLAUSE_BREAK = /[.,;:!?\n]+|\b(?:but|and|so|or|then)\b/;
-
-const REFUSAL =
-  /\b(?:don'?t|dont|do not|did not|didn'?t|never|no need|stop|rather not|not want|not to)\b/;
-
-const AFFIRMING_NEGATION =
-  /\b(?:don'?t|dont|do not) (?:hesitate|forget|mind)\b/g;
 
 const OWN_CALL_OFFER =
   /\b(?:(?:i|we)(?:'ll|'d|'m|'re| will| shall| would| could| can| may| might| should| must| am| are)?(?: going to| gonna| try to| plan to| want to| need to| have to)?|let me|let us|lemme) (?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
 
 const HUMAN_REQUEST =
-  /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/;
+  /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/g;
+
+const REFUSAL_GLUE = new Set([
+  'want',
+  'wanna',
+  'need',
+  'you',
+  'to',
+  'ever',
+  'really',
+  'even',
+  'have',
+  'try',
+  'anyone',
+  'anybody',
+]);
+
+const REFUSAL_WORDS = new Set([
+  "don't",
+  'dont',
+  "didn't",
+  'didnt',
+  "won't",
+  'never',
+  'stop',
+]);
+
+const REFUSAL_PAIRS = new Set([
+  'do not',
+  'did not',
+  'will not',
+  'no need',
+  'rather not',
+]);
 
 function callClauses(text?: string | null): string[] {
   return (text || '')
@@ -248,24 +276,32 @@ function callClauses(text?: string | null): string[] {
     .filter(Boolean);
 }
 
-function refuses(clause: string): boolean {
-  return REFUSAL.test(clause.replace(AFFIRMING_NEGATION, ' '));
+function refusedBefore(prefix: string): boolean {
+  const words = prefix.trim().split(' ').filter(Boolean);
+  for (let end = words.length; end > 0; end -= 1) {
+    if (REFUSAL_WORDS.has(words[end - 1])) return true;
+    if (end > 1 && REFUSAL_PAIRS.has(`${words[end - 2]} ${words[end - 1]}`))
+      return true;
+    if (!REFUSAL_GLUE.has(words[end - 1])) return false;
+  }
+  return false;
 }
 
 /** "I'll call back tomorrow" — the lead offering to ring us. */
 export function offersOwnCall(text?: string | null): boolean {
-  return callClauses(text).some(
-    (clause) =>
-      !refuses(clause) && new RegExp(OWN_CALL_OFFER.source).test(clause)
+  return callClauses(text).some((clause) =>
+    new RegExp(OWN_CALL_OFFER.source).test(clause)
   );
 }
 
 export function requestsHumanContact(text?: string | null): boolean {
-  return callClauses(text).some(
-    (clause) =>
-      !refuses(clause) &&
-      HUMAN_REQUEST.test(clause.replace(OWN_CALL_OFFER, ' '))
-  );
+  return callClauses(text).some((clause) => {
+    const rest = clause.replace(OWN_CALL_OFFER, ' ');
+    for (const match of rest.matchAll(HUMAN_REQUEST)) {
+      if (!refusedBefore(rest.slice(0, match.index))) return true;
+    }
+    return false;
+  });
 }
 
 /**
