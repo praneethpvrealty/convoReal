@@ -29,7 +29,10 @@ import {
   matchContactByName,
   type BookContact,
 } from '@/lib/contacts/draft-match';
-import { looksLikeQuestion } from '@/lib/ai/lead-question';
+import {
+  looksLikeQuestion,
+  requestsHumanContact,
+} from '@/lib/ai/lead-question';
 import { appendRequirement } from '@/lib/ai/buyer-qualification';
 import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
 import { syncContactPreferences } from '@/lib/contacts/preference-sync';
@@ -2438,7 +2441,11 @@ export async function handleInboxCheckinReply(
     channels: { inApp: true, push: true, whatsapp: false },
   });
 
-  if (!fromButton && looksLikeQuestion(response)) return 'logged';
+  if (
+    !fromButton &&
+    (looksLikeQuestion(response) || requestsHumanContact(response))
+  )
+    return 'logged';
 
   const named = fromButton ? null : parseCheckBackDate(response);
   if (named) {

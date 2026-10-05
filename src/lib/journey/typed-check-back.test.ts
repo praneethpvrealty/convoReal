@@ -337,6 +337,36 @@ describe('[JRN-015] a typed reply to the check-in template', () => {
     );
   });
 
+  it('leaves a callback request to the handover instead of asking when to check back', async () => {
+    tables.messages = [
+      {
+        content_text: CHECKIN_TEMPLATE_TEXT,
+        created_at: new Date(NOW.getTime() - 60_000).toISOString(),
+        template_name: 'enquiry_checkin_notice',
+      },
+    ];
+
+    const outcome = await handleInboxCheckinReply({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact: { ...contact, phone: '919800000000' },
+      conversationId: 'conv-1',
+      responseText: 'Please call me',
+      accessToken: 'token',
+      phoneNumberId: 'pn-1',
+    });
+
+    expect(outcome).toBe('logged');
+    expect(
+      writes.some(
+        (w) => w.table === 'journey_events' && w.row.reason === 'Please call me'
+      )
+    ).toBe(true);
+    expect(todoWrite()).toBeUndefined();
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
   it('still recognises an unrelated last message as not a check-in', async () => {
     tables.messages = [
       {
