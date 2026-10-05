@@ -18,6 +18,7 @@ import {
   quickReplyHumanRequest,
   repliesRatherThanOpens,
   requestsHumanContact,
+  offersOwnCall,
   HANDOVER_TEXT,
   CALLBACK_HANDOVER_TEXT,
   mergeLeadAnswers,
@@ -68,6 +69,15 @@ describe('looksLikeQuestion', () => {
   });
 });
 
+describe('offersOwnCall', () => {
+  it('spots the lead offering to ring us, not asking to be rung', () => {
+    expect(offersOwnCall("I'll call back tomorrow")).toBe(true);
+    expect(offersOwnCall('Let me call you on Monday')).toBe(true);
+    expect(offersOwnCall('Please call me tomorrow')).toBe(false);
+    expect(offersOwnCall("Please don't call me")).toBe(false);
+  });
+});
+
 describe('requestsHumanContact', () => {
   it('recognises the ask that was answered with a budget question', () => {
     // The reported bug: "Call me" reached the qualification ladder and
@@ -115,8 +125,17 @@ describe('requestsHumanContact', () => {
       'Do not call me back',
       'no need to call me',
       'stop calling me',
+      "I don't want you to call me",
+      "Please don't ever call me",
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
+    }
+    for (const text of [
+      "I don't know the area so call me",
+      'stop messaging and call me',
+      "Don't text, call me",
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(true);
     }
     expect(requestsHumanContact("I'll call back, or please call me")).toBe(
       true

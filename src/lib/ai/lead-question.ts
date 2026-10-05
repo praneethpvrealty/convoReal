@@ -221,21 +221,33 @@ export const CALLBACK_HANDOVER_TEXT =
  * "I'll call you" and "I'll call back tomorrow" are not matches and
  * must not become ones: the lead saying they will ring is not a
  * request for us to, so the lead's own call is struck out first —
- * and so is a refusal ("please don't call me").
+ * and so is a refusal anywhere in its clause ("please don't ever call
+ * me", "I don't want you to call me").
  */
-export function requestsHumanContact(text?: string | null): boolean {
-  const t = (text || '')
+const CALL_REFUSAL =
+  /\b(?:(?:don'?t|do not|did not|didn'?t|never|no need)(?:\s+[\w']+){0,3}?|stop)\s+(?:call|ring|phon)\w*(?:\s+(?:me|us))?(?:\s+back)?\b/g;
+
+const OWN_CALL_OFFER =
+  /\b(?:(?:i|we)\s*(?:'ll|'d|'m|'re|will|shall|would|could|can|may|might|should|must|am|are)?\s*(?:going to|gonna|try to|plan to|want to|need to|have to)?|let (?:me|us)|lemme)\s*(?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
+
+function normaliseCallText(text?: string | null): string {
+  return (text || '')
     .trim()
     .toLowerCase()
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(
-      /\b(?:don'?t|do not|dont|did not|didn'?t|never|no need to|stop)\s+(?:to\s+)?(?:give me a\s+)?(?:call(?:ing)?|ring(?:ing)?|phone|phoning)(?:\s+(?:me|us))?(?:\s+back)?\b/g,
-      ' '
-    )
-    .replace(
-      /\b(?:(?:i|we)\s*(?:'ll|'d|'m|'re|will|shall|would|could|can|may|might|should|must|am|are)?\s*(?:going to|gonna|try to|plan to|want to|need to|have to)?|let (?:me|us)|lemme)\s*(?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g,
-      ' '
-    )
+    .replace(/[\u2018\u2019]/g, "'");
+}
+
+/** "I'll call back tomorrow" — the lead offering to ring us. */
+export function offersOwnCall(text?: string | null): boolean {
+  return new RegExp(OWN_CALL_OFFER.source).test(
+    normaliseCallText(text).replace(CALL_REFUSAL, ' ')
+  );
+}
+
+export function requestsHumanContact(text?: string | null): boolean {
+  const t = normaliseCallText(text)
+    .replace(CALL_REFUSAL, ' ')
+    .replace(OWN_CALL_OFFER, ' ')
     .trim();
   if (!t) return false;
   return /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/.test(

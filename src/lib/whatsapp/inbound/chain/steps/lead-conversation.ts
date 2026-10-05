@@ -14,6 +14,7 @@ import {
 } from '@/lib/journey/client-response';
 import {
   looksLikeQuestion,
+  offersOwnCall,
   requestsHumanContact,
 } from '@/lib/ai/lead-question';
 import {
@@ -78,8 +79,11 @@ export async function leadConversation(
     // "Call me tomorrow at 5" carries a date and a time but asks for a
     // phone call, not a site visit — it belongs to the handover branch
     // below, the same way a question does.
+    // "I'll call back tomorrow" is the lead's own call, not a visit to
+    // book — it belongs to the check-in and timeline capture below.
     if (
       !requestsHumanContact(contentText) &&
+      !offersOwnCall(contentText) &&
       (!looksLikeQuestion(contentText) ||
         isInboundVisitRequest(contentText || ''))
     ) {

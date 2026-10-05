@@ -98,3 +98,17 @@ describe('[INB-016] the inbound chain is an ordered list of steps', () => {
     }
   });
 });
+
+describe('[JRN-015] a check-in reply about calling reaches the right handler', () => {
+  it('keeps callback requests and own-call offers away from the visit scheduler', () => {
+    const source = inboundStepSource('lead-conversation');
+    const gate = source.slice(
+      source.indexOf('!requestsHumanContact(contentText)'),
+      source.indexOf('tryHandleInboundScheduling({')
+    );
+    expect(gate).toContain('!offersOwnCall(contentText)');
+    expect(source.indexOf('tryHandleInboundScheduling({')).toBeLessThan(
+      source.indexOf('handleInboxCheckinReply({')
+    );
+  });
+});
