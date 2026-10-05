@@ -17,6 +17,17 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 5 October 2026
+
+- **Listing photos load straight from storage instead of Supabase's image
+  resizer.** Every photo the resizer touched counted against the Pro plan's 100
+  origin images per billing cycle, and the showcase, ads and promote screens
+  had pushed it to 375. Web, WhatsApp and portal uploads are already shrunk to
+  1200px JPEG, and the mobile photo editor now hands each upload to the new
+  `POST /api/properties/images`, which applies the same resize and removes
+  the camera original. A test fails if anything requests the resizer
+  again.
+
 #### 4 October 2026
 
 - **Read-only members can no longer create or change automations and flows.**
