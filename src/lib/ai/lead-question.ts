@@ -225,7 +225,7 @@ export const CALLBACK_HANDOVER_TEXT =
  * "I don't know, please call me" and "don't hesitate to call me" still
  * ask for a person.
  */
-const CLAUSE_BREAK = /[.,;:!?\n]+|\b(?:but|and|so|then)\b/;
+const CLAUSE_BREAK = /[.,;:!?\n]+|\b(?:but|and|so)\b/;
 
 const OWN_CALL_OFFER =
   /\b(?:(?:i|we)(?:'ll|'d|'m|'re| will| shall| would| could| can| may| might| should| must| am| are)?(?: (?:definitely|probably|surely|certainly|just|also|maybe|then|soon|myself|personally|really|quickly|ourselves))?(?: going to| gonna| try to| plan to| want to| need to| have to)?(?: (?:definitely|probably|surely|certainly|just|also|maybe|then|soon|myself|personally|really|quickly|ourselves))?|let me|let us|lemme) (?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
