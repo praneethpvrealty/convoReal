@@ -397,6 +397,9 @@ describe('[JRN-019] a requirement typed in reply to the check-in', () => {
     'Hsr layout 30x40 north and east facing only',
     'I need a villa available next week',
     '2 BHK in Whitefield under 90 lakh',
+    "I can't wait; I need a 2 BHK next week",
+    'Can you show me a 2 BHK in Whitefield?',
+    'Any villa under 2 crore?',
   ])('reads %j as a new requirement', (text) => {
     expect(statesNewRequirement(text)).toBe(true);
   });
@@ -406,6 +409,8 @@ describe('[JRN-019] a requirement typed in reply to the check-in', () => {
     'Does this villa have clear title?',
     'Check back in a week, need a 30x40 plot',
     'You need to wait for a week',
+    'Wait for 2 weeks, then share 30x40 plots',
+    'Is the plot east facing?',
     'Ok thanks',
   ])('does not read %j as a new requirement', (text) => {
     expect(statesNewRequirement(text)).toBe(false);
