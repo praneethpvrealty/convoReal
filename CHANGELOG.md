@@ -17,6 +17,21 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 5 October 2026
+
+- **Read-only members can no longer change anything in the workspace through
+  the database.** Row-level security used to stop a read-only member only on
+  automations, flows, appointments, portal listings and contact deletion; every
+  other table accepted their writes if they called the database directly. Now
+  169 write policies across 108 tables refuse them, at every role level. They
+  can still read everything they could before, and can still edit their own
+  profile, notification devices, notification read state and task-digest
+  preference, and file a support ticket or bug report. A read-only member who
+  opens a conversation no longer clears its shared unread count. **Migration
+  required:** `20261005083357_workspace_write_read_only_rls.sql` (apply
+  `20261004155516_flow_automation_write_read_only_rls.sql` first). Invariant
+  ACC-003.
+
 #### 4 October 2026
 
 - **Read-only members can no longer create or change automations and flows.**
