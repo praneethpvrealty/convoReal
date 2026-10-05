@@ -80,12 +80,12 @@ export async function leadConversation(
     // phone call, not a site visit — it belongs to the handover branch
     // below, the same way a question does.
     // "I'll call back tomorrow" is the lead's own call, not a visit to
-    // book — it belongs to the check-in and timeline capture below.
+    // book — it belongs to the check-in and timeline capture below,
+    // unless the same message also asks to visit.
     if (
       !requestsHumanContact(contentText) &&
-      !offersOwnCall(contentText) &&
-      (!looksLikeQuestion(contentText) ||
-        isInboundVisitRequest(contentText || ''))
+      (isInboundVisitRequest(contentText || '') ||
+        (!offersOwnCall(contentText) && !looksLikeQuestion(contentText)))
     ) {
       const booked = await tryHandleInboundScheduling({
         message,

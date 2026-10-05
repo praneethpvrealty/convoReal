@@ -218,41 +218,53 @@ export const CALLBACK_HANDOVER_TEXT =
  * intent call — this decides whether a human is summoned, which is too
  * important to make a paid call for and too cheap to need one.
  *
- * "I'll call you" and "I'll call back tomorrow" are not matches and
- * must not become ones: the lead saying they will ring is not a
- * request for us to, so the lead's own call is struck out first —
- * and so is a refusal anywhere in its clause ("please don't ever call
- * me", "I don't want you to call me").
+ * Read clause by clause. "I'll call you" and "I'll call back tomorrow"
+ * are the lead offering to ring us, not asking us to, so that offer is
+ * struck out first. A clause carrying a refusal ("please don't ever call
+ * me", "I don't want to talk to an agent") asks for nobody; "don't
+ * hesitate to call me" is not a refusal.
  */
-const CALL_REFUSAL =
-  /\b(?:(?:don'?t|do not|did not|didn'?t|never|no need)(?: [\w']+){0,3}?|stop) (?:call|ring|phon)\w*(?: (?:me|us))?(?: back)?\b/g;
+const CLAUSE_BREAK = /[.,;:!?\n]+|\b(?:but|and|so|or|then)\b/;
+
+const REFUSAL =
+  /\b(?:don'?t|dont|do not|did not|didn'?t|never|no need|stop|rather not|not want|not to)\b/;
+
+const AFFIRMING_NEGATION =
+  /\b(?:don'?t|dont|do not) (?:hesitate|forget|mind)\b/g;
 
 const OWN_CALL_OFFER =
   /\b(?:(?:i|we)(?:'ll|'d|'m|'re| will| shall| would| could| can| may| might| should| must| am| are)?(?: going to| gonna| try to| plan to| want to| need to| have to)?|let me|let us|lemme) (?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
 
-function normaliseCallText(text?: string | null): string {
+const HUMAN_REQUEST =
+  /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/;
+
+function callClauses(text?: string | null): string[] {
   return (text || '')
     .toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/\s+/g, ' ')
-    .trim();
+    .split(CLAUSE_BREAK)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+}
+
+function refuses(clause: string): boolean {
+  return REFUSAL.test(clause.replace(AFFIRMING_NEGATION, ' '));
 }
 
 /** "I'll call back tomorrow" — the lead offering to ring us. */
 export function offersOwnCall(text?: string | null): boolean {
-  return new RegExp(OWN_CALL_OFFER.source).test(
-    normaliseCallText(text).replace(CALL_REFUSAL, ' ')
+  return callClauses(text).some(
+    (clause) =>
+      !refuses(clause) && new RegExp(OWN_CALL_OFFER.source).test(clause)
   );
 }
 
 export function requestsHumanContact(text?: string | null): boolean {
-  const t = normaliseCallText(text)
-    .replace(CALL_REFUSAL, ' ')
-    .replace(OWN_CALL_OFFER, ' ')
-    .trim();
-  if (!t) return false;
-  return /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/.test(
-    t
+  return callClauses(text).some(
+    (clause) =>
+      !refuses(clause) &&
+      HUMAN_REQUEST.test(clause.replace(OWN_CALL_OFFER, ' '))
   );
 }
 

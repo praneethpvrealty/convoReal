@@ -148,6 +148,8 @@ describe('requestsHumanContact', () => {
       'stop calling me',
       "I don't want you to call me",
       "Please don't ever call me",
+      "Please don't connect me to an agent",
+      "I don't want to talk to a human",
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
     }
@@ -155,6 +157,9 @@ describe('requestsHumanContact', () => {
       "I don't know the area so call me",
       'stop messaging and call me',
       "Don't text, call me",
+      "Don't hesitate to call me",
+      'why not call me',
+      'Not interested in the plot, but call me about villas',
     ]) {
       expect(requestsHumanContact(text), text).toBe(true);
     }
