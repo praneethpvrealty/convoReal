@@ -12,6 +12,7 @@ import {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SectionLabel } from '@/components/ui';
+import { ApiError, apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -27,10 +28,46 @@ function decodeBase64(b64: string): Uint8Array {
   return bytes;
 }
 
+async function uploadResized(asset: {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+}): Promise<string> {
+  const form = new FormData();
+  form.append('files', {
+    uri: asset.uri,
+    name: asset.fileName ?? `photo-${Date.now()}.jpg`,
+    type: asset.mimeType ?? 'image/jpeg',
+  } as unknown as Blob);
+  const { data } = await apiFetch<{ data: { paths: string[] } }>(
+    '/api/properties/images',
+    { method: 'POST', body: form }
+  );
+  return data.paths[0];
+}
+
+async function uploadOriginal(base64: string): Promise<string> {
+  const accountId = useAuthStore.getState().profile?.account_id;
+  if (!accountId) throw new Error('Not signed in');
+  const rand = Math.random().toString(36).substring(2, 7);
+  const path = `${accountId}/img-${Date.now()}-${rand}.jpg`;
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, decodeBase64(base64).buffer as ArrayBuffer, {
+      contentType: 'image/jpeg',
+      upsert: true,
+      cacheControl: '3600',
+    });
+  if (error) throw new Error(error.message);
+  return `${BUCKET}/${path}`;
+}
+
 /**
- * Property photos editor: pick from the library, upload to the
- * `property-images` bucket, then store the bucket-relative path (same
- * shape the web form writes) in the images array. Index 0 is the cover;
+ * Property photos editor: pick from the library, upload through
+ * `/api/properties/images` (which resizes to the same 1200px the web
+ * form stores), then keep the returned bucket-relative paths in the
+ * images array. A photo too large for the API's request body falls back
+ * to a direct `property-images` upload so it still attaches. Index 0 is the cover;
  * tapping ☆ moves a photo to the front. Removing just drops it from the
  * array — the row is saved with the parent form.
  */
@@ -75,29 +112,19 @@ export function PropertyPhotoEditor({
       base64: true,
     });
     if (result.canceled) return;
-    const accountId = useAuthStore.getState().profile?.account_id;
-    if (!accountId) {
-      show({ title: 'Not signed in' });
-      return;
-    }
     setBusy(true);
     haptic.tap();
     const uploaded: string[] = [];
     try {
       for (const asset of result.assets) {
-        if (!asset.base64) continue;
-        const bytes = decodeBase64(asset.base64);
-        const rand = Math.random().toString(36).substring(2, 7);
-        const path = `${accountId}/img-${Date.now()}-${rand}.jpg`;
-        const { error } = await supabase.storage
-          .from(BUCKET)
-          .upload(path, bytes.buffer as ArrayBuffer, {
-            contentType: 'image/jpeg',
-            upsert: true,
-            cacheControl: '3600',
-          });
-        if (error) throw new Error(error.message);
-        uploaded.push(`${BUCKET}/${path}`);
+        try {
+          uploaded.push(await uploadResized(asset));
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 413 && asset.base64)) {
+            throw e;
+          }
+          uploaded.push(await uploadOriginal(asset.base64));
+        }
       }
       if (uploaded.length > 0) {
         onChange([...images, ...uploaded]);
