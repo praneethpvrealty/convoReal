@@ -416,6 +416,10 @@ describe('[JRN-019] a requirement typed in reply to the check-in', () => {
     'Wait for 2 weeks, then share 30x40 plots',
     'Is the plot east facing?',
     'Is it a corner plot?',
+    'Does this office have parking?',
+    'Is the warehouse on the main road?',
+    'Call me after a week, I need a 30x40 plot',
+    'Ping me next week about 2 BHK flats',
     'Ok thanks',
   ])('does not read %j as a new requirement', (text) => {
     expect(statesNewRequirement(text)).toBe(false);

@@ -31,7 +31,10 @@ import {
 } from '@/lib/contacts/draft-match';
 import { looksLikeQuestion } from '@/lib/ai/lead-question';
 import { appendRequirement } from '@/lib/ai/buyer-qualification';
-import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
+import {
+  carriesRequirementSignal,
+  PROPERTY_TYPE_WORDS,
+} from '@/lib/ai/requirement-signal';
 import { isPropertyDisinterest } from '@/lib/whatsapp/property-disinterest';
 import { syncContactPreferences } from '@/lib/contacts/preference-sync';
 import {
@@ -2305,10 +2308,12 @@ const CHECKIN_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const RESPONSE_REASON_LIMIT = 280;
 
 const CHECK_BACK_CUE =
-  /(?<!\b(?:can['’]?t|cannot|can not|don['’]?t|do not|won['’]?t|no need to|not|never)\s+)\b(?:check(?:ing)? back|get back|come back|call (?:me )?(?:back|again|later)|follow[- ]?up|remind|ping me|reach out|contact me|(?:talk|speak) later|wait\s+(?:for|till|until|a|an|another|one|two|few|\d))/i;
+  /(?<!\b(?:can['’]?t|cannot|can not|don['’]?t|do not|won['’]?t|no need to|not|never)\s+)\b(?:check(?:ing)? back|get back|come back|follow[- ]?up|remind|(?:call|ping|message|text|contact|reach out to|get in touch with)\s+(?:me|us)\b|(?:talk|speak) later|wait\s+(?:for|till|until|a|an|another|one|two|few|\d))/i;
 
-const ABOUT_THE_LISTING =
-  /\b(?:this|that|the)\s+(?:property|plot|site|land|flat|apartment|villa|house|listing|one|project|layout)\b|\b(?:is|does|has|was)\s+(?:it|this|that)\b/i;
+const ABOUT_THE_LISTING = new RegExp(
+  `\\b(?:this|that|the)\\s+(?:property|site|listing|one|project|layout|${PROPERTY_TYPE_WORDS})\\b|\\b(?:is|does|has|was)\\s+(?:it|this|that)\\b`,
+  'i'
+);
 
 export function statesNewRequirement(text: string): boolean {
   if (!carriesRequirementSignal(text)) return false;
