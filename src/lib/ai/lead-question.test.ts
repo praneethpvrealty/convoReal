@@ -78,6 +78,27 @@ describe('offersOwnCall', () => {
   });
 });
 
+describe('call-intent matching on hostile input', () => {
+  it('stays linear on a 4096-character message of any shape', () => {
+    const fill = (unit: string) =>
+      unit.repeat(Math.ceil(4096 / unit.length)).slice(0, 4095) + 'x';
+    for (const text of [
+      'i' + ' '.repeat(4094) + 'x',
+      fill('we \t'),
+      fill("i'll will "),
+      fill("don't "),
+      fill("don't a "),
+      fill('let me give you a '),
+      fill('i going to gonna '),
+    ]) {
+      const started = performance.now();
+      requestsHumanContact(text);
+      offersOwnCall(text);
+      expect(performance.now() - started, text.slice(0, 12)).toBeLessThan(200);
+    }
+  });
+});
+
 describe('requestsHumanContact', () => {
   it('recognises the ask that was answered with a budget question', () => {
     // The reported bug: "Call me" reached the qualification ladder and

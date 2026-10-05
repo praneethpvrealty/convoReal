@@ -225,16 +225,17 @@ export const CALLBACK_HANDOVER_TEXT =
  * me", "I don't want you to call me").
  */
 const CALL_REFUSAL =
-  /\b(?:(?:don'?t|do not|did not|didn'?t|never|no need)(?:\s+[\w']+){0,3}?|stop)\s+(?:call|ring|phon)\w*(?:\s+(?:me|us))?(?:\s+back)?\b/g;
+  /\b(?:(?:don'?t|do not|did not|didn'?t|never|no need)(?: [\w']+){0,3}?|stop) (?:call|ring|phon)\w*(?: (?:me|us))?(?: back)?\b/g;
 
 const OWN_CALL_OFFER =
-  /\b(?:(?:i|we)\s*(?:'ll|'d|'m|'re|will|shall|would|could|can|may|might|should|must|am|are)?\s*(?:going to|gonna|try to|plan to|want to|need to|have to)?|let (?:me|us)|lemme)\s*(?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
+  /\b(?:(?:i|we)(?:'ll|'d|'m|'re| will| shall| would| could| can| may| might| should| must| am| are)?(?: going to| gonna| try to| plan to| want to| need to| have to)?|let me|let us|lemme) (?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
 
 function normaliseCallText(text?: string | null): string {
   return (text || '')
-    .trim()
     .toLowerCase()
-    .replace(/[\u2018\u2019]/g, "'");
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /** "I'll call back tomorrow" — the lead offering to ring us. */
