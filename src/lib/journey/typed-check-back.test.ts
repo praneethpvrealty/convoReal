@@ -394,6 +394,30 @@ describe('[JRN-015] a typed reply to the check-in template', () => {
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 
+  it('spots a callback request past the stored note limit', async () => {
+    tables.messages = [
+      {
+        content_text: CHECKIN_TEMPLATE_TEXT,
+        created_at: new Date(NOW.getTime() - 60_000).toISOString(),
+        template_name: 'enquiry_checkin_notice',
+      },
+    ];
+
+    const outcome = await handleInboxCheckinReply({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact: { ...contact, phone: '919800000000' },
+      conversationId: 'conv-1',
+      responseText: `${'We are still discussing it at home. '.repeat(9)}Please call me`,
+      accessToken: 'token',
+      phoneNumberId: 'pn-1',
+    });
+
+    expect(outcome).toBe('logged');
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
   it('still recognises an unrelated last message as not a check-in', async () => {
     tables.messages = [
       {

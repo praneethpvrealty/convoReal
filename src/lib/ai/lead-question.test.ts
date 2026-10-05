@@ -100,6 +100,15 @@ describe('requestsHumanContact', () => {
     expect(requestsHumanContact('I will call you back later')).toBe(false);
     expect(requestsHumanContact("I'll call back tomorrow")).toBe(false);
     expect(requestsHumanContact('We will call back next week')).toBe(false);
+    for (const text of [
+      'I can call back in a week',
+      'Let me call back tomorrow',
+      'I\u2019ll call back',
+      "I'm going to call back on Monday",
+      'we might give you a call',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(false);
+    }
     expect(requestsHumanContact("I'll call back, or please call me")).toBe(
       true
     );

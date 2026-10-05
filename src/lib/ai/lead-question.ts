@@ -226,8 +226,9 @@ export function requestsHumanContact(text?: string | null): boolean {
   const t = (text || '')
     .trim()
     .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
     .replace(
-      /\b(i|we)\s*('ll|'d|'m going to|will|shall|would|am going to|are going to)?\s*(give (you )?a )?(call|ring|phone)( you)?( back)?\b/g,
+      /\b(?:(?:i|we)\s*(?:'ll|'d|'m|'re|will|shall|would|could|can|may|might|should|must|am|are)?\s*(?:going to|gonna|try to|plan to|want to|need to|have to)?|let (?:me|us)|lemme)\s*(?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g,
       ' '
     )
     .trim();

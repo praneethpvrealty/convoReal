@@ -2444,7 +2444,7 @@ export async function handleInboxCheckinReply(
 
   if (
     !fromButton &&
-    (looksLikeQuestion(response) || requestsHumanContact(response))
+    (looksLikeQuestion(response) || requestsHumanContact(responseText))
   )
     return 'logged';
 
