@@ -2305,10 +2305,10 @@ const CHECKIN_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const RESPONSE_REASON_LIMIT = 280;
 
 const CHECK_BACK_CUE =
-  /\b(?:check(?:ing)? back|get back|come back|call (?:me )?(?:back|again|later)|follow[- ]?up|remind|ping me|reach out|contact me|(?:talk|speak) later)\b|(?<!\b(?:can['’]?t|cannot|can not|don['’]?t|won['’]?t|not)\s+)\bwait\s+(?:for|till|until|a|an|another|one|two|few|\d)/i;
+  /(?<!\b(?:can['’]?t|cannot|can not|don['’]?t|do not|won['’]?t|no need to|not|never)\s+)\b(?:check(?:ing)? back|get back|come back|call (?:me )?(?:back|again|later)|follow[- ]?up|remind|ping me|reach out|contact me|(?:talk|speak) later|wait\s+(?:for|till|until|a|an|another|one|two|few|\d))/i;
 
 const ABOUT_THE_LISTING =
-  /\b(?:this|that|it|its|the\s+(?:property|plot|site|land|flat|apartment|villa|house|listing|one|project|layout))\b/i;
+  /\b(?:this|that|the)\s+(?:property|plot|site|land|flat|apartment|villa|house|listing|one|project|layout)\b|\b(?:is|does|has|was)\s+(?:it|this|that)\b/i;
 
 export function statesNewRequirement(text: string): boolean {
   if (!carriesRequirementSignal(text)) return false;
