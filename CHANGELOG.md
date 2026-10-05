@@ -24,8 +24,9 @@ than a written entry. Newest first.
   as "Hsr layout 30x40 north and east facing only", had it logged as an update
   on the listing the check-in was about and was asked when to check back. The
   reply now goes to requirement matching: it is filed on the contact and the
-  client is sent listings that fit. A reply that names a check-back date is
-  still filed as one. Invariant JRN-019.
+  client is sent listings that fit (or, when an agent sent the check-in, the
+  agent gets a Match Radar alert). A reply that asks to be checked back on at a
+  date is still filed as one. Invariant JRN-019.
 
 #### 4 October 2026
 

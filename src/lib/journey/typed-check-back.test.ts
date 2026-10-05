@@ -404,12 +404,14 @@ describe('[JRN-019] a requirement typed in reply to the check-in', () => {
     'Can you find a villa that is under 2 crore?',
     'No need to check back; I need a villa next week',
     "Don't call me back next week, just send 30x40 plots in HSR",
+    'Not interested in this plot; I need a villa under 2 crore',
   ])('reads %j as a new requirement', (text) => {
     expect(statesNewRequirement(text)).toBe(true);
   });
 
   it.each([
     'not interested in this plot',
+    'Not interested, the plot is too far',
     'Does this villa have clear title?',
     'Check back in a week, need a 30x40 plot',
     'You need to wait for a week',

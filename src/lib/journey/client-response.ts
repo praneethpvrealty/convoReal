@@ -35,7 +35,6 @@ import {
   carriesRequirementSignal,
   PROPERTY_TYPE_WORDS,
 } from '@/lib/ai/requirement-signal';
-import { isPropertyDisinterest } from '@/lib/whatsapp/property-disinterest';
 import { syncContactPreferences } from '@/lib/contacts/preference-sync';
 import {
   CLIENT_QUESTION_PROMPT,
@@ -2310,15 +2309,23 @@ const RESPONSE_REASON_LIMIT = 280;
 const CHECK_BACK_CUE =
   /(?<!\b(?:can['’]?t|cannot|can not|don['’]?t|do not|won['’]?t|no need to|not|never)\s+)\b(?:check(?:ing)? back|get back|come back|follow[- ]?up|remind|(?:call|ping|message|text|contact|reach out to|get in touch with)\s+(?:me|us)\b|(?:talk|speak) later|wait\s+(?:for|till|until|a|an|another|one|two|few|\d))/i;
 
-const ABOUT_THE_LISTING = new RegExp(
-  `\\b(?:this|that|the)\\s+(?:property|site|listing|one|project|layout|${PROPERTY_TYPE_WORDS})\\b|\\b(?:is|does|has|was)\\s+(?:it|this|that)\\b`,
+const LISTING_NOUN = `(?:property|site|listing|one|project|layout|${PROPERTY_TYPE_WORDS})`;
+
+const LISTING_REFERENCE = new RegExp(
+  `\\b(?:this|that|the)\\s+${LISTING_NOUN}\\b`,
+  'gi'
+);
+
+const QUESTION_ABOUT_THE_LISTING = new RegExp(
+  `\\b(?:this|that|the)\\s+${LISTING_NOUN}\\b|\\b(?:is|does|has|was)\\s+(?:it|this|that)\\b`,
   'i'
 );
 
 export function statesNewRequirement(text: string): boolean {
-  if (!carriesRequirementSignal(text)) return false;
-  if (isPropertyDisinterest(text)) return false;
-  if (looksLikeQuestion(text) && ABOUT_THE_LISTING.test(text)) return false;
+  if (!carriesRequirementSignal(text.replace(LISTING_REFERENCE, ' ')))
+    return false;
+  if (looksLikeQuestion(text) && QUESTION_ABOUT_THE_LISTING.test(text))
+    return false;
   return !(CHECK_BACK_CUE.test(text) && parseCheckBackDate(text));
 }
 
