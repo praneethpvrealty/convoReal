@@ -16,9 +16,11 @@ import {
   looksLikeQuestion,
   offersOwnCall,
   requestsHumanContact,
+  withoutOwnCallOffer,
 } from '@/lib/ai/lead-question';
 import {
   isInboundVisitRequest,
+  looksLikeSchedulingText,
   tryHandleInboundScheduling,
 } from '@/lib/calendar/whatsapp-scheduler';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -81,11 +83,13 @@ export async function leadConversation(
     // below, the same way a question does.
     // "I'll call back tomorrow" is the lead's own call, not a visit to
     // book — it belongs to the check-in and timeline capture below,
-    // unless the same message also asks to visit.
+    // unless the rest of the message asks to visit or schedule.
     if (
       !requestsHumanContact(contentText) &&
       (isInboundVisitRequest(contentText || '') ||
-        (!offersOwnCall(contentText) && !looksLikeQuestion(contentText)))
+        (!looksLikeQuestion(contentText) &&
+          (!offersOwnCall(contentText) ||
+            looksLikeSchedulingText(withoutOwnCallOffer(contentText)))))
     ) {
       const booked = await tryHandleInboundScheduling({
         message,

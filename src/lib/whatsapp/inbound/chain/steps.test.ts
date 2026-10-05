@@ -106,8 +106,10 @@ describe('[JRN-015] a check-in reply about calling reaches the right handler', (
       source.indexOf('!requestsHumanContact(contentText)'),
       source.indexOf('tryHandleInboundScheduling({')
     );
+    expect(gate).toContain("isInboundVisitRequest(contentText || '') ||");
+    expect(gate).toContain('!offersOwnCall(contentText) ||');
     expect(gate).toContain(
-      "isInboundVisitRequest(contentText || '') ||\n        (!offersOwnCall(contentText)"
+      'looksLikeSchedulingText(withoutOwnCallOffer(contentText))'
     );
     expect(source.indexOf('tryHandleInboundScheduling({')).toBeLessThan(
       source.indexOf('handleInboxCheckinReply({')

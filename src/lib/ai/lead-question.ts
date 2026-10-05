@@ -234,6 +234,11 @@ const HUMAN_REQUEST =
   /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/g;
 
 const REFUSAL_GLUE = new Set([
+  'a',
+  'an',
+  'the',
+  'any',
+  'for',
   'want',
   'wanna',
   'need',
@@ -285,6 +290,17 @@ function refusedBefore(prefix: string): boolean {
     if (!REFUSAL_GLUE.has(words[end - 1])) return false;
   }
   return false;
+}
+
+/** The message with the lead's own offer to ring us struck out, so
+ *  what is left can be read for any other request it carries. */
+export function withoutOwnCallOffer(text?: string | null): string {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/\s+/g, ' ')
+    .replace(OWN_CALL_OFFER, ' ')
+    .trim();
 }
 
 /** "I'll call back tomorrow" — the lead offering to ring us. */

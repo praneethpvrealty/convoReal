@@ -19,6 +19,7 @@ import {
   repliesRatherThanOpens,
   requestsHumanContact,
   offersOwnCall,
+  withoutOwnCallOffer,
   HANDOVER_TEXT,
   CALLBACK_HANDOVER_TEXT,
   mergeLeadAnswers,
@@ -66,6 +67,17 @@ describe('looksLikeQuestion', () => {
     expect(looksLikeQuestion('Please send')).toBe(false);
     expect(looksLikeQuestion('')).toBe(false);
     expect(looksLikeQuestion(null)).toBe(false);
+  });
+});
+
+describe('withoutOwnCallOffer', () => {
+  it('keeps whatever else the message asks for', () => {
+    expect(withoutOwnCallOffer("I'll call back tomorrow")).toBe('tomorrow');
+    expect(
+      withoutOwnCallOffer(
+        'Please schedule a meeting Friday at 3pm; I will call you tomorrow'
+      )
+    ).toContain('schedule a meeting friday at 3pm');
   });
 });
 
@@ -152,6 +164,8 @@ describe('requestsHumanContact', () => {
       "Please don't ever call me",
       "Please don't connect me to an agent",
       "I don't want to talk to a human",
+      "I don't need a callback",
+      'No need for a call back',
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
     }
