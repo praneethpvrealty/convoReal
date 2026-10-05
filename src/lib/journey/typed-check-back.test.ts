@@ -236,6 +236,33 @@ describe('[JRN-015] captureTypedCheckBack', () => {
     expect(todoWrite()).toBeUndefined();
   });
 
+  it('leaves a callback request to the handover', async () => {
+    const reply = await captureTypedCheckBack({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact,
+      text: 'Please call me',
+      previousBotText: 'When should we check back with you?',
+      now: NOW,
+    });
+    expect(reply).toBeNull();
+    expect(writes).toEqual([]);
+  });
+
+  it("still dates a reply where the client says they'll call back", async () => {
+    const reply = await captureTypedCheckBack({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact,
+      text: "I'll call back in a week",
+      previousBotText: 'When should we check back with you?',
+      now: NOW,
+    });
+    expect(reply?.buttons?.[0].id).toBe('jcd_ok:2026-10-06');
+  });
+
   it('ignores replies to anything but the timeline question', async () => {
     const reply = await captureTypedCheckBack({
       db: makeDb(),

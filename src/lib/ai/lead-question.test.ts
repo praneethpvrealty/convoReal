@@ -98,6 +98,11 @@ describe('requestsHumanContact', () => {
     // request would summon an agent and promise a call nobody owes.
     expect(requestsHumanContact("I'll call you tomorrow")).toBe(false);
     expect(requestsHumanContact('I will call you back later')).toBe(false);
+    expect(requestsHumanContact("I'll call back tomorrow")).toBe(false);
+    expect(requestsHumanContact('We will call back next week')).toBe(false);
+    expect(requestsHumanContact("I'll call back, or please call me")).toBe(
+      true
+    );
   });
 
   it('leaves ordinary requirement talk to the ladder', () => {

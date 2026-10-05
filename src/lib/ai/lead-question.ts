@@ -218,11 +218,19 @@ export const CALLBACK_HANDOVER_TEXT =
  * intent call — this decides whether a human is summoned, which is too
  * important to make a paid call for and too cheap to need one.
  *
- * "I'll call you" is not a match and must not become one: the lead
- * saying they will ring is not a request for us to.
+ * "I'll call you" and "I'll call back tomorrow" are not matches and
+ * must not become ones: the lead saying they will ring is not a
+ * request for us to, so the lead's own call is struck out first.
  */
 export function requestsHumanContact(text?: string | null): boolean {
-  const t = (text || '').trim().toLowerCase();
+  const t = (text || '')
+    .trim()
+    .toLowerCase()
+    .replace(
+      /\b(i|we)\s*('ll|'d|'m going to|will|shall|would|am going to|are going to)?\s*(give (you )?a )?(call|ring|phone)( you)?( back)?\b/g,
+      ' '
+    )
+    .trim();
   if (!t) return false;
   return /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/.test(
     t

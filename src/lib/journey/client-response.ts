@@ -460,6 +460,7 @@ export async function captureTypedCheckBack(
 ): Promise<TypedCheckBackReply | null> {
   const previous = args.previousBotText || '';
   if (!TIMELINE_ASK_FINGERPRINT.test(previous)) return null;
+  if (requestsHumanContact(args.text)) return null;
   const now = args.now ?? new Date();
   const named = parseCheckBackDate(args.text, now);
 
