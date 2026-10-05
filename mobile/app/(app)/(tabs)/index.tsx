@@ -34,6 +34,12 @@ import {
   nameTagCap,
 } from '@/components/ui';
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import {
+  inboxMessageHitMap,
+  inboxSearchTerm,
+  searchSnippet,
+  type InboxMessageHit,
+} from '@shared/lib/conversations/inbox-search';
 import { conversationPreview } from '@shared/lib/conversations/text-format';
 import { useAuthStore } from '@/lib/auth-store';
 import { setConversationArchived } from '@/lib/conversation-actions';
@@ -63,6 +69,7 @@ import {
   type ThemeColors,
 } from '@/lib/theme';
 import { useCredits } from '@/lib/use-credits';
+import { useDebounced } from '@/lib/use-debounced';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 
@@ -170,6 +177,32 @@ export default function InboxScreen() {
     };
   }, [accountId, userId]);
 
+  const searchTerm = inboxSearchTerm(useDebounced(search));
+  const { data: messageHits } = useQuery({
+    queryKey: ['inbox-message-search', accountId, searchTerm],
+    enabled: Boolean(accountId) && searchTerm !== '',
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase.rpc(
+        'search_inbox_messages',
+        { p_account_id: accountId, p_query: searchTerm, p_limit: 200 }
+      );
+      if (error) throw error;
+      return inboxMessageHitMap(rows as InboxMessageHit[] | null);
+    },
+  });
+
+  const searchMatches = useMemo(() => {
+    const matches = new Map<string, string>();
+    for (const [id, hit] of messageHits ?? []) {
+      matches.set(
+        id,
+        searchSnippet(conversationPreview(hit.content_text), searchTerm)
+      );
+    }
+    return matches;
+  }, [messageHits, searchTerm]);
+
   const activityById = useMemo(
     () =>
       new Map(
@@ -223,12 +256,13 @@ export default function InboxScreen() {
           c.contact?.phone?.includes(q) ||
           c.last_message_text?.toLowerCase().includes(q) ||
           closeReason?.toLowerCase().includes(q) ||
-          c.close_note?.toLowerCase().includes(q)
+          c.close_note?.toLowerCase().includes(q) ||
+          messageHits?.has(c.id)
         );
       });
     }
     return list;
-  }, [data, filter, search, activityById]);
+  }, [data, filter, search, activityById, messageHits]);
 
   const visibleFilters = useMemo(() => {
     if (wide || showAllFilters) return FILTERS;
@@ -338,6 +372,7 @@ export default function InboxScreen() {
                   filter === 'Active' ? activityById.get(item.id) : undefined
                 }
                 showDialog={show}
+                searchMatch={searchMatches.get(item.id)}
               />
             </EnterRow>
           )}
@@ -540,9 +575,11 @@ function ConversationRow({
   archived,
   activityCount,
   showDialog,
+  searchMatch,
 }: {
   conversation: Conversation;
   archived: boolean;
+  searchMatch?: string;
   /** Messages in the last 24h — set only while the Active filter is on. */
   activityCount?: number;
   /** The list owns the dialog: one per screen, not one per row. */
@@ -673,7 +710,7 @@ function ConversationRow({
           </View>
           <View style={styles.rowTop}>
             <View style={styles.previewWrap}>
-              {outgoingTicks ? (
+              {outgoingTicks && searchMatch === undefined ? (
                 <MessageTicks status={outgoingTicks} colors={colors} />
               ) : null}
               <Text
@@ -685,7 +722,8 @@ function ConversationRow({
                 }}
                 numberOfLines={1}
               >
-                {conversationPreview(conversation.last_message_text)}
+                {searchMatch ??
+                  conversationPreview(conversation.last_message_text)}
               </Text>
             </View>
             <UnreadBadge count={conversation.unread_count} />
