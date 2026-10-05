@@ -46,6 +46,24 @@ async function uploadResized(asset: {
   return data.paths[0];
 }
 
+async function uploadAsset(asset: {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  base64?: string | null;
+}): Promise<string> {
+  try {
+    return await uploadResized(asset);
+  } catch (e) {
+    if (!(e instanceof ApiError)) throw e;
+    if (e.status === 413 && asset.base64) return uploadOriginal(asset.base64);
+    if (e.status !== 429) throw e;
+    const waitSeconds = Math.min(e.retryAfterSeconds ?? 60, 60);
+    await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
+    return uploadResized(asset);
+  }
+}
+
 async function uploadOriginal(base64: string): Promise<string> {
   const accountId = useAuthStore.getState().profile?.account_id;
   if (!accountId) throw new Error('Not signed in');
@@ -117,26 +135,23 @@ export function PropertyPhotoEditor({
     const uploaded: string[] = [];
     try {
       for (const asset of result.assets) {
-        try {
-          uploaded.push(await uploadResized(asset));
-        } catch (e) {
-          if (!(e instanceof ApiError && e.status === 413 && asset.base64)) {
-            throw e;
-          }
-          uploaded.push(await uploadOriginal(asset.base64));
-        }
+        uploaded.push(await uploadAsset(asset));
       }
-      if (uploaded.length > 0) {
-        onChange([...images, ...uploaded]);
-        haptic.success();
-      }
+      haptic.success();
     } catch (e) {
       haptic.warn();
       show({
-        title: 'Upload failed',
-        message: e instanceof Error ? e.message : 'Please try again.',
+        title:
+          uploaded.length > 0 ? 'Some photos did not upload' : 'Upload failed',
+        message:
+          uploaded.length > 0
+            ? `${uploaded.length} of ${result.assets.length} added. ${e instanceof Error ? e.message : 'Please try again.'}`
+            : e instanceof Error
+              ? e.message
+              : 'Please try again.',
       });
     } finally {
+      if (uploaded.length > 0) onChange([...images, ...uploaded]);
       setBusy(false);
     }
   }
