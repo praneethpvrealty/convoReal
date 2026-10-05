@@ -151,6 +151,9 @@ describe('requestsHumanContact', () => {
       'I\u2019ll call back',
       "I'm going to call back on Monday",
       'we might give you a call',
+      "I'll definitely call back tomorrow",
+      'I can probably call back next week',
+      "I'm going to just call you back",
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
     }

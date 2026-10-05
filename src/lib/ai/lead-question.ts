@@ -228,7 +228,7 @@ export const CALLBACK_HANDOVER_TEXT =
 const CLAUSE_BREAK = /[.,;:!?\n]+|\b(?:but|and|so|or|then)\b/;
 
 const OWN_CALL_OFFER =
-  /\b(?:(?:i|we)(?:'ll|'d|'m|'re| will| shall| would| could| can| may| might| should| must| am| are)?(?: going to| gonna| try to| plan to| want to| need to| have to)?|let me|let us|lemme) (?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
+  /\b(?:(?:i|we)(?:'ll|'d|'m|'re| will| shall| would| could| can| may| might| should| must| am| are)?(?: (?:definitely|probably|surely|certainly|just|also|maybe|then|soon|myself|personally|really|quickly|ourselves))?(?: going to| gonna| try to| plan to| want to| need to| have to)?(?: (?:definitely|probably|surely|certainly|just|also|maybe|then|soon|myself|personally|really|quickly|ourselves))?|let me|let us|lemme) (?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
 
 const HUMAN_REQUEST =
   /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/g;
