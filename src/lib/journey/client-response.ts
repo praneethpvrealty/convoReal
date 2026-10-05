@@ -33,8 +33,14 @@ import {
   looksLikeQuestion,
   requestsHumanContact,
 } from '@/lib/ai/lead-question';
-import { appendRequirement } from '@/lib/ai/buyer-qualification';
-import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
+import {
+  appendRequirement,
+  qualifiesForLadder,
+} from '@/lib/ai/buyer-qualification';
+import {
+  carriesRequirementSignal,
+  PROPERTY_TYPE_WORDS,
+} from '@/lib/ai/requirement-signal';
 import { syncContactPreferences } from '@/lib/contacts/preference-sync';
 import {
   CLIENT_QUESTION_PROMPT,
@@ -2327,6 +2333,29 @@ export function isJourneyCheckinText(text?: string | null): boolean {
 const CHECKIN_REPLY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const RESPONSE_REASON_LIMIT = 280;
 
+const CHECK_BACK_CUE =
+  /(?<!\b(?:can['’]?t|cannot|can not|don['’]?t|do not|won['’]?t|no need to|not|never)\s+)\b(?:check(?:ing)? back|get back|come back|follow[- ]?up|remind|(?:call|ping|message|text|contact|reach out to|get in touch with)\s+(?:me|us)\b|(?:talk|speak) later|wait\s+(?:for|till|until|a|an|another|one|two|few|\d))/i;
+
+const LISTING_NOUN = `(?:property|site|listing|one|project|layout|${PROPERTY_TYPE_WORDS})`;
+
+const LISTING_REFERENCE = new RegExp(
+  `\\b(?:this|that|the)\\s+${LISTING_NOUN}\\b`,
+  'gi'
+);
+
+const QUESTION_ABOUT_THE_LISTING = new RegExp(
+  `\\b(?:this|that|the)\\s+${LISTING_NOUN}\\b|\\b(?:is|does|has|was|can|could|will|would|should)\\s+(?:it|this|that)\\b(?!\\s+(?:be\\s+)?possible)`,
+  'i'
+);
+
+export function statesNewRequirement(text: string): boolean {
+  if (!carriesRequirementSignal(text.replace(LISTING_REFERENCE, ' ')))
+    return false;
+  if (looksLikeQuestion(text) && QUESTION_ABOUT_THE_LISTING.test(text))
+    return false;
+  return !(CHECK_BACK_CUE.test(text) && parseCheckBackDate(text));
+}
+
 export type InboxCheckinOutcome = 'not_checkin' | 'logged' | 'logged_and_asked';
 
 export interface InboxCheckinReplyArgs {
@@ -2350,7 +2379,9 @@ export interface InboxCheckinReplyArgs {
  * conversation are already known, the property is scanned out of the
  * check-in message itself, and the client's own words become the
  * journey event. Returns 'not_checkin' when the thread's last outbound
- * wasn't a check-in (callers fall through to normal handling), 'logged'
+ * wasn't a check-in, or when the reply states a new requirement and names
+ * no check-back date (callers fall through to normal handling, which
+ * files the requirement and matches it), 'logged'
  * when the reply was recorded but reads as a question the bot should
  * still answer, and 'logged_and_asked' when the timeline buttons went
  * out and the message is fully handled.
@@ -2392,6 +2423,26 @@ export async function handleInboxCheckinReply(
         m.template_name === JOURNEY_CHECKIN_TEMPLATE_NAME)
   );
   if (checkins.length === 0) return 'not_checkin';
+
+  if (!fromButton && statesNewRequirement(responseText)) {
+    const [{ data: config }, { data: contactRow }] = await Promise.all([
+      db
+        .from('whatsapp_config')
+        .select('auto_qualify_leads')
+        .eq('account_id', accountId)
+        .maybeSingle(),
+      db
+        .from('contacts')
+        .select('requirement_active, classification')
+        .eq('id', contact.id)
+        .eq('account_id', accountId)
+        .maybeSingle(),
+    ]);
+    if (!qualifiesForLadder(config, contactRow)) {
+      await captureStatedRequirement(db, accountId, contact.id, responseText);
+    }
+    return 'not_checkin';
+  }
 
   const { data: propData } = await db
     .from('properties')

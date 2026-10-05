@@ -65,6 +65,23 @@ export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
  *  Owner answering this number is not stating a buying requirement. */
 const QUALIFIABLE_CLASSIFICATIONS = ['Buyer', 'Agent', 'Owner & Buyer'];
 
+/** Whether processBuyerQualificationMessage will take a requirement
+ *  this contact states, so a caller that stands down for it knows the
+ *  message will still be filed. */
+export function qualifiesForLadder(
+  config: { auto_qualify_leads?: boolean | null } | null,
+  contact: {
+    requirement_active?: boolean | null;
+    classification?: string | null;
+  } | null
+): boolean {
+  if (!config || config.auto_qualify_leads === false) return false;
+  if (!contact || contact.requirement_active === false) return false;
+  return QUALIFIABLE_CLASSIFICATIONS.includes(
+    contact.classification || 'Buyer'
+  );
+}
+
 /** Recent messages used to avoid re-sending listings while a buyer is
  *  answering an earlier shortlist. Human ownership is determined by
  *  the latest outbound message in the wider thread window below. */
@@ -1491,11 +1508,7 @@ export async function processBuyerQualificationMessage(
     if (!contactRow) return false;
 
     const contact = contactRow as Contact;
-    if (contact.requirement_active === false) return false;
-    if (
-      !QUALIFIABLE_CLASSIFICATIONS.includes(contact.classification || 'Buyer')
-    )
-      return false;
+    if (!qualifiesForLadder(config, contact)) return false;
 
     // One read serves two gates. The latest outbound sender owns the
     // thread: a later bot reply resumes automation, while a later agent

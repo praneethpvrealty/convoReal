@@ -4,8 +4,10 @@
 //
 // It gates a paid extraction, so it must stay deterministic and free.
 
-const PROPERTY_TYPE_SIGNAL =
-  /\b(land|plot|site|acres?|guntha|cents?|flat|apartment|villa|house|duplex|penthouse|studio|bhk|commercial|office|shop|retail|showroom|warehouse|godown|farm ?land|farmhouse|agricultur\w*|residential|independent|builder floor)\b/i;
+export const PROPERTY_TYPE_WORDS =
+  '(?:land|plot|site|acres?|guntha|cents?|flat|apartment|villa|house|duplex|penthouse|studio|bhk|commercial|office|shop|retail|showroom|warehouse|godown|farm ?land|farmhouse|agricultur\\w*|residential|independent|builder floor)';
+
+const PROPERTY_TYPE_SIGNAL = new RegExp(`\\b${PROPERTY_TYPE_WORDS}\\b`, 'i');
 
 const BUDGET_SIGNAL =
   /(\d+\s*(?:\.\d+)?\s*(?:cr|crore|crores|lakh|lakhs|lac|lacs|l|k)\b)|\b\d{6,}\b/i;
