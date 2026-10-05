@@ -37,7 +37,7 @@ import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import {
   inboxMessageHitMap,
   inboxSearchTerm,
-  searchSnippet,
+  inboxSearchPreview,
   type InboxMessageHit,
 } from '@shared/lib/conversations/inbox-search';
 import { conversationPreview } from '@shared/lib/conversations/text-format';
@@ -179,13 +179,13 @@ export default function InboxScreen() {
 
   const searchTerm = inboxSearchTerm(useDebounced(search));
   const { data: messageHits } = useQuery({
-    queryKey: ['inbox-message-search', accountId, searchTerm],
+    queryKey: ['inbox-message-search', accountId, searchTerm, archived],
     enabled: Boolean(accountId) && searchTerm !== '',
     staleTime: 30_000,
     queryFn: async () => {
       const { data: rows, error } = await supabase.rpc(
         'search_inbox_messages',
-        { p_account_id: accountId, p_query: searchTerm, p_limit: 200 }
+        { p_account_id: accountId, p_query: searchTerm, p_archived: archived }
       );
       if (error) throw error;
       return inboxMessageHitMap(rows as InboxMessageHit[] | null);
@@ -195,10 +195,7 @@ export default function InboxScreen() {
   const searchMatches = useMemo(() => {
     const matches = new Map<string, string>();
     for (const [id, hit] of messageHits ?? []) {
-      matches.set(
-        id,
-        searchSnippet(conversationPreview(hit.content_text), searchTerm)
-      );
+      matches.set(id, inboxSearchPreview(hit.content_text, searchTerm));
     }
     return matches;
   }, [messageHits, searchTerm]);

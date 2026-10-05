@@ -40,7 +40,7 @@ import { conversationCloseReasonLabel } from '@/lib/conversations/closure';
 import {
   inboxMessageHitMap,
   inboxSearchTerm,
-  searchSnippet,
+  inboxSearchPreview,
   type InboxMessageHit,
 } from '@/lib/conversations/inbox-search';
 import { conversationPreview } from '@/lib/conversations/text-format';
@@ -279,14 +279,24 @@ export function ConversationList({
     return () => clearTimeout(timer);
   }, [search]);
 
+  const searchArchived = filter === 'archived';
   const { data: messageHits } = useQuery({
-    queryKey: ['inbox-message-search', accountId ?? null, searchTerm],
+    queryKey: [
+      'inbox-message-search',
+      accountId ?? null,
+      searchTerm,
+      searchArchived,
+    ],
     enabled: Boolean(accountId) && searchTerm !== '',
     staleTime: 30_000,
     queryFn: async () => {
       const { data, error } = await createClient().rpc(
         'search_inbox_messages',
-        { p_account_id: accountId, p_query: searchTerm, p_limit: 200 }
+        {
+          p_account_id: accountId,
+          p_query: searchTerm,
+          p_archived: searchArchived,
+        }
       );
       if (error) throw error;
       return inboxMessageHitMap(data as InboxMessageHit[] | null);
@@ -296,10 +306,7 @@ export function ConversationList({
   const searchMatches = useMemo(() => {
     const matches = new Map<string, string>();
     for (const [id, hit] of messageHits ?? []) {
-      matches.set(
-        id,
-        searchSnippet(conversationPreview(hit.content_text), searchTerm)
-      );
+      matches.set(id, inboxSearchPreview(hit.content_text, searchTerm));
     }
     return matches;
   }, [messageHits, searchTerm]);

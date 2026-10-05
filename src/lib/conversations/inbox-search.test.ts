@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   inboxMessageHitMap,
+  inboxSearchPreview,
   inboxSearchTerm,
   searchSnippet,
 } from './inbox-search';
@@ -40,6 +41,18 @@ describe('[INB-030] inbox message search', () => {
     expect(searchSnippet(text, 'praveen')).toBe(text);
     expect(searchSnippet('line one\nline   two', 'two')).toBe(
       'line one line two'
+    );
+  });
+});
+
+describe('[INB-030] inbox search preview', () => {
+  it('keeps a header that holds the match', () => {
+    const text = '*Your Property Update*\nTwo new viewings this week';
+    expect(inboxSearchPreview(text, 'property update')).toBe(
+      'Your Property Update Two new viewings this week'
+    );
+    expect(inboxSearchPreview(text, 'viewings')).toBe(
+      'Two new viewings this week'
     );
   });
 });
