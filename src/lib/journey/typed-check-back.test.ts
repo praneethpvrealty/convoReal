@@ -358,3 +358,47 @@ describe('[JRN-015] a typed reply to the check-in template', () => {
     expect(outcome).toBe('not_checkin');
   });
 });
+
+describe('[JRN-019] a requirement typed in reply to the check-in', () => {
+  beforeEach(() => {
+    tables.messages = [
+      {
+        content_text: CHECKIN_TEMPLATE_TEXT,
+        created_at: new Date(NOW.getTime() - 60_000).toISOString(),
+        template_name: 'enquiry_checkin_notice',
+      },
+    ];
+  });
+
+  const reply = (responseText: string) =>
+    handleInboxCheckinReply({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact: { ...contact, phone: '919800000000' },
+      conversationId: 'conv-1',
+      responseText,
+      accessToken: 'token',
+      phoneNumberId: 'pn-1',
+    });
+
+  it('is left for requirement matching, not logged against the checked-in listing', async () => {
+    const outcome = await reply('Hsr layout 30x40 north and east facing only');
+
+    expect(outcome).toBe('not_checkin');
+    expect(writes).toEqual([]);
+    expect(ensureJourneyItem).not.toHaveBeenCalled();
+    expect(createNotification).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('still files the check-back when the reply also names a date', async () => {
+    const outcome = await reply('Check back in a week, need a 30x40 plot');
+
+    expect(outcome).toBe('logged_and_asked');
+    expect(todoWrite()).toMatchObject({
+      contact_id: 'c-1',
+      property_id: 'p-1',
+    });
+  });
+});

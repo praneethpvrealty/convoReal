@@ -2326,7 +2326,9 @@ export interface InboxCheckinReplyArgs {
  * conversation are already known, the property is scanned out of the
  * check-in message itself, and the client's own words become the
  * journey event. Returns 'not_checkin' when the thread's last outbound
- * wasn't a check-in (callers fall through to normal handling), 'logged'
+ * wasn't a check-in, or when the reply states a new requirement and names
+ * no check-back date (callers fall through to normal handling, which
+ * files the requirement and matches it), 'logged'
  * when the reply was recorded but reads as a question the bot should
  * still answer, and 'logged_and_asked' when the timeline buttons went
  * out and the message is fully handled.
@@ -2345,6 +2347,13 @@ export async function handleInboxCheckinReply(
     phoneNumberId,
     fromButton,
   } = args;
+
+  if (
+    !fromButton &&
+    carriesRequirementSignal(responseText) &&
+    !parseCheckBackDate(responseText)
+  )
+    return 'not_checkin';
 
   const { data: outboundData } = await db
     .from('messages')

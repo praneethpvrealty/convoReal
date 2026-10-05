@@ -17,6 +17,16 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 5 October 2026
+
+- **A new requirement typed in reply to a check-in now gets matching listings.**
+  A client who answered an enquiry check-in with what they want instead, such
+  as "Hsr layout 30x40 north and east facing only", had it logged as an update
+  on the listing the check-in was about and was asked when to check back. The
+  reply now goes to requirement matching: it is filed on the contact and the
+  client is sent listings that fit. A reply that names a check-back date is
+  still filed as one. Invariant JRN-019.
+
 #### 4 October 2026
 
 - **Read-only members can no longer create or change automations and flows.**
