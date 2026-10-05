@@ -30,7 +30,10 @@ import {
   type BookContact,
 } from '@/lib/contacts/draft-match';
 import { looksLikeQuestion } from '@/lib/ai/lead-question';
-import { appendRequirement } from '@/lib/ai/buyer-qualification';
+import {
+  appendRequirement,
+  qualifiesForLadder,
+} from '@/lib/ai/buyer-qualification';
 import {
   carriesRequirementSignal,
   PROPERTY_TYPE_WORDS,
@@ -2317,7 +2320,7 @@ const LISTING_REFERENCE = new RegExp(
 );
 
 const QUESTION_ABOUT_THE_LISTING = new RegExp(
-  `\\b(?:this|that|the)\\s+${LISTING_NOUN}\\b|\\b(?:is|does|has|was)\\s+(?:it|this|that)\\b`,
+  `\\b(?:this|that|the)\\s+${LISTING_NOUN}\\b|\\b(?:is|does|has|was|can|could|will|would|should)\\s+(?:it|this|that)\\b(?!\\s+(?:be\\s+)?possible)`,
   'i'
 );
 
@@ -2374,8 +2377,6 @@ export async function handleInboxCheckinReply(
     fromButton,
   } = args;
 
-  if (!fromButton && statesNewRequirement(responseText)) return 'not_checkin';
-
   const { data: outboundData } = await db
     .from('messages')
     .select('content_text, created_at, template_name')
@@ -2398,6 +2399,26 @@ export async function handleInboxCheckinReply(
         m.template_name === JOURNEY_CHECKIN_TEMPLATE_NAME)
   );
   if (checkins.length === 0) return 'not_checkin';
+
+  if (!fromButton && statesNewRequirement(responseText)) {
+    const [{ data: config }, { data: contactRow }] = await Promise.all([
+      db
+        .from('whatsapp_config')
+        .select('auto_qualify_leads')
+        .eq('account_id', accountId)
+        .maybeSingle(),
+      db
+        .from('contacts')
+        .select('requirement_active, classification')
+        .eq('id', contact.id)
+        .eq('account_id', accountId)
+        .maybeSingle(),
+    ]);
+    if (!qualifiesForLadder(config, contactRow)) {
+      await captureStatedRequirement(db, accountId, contact.id, responseText);
+    }
+    return 'not_checkin';
+  }
 
   const { data: propData } = await db
     .from('properties')

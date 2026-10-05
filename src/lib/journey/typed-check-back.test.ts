@@ -12,6 +12,11 @@ const createNotification = vi.fn();
 vi.mock('@/lib/notifications/create', () => ({
   createNotification: (...args: unknown[]) => createNotification(...args),
 }));
+const syncContactPreferences = vi.fn(async () => ({ status: 'updated' }));
+vi.mock('@/lib/contacts/preference-sync', () => ({
+  syncContactPreferences: (...args: unknown[]) =>
+    syncContactPreferences(...(args as [])),
+}));
 const ensureJourneyItem = vi.fn();
 vi.mock('@/lib/journey/capture-server', () => ({
   ensureJourneyItem: (...args: unknown[]) => ensureJourneyItem(...args),
@@ -369,6 +374,8 @@ describe('[JRN-019] a requirement typed in reply to the check-in', () => {
         template_name: 'enquiry_checkin_notice',
       },
     ];
+    tables.whatsapp_config = [{ auto_qualify_leads: true }];
+    tables.contacts = [{ requirement_active: true, classification: 'Buyer' }];
   });
 
   const reply = (responseText: string) =>
@@ -419,6 +426,7 @@ describe('[JRN-019] a requirement typed in reply to the check-in', () => {
     'Is the plot east facing?',
     'Is it a corner plot?',
     'Does this office have parking?',
+    'Can it be used as an office?',
     'Is the warehouse on the main road?',
     'Call me after a week, I need a 30x40 plot',
     'Ping me next week about 2 BHK flats',
@@ -438,6 +446,23 @@ describe('[JRN-019] a requirement typed in reply to the check-in', () => {
           w.row.reason === 'Does this plot have clear title?'
       )
     ).toBe(true);
+  });
+
+  it('files the requirement itself when qualification will not take it', async () => {
+    tables.whatsapp_config = [{ auto_qualify_leads: false }];
+    const outcome = await reply('Hsr layout 30x40 north and east facing only');
+
+    expect(outcome).toBe('not_checkin');
+    expect(
+      writes.find((w) => w.table === 'contacts' && w.op === 'update')?.row
+    ).toEqual({ requirements: 'Hsr layout 30x40 north and east facing only' });
+    expect(syncContactPreferences).toHaveBeenCalledWith(
+      expect.anything(),
+      'acc-1',
+      'c-1'
+    );
+    expect(writes.some((w) => w.table === 'journey_events')).toBe(false);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 
   it('still files the check-back when the reply also names a date', async () => {
