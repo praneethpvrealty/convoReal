@@ -253,6 +253,9 @@ const REFUSAL_GLUE = new Set([
   'tryna',
   'keep',
   'keeping',
+  'get',
+  'getting',
+  'receive',
   'anyone',
   'anybody',
 ]);
@@ -273,17 +276,6 @@ const REFUSAL_WORDS = new Set([
   'mustnt',
   'never',
   'stop',
-]);
-
-const REFUSAL_PAIRS = new Set([
-  'do not',
-  'did not',
-  'will not',
-  'can not',
-  'should not',
-  'must not',
-  'no need',
-  'rather not',
 ]);
 
 function callClauses(text?: string | null): string[] {
@@ -314,7 +306,8 @@ function refusedBefore(prefix: string): boolean {
   while (end > 0) {
     const word = words[end - 1];
     if (REFUSAL_WORDS.has(word)) return true;
-    if (end > 1 && REFUSAL_PAIRS.has(`${words[end - 2]} ${word}`)) return true;
+    if ((word === 'not' || word === 'no') && words[end - 2] !== 'why')
+      return true;
     if (
       (word === 'or' || word === 'nor') &&
       end > 1 &&
