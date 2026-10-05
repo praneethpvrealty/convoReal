@@ -4138,6 +4138,20 @@
             "src/hooks/useCan.ts",
             "src/components/flows/flow-editor-state.tsx"
           ]
+        },
+        {
+          "id": "ACC-004",
+          "rule": "A read-only member cannot write through a SECURITY DEFINER function either. Row-level security does not apply inside one, so each function that writes on behalf of the calling member guards with is_account_writer() rather than is_account_member(): allocate_invoice_number, deal_invoice_append, deal_invoice_remove, issue_invoice, journey_show_captured, sync_listing_status_from_deals and unmap_portal_ad at agent level, resync_pipeline_stage_deals, revoke_beta_invite and rotate_beta_invite at admin level. A read-only member calling one over PostgREST with their own JWT is refused the way a non-member is. sync_listing_status_from_deals keeps its service-role branch, so server code and triggers running as the service role still sync a listing. complete_copilot_appointment refuses read-only members with its own profile check and stays as it is. A new SECURITY DEFINER function that inserts, updates or deletes for the caller uses is_account_writer(); is_account_member() is for reads.",
+          "tests": [
+            {
+              "file": "src/lib/auth/read-only-definer-functions.test.ts",
+              "case": "[ACC-004]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261005114500_definer_write_functions_read_only.sql",
+            "supabase/migrations/20261004155516_flow_automation_write_read_only_rls.sql"
+          ]
         }
       ]
     },

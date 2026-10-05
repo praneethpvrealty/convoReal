@@ -17,6 +17,17 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 5 October 2026
+
+- **Read-only members can no longer write through database functions.** Ten
+  functions that write on a member's behalf (issuing an invoice and allocating
+  its number, attaching or removing a deal invoice, showing captured journey
+  items, syncing a listing's status from its deals, resyncing a pipeline
+  stage, unmapping a portal ad, revoking or resending a beta invite) checked
+  membership only, so a read-only member could call them directly with their
+  own session. They now refuse read-only members. **Migration required:**
+  `20261005114500_definer_write_functions_read_only.sql`. Invariant ACC-004.
+
 #### 4 October 2026
 
 - **Read-only members can no longer create or change automations and flows.**
