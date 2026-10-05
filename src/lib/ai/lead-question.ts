@@ -225,7 +225,7 @@ export const CALLBACK_HANDOVER_TEXT =
  * "I don't know, please call me" and "don't hesitate to call me" still
  * ask for a person.
  */
-const CLAUSE_BREAK = /[.,;:!?\n]+|\b(?:but|and|so|or|then)\b/;
+const CLAUSE_BREAK = /[.,;:!?\n]+|\b(?:but|and|so|then)\b/;
 
 const OWN_CALL_OFFER =
   /\b(?:(?:i|we)(?:'ll|'d|'m|'re| will| shall| would| could| can| may| might| should| must| am| are)?(?: (?:definitely|probably|surely|certainly|just|also|maybe|then|soon|myself|personally|really|quickly|ourselves))?(?: going to| gonna| try to| plan to| want to| need to| have to)?(?: (?:definitely|probably|surely|certainly|just|also|maybe|then|soon|myself|personally|really|quickly|ourselves))?|let me|let us|lemme) (?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
@@ -249,6 +249,10 @@ const REFUSAL_GLUE = new Set([
   'even',
   'have',
   'try',
+  'trying',
+  'tryna',
+  'keep',
+  'keeping',
   'anyone',
   'anybody',
 ]);
@@ -281,13 +285,35 @@ function callClauses(text?: string | null): string[] {
     .filter(Boolean);
 }
 
+const CONTACT_VERBS = new Set([
+  'call',
+  'ring',
+  'phone',
+  'text',
+  'message',
+  'email',
+  'contact',
+  'connect',
+  'whatsapp',
+]);
+
 function refusedBefore(prefix: string): boolean {
   const words = prefix.trim().split(' ').filter(Boolean);
-  for (let end = words.length; end > 0; end -= 1) {
-    if (REFUSAL_WORDS.has(words[end - 1])) return true;
-    if (end > 1 && REFUSAL_PAIRS.has(`${words[end - 2]} ${words[end - 1]}`))
-      return true;
-    if (!REFUSAL_GLUE.has(words[end - 1])) return false;
+  let end = words.length;
+  while (end > 0) {
+    const word = words[end - 1];
+    if (REFUSAL_WORDS.has(word)) return true;
+    if (end > 1 && REFUSAL_PAIRS.has(`${words[end - 2]} ${word}`)) return true;
+    if (
+      (word === 'or' || word === 'nor') &&
+      end > 1 &&
+      CONTACT_VERBS.has(words[end - 2])
+    ) {
+      end -= 2;
+      continue;
+    }
+    if (!REFUSAL_GLUE.has(word)) return false;
+    end -= 1;
   }
   return false;
 }

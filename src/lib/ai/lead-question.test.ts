@@ -168,6 +168,9 @@ describe('requestsHumanContact', () => {
       "Please don't connect me to an agent",
       "I don't want to talk to a human",
       "I don't need a callback",
+      'Stop trying to call me',
+      "Please don't call or connect me to an agent",
+      "Don't text or call me",
       'No need for a call back',
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
@@ -182,6 +185,8 @@ describe('requestsHumanContact', () => {
       "I don't know please call me",
       'No need to wait please call me',
       "Please don't hesitate to call me",
+      'Text or call me, either works',
+      "I'll call back or you can call me",
     ]) {
       expect(requestsHumanContact(text), text).toBe(true);
     }
