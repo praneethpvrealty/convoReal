@@ -247,7 +247,19 @@ describe('[JRN-015] captureTypedCheckBack', () => {
       now: NOW,
     });
     expect(reply).toBeNull();
-    expect(writes).toEqual([]);
+    expect(writes).toEqual([
+      {
+        table: 'journey_events',
+        op: 'insert',
+        row: {
+          account_id: 'acc-1',
+          item_id: 'item-1',
+          event_type: 'client_response',
+          reason: 'Please call me',
+        },
+      },
+    ]);
+    expect(todoWrite()).toBeUndefined();
   });
 
   it("still dates a reply where the client says they'll call back", async () => {

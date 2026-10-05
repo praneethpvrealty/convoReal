@@ -220,13 +220,18 @@ export const CALLBACK_HANDOVER_TEXT =
  *
  * "I'll call you" and "I'll call back tomorrow" are not matches and
  * must not become ones: the lead saying they will ring is not a
- * request for us to, so the lead's own call is struck out first.
+ * request for us to, so the lead's own call is struck out first —
+ * and so is a refusal ("please don't call me").
  */
 export function requestsHumanContact(text?: string | null): boolean {
   const t = (text || '')
     .trim()
     .toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
+    .replace(
+      /\b(?:don'?t|do not|dont|did not|didn'?t|never|no need to|stop)\s+(?:to\s+)?(?:give me a\s+)?(?:call(?:ing)?|ring(?:ing)?|phone|phoning)(?:\s+(?:me|us))?(?:\s+back)?\b/g,
+      ' '
+    )
     .replace(
       /\b(?:(?:i|we)\s*(?:'ll|'d|'m|'re|will|shall|would|could|can|may|might|should|must|am|are)?\s*(?:going to|gonna|try to|plan to|want to|need to|have to)?|let (?:me|us)|lemme)\s*(?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g,
       ' '

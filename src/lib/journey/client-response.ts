@@ -460,7 +460,27 @@ export async function captureTypedCheckBack(
 ): Promise<TypedCheckBackReply | null> {
   const previous = args.previousBotText || '';
   if (!TIMELINE_ASK_FINGERPRINT.test(previous)) return null;
-  if (requestsHumanContact(args.text)) return null;
+  if (requestsHumanContact(args.text)) {
+    const itemId = await latestRespondedItemId(
+      args.db,
+      args.accountId,
+      args.contact.id
+    );
+    if (itemId) {
+      const { error } = await args.db.from('journey_events').insert({
+        account_id: args.accountId,
+        item_id: itemId,
+        event_type: 'client_response',
+        reason: args.text.trim().slice(0, RESPONSE_REASON_LIMIT),
+      });
+      if (error)
+        console.error(
+          '[client-response] callback event failed:',
+          error.message
+        );
+    }
+    return null;
+  }
   const now = args.now ?? new Date();
   const named = parseCheckBackDate(args.text, now);
 

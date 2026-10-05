@@ -109,6 +109,15 @@ describe('requestsHumanContact', () => {
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
     }
+    for (const text of [
+      "Please don't call me",
+      'pls dont call me, just whatsapp',
+      'Do not call me back',
+      'no need to call me',
+      'stop calling me',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(false);
+    }
     expect(requestsHumanContact("I'll call back, or please call me")).toBe(
       true
     );
