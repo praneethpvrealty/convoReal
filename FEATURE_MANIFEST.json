@@ -4152,6 +4152,20 @@
             "src/hooks/useCan.ts",
             "src/components/flows/flow-editor-state.tsx"
           ]
+        },
+        {
+          "id": "ACC-005",
+          "rule": "A SECURITY DEFINER function that writes without checking who called it is never reachable over PostgREST RPC. _bcast_bump, bump_copilot_qa_hit, vote_copilot_qa, log_copilot_unmet_request, sync_contact_budget_band, seed_default_reminder_templates, claim_broadcast_dispatch, release_broadcast_dispatch, renew_broadcast_dispatch and renew_broadcast_recipient_claims take a row or account id and write to it with no membership check, so EXECUTE on each is revoked from PUBLIC, anon and authenticated and granted to service_role alone: a signed-out visitor or a member of another account calling one with their own key is refused by the database before the body runs. Their only callers keep working: the broadcast dispatcher and the Copilot answer cache and demand log call them through the service-role client (supabaseAdmin), and the broadcast-count, budget-band and default-template triggers reach theirs from SECURITY DEFINER trigger functions that run as the function owner. A new SECURITY DEFINER function that writes either guards its account with is_account_writer() when a member calls it with their own JWT, or revokes EXECUTE from PUBLIC, anon and authenticated when only server code and triggers call it; granting service_role alone in the migration is not enough, because a new function in public is executable by every role until it is revoked.",
+          "tests": [
+            {
+              "file": "src/lib/auth/internal-definer-functions.test.ts",
+              "case": "[ACC-005]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261006033422_internal_definer_functions_service_role_only.sql",
+            "src/lib/supabase/admin.ts"
+          ]
         }
       ]
     },
