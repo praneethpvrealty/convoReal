@@ -17,6 +17,23 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 6 October 2026
+
+- **Two more "call me" replies take the right path.** "I'll check and call back
+  tomorrow" is read as the client's own call again, not a request for the
+  team to ring, so the callback promise is no longer sent. "Not interested,
+  please call me" still records the rejection on the listing, but skips the
+  factor menu and goes to the callback handover, which promises a call and
+  alerts the agent. Invariant JRN-015.
+
+- **A note typed in reply to a closing card is filed on that deal.** Replying
+  "Legal done → Agreement" to a "Closing in progress" card used to be read as
+  a forwarded client reply, so the bot asked who the client was and offered
+  unrelated contacts. The card already names the buyer and the plot, so the
+  note is now logged on that journey item and the buyer's contact notes, the
+  card is held back for its re-nudge period, and the agent gets a "Noted"
+  confirmation. Nothing is sent to the buyer. Invariant JRN-020.
+
 #### 5 October 2026
 
 - **A new requirement typed in reply to a check-in now gets matching listings.**

@@ -120,6 +120,52 @@ describe('buildPropertyDisinterestSections', () => {
   });
 });
 
+describe('handlePropertyDisinterestMessage recordOnly', () => {
+  it('records the rejection but sends no factor prompt and leaves the message unconsumed', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('@/lib/whatsapp/meta-api-dispatcher');
+    const send = vi.mocked(sendWhatsAppMessageAndPersist);
+    send.mockClear();
+    const upserts: Record<string, unknown>[] = [];
+    const mockDb = {
+      from: vi.fn().mockImplementation(() => ({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { id: 'prop-1072', title: 'Bilekahalli Building' },
+              }),
+            }),
+          }),
+        }),
+        upsert: vi.fn().mockImplementation((data: Record<string, unknown>) => {
+          upserts.push(data);
+          return Promise.resolve({ error: null });
+        }),
+      })),
+    } as unknown as SupabaseClient;
+
+    const handled = await handlePropertyDisinterestMessage({
+      db: mockDb,
+      accountId: 'acc-1',
+      configOwnerUserId: 'user-1',
+      contact: { id: 'contact-1', last_inquired_property_id: 'prop-1072' },
+      conversationId: 'conv-1',
+      inboundText: 'Not interested, please call me',
+      recordOnly: true,
+    });
+
+    expect(handled).toBe(false);
+    expect(upserts).toEqual([
+      expect.objectContaining({
+        property_id: 'prop-1072',
+        verdict: 'rejected',
+      }),
+    ]);
+    expect(send).not.toHaveBeenCalled();
+  });
+});
+
 describe('handlePropertyDisinterestMessage', () => {
   it('records rejection in listing_feedback and sends interactive factor prompt', async () => {
     const calls: Array<{

@@ -2279,7 +2279,7 @@
         },
         {
           "id": "JRN-015",
-          "rule": "A client who types when to be checked back on — in reply to the enquiry check-in (the enquiry_checkin_notice template or an inbox check-in) or to the timeline question — gets the date read (\"wait for a week\", \"in 10 days\", \"5th October\"), a follow-up to-do filed at once for that contact×property (moved, never duplicated, when one is open), the journey item's planned step stamped, the unprompted-pitch quiet window set, the words logged on the journey and the agent notified; the bot then asks \"shall I check back with you in a week, on <date>?\" with Yes and Another date buttons. Yes acknowledges the date; Another date asks again and the typed answer moves the same reminder without asking a second time. A reply that names no date files no reminder. A reply asking to be called (\"Please call me\") is logged on the journey but never answered with the timeline question: it goes on to the callback handover, which promises a call and notifies the assigned agent.",
+          "rule": "A client who types when to be checked back on — in reply to the enquiry check-in (the enquiry_checkin_notice template or an inbox check-in) or to the timeline question — gets the date read (\"wait for a week\", \"in 10 days\", \"5th October\"), a follow-up to-do filed at once for that contact×property (moved, never duplicated, when one is open), the journey item's planned step stamped, the unprompted-pitch quiet window set, the words logged on the journey and the agent notified; the bot then asks \"shall I check back with you in a week, on <date>?\" with Yes and Another date buttons. Yes acknowledges the date; Another date asks again and the typed answer moves the same reminder without asking a second time. A reply that names no date files no reminder. A reply asking to be called (\"Please call me\") is logged on the journey but never answered with the timeline question: it goes on to the callback handover, which promises a call and notifies the assigned agent. The client offering to ring us is not such a request, including when the offer follows \"and\" (\"I'll check and call back tomorrow\"), while \"I'm busy and call me later\" still is; and a reply that rejects the listing and asks to be called (\"Not interested, please call me\") records the rejection without the factor prompt and still reaches the callback handover.",
           "tests": [
             {
               "file": "src/lib/journey/typed-check-back.test.ts",
@@ -2360,6 +2360,20 @@
           "guards": [
             "src/lib/journey/client-response.ts",
             "src/lib/ai/requirement-signal.ts"
+          ]
+        },
+        {
+          "id": "JRN-020",
+          "rule": "Text an agent types in reply to a WhatsApp closing card (\"Closing in progress\") is that agent's note on the deal the card names: it is logged on that journey item and the buyer's contact notes, the card is held back for the re-nudge period, and the agent is told it was noted, without asking who the client is and without messaging the buyer. The deal is read from the quoted card's buyer phone, and its listing when the buyer is closing on more than one; when that deal is no longer on a closing stage the agent is told the note was not saved. A quote of any other message is left to the paths below.",
+          "tests": [
+            {
+              "file": "src/lib/journey/closing-card-note.test.ts",
+              "case": "[JRN-020]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/closing-nudges.ts",
+            "src/lib/whatsapp/inbound/chain/steps/control-reply.ts"
           ]
         }
       ]

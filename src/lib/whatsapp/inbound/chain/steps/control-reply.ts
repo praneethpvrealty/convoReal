@@ -5,6 +5,7 @@ import {
 } from '@/lib/contacts/follow-up-nudges';
 import {
   handleClosingReply,
+  handleQuotedClosingNote,
   parseClosingReply,
 } from '@/lib/journey/closing-nudges';
 import {
@@ -45,6 +46,8 @@ export async function controlReply(
     contactRecord,
     conversation,
     isControlReply,
+    message,
+    contentText,
   } = ctx;
   // A staff member quote-replying one of our agent pings is answering
   // the lead that ping was about — send it on and stop, so the text
@@ -180,6 +183,23 @@ export async function controlReply(
       );
       if (handled) return 'handled';
     }
+  }
+  // Text typed against a closing card is the agent's note on that deal.
+  // The card already names it, so this runs before the reply bridge and
+  // the owner chatbot, which read it as a forwarded client reply and
+  // asked who the client was.
+  if (!interactiveReplyId && message.context?.id && contentText?.trim()) {
+    const handled = await handleQuotedClosingNote({
+      accountId,
+      configOwnerUserId,
+      agentThread: {
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+      },
+      contextId: message.context.id,
+      text: contentText,
+    });
+    if (handled) return 'handled';
   }
   return 'continue';
 }
