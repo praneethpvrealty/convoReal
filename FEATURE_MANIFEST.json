@@ -2361,6 +2361,20 @@
             "src/lib/journey/client-response.ts",
             "src/lib/ai/requirement-signal.ts"
           ]
+        },
+        {
+          "id": "JRN-020",
+          "rule": "Text an agent types in reply to a WhatsApp closing card (\"Closing in progress\") is that agent's note on the deal the card names: it is logged on that journey item and the buyer's contact notes, the card is held back for the re-nudge period, and the agent is told it was noted, without asking who the client is and without messaging the buyer. The deal is read from the quoted card's buyer phone, and its listing when the buyer is closing on more than one; when that deal is no longer on a closing stage the agent is told the note was not saved. A quote of any other message is left to the paths below.",
+          "tests": [
+            {
+              "file": "src/lib/journey/closing-card-note.test.ts",
+              "case": "[JRN-020]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/closing-nudges.ts",
+            "src/lib/whatsapp/inbound/chain/steps/control-reply.ts"
+          ]
         }
       ]
     },
