@@ -533,7 +533,7 @@
         },
         {
           "id": "INB-031",
-          "rule": "Property type matching never crosses a sector: residential, commercial, industrial and agricultural seekers only ever match listings in their own sector. Within residential, a house or villa seeker also matches residential plots and a residential plot seeker (or a plot seeker who named no other sector) also matches houses and villas, both as partial type fits ranked below exact ones, unless the seeker's own words rule that type out (\"no plots\", \"no house\"); farm houses are not offered to plot seekers and apartment seekers still see neither.",
+          "rule": "Property type matching never crosses a sector: residential, commercial, industrial and agricultural seekers only ever match listings in their own sector. Within residential, a house or villa seeker also matches residential plots and a residential plot seeker (or a plot seeker who named no other sector) also matches houses and villas, both as partial type fits ranked below exact ones, unless the seeker's own words rule that type out (\"no plots\", \"no sites or land\", \"no house\", \"no villa\"); the swap applies to sale listings only, never to rentals, farm houses are not offered to plot seekers however the type is spelt, and apartment seekers still see neither.",
           "tests": [
             {
               "file": "src/lib/matching.test.ts",
