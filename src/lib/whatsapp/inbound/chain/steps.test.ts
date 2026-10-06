@@ -115,4 +115,14 @@ describe('[JRN-015] a check-in reply about calling reaches the right handler', (
       source.indexOf('handleInboxCheckinReply({')
     );
   });
+  it('lets "not interested, call me" past the factor prompt to the handover', () => {
+    const source = inboundStepSource('lead-conversation');
+    const disinterest = source.slice(
+      source.indexOf('handlePropertyDisinterestMessage({'),
+      source.indexOf("if (handledDisinterest) return 'handled';")
+    );
+    expect(disinterest).toContain(
+      'recordOnly: requestsHumanContact(contentText)'
+    );
+  });
 });
