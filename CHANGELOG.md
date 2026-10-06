@@ -17,6 +17,14 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 6 October 2026
+
+- **Read-only members can no longer hand off a contact or issue a beta
+  invitation.** Both actions are refused for a read-only member by the API and
+  by the database functions behind them, so calling the function directly with
+  the member's own sign-in is refused too. **Migration required:**
+  `20261006035538_handoff_beta_invite_read_only.sql`. Invariant ACC-006.
+
 #### 5 October 2026
 
 - **A new requirement typed in reply to a check-in now gets matching listings.**

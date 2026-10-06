@@ -4152,6 +4152,29 @@
             "src/hooks/useCan.ts",
             "src/components/flows/flow-editor-state.tsx"
           ]
+        },
+        {
+          "id": "ACC-006",
+          "rule": "A read-only member (profiles.is_read_only, stored as an agent-level org_agent) cannot hand a contact off to another agent or issue a beta invitation. POST /api/contacts/[id]/handoff and POST /api/beta-invites use requireWriteRole('agent') and answer 403 before calling the database. The two SECURITY DEFINER functions behind them refuse on their own, so the member's own JWT cannot run them through PostgREST RPC either: handoff_contact and issue_beta_invite check is_account_writer(<caller's account>, 'agent') right after resolving the caller's profile and raise 42501 before the contact is reassigned or the seat is inserted. Every other check in the two functions (same-account contact and target, the org-role handoff rules, the open beta programme and the per-account quota) is unchanged.",
+          "tests": [
+            {
+              "file": "src/lib/auth/read-only-handoff-beta-invite.test.ts",
+              "case": "[ACC-006]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/handoff/route.test.ts",
+              "case": "[ACC-006]"
+            },
+            {
+              "file": "src/app/api/beta-invites/route.test.ts",
+              "case": "[ACC-006]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261006035538_handoff_beta_invite_read_only.sql",
+            "src/app/api/contacts/[id]/handoff/route.ts",
+            "src/app/api/beta-invites/route.ts"
+          ]
         }
       ]
     },

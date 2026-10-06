@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { PostgrestError } from '@supabase/supabase-js';
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requireWriteRole, toErrorResponse } from '@/lib/auth/account';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -9,7 +9,7 @@ import {
 
 // POST /api/contacts/[id]/handoff — reassign a contact to a different agent.
 //
-// Any agent+ role can attempt this; the SECURITY DEFINER RPC
+// Any agent+ role that is not read-only can attempt this; the SECURITY DEFINER RPC
 // (migration 083) enforces exactly who's allowed to hand off what:
 //   - Org Manager: any contact, to any agent in the account.
 //   - Org Leader: only within their own team (both the contact's
@@ -38,7 +38,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
     const { id: contactId } = await params;
 
     const limit = await checkRateLimit(
