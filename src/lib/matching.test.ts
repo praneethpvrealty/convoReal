@@ -240,6 +240,58 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(house, [noHouse])).toHaveLength(0);
     });
 
+    it('[INB-031] reads the seeker ruling the type out in other words', () => {
+      const noSites = createTestContact({
+        pref_property_types: ['Residential House'],
+        requirements: 'ready house, no sites or vacant land',
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const noBuilt = createTestContact({
+        property_interests: ['Vacant plot'],
+        requirements: 'want to build my own, no villa',
+      });
+      expect(
+        getMatchingContacts(
+          createTestProperty({ type: 'Residential Land/ Plot' }),
+          [noSites]
+        )
+      ).toHaveLength(0);
+      expect(
+        getMatchingContacts(createTestProperty({ type: 'Villa' }), [noBuilt])
+      ).toHaveLength(0);
+    });
+
+    it('[INB-031] keeps a farm house out however its type is spelt', () => {
+      const plotSeeker = createTestContact({
+        property_interests: ['Vacant plot'],
+      });
+      const farmhouse = createTestProperty({
+        type: 'Independent house',
+        title: 'Farmhouse with mango orchard',
+      });
+      expect(getMatchingContacts(farmhouse, [plotSeeker])).toHaveLength(0);
+    });
+
+    it('[INB-031] does not offer a plot to someone renting a house', () => {
+      const tenant = createTestContact({
+        pref_property_types: ['Residential House'],
+        pref_listing_types: ['Rent'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const leasedPlot = createTestProperty({
+        type: 'Residential Land/ Plot',
+        listing_type: 'Rent',
+        rent_per_month: 50000,
+      });
+      const rentedHouse = createTestProperty({
+        type: 'Residential House',
+        listing_type: 'Rent',
+        rent_per_month: 50000,
+      });
+      expect(getMatchingContacts(leasedPlot, [tenant])).toHaveLength(0);
+      expect(getMatchingContacts(rentedHouse, [tenant])).toHaveLength(1);
+    });
+
     it('[INB-031] ranks the exact type above the swapped one', () => {
       const houseSeeker = createTestContact({
         pref_property_types: ['Residential House'],

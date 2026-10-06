@@ -299,6 +299,9 @@ const GROUP_TO_CATEGORY: Record<SubtypeGroup, Category | null> = {
  *  of a 60x40 layout, not the 4,000 sq.ft. 50x80s. */
 const POINT_SIZE_HEADROOM = 1.35;
 
+const LAND_WORDS = ['plot', 'site', 'land'];
+const BUILDING_WORDS = ['house', 'villa', 'building', 'built'];
+
 const PLOT_GROUPS: SubtypeGroup[] = [
   'residential-plot',
   'commercial-plot',
@@ -711,11 +714,14 @@ function matchContactsSingleProfile(
   const propertyCategory = propertyGroup
     ? GROUP_TO_CATEGORY[propertyGroup]
     : null;
-  const residentialLandHouseSwap =
-    propertyGroup === 'residential-plot' ||
-    (propertyGroup === 'house' &&
-      normalizePropertyType(property.type) !== 'Farm House');
   const propertyListingType = resolveListingType(property);
+  const residentialLandHouseSwap =
+    !RENT_PRICED_LISTING_TYPES.includes(propertyListingType) &&
+    (propertyGroup === 'residential-plot' ||
+      (propertyGroup === 'house' &&
+        !/farm\s*house/i.test(
+          `${property.type || ''} ${property.title || ''}`
+        )));
   const price = Number(property.price || 0);
   const rentalIncome = property.rental_income
     ? Number(property.rental_income)
@@ -984,12 +990,13 @@ function matchContactsSingleProfile(
       } else if (
         residentialLandHouseSwap &&
         (propertyGroup === 'residential-plot'
-          ? wantedGroups.has('house') && !isNegated(combinedText, 'plot')
+          ? wantedGroups.has('house') &&
+            !LAND_WORDS.some((w) => isNegated(combinedText, w))
           : (wantedGroups.has('residential-plot') ||
               (wantedCategories.has('plot') &&
                 (statedSectors.size === 0 ||
                   statedSectors.has('residential')))) &&
-            !isNegated(combinedText, 'house'))
+            !BUILDING_WORDS.some((w) => isNegated(combinedText, w)))
       ) {
         // A house seeker will look at a residential site and a site
         // seeker at an old house on one; neither crosses a sector.
