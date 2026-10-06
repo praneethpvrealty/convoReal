@@ -57,6 +57,8 @@ const BANGALORE_LOCALITIES_COORDS: Record<
   'cv raman nagar': { lat: 12.9792, lng: 77.6644 },
   kaggadasapura: { lat: 12.9821, lng: 77.6775 },
   'ramamurthy nagar': { lat: 13.0163, lng: 77.6785 },
+  horamavu: { lat: 13.0291, lng: 77.6643 },
+  'horamavu agara': { lat: 13.0298, lng: 77.6628 },
   'kr puram': { lat: 13.0104, lng: 77.7025 },
   mahadevapura: { lat: 12.9866, lng: 77.6975 },
   brookefield: { lat: 12.9649, lng: 77.718 },
@@ -709,6 +711,10 @@ function matchContactsSingleProfile(
   const propertyCategory = propertyGroup
     ? GROUP_TO_CATEGORY[propertyGroup]
     : null;
+  const residentialLandHouseSwap =
+    propertyGroup === 'residential-plot' ||
+    (propertyGroup === 'house' &&
+      normalizePropertyType(property.type) !== 'Farm House');
   const propertyListingType = resolveListingType(property);
   const price = Number(property.price || 0);
   const rentalIncome = property.rental_income
@@ -974,6 +980,19 @@ function matchContactsSingleProfile(
         (statedSectors.size === 0 ||
           (propertyCategory && statedSectors.has(propertyCategory)))
       ) {
+        typeVerdict = 'partial';
+      } else if (
+        residentialLandHouseSwap &&
+        (propertyGroup === 'residential-plot'
+          ? wantedGroups.has('house') && !isNegated(combinedText, 'plot')
+          : (wantedGroups.has('residential-plot') ||
+              (wantedCategories.has('plot') &&
+                (statedSectors.size === 0 ||
+                  statedSectors.has('residential')))) &&
+            !isNegated(combinedText, 'house'))
+      ) {
+        // A house seeker will look at a residential site and a site
+        // seeker at an old house on one; neither crosses a sector.
         typeVerdict = 'partial';
       } else {
         typeVerdict = 'mismatch';
