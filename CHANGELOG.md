@@ -17,6 +17,16 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 6 October 2026
+
+- **A note typed in reply to a closing card is filed on that deal.** Replying
+  "Legal done → Agreement" to a "Closing in progress" card used to be read as
+  a forwarded client reply, so the bot asked who the client was and offered
+  unrelated contacts. The card already names the buyer and the plot, so the
+  note is now logged on that journey item and the buyer's contact notes, the
+  card is held back for its re-nudge period, and the agent gets a "Noted"
+  confirmation. Nothing is sent to the buyer. Invariant JRN-020.
+
 #### 5 October 2026
 
 - **A new requirement typed in reply to a check-in now gets matching listings.**
