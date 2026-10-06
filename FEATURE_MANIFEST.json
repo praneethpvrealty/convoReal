@@ -58,7 +58,7 @@
         },
         {
           "id": "INB-004",
-          "rule": "A buyer's stated locality matches inventory across spelling variants, listings in that locality lead every buyer-facing shortlist ordered by property-type fit before nearby listings, a stated plot type matches plot listings rather than houses, and a locality the buyer types is saved in the spelling they typed (or the curated locality) rather than a misspelt inventory variant.",
+          "rule": "A buyer's stated locality matches inventory across spelling variants, listings in that locality lead every buyer-facing shortlist ordered by property-type fit before nearby listings, a stated plot type ranks plot listings above houses, and a locality the buyer types is saved in the spelling they typed (or the curated locality) rather than a misspelt inventory variant.",
           "tests": [
             {
               "file": "src/lib/locality-match.test.ts",
@@ -528,6 +528,16 @@
             {
               "file": "src/lib/conversations/inbox-search.test.ts",
               "case": "[INB-030]"
+            }
+          ]
+        },
+        {
+          "id": "INB-031",
+          "rule": "Property type matching never crosses a sector: residential, commercial, industrial and agricultural seekers only ever match listings in their own sector. Within residential, a house or villa seeker also matches residential plots and a residential plot seeker (or a plot seeker who named no other sector) also matches houses and villas, both as partial type fits ranked below exact ones, unless the seeker's own words rule that type out (\"no plots\", \"no house\"); farm houses are not offered to plot seekers and apartment seekers still see neither.",
+          "tests": [
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[INB-031]"
             }
           ]
         }
