@@ -6,6 +6,7 @@ import type {
   ParsedPropertyDraft,
 } from './gemini';
 import {
+  CONTACT_CARD_BURST_WINDOW_MS,
   DRAFT_MUTATION_MAX_ATTEMPTS,
   DRAFT_SESSION_TIMEOUT_MS,
   deleteContactDraftSession,
@@ -15,7 +16,10 @@ import {
   findPropertyDraftSessionById,
   insertContactDraftSession,
   insertPropertyDraftSession,
+  isContactCardBurst,
+  CONTACT_CARD_SENT_SLACK_MS,
   isDraftSessionExpired,
+  isReplyToContactDraft,
   mutateContactDraft,
   mutatePropertyDraft,
   overwriteContactDraftSession,
@@ -734,5 +738,129 @@ describe('isDraftSessionExpired', () => {
 
   it('uses a one-hour timeout', () => {
     expect(DRAFT_SESSION_TIMEOUT_MS).toBe(60 * 60 * 1000);
+  });
+});
+
+describe('[INB-025] isContactCardBurst', () => {
+  const updatedAt = '2026-10-04T10:00:00.000Z';
+  const base = new Date(updatedAt).getTime();
+  const row = { updated_at: updatedAt };
+
+  it('joins a card that waited to a draft written within the window', () => {
+    expect(
+      isContactCardBurst(
+        row,
+        { waited: true, sentAt: null },
+        base + CONTACT_CARD_BURST_WINDOW_MS
+      )
+    ).toBe(true);
+  });
+
+  it('leaves a card that waited behind an older draft to the replace rule', () => {
+    expect(
+      isContactCardBurst(
+        row,
+        { waited: true, sentAt: base + CONTACT_CARD_BURST_WINDOW_MS + 1 },
+        base + CONTACT_CARD_BURST_WINDOW_MS + 1
+      )
+    ).toBe(false);
+  });
+
+  it('leaves a card that did not wait and was sent after the draft to the replace rule', () => {
+    expect(
+      isContactCardBurst(
+        row,
+        { waited: false, sentAt: base + CONTACT_CARD_SENT_SLACK_MS + 1000 },
+        base + CONTACT_CARD_SENT_SLACK_MS + 1000
+      )
+    ).toBe(false);
+  });
+
+  it('joins a card from the same webhook payload that never waited for the lease', () => {
+    expect(
+      isContactCardBurst(
+        row,
+        { waited: false, sentAt: base - 3000 },
+        base + 5000
+      )
+    ).toBe(true);
+  });
+
+  it('allows for WhatsApp stamping send times to the second', () => {
+    expect(
+      isContactCardBurst(
+        row,
+        { waited: false, sentAt: base + CONTACT_CARD_SENT_SLACK_MS },
+        base + 10_000
+      )
+    ).toBe(true);
+  });
+
+  it('uses a one-minute window', () => {
+    expect(CONTACT_CARD_BURST_WINDOW_MS).toBe(60 * 1000);
+  });
+});
+
+describe('[INB-025] isReplyToContactDraft', () => {
+  const session = { created_at: '2026-10-04T10:00:00.000Z' };
+
+  it('accepts a quoted bot message of the conversation sent since the draft opened', async () => {
+    const { client, calls } = stubClient(() =>
+      ok({ created_at: '2026-10-04T10:00:05.000Z' })
+    );
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', 'wamid.1', session)
+    ).toBe(true);
+    expect(calls.map((c) => [c.table, c.op, c.filters, c.terminal])).toEqual([
+      [
+        'messages',
+        'select',
+        [
+          ['conversation_id', 'conv1'],
+          ['message_id', 'wamid.1'],
+          ['sender_type', 'bot'],
+        ],
+        'maybeSingle',
+      ],
+    ]);
+  });
+
+  it('rejects a quoted bot message older than the draft', async () => {
+    const { client } = stubClient(() =>
+      ok({ created_at: '2026-10-04T09:59:59.000Z' })
+    );
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', 'wamid.1', session)
+    ).toBe(false);
+  });
+
+  it('rejects a quote that is not a bot message of the conversation', async () => {
+    const { client } = stubClient(() => ok(null));
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', 'wamid.1', session)
+    ).toBe(false);
+  });
+
+  it('rejects a failed lookup', async () => {
+    const { client } = stubClient(() => ({
+      data: null,
+      error: { message: 'boom' },
+    }));
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', 'wamid.1', session)
+    ).toBe(false);
+  });
+
+  it('reads nothing for a message that quotes nothing', async () => {
+    const { client, calls } = stubClient(() => ok(null));
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', undefined, session)
+    ).toBe(false);
+    expect(calls).toHaveLength(0);
   });
 });

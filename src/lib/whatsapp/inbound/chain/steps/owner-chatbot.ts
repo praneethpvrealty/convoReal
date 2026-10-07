@@ -16,6 +16,7 @@ export async function ownerChatbot(
     ownerCheck,
     contactRecord,
     conversation,
+    waited,
   } = ctx;
   if (ownerCheck.isOwner) {
     console.log(
@@ -29,7 +30,8 @@ export async function ownerChatbot(
       ownerCheck.accountId || accountId,
       ownerCheck.userId || configOwnerUserId,
       accessToken,
-      phoneNumberId
+      phoneNumberId,
+      { waited }
     );
     if (handled) {
       return 'handled';

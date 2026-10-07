@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   absorbContactDrafts,
+  foldContactDrafts,
   contactCardVersion,
   contactConfirmButtonId,
   readContactConfirm,
@@ -1066,5 +1067,42 @@ describe('[INB-026] the version a contact card confirms', () => {
     expect(
       contactConfirmButtonId(contactCardVersion(at, card)).length
     ).toBeLessThanOrEqual(256);
+  });
+});
+
+describe('[INB-025] foldContactDrafts', () => {
+  const draft = (name: string, phone: string) => makeContact({ name, phone });
+  const existing = makeContainer([draft('Vasundhara', '9972225992')]);
+  const stranger = makeContainer([draft('Shiv', '9880011223')]);
+
+  it('appends a different person when the card belongs with the draft', () => {
+    const out = foldContactDrafts(existing, stranger, true);
+    expect(out.replaced).toBe(false);
+    expect(out.container.contacts.map((c) => c.name)).toEqual([
+      'Vasundhara',
+      'Shiv',
+    ]);
+  });
+
+  it('replaces the draft with a different person otherwise', () => {
+    const out = foldContactDrafts(existing, stranger, false);
+    expect(out.replaced).toBe(true);
+    expect(out.container.contacts.map((c) => c.name)).toEqual(['Shiv']);
+  });
+
+  it('merges the same person either way', () => {
+    const again = makeContainer([
+      makeContact({
+        name: 'Vasundhara',
+        phone: '9972225992',
+        email: 'v@x.com',
+      }),
+    ]);
+    for (const absorb of [true, false]) {
+      const out = foldContactDrafts(existing, again, absorb);
+      expect(out.replaced).toBe(false);
+      expect(out.container.contacts).toHaveLength(1);
+      expect(out.container.contacts[0].email).toBe('v@x.com');
+    }
   });
 });

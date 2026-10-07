@@ -19,6 +19,17 @@ export const DRAFT_SESSION_TIMEOUT_MS = 60 * 60 * 1000;
 
 export const DRAFT_MUTATION_MAX_ATTEMPTS = 5;
 
+// Cards forwarded back to back are one batch. A card that had to wait
+// for the conversation lease joins a draft written this recently; past
+// it the draft is old business and a different person replaces it.
+export const CONTACT_CARD_BURST_WINDOW_MS = 60 * 1000;
+
+// A card WhatsApp stamped no later than the draft's last write (to the
+// second, so allow the rounding) was sent while that draft was being
+// built: Meta delivers several forwarded cards in one payload and they
+// are processed one after another without ever waiting for the lease.
+export const CONTACT_CARD_SENT_SLACK_MS = 2 * 1000;
+
 export type DraftSessionStatus = 'collecting' | 'awaiting_confirmation';
 
 export type PropertyDraftSessionMode = 'owner' | 'external';
@@ -291,4 +302,44 @@ export function isDraftSessionExpired(
   now: number
 ): boolean {
   return now - new Date(row.updated_at).getTime() > DRAFT_SESSION_TIMEOUT_MS;
+}
+
+export function isContactCardBurst(
+  row: Pick<ContactDraftSessionRow, 'updated_at'>,
+  card: { waited: boolean; sentAt: number | null },
+  now: number
+): boolean {
+  const written = new Date(row.updated_at).getTime();
+  if (
+    card.sentAt !== null &&
+    card.sentAt <= written + CONTACT_CARD_SENT_SLACK_MS
+  ) {
+    return true;
+  }
+  return card.waited && now - written <= CONTACT_CARD_BURST_WINDOW_MS;
+}
+
+/**
+ * Whether a quote-reply points at something the bot said about this
+ * draft: a bot message of the same conversation, sent since the draft
+ * was opened.
+ */
+export async function isReplyToContactDraft(
+  db: DB,
+  conversationId: string,
+  contextId: string | null | undefined,
+  row: Pick<ContactDraftSessionRow, 'created_at'>
+): Promise<boolean> {
+  if (!contextId || !row.created_at) return false;
+  const { data, error } = await db
+    .from('messages')
+    .select('created_at')
+    .eq('conversation_id', conversationId)
+    .eq('message_id', contextId)
+    .eq('sender_type', 'bot')
+    .maybeSingle();
+  if (error || !data?.created_at) return false;
+  return (
+    new Date(data.created_at).getTime() >= new Date(row.created_at).getTime()
+  );
 }
