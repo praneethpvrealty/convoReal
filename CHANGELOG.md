@@ -38,6 +38,23 @@ than a written entry. Newest first.
 - **Q&A prices read the way the listing message wrote them.** ₹8.40 Cr, not
   ₹8,40,00,000, and a locality is no longer repeated when the location line
   already carries it.
+- **Every bot thread is reviewed the next morning.** A nightly job (05:00
+  IST) reads each conversation the bot wrote in during the last day as one
+  thread, runs the transcript rules and then a model judge over it, and
+  records a pass, fail or unscored verdict with the issues beside the
+  bubbles. Admin → Bot replies lists the threads worth a look, takes a good
+  or bad verdict, and copies a bad thread out as a fixture so the rules keep
+  catching it. **Migration required:**
+  `20261007122307_bot_thread_reviews.sql` (additive: one new table) and
+  `20261007145237_bot_thread_review_candidates.sql` (additive: one new
+  service-role function), `20261007151500_bot_thread_review_judged_at.sql`
+  (additive: one nullable column) and
+  `20261007151600_bot_thread_review_windows.sql` (additive: the function
+  that succeeds it, returning where each thread's next window starts, so a
+  claim a dead run left behind is taken over, the oldest due thread is
+  reviewed first and nothing after the first review on record ages out) and
+  `20261007155000_bot_thread_review_messages_index.sql` (additive: a partial
+  index over delivered bot messages for that scan).
 
 - **Buyer conversations are now tested as threads, not sentences.** A replay
   harness runs a portal lead's arrival and their "Update my preferences" and

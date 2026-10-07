@@ -104,6 +104,15 @@ const ExtensionsTab = dynamic(() => import('./extensions-tab'), {
     </div>
   ),
 });
+
+const BotRepliesTab = dynamic(() => import('./bot-replies-tab'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-96 items-center justify-center">
+      <ConvoRealLoader size={26} label="Loading bot replies" />
+    </div>
+  ),
+});
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
 
@@ -145,6 +154,7 @@ export default function AdminDashboardPage() {
     | 'support'
     | 'guidance'
     | 'ai-keys'
+    | 'bot-replies'
   >('overview');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -792,6 +802,16 @@ export default function AdminDashboardPage() {
           }`}
         >
           AI keys
+        </button>
+        <button
+          onClick={() => setActiveTab('bot-replies')}
+          className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-all ${
+            activeTab === 'bot-replies'
+              ? 'border-primary bg-primary/5 text-white'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          Bot replies
         </button>
       </div>
 
@@ -1885,6 +1905,8 @@ export default function AdminDashboardPage() {
       {activeTab === 'guidance' && <GuidanceValuesTab />}
 
       {activeTab === 'ai-keys' && <AiKeysTab />}
+
+      {activeTab === 'bot-replies' && <BotRepliesTab />}
     </div>
   );
 }
