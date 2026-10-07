@@ -94,6 +94,9 @@ export async function handlePropertyDisinterestMessage(args: {
   conversationId: string;
   inboundText: string;
   quotedPropertyId?: string | null;
+  /** Record the rejection but send no factor prompt, so the message
+   *  goes on to whatever it also asked for ("not interested, call me"). */
+  recordOnly?: boolean;
 }): Promise<boolean> {
   const {
     db,
@@ -178,6 +181,8 @@ export async function handlePropertyDisinterestMessage(args: {
       console.error('[property-disinterest] feedback recording failed:', err);
     }
   }
+
+  if (args.recordOnly) return false;
 
   const bodyText = buildPropertyDisinterestBody(
     contact.name,

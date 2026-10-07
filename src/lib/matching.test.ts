@@ -130,6 +130,186 @@ describe('getMatchingContacts', () => {
     });
   });
 
+  describe('Residential land and houses', () => {
+    const horamavuHouseSeeker = createTestContact({
+      property_interests: ['Residential House'],
+      pref_property_types: ['Residential House'],
+      pref_areas: ['Horamavu'],
+      pref_listing_types: ['Sale'],
+      pref_budget_max: 147_000_000,
+      requirements: 'Preferred location: Horamavu',
+      pref_extracted_at: new Date().toISOString(),
+    });
+    const ombrPlot = createTestProperty({
+      type: 'Residential Land/ Plot',
+      listing_type: 'Sale',
+      location: 'OMBR layout',
+      sublocality: 'Banaswadi',
+      city: 'Bengaluru',
+      price: 70_000_000,
+      land_area: 2500,
+      land_area_unit: 'Sq.Ft.',
+      latitude: 13.0125682,
+      longitude: 77.6611328,
+    });
+
+    it('[INB-031] offers a nearby residential plot to a house seeker as a partial type fit', () => {
+      const [match] = getMatchingContacts(ombrPlot, [horamavuHouseSeeker]);
+      expect(match?.contact).toBe(horamavuHouseSeeker);
+      expect(match?.details.type).toBe('partial');
+    });
+
+    it('[INB-031] offers a house to a plot seeker, but not a farm house', () => {
+      const plotSeeker = createTestContact({
+        property_interests: ['Vacant plot'],
+      });
+      const house = createTestProperty({ type: 'Residential House' });
+      const villa = createTestProperty({ type: 'Villa' });
+      const farmHouse = createTestProperty({ type: 'Farm House' });
+
+      expect(getMatchingContacts(house, [plotSeeker])[0]?.details.type).toBe(
+        'partial'
+      );
+      expect(getMatchingContacts(villa, [plotSeeker])[0]?.details.type).toBe(
+        'partial'
+      );
+      expect(getMatchingContacts(farmHouse, [plotSeeker])).toHaveLength(0);
+    });
+
+    it('[INB-031] never crosses a sector', () => {
+      const houseSeeker = createTestContact({
+        pref_property_types: ['Residential House'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const commercialPlotSeeker = createTestContact({
+        pref_property_types: ['Commercial Plot'],
+        pref_property_categories: ['plot', 'commercial'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const residentialPlotSeeker = createTestContact({
+        pref_property_types: ['Residential Plot'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+
+      for (const type of [
+        'Commercial Plot',
+        'Commercial Building',
+        'Industrial Land',
+        'Agricultural Land',
+      ]) {
+        const listing = createTestProperty({ type });
+        expect(getMatchingContacts(listing, [houseSeeker])).toHaveLength(0);
+        if (!type.startsWith('Commercial')) {
+          expect(
+            getMatchingContacts(listing, [residentialPlotSeeker])
+          ).toHaveLength(0);
+        }
+      }
+      expect(
+        getMatchingContacts(createTestProperty({ type: 'Residential House' }), [
+          commercialPlotSeeker,
+        ])
+      ).toHaveLength(0);
+      expect(
+        getMatchingContacts(createTestProperty({ type: 'Commercial Plot' }), [
+          residentialPlotSeeker,
+        ])
+      ).toHaveLength(0);
+    });
+
+    it('[INB-031] keeps apartments out and respects a seeker who rules the type out', () => {
+      const apartmentSeeker = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const noPlots = createTestContact({
+        pref_property_types: ['Residential House'],
+        requirements: 'independent house only, no plots',
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const noHouse = createTestContact({
+        pref_property_types: ['Residential Plot'],
+        requirements: 'vacant site, no house',
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const plot = createTestProperty({ type: 'Residential Land/ Plot' });
+      const house = createTestProperty({ type: 'Residential House' });
+
+      expect(getMatchingContacts(plot, [apartmentSeeker])).toHaveLength(0);
+      expect(getMatchingContacts(plot, [noPlots])).toHaveLength(0);
+      expect(getMatchingContacts(house, [noHouse])).toHaveLength(0);
+    });
+
+    it('[INB-031] reads the seeker ruling the type out in other words', () => {
+      const noSites = createTestContact({
+        pref_property_types: ['Residential House'],
+        requirements: 'ready house, no sites or vacant land',
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const noBuilt = createTestContact({
+        property_interests: ['Vacant plot'],
+        requirements: 'want to build my own, no villa',
+      });
+      expect(
+        getMatchingContacts(
+          createTestProperty({ type: 'Residential Land/ Plot' }),
+          [noSites]
+        )
+      ).toHaveLength(0);
+      expect(
+        getMatchingContacts(createTestProperty({ type: 'Villa' }), [noBuilt])
+      ).toHaveLength(0);
+    });
+
+    it('[INB-031] keeps a farm house out however its type is spelt', () => {
+      const plotSeeker = createTestContact({
+        property_interests: ['Vacant plot'],
+      });
+      const farmhouse = createTestProperty({
+        type: 'Independent house',
+        title: 'Farmhouse with mango orchard',
+      });
+      expect(getMatchingContacts(farmhouse, [plotSeeker])).toHaveLength(0);
+    });
+
+    it('[INB-031] does not offer a plot to someone renting a house', () => {
+      const tenant = createTestContact({
+        pref_property_types: ['Residential House'],
+        pref_listing_types: ['Rent'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const leasedPlot = createTestProperty({
+        type: 'Residential Land/ Plot',
+        listing_type: 'Rent',
+        rent_per_month: 50000,
+      });
+      const rentedHouse = createTestProperty({
+        type: 'Residential House',
+        listing_type: 'Rent',
+        rent_per_month: 50000,
+      });
+      expect(getMatchingContacts(leasedPlot, [tenant])).toHaveLength(0);
+      expect(getMatchingContacts(rentedHouse, [tenant])).toHaveLength(1);
+    });
+
+    it('[INB-031] ranks the exact type above the swapped one', () => {
+      const houseSeeker = createTestContact({
+        pref_property_types: ['Residential House'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const [plot] = getMatchingContacts(
+        createTestProperty({ type: 'Residential Land/ Plot' }),
+        [houseSeeker]
+      );
+      const [house] = getMatchingContacts(
+        createTestProperty({ type: 'Residential House' }),
+        [houseSeeker]
+      );
+      expect(compareForBuyer(house, plot)).toBeLessThan(0);
+      expect(house.score).toBeGreaterThan(plot.score);
+    });
+  });
+
   describe('Listing intent gate (Sale / Rent / JV/JD / Built to Suit)', () => {
     it('never surfaces a JV/JD property for a contact with no stated JV intent', () => {
       const contact = createTestContact({
@@ -787,6 +967,7 @@ describe('getMatchingContacts', () => {
         requirements: '4 BHK house in HSR Layout\nPreferred location: Horamavu',
         pref_property_types: ['Residential House'],
         pref_areas: ['Horamavu'],
+        strict_area_match: true,
         pref_listing_types: ['Sale'],
         pref_extracted_at: new Date().toISOString(),
       });
@@ -815,6 +996,7 @@ describe('getMatchingContacts', () => {
         requirements: '4 BHK house on ORR\nPreferred location: Horamavu',
         pref_property_types: ['Residential House'],
         pref_areas: ['Horamavu'],
+        strict_area_match: true,
         pref_listing_types: ['Sale'],
         pref_extracted_at: new Date().toISOString(),
       });
@@ -2159,7 +2341,7 @@ describe('independent additional requirement profiles', () => {
 });
 
 describe('Residential Plot and Residential Land subtypes', () => {
-  it('[INB-004] matches a plot seeker filed under the split taxonomy to plot listings only', () => {
+  it('[INB-004] matches a plot seeker filed under the split taxonomy to plot listings first, houses after', () => {
     for (const stated of ['Residential Plot', 'Residential Land']) {
       const contact = createTestContact({
         pref_property_types: [stated],
@@ -2179,7 +2361,9 @@ describe('Residential Plot and Residential Land subtypes', () => {
       expect(getMatchingContacts(namedPlot, [contact])[0]?.details.type).toBe(
         'match'
       );
-      expect(getMatchingContacts(house, [contact])).toHaveLength(0);
+      expect(getMatchingContacts(house, [contact])[0]?.details.type).toBe(
+        'partial'
+      );
     }
   });
 });
@@ -2263,7 +2447,7 @@ describe('Named locality', () => {
     expect(match?.details.named_area).toBe('match');
   });
 
-  it('[INB-004] leads with the named layout, plots before houses, and only then nearby plots', () => {
+  it('[INB-004] leads with the named layout, plots before houses, and only then nearby plots and houses', () => {
     const ranked = rankProperties(plotSeeker(), [
       nearbyHouse,
       nearbyPlot,
@@ -2274,10 +2458,12 @@ describe('Named locality', () => {
       'prop-1241',
       'prop-1240',
       'prop-1056',
+      'prop-1055',
     ]);
-    expect(ranked[1].details.type).toBe('mismatch');
+    expect(ranked[1].details.type).toBe('partial');
     expect(ranked[1].details.named_area).toBe('match');
     expect(ranked[2].details.named_area).toBe('unknown');
+    expect(ranked[3].details.type).toBe('partial');
   });
 
   it('keeps a house in the named layout only within the stated sector', () => {
@@ -2315,7 +2501,9 @@ describe('Named locality', () => {
     const [match] = getMatchingContacts(layoutPlot, [zoneBuyer]);
     expect(match?.details.location).toBe('match');
     expect(match?.details.named_area).toBe('unknown');
-    expect(getMatchingContacts(layoutHouse, [zoneBuyer])).toHaveLength(0);
+    const [house] = getMatchingContacts(layoutHouse, [zoneBuyer]);
+    expect(house?.details.named_area).toBe('unknown');
+    expect(house?.details.type).toBe('partial');
   });
 
   it('reads an excluded area with the same tolerance', () => {

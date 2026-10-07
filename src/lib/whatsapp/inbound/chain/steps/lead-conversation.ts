@@ -132,6 +132,8 @@ export async function leadConversation(
     // If the message does not carry a new requirement brief, resolve the property,
     // record the rejection on listing_feedback, and send the interactive factor
     // prompt with one-tap options (type / budget / location / size / other) + typing invitation.
+    // "Not interested, please call me" records the rejection without the
+    // prompt and goes on to the callback handover.
     if (
       !ownerCheck.isOwner &&
       message.type === 'text' &&
@@ -160,6 +162,7 @@ export async function leadConversation(
           conversationId: conversation.id,
           inboundText: contentText,
           quotedPropertyId,
+          recordOnly: requestsHumanContact(contentText),
         });
         if (handledDisinterest) return 'handled';
       }
