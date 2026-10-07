@@ -425,7 +425,7 @@
         },
         {
           "id": "INB-025",
-          "rule": "A contact forwarded to the owner chatbot is announced as a saved draft only after a session row is written: a session row another call wrote for the same sender between the lookup and the insert (an insert conflict) keeps every card from both (the same person merged, anyone else appended, nothing discarded) through a compare-and-swap write scoped to the sender's account, while cards handled one after another under the conversation lease follow the later-forward rule (the same person merged, a different person replaces the draft and the owner is told), no preview is ever built from an unsaved local copy (a draft that could not be read back is reported as saved but unshown, one already confirmed or cancelled gets no preview), the last preview the owner receives is the saved draft (each handler re-reads after sending, retrying a failed read rather than taking it as an answer and, if it never succeeds, ending on a plain notice without a Confirm button, and sends again, without a cap, until the row it showed is still the saved one), and a draft that could not be saved refunds the parse charge against that charge's own key (INB-028) and tells the owner to send it again.",
+          "rule": "A contact forwarded to the owner chatbot is announced as a saved draft only after a session row is written: a session row another call wrote for the same sender between the lookup and the insert (an insert conflict) keeps every card from both (the same person merged, anyone else appended, nothing discarded) through a compare-and-swap write scoped to the sender's account, while a card or screenshot that lands on a draft already open is written through the same compare-and-swap and follows the later-forward rule (the same person merged, a different person replaces the draft and the owner is told) unless it belongs with that draft, in which case a different person is appended and nothing is discarded: WhatsApp stamped it as sent no later than the draft's last write, allowing two seconds for its whole-second timestamps, and no more than 60 seconds before it (several cards forwarded at once, including cards delivered in one webhook payload that never wait for the lease), or it waited for the conversation lease and the draft was last written within 60 seconds (cards forwarded back to back), or it was sent as a reply to a contact-draft preview the bot sent in that conversation since the draft opened; no preview is ever built from an unsaved local copy (a draft that could not be read back is reported as saved but unshown, one already confirmed or cancelled gets no preview), the last preview the owner receives is the saved draft (each handler re-reads after sending, retrying a failed read rather than taking it as an answer and, if it never succeeds, ending on a plain notice without a Confirm button, and sends again, without a cap, until the row it showed is still the saved one), and a draft that could not be saved refunds the parse charge against that charge's own key (INB-028) and tells the owner to send it again.",
           "tests": [
             {
               "file": "src/lib/ai/chatbot-engine.structure.test.ts",
@@ -4175,6 +4175,73 @@
             "src/lib/auth/account.ts",
             "src/hooks/useCan.ts",
             "src/components/flows/flow-editor-state.tsx"
+          ]
+        },
+        {
+          "id": "ACC-003",
+          "rule": "Row-level security refuses a read-only member (profiles.is_read_only) on every workspace write, at every role level, so their own JWT cannot INSERT, UPDATE or DELETE through PostgREST whatever an API route allows. Every write policy uses is_account_writer() (is_account_member() plus the read-only check) or names is_read_only itself; a new migration that adds a write policy on is_account_member() alone fails the test. A read-only member keeps every read they had: where a tightened FOR ALL policy was a table's only read path (contact_property_inquiries, portal_accounts, portal_import_items) a separate SELECT policy keeps it. They may still write only rows that are their own or are not a workspace change: their profile, notification devices, notification read state, task-digest preference (agent_task_digest_settings), a support ticket and a bug report. Members who are not read-only are unaffected. The storage write policies on the property-images, property-images-private and property-documents buckets follow the same rule: each requires is_account_writer() on the account id that is the object's first folder, so a read-only member cannot upload, replace or delete listing media, and nobody can write a property document under an account they cannot write to.",
+          "tests": [
+            {
+              "file": "src/lib/auth/read-only-rls-workspace.test.ts",
+              "case": "[ACC-003]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261005083357_workspace_write_read_only_rls.sql",
+            "supabase/migrations/20261004155516_flow_automation_write_read_only_rls.sql",
+            "supabase/migrations/20261007051025_flow_automation_write_policies_alter.sql",
+            "supabase/migrations/20261007054244_property_storage_write_read_only.sql"
+          ]
+        },
+        {
+          "id": "ACC-005",
+          "rule": "A SECURITY DEFINER function that writes without checking who called it is never reachable over PostgREST RPC. _bcast_bump, bump_copilot_qa_hit, vote_copilot_qa, log_copilot_unmet_request, sync_contact_budget_band, seed_default_reminder_templates, claim_broadcast_dispatch, release_broadcast_dispatch, renew_broadcast_dispatch, renew_broadcast_recipient_claims, claim_broadcast_recipients and recompute_broadcast_counts take a row or account id and write to it with no membership check, so EXECUTE on each is revoked from PUBLIC, anon and authenticated and granted to service_role alone: a signed-out visitor or a member of another account calling one with their own key is refused by the database before the body runs. Their only callers keep working: the broadcast dispatcher and the Copilot answer cache and demand log call them through the service-role client (supabaseAdmin), and the broadcast-count, budget-band and default-template triggers reach theirs from SECURITY DEFINER trigger functions that run as the function owner. A new SECURITY DEFINER function that writes either guards its account with is_account_writer() when a member calls it with their own JWT, or revokes EXECUTE from PUBLIC, anon and authenticated when only server code and triggers call it; granting service_role alone in the migration is not enough, because a new function in public is executable by every role until it is revoked.",
+          "tests": [
+            {
+              "file": "src/lib/auth/internal-definer-functions.test.ts",
+              "case": "[ACC-005]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261006033422_internal_definer_functions_service_role_only.sql",
+            "src/lib/supabase/admin.ts"
+          ]
+        },
+        {
+          "id": "ACC-004",
+          "rule": "A read-only member cannot write through a SECURITY DEFINER function either. Row-level security does not apply inside one, so each function that writes on behalf of the calling member guards with is_account_writer() rather than is_account_member(): allocate_invoice_number, deal_invoice_append, deal_invoice_remove, issue_invoice, journey_show_captured, sync_listing_status_from_deals, unmap_portal_ad and bulk_tag_properties at agent level, resync_pipeline_stage_deals, revoke_beta_invite and rotate_beta_invite at admin level. A read-only member calling one over PostgREST with their own JWT is refused the way a non-member is. sync_listing_status_from_deals keeps its service-role branch, so server code and triggers running as the service role still sync a listing. complete_copilot_appointment refuses read-only members with its own profile check and stays as it is. A new SECURITY DEFINER function that inserts, updates or deletes for the caller uses is_account_writer(); is_account_member() is for reads.",
+          "tests": [
+            {
+              "file": "src/lib/auth/read-only-definer-functions.test.ts",
+              "case": "[ACC-004]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261005114500_definer_write_functions_read_only.sql",
+            "supabase/migrations/20261004155516_flow_automation_write_read_only_rls.sql"
+          ]
+        },
+        {
+          "id": "ACC-006",
+          "rule": "A read-only member (profiles.is_read_only, stored as an agent-level org_agent) cannot hand a contact off to another agent or issue a beta invitation. POST /api/contacts/[id]/handoff and POST /api/beta-invites use requireWriteRole('agent') and answer 403 before calling the database. The two SECURITY DEFINER functions behind them refuse on their own, so the member's own JWT cannot run them through PostgREST RPC either: handoff_contact and issue_beta_invite check is_account_writer(<caller's account>, 'agent') right after resolving the caller's profile and raise 42501 before the contact is reassigned or the seat is inserted. Every other check in the two functions (same-account contact and target, the org-role handoff rules, the open beta programme and the per-account quota) is unchanged.",
+          "tests": [
+            {
+              "file": "src/lib/auth/read-only-handoff-beta-invite.test.ts",
+              "case": "[ACC-006]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/handoff/route.test.ts",
+              "case": "[ACC-006]"
+            },
+            {
+              "file": "src/app/api/beta-invites/route.test.ts",
+              "case": "[ACC-006]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261006035538_handoff_beta_invite_read_only.sql",
+            "src/app/api/contacts/[id]/handoff/route.ts",
+            "src/app/api/beta-invites/route.ts"
           ]
         }
       ]

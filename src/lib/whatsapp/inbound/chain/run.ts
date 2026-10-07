@@ -95,6 +95,7 @@ async function buildInboundChainContext(
     ownerCheck,
     contactRecord,
     conversation,
+    waited,
     isFirstInboundMessage,
     isControlReply,
     assignedAgentUserId,

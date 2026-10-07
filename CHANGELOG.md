@@ -19,6 +19,21 @@ than a written entry. Newest first.
 
 #### 6 October 2026
 
+- **Twelve internal database functions can no longer be called from outside
+  the server.** The functions that keep broadcast counts, dispatch leases and
+  recipient claims, Copilot's answer cache and demand log, budget-band tags and
+  the default reminder templates write to whatever row or account id they are
+  handed and never checked the caller, yet seven were callable by anyone
+  holding the public key and five by any signed-in user of any account. They now run only for the
+  server and the database triggers that already used them. **Migration
+  required:** `20261006033422_internal_definer_functions_service_role_only.sql`.
+
+- **Read-only members can no longer hand off a contact or issue a beta
+  invitation.** Both actions are refused for a read-only member by the API and
+  by the database functions behind them, so calling the function directly with
+  the member's own sign-in is refused too. **Migration required:**
+  `20261006035538_handoff_beta_invite_read_only.sql`. Invariant ACC-006.
+
 - **Two more "call me" replies take the right path.** "I'll check and call back
   tomorrow" is read as the client's own call again, not a request for the
   team to ring, so the callback promise is no longer sent. "Not interested,
@@ -36,6 +51,34 @@ than a written entry. Newest first.
 
 #### 5 October 2026
 
+- **Read-only members can no longer change anything in the workspace through
+  the database.** Row-level security used to stop a read-only member only on
+  automations, flows, appointments, portal listings and contact deletion; every
+  other table accepted their writes if they called the database directly. Now
+  169 write policies across 108 tables refuse them, at every role level. They
+  can still read everything they could before, and can still edit their own
+  profile, notification devices, notification read state and task-digest
+  preference, and file a support ticket or bug report. A read-only member who
+  opens a conversation no longer clears its shared unread count. Listing
+  photos and property documents in storage get the same rule, and the
+  property-documents bucket, which accepted an upload, overwrite or delete
+  from anyone holding the public key, now takes them only from a member who
+  can write to the account the file is filed under. Flow media gets the same rule on its `account-<id>` folder, which also lets the flow builder's media upload through: production still had the older per-user policies, which refused the account folder it uploads to. **Migration required:**
+  `20261005083357_workspace_write_read_only_rls.sql`,
+  `20261007051025_flow_automation_write_policies_alter.sql`, which lands the
+  flow and automation policies of `20261004155516` that never reached
+  production, and `20261007054244_property_storage_write_read_only.sql`. All
+  three change policies in place with `ALTER POLICY`. Invariant ACC-003.
+
+- **Read-only members can no longer write through database functions.**
+  Eleven functions that write on a member's behalf (issuing an invoice and
+  allocating its number, attaching or removing a deal invoice, showing captured
+  journey items, syncing a listing's status from its deals, resyncing a
+  pipeline stage, unmapping a portal ad, bulk-tagging listings, revoking or
+  resending a beta invite) checked
+  membership only, so a read-only member could call them directly with their
+  own session. They now refuse read-only members. **Migration required:**
+  `20261005114500_definer_write_functions_read_only.sql`. Invariant ACC-004.
 - **A new requirement typed in reply to a check-in now gets matching listings.**
   A client who answered an enquiry check-in with what they want instead, such
   as "Hsr layout 30x40 north and east facing only", had it logged as an update
