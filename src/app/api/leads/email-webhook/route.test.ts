@@ -1531,7 +1531,8 @@ Content-Transfer-Encoding: quoted-printable
         area_sqft: null,
         land_area: 2400,
         land_area_unit: 'Sq.Ft.',
-        price: 84000000,
+        // The ad still quotes ₹8.4 Cr; the listing was repriced since.
+        price: 90000000,
         property_code: 'PROP-20',
       });
       mockDb.property_portal_listings.push({
@@ -1568,8 +1569,8 @@ Content-Transfer-Encoding: quoted-printable
         'JP Nagar 4th Phase',
       ]);
       expect(contact.property_interests).toContain('Commercial');
-      expect(contact.pref_budget_max).toBe(84000000);
-      expect(contact.pref_budget_anchor).toBe(84000000);
+      expect(contact.pref_budget_max).toBe(90000000);
+      expect(contact.pref_budget_anchor).toBe(90000000);
     });
 
     it('[CNV-001] greets a lead on an unavailable listing with the status notice alone', async () => {

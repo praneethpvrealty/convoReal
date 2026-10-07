@@ -84,6 +84,19 @@ describe('sendUnavailableListingReply', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('[CNV-001] counts a send Meta accepted as delivered even when bookkeeping failed afterwards', async () => {
+    send.mockResolvedValue({
+      success: false,
+      reachedMeta: true,
+      error: 'messages insert failed',
+    });
+    const supabase = fakeDb({ properties: property });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'text'
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it('[PRP-014] tells a portal lead the listing is under contract and asks for requirements and budget', async () => {
     send.mockResolvedValue({ success: true });
     const supabase = fakeDb({ properties: property });

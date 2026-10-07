@@ -676,10 +676,13 @@ export async function POST(request: Request) {
         location?: string | null;
         sublocality?: string | null;
         type?: string | null;
-      }>
+      }>,
+      /** True when the portal named this exact listing: its current
+       *  price outranks the figure the ad quoted, which can be stale. */
+      exact = false
     ) => {
       if (listings.length === 0) return;
-      if (!inferredBudget) {
+      if (!inferredBudget || exact) {
         const maxPrice = Math.max(...listings.map((p) => Number(p.price) || 0));
         if (maxPrice > 0) inferredBudget = maxPrice;
       }
@@ -841,7 +844,7 @@ export async function POST(request: Request) {
             .eq('id', link.property_id)
             .maybeSingle();
           if (exactListing && exactListing.id === link.property_id) {
-            absorbListingFacts([exactListing]);
+            absorbListingFacts([exactListing], true);
           }
         }
       } catch (err) {

@@ -95,7 +95,9 @@ export async function sendUnavailableListingReply({
     kind: 'text',
     text: reply,
   });
-  if (textResult.success) return 'text';
+  // A send Meta accepted is a message the lead has: a failure after
+  // that (persistence, bookkeeping) must not earn them a second one.
+  if (textResult.success || textResult.reachedMeta) return 'text';
   if (!isReengagementError(textResult.error)) {
     console.error(
       `[lead-webhook] Unavailable-listing reply failed for contact ${contactId}: ${textResult.error}`
@@ -189,7 +191,7 @@ export async function sendUnavailableListingReply({
       (_, n) => params[Number(n) - 1] ?? ''
     ),
   });
-  if (!templateResult.success) {
+  if (!templateResult.success && !templateResult.reachedMeta) {
     console.error(
       `[lead-webhook] Listing status notice failed for contact ${contactId}: ${templateResult.error}`
     );
