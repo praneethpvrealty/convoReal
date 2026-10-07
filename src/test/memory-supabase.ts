@@ -11,18 +11,39 @@ function same(a: unknown, b: unknown): boolean {
   return false;
 }
 
-export function memorySupabase(tables: Record<string, Row[]>) {
+type RpcHandler = (args: Record<string, unknown>) => unknown;
+
+let nextId = 1;
+
+export function memorySupabase(
+  tables: Record<string, Row[]>,
+  rpcs: Record<string, RpcHandler> = {}
+) {
   const from = (table: string) => {
     const filters: Filter[] = [];
     let patch: Row | null = null;
+    let inserted: Row[] | null = null;
     let head = false;
     const rows = () => (tables[table] ??= []);
     const run = (): Row[] => {
+      if (inserted) return inserted.map((row) => structuredClone(row));
       const matched = rows().filter((row) => filters.every((f) => f(row)));
       if (patch) {
         for (const row of matched) Object.assign(row, structuredClone(patch));
       }
       return matched.map((row) => structuredClone(row));
+    };
+    const store = (values: Row | Row[]) => {
+      inserted = (Array.isArray(values) ? values : [values]).map((row) => {
+        const stored = {
+          id: `${table}-${nextId++}`,
+          created_at: new Date().toISOString(),
+          ...structuredClone(row),
+        };
+        rows().push(stored);
+        return stored;
+      });
+      return builder;
     };
     const builder = {
       select(_columns?: string, options?: { head?: boolean }) {
@@ -32,6 +53,12 @@ export function memorySupabase(tables: Record<string, Row[]>) {
       update(values: Row) {
         patch = values;
         return builder;
+      },
+      insert(values: Row | Row[]) {
+        return store(values);
+      },
+      upsert(values: Row | Row[]) {
+        return store(values);
       },
       eq(column: string, value: unknown) {
         filters.push((row) => same(row[column] ?? null, value));
@@ -53,6 +80,27 @@ export function memorySupabase(tables: Record<string, Row[]>) {
         filters.push((row) => String(row[column]) >= String(value));
         return builder;
       },
+      gt(column: string, value: unknown) {
+        filters.push((row) => Number(row[column]) > Number(value));
+        return builder;
+      },
+      lt(column: string, value: unknown) {
+        filters.push((row) => Number(row[column]) < Number(value));
+        return builder;
+      },
+      lte(column: string, value: unknown) {
+        filters.push((row) => Number(row[column]) <= Number(value));
+        return builder;
+      },
+      // PostgREST filter strings (ilike probes, nested and/or) are not
+      // parsed: every row passes and the caller's own in-memory check
+      // decides, which is what each of them does anyway.
+      or() {
+        return builder;
+      },
+      not() {
+        return builder;
+      },
       order() {
         return builder;
       },
@@ -61,6 +109,12 @@ export function memorySupabase(tables: Record<string, Row[]>) {
       },
       async maybeSingle() {
         return { data: run()[0] ?? null, error: null };
+      },
+      async single() {
+        const row = run()[0] ?? null;
+        return row
+          ? { data: row, error: null }
+          : { data: null, error: { message: 'no rows', code: 'PGRST116' } };
       },
       then<T>(
         resolve: (value: {
@@ -86,5 +140,10 @@ export function memorySupabase(tables: Record<string, Row[]>) {
     };
     return builder;
   };
-  return { from };
+  const rpc = async (name: string, args: Record<string, unknown> = {}) => {
+    const handler = rpcs[name];
+    if (!handler) return { data: null, error: { message: `no rpc ${name}` } };
+    return { data: await handler(args), error: null };
+  };
+  return { from, rpc };
 }
