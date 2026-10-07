@@ -221,16 +221,26 @@ const ESCALATE_PATTERN =
 // at the photo, and nothing in the listing's fields can do that. The
 // type matcher used to claim it on the word "house" and answer with
 // the listing's category, which is no answer at all. Matched before
-// everything else so it reaches a person, and never a model.
-const PHOTO_IDENTIFICATION_PATTERN =
-  /\b(which (one|house|building|plot|site|unit|flat|gate|side)\b|the one (in|on|with|at|next|beside|behind|near)\b|(pink|blue|white|yellow|green|red|grey|gray|brown|orange|cream|black|beige|peach) (house|building|gate|wall|one|villa|bungalow)|next to (it|this|that)|beside (it|this|that)|behind (it|this|that)|in front of (it|this|that)|opposite (to )?(it|this|that)|in the (photo|picture|pic|image|video|snap)|from the (photo|picture|pic|image|video|snap)|left or right|right or left|corner one|middle one)\b/i;
+// everything else so it reaches a person, and never a model — but only
+// with visual context: a colour on a building, a position relative to
+// the listing, or a photo named alongside "which" / "is it". A bare
+// "which side is it facing?" stays with the facing matcher.
+const PHOTO_LANDMARK_PATTERN =
+  /\b((pink|blue|white|yellow|green|red|grey|gray|brown|orange|cream|black|beige|peach) (house|building|gate|wall|one|villa|bungalow)|next to (it|this|that)|beside (it|this|that)|behind (it|this|that)|in front of (it|this|that)|opposite (to )?(it|this|that)|left or right|right or left|corner one|middle one|the one (in|on|with|at|next|beside|behind|near)\b)/i;
+const VISUAL_CONTEXT_PATTERN =
+  /\b(photo|photos|picture|pictures|pic|pics|image|images|video|snap|screenshot)\b/i;
+const POINTS_AT_SOMETHING_PATTERN =
+  /\b(which (one|house|building|plot|site|unit|flat|gate|side)\b|is (it|this|that)\b)/i;
 
 /** True when the buyer is asking us to point at something in the
  *  listing's photo: only a person who knows the site can answer it. */
 export function asksToIdentifyInPhoto(
   question: string | null | undefined
 ): boolean {
-  return PHOTO_IDENTIFICATION_PATTERN.test((question || '').trim());
+  const q = (question || '').trim();
+  if (!q) return false;
+  if (PHOTO_LANDMARK_PATTERN.test(q)) return true;
+  return VISUAL_CONTEXT_PATTERN.test(q) && POINTS_AT_SOMETHING_PATTERN.test(q);
 }
 
 // Availability is answered from the listing's status, before any other

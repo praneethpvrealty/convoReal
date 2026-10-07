@@ -292,15 +292,24 @@ describe('[INB-032] a question only a person can answer from the photo', () => {
     expect(r.intent).toBe('photo_identification');
   });
 
-  it('leaves ordinary type and photo questions alone', () => {
+  it('leaves ordinary type, facing and photo questions alone', () => {
     for (const q of [
       'is it a villa or an apartment?',
       'can you send photos',
       'which direction does it face',
       'is this house 3 BHK?',
+      'Which side is this property facing?',
+      'which one do you recommend',
+      'which plot has the better road access',
     ]) {
       expect(asksToIdentifyInPhoto(q), q).toBe(false);
     }
+    const facing = answerFromPropertyData(
+      'Which side is this property facing?',
+      makeProp({ facing_direction: 'East' })
+    );
+    expect(facing.intent).toBe('facing');
+    expect(facing.answer).toBe('It faces East.');
   });
 });
 

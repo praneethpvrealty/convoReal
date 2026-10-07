@@ -47,6 +47,8 @@ describe('[INB-032] a question about the listing in the thread is not a requirem
       'Is it a villa or an apartment?',
       'Does this flat have parking?',
       'Is this still for sale',
+      'Is this plot under contract?',
+      'Is the house within walking distance of the metro?',
     ]) {
       expect(asksAboutSharedListing(text), text).toBe(true);
       expect(carriesRequirementSignal(text), text).toBe(false);

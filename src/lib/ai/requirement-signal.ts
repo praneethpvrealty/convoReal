@@ -46,8 +46,12 @@ const QUESTION_SHAPE =
 const LISTING_REFERENCE =
   /\b(this|it|that|these|those|the (one|same|listing|property|house|plot|site|flat|apartment|villa|building|unit|land|place)|you (sent|shared|showed|posted)|the (photo|picture|pic|image|video))\b/i;
 
+// Verbs and openers that state a search, not a question about the
+// listing in hand. No qualifier words ("under", "within", "max"): a
+// figure is what makes "under 2 Cr" a budget, and statesBudget reads
+// the figure, while "is this plot under contract?" is a status question.
 const REQUIREMENT_INTENT =
-  /\b(looking|want|need|interested|searching|require|prefer|suggest|options?|any|have you|do you have|get me|find|show me|send me|share|budget|within|under|below|around|upto|up to|max|maximum)\b/i;
+  /\b(looking|want|need|interested|searching|require|prefer|suggest|options?|any|have you|do you have|get me|find|show me|send me|share)\b/i;
 
 /**
  * True when a question is about the listing already in the thread —

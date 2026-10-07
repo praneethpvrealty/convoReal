@@ -165,6 +165,9 @@ describe('[INB-032] a question about the shared listing goes to the listing Q&A'
     expect(routeLeadMessage('Is this available for sale ?')).toBe(
       'listing_question'
     );
+    expect(routeLeadMessage('Is this plot under contract?')).toBe(
+      'listing_question'
+    );
     expect(isBuyerRequirementMessage('Is this available for sale ?')).toBe(
       false
     );
