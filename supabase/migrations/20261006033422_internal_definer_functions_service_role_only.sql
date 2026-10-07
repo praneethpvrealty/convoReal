@@ -28,3 +28,9 @@ GRANT EXECUTE ON FUNCTION public.renew_broadcast_dispatch(UUID, INT) TO service_
 REVOKE ALL ON FUNCTION public.renew_broadcast_recipient_claims(UUID[]) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.renew_broadcast_recipient_claims(UUID[]) TO service_role;
 
+
+REVOKE ALL ON FUNCTION public.claim_broadcast_recipients(UUID, INT, INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_broadcast_recipients(UUID, INT, INT) TO service_role;
+
+REVOKE ALL ON FUNCTION public.recompute_broadcast_counts(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.recompute_broadcast_counts(UUID) TO service_role;

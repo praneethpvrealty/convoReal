@@ -18,6 +18,8 @@ const internalFunctions = [
   ['release_broadcast_dispatch', 'UUID'],
   ['renew_broadcast_dispatch', 'UUID, INT'],
   ['renew_broadcast_recipient_claims', 'UUID[]'],
+  ['claim_broadcast_recipients', 'UUID, INT, INT'],
+  ['recompute_broadcast_counts', 'UUID'],
 ] as const;
 
 const serverCallers: Record<string, string> = {
@@ -28,6 +30,7 @@ const serverCallers: Record<string, string> = {
   release_broadcast_dispatch: 'src/lib/broadcasts/sender.ts',
   renew_broadcast_dispatch: 'src/lib/broadcasts/sender.ts',
   renew_broadcast_recipient_claims: 'src/lib/broadcasts/sender.ts',
+  claim_broadcast_recipients: 'src/lib/broadcasts/sender.ts',
 };
 
 const triggerCallers = [
