@@ -73,6 +73,9 @@ describe('looksLikeQuestion', () => {
 describe('withoutOwnCallOffer', () => {
   it('keeps whatever else the message asks for', () => {
     expect(withoutOwnCallOffer("I'll call back tomorrow")).toBe('tomorrow');
+    expect(withoutOwnCallOffer("I'll check and call back tomorrow")).toBe(
+      "i'll check, tomorrow"
+    );
     expect(
       withoutOwnCallOffer(
         'Please schedule a meeting Friday at 3pm; I will call you tomorrow'
@@ -155,6 +158,10 @@ describe('requestsHumanContact', () => {
       'I can probably call back next week',
       "I'm going to just call you back",
       'I will then call back tomorrow',
+      "I'll check and call back tomorrow",
+      'We will discuss and give you a call',
+      "I'm going to ask my wife and call you back",
+      'let me check and ring you',
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
     }
@@ -194,6 +201,9 @@ describe('requestsHumanContact', () => {
       "Please don't hesitate to call me",
       'Text or call me, either works',
       "I'll call back or you can call me",
+      "I'm busy and call me later",
+      "I'll check and call me back with the price",
+      'I saw the plot and call me',
     ]) {
       expect(requestsHumanContact(text), text).toBe(true);
     }
