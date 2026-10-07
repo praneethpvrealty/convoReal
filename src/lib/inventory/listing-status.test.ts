@@ -8,6 +8,9 @@ import {
   appendListingStatusNote,
   listingStatusAgentLine,
   unavailableListingReply,
+  listingAvailabilityAnswer,
+  listingStatusCaveat,
+  listingAvailabilityContext,
 } from './listing-status';
 import { PROPERTY_STATUSES } from './property-options';
 
@@ -162,6 +165,76 @@ describe('unavailableListingReply', () => {
   it('greets a placeholder-named portal lead without the placeholder', () => {
     expect(unavailableListingReply('99acres Lead', 'Plot', 'Sold')).toMatch(
       /^Hi, thank you/
+    );
+  });
+});
+
+describe('listingAvailabilityAnswer', () => {
+  it('[INB-032] confirms an available listing for what it is listed as', () => {
+    expect(listingAvailabilityAnswer('Available', 'Sale')).toBe(
+      'Yes, this property is currently available for sale.'
+    );
+    expect(listingAvailabilityAnswer(null, 'Rent')).toBe(
+      'Yes, this property is currently available for rent.'
+    );
+    expect(listingAvailabilityAnswer('Available', 'JV/JD')).toMatch(
+      /for joint development/
+    );
+  });
+
+  it('[INB-032] apologises for an under-contract listing and asks for requirements', () => {
+    const text = listingAvailabilityAnswer('Under Contract', 'Sale');
+    expect(text).toMatch(/^I'm sorry/);
+    expect(text).toMatch(/under contract with another buyer/);
+    expect(text).toMatch(/If it becomes available again/);
+    expect(text).toMatch(/requirements and budget/);
+    expect(text).not.toMatch(/currently available/);
+  });
+
+  it('[INB-032] never promises an update on a sold listing', () => {
+    const text = listingAvailabilityAnswer('Sold', 'Sale');
+    expect(text).toMatch(/already been sold/);
+    expect(text).not.toMatch(/update you/);
+  });
+
+  it('[INB-032] will not confirm an unverified listing', () => {
+    expect(listingAvailabilityAnswer('Pending Review', 'Sale')).toMatch(
+      /can't confirm its availability/
+    );
+  });
+
+  it('[INB-032] answers every status the editor can set', () => {
+    for (const status of PROPERTY_STATUSES) {
+      expect(listingAvailabilityAnswer(status, 'Sale'), status).not.toBe('');
+    }
+  });
+});
+
+describe('listingStatusCaveat', () => {
+  it('[INB-032] rides on an answer about an unavailable listing only', () => {
+    expect(listingStatusCaveat('Available')).toBeNull();
+    expect(listingStatusCaveat(undefined)).toBeNull();
+    expect(listingStatusCaveat('Under Contract')).toBe(
+      'Please note: this property is currently under contract with another buyer, but the deal is not closed yet.'
+    );
+    expect(listingStatusCaveat('Sold')).toBe(
+      'Please note: this property is already sold.'
+    );
+  });
+});
+
+describe('listingAvailabilityContext', () => {
+  it('[INB-032] tells the model an unavailable listing is NOT available, in those words', () => {
+    expect(listingAvailabilityContext('Available')).toBe('Available');
+    expect(listingAvailabilityContext(null)).toBe('Available');
+    expect(listingAvailabilityContext('Under Contract')).toMatch(
+      /^NOT available — currently under contract/
+    );
+    expect(listingAvailabilityContext('Sold')).toBe(
+      'NOT available — already sold'
+    );
+    expect(listingAvailabilityContext('Pending Review')).toMatch(
+      /^Not yet confirmed/
     );
   });
 });

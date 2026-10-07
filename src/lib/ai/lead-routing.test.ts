@@ -153,6 +153,45 @@ describe('standsDownFromQualification', () => {
   });
 });
 
+describe('[INB-032] a question about the shared listing goes to the listing Q&A', () => {
+  it('routes the pink-house question to the Q&A, and stands the ladder down', () => {
+    const text = 'Is it this pink house or house next to it ?';
+    expect(routeLeadMessage(text)).toBe('listing_question');
+    expect(standsDownFromQualification(text)).toBe(true);
+    expect(isBuyerRequirementMessage(text)).toBe(false);
+  });
+
+  it('routes an availability question the same way', () => {
+    expect(routeLeadMessage('Is this available for sale ?')).toBe(
+      'listing_question'
+    );
+    expect(routeLeadMessage('Is this plot under contract?')).toBe(
+      'listing_question'
+    );
+    expect(isBuyerRequirementMessage('Is this available for sale ?')).toBe(
+      false
+    );
+  });
+
+  it('keeps a question that carries a requirement with the ladder', () => {
+    expect(routeLeadMessage('Do you have any villa under 2 Cr?')).toBe(
+      'qualification'
+    );
+    expect(isBuyerRequirementMessage('Do you have any villa under 2 Cr?')).toBe(
+      true
+    );
+  });
+
+  it('lets the earlier carve-outs keep their precedence', () => {
+    expect(routeLeadMessage('is this the one? please call me')).toBe(
+      'callback_handover'
+    );
+    expect(routeLeadMessage('can you send photos of this house')).toBe(
+      'photo_request'
+    );
+  });
+});
+
 describe('every route is explained for the simulator', () => {
   it.each([
     'callback_handover',
@@ -161,6 +200,7 @@ describe('every route is explained for the simulator', () => {
     'property_disinterest',
     'photo_request',
     'shortlist_reference',
+    'listing_question',
     'more_listings',
     'qualification',
   ] as const)('%s', (route) => {

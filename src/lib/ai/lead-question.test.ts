@@ -22,6 +22,7 @@ import {
   withoutOwnCallOffer,
   HANDOVER_TEXT,
   CALLBACK_HANDOVER_TEXT,
+  PHOTO_IDENTIFICATION_HANDOVER_TEXT,
   mergeLeadAnswers,
 } from './lead-question';
 
@@ -455,6 +456,61 @@ describe('answerLeadQuestion', () => {
       property: null,
     });
     expect(res.source).toBe('handover');
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('[INB-032] answers "is this available?" from the status of an under-contract listing, never the model', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Is this available for sale ?',
+      property: { ...property, status: 'Under Contract' },
+    });
+    expect(res.source).toBe('listing');
+    expect(res.intent).toBe('availability');
+    expect(res.text).toMatch(/under contract with another buyer/);
+    expect(res.text).not.toMatch(/currently available/);
+    expect(burnCredits).not.toHaveBeenCalled();
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('[INB-032] confirms an available listing the same free way', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'still available?',
+      property: { ...property, status: 'Available' },
+    });
+    expect(res.source).toBe('listing');
+    expect(res.text).toBe(
+      'Yes, this property is currently available for sale.'
+    );
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('[INB-032] grounds an open-ended question in the listing status', async () => {
+    vi.mocked(generateText).mockResolvedValue(
+      'This one is under contract at the moment, so I cannot offer it right now.'
+    );
+    await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'is the price negotiable at all',
+      property: { ...property, status: 'Under Contract' },
+    });
+    const [prompt, systemInstruction] = vi.mocked(generateText).mock.calls[0];
+    expect(prompt).toContain('Availability: NOT available');
+    expect(prompt).toContain('Price: ₹34.50 Cr');
+    expect(systemInstruction).toContain('Availability line is authoritative');
+  });
+
+  it('[INB-032] hands a which-house-in-the-photo question to a person without spending a credit', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Is it this pink house or house next to it ?',
+      property: { ...property, type: 'Independent House' },
+    });
+    expect(res.source).toBe('handover');
+    expect(res.intent).toBe('photo_identification');
+    expect(res.text).toBe(PHOTO_IDENTIFICATION_HANDOVER_TEXT);
+    expect(burnCredits).not.toHaveBeenCalled();
     expect(generateText).not.toHaveBeenCalled();
   });
 });

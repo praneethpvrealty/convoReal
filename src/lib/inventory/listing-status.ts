@@ -130,6 +130,63 @@ export function unavailableListingReply(
   return `${greeting} for your interest in ${subject}. I'm sorry — this property is ${phrase}. If it becomes available again, we'll come back and update you right here. Meanwhile, ${nudge.charAt(0).toLowerCase()}${nudge.slice(1)}${browse}`;
 }
 
+/**
+ * The one-line answer to "is this still available?", whatever surface
+ * asked it. The Q&A ladder serves it before any matcher or model call
+ * so a listing's status is never guessed from "Listing: Sale" alone.
+ */
+export function listingAvailabilityAnswer(
+  status: string | null | undefined,
+  listingType?: string | null
+): string {
+  const value = (status ?? '').trim();
+  const nudge =
+    "Please share your requirements and budget, and I'll send you the best matching options.";
+  if (!value || value === 'Available') {
+    const forWhat =
+      listingType === 'Rent'
+        ? 'for rent'
+        : listingType === 'Built to Suit'
+          ? 'as a Built to Suit lease'
+          : listingType === 'JV/JD'
+            ? 'for joint development'
+            : 'for sale';
+    return `Yes, this property is currently available ${forWhat}.`;
+  }
+  if (value === 'Pending Review') {
+    return "This listing is still being verified, so I can't confirm its availability just yet. I'll update you here as soon as it is confirmed.";
+  }
+  if (value === 'Sold') {
+    return `I'm sorry — this property has already been sold. I'd be glad to find you something similar. ${nudge}`;
+  }
+  const phrase =
+    ENQUIRY_STATUS_PHRASES[value] ?? `marked ${value.toLowerCase()} right now`;
+  return `I'm sorry — this property is ${phrase}. If it becomes available again, we'll update you right here. Meanwhile, ${nudge.charAt(0).toLowerCase()}${nudge.slice(1)}`;
+}
+
+/** The caveat that rides on any other answer about an unavailable
+ *  listing, so a buyer told its price is also told it is not for sale. */
+export function listingStatusCaveat(
+  status: string | null | undefined
+): string | null {
+  const entry = unavailablePhrase(status);
+  if (!entry) return null;
+  return `Please note: this property is ${entry.phrase}.`;
+}
+
+/** What the model is told about availability, worded so it cannot be
+ *  read as a sale listing that is open. */
+export function listingAvailabilityContext(
+  status: string | null | undefined
+): string {
+  const entry = unavailablePhrase(status);
+  if (!entry) return 'Available';
+  const value = (status ?? '').trim();
+  return value === 'Pending Review'
+    ? 'Not yet confirmed — the listing is still being verified'
+    : `NOT available — ${entry.phrase}`;
+}
+
 export function listingStatusAgentLine(
   status: string | null | undefined
 ): string | null {

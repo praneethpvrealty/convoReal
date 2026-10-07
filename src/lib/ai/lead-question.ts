@@ -18,6 +18,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   answerFromPropertyData,
+  asksToIdentifyInPhoto,
   buildPropertyContext,
   PROPERTY_QA_SYSTEM_PROMPT,
   type QaProperty,
@@ -53,6 +54,12 @@ const INDIAN_SCRIPT_PATTERN = /[\u0900-\u0D7F]/u;
  *  promises a person, not a time — the agent decides that. */
 export const HANDOVER_TEXT =
   'Good question — let me check that with the team and come right back to you.';
+
+/** What the lead hears when they ask us to point at something in the
+ *  photo. Only someone who has stood on the site can answer it, so it
+ *  is a handover with the same obligations as HANDOVER_TEXT. */
+export const PHOTO_IDENTIFICATION_HANDOVER_TEXT =
+  "Good question — I'll confirm exactly which one it is in the photo with the team and come right back to you.";
 
 export type LeadAnswerSource = 'listing' | 'ai' | 'handover';
 
@@ -579,6 +586,15 @@ export async function answerLeadQuestion(args: {
     return { text: CALLBACK_HANDOVER_TEXT, source: 'handover' };
   }
   if (!property) return { text: HANDOVER_TEXT, source: 'handover' };
+  // Before every rung and before any credit is spent: no field and no
+  // model can say which house in the photo is the listing.
+  if (asksToIdentifyInPhoto(question)) {
+    return {
+      text: PHOTO_IDENTIFICATION_HANDOVER_TEXT,
+      source: 'handover',
+      intent: 'photo_identification',
+    };
+  }
 
   const guarded = isLocationGuarded(property);
   const qaProperty = guarded

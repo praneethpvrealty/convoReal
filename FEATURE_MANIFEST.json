@@ -540,6 +540,30 @@
               "case": "[INB-031]"
             }
           ]
+        },
+        {
+          "id": "INB-032",
+          "rule": "A lead's question about the listing already in their thread is answered from that listing, never filed as a requirement: a question that refers to the shared listing (\"is this still available?\", \"is it this pink house or the one next to it?\") and states no budget, size or search intent stands the qualification ladder down and reaches the listing Q&A, so it is never met with silence. Availability is answered from the listing's status before any other matcher or model call — an Available listing is confirmed for what it is listed as, an Under Contract, Sold, Off Market, Archived or Rejected listing gets an apology with its status and a request for requirements and budget (a Sold listing is never promised an update), and a Pending Review listing is not confirmed; every other structured answer about an unavailable listing carries its status in the same message; the model grounding names the availability in words that cannot read as open, and the system prompt forbids describing an unavailable listing as available. A question that asks which house or plot is in the photo is handed to a person without a credit being spent, on WhatsApp and on the public showcase alike. The Q&A quotes prices in the crore and lakh form the inventory card and listing message use, and never repeats a locality the location line already carries. The post-approval details of an under-contract listing go out with its status note.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/property-qa.test.ts",
+              "case": "[INB-032]"
+            },
+            { "file": "src/lib/ai/lead-question.test.ts", "case": "[INB-032]" },
+            {
+              "file": "src/lib/ai/requirement-signal.test.ts",
+              "case": "[INB-032]"
+            },
+            { "file": "src/lib/ai/lead-routing.test.ts", "case": "[INB-032]" },
+            {
+              "file": "src/lib/inventory/listing-status.test.ts",
+              "case": "[INB-032]"
+            },
+            {
+              "file": "src/lib/share-message-builder.test.ts",
+              "case": "[INB-032]"
+            }
+          ]
         }
       ]
     },

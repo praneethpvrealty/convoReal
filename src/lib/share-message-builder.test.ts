@@ -298,6 +298,25 @@ describe('buildInquiryDetailsMessage', () => {
     );
   });
 
+  it('[INB-032] carries the status of an under-contract listing below its details', () => {
+    const msg = buildInquiryDetailsMessage({
+      property: { ...baseProperty, status: 'Under Contract' } as Property,
+      url: URL,
+    });
+    expect(msg).toMatch(
+      /Please note: this property is currently under contract with another buyer/
+    );
+    expect(msg.indexOf('Please note')).toBeGreaterThan(msg.indexOf(URL));
+  });
+
+  it('[INB-032] adds no note to an available listing', () => {
+    const msg = buildInquiryDetailsMessage({
+      property: { ...baseProperty, status: 'Available' } as Property,
+      url: URL,
+    });
+    expect(msg).not.toContain('Please note');
+  });
+
   it('omits the exact address line when it would duplicate the locality', () => {
     const bare = {
       id: 'p2',

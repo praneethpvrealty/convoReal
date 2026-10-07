@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   answerFromPropertyData,
+  asksToIdentifyInPhoto,
   buildPropertyContext,
+  PROPERTY_QA_SYSTEM_PROMPT,
   type QaProperty,
 } from '@/lib/showcase/property-qa';
 
@@ -42,7 +44,7 @@ describe('answerFromPropertyData — structured answers', () => {
   it('answers price for a sale listing', () => {
     const r = answerFromPropertyData('how much is this property?', makeProp());
     expect(r.intent).toBe('price');
-    expect(r.answer).toBe('The asking price is ₹1,50,00,000.');
+    expect(r.answer).toBe('The asking price is ₹1.50 Cr.');
   });
 
   it('answers rent (with maintenance) for a rent listing', () => {
@@ -161,7 +163,7 @@ describe('buildPropertyContext', () => {
   it('includes core fields and omits absent ones', () => {
     const ctx = buildPropertyContext(makeProp());
     expect(ctx).toContain('Title: HSR 3BHK Apartment');
-    expect(ctx).toContain('Price: ₹1,50,00,000');
+    expect(ctx).toContain('Price: ₹1.50 Cr');
     expect(ctx).toContain('Bedrooms (BHK): 3');
     expect(ctx).toContain('Amenities: Gym, Swimming Pool, Covered Parking');
     expect(ctx).not.toContain('Land area');
@@ -174,5 +176,170 @@ describe('buildPropertyContext', () => {
     );
     expect(ctx).toContain('Rent (per month): ₹35,000');
     expect(ctx).not.toContain('Price:');
+  });
+});
+
+// The JP Nagar thread of 7 October 2026: a buyer asked "Is this
+// available for sale?" about a plot that had been Under Contract for
+// nine days and was told "yes"; then asked "is it this pink house or
+// the house next to it?" and was told nothing at all.
+describe('[INB-032] availability is answered from the listing status', () => {
+  const underContract = () =>
+    makeProp({
+      title: '#20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.',
+      type: 'Commercial Land',
+      price: 84000000,
+      status: 'Under Contract',
+    });
+
+  it.each([
+    'Is this available for sale ?',
+    'is it still available',
+    'Still on the market?',
+    'Has this been sold?',
+    'Is the plot under contract',
+    'can I still buy this',
+    'is it already taken',
+    'Is this still open?',
+  ])('answers "%s" from the status, never the model', (q) => {
+    const r = answerFromPropertyData(q, underContract());
+    expect(r.intent).toBe('availability');
+    expect(r.answer).toMatch(/under contract with another buyer/);
+    expect(r.answer).not.toMatch(/currently available/);
+  });
+
+  it('confirms an available sale listing, and a rental as for rent', () => {
+    expect(
+      answerFromPropertyData(
+        'is this available?',
+        makeProp({ status: 'Available' })
+      ).answer
+    ).toBe('Yes, this property is currently available for sale.');
+    expect(
+      answerFromPropertyData(
+        'is it still available for rent',
+        makeProp({
+          status: 'Available',
+          listing_type: 'Rent',
+          rent_per_month: 35000,
+        })
+      ).answer
+    ).toBe('Yes, this property is currently available for rent.');
+  });
+
+  it('treats a row without a status as available rather than escalating', () => {
+    const r = answerFromPropertyData('is this available', makeProp());
+    expect(r.intent).toBe('availability');
+    expect(r.answer).toMatch(/^Yes, this property is currently available/);
+  });
+
+  it('says sold is sold, and never promises an update on it', () => {
+    const r = answerFromPropertyData(
+      'still available?',
+      makeProp({ status: 'Sold' })
+    );
+    expect(r.answer).toMatch(/already been sold/);
+    expect(r.answer).not.toMatch(/update you/);
+  });
+
+  it('tells a buyer the price of an under-contract listing together with its status', () => {
+    const r = answerFromPropertyData('how much is it?', underContract());
+    expect(r.intent).toBe('price');
+    expect(r.answer).toBe(
+      'The asking price is ₹8.40 Cr. Please note: this property is currently under contract with another buyer, but the deal is not closed yet.'
+    );
+  });
+
+  it('adds no caveat to an available listing', () => {
+    const r = answerFromPropertyData(
+      'how much is it?',
+      makeProp({ status: 'Available' })
+    );
+    expect(r.answer).toBe('The asking price is ₹1.50 Cr.');
+  });
+
+  it('puts the availability into the model grounding, worded as not available', () => {
+    const ctx = buildPropertyContext(underContract());
+    expect(ctx).toContain(
+      'Availability: NOT available — currently under contract with another buyer, but the deal is not closed yet'
+    );
+    expect(buildPropertyContext(makeProp({ status: 'Available' }))).toContain(
+      'Availability: Available'
+    );
+    expect(
+      buildPropertyContext(makeProp({ status: 'Pending Review' }))
+    ).toContain('Availability: Not yet confirmed');
+    expect(PROPERTY_QA_SYSTEM_PROMPT).toMatch(
+      /Availability line is authoritative/
+    );
+  });
+});
+
+describe('[INB-032] a question only a person can answer from the photo', () => {
+  it.each([
+    'Is it this pink house or house next to it ?',
+    'which one is it in the photo',
+    'is it the one on the left or right',
+    'the blue building in the picture?',
+    'Which plot is it, the corner one?',
+  ])('escalates "%s" without a structured answer', (q) => {
+    expect(asksToIdentifyInPhoto(q)).toBe(true);
+    const r = answerFromPropertyData(
+      q,
+      makeProp({ type: 'Independent House' })
+    );
+    expect(r.answer).toBeNull();
+    expect(r.intent).toBe('photo_identification');
+  });
+
+  it('leaves ordinary type, facing and photo questions alone', () => {
+    for (const q of [
+      'is it a villa or an apartment?',
+      'can you send photos',
+      'which direction does it face',
+      'is this house 3 BHK?',
+      'Which side is this property facing?',
+      'which one do you recommend',
+      'which plot has the better road access',
+    ]) {
+      expect(asksToIdentifyInPhoto(q), q).toBe(false);
+    }
+    const facing = answerFromPropertyData(
+      'Which side is this property facing?',
+      makeProp({ facing_direction: 'East' })
+    );
+    expect(facing.intent).toBe('facing');
+    expect(facing.answer).toBe('It faces East.');
+  });
+});
+
+describe('[INB-032] prices and places read the way the listing message wrote them', () => {
+  it('quotes the price in crore, as the inventory card and the share message do', () => {
+    const r = answerFromPropertyData(
+      'what is the price',
+      makeProp({ price: 84000000 })
+    );
+    expect(r.answer).toBe('The asking price is ₹8.40 Cr.');
+    expect(buildPropertyContext(makeProp({ price: 84000000 }))).toContain(
+      'Price: ₹8.40 Cr'
+    );
+    expect(buildPropertyContext(makeProp({ price: 4500000 }))).toContain(
+      'Price: ₹45 Lakhs'
+    );
+  });
+
+  it('does not repeat a locality the location line already carries', () => {
+    const prop = makeProp({
+      location: 'JP Nagar 4th Phase, Bangalore',
+      sublocality: 'JP Nagar 4th Phase',
+      city: 'Bangalore',
+      state: 'Karnataka',
+    });
+    expect(buildPropertyContext(prop)).toContain(
+      'Location: JP Nagar 4th Phase, Bangalore, Karnataka'
+    );
+    expect(answerFromPropertyData('where is it located', prop).answer).toBe(
+      "It's located in JP Nagar 4th Phase, Bangalore, Karnataka."
+    );
   });
 });
