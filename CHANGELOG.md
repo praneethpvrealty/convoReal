@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 6 October 2026
 
+- **Twelve internal database functions can no longer be called from outside
+  the server.** The functions that keep broadcast counts, dispatch leases and
+  recipient claims, Copilot's answer cache and demand log, budget-band tags and
+  the default reminder templates write to whatever row or account id they are
+  handed and never checked the caller, yet seven were callable by anyone
+  holding the public key and five by any signed-in user of any account. They now run only for the
+  server and the database triggers that already used them. **Migration
+  required:** `20261006033422_internal_definer_functions_service_role_only.sql`.
+
 - **Read-only members can no longer hand off a contact or issue a beta
   invitation.** Both actions are refused for a read-only member by the API and
   by the database functions behind them, so calling the function directly with
