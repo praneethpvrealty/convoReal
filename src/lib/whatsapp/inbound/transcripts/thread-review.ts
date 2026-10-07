@@ -34,16 +34,14 @@ export const REVIEW_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 /** Wall-clock budget for one invocation, under the route's maxDuration;
  *  a run that hits it reports so, and the next run picks up the rest. */
 export const REVIEW_TIME_BUDGET_MS = 240_000;
-/** Context before the day's first bot message, so a tap is read with
- *  the arrival it answers. */
-export const REVIEW_WINDOW_MS = 36 * 60 * 60 * 1000;
 export const MAX_THREADS_PER_RUN = 150;
+/** A window is read from its first unreviewed bot message: at most this
+ *  many bubbles leading up to and including it, then what followed,
+ *  under the cap. The watermark is the newest bot bubble actually read,
+ *  so whatever the cap leaves out is still due and opens the next
+ *  window. */
 export const MAX_MESSAGES_PER_THREAD = 60;
-/** Of those, the bubbles read after the bot message the review is for;
- *  the rest are the thread leading up to it. Capping the tail is what
- *  keeps that bot message in the slice when a lead writes on and on
- *  after it. */
-export const MAX_MESSAGES_AFTER_BOT = 10;
+export const REVIEW_LEAD_IN_MESSAGES = 20;
 /** A claim this old with no judged_at was left by a run that died
  *  mid-judge; the next run takes it over. Well past the route's
  *  maxDuration, so a live run is never robbed of its claim. Kept in
@@ -228,10 +226,13 @@ interface MessageRow {
 export interface ReviewCandidate {
   conversationId: string;
   accountId: string | null;
-  /** The newest bot message the review is for; the transcript window
-   *  is anchored on it, not on the run, so a thread picked up nights
-   *  later is still read around its own exchange. */
-  latestBotAt: string;
+  /** Where this window starts: the conversation's last review
+   *  boundary, or the floor for a conversation never reviewed. */
+  fromAt: string;
+  /** The first bot message after it; the window is read from here, so
+   *  a thread picked up nights later is still read around its own
+   *  exchange. */
+  firstBotAt: string;
 }
 
 /**
@@ -246,7 +247,9 @@ export async function collectBotThreads(
   db: SupabaseClient,
   since: Date,
   limit = MAX_THREADS_PER_RUN,
-  /** Conversations this run already gave up on; never collected twice. */
+  /** Conversations this run already reviewed or gave up on; never
+   *  collected twice (a reviewed one is due again only tomorrow, the
+   *  day's row being unique). */
   exclude: ReadonlySet<string> = new Set()
 ): Promise<ReviewCandidate[]> {
   const { data, error } = await db.rpc('bot_thread_review_candidates', {
@@ -259,12 +262,14 @@ export async function collectBotThreads(
     (data ?? []) as {
       conversation_id: string;
       account_id: string | null;
-      latest_bot_at: string;
+      from_at: string;
+      first_bot_at: string;
     }[]
   ).map((row) => ({
     conversationId: row.conversation_id,
     accountId: row.account_id,
-    latestBotAt: row.latest_bot_at,
+    fromAt: row.from_at,
+    firstBotAt: row.first_bot_at,
   }));
 }
 
@@ -293,7 +298,7 @@ export async function runBotThreadReview(
     budgetExhausted: false,
   };
 
-  const givenUp = new Set<string>();
+  const handled = new Set<string>();
   for (;;) {
     if (Date.now() - startedAt >= budgetMs) {
       result.budgetExhausted = true;
@@ -303,7 +308,7 @@ export async function runBotThreadReview(
       db,
       new Date(now.getTime() - REVIEW_LOOKBACK_MS),
       options.limit ?? MAX_THREADS_PER_RUN,
-      givenUp
+      handled
     );
     if (threads.length === 0) break;
     result.threads += threads.length;
@@ -324,15 +329,11 @@ export async function runBotThreadReview(
           thread.accountId;
         if (!conversation || !accountId) {
           result.skipped += 1;
-          givenUp.add(thread.conversationId);
+          handled.add(thread.conversationId);
           continue;
         }
         const contactId =
           (conversation as { contact_id?: string | null }).contact_id ?? null;
-        const windowStart = new Date(
-          Date.parse(thread.latestBotAt) - REVIEW_WINDOW_MS
-        );
-
         const visible = () =>
           db
             .from('messages')
@@ -342,24 +343,24 @@ export async function runBotThreadReview(
             .eq('conversation_id', thread.conversationId)
             .eq('private', false)
             .neq('status', 'failed')
-            .gte('created_at', windowStart.toISOString());
-        // The slice is anchored on the bot message the review is for:
-        // the thread up to and including it, newest first under the
-        // cap, then a short tail of what followed; restored to reading
-        // order below.
+            .gt('created_at', thread.fromAt);
+        // The window is the thread since its last review, read from its
+        // first unreviewed bot message: a bounded lead-up to and
+        // including that message, newest first and restored to reading
+        // order below, then what followed under the cap.
         const [
-          { data: upTo, error: upToError },
-          { data: after, error: afterError },
+          { data: leadIn, error: leadInError },
+          { data: rest, error: restError },
           { data: contact, error: contactError },
         ] = await Promise.all([
           visible()
-            .lte('created_at', thread.latestBotAt)
+            .lte('created_at', thread.firstBotAt)
             .order('created_at', { ascending: false })
-            .limit(MAX_MESSAGES_PER_THREAD - MAX_MESSAGES_AFTER_BOT),
+            .limit(REVIEW_LEAD_IN_MESSAGES),
           visible()
-            .gt('created_at', thread.latestBotAt)
+            .gt('created_at', thread.firstBotAt)
             .order('created_at', { ascending: true })
-            .limit(MAX_MESSAGES_AFTER_BOT),
+            .limit(MAX_MESSAGES_PER_THREAD - REVIEW_LEAD_IN_MESSAGES),
           contactId
             ? db
                 .from('contacts')
@@ -370,15 +371,24 @@ export async function runBotThreadReview(
         ]);
         // A partial read is never finalised: the thread fails tonight
         // and is still due tomorrow.
-        const readError = upToError ?? afterError ?? contactError;
+        const readError = leadInError ?? restError ?? contactError;
         if (readError) throw new Error(readError.message);
-        const transcript = transcriptFromMessages([
-          ...[...((upTo ?? []) as MessageRow[])].reverse(),
-          ...((after ?? []) as MessageRow[]),
-        ]);
-        if (!transcript.some((m) => m.sender === 'bot')) {
+        const rows = [
+          ...[...((leadIn ?? []) as MessageRow[])].reverse(),
+          ...((rest ?? []) as MessageRow[]),
+        ];
+        const transcript = transcriptFromMessages(rows);
+        // The watermark is the newest bot bubble actually read: nothing
+        // the cap left out is counted as covered, so it opens the next
+        // window instead.
+        const windowEnd = rows
+          .filter((row) => row.sender_type === 'bot')
+          .map((row) => row.created_at)
+          .sort()
+          .at(-1);
+        if (!windowEnd) {
           result.skipped += 1;
-          givenUp.add(thread.conversationId);
+          handled.add(thread.conversationId);
           continue;
         }
         const contactCreatedAt =
@@ -396,12 +406,8 @@ export async function runBotThreadReview(
           conversation_id: thread.conversationId,
           contact_id: contactId,
           review_day: reviewDay,
-          window_start: windowStart.toISOString(),
-          // The watermark covers the activity actually read, which a
-          // later batch can find newer than the run's start.
-          window_end: new Date(
-            Math.max(now.getTime(), Date.parse(thread.latestBotAt))
-          ).toISOString(),
+          window_start: thread.fromAt,
+          window_end: windowEnd,
           transcript,
           rule_violations: ruleViolations,
           score: null,
@@ -436,7 +442,7 @@ export async function runBotThreadReview(
         if (claimError || !claimedId) {
           if (claimError?.code === '23505') {
             result.skipped += 1;
-            givenUp.add(thread.conversationId);
+            handled.add(thread.conversationId);
             continue;
           }
           throw new Error(claimError?.message ?? 'claim failed');
@@ -465,6 +471,7 @@ export async function runBotThreadReview(
           if (updateError) throw new Error(updateError.message);
           result.reviewed += 1;
           result.verdicts[review.verdict] += 1;
+          handled.add(thread.conversationId);
         } catch (err) {
           // Release the claim so the next night retries instead of
           // reading this row as the thread's last review.
@@ -473,7 +480,7 @@ export async function runBotThreadReview(
         }
       } catch (err) {
         result.failed += 1;
-        givenUp.add(thread.conversationId);
+        handled.add(thread.conversationId);
         console.error(
           `[bot-thread-review] conversation ${thread.conversationId} failed:`,
           err

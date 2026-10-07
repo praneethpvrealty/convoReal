@@ -1,14 +1,22 @@
--- A conversation's last review boundary is its newest finalised review
--- (judged_at set) or a claim made in the last 15 minutes, which a live
--- run holds while it judges. A claim older than that with no judged_at
--- was left by a run that died, so the conversation is due again and the
--- run takes the stale row over. Kept in step with CLAIM_STALE_MS in
--- src/lib/whatsapp/inbound/transcripts/thread-review.ts. Oldest due
--- first: what one night's budget leaves over is reviewed ahead of the
--- next day's traffic, so a thread waits its turn and is never pushed
--- behind newer activity until it ages out. The scan starts at the
--- earliest review on record, so once the review is live nothing after
--- that night ages out; p_since is the floor for the very first run.
+-- Which conversations the nightly bot thread review is due on, and
+-- where each one's next window starts.
+--
+-- A conversation's last review boundary is the window_end of its
+-- newest finalised review (judged_at set) or of a claim made in the
+-- last 15 minutes, which a live run holds while it judges. A claim
+-- older than that with no judged_at was left by a run that died, so it
+-- does not count and the run takes the stale row over. Kept in step
+-- with CLAIM_STALE_MS in src/lib/whatsapp/inbound/transcripts/
+-- thread-review.ts.
+--
+-- The next window starts at that boundary (from_at) and is read from
+-- the first bot message after it (first_bot_at); the review's own
+-- window_end is the newest bot message it actually read, so windows
+-- are contiguous and nothing a cap left out is ever counted as covered.
+-- Oldest due first: what one night's budget leaves over is reviewed
+-- ahead of the next day's traffic. The scan starts at the earliest
+-- review on record, so once the review is live nothing after that
+-- night ages out; p_since is the floor for the very first run.
 
 CREATE OR REPLACE FUNCTION public.bot_thread_review_candidates(
   p_since TIMESTAMPTZ,
@@ -18,7 +26,8 @@ CREATE OR REPLACE FUNCTION public.bot_thread_review_candidates(
 RETURNS TABLE (
   conversation_id UUID,
   account_id UUID,
-  latest_bot_at TIMESTAMPTZ
+  from_at TIMESTAMPTZ,
+  first_bot_at TIMESTAMPTZ
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -30,27 +39,32 @@ AS $$
       COALESCE((SELECT min(r.window_start) FROM bot_thread_reviews r), p_since)
     ) AS since
   ),
+  reviewed AS (
+    SELECT r.conversation_id, max(r.window_end) AS up_to
+    FROM bot_thread_reviews r
+    WHERE r.judged_at IS NOT NULL
+      OR r.reviewed_at > now() - interval '15 minutes'
+    GROUP BY r.conversation_id
+  ),
   activity AS (
-    SELECT m.conversation_id, max(m.created_at) AS latest_bot_at
-    FROM messages m, floor
+    SELECT m.conversation_id,
+      COALESCE(r.up_to, floor.since) AS from_at,
+      min(m.created_at) AS first_bot_at
+    FROM messages m
+    CROSS JOIN floor
+    LEFT JOIN reviewed r ON r.conversation_id = m.conversation_id
     WHERE m.sender_type = 'bot'
       AND m.private = false
       AND m.status IS DISTINCT FROM 'failed'
       AND m.created_at >= floor.since
+      AND m.created_at > COALESCE(r.up_to, '-infinity'::timestamptz)
       AND NOT (m.conversation_id = ANY (p_exclude))
-    GROUP BY m.conversation_id
+    GROUP BY m.conversation_id, r.up_to, floor.since
   )
-  SELECT a.conversation_id, c.account_id, a.latest_bot_at
+  SELECT a.conversation_id, c.account_id, a.from_at, a.first_bot_at
   FROM activity a
   JOIN conversations c ON c.id = a.conversation_id
-  WHERE a.latest_bot_at > COALESCE(
-    (SELECT max(r.window_end) FROM bot_thread_reviews r
-      WHERE r.conversation_id = a.conversation_id
-        AND (r.judged_at IS NOT NULL
-          OR r.reviewed_at > now() - interval '15 minutes')),
-    '-infinity'::timestamptz
-  )
-  ORDER BY a.latest_bot_at ASC
+  ORDER BY a.first_bot_at ASC
   LIMIT p_limit;
 $$;
 

@@ -95,9 +95,14 @@ describe('[CNV-006] /api/admin/bot-thread-reviews', () => {
     expect(all.reviews).toHaveLength(3);
   });
 
-  it('pages the queue by reviewed_at cursor', async () => {
+  it('pages the queue by a reviewed_at plus id cursor, losing nothing inside one timestamp', async () => {
+    const ids = [
+      '00000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000002',
+      '00000000-0000-4000-8000-000000000003',
+    ];
     tables.bot_thread_reviews = [1, 2, 3].map((n) => ({
-      id: `r-${n}`,
+      id: ids[n - 1],
       verdict: 'fail',
       reviewed_at: `2026-10-08T00:0${n}:00Z`,
       judged_at: `2026-10-08T00:0${n}:00Z`,
@@ -105,8 +110,8 @@ describe('[CNV-006] /api/admin/bot-thread-reviews', () => {
     const first = (await (
       await GET(new Request(`${url}?verdict=fail&limit=2`))
     ).json()) as { reviews: Row[]; nextCursor: string | null };
-    expect(first.reviews.map((r) => r.id)).toEqual(['r-3', 'r-2']);
-    expect(first.nextCursor).toBe('2026-10-08T00:02:00Z');
+    expect(first.reviews.map((r) => r.id)).toEqual([ids[2], ids[1]]);
+    expect(first.nextCursor).toBe(`2026-10-08T00:02:00Z|${ids[1]}`);
 
     const second = (await (
       await GET(
@@ -115,8 +120,25 @@ describe('[CNV-006] /api/admin/bot-thread-reviews', () => {
         )
       )
     ).json()) as { reviews: Row[]; nextCursor: string | null };
-    expect(second.reviews.map((r) => r.id)).toEqual(['r-1']);
+    expect(second.reviews.map((r) => r.id)).toEqual([ids[0]]);
     expect(second.nextCursor).toBeNull();
+
+    // Three reviews finalised in the same millisecond still page through.
+    for (const row of tables.bot_thread_reviews) {
+      row.reviewed_at = '2026-10-08T00:00:00Z';
+    }
+    const tied = (await (
+      await GET(new Request(`${url}?verdict=fail&limit=2`))
+    ).json()) as { reviews: Row[]; nextCursor: string | null };
+    expect(tied.reviews.map((r) => r.id)).toEqual([ids[2], ids[1]]);
+    const tiedRest = (await (
+      await GET(
+        new Request(
+          `${url}?verdict=fail&limit=2&before=${encodeURIComponent(tied.nextCursor as string)}`
+        )
+      )
+    ).json()) as { reviews: Row[] };
+    expect(tiedRest.reviews.map((r) => r.id)).toEqual([ids[0]]);
   });
 
   it('records the platform verdict on a thread and clears it again', async () => {

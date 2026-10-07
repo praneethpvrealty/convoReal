@@ -113,42 +113,37 @@ function candidates(args: Record<string, unknown>) {
       ? floors[0]
       : String(args.p_since);
   const exclude = new Set((args.p_exclude as string[]) ?? []);
-  const latest = new Map<string, string>();
+  const liveClaimAfter = new Date(Date.now() - CLAIM_STALE_MS).toISOString();
+  const upTo = new Map<string, string>();
+  for (const r of tables.bot_thread_reviews) {
+    if (r.judged_at == null && String(r.reviewed_at) <= liveClaimAfter)
+      continue;
+    const id = String(r.conversation_id);
+    const end = String(r.window_end ?? '');
+    if (end > (upTo.get(id) ?? '')) upTo.set(id, end);
+  }
+  const spans = new Map<string, { from: string; first: string }>();
   for (const m of tables.messages) {
-    if (
-      m.sender_type !== 'bot' ||
-      m.private !== false ||
-      m.status === 'failed' ||
-      String(m.created_at) < since ||
-      exclude.has(String(m.conversation_id))
-    )
+    if (m.sender_type !== 'bot' || m.private !== false || m.status === 'failed')
       continue;
     const id = String(m.conversation_id);
+    if (exclude.has(id)) continue;
     const at = String(m.created_at);
-    if (!latest.has(id) || at > (latest.get(id) as string)) latest.set(id, at);
+    const from = upTo.get(id) ?? since;
+    if (at < since || at <= from) continue;
+    const span = spans.get(id);
+    if (!span || at < span.first) spans.set(id, { from, first: at });
   }
-  const liveClaimAfter = new Date(Date.now() - CLAIM_STALE_MS).toISOString();
-  return [...latest]
-    .filter(([id, at]) => {
-      const reviewedUpTo = tables.bot_thread_reviews
-        .filter(
-          (r) =>
-            r.conversation_id === id &&
-            (r.judged_at != null || String(r.reviewed_at) > liveClaimAfter)
-        )
-        .map((r) => String(r.window_end ?? ''))
-        .sort()
-        .at(-1);
-      return !reviewedUpTo || at > reviewedUpTo;
-    })
-    .sort((a, b) => a[1].localeCompare(b[1]))
+  return [...spans]
+    .sort((a, b) => a[1].first.localeCompare(b[1].first))
     .slice(0, Number(args.p_limit))
-    .map(([id, at]) => ({
+    .map(([id, span]) => ({
       conversation_id: id,
       account_id:
         (tables.conversations.find((c) => c.id === id)?.account_id as string) ??
         null,
-      latest_bot_at: at,
+      from_at: span.from,
+      first_bot_at: span.first,
     }));
 }
 
@@ -331,7 +326,7 @@ describe('[CNV-006] runBotThreadReview', () => {
 describe('[CNV-006] collection', () => {
   beforeEach(seed);
 
-  it('keeps the newest messages of a long thread, in reading order', async () => {
+  it('keeps the lead-up to the first unreviewed bot message under the cap, in reading order', async () => {
     tables.messages = Array.from({ length: 70 }, (_, i) => ({
       conversation_id: 'conv-1',
       account_id: 'acc-1',
@@ -364,9 +359,9 @@ describe('[CNV-006] collection', () => {
     const transcript = tables.bot_thread_reviews[0].transcript as Array<{
       text: string;
     }>;
-    expect(transcript).toHaveLength(50);
-    expect(transcript[0].text).toBe('message 21');
-    expect(transcript[49].text).toContain('Here it is');
+    expect(transcript).toHaveLength(20);
+    expect(transcript[0].text).toBe('message 51');
+    expect(transcript[19].text).toContain('Here it is');
   });
 
   it('keeps the bot message the review is for when the lead writes on after it', async () => {
@@ -399,10 +394,70 @@ describe('[CNV-006] collection', () => {
     const transcript = tables.bot_thread_reviews[0].transcript as Array<{
       text: string;
     }>;
-    expect(transcript).toHaveLength(11);
+    expect(transcript).toHaveLength(41);
     expect(transcript[0].text).toContain('Here it is');
     expect(transcript[1].text).toBe('reply 0');
-    expect(transcript[10].text).toBe('reply 9');
+    expect(transcript[40].text).toBe('reply 39');
+  });
+
+  it('reviews a deferred thread window by window, counting nothing the cap left out as covered', async () => {
+    const judge = vi.fn<(prompt: string, system: string) => Promise<string>>(
+      async () => '{"score": 90, "issues": []}'
+    );
+    // Two exchanges three days apart, with more lead chatter between
+    // them than one window holds.
+    tables.messages = [
+      {
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'bot',
+        private: false,
+        content_type: 'text',
+        content_text: 'First: https://x/?property_id=p1&v=c',
+        created_at: at(60 * 24 * 3),
+      },
+      ...Array.from({ length: 45 }, (_, i) => ({
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'customer',
+        private: false,
+        content_type: 'text',
+        content_text: `chatter ${i}`,
+        created_at: at(60 * 24 * 3 - 1 - i),
+      })),
+      {
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'bot',
+        private: false,
+        content_type: 'text',
+        content_text: 'Second: https://x/?property_id=p2&v=c',
+        created_at: at(5),
+      },
+    ];
+
+    const tonight = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge,
+    });
+    expect(tonight.reviewed).toBe(1);
+    expect(tables.bot_thread_reviews[0].window_end).toBe(at(60 * 24 * 3));
+    expect(judge.mock.calls[0][0]).toContain('First:');
+    expect(judge.mock.calls[0][0]).not.toContain('Second:');
+
+    const tomorrow = await runBotThreadReview({
+      db: db as never,
+      now: new Date(NOW.getTime() + 24 * 60 * 60 * 1000),
+      judge,
+    });
+    expect(tomorrow.reviewed).toBe(1);
+    expect(tables.bot_thread_reviews).toHaveLength(2);
+    expect(tables.bot_thread_reviews[1].window_start).toBe(at(60 * 24 * 3));
+    expect(tables.bot_thread_reviews[1].window_end).toBe(at(5));
+    expect(judge.mock.calls[1][0]).toContain('Second:');
+    expect(judge.mock.calls[1][0]).toContain('chatter 44');
+    expect(judge.mock.calls[1][0]).not.toContain('First:');
   });
 
   it('ignores a thread whose only bot activity is a private note', async () => {

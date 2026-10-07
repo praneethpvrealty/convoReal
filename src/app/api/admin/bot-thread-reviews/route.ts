@@ -3,8 +3,9 @@
 //
 //   GET   — reviewed threads, newest first; ?verdict=fail|pass|unscored|all
 //           (default: fail and unscored, the ones worth a look), a page
-//           at a time: ?limit (50, at most 100) and ?before=<reviewed_at>
-//           from the previous page's nextCursor.
+//           at a time: ?limit (50, at most 100) and ?before=<cursor> from
+//           the previous page's nextCursor (reviewed_at and id, so a
+//           page boundary inside one timestamp loses nothing).
 //   PATCH — the platform's own verdict on a thread: good, bad, or
 //           cleared, with a note. A thread marked bad is what "Copy as
 //           fixture" turns into a pinned transcript.
@@ -22,6 +23,18 @@ const VERDICTS = ['fail', 'pass', 'unscored'] as const;
 const ADMIN_VERDICTS = ['good', 'bad'] as const;
 const DEFAULT_PAGE = 50;
 const MAX_PAGE = 100;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseCursor(
+  raw: string | null
+): { reviewedAt: string; id: string } | null {
+  const at = raw?.lastIndexOf('|') ?? -1;
+  if (!raw || at < 0) return null;
+  const reviewedAt = raw.slice(0, at);
+  const id = raw.slice(at + 1);
+  if (!Number.isFinite(Date.parse(reviewedAt)) || !UUID.test(id)) return null;
+  return { reviewedAt, id };
+}
 
 export async function GET(request: Request) {
   try {
@@ -32,7 +45,7 @@ export async function GET(request: Request) {
 
   const params = new URL(request.url).searchParams;
   const verdict = params.get('verdict') ?? '';
-  const before = params.get('before');
+  const cursor = parseCursor(params.get('before'));
   const limit = Math.min(
     Math.max(Number(params.get('limit')) || DEFAULT_PAGE, 1),
     MAX_PAGE
@@ -45,14 +58,17 @@ export async function GET(request: Request) {
     // A claim the judge has not answered yet is not a review.
     .not('judged_at', 'is', null)
     .order('reviewed_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(limit);
   if ((VERDICTS as readonly string[]).includes(verdict)) {
     query = query.eq('verdict', verdict);
   } else if (verdict !== 'all') {
     query = query.in('verdict', ['fail', 'unscored']);
   }
-  if (before && Number.isFinite(Date.parse(before))) {
-    query = query.lt('reviewed_at', before);
+  if (cursor) {
+    query = query.or(
+      `reviewed_at.lt."${cursor.reviewedAt}",and(reviewed_at.eq."${cursor.reviewedAt}",id.lt."${cursor.id}")`
+    );
   }
 
   const { data, error } = await query;
@@ -63,11 +79,12 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-  const reviews = (data ?? []) as { reviewed_at: string }[];
+  const reviews = (data ?? []) as { id: string; reviewed_at: string }[];
+  const last = reviews[reviews.length - 1];
   return NextResponse.json({
     reviews,
     nextCursor:
-      reviews.length === limit ? reviews[reviews.length - 1].reviewed_at : null,
+      reviews.length === limit ? `${last.reviewed_at}|${last.id}` : null,
   });
 }
 
