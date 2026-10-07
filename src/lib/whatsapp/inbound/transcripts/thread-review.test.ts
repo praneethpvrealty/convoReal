@@ -9,6 +9,7 @@ vi.mock('@/lib/ai/gemini', () => ({
 vi.mock('@/lib/supabase/admin', () => ({ supabaseAdmin: () => db }));
 
 import {
+  CLAIM_STALE_MS,
   buildJudgePrompt,
   decideVerdict,
   parseJudgeReply,
@@ -119,10 +120,15 @@ function candidates(args: Record<string, unknown>) {
     const at = String(m.created_at);
     if (!latest.has(id) || at > (latest.get(id) as string)) latest.set(id, at);
   }
+  const liveClaimAfter = new Date(Date.now() - CLAIM_STALE_MS).toISOString();
   return [...latest]
     .filter(([id, at]) => {
       const reviewedUpTo = tables.bot_thread_reviews
-        .filter((r) => r.conversation_id === id)
+        .filter(
+          (r) =>
+            r.conversation_id === id &&
+            (r.judged_at != null || String(r.reviewed_at) > liveClaimAfter)
+        )
         .map((r) => String(r.window_end ?? ''))
         .sort()
         .at(-1);
@@ -208,15 +214,29 @@ describe('[CNV-006] runBotThreadReview', () => {
     expect(again.reviewed).toBe(0);
     expect(judge).toHaveBeenCalledTimes(1);
     expect(tables.bot_thread_reviews).toHaveLength(1);
+    expect(tables.bot_thread_reviews[0].judged_at).toBeTruthy();
   });
 
-  it('keeps the rules verdict when the judge fails, and reports unscored only when the rules pass', async () => {
+  it('releases the claim when the judge throws, so the thread is retried, and records unscored only when the judge answered without a score', async () => {
     const failing = vi.fn(async () => {
       throw new Error('model down');
     });
-    await runBotThreadReview({ db: db as never, now: NOW, judge: failing });
+    const first = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge: failing,
+    });
+    expect(first).toMatchObject({ threads: 1, reviewed: 0, failed: 1 });
+    expect(tables.bot_thread_reviews).toHaveLength(0);
+
+    const retry = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge: async () => '{"score": 90, "issues": []}',
+    });
+    expect(retry.reviewed).toBe(1);
     expect(tables.bot_thread_reviews[0].verdict).toBe('fail');
-    expect(tables.bot_thread_reviews[0].score).toBeNull();
+    expect(tables.bot_thread_reviews[0].score).toBe(90);
 
     tables.bot_thread_reviews = [];
     tables.messages = [
@@ -239,8 +259,65 @@ describe('[CNV-006] runBotThreadReview', () => {
         created_at: at(9),
       },
     ];
-    await runBotThreadReview({ db: db as never, now: NOW, judge: failing });
+    await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge: async () => 'not json',
+    });
     expect(tables.bot_thread_reviews[0].verdict).toBe('unscored');
+    expect(tables.bot_thread_reviews[0].judged_at).toBeTruthy();
+  });
+
+  it('takes over a claim a dead run left behind, and leaves a live one alone', async () => {
+    const judge = vi.fn<(prompt: string, system: string) => Promise<string>>(
+      async () => '{"score": 90, "issues": []}'
+    );
+    tables.bot_thread_reviews = [
+      {
+        id: 'stale',
+        conversation_id: 'conv-1',
+        review_day: '2026-10-08',
+        verdict: 'unscored',
+        score: null,
+        window_end: NOW.toISOString(),
+        reviewed_at: new Date(
+          Date.now() - CLAIM_STALE_MS - 60_000
+        ).toISOString(),
+        judged_at: null,
+      },
+    ];
+    const result = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge,
+    });
+    expect(result).toMatchObject({ threads: 1, reviewed: 1 });
+    expect(tables.bot_thread_reviews).toHaveLength(1);
+    expect(tables.bot_thread_reviews[0]).toMatchObject({
+      id: 'stale',
+      score: 90,
+      verdict: 'fail',
+    });
+    expect(tables.bot_thread_reviews[0].judged_at).toBeTruthy();
+
+    tables.bot_thread_reviews = [
+      {
+        id: 'live',
+        conversation_id: 'conv-1',
+        review_day: '2026-10-08',
+        verdict: 'unscored',
+        window_end: NOW.toISOString(),
+        reviewed_at: new Date().toISOString(),
+        judged_at: null,
+      },
+    ];
+    const concurrent = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge,
+    });
+    expect(concurrent.threads).toBe(0);
+    expect(judge).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -280,9 +357,45 @@ describe('[CNV-006] collection', () => {
     const transcript = tables.bot_thread_reviews[0].transcript as Array<{
       text: string;
     }>;
-    expect(transcript).toHaveLength(60);
-    expect(transcript[0].text).toBe('message 11');
-    expect(transcript[59].text).toContain('Here it is');
+    expect(transcript).toHaveLength(50);
+    expect(transcript[0].text).toBe('message 21');
+    expect(transcript[49].text).toContain('Here it is');
+  });
+
+  it('keeps the bot message the review is for when the lead writes on after it', async () => {
+    tables.messages = [
+      {
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'bot',
+        private: false,
+        content_type: 'text',
+        content_text: 'Here it is: https://x/?property_id=p1&v=c',
+        created_at: at(100),
+      },
+      ...Array.from({ length: 70 }, (_, i) => ({
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'customer',
+        private: false,
+        content_type: 'text',
+        content_text: `reply ${i}`,
+        created_at: at(99 - i),
+      })),
+    ];
+    const result = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge: async () => '{"score": 90, "issues": []}',
+    });
+    expect(result).toMatchObject({ reviewed: 1, skipped: 0 });
+    const transcript = tables.bot_thread_reviews[0].transcript as Array<{
+      text: string;
+    }>;
+    expect(transcript).toHaveLength(11);
+    expect(transcript[0].text).toContain('Here it is');
+    expect(transcript[1].text).toBe('reply 0');
+    expect(transcript[10].text).toBe('reply 9');
   });
 
   it('ignores a thread whose only bot activity is a private note', async () => {
@@ -328,6 +441,7 @@ describe('[CNV-006] collection', () => {
         review_day: '2026-10-08',
         verdict: 'pass',
         window_end: NOW.toISOString(),
+        judged_at: NOW.toISOString(),
       },
     ];
 
@@ -365,6 +479,7 @@ describe('[CNV-006] collection', () => {
         review_day: '2026-10-07',
         verdict: 'pass',
         window_end: at(60 * 24),
+        judged_at: at(60 * 24),
       },
     ];
     const result = await runBotThreadReview({
@@ -382,6 +497,7 @@ describe('[CNV-006] collection', () => {
         review_day: '2026-10-07',
         verdict: 'pass',
         window_end: at(30),
+        judged_at: at(30),
       },
     ];
     const again = await runBotThreadReview({

@@ -37,6 +37,16 @@ export const REVIEW_TIME_BUDGET_MS = 240_000;
 export const REVIEW_WINDOW_MS = 36 * 60 * 60 * 1000;
 export const MAX_THREADS_PER_RUN = 150;
 export const MAX_MESSAGES_PER_THREAD = 60;
+/** Of those, the bubbles read after the bot message the review is for;
+ *  the rest are the thread leading up to it. Capping the tail is what
+ *  keeps that bot message in the slice when a lead writes on and on
+ *  after it. */
+export const MAX_MESSAGES_AFTER_BOT = 10;
+/** A claim this old with no judged_at was left by a run that died
+ *  mid-judge; the next run takes it over. Well past the route's
+ *  maxDuration, so a live run is never robbed of its claim. Kept in
+ *  step with bot_thread_review_candidates. */
+export const CLAIM_STALE_MS = 15 * 60 * 1000;
 export const PASS_SCORE = 70;
 export const REVIEW_MODEL = 'gemini:lite';
 
@@ -174,32 +184,26 @@ export async function reviewThread(args: {
   const ruleViolations = checkTranscript(args.transcript, {
     contactCreatedAt: args.contactCreatedAt,
   });
-  let judged: ReturnType<typeof parseJudgeReply> = {
-    score: null,
-    summary: null,
-    issues: [],
-  };
-  try {
-    const judge =
-      args.judge ??
-      ((prompt: string, system: string) =>
-        generateJson(prompt, system, {
-          tier: 'lite',
-          feature: 'bot_thread_review',
-          maxOutputTokens: 800,
-        }));
-    judged = parseJudgeReply(
-      await judge(
-        buildJudgePrompt(args.transcript, {
-          contactCreatedAt: args.contactCreatedAt,
-          now: args.now.toISOString(),
-        }),
-        JUDGE_SYSTEM
-      )
-    );
-  } catch (err) {
-    console.error('[bot-thread-review] judge failed:', err);
-  }
+  const judge =
+    args.judge ??
+    ((prompt: string, system: string) =>
+      generateJson(prompt, system, {
+        tier: 'lite',
+        feature: 'bot_thread_review',
+        maxOutputTokens: 800,
+      }));
+  // A judge that throws (quota, network) propagates: the caller releases
+  // its claim so the thread is retried the next night rather than
+  // recorded unscored. A reply without a score is an answer, and stays.
+  const judged = parseJudgeReply(
+    await judge(
+      buildJudgePrompt(args.transcript, {
+        contactCreatedAt: args.contactCreatedAt,
+        now: args.now.toISOString(),
+      }),
+      JUDGE_SYSTEM
+    )
+  );
   return {
     ruleViolations,
     score: judged.score,
@@ -326,7 +330,7 @@ export async function runBotThreadReview(
           Date.parse(thread.latestBotAt) - REVIEW_WINDOW_MS
         );
 
-        const [{ data: rows }, { data: contact }] = await Promise.all([
+        const visible = () =>
           db
             .from('messages')
             .select(
@@ -335,23 +339,33 @@ export async function runBotThreadReview(
             .eq('conversation_id', thread.conversationId)
             .eq('private', false)
             .neq('status', 'failed')
-            .gte('created_at', windowStart.toISOString())
-            // Newest first under the cap, so a long thread keeps the
-            // exchange that put it on tonight's list; restored to
-            // reading order below.
-            .order('created_at', { ascending: false })
-            .limit(MAX_MESSAGES_PER_THREAD),
-          contactId
-            ? db
-                .from('contacts')
-                .select('id, created_at')
-                .eq('id', contactId)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
+            .gte('created_at', windowStart.toISOString());
+        // The slice is anchored on the bot message the review is for:
+        // the thread up to and including it, newest first under the
+        // cap, then a short tail of what followed; restored to reading
+        // order below.
+        const [{ data: upTo }, { data: after }, { data: contact }] =
+          await Promise.all([
+            visible()
+              .lte('created_at', thread.latestBotAt)
+              .order('created_at', { ascending: false })
+              .limit(MAX_MESSAGES_PER_THREAD - MAX_MESSAGES_AFTER_BOT),
+            visible()
+              .gt('created_at', thread.latestBotAt)
+              .order('created_at', { ascending: true })
+              .limit(MAX_MESSAGES_AFTER_BOT),
+            contactId
+              ? db
+                  .from('contacts')
+                  .select('id, created_at')
+                  .eq('id', contactId)
+                  .maybeSingle()
+              : Promise.resolve({ data: null }),
+          ]);
+        const transcript = transcriptFromMessages([
+          ...[...((upTo ?? []) as MessageRow[])].reverse(),
+          ...((after ?? []) as MessageRow[]),
         ]);
-        const transcript = transcriptFromMessages(
-          [...((rows ?? []) as MessageRow[])].reverse()
-        );
         if (!transcript.some((m) => m.sender === 'bot')) {
           result.skipped += 1;
           givenUp.add(thread.conversationId);
@@ -362,30 +376,50 @@ export async function runBotThreadReview(
 
         // Claim the day's row before the model is called: the UNIQUE
         // constraint decides between overlapping runs, so the judge
-        // runs once per conversation per day whichever run wins.
+        // runs once per conversation per day whichever run wins. A
+        // claim a dead run left behind is taken over first.
         const ruleViolations = checkTranscript(transcript, {
           contactCreatedAt,
         });
-        const { data: claimed, error: claimError } = await db
+        const claim = {
+          account_id: accountId,
+          conversation_id: thread.conversationId,
+          contact_id: contactId,
+          review_day: reviewDay,
+          window_start: windowStart.toISOString(),
+          window_end: now.toISOString(),
+          transcript,
+          rule_violations: ruleViolations,
+          score: null,
+          verdict: decideVerdict(ruleViolations, null),
+          issues: [],
+          summary: null,
+          model: REVIEW_MODEL,
+          reviewed_at: new Date().toISOString(),
+          judged_at: null,
+        };
+        const { data: reclaimed, error: reclaimError } = await db
           .from('bot_thread_reviews')
-          .insert({
-            account_id: accountId,
-            conversation_id: thread.conversationId,
-            contact_id: contactId,
-            review_day: reviewDay,
-            window_start: windowStart.toISOString(),
-            window_end: now.toISOString(),
-            transcript,
-            rule_violations: ruleViolations,
-            score: null,
-            verdict: decideVerdict(ruleViolations, null),
-            issues: [],
-            summary: null,
-            model: REVIEW_MODEL,
-          })
-          .select('id')
-          .single();
-        if (claimError || !claimed) {
+          .update(claim)
+          .eq('conversation_id', thread.conversationId)
+          .is('judged_at', null)
+          .lt(
+            'reviewed_at',
+            new Date(Date.now() - CLAIM_STALE_MS).toISOString()
+          )
+          .select('id');
+        let claimedId = (reclaimed as { id: string }[] | null)?.[0]?.id;
+        let claimError = reclaimError;
+        if (!claimedId && !claimError) {
+          const { data: inserted, error } = await db
+            .from('bot_thread_reviews')
+            .insert(claim)
+            .select('id')
+            .single();
+          claimedId = (inserted as { id: string } | null)?.id;
+          claimError = error;
+        }
+        if (claimError || !claimedId) {
           if (claimError?.code === '23505') {
             result.skipped += 1;
             givenUp.add(thread.conversationId);
@@ -394,26 +428,35 @@ export async function runBotThreadReview(
           throw new Error(claimError?.message ?? 'claim failed');
         }
 
-        const review = await reviewThread({
-          transcript,
-          contactCreatedAt,
-          now,
-          judge: options.judge,
-        });
-        const { error: updateError } = await db
-          .from('bot_thread_reviews')
-          .update({
-            score: review.score,
-            verdict: review.verdict,
-            issues: review.issues,
-            summary: review.summary,
-            reviewed_at: new Date().toISOString(),
-          })
-          .eq('id', (claimed as { id: string }).id)
-          .select('id');
-        if (updateError) throw new Error(updateError.message);
-        result.reviewed += 1;
-        result.verdicts[review.verdict] += 1;
+        try {
+          const review = await reviewThread({
+            transcript,
+            contactCreatedAt,
+            now,
+            judge: options.judge,
+          });
+          const judgedAt = new Date().toISOString();
+          const { error: updateError } = await db
+            .from('bot_thread_reviews')
+            .update({
+              score: review.score,
+              verdict: review.verdict,
+              issues: review.issues,
+              summary: review.summary,
+              reviewed_at: judgedAt,
+              judged_at: judgedAt,
+            })
+            .eq('id', claimedId)
+            .select('id');
+          if (updateError) throw new Error(updateError.message);
+          result.reviewed += 1;
+          result.verdicts[review.verdict] += 1;
+        } catch (err) {
+          // Release the claim so the next night retries instead of
+          // reading this row as the thread's last review.
+          await db.from('bot_thread_reviews').delete().eq('id', claimedId);
+          throw err;
+        }
       } catch (err) {
         result.failed += 1;
         givenUp.add(thread.conversationId);

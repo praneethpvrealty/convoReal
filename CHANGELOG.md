@@ -47,7 +47,11 @@ than a written entry. Newest first.
   catching it. **Migration required:**
   `20261007122307_bot_thread_reviews.sql` (additive: one new table) and
   `20261007145237_bot_thread_review_candidates.sql` (additive: one new
-  service-role function).
+  service-role function), `20261007151500_bot_thread_review_judged_at.sql`
+  (additive: one nullable column) and
+  `20261007151600_bot_thread_review_candidates_claims.sql` (replaces that
+  function so a claim a dead run left behind is taken over; apply once this
+  is on `main`).
 
 - **Buyer conversations are now tested as threads, not sentences.** A replay
   harness runs a portal lead's arrival and their "Update my preferences" and

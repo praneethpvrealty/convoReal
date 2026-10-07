@@ -29,6 +29,7 @@ export function memorySupabase(
   const from = (table: string) => {
     const filters: Filter[] = [];
     let patch: Row | null = null;
+    let removing = false;
     let inserted: Row[] | null = null;
     let head = false;
     let orderBy: { column: string; ascending: boolean } | null = null;
@@ -39,6 +40,9 @@ export function memorySupabase(
       const matched = rows().filter((row) => filters.every((f) => f(row)));
       if (patch) {
         for (const row of matched) Object.assign(row, structuredClone(patch));
+      }
+      if (removing) {
+        tables[table] = rows().filter((row) => !matched.includes(row));
       }
       let out = matched.map((row) => structuredClone(row));
       if (orderBy) {
@@ -71,6 +75,10 @@ export function memorySupabase(
       },
       update(values: Row) {
         patch = values;
+        return builder;
+      },
+      delete() {
+        removing = true;
         return builder;
       },
       insert(values: Row | Row[]) {

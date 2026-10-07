@@ -4511,7 +4511,7 @@
         },
         {
           "id": "CNV-006",
-          "rule": "Every conversation the bot wrote in during the last day is reviewed nightly (05:00 IST) as one thread: the transcript rules run first, then the model judge scores it with the lead's numbers and emails masked, and one bot_thread_reviews row per conversation per IST day records the transcript, the violations, the score, the issues and a verdict that fails on any rule violation or a score under 70, is unscored only when the rules pass and the judge gave no score, and is never recomputed on a rerun. Platform admins see failed and unscored threads on Admin → Bot replies with the issues beside the bubbles, record their own good or bad verdict, and copy a thread out as a fixture whose expected violations are the ones the rules found.",
+          "rule": "Every conversation the bot wrote in during the last day is reviewed nightly (05:00 IST) as one thread: the transcript rules run first, then the model judge scores it with the lead's numbers and emails masked, and one bot_thread_reviews row per conversation per IST day records the transcript, the violations, the score, the issues and a verdict that fails on any rule violation or a score under 70, is unscored only when the rules pass and the judge gave no score, and is never recomputed on a rerun; a run that dies mid-judge leaves a claim the next night takes over, and a judge that throws releases its claim so the thread is retried rather than recorded unscored. Platform admins see failed and unscored threads on Admin → Bot replies with the issues beside the bubbles, record their own good or bad verdict, and copy a thread out as a fixture whose expected violations are the ones the rules found.",
           "tests": [
             {
               "file": "src/lib/whatsapp/inbound/transcripts/thread-review.test.ts",
@@ -4529,6 +4529,8 @@
           "guards": [
             "supabase/migrations/20261007122307_bot_thread_reviews.sql",
             "supabase/migrations/20261007145237_bot_thread_review_candidates.sql",
+            "supabase/migrations/20261007151500_bot_thread_review_judged_at.sql",
+            "supabase/migrations/20261007151600_bot_thread_review_candidates_claims.sql",
             "vercel.json",
             "src/app/(dashboard)/admin/bot-replies-tab.tsx"
           ]
