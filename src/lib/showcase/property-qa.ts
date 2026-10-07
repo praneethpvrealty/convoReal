@@ -10,6 +10,12 @@
 
 import type { Property } from '@/types';
 import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
+import { formatCurrency } from '@/lib/format/currency';
+import {
+  listingAvailabilityAnswer,
+  listingAvailabilityContext,
+  listingStatusCaveat,
+} from '@/lib/inventory/listing-status';
 
 /** Subset of Property the answerer reads. The public showcase payload
  *  is a superset of this, so callers can pass the full row. */
@@ -49,7 +55,12 @@ export type QaProperty = Pick<
   | 'bts_lease_years'
   | 'bts_lock_in_years'
   | 'bts_escalation_percent'
->;
+> & {
+  /** Optional only for callers that never see an unavailable row (the
+   *  public endpoints select Available listings); the WhatsApp Q&A
+   *  passes the whole row, status included. */
+  status?: Property['status'] | null;
+};
 
 export interface QaResult {
   /** Deterministic answer, or null when the question needs the AI path. */
@@ -59,7 +70,21 @@ export interface QaResult {
 }
 
 function inr(n: number): string {
-  return '₹' + n.toLocaleString('en-IN');
+  return formatCurrency(n, 'INR');
+}
+
+/** The locality parts in order, minus any already contained in an
+ *  earlier one: `location` usually carries the sublocality and city. */
+function locationParts(p: QaProperty): string[] {
+  const parts: string[] = [];
+  for (const raw of [p.location, p.sublocality, p.city, p.state]) {
+    const bit = (raw || '').trim();
+    if (!bit) continue;
+    const key = bit.toLowerCase();
+    if (parts.some((prev) => prev.toLowerCase().includes(key))) continue;
+    parts.push(bit);
+  }
+  return parts;
 }
 
 function isRent(p: QaProperty): boolean {
@@ -131,17 +156,13 @@ function bathroomsAnswer(p: QaProperty): string | null {
 }
 
 function locationAnswer(p: QaProperty): string | null {
-  const bits = [p.location, p.sublocality, p.city, p.state].filter(Boolean);
-  if (!bits.length) return null;
-  // De-dupe while preserving order (location often already contains city).
-  const seen = new Set<string>();
-  const unique = bits.filter((b) => {
-    const k = (b as string).toLowerCase();
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  const unique = locationParts(p);
+  if (!unique.length) return null;
   return `It's located in ${unique.join(', ')}.`;
+}
+
+function availabilityAnswer(p: QaProperty): string {
+  return listingAvailabilityAnswer(p.status, p.listing_type);
 }
 
 function amenitiesAnswer(p: QaProperty): string | null {
@@ -196,6 +217,30 @@ function dimensionsAnswer(p: QaProperty): string | null {
 const ESCALATE_PATTERN =
   /\b(negotiab|negotiate|bargain|discount|best price|final price|lowest|loan|home loan|emi|down payment|which floor|what floor|floor number|legal|approv|clearance|khata|rera|possession date|when.*ready|tax|registration)/i;
 
+// "Is it the pink house or the one next to it?" asks a person to look
+// at the photo, and nothing in the listing's fields can do that. The
+// type matcher used to claim it on the word "house" and answer with
+// the listing's category, which is no answer at all. Matched before
+// everything else so it reaches a person, and never a model.
+const PHOTO_IDENTIFICATION_PATTERN =
+  /\b(which (one|house|building|plot|site|unit|flat|gate|side)\b|the one (in|on|with|at|next|beside|behind|near)\b|(pink|blue|white|yellow|green|red|grey|gray|brown|orange|cream|black|beige|peach) (house|building|gate|wall|one|villa|bungalow)|next to (it|this|that)|beside (it|this|that)|behind (it|this|that)|in front of (it|this|that)|opposite (to )?(it|this|that)|in the (photo|picture|pic|image|video|snap)|from the (photo|picture|pic|image|video|snap)|left or right|right or left|corner one|middle one)\b/i;
+
+/** True when the buyer is asking us to point at something in the
+ *  listing's photo: only a person who knows the site can answer it. */
+export function asksToIdentifyInPhoto(
+  question: string | null | undefined
+): boolean {
+  return PHOTO_IDENTIFICATION_PATTERN.test((question || '').trim());
+}
+
+// Availability is answered from the listing's status, before any other
+// matcher: "is this still available?" used to fall past every matcher
+// to the model, which saw "Listing: Sale" and nothing about the status,
+// and told a buyer an under-contract plot was open. Cannot escalate —
+// the status is always known, Available included.
+const AVAILABILITY_PATTERN =
+  /\b(availab\w*|still (for |on |up for )?(sale|rent|lease|open|there|listed|unsold|on the market)|(is|are) (this|it|that|these|those|the (property|plot|flat|house|villa|site|land|unit|listing)) (still )?(for sale|on sale|up for sale|for rent|on the market|open|live|active|listed|unsold)|sold( out)?|already (taken|booked|gone|blocked)|(is|was) (it|this|that) (taken|booked|gone|blocked)|under contract|off the market|on the market|can i (still )?(buy|book|take|get) (this|it|that)|still (open|active|live)|is (this|it|that) (still )?(open|live|active)|(this|it|that) (is )?(still )?(available|for sale|up for sale|on sale))\b/i;
+
 // Ordered matchers. First matcher whose pattern hits decides the
 // outcome: its responder's string is served, or — if the data is
 // absent (responder returns null) — the question escalates to AI with
@@ -208,6 +253,11 @@ const MATCHERS: {
   pattern: RegExp;
   respond: (p: QaProperty) => string | null;
 }[] = [
+  {
+    intent: 'availability',
+    pattern: AVAILABILITY_PATTERN,
+    respond: availabilityAnswer,
+  },
   {
     intent: 'roi',
     pattern: /\b(roi|yield|rental income|return on|investment return)/i,
@@ -289,11 +339,24 @@ export function answerFromPropertyData(
 ): QaResult {
   const q = (question || '').trim();
   if (!q) return { answer: null, intent: null };
+  if (asksToIdentifyInPhoto(q)) {
+    return { answer: null, intent: 'photo_identification' };
+  }
   if (ESCALATE_PATTERN.test(q)) return { answer: null, intent: null };
 
   for (const m of MATCHERS) {
     if (m.pattern.test(q)) {
-      return { answer: m.respond(property), intent: m.intent };
+      const answer = m.respond(property);
+      // A buyer told the price of an under-contract listing is also
+      // told it is under contract, in the same breath.
+      const caveat =
+        answer && m.intent !== 'availability'
+          ? listingStatusCaveat(property.status)
+          : null;
+      return {
+        answer: caveat ? `${answer} ${caveat}` : answer,
+        intent: m.intent,
+      };
     }
   }
   return { answer: null, intent: null };
@@ -321,6 +384,7 @@ export function buildPropertyContext(property: QaProperty): string {
   add('Title', p.title);
   add('Type', p.type);
   add('Listing', p.listing_type);
+  add('Availability', listingAvailabilityContext(p.status));
   if (isRentLike(p)) {
     add('Rent (per month)', p.rent_per_month ? inr(p.rent_per_month) : null);
     add('Maintenance (per month)', p.maintenance ? inr(p.maintenance) : null);
@@ -341,10 +405,7 @@ export function buildPropertyContext(property: QaProperty): string {
   } else {
     add('Price', p.price ? inr(p.price) : null);
   }
-  add(
-    'Location',
-    [p.location, p.sublocality, p.city, p.state].filter(Boolean).join(', ')
-  );
+  add('Location', locationParts(p).join(', '));
   add('Project', p.project);
   add('Bedrooms (BHK)', p.bedrooms ?? null);
   add('Bathrooms', p.bathrooms ?? null);
@@ -388,6 +449,8 @@ export function buildPropertyContext(property: QaProperty): string {
 export const PROPERTY_QA_SYSTEM_PROMPT =
   `You are answering a prospective buyer's questions about ONE specific real estate listing, speaking AS the brokerage that owns it. ` +
   `Answer ONLY from the property details provided. Keep replies short (1-3 sentences), factual, and friendly. ` +
+  `The Availability line is authoritative: when it says the listing is NOT available or not yet confirmed, say so plainly and never describe the listing as available, open, or for sale; when it says Available, you may confirm that. ` +
+  `Quote prices exactly as written in the details (for example ₹8.40 Cr), never expanded into full digits. ` +
   `Always use the first person ("we", "I", "let me"). NEVER refer to "the agent" or "the team" in the third person and never tell the buyer to ask someone else — you ARE the person they are talking to. ` +
   `If the answer isn't in the details, say you'll confirm it and come back to them — do NOT guess. ` +
   `Never promise a discount, confirm negotiability, quote loan/EMI figures, or give legal advice; ` +

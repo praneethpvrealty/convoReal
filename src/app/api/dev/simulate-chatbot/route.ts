@@ -500,7 +500,7 @@ async function simulateCarveOut(args: {
     });
   }
 
-  if (route === 'shortlist_reference') {
+  if (route === 'shortlist_reference' || route === 'listing_question') {
     return NextResponse.json({
       ...base,
       previewText: null,

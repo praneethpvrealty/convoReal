@@ -19,6 +19,26 @@ than a written entry. Newest first.
 
 #### 7 October 2026
 
+- **The bot no longer calls an under-contract listing available.** A buyer
+  asked "Is this available for sale?" about a plot that had been Under Contract
+  for nine days and was told yes: the listing Q&A never passed the status to
+  the model. Availability is now answered from the listing's status before any
+  matcher or model call — confirmed for an Available listing, an apology with
+  the status and a request for requirements and budget otherwise — and every
+  other answer about an unavailable listing carries its status. The model
+  grounding names the availability too, and the post-approval "complete
+  details" message of an under-contract listing goes out with its status note.
+- **A question about the shared listing is never met with silence.** "Is it
+  this pink house or house next to it?" was read as a requirement on the word
+  "house", paid for a preference extraction that filed nothing, and never
+  reached the answerer. A question that refers to the listing in the thread and
+  states no budget, size or search intent now goes straight to the listing
+  Q&A; a question that asks which house is in the photo is handed to the agent
+  without a credit being spent, on WhatsApp and on the showcase alike.
+- **Q&A prices read the way the listing message wrote them.** ₹8.40 Cr, not
+  ₹8,40,00,000, and a locality is no longer repeated when the location line
+  already carries it.
+
 - **Follow-up cards act in one tap.** The "Follow-up due" WhatsApp card now
   carries 💬 Check in, 🤔 Still considering and ❄️ Mark cold as buttons on the
   message itself, instead of an "Update lead" list that had to be opened

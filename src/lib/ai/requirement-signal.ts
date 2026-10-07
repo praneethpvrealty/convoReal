@@ -40,6 +40,40 @@ export function statesBudget(text?: string | null): boolean {
   );
 }
 
+const QUESTION_SHAPE =
+  /\?|^(is|are|was|were|does|do|did|can|could|will|would|which|what|where|who|whom|how|why|when|has|have)\b/i;
+
+const LISTING_REFERENCE =
+  /\b(this|it|that|these|those|the (one|same|listing|property|house|plot|site|flat|apartment|villa|building|unit|land|place)|you (sent|shared|showed|posted)|the (photo|picture|pic|image|video))\b/i;
+
+const REQUIREMENT_INTENT =
+  /\b(looking|want|need|interested|searching|require|prefer|suggest|options?|any|have you|do you have|get me|find|show me|send me|share|budget|within|under|below|around|upto|up to|max|maximum)\b/i;
+
+/**
+ * True when a question is about the listing already in the thread —
+ * "is it this pink house or the one next to it?", "is this still for
+ * sale?" — rather than a statement of what the lead wants.
+ *
+ * Such a message carries a property-type word by construction (the
+ * listing is a house), which used to make it a requirement: the ladder
+ * paid for an extraction, filed nothing, stood down, and the question
+ * answerer was gated off it, so the lead heard nothing at all. A
+ * question that states a budget, a size, or an intent to find
+ * something ("do you have any villa under 2 Cr?") is still a
+ * requirement.
+ */
+export function asksAboutSharedListing(text?: string | null): boolean {
+  const clean = (text || '').trim();
+  if (!clean) return false;
+  return (
+    QUESTION_SHAPE.test(clean) &&
+    LISTING_REFERENCE.test(clean) &&
+    !statesBudget(clean) &&
+    !SIZE_SIGNAL.test(clean) &&
+    !REQUIREMENT_INTENT.test(clean)
+  );
+}
+
 /**
  * True when an inbound message plausibly carries requirement detail —
  * a property type, a budget figure, a size, or an explicit "looking for".
@@ -47,6 +81,7 @@ export function statesBudget(text?: string | null): boolean {
 export function carriesRequirementSignal(text?: string | null): boolean {
   const clean = (text || '').trim();
   if (!clean) return false;
+  if (asksAboutSharedListing(clean)) return false;
   return (
     PROPERTY_TYPE_SIGNAL.test(clean) ||
     statesBudget(clean) ||

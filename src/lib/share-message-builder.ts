@@ -20,6 +20,7 @@ import {
   teaserTitle,
 } from '@/lib/inventory/showcase-visibility';
 import { formatCurrency } from '@/lib/format/currency';
+import { appendListingStatusNote } from '@/lib/inventory/listing-status';
 
 export type ShareAudience = 'client' | 'agent';
 export type ShareDetailLevel = 'quick' | 'standard' | 'complete';
@@ -421,14 +422,20 @@ export function buildInquiryDetailsMessage(input: {
   const mapLine = property.google_map_link
     ? `🗺 Map: ${property.google_map_link}`
     : '';
-  return [
-    `Here are the complete details for the property "${property.title}" you inquired about:`,
-    body.join('\n'),
-    `📸 Photos & full details:\n${url}`,
-    mapLine,
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+  // The details of an under-contract listing go out with its status,
+  // or the buyer's next question is "is this available?" to a thread
+  // that just told them it is not.
+  return appendListingStatusNote(
+    [
+      `Here are the complete details for the property "${property.title}" you inquired about:`,
+      body.join('\n'),
+      `📸 Photos & full details:\n${url}`,
+      mapLine,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    property.status
+  );
 }
 
 /**

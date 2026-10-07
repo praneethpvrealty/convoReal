@@ -25,7 +25,10 @@ import { requestsHumanContact } from '@/lib/ai/lead-question';
 import { requestsMoreListings } from '@/lib/ai/more-listings';
 import { requestsPropertyPhotos } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
-import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
+import {
+  asksAboutSharedListing,
+  carriesRequirementSignal,
+} from '@/lib/ai/requirement-signal';
 import { isDirectPropertyInterest } from '@/lib/whatsapp/property-interest';
 import { isPropertyDisinterest } from '@/lib/whatsapp/property-disinterest';
 
@@ -36,6 +39,7 @@ export type LeadRoute =
   | 'property_disinterest'
   | 'photo_request'
   | 'shortlist_reference'
+  | 'listing_question'
   | 'more_listings'
   | 'qualification';
 
@@ -99,6 +103,11 @@ export function routeLeadMessage(text?: string | null): LeadRoute {
   if (parseOrdinalReferences(value).length > 0 && !hasRequirement) {
     return 'shortlist_reference';
   }
+  // A question about the listing in the thread carries no requirement
+  // by definition (asksAboutSharedListing is what made hasRequirement
+  // false), and the ladder has nothing to file from it: it belongs to
+  // the listing Q&A, which is what answers it live.
+  if (asksAboutSharedListing(value)) return 'listing_question';
 
   return 'qualification';
 }
@@ -133,6 +142,8 @@ export const LEAD_ROUTE_EXPLANATIONS: Record<LeadRoute, string> = {
     "Asks for a listing's photos. The bot sends the photos of whichever listing the thread is pinned to, then a link to the full gallery.",
   shortlist_reference:
     "Names a listing by its shortlist number. The bot answers that listing's question from its own fields, then Gemini grounded in them.",
+  listing_question:
+    'Asks about the listing already in the thread ("is this still available?", "is it the pink house?"). The bot answers from that listing\'s own fields and status, then Gemini grounded in them, and hands a question only a person can answer to the agent.',
   qualification:
     'Carries requirement detail, so the qualification ladder files it and replies with the next missing answer or the matching listings.',
 };

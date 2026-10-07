@@ -52,6 +52,7 @@ const QA_COLUMNS = [
   'title',
   'type',
   'listing_type',
+  'status',
   'price',
   'rent_per_month',
   'maintenance',
@@ -174,6 +175,16 @@ export async function POST(request: NextRequest) {
         answer,
         source: 'listing',
         intent: structured.intent,
+      });
+    }
+
+    // A question about which house is in the photo has no answer in the
+    // fields and none in the model: it goes straight to the agent.
+    if (structured.intent === 'photo_identification') {
+      return NextResponse.json({
+        answer: null,
+        escalate_whatsapp: true,
+        message: HANDOFF_MESSAGE,
       });
     }
 
