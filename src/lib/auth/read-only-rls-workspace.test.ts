@@ -117,32 +117,55 @@ describe('[ACC-003] read-only RLS on every workspace write policy', () => {
     }
   });
 
-  it('holds listing media and property documents in storage to the same rule', () => {
+  it('holds listing media, property documents and flow media in storage to the same rule', () => {
     const storage = readFileSync(
       join(MIGRATIONS, '20261007054244_property_storage_write_read_only.sql'),
       'utf8'
     );
-    const altered = [
+    const written = [
       ...storage.matchAll(
-        /ALTER POLICY "([^"]+)" ON storage\.objects([\s\S]*?);/g
+        /(?:ALTER|CREATE) POLICY "([^"]+)" ON storage\.objects\b([\s\S]*?);/g
       ),
     ];
-    expect(altered.map((m) => m[1]).sort()).toEqual([
+    expect([...new Set(written.map((m) => m[1]))].sort()).toEqual([
       'Agents can delete private property images',
       'Agents can delete property images',
       'Agents can update private property images',
       'Agents can update property images',
       'Agents can upload private property images',
       'Agents can upload property images',
+      'Members can delete flow media',
+      'Members can update flow media',
+      'Members can upload flow media',
       'Users can delete property documents',
+      'Users can delete their own flow media',
       'Users can update property documents',
+      'Users can update their own flow media',
       'Users can upload property documents',
+      'Users can upload their own flow media',
     ]);
-    for (const [, name, body] of altered) {
-      expect(body, name).toMatch(
-        /bucket_id = 'property-(images|images-private|documents)'\s+AND public\.is_account_writer\(\(\(storage\.foldername\(name\)\)\[1\]\)::uuid, 'agent'\)/
-      );
+    expect(storage).not.toMatch(/\b(DROP|RENAME)\b/);
+    for (const [, name, body] of written) {
       expect(body, name).not.toContain('is_account_member(');
+      if (name.includes('flow media')) {
+        expect(body, name).toMatch(
+          /\('account-' \|\| p\.account_id::text\) = \(storage\.foldername\(name\)\)\[1\]\s+AND public\.is_account_writer\(p\.account_id, 'agent'\)/
+        );
+        expect(body, name).not.toContain('auth.uid()::text');
+      } else {
+        expect(body, name).toMatch(
+          /bucket_id = 'property-(images|images-private|documents)'\s+AND public\.is_account_writer\(\(\(storage\.foldername\(name\)\)\[1\]\)::uuid, 'agent'\)/
+        );
+      }
+    }
+  });
+
+  it('only alters a policy no migration creates once it is known to exist', () => {
+    for (const name of [
+      'Owners can update own account',
+      'pending_contact_updates_modify',
+    ]) {
+      expect(migration).toContain(`AND policyname = '${name}'\n  ) THEN`);
     }
   });
 

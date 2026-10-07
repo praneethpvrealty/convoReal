@@ -8,14 +8,23 @@ ALTER POLICY account_invitations_modify ON account_invitations
   USING (is_account_writer(account_id, 'admin'))
   WITH CHECK (is_account_writer(account_id, 'admin'));
 
-ALTER POLICY "Owners can update own account" ON accounts
-  USING (EXISTS (
-    SELECT 1 FROM profiles p
-    WHERE p.user_id = auth.uid()
-      AND p.account_id = accounts.id
-      AND p.account_role = 'owner'
-      AND p.is_read_only IS NOT TRUE
-  ));
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'accounts' AND policyname = 'Owners can update own account'
+  ) THEN
+    ALTER POLICY "Owners can update own account" ON accounts
+      USING (EXISTS (
+        SELECT 1 FROM profiles p
+        WHERE p.user_id = auth.uid()
+          AND p.account_id = accounts.id
+          AND p.account_role = 'owner'
+          AND p.is_read_only IS NOT TRUE
+      ));
+  END IF;
+END
+$$;
 
 ALTER POLICY accounts_update ON accounts
   USING (is_account_writer(id, 'admin'))
@@ -444,9 +453,18 @@ ALTER POLICY pending_client_replies_modify ON pending_client_replies
   USING (is_account_writer(account_id, 'agent'))
   WITH CHECK (is_account_writer(account_id, 'agent'));
 
-ALTER POLICY pending_contact_updates_modify ON pending_contact_updates
-  USING (is_account_writer(account_id, 'agent'))
-  WITH CHECK (is_account_writer(account_id, 'agent'));
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'pending_contact_updates' AND policyname = 'pending_contact_updates_modify'
+  ) THEN
+    ALTER POLICY pending_contact_updates_modify ON pending_contact_updates
+      USING (is_account_writer(account_id, 'agent'))
+      WITH CHECK (is_account_writer(account_id, 'agent'));
+  END IF;
+END
+$$;
 
 ALTER POLICY pending_map_pins_modify ON pending_map_pins
   USING (is_account_writer(account_id, 'agent'))

@@ -54,7 +54,7 @@ than a written entry. Newest first.
   photos and property documents in storage get the same rule, and the
   property-documents bucket, which accepted an upload, overwrite or delete
   from anyone holding the public key, now takes them only from a member who
-  can write to the account the file is filed under. **Migration required:**
+  can write to the account the file is filed under. Flow media gets the same rule on its `account-<id>` folder, which also lets the flow builder's media upload through: production still had the older per-user policies, which refused the account folder it uploads to. **Migration required:**
   `20261005083357_workspace_write_read_only_rls.sql`,
   `20261007051025_flow_automation_write_policies_alter.sql`, which lands the
   flow and automation policies of `20261004155516` that never reached
