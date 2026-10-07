@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { parseActionItemEvents } from '@/lib/calendar/action-item-events';
 import { istLocalToUtcIso, resolveByName } from '@/lib/calendar/event-parse';
@@ -71,7 +72,10 @@ export async function POST(
     }
 
     const cost = AI_FEATURE_COSTS.action_item_events;
-    const burn = await burnCredits(ctx.accountId, 'action_item_events', cost);
+    const burnKey = newBurnKey('action_item_events');
+    const burn = await burnCredits(ctx.accountId, 'action_item_events', cost, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -91,7 +95,7 @@ export async function POST(
         contactName: contact.name,
       });
     } catch (apiErr) {
-      await refundCredits(ctx.accountId, 'action_item_events', cost);
+      await refundBurn(ctx.accountId, 'action_item_events', burnKey);
       console.error('[create-events] Gemini call failed:', apiErr);
       return NextResponse.json(
         {
@@ -102,7 +106,7 @@ export async function POST(
       );
     }
     if (parsed.events.length === 0) {
-      await refundCredits(ctx.accountId, 'action_item_events', cost);
+      await refundBurn(ctx.accountId, 'action_item_events', burnKey);
       return NextResponse.json(
         { error: 'No schedulable events found in the action items.' },
         { status: 422 }

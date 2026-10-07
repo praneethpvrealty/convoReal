@@ -47,12 +47,13 @@ import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordLearnedFacts } from '@/lib/learning/record';
+import { valuesDiffer } from '@/lib/learning/fields';
 import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
 import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
-import { localityLabelsMatch } from '@/lib/locality-match';
+import { localityLabelsMatch, textNamesLocality } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
 import type { Contact, Property } from '@/types';
@@ -63,6 +64,23 @@ export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
 /** Classifications the buyer ladder is allowed to run for. A Seller or
  *  Owner answering this number is not stating a buying requirement. */
 const QUALIFIABLE_CLASSIFICATIONS = ['Buyer', 'Agent', 'Owner & Buyer'];
+
+/** Whether processBuyerQualificationMessage will take a requirement
+ *  this contact states, so a caller that stands down for it knows the
+ *  message will still be filed. */
+export function qualifiesForLadder(
+  config: { auto_qualify_leads?: boolean | null } | null,
+  contact: {
+    requirement_active?: boolean | null;
+    classification?: string | null;
+  } | null
+): boolean {
+  if (!config || config.auto_qualify_leads === false) return false;
+  if (!contact || contact.requirement_active === false) return false;
+  return QUALIFIABLE_CLASSIFICATIONS.includes(
+    contact.classification || 'Buyer'
+  );
+}
 
 /** Recent messages used to avoid re-sending listings while a buyer is
  *  answering an earlier shortlist. Human ownership is determined by
@@ -926,9 +944,14 @@ export function preferenceFacts(
   prefs: ExtractedPreferences,
   /** Tag names already on the contact. A suggestion matching one is
    *  not a proposal, it is already done. */
-  attachedTagNames: (string | null | undefined)[] = []
-): { field: string; value: unknown }[] {
-  const facts: { field: string; value: unknown }[] = [
+  attachedTagNames: (string | null | undefined)[] = [],
+  /** The lead's message stated where they want to buy — see
+   *  restatedAreas. Their areas then replace the saved list, and the
+   *  areas_of_interest list too when it holds any (matching reads both,
+   *  and a portal requirement fills it with an older answer). */
+  opts: { areasRestated?: boolean; replaceAreasOfInterest?: boolean } = {}
+): { field: string; value: unknown; replaces?: boolean }[] {
+  const facts: { field: string; value: unknown; replaces?: boolean }[] = [
     { field: 'pref_property_types', value: prefs.property_types },
     { field: 'pref_property_categories', value: prefs.property_categories },
     { field: 'pref_bhk_min', value: prefs.bhk_min },
@@ -937,7 +960,18 @@ export function preferenceFacts(
     { field: 'pref_budget_max', value: prefs.budget_max },
     { field: 'pref_land_area_min_sqft', value: prefs.land_area_min_sqft },
     { field: 'pref_land_area_max_sqft', value: prefs.land_area_max_sqft },
-    { field: 'pref_areas', value: prefs.areas },
+    {
+      field: 'pref_areas',
+      value: prefs.areas,
+      ...(opts.areasRestated && prefs.areas.length > 0
+        ? { replaces: true }
+        : {}),
+    },
+    ...(opts.areasRestated &&
+    opts.replaceAreasOfInterest &&
+    prefs.areas.length > 0
+      ? [{ field: 'areas_of_interest', value: prefs.areas, replaces: true }]
+      : []),
     { field: 'pref_excluded_areas', value: prefs.excluded_areas },
     { field: 'pref_projects', value: prefs.projects },
     { field: 'pref_listing_types', value: prefs.listing_types },
@@ -962,6 +996,93 @@ export function preferenceFacts(
   }
 
   return facts;
+}
+
+/**
+ * The lead confirmed, in their own words, the maximum the portal
+ * webhook seeded from their enquiry. pref_budget_max does not move, so
+ * nothing else marks the change: without this the budget they stated
+ * would still read as the enquiry's floorless ceiling.
+ */
+async function clearBudgetAnchor(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  contactId: string
+): Promise<void> {
+  const { error } = await db
+    .from('contacts')
+    .update({ pref_budget_anchor: null })
+    .eq('id', contactId)
+    .eq('account_id', accountId);
+  if (error) {
+    console.error('[buyer-qualification] budget anchor clear failed:', error);
+  }
+}
+
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Does the message add this area rather than move to it? "Whitefield
+ * too", "Whitefield works too", "Hebbal is also fine", "Also, Whitefield",
+ * "along with Hebbal".
+ * The marker has to sit against the area: "HSR is too expensive" is a
+ * complaint about HSR, not an addition.
+ */
+function addsArea(text: string, area: string): boolean {
+  const name = escapeRegExp(area.trim());
+  if (!name) return false;
+  const trailing = new RegExp(
+    `\\b${name}\\b[\\s,]*(?:(?:is|are|works|would|will|be|fine|ok|okay|good|great|suits|me|for)\\s+){0,3}(?:too|also|as well)\\b(?!\\s+(?:expensive|costly|far|small|big|much|many|high|low|crowded|congested|old|pricey))`,
+    'i'
+  );
+  const leading = new RegExp(
+    `\\b(?:also|additionally|plus|in addition to|along with|apart from)\\b[\\s,:]*(?:[a-z]+\\s+){0,3}${name}\\b`,
+    'i'
+  );
+  return trailing.test(text) || leading.test(text);
+}
+
+/** Does either stored area column disagree with a restated list? */
+function storedAreasDiffer(
+  contact: Contact,
+  restated: string[] | null
+): boolean {
+  return (
+    restated !== null &&
+    [contact.pref_areas, contact.areas_of_interest].some(
+      (stored) => (stored?.length ?? 0) > 0 && valuesDiffer(stored, restated)
+    )
+  );
+}
+
+/**
+ * The areas this message states as where the lead wants to buy, or null
+ * when it states none. A reply the ladder resolved to one locality is
+ * that locality; otherwise it is the extracted areas the message itself
+ * names. Those stand as the whole list — the extraction reads the whole
+ * requirement history, and an area the lead never named this turn (the
+ * locality of the listing a portal enquiry was about, an older answer)
+ * is replaced rather than kept. Without this a lead who enquired about a
+ * Koramangala listing and answered "I'm looking near Horamavu" was sent
+ * Koramangala houses. A message that adds an area ("Hebbal also") is
+ * not a restatement, even when it resolves to one locality, so nothing
+ * is dropped, whether the area it names is new or already saved. The
+ * marker has to sit against the area (addsArea): "HSR is too
+ * expensive, near Horamavu" moves away from HSR, it does not add to it.
+ */
+export function restatedAreas(
+  text: string,
+  areas: string[],
+  resolvedLocation: string | null
+): string[] | null {
+  const candidates = resolvedLocation ? [...areas, resolvedLocation] : areas;
+  if (candidates.some((area) => addsArea(text, area))) return null;
+  if (resolvedLocation) return [resolvedLocation];
+  const named = areas.filter(
+    (area) => area.trim() && textNamesLocality(text, area)
+  );
+  return named.length > 0 ? named : null;
 }
 
 /** Preferences already on the contact row, in extraction shape. */
@@ -1387,11 +1508,7 @@ export async function processBuyerQualificationMessage(
     if (!contactRow) return false;
 
     const contact = contactRow as Contact;
-    if (contact.requirement_active === false) return false;
-    if (
-      !QUALIFIABLE_CLASSIFICATIONS.includes(contact.classification || 'Buyer')
-    )
-      return false;
+    if (!qualifiesForLadder(config, contact)) return false;
 
     // One read serves two gates. The latest outbound sender owns the
     // thread: a later bot reply resumes automation, while a later agent
@@ -1531,10 +1648,11 @@ export async function processBuyerQualificationMessage(
       // clears the bound it crosses, and a merge that ran afterwards
       // refilled that bound from the contact — storing 2,824–2,400
       // sq.ft., a band nothing can satisfy.
+      const read = await extractContactPreferences(sourceText);
       let extracted = withImpliedIntent(
         applySizeAnchor(
           mergeCurrentTurnPreferences(
-            await extractContactPreferences(sourceText),
+            read,
             prefs,
             latestIntentTurn(burst, text)
           ),
@@ -1546,10 +1664,27 @@ export async function processBuyerQualificationMessage(
         extracted = { ...extracted, areas: [resolvedLocation] };
       }
 
+      // The read before the saved brief is merged in: a maximum there
+      // is one the lead wrote, never the enquiry's seed, which is not in
+      // their text.
+      if (
+        contact.pref_budget_anchor != null &&
+        read.budget_max != null &&
+        Number(contact.pref_budget_anchor) === read.budget_max
+      ) {
+        await clearBudgetAnchor(db, accountId, contact.id);
+      }
+
+      const restated = restatedAreas(text, extracted.areas, resolvedLocation);
+      if (restated) extracted = { ...extracted, areas: restated };
+
       // The message added nothing the contact didn't already say — it's
       // chatter ("ok", "call me"), not an answer. Don't file it as a
       // requirement and don't answer it; the agent owns this thread.
-      if (preferenceSignature(extracted) === preferenceSignature(prefs))
+      if (
+        !storedAreasDiffer(contact, restated) &&
+        preferenceSignature(extracted) === preferenceSignature(prefs)
+      )
         return false;
 
       prefs = extracted;
@@ -1581,7 +1716,10 @@ export async function processBuyerQualificationMessage(
           ...(contact as unknown as Record<string, unknown>),
           tags: attachedTagNames.filter(Boolean),
         },
-        facts: preferenceFacts(prefs, attachedTagNames),
+        facts: preferenceFacts(prefs, attachedTagNames, {
+          areasRestated: restated !== null,
+          replaceAreasOfInterest: (contact.areas_of_interest?.length ?? 0) > 0,
+        }),
         evidence: text,
         source: 'lead_message',
         contactId: contact.id,
@@ -1617,6 +1755,35 @@ export async function processBuyerQualificationMessage(
         contactId: contact.id,
         conversationId: conversation.id,
       });
+    }
+
+    // The same message again leaves the source text, and so its hash,
+    // unchanged, and the block above never re-reads it. A lead repeating
+    // where they want to buy still restates it against the saved lists.
+    if (hash === contact.pref_source_hash) {
+      const restated = restatedAreas(text, prefs.areas, resolvedLocation);
+      if (restated && storedAreasDiffer(contact, restated)) {
+        prefs = { ...prefs, areas: restated };
+        await recordLearnedFacts({
+          db,
+          accountId,
+          entity: 'contact',
+          entityId: contact.id,
+          current: contact as unknown as Record<string, unknown>,
+          facts: preferenceFacts(prefs, [], {
+            areasRestated: true,
+            replaceAreasOfInterest:
+              (contact.areas_of_interest?.length ?? 0) > 0,
+          }).filter(
+            (fact) =>
+              fact.field === 'pref_areas' || fact.field === 'areas_of_interest'
+          ),
+          evidence: text,
+          source: 'lead_message',
+          contactId: contact.id,
+          conversationId: conversation.id,
+        });
+      }
     }
 
     // Learned and filed. The guard bites here, on the reply: the

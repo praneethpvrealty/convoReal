@@ -32,6 +32,10 @@ const TABLE: Record<LearnedEntity, string> = {
 export interface FactCandidate {
   field: string;
   value: unknown;
+  /** The learner established that the evidence restates this whole
+   *  list ("I'm looking near Horamavu" answering where), so a member it
+   *  leaves out is dropped rather than restored by the removal guard. */
+  replaces?: boolean;
 }
 
 export interface RecordFactsArgs {
@@ -113,10 +117,12 @@ export function prepareFacts(
 
     // A removal from a list nobody reviews needs the evidence to name
     // what is being removed. Proposed fields are exempt: a person sees
-    // those before they land, so a wrong deletion is caught.
+    // those before they land, so a wrong deletion is caught. So is a
+    // list the learner says the evidence restated in full.
     const value =
       policy.kind === 'list' &&
       disposition === 'auto' &&
+      !fact.replaces &&
       Array.isArray(normalized)
         ? guardedListValue(previous, normalized as string[], evidence)
         : normalized;

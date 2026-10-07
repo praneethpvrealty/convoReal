@@ -24,6 +24,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { syncPropertyVideoToYouTube } from '@/lib/youtube/upload';
 import { refundCredits } from '@/lib/credits/burn';
+import { refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
   buildCaptions,
@@ -51,6 +52,7 @@ export interface ListingVideoJob {
   accountId: string;
   language: NarrationLanguage;
   requestedBy: string | null;
+  burnKey?: string;
 }
 
 const run = (bin: string, args: string[]) =>
@@ -520,11 +522,17 @@ export async function processListingVideoJob(
       .eq('id', property.id);
     // The route charged before queueing — give the credits back on failure.
     try {
-      await refundCredits(
-        job.accountId,
-        'listing_video',
-        AI_FEATURE_COSTS.listing_video
-      );
+      if (job.burnKey) {
+        await refundBurn(job.accountId, 'listing_video', job.burnKey, {
+          reason: `listing_video render failed (${property.id})`,
+        });
+      } else {
+        await refundCredits(
+          job.accountId,
+          'listing_video',
+          AI_FEATURE_COSTS.listing_video
+        );
+      }
     } catch (refundErr) {
       console.error('[listing-video] refund failed:', refundErr);
     }

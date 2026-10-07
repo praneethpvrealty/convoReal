@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import { storagePublicUrl } from '@/lib/storage/url';
 import {
   documentDisplayName,
@@ -435,10 +434,7 @@ export function ShowcaseView({
   // Start fetching the share target's hero image from the document head,
   // before hydration and ahead of the grid's card images.
   const initialHeroUrl = selectedProperty?.images?.[0]
-    ? showcaseImageUrl(
-        storagePublicUrl(selectedProperty.images[0]),
-        SHOWCASE_IMAGE_WIDTHS.hero
-      )
+    ? storagePublicUrl(selectedProperty.images[0])
     : null;
   if (initialHeroUrl) {
     ReactDOM.preload(initialHeroUrl, { as: 'image', fetchPriority: 'high' });
@@ -2134,10 +2130,7 @@ export function ShowcaseView({
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
                       key={img}
-                      src={showcaseImageUrl(
-                        storagePublicUrl(img),
-                        SHOWCASE_IMAGE_WIDTHS.card
-                      )}
+                      src={storagePublicUrl(img)}
                       alt={`${hero?.highlight || 'Project'} photo ${idx + 1}`}
                       loading="lazy"
                       className="h-32 w-48 shrink-0 rounded-xl border border-slate-800 object-cover"
@@ -2670,18 +2663,10 @@ export function ShowcaseView({
                         {mainImage ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={showcaseImageUrl(
-                              mainImage,
-                              SHOWCASE_IMAGE_WIDTHS.card
-                            )}
+                            src={mainImage}
                             alt={property.title}
                             loading="lazy"
                             decoding="async"
-                            onError={(e) => {
-                              // Resize endpoint unavailable → fall back to the original file
-                              if (e.currentTarget.src !== mainImage)
-                                e.currentTarget.src = mainImage;
-                            }}
                             className="showcase-listing-photo h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                           />
                         ) : dealFloor ? (
@@ -3225,18 +3210,9 @@ export function ShowcaseView({
                       ) : (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img
-                          src={showcaseImageUrl(
-                            detailImages[activeImageIdx],
-                            SHOWCASE_IMAGE_WIDTHS.hero
-                          )}
+                          src={detailImages[activeImageIdx]}
                           alt={selectedProperty.title}
                           fetchPriority="high"
-                          onError={(e) => {
-                            // Resize endpoint unavailable → fall back to the original file
-                            const original = detailImages[activeImageIdx];
-                            if (e.currentTarget.src !== original)
-                              e.currentTarget.src = original;
-                          }}
                           className="h-full w-full object-contain"
                         />
                       )}
@@ -3291,17 +3267,10 @@ export function ShowcaseView({
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={showcaseImageUrl(
-                                imgUrl,
-                                SHOWCASE_IMAGE_WIDTHS.thumb
-                              )}
+                              src={imgUrl}
                               alt=""
                               loading="lazy"
                               decoding="async"
-                              onError={(e) => {
-                                if (e.currentTarget.src !== imgUrl)
-                                  e.currentTarget.src = imgUrl;
-                              }}
                               className="h-full w-full object-cover"
                             />
                           </button>

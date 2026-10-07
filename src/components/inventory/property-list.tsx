@@ -1031,7 +1031,7 @@ export function PropertyList({
                           >
                             <span
                               className="flex max-w-[150px] items-center gap-1.5 truncate font-semibold text-slate-200"
-                              title={contact.name}
+                              title={contact.name ?? undefined}
                             >
                               <span className="truncate">
                                 👤 {contact.name || 'Unnamed'}

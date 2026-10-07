@@ -1,18 +1,15 @@
 import { NextResponse } from 'next/server';
-import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
+import {
+  getCurrentAccount,
+  requireWriteRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { getFlowTemplate } from '@/lib/flows/templates';
 
 /**
  * GET /api/flows — list the caller's flows.
  * POST /api/flows — create a new (draft) flow.
- *
- * Available to every member of a live account. The previous per-account
- * beta gate was removed when Flows went to soft-GA; the UI still
- * shows a "Beta" label so users know the surface is young, but the
- * routes themselves carry no role gate — `getCurrentAccount()` is here
- * for the account linkage and the archived-account block, matching
- * `/api/flows/[id]`.
  */
 
 export async function GET() {
@@ -37,7 +34,7 @@ export async function POST(request: Request) {
   let userId: string;
   let accountId: string;
   try {
-    const ctx = await getCurrentAccount();
+    const ctx = await requireWriteRole('agent');
     userId = ctx.userId;
     accountId = ctx.accountId;
   } catch (error) {

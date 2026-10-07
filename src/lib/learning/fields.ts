@@ -171,6 +171,14 @@ const POLICIES: FieldPolicy[] = [
   },
   {
     entity: 'contact',
+    field: 'areas_of_interest',
+    column: 'areas_of_interest',
+    label: 'Areas of interest',
+    disposition: 'auto',
+    kind: 'list',
+  },
+  {
+    entity: 'contact',
     field: 'pref_excluded_areas',
     column: 'pref_excluded_areas',
     label: 'Excluded areas',

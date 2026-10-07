@@ -55,7 +55,9 @@ export function EditorHeader() {
     save,
     setStatus,
     deleteFlow,
+    readOnly,
   } = useFlowEditor();
+  const canEdit = !readOnly;
   const [leaveTo, setLeaveTo] = useState<string | null>(null);
 
   const navigate = (href: string) => {
@@ -81,10 +83,20 @@ export function EditorHeader() {
           <Input
             value={state.name}
             onChange={(e) => setState((s) => ({ ...s, name: e.target.value }))}
+            readOnly={!canEdit}
             placeholder="Flow name"
             className="max-w-md bg-slate-900 text-lg font-semibold"
           />
           <StatusBadge status={state.status} />
+          {!canEdit && (
+            <Badge
+              variant="outline"
+              className="shrink-0 border-slate-700 text-slate-400"
+              title="You can view this flow but not change it"
+            >
+              Read-only
+            </Badge>
+          )}
           {dirty && (
             <span
               className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium tracking-wide text-amber-300 uppercase"
@@ -105,57 +117,61 @@ export function EditorHeader() {
             <History className="h-3.5 w-3.5" />
             Runs
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void deleteFlow()}
-            className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete
-          </Button>
-          {state.status === 'active' ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void setStatus('draft')}
-              disabled={activating}
-            >
-              {activating ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          {canEdit && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void deleteFlow()}
+                className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </Button>
+              {state.status === 'active' ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void setStatus('draft')}
+                  disabled={activating}
+                >
+                  {activating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <PauseCircle className="h-3.5 w-3.5" />
+                  )}
+                  Pause
+                </Button>
               ) : (
-                <PauseCircle className="h-3.5 w-3.5" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void setStatus('active')}
+                  disabled={activating || !canActivate}
+                  title={
+                    !canActivate
+                      ? 'Fix the issues below before activating'
+                      : undefined
+                  }
+                >
+                  {activating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <PlayCircle className="h-3.5 w-3.5" />
+                  )}
+                  Activate
+                </Button>
               )}
-              Pause
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void setStatus('active')}
-              disabled={activating || !canActivate}
-              title={
-                !canActivate
-                  ? 'Fix the issues below before activating'
-                  : undefined
-              }
-            >
-              {activating ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <PlayCircle className="h-3.5 w-3.5" />
-              )}
-              Activate
-            </Button>
+              <Button onClick={() => void save()} disabled={saving} size="sm">
+                {saving ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                Save
+              </Button>
+            </>
           )}
-          <Button onClick={() => void save()} disabled={saving} size="sm">
-            {saving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-            Save
-          </Button>
         </div>
       </div>
       <Input
@@ -163,6 +179,7 @@ export function EditorHeader() {
         onChange={(e) =>
           setState((s) => ({ ...s, description: e.target.value }))
         }
+        readOnly={!canEdit}
         placeholder="Optional description (internal — customers don't see this)"
         className="bg-slate-900 text-sm"
       />

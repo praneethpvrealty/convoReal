@@ -8,6 +8,16 @@ const source = readFileSync(
   'utf8'
 );
 
+describe('chatbot-engine contact access', () => {
+  it('reaches the contact tables only through owner-contacts', () => {
+    expect(source).not.toContain(".from('contacts')");
+    expect(source).not.toContain(".from('contact_tags')");
+    expect(source).not.toContain(".from('tags')");
+    expect(source).not.toContain(".from('contact_notes')");
+    expect(source).toMatch(/from '@\/lib\/ai\/owner-contacts';/);
+  });
+});
+
 describe('chatbot-engine draft session access', () => {
   it('reaches the draft session tables only through draft-sessions', () => {
     expect(source).not.toContain(".from('property_draft_sessions')");

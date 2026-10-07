@@ -57,6 +57,8 @@ const BANGALORE_LOCALITIES_COORDS: Record<
   'cv raman nagar': { lat: 12.9792, lng: 77.6644 },
   kaggadasapura: { lat: 12.9821, lng: 77.6775 },
   'ramamurthy nagar': { lat: 13.0163, lng: 77.6785 },
+  horamavu: { lat: 13.0291, lng: 77.6643 },
+  'horamavu agara': { lat: 13.0298, lng: 77.6628 },
   'kr puram': { lat: 13.0104, lng: 77.7025 },
   mahadevapura: { lat: 12.9866, lng: 77.6975 },
   brookefield: { lat: 12.9649, lng: 77.718 },
@@ -164,8 +166,9 @@ function calculateHaversineDistance(
  *    shopping at ₹4 Cr — so far-cheaper stock excludes too; stating an
  *    explicit min is how an agent widens that band on purpose. Explicit
  *    ceilings ("under X" phrasing, entry-band maxima, sale budgets read
- *    against rent) keep their old floor-less reading — see the budget
- *    step for the exact carve-outs.
+ *    against rent, a max seeded from the enquired listing's price) keep
+ *    their old floor-less reading — see the budget step for the exact
+ *    carve-outs.
  *
  * Preference sources, in priority order:
  *  1. Explicit fields the agent filled in (min/max budget, areas_of_interest,
@@ -295,6 +298,9 @@ const GROUP_TO_CATEGORY: Record<SubtypeGroup, Category | null> = {
  *  be offered as the bigger alternative: the ~3,100 sq.ft. corner sites
  *  of a 60x40 layout, not the 4,000 sq.ft. 50x80s. */
 const POINT_SIZE_HEADROOM = 1.35;
+
+const LAND_WORDS = ['plot', 'site', 'land'];
+const BUILDING_WORDS = ['house', 'villa', 'building', 'built'];
 
 const PLOT_GROUPS: SubtypeGroup[] = [
   'residential-plot',
@@ -428,6 +434,23 @@ function isNegated(text: string, keyword: string): boolean {
     index = text.indexOf(cleanKeyword, index + 1);
   }
   return false;
+}
+
+/**
+ * A budget the portal lead webhook seeded from the enquired listing's
+ * price (contacts.pref_budget_anchor) was not stated by the contact. It
+ * says what they were willing to look at, so it caps the band but
+ * implies no floor: a lead who enquired at ₹14.7 Cr and then asks for
+ * another locality still sees the ₹3.5 Cr house there. A budget stated
+ * afterwards replaces pref_budget_max, and the two no longer agree.
+ */
+export function isEnquiryBudgetAnchor(
+  budgetMax: number | null,
+  anchor: number | null | undefined
+): boolean {
+  if (budgetMax === null || anchor == null) return false;
+  const seeded = Number(anchor);
+  return Number.isFinite(seeded) && seeded > 0 && seeded === budgetMax;
 }
 
 /**
@@ -692,6 +715,13 @@ function matchContactsSingleProfile(
     ? GROUP_TO_CATEGORY[propertyGroup]
     : null;
   const propertyListingType = resolveListingType(property);
+  const residentialLandHouseSwap =
+    !RENT_PRICED_LISTING_TYPES.includes(propertyListingType) &&
+    (propertyGroup === 'residential-plot' ||
+      (propertyGroup === 'house' &&
+        !/farm\s*house/i.test(
+          `${property.type || ''} ${property.title || ''}`
+        )));
   const price = Number(property.price || 0);
   const rentalIncome = property.rental_income
     ? Number(property.rental_income)
@@ -802,7 +832,15 @@ function matchContactsSingleProfile(
     const aiAreas = (sourceContact.pref_areas || [])
       .map(cleanArea)
       .filter((a) => a && !isPlaceholderArea(a));
-    const textZones = extractBengaluruZones(combinedText).map(cleanArea);
+    // Zones and localities read from the requirement text stand in for
+    // stated areas only when there are none: the extraction reads the
+    // same text, so stated areas already carry every place the contact
+    // still wants, and the text keeps the ones a later answer replaced
+    // (INB-029).
+    const hasStatedAreas = explicitAreas.length > 0 || aiAreas.length > 0;
+    const textZones = hasStatedAreas
+      ? []
+      : extractBengaluruZones(combinedText).map(cleanArea);
     const zoneComparableText = combinedText.replace(/bangalore/g, 'bengaluru');
     const wantedAreas = [
       ...new Set([...explicitAreas, ...aiAreas, ...textZones]),
@@ -948,6 +986,20 @@ function matchContactsSingleProfile(
         (statedSectors.size === 0 ||
           (propertyCategory && statedSectors.has(propertyCategory)))
       ) {
+        typeVerdict = 'partial';
+      } else if (
+        residentialLandHouseSwap &&
+        (propertyGroup === 'residential-plot'
+          ? wantedGroups.has('house') &&
+            !LAND_WORDS.some((w) => isNegated(combinedText, w))
+          : (wantedGroups.has('residential-plot') ||
+              (wantedCategories.has('plot') &&
+                (statedSectors.size === 0 ||
+                  statedSectors.has('residential')))) &&
+            !BUILDING_WORDS.some((w) => isNegated(combinedText, w)))
+      ) {
+        // A house seeker will look at a residential site and a site
+        // seeker at an old house on one; neither crosses a sector.
         typeVerdict = 'partial';
       } else {
         typeVerdict = 'mismatch';
@@ -1111,9 +1163,14 @@ function matchContactsSingleProfile(
     // Direct mention of the property's locality/project/internal tag in
     // requirements or notes counts as a match. Tags are Engine-only, but
     // this lets an agent's own builder/campaign shorthand find inventory.
+    // A locality mention counts only for a contact with no stated areas,
+    // for the same reason as textZones above.
     if (locationVerdict !== 'match' && combinedText) {
       if (
-        (propSub && propSub.length > 2 && combinedText.includes(propSub)) ||
+        (!hasStatedAreas &&
+          propSub &&
+          propSub.length > 2 &&
+          combinedText.includes(propSub)) ||
         (propProject &&
           propProject.length > 2 &&
           combinedText.includes(propProject)) ||
@@ -1167,7 +1224,10 @@ function matchContactsSingleProfile(
         ? Number(sourceContact.pref_budget_max)
         : null
     );
-    let maxIsCeiling = false;
+    let maxIsCeiling =
+      explicitMax === null &&
+      budgetMin === null &&
+      isEnquiryBudgetAnchor(budgetMax, contact.pref_budget_anchor);
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
       const parsed = parseBudgetFromText(combinedText);
       budgetMin = parsed.min;
@@ -1197,7 +1257,9 @@ function matchContactsSingleProfile(
     // rent-only, whose max is a sale-scale number that would exclude
     // every rental if halved. "Either" is that case too: the ladder
     // asks such a lead for a SALE budget, so imposing half of it as a
-    // monthly-rent floor would turn "show me both" into sale-only.
+    // monthly-rent floor would turn "show me both" into sale-only. A max
+    // that is the enquired listing's own price is a ceiling too — see
+    // isEnquiryBudgetAnchor.
     const IMPLIED_FLOOR_OF_MAX = 0.5;
     const isRentComparison =
       propertyListingType === 'Rent' || propertyListingType === 'Built to Suit';

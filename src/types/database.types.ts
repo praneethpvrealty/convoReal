@@ -2882,6 +2882,7 @@ export type Database = {
           pref_areas: string[] | null;
           pref_bhk_max: number | null;
           pref_bhk_min: number | null;
+          pref_budget_anchor: number | null;
           pref_budget_max: number | null;
           pref_budget_min: number | null;
           pref_excluded_areas: string[] | null;
@@ -2965,6 +2966,7 @@ export type Database = {
           pref_areas?: string[] | null;
           pref_bhk_max?: number | null;
           pref_bhk_min?: number | null;
+          pref_budget_anchor?: number | null;
           pref_budget_max?: number | null;
           pref_budget_min?: number | null;
           pref_excluded_areas?: string[] | null;
@@ -3048,6 +3050,7 @@ export type Database = {
           pref_areas?: string[] | null;
           pref_bhk_max?: number | null;
           pref_bhk_min?: number | null;
+          pref_budget_anchor?: number | null;
           pref_budget_max?: number | null;
           pref_budget_min?: number | null;
           pref_excluded_areas?: string[] | null;
@@ -7758,8 +7761,10 @@ export type Database = {
           kind: string;
           matches: Json;
           property_id: string | null;
+          send_claimed_at: string | null;
           sent_at: string | null;
           sent_count: number;
+          sent_target_ids: string[] | null;
           source: string;
           status: string;
           subject_snapshot: Json | null;
@@ -7773,8 +7778,10 @@ export type Database = {
           kind: string;
           matches?: Json;
           property_id?: string | null;
+          send_claimed_at?: string | null;
           sent_at?: string | null;
           sent_count?: number;
+          sent_target_ids?: string[] | null;
           source?: string;
           status?: string;
           subject_snapshot?: Json | null;
@@ -7788,8 +7795,10 @@ export type Database = {
           kind?: string;
           matches?: Json;
           property_id?: string | null;
+          send_claimed_at?: string | null;
           sent_at?: string | null;
           sent_count?: number;
+          sent_target_ids?: string[] | null;
           source?: string;
           status?: string;
           subject_snapshot?: Json | null;
@@ -12429,6 +12438,7 @@ export type Database = {
           account_id: string;
           audio_url: string | null;
           body_text: string;
+          burn_key: string | null;
           created_at: string | null;
           created_by: string;
           error: string | null;
@@ -12445,6 +12455,7 @@ export type Database = {
           account_id: string;
           audio_url?: string | null;
           body_text: string;
+          burn_key?: string | null;
           created_at?: string | null;
           created_by: string;
           error?: string | null;
@@ -12461,6 +12472,7 @@ export type Database = {
           account_id?: string;
           audio_url?: string | null;
           body_text?: string;
+          burn_key?: string | null;
           created_at?: string | null;
           created_by?: string;
           error?: string | null;
@@ -14525,6 +14537,10 @@ export type Database = {
       recompute_broadcast_counts: { Args: { bid: string }; Returns: undefined };
       reconcile_subscriptions: { Args: never; Returns: undefined };
       redeem_invitation: { Args: { p_token_hash: string }; Returns: string };
+      record_enquiry_budget: {
+        Args: { p_account_id: string; p_budget: number; p_contact_id: string };
+        Returns: undefined;
+      };
       reengagement_batch_split: {
         Args: { p_account_id: string; p_tag_id: string };
         Returns: {

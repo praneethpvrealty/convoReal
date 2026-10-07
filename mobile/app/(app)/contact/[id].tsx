@@ -153,7 +153,7 @@ const PROPERTY_INTEREST_OPTIONS = [
 
 /** Who gets the budget/areas/interests block. An agent's own brief is
  *  free text in Requirements — they aren't shopping to a budget. */
-const BUYER_PREF_CLASSIFICATIONS: Classification[] = ['Buyer', 'Owner & Buyer'];
+const BUYER_PREF_CLASSIFICATIONS: string[] = ['Buyer', 'Owner & Buyer'];
 
 /** Buy or rent, as the matcher reads it (contacts.pref_listing_types).
  *  Web parity: the "Looking to" select in src/components/contacts/
@@ -1631,9 +1631,7 @@ function ContactEditor({
   const { colors, dark, fonts: f } = useTheme();
   const source = resolveRequirementSource(contact);
   const [name, setName] = useState(contact.name ?? '');
-  const [salutation, setSalutation] = useState<'Mr.' | 'Mrs.' | ''>(
-    contact.salutation ?? ''
-  );
+  const [salutation, setSalutation] = useState(contact.salutation ?? '');
   const [secondName, setSecondName] = useState(contact.second_name ?? '');
   const [nameTag, setNameTag] = useState(contact.name_tag ?? '');
   const [primaryPhone, setPrimaryPhone] = useState(contact.phone ?? '');
@@ -1655,7 +1653,7 @@ function ContactEditor({
   const notes = notesDraft ?? recentNote?.note_text ?? '';
   const [classification, setClassification] = useState<
     Classification | undefined
-  >(contact.classification);
+  >(CLASSIFICATIONS.find((value) => value === contact.classification));
   const initialMinBudget = rupeesToBudgetAmount(source.pref_budget_min);
   const initialMaxBudget = rupeesToBudgetAmount(source.pref_budget_max);
   const [minBudget, setMinBudget] = useState(initialMinBudget.amount);
@@ -1689,7 +1687,9 @@ function ContactEditor({
     contact.requires_tenanted ?? contact.pref_requires_tenanted ?? false
   );
   const [updateChannel, setUpdateChannel] = useState<UpdateChannelValue | null>(
-    contact.preferred_update_channel ?? null
+    UPDATE_CHANNEL_OPTIONS.find(
+      (option) => option.value === contact.preferred_update_channel
+    )?.value ?? null
   );
   const [askedChannel, setAskedChannel] = useState(false);
   const [error, setError] = useState<string | null>(null);

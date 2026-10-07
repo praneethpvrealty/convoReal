@@ -40,6 +40,7 @@ import {
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import { storagePublicUrl } from '@/lib/storage/url';
+import { useFlowEditor } from '../flow-editor-state';
 import { slugify, type BuilderNode } from '../shared';
 import { NextNodeRow, NodeKeySelect, TextRow } from './fields';
 
@@ -1018,6 +1019,7 @@ function SendMediaForm({
   currentKey: string;
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
+  const { readOnly } = useFlowEditor();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -1029,6 +1031,7 @@ function SendMediaForm({
 
   const handleFile = useCallback(
     async (file: File) => {
+      if (readOnly) return;
       if (file.size > FLOW_MEDIA_MAX_BYTES) {
         toast.error(
           `File is ${(file.size / 1024 / 1024).toFixed(1)} MB — limit is 16 MB.`
@@ -1094,7 +1097,7 @@ function SendMediaForm({
         setUploading(false);
       }
     },
-    [onUpdateConfig]
+    [onUpdateConfig, readOnly]
   );
 
   const handleClear = () => {

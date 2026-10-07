@@ -1133,6 +1133,9 @@ Content-Transfer-Encoding: quoted-printable
       // land in the pref_* columns so the UI shows them as AI-derived.
       expect(contact.max_budget).toBeNull();
       expect(contact.pref_budget_max).toBe(25000000); // 2.5 Cr from property
+      // [INB-029] Recorded as the enquiry's anchor, so matching reads it
+      // as a ceiling rather than a stated budget with a floor.
+      expect(contact.pref_budget_anchor).toBe(25000000);
       expect(contact.pref_areas).toContain('Bommasandra');
       expect(contact.property_interests).toContain('Industrial');
 
@@ -1208,6 +1211,7 @@ Content-Transfer-Encoding: quoted-printable
       // budget; "HSR" was stated in the requirement text itself.
       expect(contact.max_budget).toBeNull();
       expect(contact.pref_budget_max).toBe(45000000); // 4.5 Cr from property
+      expect(contact.pref_budget_anchor).toBe(45000000);
       expect(contact.areas_of_interest).toContain('HSR');
       expect(contact.property_interests).toContain('Villa');
       // "4 BHK Villa" is not a flat inquiry, and a villa is not a vacant building
@@ -1405,6 +1409,7 @@ Content-Transfer-Encoding: quoted-printable
       expect(mockDb.contact_property_inquiries.length).toBe(0);
       expect(mockDb.contacts[0].last_inquired_property_id).toBeNull();
       expect(mockDb.contacts[0].pref_budget_max).toBeNull();
+      expect(mockDb.contacts[0].pref_budget_anchor ?? null).toBeNull();
       expect(sendUnavailableListingReply).not.toHaveBeenCalled();
 
       const log = mockDb.email_sync_logs.at(-1) as Record<string, unknown>;
@@ -1552,5 +1557,36 @@ describe('[PRP-014] a repeat portal enquiry reopens a closed one', () => {
     expect(source).toContain(
       'const reopenError = reopened.find((result) => result.error)?.error;'
     );
+  });
+});
+
+describe('[INB-029] an existing contact re-seeded from an enquiry', () => {
+  it('records the budget and its anchor in one call, not in the enrichment update', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('./route.ts', import.meta.url), 'utf8');
+    expect(source).toMatch(
+      /supabase\.rpc\(\s*'record_enquiry_budget',\s*\{\s*p_account_id: accountId,\s*p_contact_id: existingContact\.id,\s*p_budget: inferredBudget,/
+    );
+    expect(source).not.toMatch(/updatePayload\.pref_budget_max\s*=/);
+    expect(source).not.toMatch(/updatePayload\.pref_budget_anchor\s*=/);
+    expect(source).not.toContain('.update({ pref_budget_anchor');
+  });
+
+  it('decides under the row lock whether the budget was stated', async () => {
+    const sql = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20261004171000_record_enquiry_budget.sql'
+      ),
+      'utf8'
+    );
+    expect(sql).toMatch(
+      /SELECT pref_budget_max IS NOT NULL AND pref_budget_anchor IS NULL[\s\S]*?account_id = p_account_id\s+FOR UPDATE;/
+    );
+    expect(sql).toMatch(
+      /IF NOT v_stated THEN\s+UPDATE contacts\s+SET pref_budget_anchor = p_budget/
+    );
+    expect(sql).toMatch(/FROM PUBLIC, anon, authenticated;/);
+    expect(sql).toMatch(/TO service_role;/);
   });
 });

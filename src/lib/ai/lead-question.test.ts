@@ -18,6 +18,8 @@ import {
   quickReplyHumanRequest,
   repliesRatherThanOpens,
   requestsHumanContact,
+  offersOwnCall,
+  withoutOwnCallOffer,
   HANDOVER_TEXT,
   CALLBACK_HANDOVER_TEXT,
   mergeLeadAnswers,
@@ -68,6 +70,52 @@ describe('looksLikeQuestion', () => {
   });
 });
 
+describe('withoutOwnCallOffer', () => {
+  it('keeps whatever else the message asks for', () => {
+    expect(withoutOwnCallOffer("I'll call back tomorrow")).toBe('tomorrow');
+    expect(withoutOwnCallOffer("I'll check and call back tomorrow")).toBe(
+      "i'll check, tomorrow"
+    );
+    expect(
+      withoutOwnCallOffer(
+        'Please schedule a meeting Friday at 3pm; I will call you tomorrow'
+      )
+    ).toContain('schedule a meeting friday at 3pm');
+  });
+});
+
+describe('offersOwnCall', () => {
+  it('spots the lead offering to ring us, not asking to be rung', () => {
+    expect(offersOwnCall("I'll call back tomorrow")).toBe(true);
+    expect(offersOwnCall('Let me call you on Monday')).toBe(true);
+    expect(offersOwnCall('Please call me tomorrow')).toBe(false);
+    expect(offersOwnCall("Please don't call me")).toBe(false);
+  });
+});
+
+describe('call-intent matching on hostile input', () => {
+  it('stays linear on a 4096-character message of any shape', () => {
+    const fill = (unit: string) =>
+      unit.repeat(Math.ceil(4096 / unit.length)).slice(0, 4095) + 'x';
+    for (const text of [
+      'i' + ' '.repeat(4094) + 'x',
+      fill('we \t'),
+      fill("i'll will "),
+      fill("don't "),
+      fill("don't a "),
+      fill('let me give you a '),
+      fill('i going to gonna '),
+      fill("don't call me "),
+      fill('call me '),
+    ]) {
+      const started = performance.now();
+      requestsHumanContact(text);
+      offersOwnCall(text);
+      expect(performance.now() - started, text.slice(0, 12)).toBeLessThan(200);
+    }
+  });
+});
+
 describe('requestsHumanContact', () => {
   it('recognises the ask that was answered with a budget question', () => {
     // The reported bug: "Call me" reached the qualification ladder and
@@ -98,6 +146,70 @@ describe('requestsHumanContact', () => {
     // request would summon an agent and promise a call nobody owes.
     expect(requestsHumanContact("I'll call you tomorrow")).toBe(false);
     expect(requestsHumanContact('I will call you back later')).toBe(false);
+    expect(requestsHumanContact("I'll call back tomorrow")).toBe(false);
+    expect(requestsHumanContact('We will call back next week')).toBe(false);
+    for (const text of [
+      'I can call back in a week',
+      'Let me call back tomorrow',
+      'I\u2019ll call back',
+      "I'm going to call back on Monday",
+      'we might give you a call',
+      "I'll definitely call back tomorrow",
+      'I can probably call back next week',
+      "I'm going to just call you back",
+      'I will then call back tomorrow',
+      "I'll check and call back tomorrow",
+      'We will discuss and give you a call',
+      "I'm going to ask my wife and call you back",
+      'let me check and ring you',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(false);
+    }
+    for (const text of [
+      "Please don't call me",
+      'pls dont call me, just whatsapp',
+      'Do not call me back',
+      'no need to call me',
+      'stop calling me',
+      "I don't want you to call me",
+      "Please don't ever call me",
+      "Please don't connect me to an agent",
+      "I don't want to talk to a human",
+      "I don't need a callback",
+      'Stop trying to call me',
+      'You cannot call me',
+      "You can't call me",
+      'you should not call me back',
+      'You may not call me',
+      'I prefer not to get a callback',
+      'no callback please',
+      "Please don't call or connect me to an agent",
+      "Don't text or call me",
+      'No need for a call back',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(false);
+    }
+    for (const text of [
+      "I don't know the area so call me",
+      'stop messaging and call me',
+      "Don't text, call me",
+      "Don't hesitate to call me",
+      'why not call me',
+      'Not interested in the plot, but call me about villas',
+      "I don't know please call me",
+      'No need to wait please call me',
+      "Please don't hesitate to call me",
+      'Text or call me, either works',
+      "I'll call back or you can call me",
+      "I'm busy and call me later",
+      "I'll check and call me back with the price",
+      'I saw the plot and call me',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(true);
+    }
+    expect(requestsHumanContact("I'll call back, or please call me")).toBe(
+      true
+    );
   });
 
   it('leaves ordinary requirement talk to the ladder', () => {

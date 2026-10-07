@@ -3,8 +3,119 @@ const MINUTE_MS = 60_000;
 const CODEX_LOGIN = 'chatgpt-codex-connector[bot]';
 const HOLD_MARKER = 'release-timer:held';
 
+const MOBILE_UPDATE_WORKFLOW = '.github/workflows/eas-update.yml';
+export const MOBILE_UPDATE_PENDING_LABEL = 'mobile-update-pending';
+
 export const RELEASE_WINDOW_MINUTES = 120;
 export const REVIEW_SETTLE_MINUTES = 15;
+
+export function mobileUpdatePaths(workflow) {
+  const block = workflow.match(/\n {4}paths:\n((?: {6}(?:- .*|#.*)\n)+)/)?.[1];
+  if (!block) return [];
+  return [...block.matchAll(/^ {6}- '([^']+)'$/gm)].map((match) => match[1]);
+}
+
+function globToRegExp(glob) {
+  const source = glob
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*\*/g, '\u0000')
+    .replace(/\*/g, '[^/]*')
+    .replace(/\?/g, '[^/]')
+    .replace(/\u0000/g, '.*');
+  return new RegExp(`^${source}$`);
+}
+
+export function touchesMobileBundle(files, patterns) {
+  const rules = patterns.map((pattern) =>
+    pattern.startsWith('!')
+      ? { include: false, test: globToRegExp(pattern.slice(1)) }
+      : { include: true, test: globToRegExp(pattern) }
+  );
+  return files.some((file) => {
+    let included = false;
+    for (const rule of rules) {
+      if (rule.test.test(file)) included = rule.include;
+    }
+    return included;
+  });
+}
+
+async function releaseTouchesMobileBundle(
+  github,
+  owner,
+  repo,
+  pullNumber,
+  sha
+) {
+  const files = await github.paginate(github.rest.pulls.listFiles, {
+    owner,
+    repo,
+    pull_number: pullNumber,
+    per_page: 100,
+  });
+  const { data } = await github.rest.repos.getContent({
+    owner,
+    repo,
+    path: MOBILE_UPDATE_WORKFLOW,
+    ref: sha,
+  });
+  const workflow = Buffer.from(data.content, 'base64').toString('utf8');
+  const changed = files.flatMap((file) =>
+    file.previous_filename
+      ? [file.filename, file.previous_filename]
+      : [file.filename]
+  );
+  return touchesMobileBundle(changed, mobileUpdatePaths(workflow));
+}
+
+async function publishMobileUpdate(github, core, owner, repo, pullNumber) {
+  await github.rest.actions.createWorkflowDispatch({
+    owner,
+    repo,
+    workflow_id: 'eas-update.yml',
+    ref: 'main',
+    inputs: { channel: 'preview' },
+  });
+  await github.rest.issues.removeLabel({
+    owner,
+    repo,
+    issue_number: pullNumber,
+    name: MOBILE_UPDATE_PENDING_LABEL,
+  });
+  core.notice(`dispatched EAS Update for #${pullNumber}`);
+}
+
+async function publishPendingMobileUpdates(github, core, owner, repo, dryRun) {
+  const pending = await github.paginate(github.rest.issues.listForRepo, {
+    owner,
+    repo,
+    state: 'closed',
+    labels: MOBILE_UPDATE_PENDING_LABEL,
+    per_page: 100,
+  });
+  for (const issue of pending) {
+    if (!issue.pull_request) continue;
+    if (dryRun) {
+      core.info(`#${issue.number}: mobile update still to publish`);
+      continue;
+    }
+    const { data: pull } = await github.rest.pulls.get({
+      owner,
+      repo,
+      pull_number: issue.number,
+    });
+    if (pull.merged) {
+      await publishMobileUpdate(github, core, owner, repo, issue.number);
+    } else {
+      await github.rest.issues.removeLabel({
+        owner,
+        repo,
+        issue_number: issue.number,
+        name: MOBILE_UPDATE_PENDING_LABEL,
+      });
+    }
+  }
+}
 
 function minutesSince(from, now) {
   return Math.floor((now - new Date(from).getTime()) / MINUTE_MS);
@@ -467,6 +578,22 @@ async function shipBranch({
     };
   }
 
+  const publishMobile = await releaseTouchesMobileBundle(
+    github,
+    owner,
+    repo,
+    releasePr.number,
+    releasePr.headSha
+  );
+  if (publishMobile) {
+    await github.rest.issues.addLabels({
+      owner,
+      repo,
+      issue_number: releasePr.number,
+      labels: [MOBILE_UPDATE_PENDING_LABEL],
+    });
+  }
+
   let merged;
   try {
     ({ data: merged } = await github.rest.pulls.merge({
@@ -505,6 +632,9 @@ async function shipBranch({
     workflow_id: 'branch-cleanup.yml',
     ref: 'main',
   });
+  if (publishMobile) {
+    await publishMobileUpdate(github, core, owner, repo, releasePr.number);
+  }
   return decision;
 }
 
@@ -533,6 +663,12 @@ export async function run({
     state: 'open',
     per_page: 100,
   });
+
+  try {
+    await publishPendingMobileUpdates(github, core, owner, repo, dryRun);
+  } catch (error) {
+    core.setFailed(`pending mobile updates: ${error.message}`);
+  }
 
   /** @type {Record<string, { action: string, reason: string }>} */
   const results = {};

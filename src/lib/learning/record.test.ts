@@ -162,6 +162,30 @@ describe('prepareFacts — unsupported list removals', () => {
     expect(out).toEqual([]);
   });
 
+  it('[INB-029] drops an unmentioned area when the learner says the list was restated', () => {
+    const out = prepareFacts(
+      'contact',
+      { pref_areas: ['Koramangala 1st Block'] },
+      [{ field: 'pref_areas', value: ['Horamavu'], replaces: true }],
+      "I'm looking near horamavu",
+      'lead_message'
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].value).toEqual(['Horamavu']);
+    expect(out[0].previous).toEqual(['Koramangala 1st Block']);
+  });
+
+  it('[INB-029] still restores an unmentioned area without a restatement', () => {
+    const out = prepareFacts(
+      'contact',
+      { pref_areas: ['Koramangala 1st Block'] },
+      [{ field: 'pref_areas', value: ['Horamavu'] }],
+      "I'm looking near horamavu",
+      'lead_message'
+    );
+    expect(out[0].value).toEqual(['Horamavu', 'Koramangala 1st Block']);
+  });
+
   it('allows a removal the buyer actually named', () => {
     const out = prepareFacts(
       'contact',

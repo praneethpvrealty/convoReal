@@ -58,7 +58,7 @@
         },
         {
           "id": "INB-004",
-          "rule": "A buyer's stated locality matches inventory across spelling variants, listings in that locality lead every buyer-facing shortlist ordered by property-type fit before nearby listings, a stated plot type matches plot listings rather than houses, and a locality the buyer types is saved in the spelling they typed (or the curated locality) rather than a misspelt inventory variant.",
+          "rule": "A buyer's stated locality matches inventory across spelling variants, listings in that locality lead every buyer-facing shortlist ordered by property-type fit before nearby listings, a stated plot type ranks plot listings above houses, and a locality the buyer types is saved in the spelling they typed (or the curated locality) rather than a misspelt inventory variant.",
           "tests": [
             {
               "file": "src/lib/locality-match.test.ts",
@@ -488,6 +488,56 @@
             {
               "file": "src/lib/ai/chatbot-engine.structure.test.ts",
               "case": "[INB-028]"
+            }
+          ]
+        },
+        {
+          "id": "INB-029",
+          "rule": "A lead who says where they want to buy is matched on that place alone: a reply the qualification ladder resolves to one locality, or a message naming areas extracted from it, replaces the saved area list (pref_areas, and areas_of_interest when it holds any) with the areas that message names, so neither a locality inherited from a portal enquiry nor an older answer is kept beside them, and a locality that only the requirement history still names no longer matches a contact with stated areas. A message that adds an area (also, too, as well) or names none keeps every saved area, even when it resolves to one locality. A budget the portal lead webhook seeds from the enquired listing's price is recorded as pref_budget_anchor, and while it stands the budget caps matches but implies no half-of-max floor, so cheaper stock in the area the lead named still reaches them. The anchor is cleared by any other write of pref_budget_max, even of the same value, and when the lead states that same maximum in their own words; a stated budget keeps its implied floor.",
+          "tests": [
+            {
+              "file": "src/lib/ai/buyer-qualification.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/learning/record.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/ai/buyer-qualification.process.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/app/api/leads/email-webhook/route.test.ts",
+              "case": "[INB-029]"
+            },
+            {
+              "file": "src/lib/ai/requirement-signal.test.ts",
+              "case": "[INB-029]"
+            }
+          ]
+        },
+        {
+          "id": "INB-030",
+          "rule": "Inbox search on web and mobile matches the text of every message in a conversation, not only the contact's name, phone, close reason and latest message: a query of two or more characters asks search_inbox_messages, which runs with the caller's own message RLS (so team and assignment scoping still apply), skips deleted messages, treats % and _ literally, searches only the archive view being shown so the other view's hits cannot crowd out its own, and returns the newest matching message per conversation; the row then previews that message, starting near the match even when the match is in a header line the normal preview hides.",
+          "tests": [
+            {
+              "file": "src/lib/conversations/inbox-search.test.ts",
+              "case": "[INB-030]"
+            }
+          ]
+        },
+        {
+          "id": "INB-031",
+          "rule": "Property type matching never crosses a sector: residential, commercial, industrial and agricultural seekers only ever match listings in their own sector. Within residential, a house or villa seeker also matches residential plots and a residential plot seeker (or a plot seeker who named no other sector) also matches houses and villas, both as partial type fits ranked below exact ones, unless the seeker's own words rule that type out (\"no plots\", \"no sites or land\", \"no house\", \"no villa\"); the swap applies to sale listings only, never to rentals, farm houses are not offered to plot seekers however the type is spelt, and apartment seekers still see neither.",
+          "tests": [
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[INB-031]"
             }
           ]
         }
@@ -1680,7 +1730,7 @@
         },
         {
           "id": "PRP-029",
-          "rule": "The Ads page always says whether Meta is connected: a not-connected intro with the three setup steps, a reconnect banner (ads keep running and billing on Meta; pausing or changing a budget needs a reconnect) when the connection expired or was disconnected, or a Connected chip, and a failed load shows an error with Retry rather than the empty state. Spend, reach, chats and cost per lead cover the last 30 days in the ad account's currency and show an as-of time once stale or archived, an archived ad shows no cost per lead because its spend froze at archival while leads keep a rolling window, Leads in Engine counts each contact once per ad in SQL rather than from a capped row fetch, a failed config or lead-count read fails the load rather than showing not connected or zero leads, and a budget edit submits once, cancels on Escape and shows the server's validation message inline.",
+          "rule": "The Ads page always says whether Meta is connected: a not-connected intro with the three setup steps, a reconnect banner (ads keep running and billing on Meta; pausing or changing a budget needs a reconnect) when the connection expired or was disconnected, or a Connected chip, and a failed load shows an error with Retry rather than the empty state. Spend, reach, chats and cost per lead cover the last 30 days in the ad account's currency and show an as-of time once stale or archived, figures cached before the 30-day window (lifetime totals) are refetched once, archived ads included at most five per load, and dropped rather than labelled the last 30 days when that refetch fails, an archived ad shows no cost per lead because its spend froze at archival while leads keep a rolling window, Leads in Engine counts each contact once per ad in SQL rather than from a capped row fetch, a failed config or lead-count read fails the load rather than showing not connected or zero leads, and a budget edit submits once, cancels on Escape and shows the server's validation message inline.",
           "tests": [
             {
               "file": "src/app/(dashboard)/ads/ads-content.test.tsx",
@@ -2239,7 +2289,7 @@
         },
         {
           "id": "JRN-015",
-          "rule": "A client who types when to be checked back on — in reply to the enquiry check-in (the enquiry_checkin_notice template or an inbox check-in) or to the timeline question — gets the date read (\"wait for a week\", \"in 10 days\", \"5th October\"), a follow-up to-do filed at once for that contact×property (moved, never duplicated, when one is open), the journey item's planned step stamped, the unprompted-pitch quiet window set, the words logged on the journey and the agent notified; the bot then asks \"shall I check back with you in a week, on <date>?\" with Yes and Another date buttons. Yes acknowledges the date; Another date asks again and the typed answer moves the same reminder without asking a second time. A reply that names no date files no reminder.",
+          "rule": "A client who types when to be checked back on — in reply to the enquiry check-in (the enquiry_checkin_notice template or an inbox check-in) or to the timeline question — gets the date read (\"wait for a week\", \"in 10 days\", \"5th October\"), a follow-up to-do filed at once for that contact×property (moved, never duplicated, when one is open), the journey item's planned step stamped, the unprompted-pitch quiet window set, the words logged on the journey and the agent notified; the bot then asks \"shall I check back with you in a week, on <date>?\" with Yes and Another date buttons. Yes acknowledges the date; Another date asks again and the typed answer moves the same reminder without asking a second time. A reply that names no date files no reminder. A reply asking to be called (\"Please call me\") is logged on the journey but never answered with the timeline question: it goes on to the callback handover, which promises a call and notifies the assigned agent. The client offering to ring us is not such a request, including when the offer follows \"and\" (\"I'll check and call back tomorrow\"), while \"I'm busy and call me later\" still is; and a reply that rejects the listing and asks to be called (\"Not interested, please call me\") records the rejection without the factor prompt and still reaches the callback handover.",
           "tests": [
             {
               "file": "src/lib/journey/typed-check-back.test.ts",
@@ -2306,6 +2356,34 @@
             "supabase/migrations/20261001032200_journey_auto_open_deal_backfill.sql",
             "src/components/journey/journey-item-sheet.tsx",
             "mobile/app/(app)/journey.tsx"
+          ]
+        },
+        {
+          "id": "JRN-019",
+          "rule": "A client who answers an inbox check-in by typing a requirement (a property type, budget or size, such as \"Hsr layout 30x40 north and east facing only\") that names no check-back date is not treated as an update on the checked-in listing: nothing is logged on that listing's journey, no note, deal note or notification is written for it, and the timeline question is not sent; the message falls through to requirement qualification, which files it on the contact and replies with matching listings — or, when an agent sent the check-in and so owns the thread, files it and raises a Match Radar event for the agent instead of the bot replying. When qualification will not take the message (auto-qualification off, a parked requirement, or a contact who is not a buyer), the requirement is still appended to the contact and their preferences re-extracted, so it reaches matching. References to the checked-in listing itself (\"this plot\", \"the villa\") are not a requirement, so \"Not interested in this plot\" stays a check-in reply while \"Not interested in this plot; I need a villa under 2 crore\" is matched. A requirement asked as a question (\"Any villa under 2 crore?\", \"Can you find a villa that is under 2 crore?\") counts as a requirement. A reply that rejects the listing or asks a question naming it (\"Is the plot east facing?\", \"Is it a corner plot?\", \"Does this office have parking?\", \"Can it be used as an office?\") is still handled as a check-in reply, and a reply that asks to be checked back on at a date (\"check back in a week\", \"wait for 2 weeks\", \"call me after a week\") still files the check-back as JRN-015 describes; a date stated as part of the requirement (\"available next week\", \"can't wait, need a 2 BHK next week\") does not, and neither does a declined check-back (\"no need to check back\").",
+          "tests": [
+            {
+              "file": "src/lib/journey/typed-check-back.test.ts",
+              "case": "[JRN-019]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/client-response.ts",
+            "src/lib/ai/requirement-signal.ts"
+          ]
+        },
+        {
+          "id": "JRN-020",
+          "rule": "Text an agent types in reply to a WhatsApp closing card (\"Closing in progress\") is that agent's note on the deal the card names: it is logged on that journey item and the buyer's contact notes, the card is held back for the re-nudge period, and the agent is told it was noted, without asking who the client is and without messaging the buyer. The deal is read from the quoted card's buyer phone, and its listing when the buyer is closing on more than one; when that deal is no longer on a closing stage the agent is told the note was not saved. A quote of any other message is left to the paths below.",
+          "tests": [
+            {
+              "file": "src/lib/journey/closing-card-note.test.ts",
+              "case": "[JRN-020]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/closing-nudges.ts",
+            "src/lib/whatsapp/inbound/chain/steps/control-reply.ts"
           ]
         }
       ]
@@ -3998,6 +4076,237 @@
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[SLP-006]"
             }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "account-roles",
+      "name": "Account membership and roles",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "ACC-001",
+          "rule": "A member's account, role and read-only status change only through the member RPCs (set_member_role, set_member_org_role, set_member_team, transfer_account_ownership, remove_account_member, redeem_invitation) and server-side setup; a signed-in client cannot insert a profile row, and updating its own row cannot change account_id, account_role, org_role, is_read_only, team_id or the platform role column, so no role-, team- or platform-admin-gated check can be cleared by self-edit or by a persona without a profile (Portfolio owner or buyer) creating one, and the profile-setup route bootstraps a brokerage account only through bootstrap_staff_account, a service-role-only database function that holds a per-user lock before it looks for a profile, so overlapping calls return the one account instead of minting an orphan tenant; redeems a live team invitation under a row lock by marking it accepted and attaching the user to the inviting account with the invited role, never creating an account for it; re-runs the sign-up invite gate under row locks for a new tenant (a live beta invitation while the gate is on, one seat per invitation); and never runs for a Portfolio owner or buyer identity.",
+          "tests": [
+            {
+              "file": "src/lib/migrations/profiles-role-guard.test.ts",
+              "case": "[ACC-001]"
+            },
+            {
+              "file": "src/app/api/auth/profile-setup/route.test.ts",
+              "case": "[ACC-001]"
+            },
+            {
+              "file": "src/lib/migrations/bootstrap-staff-account.test.ts",
+              "case": "[ACC-001]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261004080500_profiles_privileged_columns_guard.sql",
+            "src/app/api/auth/profile-setup/route.ts",
+            "supabase/migrations/20261004090500_bootstrap_staff_account.sql",
+            "supabase/migrations/20261004140500_bootstrap_staff_account_invite_redeem.sql"
+          ]
+        },
+        {
+          "id": "ACC-002",
+          "rule": "A read-only member (profiles.is_read_only, stored as an agent-level org_agent) cannot create, change, run or delete automations or flows, nor activate or buy a marketplace flow. Every mutating route for them (POST /api/automations, PATCH and DELETE /api/automations/[id], POST /api/automations/[id]/duplicate, POST /api/automations/engine, POST /api/flows, PUT and DELETE /api/flows/[id], POST /api/flows/[id]/activate, POST /api/marketplace/items/[id]/activate and /checkout, the last two tested together in the activate route test) uses requireWriteRole('agent') and answers 403 before writing, while their GET routes stay open to read-only members. The database refuses the same writes on its own: the write policies on flows, flow_nodes, automations and automation_steps use is_account_writer(), which is is_account_member() plus the read-only check, so a read-only member's own JWT cannot write them through PostgREST either. The web UI matches with useCan('make-changes') (canSendMessages && !isReadOnly): create, edit, delete and activate actions are hidden or disabled, and the flow editor opens read-only with every mutation a no-op and no media upload, while node disclosures and canvas navigation stay usable.",
+          "tests": [
+            {
+              "file": "src/app/api/automations/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/automations/[id]/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/automations/[id]/duplicate/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/automations/engine/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/flows/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/flows/[id]/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/flows/[id]/activate/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/api/marketplace/items/[id]/activate/route.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/lib/auth/read-only-rls.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/hooks/useCan.test.ts",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/app/(dashboard)/flows/flows-content.test.tsx",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/components/flows/flow-editor-provider.test.tsx",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/components/flows/flow-builder.test.tsx",
+              "case": "[ACC-002]"
+            },
+            {
+              "file": "src/components/flows/forms/node-config-form.test.tsx",
+              "case": "[ACC-002]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261004155516_flow_automation_write_read_only_rls.sql",
+            "src/lib/auth/account.ts",
+            "src/hooks/useCan.ts",
+            "src/components/flows/flow-editor-state.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "credits",
+      "name": "AI credits wallet and transaction history",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "CRD-001",
+          "rule": "The credits history names what each row was for, never the marker the ledger stores: a refund reads \"Refund — <feature>\" and a charge reads the feature's name, whether its description is a refund marker (refund:<burn id>), a retry key (retry:<key>) or \"<feature> burn\", while a description a person wrote is kept as written. Web (including its CSV export) and mobile render the one label from the same function, so the two surfaces cannot disagree about it.",
+          "tests": [
+            {
+              "file": "src/lib/format/ledger-label.test.ts",
+              "case": "[CRD-001]"
+            }
+          ],
+          "guards": [
+            "src/lib/format/ledger-label.ts",
+            "src/components/settings/CreditLedger.tsx",
+            "mobile/app/(app)/credits.tsx"
+          ]
+        },
+        {
+          "id": "CRD-002",
+          "rule": "A voice call attempt, a reminder call and a listing video render are refunded by the charge each one made, never by feature and amount: a dial is charged and refunded under voice-call:<recipient>:<attempt>, shared by the dispatcher's start-failure and stale-requeue refunds and the post-call webhook's no-answer refund; a reminder call is refunded under its own retry key; and a listing video's burn key travels in the queued job, with a job queued before keys existed still refunded by amount. Each refund goes through refundBurn, so it reverses at most the rows written under that key and is queued for the hourly credit-refunds cron if the call fails.",
+          "tests": [
+            {
+              "file": "src/lib/voice/keyed-refunds.test.ts",
+              "case": "[CRD-002]"
+            }
+          ],
+          "guards": [
+            "src/lib/voice/campaigns.ts",
+            "src/app/api/cron/voice-campaigns/route.ts",
+            "src/app/api/webhooks/voice-agent/route.ts",
+            "src/lib/voice/reminder-call.ts",
+            "src/lib/video/listing-video-worker.ts"
+          ]
+        },
+        {
+          "id": "CRD-003",
+          "rule": "The AI routes named in keyed-refund-routes.test.ts (ad copy, photo enhancement, listing descriptions, greetings, event parsing, share email, call analysis and call action items, deal document reads, guidance value lookups and e-Khata reads) charge credits before their call and return them when it fails by the charge they made: the route mints one burn key per request, burns under it, and every failure path refunds that key through refundBurn, so a refund reverses at most the rows written under that key and a refund that fails is queued for the hourly credit-refunds cron instead of failing the route. What the route then tells the user follows the refund's outcome, and never says credits were refunded unless they were.",
+          "tests": [
+            {
+              "file": "src/lib/credits/keyed-refund-routes.test.ts",
+              "case": "[CRD-003]"
+            },
+            {
+              "file": "src/app/api/greetings/generate/route.test.ts",
+              "case": "[CRD-003]"
+            }
+          ],
+          "guards": [
+            "src/lib/credits/refund-burn.ts",
+            "src/app/api/ai/ad-copy/route.ts",
+            "src/app/api/properties/e-khata/route.ts",
+            "src/app/api/guidance-value/lookup/route.ts"
+          ]
+        },
+        {
+          "id": "CRD-004",
+          "rule": "A reminder voice note and a reminder call are each charged under a key that names one charge, never the subject: a reminder voice note under a key minted for each run of the worker (reminder_audio:<uuid>), so a replayed job or a claim taken over after a lost send never shares a charge with an earlier run, and a reminder call under a key minted for the call (voice_campaign_call:<uuid>), so a re-armed or taken-over reminder never shares a charge with an earlier call. Each failure refunds that key through refundBurn, which reverses only the rows written under it, and neither feature is refunded by feature and amount. A match unlock is not covered: it still refunds by feature and amount until its charge and the unlock row are written atomically.",
+          "tests": [
+            {
+              "file": "src/lib/credits/keyed-refund-reminders.test.ts",
+              "case": "[CRD-004]"
+            },
+            {
+              "file": "src/lib/appointments/reminder.test.ts",
+              "case": "[CRD-004]"
+            }
+          ],
+          "guards": [
+            "src/lib/voice/reminder-audio-worker.ts",
+            "src/lib/voice/reminder-call.ts",
+            "src/lib/appointments/reminder.ts"
+          ]
+        },
+        {
+          "id": "CRD-005",
+          "rule": "An audio announcement is charged under its own burn key, stored on its row (voice_announcements.burn_key), and refunded by that key through refundBurn on every failure. A render that fails in the worker refunds that key. A row whose insert fails, or a job that cannot be queued, is first cancelled by the charge's key, only while the row is still generating and retrying the update, so a row the insert committed before its reply was lost is cancelled too, a row that does not exist counts as cancelled, and a cancellation whose own reply was lost is recognised by the row's failed status and error; the refund follows only a confirmed cancellation. When the cancellation cannot be made at all the refund is held and the charge's key is logged for manual reconciliation, because the job may have been queued after all. The worker ignores a row that is no longer generating and marks a row ready only while it is, so a push that was committed after all cannot render an announcement whose credits were refunded. A row created before keys existed has no burn_key and is still refunded by feature and amount.",
+          "tests": [
+            {
+              "file": "src/lib/voice/keyed-refund-announcements.test.ts",
+              "case": "[CRD-005]"
+            }
+          ],
+          "guards": [
+            "src/app/api/announcements/route.ts",
+            "src/lib/voice/announcement-worker.ts",
+            "supabase/migrations/20261004190000_voice_announcements_burn_key.sql"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "match-radar",
+      "name": "Match Radar — one-tap WhatsApp alerts for matched buyers and listings",
+      "surfaces": ["web", "mobile", "whatsapp"],
+      "invariants": [
+        {
+          "id": "RDR-001",
+          "rule": "A Match Radar event's alerts reach each recipient once, enforced by the server rather than the client. POST /api/radar/send claims the event with one conditional update before it sends anything; while that claim is live (6 minutes, longer than the route can run) another send of the same event is refused with 409 SEND_IN_PROGRESS and sends nothing. Each recipient is recorded on the event before its alert goes out and taken off again only when that send is known not to have reached Meta (refused before or by Meta); a failure after Meta accepted any part of the alert, or a request whose outcome is unknown, keeps the recipient recorded, so a run that dies mid-send can never be retried into a duplicate, and every later send of the event skips recorded recipients: a resubmit from a stale screen or a retry after a crashed batch reaches only recipients who do not have the alert yet, and is refused with 409 ALREADY_SENT when every selected recipient already has it (as is an event sent before recipients were recorded). Only the re-engagement Send again button, which asks to resend, delivers to a recipient twice. A send that delivered nothing releases the claim so the card can be retried, one that delivered anything marks the event sent, even when a later target threw, and sent_count adds to the total current when the claim was taken. Web and mobile show the refusal (\"This alert is already being sent.\" / \"This alert was already sent.\") from one shared mapping and refresh the feed instead of resending.",
+          "tests": [
+            {
+              "file": "src/app/api/radar/send/route.test.ts",
+              "case": "[RDR-001]"
+            },
+            {
+              "file": "src/lib/radar/send-claim.test.ts",
+              "case": "[RDR-001]"
+            },
+            {
+              "file": "src/lib/whatsapp/meta-api-dispatcher.test.ts",
+              "case": "[RDR-001]"
+            },
+            {
+              "file": "src/app/(dashboard)/radar/radar-content.test.tsx",
+              "case": "[RDR-001]"
+            },
+            {
+              "file": "mobile/lib/radar.test.ts",
+              "case": "[RDR-001]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261004140649_match_event_send_claim.sql",
+            "src/lib/radar/send-claim.ts",
+            "src/lib/radar/send-refusal.ts",
+            "mobile/app/(app)/radar.tsx"
           ]
         }
       ]

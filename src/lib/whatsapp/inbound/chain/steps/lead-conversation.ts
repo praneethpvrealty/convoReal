@@ -14,10 +14,13 @@ import {
 } from '@/lib/journey/client-response';
 import {
   looksLikeQuestion,
+  offersOwnCall,
   requestsHumanContact,
+  withoutOwnCallOffer,
 } from '@/lib/ai/lead-question';
 import {
   isInboundVisitRequest,
+  looksLikeSchedulingText,
   tryHandleInboundScheduling,
 } from '@/lib/calendar/whatsapp-scheduler';
 import { supabaseAdmin } from '@/lib/supabase/admin';
@@ -78,10 +81,15 @@ export async function leadConversation(
     // "Call me tomorrow at 5" carries a date and a time but asks for a
     // phone call, not a site visit — it belongs to the handover branch
     // below, the same way a question does.
+    // "I'll call back tomorrow" is the lead's own call, not a visit to
+    // book — it belongs to the check-in and timeline capture below,
+    // unless the rest of the message asks to visit or schedule.
     if (
       !requestsHumanContact(contentText) &&
-      (!looksLikeQuestion(contentText) ||
-        isInboundVisitRequest(contentText || ''))
+      (isInboundVisitRequest(contentText || '') ||
+        (!looksLikeQuestion(contentText) &&
+          (!offersOwnCall(contentText) ||
+            looksLikeSchedulingText(withoutOwnCallOffer(contentText)))))
     ) {
       const booked = await tryHandleInboundScheduling({
         message,
@@ -124,6 +132,8 @@ export async function leadConversation(
     // If the message does not carry a new requirement brief, resolve the property,
     // record the rejection on listing_feedback, and send the interactive factor
     // prompt with one-tap options (type / budget / location / size / other) + typing invitation.
+    // "Not interested, please call me" records the rejection without the
+    // prompt and goes on to the callback handover.
     if (
       !ownerCheck.isOwner &&
       message.type === 'text' &&
@@ -152,6 +162,7 @@ export async function leadConversation(
           conversationId: conversation.id,
           inboundText: contentText,
           quotedPropertyId,
+          recordOnly: requestsHumanContact(contentText),
         });
         if (handledDisinterest) return 'handled';
       }

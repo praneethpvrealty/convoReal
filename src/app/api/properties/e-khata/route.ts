@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { burnCredits, refundCredits } from '@/lib/credits/burn';
+import { burnCredits } from '@/lib/credits/burn';
+import {
+  newBurnKey,
+  refundBurn,
+  refundOutcomeNotice,
+} from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { extractEKhata } from '@/lib/inventory/e-khata';
 import {
@@ -99,7 +104,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const burn = await burnCredits(ctx.accountId, FEATURE, COST);
+    const burnKey = newBurnKey(FEATURE);
+    const burn = await burnCredits(ctx.accountId, FEATURE, COST, {
+      retryKey: burnKey,
+    });
     if (!burn.success) {
       return NextResponse.json(
         {
@@ -117,27 +125,28 @@ export async function POST(request: Request) {
         mimeType,
       });
     } catch (err) {
-      await refundCredits(ctx.accountId, FEATURE, COST, {
-        description: 'e-Khata read failed',
+      const refund = await refundBurn(ctx.accountId, FEATURE, burnKey, {
+        reason: 'e-Khata read failed',
       });
       console.error(
         '[e-khata] read failed:',
         err instanceof Error ? err.message : err
       );
       return NextResponse.json(
-        { error: 'Could not read this e-Khata. Your credits were refunded.' },
+        {
+          error: `Could not read this e-Khata. ${refundOutcomeNotice(refund)}`,
+        },
         { status: 502 }
       );
     }
 
     if (!isReadableEKhata(fields)) {
-      await refundCredits(ctx.accountId, FEATURE, COST, {
-        description: 'not an e-Khata',
+      const refund = await refundBurn(ctx.accountId, FEATURE, burnKey, {
+        reason: 'not an e-Khata',
       });
       return NextResponse.json(
         {
-          error:
-            'This does not look like an e-Khata. Your credits were refunded.',
+          error: `This does not look like an e-Khata. ${refundOutcomeNotice(refund)}`,
           code: 'NOT_E_KHATA',
         },
         { status: 422 }
@@ -162,13 +171,12 @@ export async function POST(request: Request) {
         attached = !error && (updated?.length ?? 0) > 0;
       }
       if (!attached) {
-        await refundCredits(ctx.accountId, FEATURE, COST, {
-          description: 'e-Khata could not be attached',
+        const refund = await refundBurn(ctx.accountId, FEATURE, burnKey, {
+          reason: 'e-Khata could not be attached',
         });
         return NextResponse.json(
           {
-            error:
-              'Read the e-Khata but could not save it to this listing. Your credits were refunded; please try again.',
+            error: `Read the e-Khata but could not save it to this listing. ${refundOutcomeNotice(refund)} Please try again.`,
           },
           { status: 500 }
         );

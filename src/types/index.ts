@@ -161,9 +161,9 @@ export interface Contact {
    *  primary; while this is null and there is more than one number, the
    *  WhatsApp action asks. */
   whatsapp_phone_confirmed_at?: string | null;
-  name?: string;
+  name?: string | null;
   /** Client-facing honorific. Explicitly selected; never inferred from a name. */
-  salutation?: 'Mr.' | 'Mrs.' | null;
+  salutation?: string | null;
   /** Second name (surname) — with `name` forms the per-account unique
    *  full name (migration 166). Never included in outbound messages,
    *  which address the contact by `name` alone. */
@@ -175,34 +175,27 @@ export interface Contact {
   /** Language this contact reads (migration 246). Null means unknown —
    *  the send path falls back to the account default, so null and 'en'
    *  are deliberately different: 'en' is a choice an agent made. */
-  preferred_language?: LanguageCode | null;
-  email?: string;
-  company?: string;
-  classification?:
-    | 'Owner'
-    | 'Seller'
-    | 'Buyer'
-    | 'Agent'
-    | 'Developer'
-    | 'Owner & Buyer'
-    | 'Others';
-  avatar_url?: string;
-  min_budget?: number;
-  max_budget?: number;
-  no_budget?: boolean;
-  areas_of_interest?: string[];
+  preferred_language?: string | null;
+  email?: string | null;
+  company?: string | null;
+  classification?: string;
+  avatar_url?: string | null;
+  min_budget?: number | null;
+  max_budget?: number | null;
+  no_budget?: boolean | null;
+  areas_of_interest?: string[] | null;
   /** Coordinates for Google-picked areas_of_interest entries (migration 126);
    *  proximity matching falls back to the static locality table otherwise. */
   areas_of_interest_geo?: AreaOfInterestGeo[] | null;
   /** Agent-entered named projects/societies the contact wants
    *  (migration 193). Explicit twin of the AI-extracted pref_projects;
    *  src/lib/matching.ts matches the union of both. */
-  projects_of_interest?: string[];
+  projects_of_interest?: string[] | null;
   /** When true, only listings in projects_of_interest/pref_projects can
    *  match this contact (migration 193) — everything else is excluded
    *  regardless of type, area or budget fit. */
-  strict_project_match?: boolean;
-  property_interests?: string[];
+  strict_project_match?: boolean | null;
+  property_interests?: string[] | null;
   /** Agent bookmark (migration 203) — drives the Favourites tab on the
    *  Contacts page. Uncapped, and independent of `status`. */
   is_favorite?: boolean;
@@ -211,21 +204,20 @@ export interface Contact {
    *  of the contacts list and broadcast audiences, and unreachable by
    *  outbound except the consent-chain sends that created them. */
   chain_only?: boolean;
-  status?: 'active' | 'pending_review';
-  lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
+  status?: string;
+  lead_temp?: string | null;
   /** How announcements/reminders reach this contact; null = no stated
    *  preference, the sender's default applies. */
-  preferred_update_channel?:
-    'whatsapp_text' | 'whatsapp_audio' | 'voice_call' | null;
+  preferred_update_channel?: string | null;
   dob?: string | null;
-  feedback_status?: 'not_requested' | 'requested' | 'collected';
+  feedback_status?: string;
   last_contacted_at?: string | null;
   /** Meta 131049: marketing templates are paused until this time. A new
    * inbound message clears the pause; Utility templates remain eligible. */
   whatsapp_marketing_suppressed_until?: string | null;
   whatsapp_marketing_suppression_code?: number | null;
-  strict_area_match?: boolean;
-  referrer?: string;
+  strict_area_match?: boolean | null;
+  referrer?: string | null;
   referrer_contact_id?: string | null;
   requirements?: string | null;
   /** Independent buyer briefs captured outside the Engine. Matching
@@ -280,6 +272,11 @@ export interface Contact {
   pref_listing_types?: string[] | null;
   pref_source_hash?: string | null;
   pref_extracted_at?: string | null;
+  /** The pref_budget_max the portal lead webhook seeded from the
+   *  enquired listing's price (migration 20261004131500). While
+   *  pref_budget_max still equals it, matching reads it as a ceiling
+   *  with no implied floor. */
+  pref_budget_anchor?: number | null;
   contact_notes?: { note_text: string }[] | null;
   /** Listing types of the properties this contact actually enquired
    *  about, hydrated by attachInquiredListingTypes (not a column).
@@ -296,7 +293,7 @@ export interface Contact {
   /** Buyer's WhatsApp property-alert consent (migration 160) — managed
    *  by STOP ALERTS/START ALERTS chat commands and the buyer portal.
    *  'declined' excludes the contact from broadcast audiences. */
-  buyer_alerts_consent?: 'pending' | 'granted' | 'declined';
+  buyer_alerts_consent?: string;
   /** When the match digest last asked a 'pending' buyer to opt in
    *  (migration 174). Set once — a buyer who never answered is never
    *  asked again. */
@@ -310,8 +307,8 @@ export interface Contact {
    *  "unassigned queue" RLS branch; invisible to Org Agents). */
   assigned_agent_id?: string | null;
   assigned_team_id?: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 // ── Match Radar (migration 094) ─────────────────────────────
@@ -350,6 +347,8 @@ export interface MatchEvent {
   status: 'new' | 'sent' | 'dismissed';
   sent_count: number;
   sent_at: string | null;
+  send_claimed_at?: string | null;
+  sent_target_ids?: string[] | null;
   created_at: string;
   updated_at: string;
   /** 'deal_mode' = cross-tenant Owners Den event (migration 134): the
@@ -766,25 +765,25 @@ export interface Deal {
    * contact is deleted (ON DELETE SET NULL). History preserved.
    */
   contact_id: string | null;
-  conversation_id?: string;
-  assigned_to?: string;
+  conversation_id?: string | null;
+  assigned_to?: string | null;
   title: string;
   value: number;
-  currency?: string;
-  notes?: string;
-  expected_close_date?: string;
+  currency?: string | null;
+  notes?: string | null;
+  expected_close_date?: string | null;
   /** The day the deal actually closed, as opposed to the forecast in
    *  `expected_close_date` (migration 20260914114500). */
   actual_close_date?: string | null;
-  status?: DealStatus;
-  created_at: string;
-  updated_at?: string;
+  status?: string | null;
+  created_at: string | null;
+  updated_at?: string | null;
   property_id?: string | null;
   property?: Property;
   contact?: Contact;
   stage?: PipelineStage;
   assignee?: Profile;
-  brokerage_type?: 'percentage' | 'fixed' | null;
+  brokerage_type?: string | null;
   brokerage_value?: number | null;
   brokerage_amount?: number | null;
   brokerage_paid_at?: string | null;
@@ -800,13 +799,12 @@ export interface Deal {
   token_amount?: number | null;
   token_received_at?: string | null;
   token_instrument_ref?: string | null;
-  tds_status?: 'not_applicable' | 'expected' | 'deducted' | 'deposited' | null;
+  tds_status?: string | null;
   tds_amount?: number | null;
   payment_instrument_refs?: string | null;
   brokerage_received_amount?: number | null;
   /** Co-broking (migration 20260928042711). Internal only. */
-  deal_position?:
-    'direct' | 'buyer_side' | 'seller_side' | 'intermediary' | null;
+  deal_position?: string | null;
   co_broker_payout_total?: number | null;
   lost_reason?: string | null;
   lost_note?: string | null;

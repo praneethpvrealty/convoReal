@@ -98,7 +98,7 @@ export default function AutomationLogsPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const canEdit = useCan('send-messages');
+  const canEdit = useCan('make-changes');
   const [openLogId, setOpenLogId] = useState<string | null>(null);
   const [filter, setFilter] = useState<StatusFilter>('all');
 

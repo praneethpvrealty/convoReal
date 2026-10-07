@@ -411,7 +411,7 @@ function CreateAnnouncementSheet({
         <Text
           style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}
         >
-          Costs {cost} cr per render — refunded automatically if generation
+          Costs {cost} credits per render — refunded automatically if generation
           fails.
         </Text>
         <PrimaryButton

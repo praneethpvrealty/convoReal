@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { loadMatchEvents } from '@/lib/radar/queries';
+import { radarSendRefusalMessage } from '@/lib/radar/send-refusal';
 import {
   DEFAULT_ALERT_MIN_SCORE,
   defaultSelectedTargetIds,
@@ -177,6 +178,7 @@ export default function RadarPage() {
 
   // Trigger Send Match Alert API
   const handleSend = async (event: MatchEvent) => {
+    if (sendingId) return;
     const selectedIds = Array.from(selectionFor(event));
     if (selectedIds.length === 0) {
       toast.error('Please select at least one match target to send');
@@ -199,6 +201,12 @@ export default function RadarPage() {
       });
 
       const data = await res.json();
+      const refusal = res.status === 409 && radarSendRefusalMessage(data.code);
+      if (refusal) {
+        toast.info(refusal);
+        queryClient.invalidateQueries({ queryKey: eventsQueryKey });
+        return;
+      }
       if (!res.ok) {
         throw new Error(data.error || 'Broadcast dispatch failed');
       }
@@ -700,7 +708,7 @@ export default function RadarPage() {
                         <Button
                           size="sm"
                           disabled={
-                            selectedIds.size === 0 || sendingId === evt.id
+                            selectedIds.size === 0 || sendingId !== null
                           }
                           onClick={() => handleSend(evt)}
                           className="bg-primary hover:bg-primary/95 text-primary-foreground h-9 cursor-pointer rounded-xl px-4 text-xs font-semibold"

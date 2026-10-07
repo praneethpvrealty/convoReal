@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useMemo } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast } from '@/types';
-import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -20,6 +21,8 @@ import { useCan } from '@/hooks/useCan';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { InfoHint } from '@/components/ui/info-hint';
+import { useAuth } from '@/hooks/useAuth';
+import { LoadError } from '@/components/broadcasts/load-error';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -37,12 +40,17 @@ function RateCell({
   value,
   total,
   color,
+  draft,
 }: {
   value: number;
   total: number;
   /** Tailwind bg class for the fill, e.g. "bg-primary" */
   color: string;
+  draft: boolean;
 }) {
+  if (draft) {
+    return <span className="pl-8 text-xs text-slate-500">—</span>;
+  }
   const pct = percent(value, total);
   return (
     <div className="flex items-center gap-2">
@@ -62,78 +70,36 @@ function RateCell({
 export default function BroadcastsContent() {
   const router = useRouter();
   const canCreate = useCan('send-messages');
-  const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { accountId } = useAuth();
 
-  // Used to kick off polling only while something is actively sending.
-  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  async function fetchBroadcasts() {
-    try {
-      const supabase = createClient();
-      const { data, error: fetchError } = await supabase
+  const broadcastsQuery = useQuery({
+    queryKey: ['broadcasts', accountId],
+    queryFn: async () => {
+      const { data, error } = await createClient()
         .from('broadcasts')
         .select('*')
         .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Broadcast[];
+    },
+    enabled: !!accountId,
+    refetchInterval: (query) =>
+      query.state.data?.some((b) => b.status === 'sending')
+        ? POLL_INTERVAL_MS
+        : false,
+  });
 
-      if (fetchError) throw fetchError;
-      setBroadcasts(data ?? []);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to load broadcasts'
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchBroadcasts();
-  }, []);
+  const broadcasts = useMemo(
+    () => broadcastsQuery.data ?? [],
+    [broadcastsQuery.data]
+  );
 
   const anySending = useMemo(
     () => broadcasts.some((b) => b.status === 'sending'),
     [broadcasts]
   );
 
-  useEffect(() => {
-    function startPolling() {
-      if (pollTimer.current) return;
-      pollTimer.current = setInterval(fetchBroadcasts, POLL_INTERVAL_MS);
-    }
-    function stopPolling() {
-      if (!pollTimer.current) return;
-      clearInterval(pollTimer.current);
-      pollTimer.current = null;
-    }
-
-    // Pause polling while the tab is hidden — keeps Supabase cold when
-    // the user is away, and ensures a fresh fetch the moment they
-    // refocus so they don't see stale data on return.
-    function handleVisibilityChange() {
-      if (!anySending) return;
-      if (document.visibilityState === 'hidden') {
-        stopPolling();
-      } else {
-        fetchBroadcasts();
-        startPolling();
-      }
-    }
-
-    if (anySending && document.visibilityState === 'visible') {
-      startPolling();
-    } else {
-      stopPolling();
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      stopPolling();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [anySending]);
-
-  if (loading) {
+  if (!broadcastsQuery.data && !broadcastsQuery.isError) {
     return (
       <div className="flex h-64 flex-col items-center justify-center text-slate-400">
         <SignalWaveLoader
@@ -147,14 +113,13 @@ export default function BroadcastsContent() {
     );
   }
 
-  if (error) {
+  if (!broadcastsQuery.data) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2">
-        <p className="text-sm text-red-400">{error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          Retry
-        </Button>
-      </div>
+      <LoadError
+        what="broadcasts"
+        onRetry={() => broadcastsQuery.refetch()}
+        retrying={broadcastsQuery.isFetching}
+      />
     );
   }
 
@@ -261,7 +226,13 @@ export default function BroadcastsContent() {
                     onClick={() => router.push(`/broadcasts/${broadcast.id}`)}
                   >
                     <TableCell className="font-medium text-white">
-                      {broadcast.name}
+                      <Link
+                        href={`/broadcasts/${broadcast.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="focus-visible:ring-primary rounded-sm hover:underline focus-visible:ring-2 focus-visible:outline-none"
+                      >
+                        {broadcast.name}
+                      </Link>
                     </TableCell>
                     <TableCell className="hidden text-slate-300 md:table-cell">
                       {broadcast.template_name}
@@ -274,6 +245,7 @@ export default function BroadcastsContent() {
                         value={broadcast.delivered_count}
                         total={broadcast.total_recipients}
                         color="bg-primary"
+                        draft={broadcast.status === 'draft'}
                       />
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
@@ -281,6 +253,7 @@ export default function BroadcastsContent() {
                         value={broadcast.read_count}
                         total={broadcast.total_recipients}
                         color="bg-blue-500"
+                        draft={broadcast.status === 'draft'}
                       />
                     </TableCell>
                     <TableCell>

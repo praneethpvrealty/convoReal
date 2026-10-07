@@ -17,8 +17,96 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 6 October 2026
+
+- **Two more "call me" replies take the right path.** "I'll check and call back
+  tomorrow" is read as the client's own call again, not a request for the
+  team to ring, so the callback promise is no longer sent. "Not interested,
+  please call me" still records the rejection on the listing, but skips the
+  factor menu and goes to the callback handover, which promises a call and
+  alerts the agent. Invariant JRN-015.
+
+- **A note typed in reply to a closing card is filed on that deal.** Replying
+  "Legal done → Agreement" to a "Closing in progress" card used to be read as
+  a forwarded client reply, so the bot asked who the client was and offered
+  unrelated contacts. The card already names the buyer and the plot, so the
+  note is now logged on that journey item and the buyer's contact notes, the
+  card is held back for its re-nudge period, and the agent gets a "Noted"
+  confirmation. Nothing is sent to the buyer. Invariant JRN-020.
+
+#### 5 October 2026
+
+- **A new requirement typed in reply to a check-in now gets matching listings.**
+  A client who answered an enquiry check-in with what they want instead, such
+  as "Hsr layout 30x40 north and east facing only", had it logged as an update
+  on the listing the check-in was about and was asked when to check back. The
+  reply now goes to requirement matching: it is filed on the contact and the
+  client is sent listings that fit (or, when an agent sent the check-in, the
+  agent gets a Match Radar alert). A reply that asks to be checked back on at a
+  date is still filed as one. Invariant JRN-019.
+- **Listing photos load straight from storage instead of Supabase's image
+  resizer.** Every photo the resizer touched counted against the Pro plan's 100
+  origin images per billing cycle, and the showcase, ads and promote screens
+  had pushed it to 375. Web, WhatsApp and portal uploads are already shrunk to
+  1200px JPEG, and the mobile photo editor now hands each upload to the new
+  `POST /api/properties/images`, which applies the same resize and removes
+  the camera original. A test fails if anything requests the resizer
+  again.
+
 #### 4 October 2026
 
+- **Read-only members can no longer create or change automations and flows.**
+  Creating an automation, running one by hand, and creating, editing,
+  activating or deleting a flow (marketplace flows included) are refused for a
+  read-only member by the API and by the database's row-level security, and
+  the Automations and Flows screens hide or disable those actions; the flow
+  editor opens read-only. **Migration required:**
+  `20261004155516_flow_automation_write_read_only_rls.sql`. Invariant ACC-002.
+- **A Match Radar alert can no longer reach the same recipient twice.** The
+  send route now claims the event before sending, refuses a second send while
+  the first is still going out, and records each recipient before their alert
+  goes out, so a resubmit from a stale screen or a retry after a crash reaches
+  only the recipients who do not have it yet. Web and mobile say "This alert is already being sent" and
+  refresh the feed instead of resending. **Migration required:**
+  `20261004140649_match_event_send_claim.sql`. Invariant RDR-001.
+- **A failed reminder voice note or reminder call returns only its own
+  charge.** The voice note's charge was keyed to the reminder rather than to the
+  one run, so a replayed job, or a reminder re-armed after a call had gone out,
+  could reverse an earlier charge that was kept. Each run now has its own key
+  and a refund reverses that key alone. Invariant CRD-004.
+- **A voice note that fails to render, or cannot be queued, is refunded
+  exactly once.** The charge for an audio announcement now carries its own key,
+  stored on the announcement, and every failure returns that charge and no
+  other; an announcement the queue could not take is marked failed instead of
+  staying in "generating" with the credits gone. Invariant CRD-005.
+  **Migration required:** `20261004190000_voice_announcements_burn_key.sql`.
+- **A failed AI call returns exactly the credits it took, and a refund that
+  fails is retried.** Ad copy, photo enhancement, listing descriptions,
+  greetings, event and call analysis, share emails, deal document reads,
+  guidance value lookups and e-Khata reads each refunded by feature and amount
+  before; each now reverses the charge it made, and a refund that still fails
+  is queued for the hourly retry instead of turning the route into an error.
+  Invariant CRD-003.
+- **A voice call that never connects, and a listing video that fails to
+  render, are refunded exactly once, and a refund that fails is retried.** They
+  used to be returned by feature and amount, which takes the most recent
+  matching charge and could not be retried safely. Each now reverses the
+  charge it made, and a refund that still fails is queued for the hourly
+  retry. Invariant CRD-002.
+- **The credits history says what each charge and refund was for.** Rows
+  read "Refund — Photo enhancement" or "Daily conversation review" instead of
+  `refund:<id>`, `retry:<key>` or `chatbot_classify burn`, on web (including the
+  CSV export) and mobile alike; a description a person wrote is kept as written.
+  Invariant CRD-001.
+- **Roles can no longer be self-edited.** A signed-in member's own profile
+  update could change their account, role, team, platform role or read-only
+  status directly, which every role-based permission reads, and a Portfolio
+  owner or buyer login could create a profile row of its own, or ask the
+  profile-setup step to create a brokerage account for it. The database now
+  refuses those columns and that insert from a client, and profile setup
+  creates an account only for a login holding a live invitation, exactly as
+  sign-up does and claiming each seat once; the member management screens and invitations keep
+  working through their server functions.
 - **Deals screens lead with what matters.** The stat strip above the board
   shows Pipeline value, Weighted revenue and Won this month, with the other
   three tiles one **More** away, remembered per device. The Journeys tab

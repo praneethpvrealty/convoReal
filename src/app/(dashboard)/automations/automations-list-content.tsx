@@ -76,7 +76,7 @@ export default function AutomationsListContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { accountId } = useAuth();
-  const canEdit = useCan('send-messages');
+  const canEdit = useCan('make-changes');
   const [issuesById, setIssuesById] = useState<
     Record<string, ActivationIssue[]>
   >({});

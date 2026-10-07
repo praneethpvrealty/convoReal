@@ -166,6 +166,178 @@ beforeEach(() => {
 });
 
 describe('processBuyerQualificationMessage — free-text requirement updates', () => {
+  it('[INB-029] clears the enquiry anchor when the lead states that same maximum', async () => {
+    queues.contacts = [
+      contactRow({
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_budget_anchor: 20_000_000,
+        pref_areas: ['Koramangala'],
+      }),
+    ];
+
+    await run('owner-1');
+
+    expect(updates).toContainEqual({
+      table: 'contacts',
+      payload: { pref_budget_anchor: null },
+    });
+  });
+
+  it('[INB-029] restates the named area even when the extraction matches the saved brief', async () => {
+    queues.contacts = [
+      contactRow({
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_areas: ['HSR', 'Horamavu'],
+      }),
+    ];
+    extractContactPreferences.mockResolvedValue({
+      ...fullPrefs,
+      areas: ['HSR', 'Horamavu'],
+    });
+
+    await processBuyerQualificationMessage(
+      'Commercial land near Horamavu',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: expect.arrayContaining([
+          { field: 'pref_areas', value: ['Horamavu'], replaces: true },
+        ]),
+      })
+    );
+  });
+
+  it('[INB-029] replaces a stale pref_areas the merged view hides behind areas_of_interest', async () => {
+    queues.contacts = [
+      contactRow({
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        areas_of_interest: ['Horamavu'],
+        pref_areas: ['HSR', 'Horamavu'],
+      }),
+    ];
+    extractContactPreferences.mockResolvedValue({
+      ...fullPrefs,
+      areas: ['Horamavu'],
+    });
+
+    await processBuyerQualificationMessage(
+      'Commercial land near Horamavu',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: expect.arrayContaining([
+          { field: 'pref_areas', value: ['Horamavu'], replaces: true },
+        ]),
+      })
+    );
+  });
+
+  it('[INB-029] keeps the enquiry anchor when the message states no budget of its own', async () => {
+    queues.contacts = [
+      contactRow({
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_budget_anchor: 20_000_000,
+        pref_areas: ['Koramangala'],
+      }),
+    ];
+    extractContactPreferences.mockResolvedValue({
+      ...fullPrefs,
+      budget_max: null,
+      areas: ['Horamavu'],
+    });
+
+    await processBuyerQualificationMessage(
+      'Commercial land near Horamavu, call me at 9876543210',
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(updates).not.toContainEqual(
+      expect.objectContaining({
+        payload: expect.objectContaining({ pref_budget_anchor: null }),
+      })
+    );
+  });
+
+  it('[INB-029] restates stale areas when the lead repeats the same message', async () => {
+    const line = 'Commercial land near Horamavu';
+    queues.contacts = [
+      contactRow({
+        requirements: line,
+        pref_source_hash: preferenceSourceHash(
+          buildPreferenceSourceText(line, [])
+        ),
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_areas: ['HSR', 'Horamavu'],
+      }),
+    ];
+    queues.messages = [[{ sender_type: 'customer', content_text: line }]];
+
+    await processBuyerQualificationMessage(
+      line,
+      { id: 'c1', phone: '919000000000', name: 'Aryan' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    expect(extractContactPreferences).not.toHaveBeenCalled();
+    expect(recordLearnedFacts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        facts: [{ field: 'pref_areas', value: ['Horamavu'], replaces: true }],
+      })
+    );
+  });
+
+  it('[INB-029] leaves a budget with no enquiry anchor untouched', async () => {
+    queues.contacts = [
+      contactRow({
+        pref_property_types: ['Commercial Land'],
+        pref_listing_types: ['Sale'],
+        pref_budget_max: 20_000_000,
+        pref_areas: ['Koramangala'],
+      }),
+    ];
+
+    await run('owner-1');
+
+    expect(updates).not.toContainEqual(
+      expect.objectContaining({
+        payload: expect.objectContaining({ pref_budget_anchor: null }),
+      })
+    );
+  });
+
   it('treats a bare live-inventory locality as a refinement and sends its matches', async () => {
     queues.contacts = [
       contactRow({
@@ -235,7 +407,7 @@ describe('processBuyerQualificationMessage — free-text requirement updates', (
     expect(recordLearnedFacts).toHaveBeenCalledWith(
       expect.objectContaining({
         facts: expect.arrayContaining([
-          { field: 'pref_areas', value: ['Domlur'] },
+          { field: 'pref_areas', value: ['Domlur'], replaces: true },
         ]),
       })
     );

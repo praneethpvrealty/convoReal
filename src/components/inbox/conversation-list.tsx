@@ -37,6 +37,12 @@ import { FavoriteButton } from '@/components/layout/favorite-button';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { ConversationListSkeleton } from '@/components/inbox/conversation-list-skeleton';
 import { conversationCloseReasonLabel } from '@/lib/conversations/closure';
+import {
+  inboxMessageHitMap,
+  inboxSearchTerm,
+  inboxSearchPreview,
+  type InboxMessageHit,
+} from '@/lib/conversations/inbox-search';
 import { conversationPreview } from '@/lib/conversations/text-format';
 
 interface ConversationListProps {
@@ -267,6 +273,44 @@ export function ConversationList({
 
   const loading = !ready && !fetchError;
 
+  const [searchTerm, setSearchTerm] = useState(() => inboxSearchTerm(search));
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchTerm(inboxSearchTerm(search)), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const searchArchived = filter === 'archived';
+  const { data: messageHits } = useQuery({
+    queryKey: [
+      'inbox-message-search',
+      accountId ?? null,
+      searchTerm,
+      searchArchived,
+    ],
+    enabled: Boolean(accountId) && searchTerm !== '',
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await createClient().rpc(
+        'search_inbox_messages',
+        {
+          p_account_id: accountId,
+          p_query: searchTerm,
+          p_archived: searchArchived,
+        }
+      );
+      if (error) throw error;
+      return inboxMessageHitMap(data as InboxMessageHit[] | null);
+    },
+  });
+
+  const searchMatches = useMemo(() => {
+    const matches = new Map<string, string>();
+    for (const [id, hit] of messageHits ?? []) {
+      matches.set(id, inboxSearchPreview(hit.content_text, searchTerm));
+    }
+    return matches;
+  }, [messageHits, searchTerm]);
+
   const userPhoneDigits = profile?.phone
     ? profile.phone.replace(/\D/g, '')
     : '';
@@ -390,7 +434,8 @@ export function ConversationList({
           phone.includes(q) ||
           lastMsg.includes(q) ||
           closeReason.includes(q) ||
-          closeNote.includes(q)
+          closeNote.includes(q) ||
+          Boolean(messageHits?.has(c.id))
         );
       });
     }
@@ -404,6 +449,7 @@ export function ConversationList({
     user?.id,
     userPhoneDigits,
     activityById,
+    messageHits,
   ]);
 
   const handleSearchChange = useCallback(
@@ -570,6 +616,7 @@ export function ConversationList({
                   filter === 'active' ? activityById?.get(conv.id) : undefined
                 }
                 onSelect={handleSelect}
+                searchMatch={searchMatches.get(conv.id)}
                 onArchiveToggle={handleArchiveToggle}
               />
             ))}
@@ -587,12 +634,14 @@ interface ConversationItemProps {
   activityCount?: number;
   onSelect: (conversation: Conversation) => void;
   onArchiveToggle: (conv: Conversation, e: React.MouseEvent) => void;
+  searchMatch?: string;
 }
 
 function ConversationItem({
   conversation,
   isActive,
   activityCount,
+  searchMatch,
   onSelect,
   onArchiveToggle,
 }: ConversationItemProps) {
@@ -701,8 +750,9 @@ function ConversationItem({
                     : 'font-normal text-slate-500'
               )}
             >
-              {conversationPreview(conversation.last_message_text) ||
-                'No messages yet'}
+              {searchMatch ??
+                (conversationPreview(conversation.last_message_text) ||
+                  'No messages yet')}
             </p>
             <div className="flex shrink-0 items-center gap-1.5">
               {isUnread && (

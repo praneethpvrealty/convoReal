@@ -12,6 +12,7 @@ export type CanAction =
   | 'manage-members'
   | 'edit-settings'
   | 'send-messages'
+  | 'make-changes'
   | 'view-only'
   | 'delete-account'
   | 'transfer-ownership'
@@ -55,6 +56,8 @@ export function useCan(action: CanAction): boolean {
       return canEditSettings;
     case 'send-messages':
       return canSendMessages;
+    case 'make-changes':
+      return canSendMessages && !isReadOnly;
     case 'view-only':
       // Old 'viewer' role folds into org_agent + is_read_only (082) —
       // check the flag directly rather than a role string.

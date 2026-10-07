@@ -2,10 +2,11 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { greetingName } from '@/lib/contacts/lead-placeholder';
-import { isContactReachable } from '@/lib/contacts/lifecycle';
 import { ENQUIRY_NOTICE_TEMPLATE_NAMES } from '@/lib/whatsapp/enquiry-notice-template';
 import { resolveLanguage } from '@/lib/whatsapp/template-language';
 import { metaLanguageCode } from '@/lib/languages';
+import { csvPhoneDigits } from '@/lib/broadcasts/csv-audience';
+import { DEFAULT_COUNTRY_CODE } from '@/lib/whatsapp/phone-utils';
 import {
   loadEnquiryNoticeContext,
   resolveEnquiryNoticeParams,
@@ -13,7 +14,6 @@ import {
 } from './enquiry-notice-params';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact } from '@/types';
-import { hasPhone } from '@/lib/contacts/reachability';
 
 export interface CustomFieldFilter {
   fieldId: string;
@@ -75,7 +75,7 @@ export function resolveVariables(
       // Meta rejects empty body params, failing that recipient's send —
       // a missing or placeholder name ("Housing Lead") resolves to a
       // greetable fallback instead.
-      const fieldMap: Record<string, string | undefined> = {
+      const fieldMap: Record<string, string | null | undefined> = {
         name: greetingName(contact.name),
         phone: contact.phone ?? undefined,
         email: contact.email,
@@ -89,185 +89,279 @@ export function resolveVariables(
   });
 }
 
-async function upsertCsvContactsOnServer(
+const PAGE_SIZE = 1000;
+const ID_CHUNK = 200;
+const PHONE_CHUNK = 100;
+const AUDIENCE_ID_CHUNK = 1000;
+
+interface PageResult {
+  data: unknown[] | null;
+  error: { message: string } | null;
+}
+
+async function readPages<T>(
+  page: (from: number, to: number) => PromiseLike<PageResult>,
+  what: string
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`Failed to fetch ${what}: ${error.message}`);
+    const batch = (data ?? []) as T[];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) return rows;
+  }
+}
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size));
+  }
+  return out;
+}
+
+async function contactsByIds<T>(
+  supabase: SupabaseClient,
+  accountId: string,
+  ids: readonly string[],
+  columns: string
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (const idChunk of chunk([...new Set(ids)], ID_CHUNK)) {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select(columns)
+      .eq('account_id', accountId)
+      .in('id', idChunk);
+    if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
+    rows.push(...((data ?? []) as unknown as T[]));
+  }
+  return rows;
+}
+
+function audienceArgs(
+  accountId: string,
+  audience: AudienceConfig,
+  optedInOnly: boolean
+) {
+  return {
+    p_account_id: accountId,
+    p_type: audience.type,
+    p_tag_ids: audience.tagIds ?? null,
+    p_contact_ids: audience.contactIds ?? null,
+    p_field_id: audience.customField?.fieldId ?? null,
+    p_field_operator: audience.customField?.operator ?? null,
+    p_field_value: audience.customField?.value ?? null,
+    p_exclude_tag_ids: audience.excludeTagIds ?? null,
+    p_opted_in_only: optedInOnly,
+  };
+}
+
+async function audienceContactIds(
+  supabase: SupabaseClient,
+  accountId: string,
+  audience: AudienceConfig,
+  optedInOnly: boolean
+): Promise<string[]> {
+  const rows = await readPages<{ contact_id: string }>(
+    (from, to) =>
+      supabase
+        .rpc(
+          'broadcast_audience_contact_ids',
+          audienceArgs(accountId, audience, optedInOnly)
+        )
+        .order('contact_id')
+        .range(from, to),
+    'broadcast audience'
+  );
+  return rows.map((r) => r.contact_id);
+}
+
+function csvPhoneKey(phone: string): string {
+  return csvPhoneDigits(phone, DEFAULT_COUNTRY_CODE);
+}
+
+function storedPhoneDigits(key: string): string[] {
+  const local = key.slice(-10);
+  return key.length > 10 && csvPhoneKey(local) === key
+    ? [key, `00${key}`, local, `0${local}`]
+    : [key, `00${key}`];
+}
+
+type CsvRow = { phone: string; name?: string };
+
+interface CsvMatch {
+  rowsByKey: Map<string, CsvRow>;
+  idsByKey: Map<string, string[]>;
+  missing: CsvRow[];
+}
+
+interface PhoneMatch {
+  id: string;
+  phone: string | null;
+  is_merged?: boolean | null;
+}
+
+function addContactToKey(
+  idsByKey: Map<string, string[]>,
+  rowsByKey: Map<string, CsvRow>,
+  contact: PhoneMatch
+) {
+  const key = contact.phone ? csvPhoneKey(contact.phone) : '';
+  if (!rowsByKey.has(key)) return;
+  const ids = idsByKey.get(key) ?? [];
+  if (ids.includes(contact.id)) return;
+  idsByKey.set(
+    key,
+    contact.is_merged ? [...ids, contact.id] : [contact.id, ...ids]
+  );
+}
+
+async function matchCsvContacts(
+  supabase: SupabaseClient,
+  accountId: string,
+  csvRows: readonly CsvRow[]
+): Promise<CsvMatch> {
+  const rowsByKey = new Map<string, CsvRow>();
+  for (const row of csvRows) {
+    const key = row.phone ? csvPhoneKey(row.phone) : '';
+    if (key && !rowsByKey.has(key)) rowsByKey.set(key, row);
+  }
+
+  const idsByKey = new Map<string, string[]>();
+  for (const keys of chunk([...rowsByKey.keys()], PHONE_CHUNK)) {
+    const digits = [...new Set(keys.flatMap(storedPhoneDigits))];
+    const matches = await readPages<PhoneMatch>(
+      (from, to) =>
+        supabase
+          .rpc('contacts_matching_phone_digits', {
+            p_account_id: accountId,
+            p_digits: digits,
+          })
+          .order('id')
+          .range(from, to),
+      'CSV contacts'
+    );
+    for (const contact of matches) {
+      addContactToKey(idsByKey, rowsByKey, contact);
+    }
+  }
+
+  const missing = [...rowsByKey]
+    .filter(([key]) => !idsByKey.has(key))
+    .map(([, row]) => row);
+  return { rowsByKey, idsByKey, missing };
+}
+
+async function csvRecipientIds(
+  supabase: SupabaseClient,
+  accountId: string,
+  idsByKey: Map<string, string[]>,
+  excludeTagIds: string[] | undefined,
+  optedInOnly: boolean
+): Promise<string[]> {
+  const passing = new Set<string>();
+  const ids = [...new Set([...idsByKey.values()].flat())];
+  for (const contactIds of chunk(ids, AUDIENCE_ID_CHUNK)) {
+    const recipients = await audienceContactIds(
+      supabase,
+      accountId,
+      { type: 'contacts', contactIds, excludeTagIds },
+      optedInOnly
+    );
+    for (const id of recipients) passing.add(id);
+  }
+  return [...idsByKey.values()]
+    .filter((keyIds) => keyIds.every((id) => passing.has(id)))
+    .map((keyIds) => keyIds[0]);
+}
+
+async function insertCsvContacts(
   supabase: SupabaseClient,
   accountId: string,
   userId: string,
-  csvRows: { phone: string; name?: string }[]
-): Promise<Contact[]> {
-  if (csvRows.length === 0) return [];
-
-  // De-duplicate by phone within the CSV
-  const uniqueByPhone = new Map<string, { phone: string; name?: string }>();
-  for (const row of csvRows) {
-    if (row.phone) uniqueByPhone.set(row.phone, row);
-  }
-  const phones = [...uniqueByPhone.keys()];
-
-  // Single round-trip lookup of existing contacts by phone
-  const { data: existing, error: lookupErr } = await supabase
-    .from('contacts')
-    .select('*')
-    .eq('account_id', accountId)
-    .in('phone', phones);
-
-  if (lookupErr) {
-    throw new Error(`Failed to look up CSV contacts: ${lookupErr.message}`);
-  }
-
-  const byPhone = new Map<string, Contact>();
-  for (const c of (existing ?? []) as Contact[]) {
-    if (c.phone) byPhone.set(c.phone, c);
-  }
-
-  // Insert missing contacts
-  const missing = phones
-    .filter((p) => !byPhone.has(p))
-    .map((phone) => ({
-      user_id: userId,
-      account_id: accountId,
-      phone,
-      name: uniqueByPhone.get(phone)?.name ?? null,
-    }));
-
-  const INSERT_CHUNK = 200;
-  for (let i = 0; i < missing.length; i += INSERT_CHUNK) {
-    const chunk = missing.slice(i, i + INSERT_CHUNK);
+  match: CsvMatch
+): Promise<void> {
+  for (const rows of chunk(match.missing, ID_CHUNK)) {
     const { data: inserted, error: insertErr } = await supabase
       .from('contacts')
-      .insert(chunk)
-      .select();
+      .insert(
+        rows.map((row) => ({
+          user_id: userId,
+          account_id: accountId,
+          phone: `+${csvPhoneKey(row.phone)}`,
+          name: row.name ?? null,
+        }))
+      )
+      .select('id, phone');
     if (insertErr) {
       throw new Error(`Failed to create CSV contacts: ${insertErr.message}`);
     }
-    for (const c of (inserted ?? []) as Contact[]) {
-      if (c.phone) byPhone.set(c.phone, c);
+    for (const contact of (inserted ?? []) as PhoneMatch[]) {
+      addContactToKey(match.idsByKey, match.rowsByKey, contact);
     }
   }
-
-  return phones
-    .map((p) => byPhone.get(p))
-    .filter((c): c is Contact => Boolean(c));
 }
 
 export async function resolveAudienceOnServer(
   supabase: SupabaseClient,
   accountId: string,
   userId: string,
-  audience: AudienceConfig
+  audience: AudienceConfig,
+  { optedInOnly = false }: { optedInOnly?: boolean } = {}
 ): Promise<Contact[]> {
-  let contacts: Contact[] = [];
-
-  if (audience.type === 'all') {
-    const { data, error } = await supabase
-      .from('contacts')
-      .select('*')
-      .eq('account_id', accountId);
-    if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
-    contacts = data ?? [];
-  } else if (
-    audience.type === 'contacts' &&
-    audience.contactIds &&
-    audience.contactIds.length > 0
-  ) {
-    const { data, error } = await supabase
-      .from('contacts')
-      .select('*')
-      .eq('account_id', accountId)
-      .in('id', audience.contactIds);
-    if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
-    contacts = data ?? [];
-  } else if (
-    audience.type === 'tags' &&
-    audience.tagIds &&
-    audience.tagIds.length > 0
-  ) {
-    const { data: contactTags, error: tagError } = await supabase
-      .from('contact_tags')
-      .select('contact_id')
-      .in('tag_id', audience.tagIds);
-
-    if (tagError) {
-      throw new Error(`Failed to fetch contact tags: ${tagError.message}`);
-    }
-
-    if (contactTags && contactTags.length > 0) {
-      const uniqueContactIds = [
-        ...new Set(contactTags.map((ct) => ct.contact_id)),
-      ];
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('account_id', accountId)
-        .in('id', uniqueContactIds);
-      if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
-      contacts = data ?? [];
-    }
-  } else if (audience.type === 'custom_field' && audience.customField) {
-    const { fieldId, operator, value } = audience.customField;
-
-    let query = supabase
-      .from('contact_custom_values')
-      .select('contact_id')
-      .eq('custom_field_id', fieldId);
-
-    if (operator === 'is') query = query.eq('value', value);
-    else if (operator === 'is_not') query = query.neq('value', value);
-    else if (operator === 'contains')
-      query = query.ilike('value', `%${value}%`);
-
-    const { data: matches, error: matchErr } = await query;
-    if (matchErr)
-      throw new Error(`Custom-field filter failed: ${matchErr.message}`);
-
-    const contactIds = [...new Set((matches ?? []).map((m) => m.contact_id))];
-    if (contactIds.length > 0) {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('account_id', accountId)
-        .in('id', contactIds);
-      if (error) throw new Error(`Failed to fetch contacts: ${error.message}`);
-      contacts = data ?? [];
-    }
-  } else if (audience.type === 'csv' && audience.csvContacts) {
-    contacts = await upsertCsvContactsOnServer(
+  let ids: string[];
+  if (audience.type === 'csv') {
+    const match = await matchCsvContacts(
       supabase,
       accountId,
-      userId,
-      audience.csvContacts
+      audience.csvContacts ?? []
     );
+    await insertCsvContacts(supabase, accountId, userId, match);
+    ids = await csvRecipientIds(
+      supabase,
+      accountId,
+      match.idsByKey,
+      audience.excludeTagIds,
+      optedInOnly
+    );
+  } else {
+    ids = await audienceContactIds(supabase, accountId, audience, optedInOnly);
+  }
+  return contactsByIds<Contact>(supabase, accountId, ids, '*');
+}
+
+export async function countAudienceOnServer(
+  supabase: SupabaseClient,
+  accountId: string,
+  audience: AudienceConfig,
+  { optedInOnly = false }: { optedInOnly?: boolean } = {}
+): Promise<number> {
+  if (audience.type === 'csv') {
+    const match = await matchCsvContacts(
+      supabase,
+      accountId,
+      audience.csvContacts ?? []
+    );
+    const existing = await csvRecipientIds(
+      supabase,
+      accountId,
+      match.idsByKey,
+      audience.excludeTagIds,
+      optedInOnly
+    );
+    return existing.length + (optedInOnly ? 0 : match.missing.length);
   }
 
-  // Exclude tags
-  if (audience.excludeTagIds && audience.excludeTagIds.length > 0) {
-    const { data: excludeRows } = await supabase
-      .from('contact_tags')
-      .select('contact_id')
-      .in('tag_id', audience.excludeTagIds);
-    const excludedIds = new Set((excludeRows ?? []).map((r) => r.contact_id));
-    contacts = contacts.filter((c) => !excludedIds.has(c.id));
-  }
-
-  // Respect the buyer's WhatsApp alert opt-out (STOP ALERTS / portal
-  // settings, migration 160) — declined contacts never enter the
-  // audience, regardless of how it was built. Chain-only contacts drop
-  // out on the same principle: they are a co-broker's downstream party,
-  // carried so the consent walk can reach them and for nothing else.
-  // The dispatcher would refuse them anyway; filtering here keeps them
-  // out of the recipient rows and the reach count too.
-  // Dead and archived contacts drop out on the same principle
-  // (migration 229): the dispatcher refuses them anyway, and filtering
-  // here keeps them out of the recipient rows and the reach count too.
-  // Email-only contacts (migration 253) have no WhatsApp number at all,
-  // so they cannot be an audience for a WhatsApp broadcast.
-  return contacts.filter(
-    (c) =>
-      hasPhone(c) &&
-      c.buyer_alerts_consent !== 'declined' &&
-      !c.chain_only &&
-      isContactReachable(c)
+  const { data, error } = await supabase.rpc(
+    'count_broadcast_audience',
+    audienceArgs(accountId, audience, optedInOnly)
   );
+  if (error) {
+    throw new Error(`Failed to count broadcast audience: ${error.message}`);
+  }
+  return Number(data ?? 0);
 }
 
 export async function sendBroadcastRecipients(

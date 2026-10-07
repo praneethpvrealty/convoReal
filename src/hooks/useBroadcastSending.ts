@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { MessageTemplate } from '@/types';
 
@@ -13,8 +14,9 @@ export interface CustomFieldFilter {
 }
 
 export interface AudienceConfig {
-  type: 'all' | 'tags' | 'custom_field' | 'csv';
+  type: 'all' | 'tags' | 'contacts' | 'custom_field' | 'csv';
   tagIds?: string[];
+  contactIds?: string[];
   customField?: CustomFieldFilter;
   csvContacts?: { phone: string; name?: string }[];
   /** Contacts carrying any of these tags are subtracted from the result. */
@@ -86,4 +88,32 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
   }
 
   return { createAndSendBroadcast, isProcessing, progress };
+}
+
+export function useAudienceCount(
+  audience: AudienceConfig | null,
+  { optedInOnly = false }: { optedInOnly?: boolean } = {}
+) {
+  return useQuery({
+    queryKey: ['broadcast-audience-count', audience, optedInOnly],
+    queryFn: async ({ signal }) => {
+      const res = await fetch('/api/broadcasts/audience-count', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audience, optedInOnly }),
+        signal,
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        data?: { count?: number };
+        error?: string;
+      };
+      const count = body.data?.count;
+      if (!res.ok || typeof count !== 'number') {
+        throw new Error(body.error || 'Could not count the audience');
+      }
+      return count;
+    },
+    enabled: audience !== null,
+    staleTime: 30_000,
+  });
 }

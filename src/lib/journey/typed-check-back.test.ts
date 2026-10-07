@@ -12,6 +12,11 @@ const createNotification = vi.fn();
 vi.mock('@/lib/notifications/create', () => ({
   createNotification: (...args: unknown[]) => createNotification(...args),
 }));
+const syncContactPreferences = vi.fn(async () => ({ status: 'updated' }));
+vi.mock('@/lib/contacts/preference-sync', () => ({
+  syncContactPreferences: (...args: unknown[]) =>
+    syncContactPreferences(...(args as [])),
+}));
 const ensureJourneyItem = vi.fn();
 vi.mock('@/lib/journey/capture-server', () => ({
   ensureJourneyItem: (...args: unknown[]) => ensureJourneyItem(...args),
@@ -28,6 +33,7 @@ const {
   handleCheckBackConfirmReply,
   handleInboxCheckinReply,
   parseCheckBackConfirmReplyId,
+  statesNewRequirement,
 } = await import('./client-response');
 
 const NOW = new Date(2026, 8, 29, 18, 28);
@@ -236,6 +242,45 @@ describe('[JRN-015] captureTypedCheckBack', () => {
     expect(todoWrite()).toBeUndefined();
   });
 
+  it('leaves a callback request to the handover', async () => {
+    const reply = await captureTypedCheckBack({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact,
+      text: 'Please call me',
+      previousBotText: 'When should we check back with you?',
+      now: NOW,
+    });
+    expect(reply).toBeNull();
+    expect(writes).toEqual([
+      {
+        table: 'journey_events',
+        op: 'insert',
+        row: {
+          account_id: 'acc-1',
+          item_id: 'item-1',
+          event_type: 'client_response',
+          reason: 'Please call me',
+        },
+      },
+    ]);
+    expect(todoWrite()).toBeUndefined();
+  });
+
+  it("still dates a reply where the client says they'll call back", async () => {
+    const reply = await captureTypedCheckBack({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact,
+      text: "I'll call back in a week",
+      previousBotText: 'When should we check back with you?',
+      now: NOW,
+    });
+    expect(reply?.buttons?.[0].id).toBe('jcd_ok:2026-10-06');
+  });
+
   it('ignores replies to anything but the timeline question', async () => {
     const reply = await captureTypedCheckBack({
       db: makeDb(),
@@ -337,6 +382,60 @@ describe('[JRN-015] a typed reply to the check-in template', () => {
     );
   });
 
+  it('leaves a callback request to the handover instead of asking when to check back', async () => {
+    tables.messages = [
+      {
+        content_text: CHECKIN_TEMPLATE_TEXT,
+        created_at: new Date(NOW.getTime() - 60_000).toISOString(),
+        template_name: 'enquiry_checkin_notice',
+      },
+    ];
+
+    const outcome = await handleInboxCheckinReply({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact: { ...contact, phone: '919800000000' },
+      conversationId: 'conv-1',
+      responseText: 'Please call me',
+      accessToken: 'token',
+      phoneNumberId: 'pn-1',
+    });
+
+    expect(outcome).toBe('logged');
+    expect(
+      writes.some(
+        (w) => w.table === 'journey_events' && w.row.reason === 'Please call me'
+      )
+    ).toBe(true);
+    expect(todoWrite()).toBeUndefined();
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('spots a callback request past the stored note limit', async () => {
+    tables.messages = [
+      {
+        content_text: CHECKIN_TEMPLATE_TEXT,
+        created_at: new Date(NOW.getTime() - 60_000).toISOString(),
+        template_name: 'enquiry_checkin_notice',
+      },
+    ];
+
+    const outcome = await handleInboxCheckinReply({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact: { ...contact, phone: '919800000000' },
+      conversationId: 'conv-1',
+      responseText: `${'We are still discussing it at home. '.repeat(9)}Please call me`,
+      accessToken: 'token',
+      phoneNumberId: 'pn-1',
+    });
+
+    expect(outcome).toBe('logged');
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
   it('still recognises an unrelated last message as not a check-in', async () => {
     tables.messages = [
       {
@@ -356,5 +455,116 @@ describe('[JRN-015] a typed reply to the check-in template', () => {
       phoneNumberId: 'pn-1',
     });
     expect(outcome).toBe('not_checkin');
+  });
+});
+
+describe('[JRN-019] a requirement typed in reply to the check-in', () => {
+  beforeEach(() => {
+    tables.messages = [
+      {
+        content_text: CHECKIN_TEMPLATE_TEXT,
+        created_at: new Date(NOW.getTime() - 60_000).toISOString(),
+        template_name: 'enquiry_checkin_notice',
+      },
+    ];
+    tables.whatsapp_config = [{ auto_qualify_leads: true }];
+    tables.contacts = [{ requirement_active: true, classification: 'Buyer' }];
+  });
+
+  const reply = (responseText: string) =>
+    handleInboxCheckinReply({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact: { ...contact, phone: '919800000000' },
+      conversationId: 'conv-1',
+      responseText,
+      accessToken: 'token',
+      phoneNumberId: 'pn-1',
+    });
+
+  it('is left for requirement matching, not logged against the checked-in listing', async () => {
+    const outcome = await reply('Hsr layout 30x40 north and east facing only');
+
+    expect(outcome).toBe('not_checkin');
+    expect(writes).toEqual([]);
+    expect(ensureJourneyItem).not.toHaveBeenCalled();
+    expect(createNotification).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'Hsr layout 30x40 north and east facing only',
+    'I need a villa available next week',
+    '2 BHK in Whitefield under 90 lakh',
+    "I can't wait; I need a 2 BHK next week",
+    'Can you show me a 2 BHK in Whitefield?',
+    'Any villa under 2 crore?',
+    'Would it be possible to find a villa under 2 crore?',
+    'Can you find a villa that is under 2 crore?',
+    'No need to check back; I need a villa next week',
+    "Don't call me back next week, just send 30x40 plots in HSR",
+    'Not interested in this plot; I need a villa under 2 crore',
+  ])('reads %j as a new requirement', (text) => {
+    expect(statesNewRequirement(text)).toBe(true);
+  });
+
+  it.each([
+    'not interested in this plot',
+    'Not interested, the plot is too far',
+    'Does this villa have clear title?',
+    'Check back in a week, need a 30x40 plot',
+    'You need to wait for a week',
+    'Wait for 2 weeks, then share 30x40 plots',
+    'Is the plot east facing?',
+    'Is it a corner plot?',
+    'Does this office have parking?',
+    'Can it be used as an office?',
+    'Is the warehouse on the main road?',
+    'Call me after a week, I need a 30x40 plot',
+    'Ping me next week about 2 BHK flats',
+    'Ok thanks',
+  ])('does not read %j as a new requirement', (text) => {
+    expect(statesNewRequirement(text)).toBe(false);
+  });
+
+  it('still logs a question about the listing on its journey', async () => {
+    const outcome = await reply('Does this plot have clear title?');
+
+    expect(outcome).not.toBe('not_checkin');
+    expect(
+      writes.some(
+        (w) =>
+          w.table === 'journey_events' &&
+          w.row.reason === 'Does this plot have clear title?'
+      )
+    ).toBe(true);
+  });
+
+  it('files the requirement itself when qualification will not take it', async () => {
+    tables.whatsapp_config = [{ auto_qualify_leads: false }];
+    const outcome = await reply('Hsr layout 30x40 north and east facing only');
+
+    expect(outcome).toBe('not_checkin');
+    expect(
+      writes.find((w) => w.table === 'contacts' && w.op === 'update')?.row
+    ).toEqual({ requirements: 'Hsr layout 30x40 north and east facing only' });
+    expect(syncContactPreferences).toHaveBeenCalledWith(
+      expect.anything(),
+      'acc-1',
+      'c-1'
+    );
+    expect(writes.some((w) => w.table === 'journey_events')).toBe(false);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('still files the check-back when the reply also names a date', async () => {
+    const outcome = await reply('Check back in a week, need a 30x40 plot');
+
+    expect(outcome).toBe('logged_and_asked');
+    expect(todoWrite()).toMatchObject({
+      contact_id: 'c-1',
+      property_id: 'p-1',
+    });
   });
 });

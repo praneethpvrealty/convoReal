@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -23,13 +23,16 @@ import {
   Tag,
 } from '@/components/ui';
 import { MatchTargetRow } from '@/components/match-target-row';
-import { ApiError } from '@/lib/api';
+import { ApiError, isTimeout } from '@/lib/api';
 import { auditDateTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import {
+  MATCH_ALERT_LOCK_MS,
   dismissMatchEvent,
   fetchMatchEvents,
+  matchAlertRefusal,
+  matchAlertTimeoutMs,
   searchRadarContacts,
   sendMatchAlert,
 } from '@/lib/radar';
@@ -68,9 +71,32 @@ export default function RadarScreen() {
   const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [lockedIds, setLockedIds] = useState<Set<string>>(new Set());
+  const lockTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [templateMissingFor, setTemplateMissingFor] = useState<{
     [eventId: string]: string[];
   }>({});
+
+  useEffect(() => {
+    const timers = lockTimers.current;
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  const lockAfterTimeout = (eventId: string, targetCount: number) => {
+    setLockedIds((prev) => new Set(prev).add(eventId));
+    const timer = setTimeout(
+      () => {
+        setLockedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(eventId);
+          return next;
+        });
+        queryClient.invalidateQueries({ queryKey: ['radar-events'] });
+      },
+      Math.max(0, MATCH_ALERT_LOCK_MS - matchAlertTimeoutMs(targetCount))
+    );
+    lockTimers.current.push(timer);
+  };
 
   const events = useQuery({
     queryKey: ['radar-events'],
@@ -146,7 +172,7 @@ export default function RadarScreen() {
 
   async function send(evt: MatchEvent) {
     const targetIds = Array.from(selectionFor(evt));
-    if (targetIds.length === 0) return;
+    if (targetIds.length === 0 || sendingId || lockedIds.has(evt.id)) return;
     haptic.send();
     setError(null);
     setNotice(null);
@@ -188,9 +214,21 @@ export default function RadarScreen() {
         queryClient.invalidateQueries({ queryKey: ['radar-events'] });
       }
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : 'Could not send match alerts.'
-      );
+      const refusal = matchAlertRefusal(err);
+      if (refusal) {
+        setNotice(refusal);
+        queryClient.invalidateQueries({ queryKey: ['radar-events'] });
+      } else if (isTimeout(err)) {
+        setError(
+          'No reply yet — the alerts may still be going out. This card stays locked for up to 5 minutes so no one gets them twice.'
+        );
+        lockAfterTimeout(evt.id, targetIds.length);
+        queryClient.invalidateQueries({ queryKey: ['radar-events'] });
+      } else {
+        setError(
+          err instanceof ApiError ? err.message : 'Could not send match alerts.'
+        );
+      }
     } finally {
       setSendingId(null);
     }
@@ -250,6 +288,7 @@ export default function RadarScreen() {
                 event={item}
                 selected={selectionFor(item)}
                 sending={sendingId === item.id}
+                sendLocked={sendingId !== null || lockedIds.has(item.id)}
                 dismissing={dismissingId === item.id}
                 templateMissing={templateMissingFor[item.id]}
                 manualContacts={manualContacts[item.id] ?? NO_CONTACTS}
@@ -303,6 +342,7 @@ function EventCard({
   event,
   selected,
   sending,
+  sendLocked,
   dismissing,
   templateMissing,
   manualContacts,
@@ -316,6 +356,7 @@ function EventCard({
   event: MatchEvent;
   selected: Set<string>;
   sending: boolean;
+  sendLocked: boolean;
   dismissing: boolean;
   templateMissing?: string[];
   manualContacts: Contact[];
@@ -513,7 +554,7 @@ function EventCard({
         label={`Send Match Alert (${selected.size})`}
         icon="paper-plane-outline"
         busy={sending}
-        disabled={selected.size === 0 || dismissing}
+        disabled={selected.size === 0 || dismissing || sendLocked}
         onPress={onSend}
       />
     </View>

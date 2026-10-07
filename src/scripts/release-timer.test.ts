@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  MOBILE_UPDATE_PENDING_LABEL,
   RELEASE_WINDOW_MINUTES,
   REVIEW_SETTLE_MINUTES,
   decideRelease,
+  mobileUpdatePaths,
   run,
+  touchesMobileBundle,
 } from './release-timer.mjs';
 
 const NOW = Date.parse('2026-09-28T12:00:00Z');
@@ -156,6 +159,8 @@ function fakeGithub({
   movedTip,
   behindAtMerge = behindBy,
   threadPages = [[]] as boolean[][],
+  releaseFiles = [] as { filename: string; previous_filename?: string }[],
+  pendingUpdates = [] as { number: number; merged: boolean }[],
 }: {
   pulls: Pull[];
   created?: string;
@@ -170,8 +175,12 @@ function fakeGithub({
   movedTip?: string;
   behindAtMerge?: number;
   threadPages?: boolean[][];
+  releaseFiles?: { filename: string; previous_filename?: string }[];
+  pendingUpdates?: { number: number; merged: boolean }[];
 }) {
   const listBranches = vi.fn();
+  const listFiles = vi.fn();
+  const listForRepo = vi.fn();
   let releaseReads = 0;
   let compares = 0;
   const pullsList = vi.fn(
@@ -192,6 +201,12 @@ function fakeGithub({
         ];
       }
       if (method === listComments) return [];
+      if (method === listFiles) return releaseFiles;
+      if (method === listForRepo)
+        return pendingUpdates.map(({ number }) => ({
+          number,
+          pull_request: { url: `https://api.github.com/pulls/${number}` },
+        }));
       return pulls.filter(
         (pull) =>
           (params.state === 'all' || pull.state === params.state) &&
@@ -211,6 +226,13 @@ function fakeGithub({
       }),
       listActivities: vi.fn(async () => ({ data: [{ timestamp: created }] })),
       getCommit: vi.fn(),
+      getContent: vi.fn(async () => ({
+        data: {
+          content: Buffer.from(
+            readFileSync('.github/workflows/eas-update.yml', 'utf8')
+          ).toString('base64'),
+        },
+      })),
       compareCommitsWithBasehead: vi.fn(async () => {
         compares += 1;
         return { data: { behind_by: compares > 1 ? behindAtMerge : behindBy } };
@@ -218,9 +240,17 @@ function fakeGithub({
     },
     pulls: {
       list: pullsList,
-      get: vi.fn(async () => ({ data: { mergeable } })),
+      get: vi.fn(async ({ pull_number }: { pull_number: number }) => ({
+        data: {
+          mergeable,
+          merged:
+            pendingUpdates.find((pending) => pending.number === pull_number)
+              ?.merged ?? false,
+        },
+      })),
       create: vi.fn(async () => ({ data: { number: 50 } })),
       merge: vi.fn(async () => ({ data: { sha: 'merged' } })),
+      listFiles,
       update: vi.fn(
         async ({
           pull_number,
@@ -249,7 +279,13 @@ function fakeGithub({
         async (params: { workflow_id: string; ref: string }) => ({ params })
       ),
     },
-    issues: { listComments, createComment: vi.fn(async () => ({})) },
+    issues: {
+      listComments,
+      listForRepo,
+      createComment: vi.fn(async () => ({})),
+      addLabels: vi.fn(async () => ({})),
+      removeLabel: vi.fn(async () => ({})),
+    },
     git: {
       createRef: vi.fn(async () => ({})),
       deleteRef: vi.fn(async () => ({})),
@@ -404,6 +440,190 @@ describe('run', () => {
       workflow_id: 'branch-cleanup.yml',
       ref: 'main',
     });
+  });
+
+  it('publishes the mobile update after a release that changed the mobile bundle', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      releaseFiles: [
+        { filename: 'src/app/page.tsx' },
+        { filename: 'mobile/app/(app)/automations.tsx' },
+      ],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    expect(rest.repos.getContent).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      path: '.github/workflows/eas-update.yml',
+      ref: 'tip',
+    });
+    expect(rest.actions.createWorkflowDispatch).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      workflow_id: 'eas-update.yml',
+      ref: 'main',
+      inputs: { channel: 'preview' },
+    });
+  });
+
+  it('marks the release as owing a mobile update before merging, and clears it once dispatched', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      releaseFiles: [{ filename: 'mobile/app/(app)/index.tsx' }],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    const labelled = rest.issues.addLabels.mock.invocationCallOrder[0];
+    expect(rest.issues.addLabels).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      issue_number: 50,
+      labels: [MOBILE_UPDATE_PENDING_LABEL],
+    });
+    expect(labelled).toBeLessThan(rest.pulls.merge.mock.invocationCallOrder[0]);
+    expect(rest.issues.removeLabel).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      issue_number: 50,
+      name: MOBILE_UPDATE_PENDING_LABEL,
+    });
+  });
+
+  it('does not merge when it cannot tell whether the release changed the mobile bundle', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+    });
+    rest.repos.getContent.mockRejectedValueOnce(new Error('502'));
+
+    await run({ github, context, core, now: NOW });
+
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
+    expect(core.setFailed).toHaveBeenCalledWith('release/batch: 502');
+  });
+
+  it('keeps the mark when the mobile update cannot be dispatched after the merge', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      releaseFiles: [{ filename: 'mobile/app/(app)/index.tsx' }],
+    });
+    rest.actions.createWorkflowDispatch.mockImplementation(
+      async (params: { workflow_id: string; ref: string }) => {
+        if (params.workflow_id === 'eas-update.yml') throw new Error('500');
+        return { params };
+      }
+    );
+
+    await run({ github, context, core, now: NOW });
+
+    expect(rest.pulls.merge).toHaveBeenCalled();
+    expect(rest.issues.removeLabel).not.toHaveBeenCalled();
+  });
+
+  it('publishes a mobile update a merged release still owes on the next run', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [],
+      pendingUpdates: [{ number: 49, merged: true }],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    expect(github.paginate).toHaveBeenCalledWith(rest.issues.listForRepo, {
+      owner: 'owner',
+      repo: 'repo',
+      state: 'closed',
+      labels: MOBILE_UPDATE_PENDING_LABEL,
+      per_page: 100,
+    });
+    expect(rest.pulls.get).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      pull_number: 49,
+    });
+    expect(rest.actions.createWorkflowDispatch).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      workflow_id: 'eas-update.yml',
+      ref: 'main',
+      inputs: { channel: 'preview' },
+    });
+    expect(rest.issues.removeLabel).toHaveBeenCalledWith(
+      expect.objectContaining({ issue_number: 49 })
+    );
+  });
+
+  it('drops the mark from a release closed without merging, and only reports on a dry run', async () => {
+    const closed = fakeGithub({
+      pulls: [],
+      pendingUpdates: [{ number: 48, merged: false }],
+    });
+    await run({ github: closed.github, context, core, now: NOW });
+    expect(closed.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+    expect(closed.rest.issues.removeLabel).toHaveBeenCalledWith(
+      expect.objectContaining({ issue_number: 48 })
+    );
+
+    const dry = fakeGithub({
+      pulls: [],
+      pendingUpdates: [{ number: 49, merged: true }],
+    });
+    await run({ github: dry.github, context, core, dryRun: true, now: NOW });
+    expect(dry.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+    expect(dry.rest.issues.removeLabel).not.toHaveBeenCalled();
+  });
+
+  it('publishes for a shared web module the mobile bundle imports', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      releaseFiles: [{ filename: 'src/lib/format/date.ts' }],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    expect(rest.actions.createWorkflowDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ workflow_id: 'eas-update.yml' })
+    );
+  });
+
+  it('leaves the mobile update alone when the release only touched web or mobile docs', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      releaseFiles: [
+        { filename: 'src/app/page.tsx' },
+        { filename: 'mobile/README.md' },
+      ],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    expect(rest.pulls.merge).toHaveBeenCalled();
+    expect(rest.actions.createWorkflowDispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ workflow_id: 'eas-update.yml' })
+    );
+  });
+
+  it('does not publish the mobile update when it does not merge', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      threadPages: [[false]],
+      releaseFiles: [{ filename: 'mobile/app/(app)/index.tsx' }],
+    });
+
+    await run({ github, context, core, now: NOW });
+
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
+    expect(rest.actions.createWorkflowDispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ workflow_id: 'eas-update.yml' })
+    );
   });
 
   it('moves members still open after the extra period to a next release branch', async () => {
@@ -732,5 +952,33 @@ describe('the CI run the timer dispatches', () => {
   it('posts that status last, after every failing step has had its say', () => {
     const steps = gate.split('\n      - name: ');
     expect(steps.at(-1)).toMatch(/^Report the result as the CI commit status/);
+  });
+});
+
+describe('the mobile update the timer dispatches', () => {
+  const workflow = readFileSync('.github/workflows/eas-update.yml', 'utf8');
+  const paths = mobileUpdatePaths(workflow);
+
+  it('reads the push paths eas-update.yml publishes on', () => {
+    expect(paths).toContain('mobile/**');
+    expect(paths).toContain('!mobile/**.md');
+    expect(paths).toContain('src/lib/format/date.ts');
+  });
+
+  it('matches the way the push trigger does, with a later exclusion winning', () => {
+    expect(touchesMobileBundle(['mobile/app/(app)/index.tsx'], paths)).toBe(
+      true
+    );
+    expect(touchesMobileBundle(['mobile/AGENTS.md'], paths)).toBe(false);
+    expect(touchesMobileBundle(['mobile/docs/notes.md'], paths)).toBe(false);
+    expect(touchesMobileBundle(['src/app/page.tsx'], paths)).toBe(false);
+    expect(touchesMobileBundle([], paths)).toBe(false);
+  });
+
+  it('accepts a manual run on the channel the installed apps follow', () => {
+    expect(workflow).toMatch(
+      /\n  workflow_dispatch:\n {4}inputs:\n {6}channel:/
+    );
+    expect(workflow).toContain("CHANNEL: ${{ inputs.channel || 'preview' }}");
   });
 });

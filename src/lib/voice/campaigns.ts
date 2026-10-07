@@ -24,6 +24,13 @@ export const RECIPIENT_FINAL_STATUSES = [
  *  requeued by the dispatcher. */
 export const STALE_CALLING_MS = 2 * 60 * 60 * 1000;
 
+/** The burn key of one dial attempt. Every refund of that attempt (start
+ *  failure, a call nobody answered, a stale requeue) finds the charge by
+ *  this key, so the three paths agree on which ledger rows they reverse. */
+export function voiceCallBurnKey(recipientId: string, attempt: number): string {
+  return `voice-call:${recipientId}:${attempt}`;
+}
+
 const IST_OFFSET_MINUTES = 330;
 
 /** The hour-of-day in IST for a given instant. Campaign call windows

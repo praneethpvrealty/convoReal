@@ -37,6 +37,7 @@ import {
   type ThemeColors,
 } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { voiceCampaignSettingsErrors } from '@shared/lib/voice/campaign-settings';
 import {
   campaignTotals,
   windowLabel,
@@ -259,6 +260,14 @@ function CreateCampaignSheet({
   const [endHour, setEndHour] = useState('19');
   const [maxAttempts, setMaxAttempts] = useState('3');
   const [seed, setSeed] = useState(true);
+  const toWholeNumber = (value: string) =>
+    value.trim() === '' ? Number.NaN : Number(value);
+  const settingsErrors = voiceCampaignSettingsErrors(
+    toWholeNumber(startHour),
+    toWholeNumber(endHour),
+    toWholeNumber(maxAttempts)
+  );
+  const settingsError = settingsErrors.window ?? settingsErrors.attempts;
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -371,6 +380,14 @@ function CreateCampaignSheet({
             />
           </View>
         </View>
+        {settingsError ? (
+          <Text
+            accessibilityRole="alert"
+            style={{ fontSize: 12, color: colors.danger }}
+          >
+            {settingsError}
+          </Text>
+        ) : null}
         <View
           style={[
             styles.seedRow,
@@ -405,13 +422,13 @@ function CreateCampaignSheet({
             textAlign: 'center',
           }}
         >
-          Costs {callCost} cr per connected call — unanswered attempts are
+          Costs {callCost} credits per connected call — unanswered attempts are
           refunded automatically.
         </Text>
         <PrimaryButton
           label="Create campaign"
           icon="call-outline"
-          disabled={!name.trim()}
+          disabled={!name.trim() || Boolean(settingsError)}
           busy={createMutation.isPending}
           onPress={() => createMutation.mutate()}
         />

@@ -1041,7 +1041,6 @@ export async function POST(request: Request) {
       // Update existing contact preferences
       const updatePayload: {
         max_budget?: number | null;
-        pref_budget_max?: number | null;
         areas_of_interest?: string[];
         pref_areas?: string[];
         property_interests?: string[];
@@ -1052,7 +1051,6 @@ export async function POST(request: Request) {
         lead_portal_listing_id?: string;
       } = {};
       if (maxBudget) updatePayload.max_budget = maxBudget;
-      else if (inferredBudget) updatePayload.pref_budget_max = inferredBudget;
       if (areasOfInterest.length > 0)
         updatePayload.areas_of_interest = areasOfInterest;
       if (inferredAreas.length > 0) {
@@ -1084,6 +1082,26 @@ export async function POST(request: Request) {
         // is the point of this webhook, not the backfill.
         .update(updatePayload)
         .eq('id', existingContact.id);
+
+      // The budget and its enquiry anchor land in one transaction, under
+      // the row lock, so concurrent enquiries cannot pair one budget with
+      // another's anchor (INB-029). A budget the lead already stated (one
+      // with no anchor) is replaced but never anchored.
+      if (!maxBudget && inferredBudget) {
+        const { error: budgetError } = await supabase.rpc(
+          'record_enquiry_budget',
+          {
+            p_account_id: accountId,
+            p_contact_id: existingContact.id,
+            p_budget: inferredBudget,
+          }
+        );
+        if (budgetError)
+          console.error(
+            '[lead-webhook] Failed to record enquiry budget:',
+            budgetError.message
+          );
+      }
 
       // Record the inquiry in the junction table. One portal email is an
       // inquiry about ONE listing — matchedPropertyIds is a ranked list of
@@ -1301,6 +1319,7 @@ export async function POST(request: Request) {
         source: parsed.source, // Storing lead portal name in dedicated source field
         max_budget: maxBudget,
         pref_budget_max: inferredBudget,
+        pref_budget_anchor: inferredBudget,
         areas_of_interest: areasOfInterest.length > 0 ? areasOfInterest : null,
         pref_areas: inferredAreas.length > 0 ? inferredAreas : null,
         property_interests:
