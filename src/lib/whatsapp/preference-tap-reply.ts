@@ -201,7 +201,12 @@ export async function sendPreferenceTapReply(args: {
                 ...(row.areas_of_interest ?? []),
                 ...(row.pref_areas ?? []),
               ],
-              listingTypes: row.pref_listing_types ?? [],
+              // The intent the brief now has, not the snapshot loaded
+              // before applyDefaultBuyingIntent wrote it: a lead just
+              // assumed to be buying is not shown rentals as near-misses.
+              listingTypes: defaultedBuying
+                ? ['Sale']
+                : (row.pref_listing_types ?? []),
               budgetMin: row.pref_budget_min ?? row.min_budget ?? null,
               budgetMax: row.pref_budget_max ?? row.max_budget ?? null,
             },

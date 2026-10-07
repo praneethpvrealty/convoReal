@@ -29,7 +29,10 @@ import { formatInrCompact } from '@/lib/format/currency';
 const MAX_LINKED_LISTINGS = 5;
 export const NEAR_MISS_SCAN_LIMIT = 200;
 export const MAX_NEAR_MISS_AREAS = 3;
-export const MAX_NEAR_MISS_SCANS = 6;
+/** Every named area and every parent locality, each at Sale and Rent
+ *  when the lead stated no deal type: a parent never costs a named
+ *  area its scan, and a named phase always reaches its locality. */
+export const MAX_NEAR_MISS_SCANS = MAX_NEAR_MISS_AREAS * 2 * 2;
 
 type NearMissProperty = Pick<
   Property,
@@ -257,10 +260,10 @@ async function linkedListings(
 
 /**
  * The areas to scan, in order: the lead's own areas first (the first
- * MAX_NEAR_MISS_AREAS of them, so a parent never displaces one they
- * named), then the locality each phase or block belongs to — the lead
- * who named JP Nagar 4th Phase is told about JP Nagar's other phases
- * rather than nothing. MAX_NEAR_MISS_SCANS still bounds the work.
+ * MAX_NEAR_MISS_AREAS of them), then the locality each phase or block
+ * belongs to — the lead who named JP Nagar 4th Phase is told about JP
+ * Nagar's other phases rather than nothing. MAX_NEAR_MISS_SCANS is
+ * sized for both groups, so neither displaces the other.
  */
 export function nearMissAreas(areas: string[]): string[] {
   const seen = new Set<string>();
@@ -279,7 +282,7 @@ export function nearMissAreas(areas: string[]): string[] {
     explicit
       .map((area) => parentLocalityLabel(area))
       .filter((area): area is string => !!area)
-  ).slice(0, MAX_NEAR_MISS_AREAS);
+  );
   return [...explicit, ...parents];
 }
 

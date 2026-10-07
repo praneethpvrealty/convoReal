@@ -415,6 +415,13 @@ describe('sendPreferenceTapReply', () => {
     );
 
     expect(result.formOffered).toBe(true);
+    // [CNV-002] The near-miss search uses the intent just defaulted, so a
+    // lead assumed to be buying is not shown rentals.
+    expect(areaNearMissLine).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brief: expect.objectContaining({ listingTypes: ['Sale'] }),
+      })
+    );
     const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
       text: string;
     };
