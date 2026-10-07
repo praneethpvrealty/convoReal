@@ -211,6 +211,49 @@ describe('buildUnavailableEnquiryMessage', () => {
       })
     ).toContain('these available options');
   });
+
+  it('[CNV-003] carries the near-miss line, the showcase link and the widening question, in that order', () => {
+    expect(
+      buildUnavailableEnquiryMessage({
+        contactName: 'Shirish',
+        propertyTitle:
+          '#20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.',
+        hasAlternatives: false,
+        nearMiss:
+          '📍 We do have 3 listings in JP Nagar, from ₹9.6 Cr. Take a look: https://x/?ids=a',
+        question:
+          "What budget are you working with? I'll widen the search to everything within it.",
+        showcaseUrl: 'https://x/?v=c1',
+      })
+    ).toBe(
+      [
+        'Hi Shirish — *#20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase* is no longer available. ' +
+          "I've kept your requirement active and will share a similar property as soon as one is available.",
+        '',
+        '📍 We do have 3 listings in JP Nagar, from ₹9.6 Cr. Take a look: https://x/?ids=a',
+        '',
+        'Browse every live listing any time: https://x/?v=c1',
+        '',
+        "What budget are you working with? I'll widen the search to everything within it.",
+      ].join('\n')
+    );
+  });
+});
+
+describe('[CNV-003] buildNoMatchesMessage with the showcase link', () => {
+  it('puts the link between the answer and the question', () => {
+    expect(
+      buildNoMatchesMessage('Ravi Kumar', {
+        brief: 'a villa in Whitefield',
+        question: 'What budget are you working with?',
+        showcaseUrl: 'https://x/?v=c1',
+      })
+    ).toBe(
+      "Hi Ravi — I don't have a villa in Whitefield live right now, but I'm watching for one.\n\n" +
+        'Browse every live listing any time: https://x/?v=c1\n\n' +
+        'What budget are you working with?'
+    );
+  });
 });
 
 describe('parseBuyerMatchesCommand', () => {

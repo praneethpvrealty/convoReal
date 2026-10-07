@@ -144,6 +144,24 @@ describe('unavailableListingReply', () => {
     }
   });
 
+  it('[CNV-001] ends with the showcase link when one is given, and reads the title without its trailing stop', () => {
+    const text = unavailableListingReply(
+      'Shirish',
+      '#20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.',
+      'Under Contract',
+      'https://aryavarta.convoreal.com/?v=c1'
+    );
+    expect(text).toMatch(
+      /interest in \*#20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase\*\./
+    );
+    expect(text).toMatch(
+      /\n\nBrowse every live listing any time: https:\/\/aryavarta\.convoreal\.com\/\?v=c1$/
+    );
+    expect(
+      unavailableListingReply('Shirish', 'Plot', 'Under Contract')
+    ).not.toMatch(/Browse every live listing/);
+  });
+
   it('greets a placeholder-named portal lead without the placeholder', () => {
     expect(unavailableListingReply('99acres Lead', 'Plot', 'Sold')).toMatch(
       /^Hi, thank you/

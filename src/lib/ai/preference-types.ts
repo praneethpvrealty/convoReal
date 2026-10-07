@@ -24,6 +24,10 @@ export interface ExtractedPreferences {
   bhk_max: number | null;
   budget_min: number | null;
   budget_max: number | null;
+  /** True when budget_max is the price of the listing the lead enquired
+   *  about rather than a figure they stated (contacts.pref_budget_anchor):
+   *  described as "around", never "up to". */
+  budget_anchored?: boolean;
   /** Plot/built-up size band, canonical square feet ("30x40 site" is
    *  1200-1200; "at least half an acre" is 21780-null). */
   land_area_min_sqft: number | null;

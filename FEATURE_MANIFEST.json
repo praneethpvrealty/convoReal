@@ -4423,6 +4423,93 @@
           ]
         }
       ]
+    },
+    {
+      "id": "buyer-conversations",
+      "name": "Buyer conversations — what a lead hears from the bot, read as one thread",
+      "surfaces": ["whatsapp"],
+      "invariants": [
+        {
+          "id": "CNV-001",
+          "rule": "A portal lead whose enquired listing has left the market is greeted by one message, the listing status notice (free-form inside an open window, the approved Utility template outside it), never the welcome auto-reply beside it; the welcome goes out only when no notice is sent. The notice names the listing once, without repeating a locality its title already carries and without the title's trailing punctuation, and the free-form reply ends with the lead's attributed showcase link. The exact-matched listing's own locality, type and price are recorded on the lead beside the portal's wording of them.",
+          "tests": [
+            {
+              "file": "src/app/api/leads/email-webhook/lead-replies.test.ts",
+              "case": "[CNV-001]"
+            },
+            {
+              "file": "src/app/api/leads/email-webhook/route.test.ts",
+              "case": "[CNV-001]"
+            },
+            {
+              "file": "src/app/api/leads/email-webhook/unavailable-listing.test.ts",
+              "case": "[CNV-001]"
+            },
+            {
+              "file": "src/lib/whatsapp/enquiry-notice-template.test.ts",
+              "case": "[CNV-001]"
+            },
+            {
+              "file": "src/lib/inventory/listing-status.test.ts",
+              "case": "[CNV-001]"
+            }
+          ]
+        },
+        {
+          "id": "CNV-002",
+          "rule": "A lead who taps Update my preferences is shown live listings before being told nothing fits: the 5 km strict search runs first and the ordinary 20 km search only when it is empty; a budget inferred from the enquired listing's price (pref_budget_anchor) admits listings up to 15% above it as partial fits while a stated budget keeps the 10% rule; a stated area that is a phase or block of a known locality takes that locality's coordinates for the radius. The reply greets a lead created within the last week as answering their own enquiry and only an older lead as back on our radar, never praises the matching engine, names the near-miss stock in the lead's own locality when nothing fits, carries the lead's attributed showcase link, and ends on the one qualifying question.",
+          "tests": [
+            { "file": "src/lib/matching.test.ts", "case": "[CNV-002]" },
+            {
+              "file": "src/lib/whatsapp/preference-tap-reply.test.ts",
+              "case": "[CNV-002]"
+            }
+          ]
+        },
+        {
+          "id": "CNV-003",
+          "rule": "The on-demand matches reply (MATCHES, Show Properties) never answers a dead end bare: when the enquired listing is unavailable and nothing fits it names that listing once (without its trailing punctuation), the near-miss stock in the lead's locality, the lead's attributed showcase link, then the widening question; when the thread's recent bot messages already told the lead the listing is unavailable (a status notice template or an earlier reply) it does not say so again; every no-match reply ends with the showcase link ahead of its question.",
+          "tests": [
+            {
+              "file": "src/lib/buyer/match-reply.test.ts",
+              "case": "[CNV-003]"
+            },
+            { "file": "src/lib/buyer/digest.test.ts", "case": "[CNV-003]" }
+          ]
+        },
+        {
+          "id": "CNV-004",
+          "rule": "A portal lead on an unavailable listing is replayed end to end through the real lead-arrival replies, the Update my preferences and Show Properties steps, the matcher, the near-miss search and the showcase links against an in-memory inventory, and the whole thread passes the transcript rules: one arrival bubble naming the listing once, at most two bot bubbles per customer turn, the live listing two phases over shown before any no-match wording, and on a true dead end the locality's stock at another price (a phase or block searched as its parent locality too) plus the showcase link. The on-demand brief names a bare sector with its noun and an enquiry-anchored budget as around, never up to.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/inbound/transcripts/portal-lead.transcript.test.ts",
+              "case": "[CNV-004]"
+            },
+            { "file": "src/lib/locality-match.test.ts", "case": "[CNV-004]" },
+            {
+              "file": "src/lib/ai/buyer-qualification.test.ts",
+              "case": "[CNV-004]"
+            }
+          ]
+        },
+        {
+          "id": "CNV-005",
+          "rule": "The transcript rules read a bot thread the way the lead did and are the one definition of a bad thread for the replay harness, the pinned fixtures and the nightly review: no more than two bot bubbles per customer turn, no arrival that promises listings and withdraws the listing in the next bubble, the listing's unavailability stated at most once, no free-form dead end without a link, no praise of the engine, no welcome-back copy for a lead created within the week, and a Show Properties tap answered with a listing or a link. Every real thread pinned under transcripts/fixtures declares exactly the violations the rules report for it, so a rule that stops catching a recorded incident fails the build; fixtures carry no phone number or email.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/inbound/transcripts/transcript-rules.test.ts",
+              "case": "[CNV-005]"
+            },
+            {
+              "file": "src/lib/whatsapp/inbound/transcripts/transcript-fixtures.test.ts",
+              "case": "[CNV-005]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/inbound/transcripts/fixtures/2026-10-07-portal-lead-jp-nagar.json"
+          ]
+        }
+      ]
     }
   ]
 }

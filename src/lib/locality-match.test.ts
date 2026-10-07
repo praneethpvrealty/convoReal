@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   localityLabelsMatch,
   localityRowPrefilter,
+  parentLocalityLabel,
   localityStems,
   localityStemProbe,
   normalizeLocalityLabel,
@@ -352,5 +353,18 @@ describe('localityRowPrefilter', () => {
     expect(
       admits(filter, { location: 'Vijaya Bank Layout, Bannerghatta Road' })
     ).toBe(true);
+  });
+});
+
+describe('parentLocalityLabel', () => {
+  it('[CNV-004] names the locality a phase, stage or block belongs to', () => {
+    expect(parentLocalityLabel('JP Nagar 4th Phase')).toBe('JP Nagar');
+    expect(parentLocalityLabel('Koramangala 1st Block')).toBe('Koramangala');
+    expect(parentLocalityLabel('Electronic City Phase 1')).toBe(
+      'Electronic City'
+    );
+    expect(parentLocalityLabel('HSR Layout, Sector 2')).toBe('HSR Layout');
+    expect(parentLocalityLabel('Whitefield')).toBeNull();
+    expect(parentLocalityLabel('4th Phase')).toBeNull();
   });
 });

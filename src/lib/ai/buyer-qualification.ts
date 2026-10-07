@@ -31,6 +31,7 @@ import {
   type RankedPropertyMatch,
 } from '@/lib/radar/engine';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
+import { isEnquiryBudgetAnchor } from '@/lib/matching';
 import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
 import {
   applySizeAnchor,
@@ -394,7 +395,8 @@ function formatBudget(prefs: ExtractedPreferences): string {
   const { budget_min: min, budget_max: max } = prefs;
   if (min != null && max != null)
     return `${formatInrCompact(min)}–${formatInrCompact(max)}`;
-  if (max != null) return `up to ${formatInrCompact(max)}`;
+  if (max != null)
+    return `${prefs.budget_anchored ? 'around' : 'up to'} ${formatInrCompact(max)}`;
   if (min != null) return `above ${formatInrCompact(min)}`;
   return '';
 }
@@ -540,7 +542,12 @@ export function buildEnquiryBudgetDisparityReply(
  */
 function typeLabel(prefs: ExtractedPreferences): string {
   const specific = prefs.property_types[0];
-  if (specific) return specific.toLowerCase().replace(/\s*\/\s*/g, '/');
+  if (specific) {
+    const label = specific.toLowerCase().replace(/\s*\/\s*/g, '/');
+    return /^(commercial|residential|industrial|agricultural)$/.test(label)
+      ? `${label} property`
+      : label;
+  }
   const category = prefs.property_categories[0];
   return category ? `${category} property` : 'property';
 }
@@ -1123,6 +1130,14 @@ export function prefsFromContact(contact: Contact): ExtractedPreferences {
     bhk_max: source.pref_bhk_max ?? null,
     budget_min: source.pref_budget_min ?? source.min_budget ?? null,
     budget_max: source.pref_budget_max ?? source.max_budget ?? null,
+    budget_anchored:
+      source.pref_budget_min == null &&
+      source.min_budget == null &&
+      source.max_budget == null &&
+      isEnquiryBudgetAnchor(
+        source.pref_budget_max != null ? Number(source.pref_budget_max) : null,
+        source.pref_budget_anchor
+      ),
     land_area_min_sqft: source.pref_land_area_min_sqft ?? null,
     land_area_max_sqft: source.pref_land_area_max_sqft ?? null,
     areas: source.areas_of_interest?.length

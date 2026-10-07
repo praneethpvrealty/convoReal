@@ -39,6 +39,45 @@ than a written entry. Newest first.
   ₹8,40,00,000, and a locality is no longer repeated when the location line
   already carries it.
 
+- **Buyer conversations are now tested as threads, not sentences.** A replay
+  harness runs a portal lead's arrival and their "Update my preferences" and
+  "Show Properties" taps through the real reply code against an in-memory
+  inventory and reads the whole thread back: one arrival message, at most
+  two bot bubbles per reply, the live listing shown before any "nothing
+  fits", and on a dead end the locality's stock at another price plus the
+  showcase link. Seven transcript rules define a bad thread once, for the
+  harness, for pinned real threads (the 7 October JP Nagar thread is on
+  record with its violations) and for the nightly review that follows. The
+  near-miss search now also looks at a phase's parent locality, and the
+  on-demand brief says "a commercial property … around ₹8.4 Cr" when the
+  budget was only read off the enquired listing. No migration is required.
+
+- **The bot shows a buyer what is live before it says nothing fits, and
+  every dead end hands them the showcase.** A tap on "Update my preferences"
+  now runs the ordinary search when the tight one is empty, and a budget
+  read off the enquired listing's price admits listings up to 15% above it
+  (a stated budget keeps the 10% rule); a lead filed under "JP Nagar 4th
+  Phase" is placed at JP Nagar for the radius. The reply no longer tells an
+  hour-old lead they are "back on our radar" or praises the matching engine,
+  and when nothing fits it names the listings in their own locality at
+  another price. "Show Properties" and "MATCHES" do the same beside an
+  unavailable enquiry, and no longer repeat a status the thread already
+  told the lead. Every no-match and unavailable-listing reply, on WhatsApp
+  enquiries too, ends with the buyer's own showcase link. No migration is
+  required.
+
+- **A portal lead on a listing that has left the market hears one message,
+  not two.** The welcome ("tell me your requirement and I'll share
+  properties") and, two seconds later, the status notice ("the listing is no
+  longer available") used to go out together and contradict each other. The
+  notice is now the greeting whenever it is sent; the welcome goes out only
+  when there is no notice to send. The notice names the listing once (no
+  repeated locality, no trailing full stop inside the bold) and the free-form
+  reply ends with the lead's own showcase link. A lead matched exactly to a
+  portal ad now also records the listing's own locality, type and price, so
+  "Dollars Colony" from the portal no longer hides every JP Nagar listing
+  from the match. No migration is required.
+
 - **Follow-up cards act in one tap.** The "Follow-up due" WhatsApp card now
   carries 💬 Check in, 🤔 Still considering and ❄️ Mark cold as buttons on the
   message itself, instead of an "Update lead" list that had to be opened

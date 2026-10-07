@@ -1,0 +1,63 @@
+{
+  "id": "2026-10-07-portal-lead-jp-nagar",
+  "source": "Production thread, 7 October 2026 IST: a 99acres lead on an Under Contract commercial plot in JP Nagar 4th Phase. Name changed; phone and email omitted.",
+  "context": {
+    "contactCreatedAt": "2026-10-07T10:14:47Z",
+    "maxBotBubblesPerTurn": 2
+  },
+  "expectedViolations": [
+    "bot-burst",
+    "contradictory-arrival",
+    "unavailable-repeated",
+    "dead-end-without-link",
+    "self-praise",
+    "returning-copy-for-new-lead",
+    "promise-without-listing"
+  ],
+  "transcript": [
+    {
+      "sender": "bot",
+      "kind": "template",
+      "templateName": "lead_welcome_utility",
+      "at": "2026-10-07T10:14:50Z",
+      "text": "Hi Sunil, thanks for your interest in the property listed on 99acres. Kindly let me know your requirements and budget, I will share the appropriate properties."
+    },
+    {
+      "sender": "bot",
+      "kind": "template",
+      "templateName": "listing_status_notice",
+      "at": "2026-10-07T10:14:52Z",
+      "text": "Hi Sunil, this is a status update on your property enquiry with Aryavarta Ventures:\n\nProperty: #20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase., JP Nagar 4th Phase, Bangalore\n\nThe listing you enquired about is no longer available, so your enquiry cannot be fulfilled as filed.\n\nTo keep your enquiry open, update your requirement below or reply with what you are looking for now. To end it, choose \"Close my enquiry\" and no further updates will be sent."
+    },
+    {
+      "sender": "customer",
+      "kind": "text",
+      "at": "2026-10-07T10:15:35Z",
+      "text": "🔘 Button: \"Update my preferences\""
+    },
+    {
+      "sender": "customer",
+      "kind": "text",
+      "at": "2026-10-07T10:15:40Z",
+      "text": "🔘 Button: \"Show Properties\""
+    },
+    {
+      "sender": "bot",
+      "kind": "text",
+      "at": "2026-10-07T10:15:47Z",
+      "text": "Great to hear from you, Sunil 👍 You're back on our radar.\n\nNothing live right now fits your requirement exactly, but our intelligent matching engine keeps watching — you'll hear from us the moment the right property comes in.\n\nIf anything about your requirement has changed, just reply here."
+    },
+    {
+      "sender": "bot",
+      "kind": "interactive",
+      "at": "2026-10-07T10:15:49Z",
+      "text": "Prefer to update everything at once instead? The full form takes under a minute."
+    },
+    {
+      "sender": "bot",
+      "kind": "text",
+      "at": "2026-10-07T10:15:55Z",
+      "text": "Hi Sunil — *#20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.* is no longer available. I've kept your requirement active and will share a similar property as soon as one is available. Reply with any change in budget, area or type."
+    }
+  ]
+}

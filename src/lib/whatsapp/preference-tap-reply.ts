@@ -35,7 +35,23 @@ import {
   sendListingIntentPrompt,
 } from '@/lib/whatsapp/listing-intent-prompt';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { areaNearMissLine } from '@/lib/buyer/area-near-misses';
+import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
+import { showcaseBrowseLine } from '@/lib/inventory/listing-status';
 import type { Contact } from '@/types';
+
+/** A lead younger than this is answering their own enquiry, not coming
+ *  back from a re-engagement batch; "back on our radar" would tell them
+ *  they had been forgotten in the hour since they wrote. */
+const RE_ENGAGED_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function isReEngagedLead(
+  createdAt: string | null | undefined,
+  now = Date.now()
+): boolean {
+  const created = createdAt ? Date.parse(createdAt) : NaN;
+  return Number.isFinite(created) && now - created >= RE_ENGAGED_AFTER_MS;
+}
 
 export interface PreferenceTapReplyResult {
   matchCount: number;
@@ -62,10 +78,25 @@ export function buildPreferenceTapReply(args: {
   enquiry: string | null;
   listings: string[];
   question: string | null;
+  /** True for a lead coming back after a quiet spell; false for one
+   *  answering the enquiry they made an hour ago. */
+  reEngaged?: boolean;
+  /** The listings-at-another-price line for their own locality, when
+   *  nothing fits (INB-015). */
+  nearMiss?: string | null;
+  /** The lead's attributed showcase link — every reply hands them the
+   *  whole catalogue, whatever the bot found. */
+  showcaseUrl?: string | null;
 }): string {
   const { contactName, enquiry, listings, question } = args;
-  const opener = `Great to hear from you, ${firstName(contactName)} 👍 You're back on our radar.`;
+  const name = firstName(contactName);
+  const opener = args.reEngaged
+    ? `Great to hear from you, ${name} 👍 You're back on our radar.`
+    : `Thanks for getting back to us, ${name} 👍`;
   const anchor = enquiry ? `your interest in *${enquiry}*` : 'your requirement';
+  const browse = args.showcaseUrl
+    ? [showcaseBrowseLine(args.showcaseUrl), '']
+    : [];
 
   if (listings.length > 0) {
     const count =
@@ -79,8 +110,9 @@ export function buildPreferenceTapReply(args: {
       '',
       listings.join('\n\n'),
       '',
-      'Our intelligent matching engine will keep sharing the right properties at the right time as new listings come in.',
+      "I'll keep matching new listings against your requirement and send you the right ones as they come in.",
       '',
+      ...browse,
       question ??
         "Want photos or a site visit for any of these? Reply with the number and I'll set it up.",
     ].join('\n');
@@ -89,8 +121,10 @@ export function buildPreferenceTapReply(args: {
   return [
     opener,
     '',
-    `Nothing live right now fits ${anchor} exactly, but our intelligent matching engine keeps watching — you'll hear from us the moment the right property comes in.`,
+    `Nothing live right now fits ${anchor} exactly, but I'll keep watching and message you the moment the right property comes in.`,
     '',
+    ...(args.nearMiss ? [args.nearMiss, ''] : []),
+    ...browse,
     question ??
       'If anything about your requirement has changed, just reply here.',
   ].join('\n');
@@ -128,11 +162,23 @@ export async function sendPreferenceTapReply(args: {
 
     // strictArea for the same reason as the form follow-up: this goes
     // straight to a buyer who named their area, so the loose 20km
-    // radius would surface listings they did not ask about.
-    const matches = await rankPropertiesForContact(db, accountId, contactId, {
-      strictArea: true,
-      excludeAlreadySent: true,
-    });
+    // radius would surface listings they did not ask about. Only when
+    // the tight radius holds nothing does the ordinary one get a turn:
+    // "nothing fits" is said after the search the agent would have run,
+    // not before it.
+    const strictMatches = await rankPropertiesForContact(
+      db,
+      accountId,
+      contactId,
+      { strictArea: true, excludeAlreadySent: true }
+    );
+    const matches =
+      strictMatches.length > 0
+        ? strictMatches
+        : await rankPropertiesForContact(db, accountId, contactId, {
+            strictArea: false,
+            excludeAlreadySent: true,
+          });
 
     const notes = ((contact as Contact).contact_notes ?? [])
       .map((n) => extractEnquiredPropertyFromNote(n.note_text))
@@ -141,8 +187,28 @@ export async function sendPreferenceTapReply(args: {
     const missing = nextQualifierForContact(contact as Contact, {
       defaultBuying: defaultedBuying,
     });
-    const baseUrl = await accountShowcaseOrigin(db, accountId);
-    const contactName = (contact as Contact).name ?? null;
+    const row = contact as Contact;
+    const [baseUrl, showcaseUrl, nearMiss] = await Promise.all([
+      accountShowcaseOrigin(db, accountId),
+      accountShowcaseBrowseUrl(db, accountId, contactId),
+      matches.length === 0
+        ? areaNearMissLine({
+            db,
+            accountId,
+            contactId,
+            brief: {
+              areas: [
+                ...(row.areas_of_interest ?? []),
+                ...(row.pref_areas ?? []),
+              ],
+              listingTypes: row.pref_listing_types ?? [],
+              budgetMin: row.pref_budget_min ?? row.min_budget ?? null,
+              budgetMax: row.pref_budget_max ?? row.max_budget ?? null,
+            },
+          })
+        : Promise.resolve(null),
+    ]);
+    const contactName = row.name ?? null;
 
     // With no matches and a tappable rung missing, the question becomes
     // a tap: the list follows instead of a typed answer, and it carries
@@ -156,6 +222,9 @@ export async function sendPreferenceTapReply(args: {
       contactName,
       enquiry: notes[0] ?? null,
       listings: buildListingLines(contactName, matches, baseUrl, contactId),
+      reEngaged: isReEngagedLead(row.created_at),
+      nearMiss,
+      showcaseUrl,
       question: tapRung
         ? tapRung === 'budget'
           ? defaultedBuying
