@@ -57,6 +57,13 @@ export async function DELETE(request: Request) {
     const admin = supabaseAdmin();
 
     if (ctx.role === 'owner') {
+      if (ctx.isReadOnly) {
+        return NextResponse.json(
+          { error: 'Read-only members cannot make changes.' },
+          { status: 403 }
+        );
+      }
+
       const { data: members, error: membersError } = await admin
         .from('profiles')
         .select('user_id')

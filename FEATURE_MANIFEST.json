@@ -4243,6 +4243,28 @@
             "src/app/api/contacts/[id]/handoff/route.ts",
             "src/app/api/beta-invites/route.ts"
           ]
+        },
+        {
+          "id": "ACC-007",
+          "rule": "A read-only member (profiles.is_read_only) cannot manage the team, whatever account_role or org_role they hold. PATCH and DELETE /api/account/members/[userId] use requireWriteRole('admin'), POST /api/account/transfer-ownership uses requireWriteRole('owner'), PATCH /api/account/members/[userId]/org-role and /team refuse ctx.isReadOnly after their org-role check, and DELETE /api/account/delete refuses a read-only owner before relocating teammates; each answers 403 before calling the database. The SECURITY DEFINER functions behind them refuse on their own, so the member's own JWT cannot run them through PostgREST RPC either: set_member_role, set_member_org_role, set_member_team, remove_account_member and transfer_account_ownership check is_account_writer(<caller's account>, 'agent') right after resolving the caller's profile and raise 42501 before any write. Every other check in them (role thresholds, same-account target, the owner and Manager carve-outs, the Leader team rules) is unchanged. mark_bot_instructions_fired, which already did nothing unless auth.role() is service_role, is executable by service_role only.",
+          "tests": [
+            {
+              "file": "src/lib/auth/read-only-member-management.test.ts",
+              "case": "[ACC-007]"
+            },
+            {
+              "file": "src/app/api/account/members/[userId]/route.test.ts",
+              "case": "[ACC-007]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261007081838_member_management_read_only.sql",
+            "src/app/api/account/members/[userId]/route.ts",
+            "src/app/api/account/members/[userId]/org-role/route.ts",
+            "src/app/api/account/members/[userId]/team/route.ts",
+            "src/app/api/account/transfer-ownership/route.ts",
+            "src/app/api/account/delete/route.ts"
+          ]
         }
       ]
     },
