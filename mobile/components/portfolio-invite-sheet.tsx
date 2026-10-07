@@ -20,7 +20,7 @@ import { openContactChat } from '@/lib/open-chat';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 
-type PortfolioSide = 'buyer' | 'owner';
+type PortfolioSide = 'buyer' | 'owner' | 'agent';
 
 interface PreviewResponse {
   data: {
@@ -29,12 +29,14 @@ interface PreviewResponse {
     message: string;
     url: string | null;
     phone: string | null;
+    agentRegistered?: boolean;
   };
 }
 
 const SIDE_LABELS: Record<PortfolioSide, string> = {
   buyer: 'Buyer Portfolio',
   owner: 'Owner Portfolio',
+  agent: 'Agent Invite',
 };
 
 export function PortfolioInviteSheet({
@@ -70,6 +72,8 @@ export function PortfolioInviteSheet({
   const side = preview.data?.data.side ?? null;
   const sides = preview.data?.data.sides ?? [];
   const message = preview.data?.data.message ?? '';
+  const agentSide = side === 'agent';
+  const agentRegistered = preview.data?.data.agentRegistered === true;
 
   function closeSheet() {
     setSending(false);
@@ -105,7 +109,61 @@ export function PortfolioInviteSheet({
     }
   }
 
+  async function openAgentInvite() {
+    const digits = contact.phone?.replace(/\D/g, '') ?? '';
+    if (!digits || sending) return;
+    setSending(true);
+    setSendError(null);
+    let shareMessage: string;
+    try {
+      const invite = await apiFetch<{ shareMessage: string }>(
+        '/api/beta-invites',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            label: contact.name?.trim() || null,
+            invitee_phone: contact.phone,
+          }),
+        }
+      );
+      shareMessage = invite.shareMessage;
+    } catch (reason) {
+      haptic.warn();
+      setSendError(
+        friendlyError(
+          reason instanceof Error
+            ? reason.message
+            : 'Could not create the ConvoReal invite'
+        )
+      );
+      setSending(false);
+      return;
+    }
+    haptic.send();
+    try {
+      await Linking.openURL(
+        `https://wa.me/${digits}?text=${encodeURIComponent(shareMessage)}`
+      );
+    } catch {
+      haptic.warn();
+      setSending(false);
+      setSendError('Could not open WhatsApp on this device.');
+      return;
+    }
+    closeSheet();
+    try {
+      await apiFetch(path, {
+        method: 'POST',
+        body: JSON.stringify({ channel: 'personal', side: 'agent' }),
+      });
+      onSent();
+    } catch {
+      // The chat is already open; a missing timeline note is not worth a warning.
+    }
+  }
+
   async function openPersonalWhatsApp() {
+    if (agentSide) return openAgentInvite();
     const digits = contact.phone?.replace(/\D/g, '') ?? '';
     if (!digits || !message || !side) return;
     haptic.send();
@@ -164,7 +222,9 @@ export function PortfolioInviteSheet({
           : 'Could not prepare the Portfolio invite'
       )
     : sendError;
-  const ready = !preview.isLoading && Boolean(side && message);
+  const ready =
+    !preview.isLoading &&
+    (agentSide ? !agentRegistered : Boolean(side && message));
 
   return (
     <BottomSheet
@@ -174,11 +234,13 @@ export function PortfolioInviteSheet({
     >
       <View style={{ paddingHorizontal: spacing.lg, gap: spacing.lg }}>
         <Text style={{ color: colors.textMuted, fontSize: 14, lineHeight: 20 }}>
-          {side === 'owner'
-            ? `Invite ${name} to their Owner Portfolio to track enquiries, visits and offers on their property and add new listings themselves.`
-            : side === 'buyer'
-              ? `Invite ${name} to their Portfolio to see matched properties, keep a shortlist and update their requirements.`
-              : `Invite ${name} to sign in to their Portfolio with this WhatsApp number.`}
+          {agentSide
+            ? `Invite ${name} to ConvoReal to run their own inventory, so you can share listings and requirements with them directly.`
+            : side === 'owner'
+              ? `Invite ${name} to their Owner Portfolio to track enquiries, visits and offers on their property and add new listings themselves.`
+              : side === 'buyer'
+                ? `Invite ${name} to their Portfolio to see matched properties, keep a shortlist and update their requirements.`
+                : `Invite ${name} to sign in to their Portfolio with this WhatsApp number.`}
         </Text>
 
         {sides.length > 1 ? (
@@ -203,10 +265,12 @@ export function PortfolioInviteSheet({
                 ]}
               >
                 <Text
+                  numberOfLines={2}
                   style={{
                     color: option === side ? colors.text : colors.textMuted,
                     fontFamily: f.semibold,
                     fontSize: 13.5,
+                    textAlign: 'center',
                   }}
                 >
                   {SIDE_LABELS[option]}
@@ -232,6 +296,14 @@ export function PortfolioInviteSheet({
                 Preparing the invite…
               </Text>
             </View>
+          ) : agentSide ? (
+            <Text
+              style={{ color: colors.text, fontSize: 13.5, lineHeight: 20 }}
+            >
+              {agentRegistered
+                ? `${name} already uses ConvoReal. Use Share Inventory to send listings straight to their Pending Review queue.`
+                : `Personal WhatsApp creates a ConvoReal invite link for ${name}, using one of your invite seats, and opens it ready to send from your own WhatsApp.`}
+            </Text>
           ) : message ? (
             <Text
               style={{ color: colors.text, fontSize: 13.5, lineHeight: 20 }}
@@ -246,7 +318,7 @@ export function PortfolioInviteSheet({
                 lineHeight: 20,
               }}
             >
-              {`Portfolio is for buyers and owners. Classify ${name} as a Buyer, Owner or Seller, or link them to a listing or enquiry, and the invite will be ready here.`}
+              {`Portfolio is for buyers and owners. Classify ${name} as a Buyer, Owner or Seller, or link them to a listing or enquiry, and the invite will be ready here. Classify an agent as Agent to invite them to ConvoReal.`}
             </Text>
           )}
         </View>
@@ -271,25 +343,35 @@ export function PortfolioInviteSheet({
               lineHeight: 18,
             }}
           >
-            Business WhatsApp is sent and tracked in ConvoReal; outside the
-            24-hour window it goes out as the approved Portfolio access template
-            with a sign-in button. Personal WhatsApp opens this message in your
-            own app and notes the invite on the timeline.
+            {agentSide
+              ? 'A ConvoReal invite is a personal note from you to another agent, so it goes from your own WhatsApp, never the business number. The invite is noted on the timeline.'
+              : 'Business WhatsApp is sent and tracked in ConvoReal; outside the 24-hour window it goes out as the approved Portfolio access template with a sign-in button. Personal WhatsApp opens this message in your own app and notes the invite on the timeline.'}
           </Text>
         </View>
 
         {error ? <Banner kind="error" text={error} /> : null}
 
-        <PrimaryButton
-          label="Send from business WhatsApp"
-          icon="logo-whatsapp"
-          busy={sending}
-          disabled={!ready}
-          onPress={sendFromBusiness}
-          testID="portfolio-invite-business-send"
-        />
+        {agentSide ? (
+          <PrimaryButton
+            label="Open personal WhatsApp"
+            icon="logo-whatsapp"
+            busy={sending}
+            disabled={!ready || !contact.phone}
+            onPress={openAgentInvite}
+            testID="portfolio-invite-agent-send"
+          />
+        ) : (
+          <PrimaryButton
+            label="Send from business WhatsApp"
+            icon="logo-whatsapp"
+            busy={sending}
+            disabled={!ready}
+            onPress={sendFromBusiness}
+            testID="portfolio-invite-business-send"
+          />
+        )}
 
-        {contact.phone ? (
+        {contact.phone && !agentSide ? (
           <Pressable
             onPress={openPersonalWhatsApp}
             disabled={!ready}
@@ -329,6 +411,7 @@ const styles = StyleSheet.create({
   sideButton: {
     flex: 1,
     minHeight: 42,
+    paddingHorizontal: spacing.xs,
     borderRadius: radius.md,
     borderWidth: 1,
     alignItems: 'center',

@@ -43,6 +43,7 @@ function makeDb() {
 }
 
 const sendPortfolioInvite = vi.fn();
+const lookupAgentShareTarget = vi.fn();
 
 let readOnly = false;
 
@@ -71,6 +72,11 @@ vi.mock('@/lib/contacts/portfolio-invite', async (importOriginal) => {
     sendPortfolioInvite: (...args: unknown[]) => sendPortfolioInvite(...args),
   };
 });
+
+vi.mock('@/lib/inventory/agent-account-share', () => ({
+  lookupAgentShareTarget: (...args: unknown[]) =>
+    lookupAgentShareTarget(...args),
+}));
 
 import { GET, POST } from './route';
 
@@ -102,6 +108,8 @@ beforeEach(() => {
   inserts = [];
   updates = [];
   sendPortfolioInvite.mockReset();
+  lookupAgentShareTarget.mockReset();
+  lookupAgentShareTarget.mockResolvedValue({ recipient: null });
   readOnly = false;
 });
 
@@ -146,6 +154,42 @@ describe('GET /api/contacts/[id]/portfolio-invite', () => {
       message: '',
       url: null,
     });
+  });
+
+  it('[CTM-011] offers an Agent contact the ConvoReal invite first, with no drafted link', async () => {
+    queues['contacts'] = [{ data: { ...ownerBuyer, classification: 'Agent' } }];
+
+    const res = await GET(get(), { params });
+    const { data } = await res.json();
+    expect(data).toMatchObject({
+      sides: ['agent'],
+      side: 'agent',
+      message: '',
+      url: null,
+      agentRegistered: false,
+    });
+    expect(lookupAgentShareTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ accountId: 'acc-1' }),
+      'c-1'
+    );
+  });
+
+  it('[CTM-011] reports an Agent contact who already uses ConvoReal', async () => {
+    queues['contacts'] = [{ data: { ...ownerBuyer, classification: 'Agent' } }];
+    lookupAgentShareTarget.mockResolvedValue({
+      recipient: { account_id: 'acc-2' },
+    });
+
+    const res = await GET(get(), { params });
+    expect((await res.json()).data.agentRegistered).toBe(true);
+  });
+
+  it('[CTM-011] never looks up ConvoReal accounts for a buyer or owner', async () => {
+    queues['contacts'] = [{ data: ownerBuyer }];
+
+    const res = await GET(get(), { params });
+    expect((await res.json()).data.agentRegistered).toBe(false);
+    expect(lookupAgentShareTarget).not.toHaveBeenCalled();
   });
 
   it('refuses a contact from another account', async () => {
@@ -217,6 +261,24 @@ describe('POST /api/contacts/[id]/portfolio-invite', () => {
       },
     });
     expect(updates[0]).toMatchObject({ table: 'contacts' });
+  });
+
+  it('[CTM-011] notes a personal ConvoReal invite to an Agent contact on the timeline', async () => {
+    queues['contacts'] = [{ data: { ...ownerBuyer, classification: 'Agent' } }];
+    queues['contact_notes'] = [{ data: null, error: null }];
+
+    const res = await POST(post({ channel: 'personal', side: 'agent' }), {
+      params,
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual({
+      delivery: 'personal',
+      side: 'agent',
+    });
+    expect(inserts[0]).toMatchObject({
+      table: 'contact_notes',
+      row: { note_text: '🔑 Shared a ConvoReal invite via personal WhatsApp' },
+    });
   });
 
   it('[CTM-011] notes nothing for a contact Portfolio would not link', async () => {

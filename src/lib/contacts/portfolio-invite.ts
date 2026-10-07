@@ -21,6 +21,8 @@ import {
 
 export type PortfolioSide = 'buyer' | 'owner';
 
+export type PortfolioInviteSide = PortfolioSide | 'agent';
+
 export const PORTFOLIO_BUYER_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer'];
 export const PORTFOLIO_OWNER_CLASSIFICATIONS = [
   'Owner',
@@ -34,8 +36,8 @@ export interface PortfolioEligibilityFacts {
 }
 
 export interface PortfolioInvite {
-  sides: PortfolioSide[];
-  side: PortfolioSide | null;
+  sides: PortfolioInviteSide[];
+  side: PortfolioInviteSide | null;
   message: string;
   url: string | null;
 }
@@ -43,7 +45,7 @@ export interface PortfolioInvite {
 export interface PortfolioInviteResult {
   success: boolean;
   delivery?: 'free_text' | 'template';
-  side: PortfolioSide | null;
+  side: PortfolioInviteSide | null;
   message: string;
   url: string | null;
   error?: string;
@@ -55,9 +57,16 @@ export const PORTFOLIO_INVITE_NOT_ELIGIBLE_ERROR =
 export const PORTFOLIO_INVITE_WINDOW_CLOSED_ERROR =
   'The 24-hour window is closed and the Portfolio access template is not approved yet. Submit it from Settings → Templates, or use personal WhatsApp.';
 
-export const PORTFOLIO_INVITE_PERSONAL_NOTES: Record<PortfolioSide, string> = {
+export const AGENT_INVITE_PERSONAL_ONLY_ERROR =
+  'A ConvoReal invite for an agent goes from your own WhatsApp. Use personal WhatsApp.';
+
+export const PORTFOLIO_INVITE_PERSONAL_NOTES: Record<
+  PortfolioInviteSide,
+  string
+> = {
   buyer: '🔑 Shared the buyer Portfolio invite via personal WhatsApp',
   owner: '🔑 Shared the owner Portfolio invite via personal WhatsApp',
+  agent: '🔑 Shared a ConvoReal invite via personal WhatsApp',
 };
 
 const clean = (value?: string | null) => value?.trim() || '';
@@ -67,8 +76,9 @@ const firstName = (name?: string | null) => clean(name).split(/\s+/)[0] ?? '';
 export function portfolioInviteSides(
   classification: string | null | undefined,
   facts: PortfolioEligibilityFacts
-): PortfolioSide[] {
-  const sides: PortfolioSide[] = [];
+): PortfolioInviteSide[] {
+  const sides: PortfolioInviteSide[] = [];
+  if (classification === 'Agent') sides.push('agent');
   if (
     PORTFOLIO_OWNER_CLASSIFICATIONS.includes(classification ?? '') ||
     facts.ownsListing
@@ -184,8 +194,10 @@ async function agentDisplayName(
   }
 }
 
-export function parsePortfolioSide(value: unknown): PortfolioSide | null {
-  return value === 'buyer' || value === 'owner' ? value : null;
+export function parsePortfolioSide(value: unknown): PortfolioInviteSide | null {
+  return value === 'buyer' || value === 'owner' || value === 'agent'
+    ? value
+    : null;
 }
 
 export async function buildPortfolioInvite(args: {
@@ -193,7 +205,7 @@ export async function buildPortfolioInvite(args: {
   accountId: string;
   userId: string;
   contact: Contact;
-  side?: PortfolioSide | null;
+  side?: PortfolioInviteSide | null;
 }): Promise<PortfolioInvite> {
   const { db, accountId, userId, contact } = args;
   const facts = await portfolioEligibilityFacts(db, accountId, contact.id);
@@ -201,6 +213,7 @@ export async function buildPortfolioInvite(args: {
   const side =
     args.side && sides.includes(args.side) ? args.side : (sides[0] ?? null);
   if (!side) return { sides, side: null, message: '', url: null };
+  if (side === 'agent') return { sides, side, message: '', url: null };
 
   const [brandName, agentName] = await Promise.all([
     accountBrandName(db, accountId),
@@ -233,7 +246,7 @@ export async function sendPortfolioInvite(args: {
   accountId: string;
   userId: string;
   contact: Contact;
-  side?: PortfolioSide | null;
+  side?: PortfolioInviteSide | null;
 }): Promise<PortfolioInviteResult> {
   const { db, accountId, userId, contact } = args;
   const invite = await buildPortfolioInvite(args);
@@ -246,6 +259,16 @@ export async function sendPortfolioInvite(args: {
       message,
       url,
       error: PORTFOLIO_INVITE_NOT_ELIGIBLE_ERROR,
+    };
+  }
+
+  if (side === 'agent') {
+    return {
+      success: false,
+      side,
+      message,
+      url,
+      error: AGENT_INVITE_PERSONAL_ONLY_ERROR,
     };
   }
 
@@ -369,7 +392,7 @@ export async function logPersonalPortfolioInvite(args: {
   accountId: string;
   userId: string;
   contactId: string;
-  side: PortfolioSide;
+  side: PortfolioInviteSide;
 }): Promise<void> {
   const { db, accountId, userId, contactId, side } = args;
   const now = new Date().toISOString();
