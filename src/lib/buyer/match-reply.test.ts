@@ -313,7 +313,8 @@ describe('buildBuyerMatchReply', () => {
         sender_type: 'bot',
         status: 'delivered',
         template_name: 'listing_status_notice',
-        content_text: 'Hi sandhiya, this is a status update…',
+        content_text:
+          'Hi sandhiya, this is a status update on your property enquiry:\n\nProperty: Suryanagar Corner Plot, Bangalore\n\nThe listing you enquired about is no longer available.',
       },
     ];
 
@@ -329,6 +330,37 @@ describe('buildBuyerMatchReply', () => {
       "I don't have a vacant plot in KHB Suryanagar Phase live right now"
     );
     expect(reply).toContain('📍 We do have 1 listing');
+  });
+
+  it('[CNV-003] still names an unavailable listing when the notice in the thread was about another one', async () => {
+    const db = dbForPortalPlotLead();
+    db.rows.contacts[0].last_inquired_property_id = 'gone';
+    db.rows.properties.push({
+      id: 'gone',
+      account_id: 'account',
+      title: 'Suryanagar Corner Plot',
+      status: 'Under Contract',
+      is_published: true,
+    });
+    db.rows.messages = [
+      {
+        conversation_id: 'conv-1',
+        sender_type: 'bot',
+        status: 'delivered',
+        template_name: 'listing_status_notice',
+        content_text:
+          'Hi sandhiya, this is a status update on your property enquiry:\n\nProperty: Lakeview Villa, Bangalore\n\nThe listing you enquired about is no longer available.',
+      },
+    ];
+
+    const reply = await buildBuyerMatchReply({
+      accountId: 'account',
+      contactId: 'sandhiya',
+      conversationId: 'conv-1',
+      db: db as never,
+    });
+
+    expect(reply).toContain('*Suryanagar Corner Plot* is no longer available');
   });
 });
 

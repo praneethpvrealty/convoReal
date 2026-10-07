@@ -987,6 +987,44 @@ describe('getMatchingContacts', () => {
       ).toHaveLength(0);
     });
 
+    it('[CNV-002] keeps the stated-budget rule for a saved requirement profile whose max equals the enquired price', () => {
+      const plot = createTestProperty({
+        type: 'Commercial Plot',
+        price: 96000000,
+        location: 'JP Nagar 2nd Phase, Bangalore',
+        sublocality: 'JP Nagar 2nd Phase',
+        listing_type: 'Sale',
+      });
+      const profiled = createTestContact({
+        pref_budget_anchor: 84000000,
+        requirement_profiles: [
+          {
+            id: 'rp-1',
+            title: 'Commercial plot',
+            raw_text: 'Commercial plot in JP Nagar up to 8.4 Cr',
+            source: 'manual',
+            active: true,
+            property_types: ['Commercial Plot'],
+            property_categories: [],
+            bhk_min: null,
+            bhk_max: null,
+            budget_min: null,
+            budget_max: 84000000,
+            land_area_min_sqft: null,
+            land_area_max_sqft: null,
+            areas: ['JP Nagar'],
+            excluded_areas: [],
+            projects: [],
+            min_roi: null,
+            listing_types: ['Sale'],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ],
+      });
+      expect(getMatchingContacts(plot, [profiled])).toHaveLength(0);
+    });
+
     it('[INB-029] ignores a locality the requirement history names once the contact has stated areas', () => {
       const hsrHouse = createTestProperty({
         type: 'Residential House',

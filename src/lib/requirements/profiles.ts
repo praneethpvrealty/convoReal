@@ -142,6 +142,7 @@ export function contactForRequirementProfile(
     pref_bhk_max: profile.bhk_max,
     pref_budget_min: profile.budget_min,
     pref_budget_max: profile.budget_max,
+    pref_budget_anchor: null,
     pref_land_area_min_sqft: profile.land_area_min_sqft,
     pref_land_area_max_sqft: profile.land_area_max_sqft,
     pref_areas: profile.areas,

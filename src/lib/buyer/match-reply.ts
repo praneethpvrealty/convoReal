@@ -21,6 +21,7 @@ import {
 } from './matches-ranking';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
+import { listingTitleForMessage } from '@/lib/inventory/listing-title';
 import { ENQUIRY_NOTICE_TEMPLATE_NAMES } from '@/lib/whatsapp/enquiry-notice-template';
 import { LISTING_AVAILABILITY_TEMPLATE_NAME } from '@/lib/whatsapp/listing-availability-template';
 import { areaNearMissLine } from './area-near-misses';
@@ -149,19 +150,21 @@ async function threadAlreadySaidUnavailable(
       ...ENQUIRY_NOTICE_TEMPLATE_NAMES,
       LISTING_AVAILABILITY_TEMPLATE_NAME,
     ]);
-    const title = propertyTitle.trim().toLowerCase();
+    // A notice names its listing, so only one naming this listing counts:
+    // a buyer with successive enquiries is told about the second one.
+    const title = listingTitleForMessage(propertyTitle).toLowerCase();
     return (
       (data as
         | { content_text: string | null; template_name: string | null }[]
         | null) ?? []
     ).some(
       (row) =>
-        (row.template_name && noticeNames.has(row.template_name)) ||
-        (!!row.content_text &&
+        !!row.content_text &&
+        ((row.template_name && noticeNames.has(row.template_name)) ||
           /no longer available|not available right now|already been sold|under contract|off the market/i.test(
             row.content_text
-          ) &&
-          (!title || row.content_text.toLowerCase().includes(title)))
+          )) &&
+        (!title || row.content_text.toLowerCase().includes(title))
     );
   } catch {
     return false;

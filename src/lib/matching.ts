@@ -1227,10 +1227,14 @@ function matchContactsSingleProfile(
         ? Number(sourceContact.pref_budget_max)
         : null
     );
+    // The anchor belongs to the primary brief: a saved requirement
+    // profile states its own budget, so contactForRequirementProfile
+    // clears it, and a profile max that happens to equal the enquired
+    // price keeps the stated-budget tolerance.
     const anchoredMax =
       explicitMax === null &&
       budgetMin === null &&
-      isEnquiryBudgetAnchor(budgetMax, contact.pref_budget_anchor);
+      isEnquiryBudgetAnchor(budgetMax, sourceContact.pref_budget_anchor);
     let maxIsCeiling = anchoredMax;
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
       const parsed = parseBudgetFromText(combinedText);
