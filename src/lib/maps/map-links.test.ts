@@ -122,9 +122,15 @@ describe('extractCoordinatesFromMapUrl on a route', () => {
   });
 
   it('[PRP-042] takes the last waypoint when both ends are places', () => {
-    expect(extractCoordinatesFromMapUrl(ROUTE_BETWEEN_PLACES)).toBeNull();
+    expect(extractCoordinatesFromMapUrl(ROUTE_BETWEEN_PLACES)).toEqual({
+      latitude: 12.8632,
+      longitude: 77.6536,
+    });
     expect(extractPlaceNameFromMapUrl(ROUTE_BETWEEN_PLACES)).toBe(
       'Chikkathoguru'
+    );
+    expect(mapLinkAsPin(ROUTE_BETWEEN_PLACES)).toBe(
+      'https://www.google.com/maps/search/?api=1&query=12.8632,77.6536'
     );
   });
 

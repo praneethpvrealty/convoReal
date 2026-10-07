@@ -142,8 +142,9 @@ export function mapLinkAsPin(url: string): string | null {
  * query forms (`?api=1&query=lat,lng`, `?q=`, `?ll=`), the place-detail
  * form (`!3dlat!4dlng`), the viewport form (`@lat,lng,17z`), and a bare
  * `/maps/search/lat,+lng` path segment. A directions URL yields only
- * its destination: the point in its `!3d!4d` data or a coordinate
- * destination, never the origin or the route's midpoint viewport.
+ * its destination: a coordinate destination, the last `!3d!4d` place
+ * or the last `!1d{lng}!2d{lat}` waypoint, never the origin or the
+ * route's midpoint viewport.
  */
 export function extractCoordinatesFromMapUrl(url: string): Coordinates | null {
   let parsed: URL | null = null;
@@ -157,11 +158,18 @@ export function extractCoordinatesFromMapUrl(url: string): Coordinates | null {
     const destination = directionsDestination(url);
     const destinationCoords = parseCoordinatePair(destination);
     if (destinationCoords) return destinationCoords;
-    const waypointData = [
+    const placeData = [
       ...url.matchAll(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/g),
     ];
-    const last = waypointData[waypointData.length - 1];
-    return last ? toCoordinates(last[1], last[2]) : null;
+    const lastPlace = placeData[placeData.length - 1];
+    if (lastPlace) return toCoordinates(lastPlace[1], lastPlace[2]);
+    const waypointData = [
+      ...url.matchAll(/!1d(-?\d+(?:\.\d+)?)!2d(-?\d+(?:\.\d+)?)/g),
+    ];
+    const lastWaypoint = waypointData[waypointData.length - 1];
+    return lastWaypoint
+      ? toCoordinates(lastWaypoint[2], lastWaypoint[1])
+      : null;
   }
 
   if (parsed) {

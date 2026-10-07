@@ -80,7 +80,7 @@ export async function backfillLocationFromMapLink(
     latitude: draft.latitude ?? derived.latitude,
     longitude: draft.longitude ?? derived.longitude,
     google_map_link: derived.mapLink || draft.google_map_link || source,
-    geo_resolved_from: source,
+    geo_resolved_from: derived.location ? source : draft.geo_resolved_from,
   };
 }
 

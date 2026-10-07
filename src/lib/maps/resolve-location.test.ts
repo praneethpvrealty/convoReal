@@ -629,6 +629,42 @@ describe('resolveMapPin', () => {
   });
 });
 
+describe('resolveLocationFromGoogleMapLink on a Street View link', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.GOOGLE_MAPS_API_KEY;
+  });
+
+  it('[PRP-042] keeps the camera point and the rewritten pin when nobody can name the place', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        url: 'https://www.google.com/maps/@12.9347296,77.614563,3a,75y,215.83h,96.36t/data=!3m5!1e1!3m3!1sabc!2e0',
+        json: async () => ({}),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        url: '',
+        json: async () => ({}),
+      } as unknown as Response);
+
+    expect(
+      await resolveLocationFromGoogleMapLink(
+        'https://maps.app.goo.gl/RUBjJ59KjHgzNAnR6?g_st=aw'
+      )
+    ).toEqual({
+      location: null,
+      sublocality: null,
+      city: null,
+      state: null,
+      latitude: 12.9347296,
+      longitude: 77.614563,
+      mapLink:
+        'https://www.google.com/maps/search/?api=1&query=12.9347296,77.614563',
+    });
+  });
+});
+
 describe('resolveLocationFromGoogleMapLink on a route', () => {
   beforeEach(() => {
     vi.restoreAllMocks();

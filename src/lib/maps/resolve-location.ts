@@ -50,8 +50,9 @@ const FETCH_TIMEOUT_MS = 5000;
 const NOMINATIM_USER_AGENT = 'ConvoReal/1.0 (WhatsApp property listing intake)';
 
 export interface ResolvedMapLocation {
-  /** Human-readable address line for the draft's `location` field. */
-  location: string;
+  /** Human-readable address line for the draft's `location` field, or
+   *  null when the pin resolved to a point nobody could name. */
+  location: string | null;
   sublocality: string | null;
   city: string | null;
   state: string | null;
@@ -241,9 +242,11 @@ export async function resolveMapPin(url: string): Promise<ResolvedMapPin> {
 
 /**
  * Resolves a Google Maps URL (short or canonical) to the location parts
- * behind it. Returns null on any failure or when nothing usable could be
- * derived — callers should treat this as best-effort, not a guaranteed
- * result.
+ * behind it. A point the geocoder could not name still comes back with
+ * its coordinates and the link to store, so a route or Street View link
+ * is rewritten even when the address stays unknown. Returns null on any
+ * failure or when nothing usable could be derived — callers should
+ * treat this as best-effort, not a guaranteed result.
  */
 export async function resolveLocationFromGoogleMapLink(
   url: string
@@ -298,6 +301,18 @@ export async function resolveLocationFromGoogleMapLink(
         state: null,
         latitude: resolvedCoords?.latitude ?? null,
         longitude: resolvedCoords?.longitude ?? null,
+        ...relink,
+      };
+    }
+
+    if (resolvedCoords) {
+      return {
+        location: null,
+        sublocality: null,
+        city: null,
+        state: null,
+        latitude: resolvedCoords.latitude,
+        longitude: resolvedCoords.longitude,
         ...relink,
       };
     }
