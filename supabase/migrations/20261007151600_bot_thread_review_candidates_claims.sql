@@ -6,7 +6,9 @@
 -- src/lib/whatsapp/inbound/transcripts/thread-review.ts. Oldest due
 -- first: what one night's budget leaves over is reviewed ahead of the
 -- next day's traffic, so a thread waits its turn and is never pushed
--- behind newer activity until it ages out.
+-- behind newer activity until it ages out. The scan starts at the
+-- earliest review on record, so once the review is live nothing after
+-- that night ages out; p_since is the floor for the very first run.
 
 CREATE OR REPLACE FUNCTION public.bot_thread_review_candidates(
   p_since TIMESTAMPTZ,
@@ -22,13 +24,19 @@ LANGUAGE sql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  WITH activity AS (
+  WITH floor AS (
+    SELECT least(
+      p_since,
+      COALESCE((SELECT min(r.window_start) FROM bot_thread_reviews r), p_since)
+    ) AS since
+  ),
+  activity AS (
     SELECT m.conversation_id, max(m.created_at) AS latest_bot_at
-    FROM messages m
+    FROM messages m, floor
     WHERE m.sender_type = 'bot'
       AND m.private = false
       AND m.status IS DISTINCT FROM 'failed'
-      AND m.created_at >= p_since
+      AND m.created_at >= floor.since
       AND NOT (m.conversation_id = ANY (p_exclude))
     GROUP BY m.conversation_id
   )

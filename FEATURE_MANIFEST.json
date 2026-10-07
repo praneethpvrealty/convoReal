@@ -4531,6 +4531,7 @@
             "supabase/migrations/20261007145237_bot_thread_review_candidates.sql",
             "supabase/migrations/20261007151500_bot_thread_review_judged_at.sql",
             "supabase/migrations/20261007151600_bot_thread_review_candidates_claims.sql",
+            "supabase/migrations/20261007155000_bot_thread_review_messages_index.sql",
             "vercel.json",
             "src/app/(dashboard)/admin/bot-replies-tab.tsx"
           ]

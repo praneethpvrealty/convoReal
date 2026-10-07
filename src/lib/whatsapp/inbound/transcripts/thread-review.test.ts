@@ -104,7 +104,14 @@ function seed() {
 
 /** What bot_thread_review_candidates computes in SQL, over the tables. */
 function candidates(args: Record<string, unknown>) {
-  const since = String(args.p_since);
+  const floors = tables.bot_thread_reviews
+    .map((r) => r.window_start)
+    .filter((v): v is string => typeof v === 'string')
+    .sort();
+  const since =
+    floors[0] && floors[0] < String(args.p_since)
+      ? floors[0]
+      : String(args.p_since);
   const exclude = new Set((args.p_exclude as string[]) ?? []);
   const latest = new Map<string, string>();
   for (const m of tables.messages) {
@@ -643,6 +650,66 @@ describe('[CNV-006] collection', () => {
       limit: 1,
     });
     expect(judged).toEqual(['old', 'new']);
+  });
+
+  it('never ages out activity after the first review on record', async () => {
+    const judge = vi.fn<(prompt: string, system: string) => Promise<string>>(
+      async () => '{"score": 90, "issues": []}'
+    );
+    // Without a review on record, the eight-day-old thread is past the
+    // first run's floor.
+    const first = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge,
+    });
+    expect(first.threads).toBe(1);
+
+    // With the review live since three weeks ago, it is due.
+    tables.bot_thread_reviews = [
+      {
+        conversation_id: 'conv-1',
+        review_day: '2026-10-08',
+        verdict: 'pass',
+        window_start: at(60 * 24 * 21),
+        window_end: NOW.toISOString(),
+        judged_at: NOW.toISOString(),
+      },
+    ];
+    const second = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge,
+    });
+    expect(second.threads).toBe(1);
+    expect(tables.bot_thread_reviews.at(-1)?.conversation_id).toBe('conv-old');
+  });
+
+  it('watermarks the activity it read, so a thread a later batch found is not judged again tomorrow', async () => {
+    const judge = vi.fn<(prompt: string, system: string) => Promise<string>>(
+      async () => '{"score": 90, "issues": []}'
+    );
+    tables.messages = [
+      {
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'bot',
+        private: false,
+        content_type: 'text',
+        content_text: 'Here it is: https://x/?property_id=p1&v=c',
+        created_at: at(-5),
+      },
+    ];
+    await runBotThreadReview({ db: db as never, now: NOW, judge });
+    expect(tables.bot_thread_reviews[0].window_end).toBe(at(-5));
+
+    const tomorrow = await runBotThreadReview({
+      db: db as never,
+      now: new Date(NOW.getTime() + 24 * 60 * 60 * 1000),
+      judge,
+    });
+    expect(tomorrow.threads).toBe(0);
+    expect(judge).toHaveBeenCalledTimes(1);
   });
 
   it('fails a thread rather than finalising a partial read', async () => {

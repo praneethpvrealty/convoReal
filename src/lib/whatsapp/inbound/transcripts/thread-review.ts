@@ -24,11 +24,12 @@ import {
 } from './transcript-rules';
 import { maskContactDetails } from './mask';
 
-/** How far back a conversation's bot activity is still worth a review.
- *  A thread the budget left over tonight, or one a slow night missed,
- *  is picked up the next night ahead of newer threads: a conversation
- *  is reviewed whenever it has bot activity newer than its last
- *  review's window, oldest first. */
+/** The floor for the very first run; from then on the scan starts at
+ *  the earliest review on record, so nothing after the night the review
+ *  went live ages out. A thread the budget left over tonight, or one a
+ *  slow night missed, is picked up the next night ahead of newer
+ *  threads: a conversation is reviewed whenever it has bot activity
+ *  newer than its last review's window, oldest first. */
 export const REVIEW_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 /** Wall-clock budget for one invocation, under the route's maxDuration;
  *  a run that hits it reports so, and the next run picks up the rest. */
@@ -396,7 +397,11 @@ export async function runBotThreadReview(
           contact_id: contactId,
           review_day: reviewDay,
           window_start: windowStart.toISOString(),
-          window_end: now.toISOString(),
+          // The watermark covers the activity actually read, which a
+          // later batch can find newer than the run's start.
+          window_end: new Date(
+            Math.max(now.getTime(), Date.parse(thread.latestBotAt))
+          ).toISOString(),
           transcript,
           rule_violations: ruleViolations,
           score: null,
