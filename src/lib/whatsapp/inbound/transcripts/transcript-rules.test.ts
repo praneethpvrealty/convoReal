@@ -191,3 +191,27 @@ describe('[CNV-005] transcript rules', () => {
     ]);
   });
 });
+
+describe('[CNV-005] context bubbles', () => {
+  it('reads a bubble from an earlier window for the rules but never reports on it', () => {
+    const said = {
+      sender: 'bot' as const,
+      kind: 'text' as const,
+      text: 'That listing is no longer available. Browse every live listing any time: https://x/?v=c',
+    };
+    const found = checkTranscript([
+      { ...said, context: true },
+      { sender: 'customer', kind: 'text', text: 'is it still there?' },
+      said,
+    ]);
+    expect(found.map((v) => [v.rule, v.index])).toEqual([
+      ['unavailable-repeated', 2],
+    ]);
+    expect(
+      checkTranscript([
+        { ...said, context: true },
+        { ...said, context: true },
+      ])
+    ).toEqual([]);
+  });
+});

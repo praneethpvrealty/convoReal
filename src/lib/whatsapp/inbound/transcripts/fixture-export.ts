@@ -32,6 +32,7 @@ export function fixtureFromReview(review: ReviewForExport): string {
         kind: bubble.kind,
         ...(bubble.templateName ? { templateName: bubble.templateName } : {}),
         ...(bubble.at ? { at: bubble.at } : {}),
+        ...(bubble.context ? { context: true } : {}),
         text: maskContactDetails(bubble.text),
       })),
     },

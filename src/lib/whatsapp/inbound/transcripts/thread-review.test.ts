@@ -99,10 +99,10 @@ function seed() {
     ],
     bot_thread_reviews: [],
   };
-  db = memorySupabase(tables, { bot_thread_review_candidates: candidates });
+  db = memorySupabase(tables, { bot_thread_review_windows: candidates });
 }
 
-/** What bot_thread_review_candidates computes in SQL, over the tables. */
+/** What bot_thread_review_windows computes in SQL, over the tables. */
 function candidates(args: Record<string, unknown>) {
   const floors = tables.bot_thread_reviews
     .map((r) => r.window_start)
@@ -457,7 +457,70 @@ describe('[CNV-006] collection', () => {
     expect(tables.bot_thread_reviews[1].window_end).toBe(at(5));
     expect(judge.mock.calls[1][0]).toContain('Second:');
     expect(judge.mock.calls[1][0]).toContain('chatter 44');
-    expect(judge.mock.calls[1][0]).not.toContain('First:');
+    // The first exchange rides along as context, marked as such.
+    expect(judge.mock.calls[1][0]).toContain('BOT (context)');
+    expect(judge.mock.calls[1][0]).toContain('First:');
+    const second = tables.bot_thread_reviews[1].transcript as Array<{
+      text: string;
+      context?: boolean;
+    }>;
+    expect(second[0]).toMatchObject({ context: true });
+    expect(second[0].text).toContain('First:');
+    expect(second.filter((m) => m.context)).toHaveLength(1);
+  });
+
+  it('carries context across windows so a rule that spans them still fires, only on the new bubble', async () => {
+    const judge = async () => '{"score": 90, "issues": []}';
+    const unavailable = (minutesAgo: number) => ({
+      conversation_id: 'conv-1',
+      account_id: 'acc-1',
+      sender_type: 'bot',
+      private: false,
+      content_type: 'text',
+      content_text:
+        'That listing is no longer available. Browse every live listing any time: https://x/?v=c',
+      created_at: at(minutesAgo),
+    });
+    tables.messages = [
+      unavailable(60 * 24 * 3),
+      ...Array.from({ length: 45 }, (_, i) => ({
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'customer',
+        private: false,
+        content_type: 'text',
+        content_text: `chatter ${i}`,
+        created_at: at(60 * 24 * 3 - 1 - i),
+      })),
+      unavailable(5),
+    ];
+    await runBotThreadReview({ db: db as never, now: NOW, judge });
+    await runBotThreadReview({
+      db: db as never,
+      now: new Date(NOW.getTime() + 24 * 60 * 60 * 1000),
+      judge,
+    });
+    const rules = (row: Row) =>
+      (row.rule_violations as Array<{ rule: string; index: number }>).map(
+        (v) => v.rule
+      );
+    expect(rules(tables.bot_thread_reviews[0])).not.toContain(
+      'unavailable-repeated'
+    );
+    expect(rules(tables.bot_thread_reviews[1])).toContain(
+      'unavailable-repeated'
+    );
+    const [repeat] = (
+      tables.bot_thread_reviews[1].rule_violations as Array<{
+        rule: string;
+        index: number;
+      }>
+    ).filter((v) => v.rule === 'unavailable-repeated');
+    const transcript = tables.bot_thread_reviews[1].transcript as Array<{
+      context?: boolean;
+    }>;
+    expect(transcript[repeat.index].context).toBeUndefined();
+    expect(tables.bot_thread_reviews[1].verdict).toBe('fail');
   });
 
   it('ignores a thread whose only bot activity is a private note', async () => {

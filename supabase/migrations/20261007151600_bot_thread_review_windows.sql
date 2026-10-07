@@ -1,5 +1,9 @@
 -- Which conversations the nightly bot thread review is due on, and
--- where each one's next window starts.
+-- where each one's next window starts. Succeeds bot_thread_review_candidates
+-- (20261007145237), which returned a different row shape; a function's
+-- return type cannot be replaced in place and a DROP never reaches
+-- production through the connector, so the earlier function stays as
+-- it is, unused.
 --
 -- A conversation's last review boundary is the window_end of its
 -- newest finalised review (judged_at set) or of a claim made in the
@@ -18,7 +22,7 @@
 -- review on record, so once the review is live nothing after that
 -- night ages out; p_since is the floor for the very first run.
 
-CREATE OR REPLACE FUNCTION public.bot_thread_review_candidates(
+CREATE OR REPLACE FUNCTION public.bot_thread_review_windows(
   p_since TIMESTAMPTZ,
   p_limit INT,
   p_exclude UUID[] DEFAULT '{}'
@@ -68,5 +72,5 @@ AS $$
   LIMIT p_limit;
 $$;
 
-REVOKE ALL ON FUNCTION public.bot_thread_review_candidates(TIMESTAMPTZ, INT, UUID[]) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.bot_thread_review_candidates(TIMESTAMPTZ, INT, UUID[]) TO service_role;
+REVOKE ALL ON FUNCTION public.bot_thread_review_windows(TIMESTAMPTZ, INT, UUID[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.bot_thread_review_windows(TIMESTAMPTZ, INT, UUID[]) TO service_role;

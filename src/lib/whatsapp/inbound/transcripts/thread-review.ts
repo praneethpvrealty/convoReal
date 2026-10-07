@@ -42,10 +42,14 @@ export const MAX_THREADS_PER_RUN = 150;
  *  window. */
 export const MAX_MESSAGES_PER_THREAD = 60;
 export const REVIEW_LEAD_IN_MESSAGES = 20;
+/** Bubbles from before the window, carried in as context so a rule
+ *  that spans windows (the listing already said to be unavailable) and
+ *  the judge both read the thread, never reported on again. */
+export const REVIEW_CONTEXT_MESSAGES = 10;
 /** A claim this old with no judged_at was left by a run that died
  *  mid-judge; the next run takes it over. Well past the route's
  *  maxDuration, so a live run is never robbed of its claim. Kept in
- *  step with bot_thread_review_candidates. */
+ *  step with bot_thread_review_windows. */
 export const CLAIM_STALE_MS = 15 * 60 * 1000;
 export const PASS_SCORE = 70;
 export const REVIEW_MODEL = 'gemini:lite';
@@ -89,6 +93,7 @@ const JUDGE_SYSTEM = [
   'Read the whole thread as the buyer did. Score it from 0 to 100 and list concrete issues.',
   'Fail-worthy issues: the bot contradicts itself between bubbles; repeats a point it already made; promises properties and shows none; answers a tapped button with something else; sends more bubbles than the buyer wrote for; praises itself; greets a new lead as if they had been away; leaves the buyer with no next step and no link to browse; is rude, pushy or confusing.',
   'Do not penalise a template message for its fixed wording, a short acknowledgement, or a legitimate "nothing fits yet" that names alternatives or a link.',
+  'Bubbles marked (context) were reviewed before: read them to judge the ones that follow, and do not score or list issues on them.',
   'Reply with JSON only: {"score": <0-100>, "summary": "<one sentence>", "issues": [{"kind": "<contradiction|repetition|promise-unkept|wrong-answer|too-many-bubbles|self-praise|wrong-greeting|dead-end|tone|other>", "message_index": <index of the bubble or null>, "note": "<what is wrong, in one sentence>"}]}',
 ].join(' ');
 
@@ -102,7 +107,7 @@ export function buildJudgePrompt(
 ): string {
   const lines = transcript.map(
     (m, i) =>
-      `[${i}] ${m.sender.toUpperCase()}${m.kind === 'template' ? ' (template)' : m.kind === 'interactive' ? ' (interactive)' : ''}${m.at ? ` @ ${m.at}` : ''}:\n${maskContactDetails(m.text)}`
+      `[${i}] ${m.sender.toUpperCase()}${m.kind === 'template' ? ' (template)' : m.kind === 'interactive' ? ' (interactive)' : ''}${m.context ? ' (context)' : ''}${m.at ? ` @ ${m.at}` : ''}:\n${maskContactDetails(m.text)}`
   );
   return [
     `Lead created: ${context.contactCreatedAt ?? 'unknown'}. Reviewed at: ${context.now}.`,
@@ -239,7 +244,7 @@ export interface ReviewCandidate {
  * Conversations due a review: bot activity since `since` newer than
  * their last review's window, oldest due first so what one night left
  * over goes ahead of the next day's traffic, aggregated in SQL
- * (bot_thread_review_candidates) so there is no page ceiling to age a
+ * (bot_thread_review_windows) so there is no page ceiling to age a
  * thread out behind. Private rows are staff notes and failed
  * deliveries never reached the lead; neither counts.
  */
@@ -252,7 +257,7 @@ export async function collectBotThreads(
    *  day's row being unique). */
   exclude: ReadonlySet<string> = new Set()
 ): Promise<ReviewCandidate[]> {
-  const { data, error } = await db.rpc('bot_thread_review_candidates', {
+  const { data, error } = await db.rpc('bot_thread_review_windows', {
     p_since: since.toISOString(),
     p_limit: limit,
     p_exclude: [...exclude],
@@ -342,18 +347,24 @@ export async function runBotThreadReview(
             )
             .eq('conversation_id', thread.conversationId)
             .eq('private', false)
-            .neq('status', 'failed')
-            .gt('created_at', thread.fromAt);
+            .neq('status', 'failed');
         // The window is the thread since its last review, read from its
         // first unreviewed bot message: a bounded lead-up to and
         // including that message, newest first and restored to reading
-        // order below, then what followed under the cap.
+        // order below, then what followed under the cap. A few bubbles
+        // from before the window come along as context.
         const [
+          { data: before, error: beforeError },
           { data: leadIn, error: leadInError },
           { data: rest, error: restError },
           { data: contact, error: contactError },
         ] = await Promise.all([
           visible()
+            .lte('created_at', thread.fromAt)
+            .order('created_at', { ascending: false })
+            .limit(REVIEW_CONTEXT_MESSAGES),
+          visible()
+            .gt('created_at', thread.fromAt)
             .lte('created_at', thread.firstBotAt)
             .order('created_at', { ascending: false })
             .limit(REVIEW_LEAD_IN_MESSAGES),
@@ -371,13 +382,19 @@ export async function runBotThreadReview(
         ]);
         // A partial read is never finalised: the thread fails tonight
         // and is still due tomorrow.
-        const readError = leadInError ?? restError ?? contactError;
+        const readError =
+          beforeError ?? leadInError ?? restError ?? contactError;
         if (readError) throw new Error(readError.message);
         const rows = [
           ...[...((leadIn ?? []) as MessageRow[])].reverse(),
           ...((rest ?? []) as MessageRow[]),
         ];
-        const transcript = transcriptFromMessages(rows);
+        const transcript = [
+          ...transcriptFromMessages(
+            [...((before ?? []) as MessageRow[])].reverse()
+          ).map((m) => ({ ...m, context: true })),
+          ...transcriptFromMessages(rows),
+        ];
         // The watermark is the newest bot bubble actually read: nothing
         // the cap left out is counted as covered, so it opens the next
         // window instead.

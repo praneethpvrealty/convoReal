@@ -43,6 +43,7 @@ interface TranscriptBubble {
   text: string;
   templateName?: string | null;
   at?: string;
+  context?: boolean;
 }
 
 interface ThreadReview {
@@ -353,11 +354,13 @@ export default function BotRepliesTab() {
                               'max-w-[85%] rounded-lg px-3 py-2 text-xs whitespace-pre-wrap',
                               bubble.sender === 'customer'
                                 ? 'self-start border border-slate-700 bg-slate-950 text-slate-200'
-                                : 'self-end border border-emerald-500/20 bg-emerald-500/10 text-slate-100'
+                                : 'self-end border border-emerald-500/20 bg-emerald-500/10 text-slate-100',
+                              bubble.context && 'opacity-60'
                             )}
                           >
                             <div className="mb-1 text-[10px] tracking-wide text-slate-500 uppercase">
                               {index} · {bubble.sender}
+                              {bubble.context ? ' · earlier window' : ''}
                               {bubble.templateName
                                 ? ` · ${bubble.templateName}`
                                 : bubble.kind !== 'text'
