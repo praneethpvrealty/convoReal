@@ -363,9 +363,16 @@ export async function rankPropertiesForContact(
   }
   const pool = (properties as Property[]).filter((p) => !seen.has(p.id));
 
-  const base = opts.strictArea
-    ? ({ ...(contact as Contact), strict_area_match: true } as Contact)
-    : (contact as Contact);
+  // An explicit false also overrides a strict_area_match the contact
+  // has saved: the fallback search after an empty strict pass must be
+  // the ordinary radius, or such a contact is told nothing fits twice.
+  const base =
+    opts.strictArea === undefined
+      ? (contact as Contact)
+      : ({
+          ...(contact as Contact),
+          strict_area_match: opts.strictArea,
+        } as Contact);
   const [subject] = await attachInquiredListingTypes(db, accountId, [base]);
 
   return rankProperties(subject, pool);

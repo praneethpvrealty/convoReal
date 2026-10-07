@@ -12,6 +12,8 @@
 import type { Property } from '@/types';
 import type { CuratedMatch } from './matches-ranking';
 import { formatInrCompact } from '@/lib/format/currency';
+import { listingTitleForMessage } from '@/lib/inventory/listing-title';
+import { showcaseBrowseLine } from '@/lib/inventory/listing-status';
 
 /** Listings per digest. More than this reads as a catalog dump and
  *  gets ignored; fewer feels like the agency isn't working. */
@@ -173,39 +175,64 @@ export function buildEnquiryConsentRequestMessage(args: {
   );
 }
 
+/** The showcase link sits between the answer and the question, so the
+ *  question stays the last line — the qualification ladder reads the
+ *  lead's next reply as an answer to whatever the bot asked last. */
+function withBrowseLine(
+  body: string,
+  question: string,
+  showcaseUrl?: string | null
+): string {
+  return showcaseUrl
+    ? `${body}\n\n${showcaseBrowseLine(showcaseUrl)}\n\n${question}`
+    : `${body} ${question}`;
+}
+
 export function buildNoMatchesMessage(
   contactName: string | null | undefined,
   opts: {
     brief?: string | null;
     question?: string | null;
     nearMiss?: string | null;
+    showcaseUrl?: string | null;
   } = {}
 ): string {
   const greeting = opts.brief
     ? `Hi ${firstName(contactName)} — I don't have ${opts.brief} live right now, but I'm watching for one.`
     : `Hi ${firstName(contactName)} — nothing in our inventory fits your brief right now. ` +
       `The moment something does, you'll hear from us here.`;
-  const opening = opts.nearMiss
-    ? `${greeting}\n\n${opts.nearMiss}\n\n`
-    : `${greeting} `;
-  if (opts.question) return `${opening}${opts.question}`;
-  if (opts.nearMiss)
-    return `${opening}Reply with anything that's changed (budget, area, type) and I'll search again.`;
-  return opts.brief
-    ? `${opening}The moment one comes in, you'll hear from us here. ` +
-        `Reply with anything that's changed (budget, area, type) and I'll search again.`
-    : `${opening}Reply with what's changed (budget, area, type) and we'll re-run the search.`;
+  const body = opts.nearMiss ? `${greeting}\n\n${opts.nearMiss}` : greeting;
+  const question =
+    opts.question ??
+    (opts.nearMiss
+      ? "Reply with anything that's changed (budget, area, type) and I'll search again."
+      : opts.brief
+        ? `The moment one comes in, you'll hear from us here. ` +
+          `Reply with anything that's changed (budget, area, type) and I'll search again.`
+        : `Reply with what's changed (budget, area, type) and we'll re-run the search.`);
+  if (opts.showcaseUrl || opts.nearMiss)
+    return withBrowseLine(body, question, opts.showcaseUrl);
+  return `${body} ${question}`;
 }
 
 export function buildUnavailableEnquiryMessage(args: {
   contactName: string | null | undefined;
   propertyTitle: string;
   hasAlternatives: boolean;
+  nearMiss?: string | null;
+  question?: string | null;
+  showcaseUrl?: string | null;
 }): string {
-  const opening = `Hi ${firstName(args.contactName)} — *${args.propertyTitle}* is no longer available.`;
-  return args.hasAlternatives
-    ? `${opening} I found these available options that are closest to what you're looking for:`
-    : `${opening} I've kept your requirement active and will share a similar property as soon as one is available. Reply with any change in budget, area or type.`;
+  const opening = `Hi ${firstName(args.contactName)} — *${listingTitleForMessage(args.propertyTitle)}* is no longer available.`;
+  if (args.hasAlternatives)
+    return `${opening} I found these available options that are closest to what you're looking for:`;
+  const promise = `${opening} I've kept your requirement active and will share a similar property as soon as one is available.`;
+  const body = args.nearMiss ? `${promise}\n\n${args.nearMiss}` : promise;
+  const question =
+    args.question ?? 'Reply with any change in budget, area or type.';
+  if (args.showcaseUrl || args.nearMiss)
+    return withBrowseLine(body, question, args.showcaseUrl);
+  return `${body} ${question}`;
 }
 
 // Prefixes repeat ("show my matches"), so the group is starred rather

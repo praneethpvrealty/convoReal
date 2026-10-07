@@ -19,6 +19,20 @@ than a written entry. Newest first.
 
 #### 7 October 2026
 
+- **The bot shows a buyer what is live before it says nothing fits, and
+  every dead end hands them the showcase.** A tap on "Update my preferences"
+  now runs the ordinary search when the tight one is empty, and a budget
+  read off the enquired listing's price admits listings up to 15% above it
+  (a stated budget keeps the 10% rule); a lead filed under "JP Nagar 4th
+  Phase" is placed at JP Nagar for the radius. The reply no longer tells an
+  hour-old lead they are "back on our radar" or praises the matching engine,
+  and when nothing fits it names the listings in their own locality at
+  another price. "Show Properties" and "MATCHES" do the same beside an
+  unavailable enquiry, and no longer repeat a status the thread already
+  told the lead. Every no-match and unavailable-listing reply, on WhatsApp
+  enquiries too, ends with the buyer's own showcase link. No migration is
+  required.
+
 - **A portal lead on a listing that has left the market hears one message,
   not two.** The welcome ("tell me your requirement and I'll share
   properties") and, two seconds later, the status notice ("the listing is no
