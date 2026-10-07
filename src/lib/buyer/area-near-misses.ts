@@ -29,7 +29,10 @@ import { formatInrCompact } from '@/lib/format/currency';
 const MAX_LINKED_LISTINGS = 5;
 export const NEAR_MISS_SCAN_LIMIT = 200;
 export const MAX_NEAR_MISS_AREAS = 3;
-export const MAX_NEAR_MISS_SCANS = 6;
+/** Every named area and every parent locality, each at Sale and Rent
+ *  when the lead stated no deal type: a parent never costs a named
+ *  area its scan, and a named phase always reaches its locality. */
+export const MAX_NEAR_MISS_SCANS = MAX_NEAR_MISS_AREAS * 2 * 2;
 
 type NearMissProperty = Pick<
   Property,
@@ -256,12 +259,11 @@ async function linkedListings(
 }
 
 /**
- * The areas to scan, in order: each of the lead's own areas (the first
- * MAX_NEAR_MISS_AREAS of them, none displaced by a parent), each
- * followed at once by the locality it is a phase or block of — the
- * lead who named JP Nagar 4th Phase is told about JP Nagar's other
- * phases rather than nothing, and that parent is reached before the
- * scan budget (MAX_NEAR_MISS_SCANS) runs out on later areas.
+ * The areas to scan, in order: the lead's own areas first (the first
+ * MAX_NEAR_MISS_AREAS of them), then the locality each phase or block
+ * belongs to — the lead who named JP Nagar 4th Phase is told about JP
+ * Nagar's other phases rather than nothing. MAX_NEAR_MISS_SCANS is
+ * sized for both groups, so neither displaces the other.
  */
 export function nearMissAreas(areas: string[]): string[] {
   const seen = new Set<string>();
@@ -276,13 +278,12 @@ export function nearMissAreas(areas: string[]): string[] {
     0,
     MAX_NEAR_MISS_AREAS
   );
-  const ordered: string[] = [];
-  for (const area of explicit) {
-    ordered.push(area);
-    const parent = parentLocalityLabel(area);
-    if (parent) ordered.push(...keep([parent]));
-  }
-  return ordered;
+  const parents = keep(
+    explicit
+      .map((area) => parentLocalityLabel(area))
+      .filter((area): area is string => !!area)
+  );
+  return [...explicit, ...parents];
 }
 
 /** The near-miss line for this lead, or null when their areas hold no
