@@ -1781,7 +1781,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       <button
                         onClick={() => setPortfolioInviteOpen(true)}
                         className="hover:text-emerald-350 flex cursor-pointer items-center gap-1.5 rounded-md border border-emerald-500/20 px-2 py-0.5 font-medium text-emerald-400 transition-all hover:bg-emerald-500/10"
-                        title="Invite them to sign in to their buyer or owner Portfolio from business or personal WhatsApp"
+                        title="Invite them to their buyer or owner Portfolio, or an agent to ConvoReal, from WhatsApp"
                       >
                         <KeyRound className="size-3 text-emerald-400" />
                         Portfolio Invite

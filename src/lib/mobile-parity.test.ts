@@ -538,7 +538,7 @@ describe('the portal link invite is one server draft on both surfaces', () => {
     }
   });
 
-  it('[CTM-011] sends the buyer or owner Portfolio invite from the same route on web and mobile', () => {
+  it("[CTM-011] sends the buyer or owner Portfolio invite, or an agent's ConvoReal invite, from the same routes on web and mobile", () => {
     const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
     const mobileSheet = mobileSource('components/portfolio-invite-sheet.tsx');
     const webContact = webSource('components/contacts/contact-detail-view.tsx');
@@ -557,6 +557,9 @@ describe('the portal link invite is one server draft on both surfaces', () => {
       expect(source).toContain('https://wa.me/${digits}?text=');
       expect(source).toContain('Owner Portfolio');
       expect(source).toContain('Buyer Portfolio');
+      expect(source).toContain('Agent Invite');
+      expect(source).toContain("'/api/beta-invites'");
+      expect(source).toContain("channel: 'personal', side: 'agent'");
     }
   });
 

@@ -28,6 +28,7 @@ import {
   buildPortfolioInviteMessage,
   portfolioEligibilityFacts,
   portfolioInviteSides,
+  AGENT_INVITE_PERSONAL_ONLY_ERROR,
   portfolioInviteUrl,
   PORTFOLIO_INVITE_NOT_ELIGIBLE_ERROR,
   PORTFOLIO_INVITE_WINDOW_CLOSED_ERROR,
@@ -116,7 +117,13 @@ describe('portfolioInviteSides', () => {
       'owner',
     ]);
     expect(portfolioInviteSides('Others', none)).toEqual([]);
-    expect(portfolioInviteSides('Agent', none)).toEqual([]);
+    expect(portfolioInviteSides('Agent', none)).toEqual(['agent']);
+    expect(
+      portfolioInviteSides('Agent', {
+        hasBuyerActivity: true,
+        ownsListing: true,
+      })
+    ).toEqual(['agent', 'owner', 'buyer']);
   });
 });
 
@@ -294,6 +301,21 @@ describe('sendPortfolioInvite', () => {
     expect(result.error).toBe(PORTFOLIO_INVITE_WINDOW_CLOSED_ERROR);
     expect(resolveConversation).not.toHaveBeenCalled();
     expect(calls.some((call) => call.table === 'messages')).toBe(false);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('[CTM-011] never sends a ConvoReal invite for an Agent contact from the business number', async () => {
+    const result = await sendPortfolioInvite({
+      db: makeDb() as never,
+      accountId: 'acc-1',
+      userId: 'user-1',
+      contact: { ...owner, classification: 'Agent' } as Contact,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      side: 'agent',
+      error: AGENT_INVITE_PERSONAL_ONLY_ERROR,
+    });
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 

@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
-type PortfolioSide = 'buyer' | 'owner';
+type PortfolioSide = 'buyer' | 'owner' | 'agent';
 
 interface PortfolioInviteDialogProps {
   open: boolean;
@@ -33,6 +33,7 @@ interface PreviewResponse {
     side: PortfolioSide | null;
     message: string;
     url: string | null;
+    agentRegistered?: boolean;
   };
   error?: string;
 }
@@ -40,6 +41,7 @@ interface PreviewResponse {
 const SIDE_LABELS: Record<PortfolioSide, string> = {
   buyer: 'Buyer Portfolio',
   owner: 'Owner Portfolio',
+  agent: 'Agent Invite',
 };
 
 export function PortfolioInviteDialog({
@@ -71,7 +73,11 @@ export function PortfolioInviteDialog({
   const side = preview.data?.side ?? null;
   const sides = preview.data?.sides ?? [];
   const message = preview.data?.message ?? '';
-  const eligible = !preview.isLoading && Boolean(side && message);
+  const agentSide = side === 'agent';
+  const agentRegistered = preview.data?.agentRegistered === true;
+  const eligible =
+    !preview.isLoading &&
+    (agentSide ? !agentRegistered : Boolean(side && message));
   const error =
     sendError ||
     (preview.error instanceof Error ? preview.error.message : null);
@@ -111,7 +117,54 @@ export function PortfolioInviteDialog({
     }
   }
 
+  async function openAgentInvite() {
+    const digits = contactPhone?.replace(/\D/g, '') ?? '';
+    if (!digits || sending) return;
+    const popup = window.open('', '_blank');
+    setSending(true);
+    setSendError(null);
+    try {
+      const response = await fetch('/api/beta-invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: contactName.trim() || null,
+          invitee_phone: contactPhone,
+        }),
+      });
+      const invite = (await response.json().catch(() => ({}))) as {
+        shareMessage?: string;
+        error?: string;
+      };
+      if (!response.ok || !invite.shareMessage) {
+        throw new Error(
+          invite.error || 'Could not create the ConvoReal invite'
+        );
+      }
+      const whatsappUrl = `https://wa.me/${digits}?text=${encodeURIComponent(invite.shareMessage)}`;
+      if (popup) popup.location.href = whatsappUrl;
+      else window.location.href = whatsappUrl;
+      onOpenChange(false);
+      const note = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: 'personal', side: 'agent' }),
+      }).catch(() => null);
+      if (note?.ok) onSent();
+    } catch (reason) {
+      popup?.close();
+      setSendError(
+        reason instanceof Error
+          ? reason.message
+          : 'Could not create the ConvoReal invite'
+      );
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function openPersonalWhatsApp() {
+    if (agentSide) return openAgentInvite();
     const digits = contactPhone?.replace(/\D/g, '') ?? '';
     if (!digits || !message || !side) return;
     window.open(
@@ -141,16 +194,23 @@ export function PortfolioInviteDialog({
             Portfolio invite
           </DialogTitle>
           <DialogDescription className="text-sm text-slate-400">
-            {side === 'owner'
-              ? `Invite ${name} to their Owner Portfolio to track enquiries, visits and offers on their property and add new listings themselves.`
-              : side === 'buyer'
-                ? `Invite ${name} to their Portfolio to see matched properties, keep a shortlist and update their requirements.`
-                : `Invite ${name} to sign in to their Portfolio with this WhatsApp number.`}
+            {agentSide
+              ? `Invite ${name} to ConvoReal to run their own inventory, so you can share listings and requirements with them directly.`
+              : side === 'owner'
+                ? `Invite ${name} to their Owner Portfolio to track enquiries, visits and offers on their property and add new listings themselves.`
+                : side === 'buyer'
+                  ? `Invite ${name} to their Portfolio to see matched properties, keep a shortlist and update their requirements.`
+                  : `Invite ${name} to sign in to their Portfolio with this WhatsApp number.`}
           </DialogDescription>
         </DialogHeader>
 
         {sides.length > 1 ? (
-          <div className="grid grid-cols-2 gap-2">
+          <div
+            className={cn(
+              'grid gap-2',
+              sides.length > 2 ? 'grid-cols-3' : 'grid-cols-2'
+            )}
+          >
             {sides.map((option) => (
               <button
                 key={option}
@@ -178,6 +238,12 @@ export function PortfolioInviteDialog({
               <Loader2 className="size-4 animate-spin" />
               Preparing the invite…
             </div>
+          ) : agentSide ? (
+            <p className="text-sm leading-6 text-slate-300">
+              {agentRegistered
+                ? `${name} already uses ConvoReal. Use Share Inventory to send listings straight to their Pending Review queue.`
+                : `Personal WhatsApp creates a ConvoReal invite link for ${name}, using one of your invite seats, and opens it ready to send from your own WhatsApp.`}
+            </p>
           ) : message ? (
             <p className="text-sm leading-6 break-words whitespace-pre-wrap text-slate-300">
               {message}
@@ -186,16 +252,16 @@ export function PortfolioInviteDialog({
             <p className="text-sm leading-6 text-slate-400">
               Portfolio is for buyers and owners. Classify {name} as a Buyer,
               Owner or Seller, or link them to a listing or enquiry, and the
-              invite will be ready here.
+              invite will be ready here. Classify an agent as Agent to invite
+              them to ConvoReal.
             </p>
           )}
         </div>
 
         <p className="text-xs leading-5 text-slate-500">
-          Business WhatsApp is sent and tracked in ConvoReal; outside the
-          24-hour window it goes out as the approved Portfolio access template
-          with a sign-in button. Personal WhatsApp opens this message in your
-          own app and notes the invite on the timeline.
+          {agentSide
+            ? 'A ConvoReal invite is a personal note from you to another agent, so it goes from your own WhatsApp, never the business number. The invite is noted on the timeline.'
+            : 'Business WhatsApp is sent and tracked in ConvoReal; outside the 24-hour window it goes out as the approved Portfolio access template with a sign-in button. Personal WhatsApp opens this message in your own app and notes the invite on the timeline.'}
         </p>
 
         {error ? (
@@ -206,21 +272,27 @@ export function PortfolioInviteDialog({
 
         <DialogFooter className="gap-2 border-slate-800 bg-slate-900 sm:justify-between">
           <Button
-            variant="outline"
+            variant={agentSide ? 'default' : 'outline'}
             onClick={openPersonalWhatsApp}
-            disabled={!eligible || !contactPhone}
+            disabled={!eligible || !contactPhone || (agentSide && sending)}
           >
-            <ExternalLink className="size-4" />
-            Personal WhatsApp
-          </Button>
-          <Button onClick={sendFromBusiness} disabled={!eligible || sending}>
-            {sending ? (
+            {agentSide && sending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
-              <Send className="size-4" />
+              <ExternalLink className="size-4" />
             )}
-            {sending ? 'Sending…' : 'Business WhatsApp'}
+            Personal WhatsApp
           </Button>
+          {agentSide ? null : (
+            <Button onClick={sendFromBusiness} disabled={!eligible || sending}>
+              {sending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Send className="size-4" />
+              )}
+              {sending ? 'Sending…' : 'Business WhatsApp'}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

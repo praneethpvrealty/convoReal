@@ -16,12 +16,15 @@ import {
   PORTFOLIO_INVITE_NOT_ELIGIBLE_ERROR,
   sendPortfolioInvite,
 } from '@/lib/contacts/portfolio-invite';
+import { lookupAgentShareTarget } from '@/lib/inventory/agent-account-share';
 import type { Contact } from '@/types';
 
-// GET  /api/contacts/[id]/portfolio-invite?side=buyer|owner → which Portfolio
-//      sides the contact can sign in to, and the drafted invite for one.
+// GET  /api/contacts/[id]/portfolio-invite?side=buyer|owner|agent → which
+//      invites the contact can get, and the drafted invite for one. The
+//      agent side is a ConvoReal app invite for an Agent contact; its link
+//      is minted by POST /api/beta-invites, so no message is drafted here.
 // POST /api/contacts/[id]/portfolio-invite
-//      { channel: 'business' | 'personal', side?: 'buyer' | 'owner' }
+//      { channel: 'business' | 'personal', side?: 'buyer' | 'owner' | 'agent' }
 //      business → sends from the account's WhatsApp Business number
 //      personal → records that the agent shared it from their own phone
 
@@ -57,8 +60,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       contact,
       side: parsePortfolioSide(new URL(request.url).searchParams.get('side')),
     });
+    const agentRegistered = invite.sides.includes('agent')
+      ? await lookupAgentShareTarget(ctx, contact.id)
+          .then((target) => target.hasConvoRealAccount)
+          .catch(() => false)
+      : false;
     return NextResponse.json({
-      data: { ...invite, phone: contact.phone ?? null },
+      data: { ...invite, agentRegistered, phone: contact.phone ?? null },
     });
   } catch (err) {
     console.error(
