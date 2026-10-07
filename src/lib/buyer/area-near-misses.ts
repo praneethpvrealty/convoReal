@@ -255,6 +255,34 @@ async function linkedListings(
   return nearMissLinkedListings(closest ?? nearMiss, brief);
 }
 
+/**
+ * The areas to scan, in order: the lead's own areas first (the first
+ * MAX_NEAR_MISS_AREAS of them, so a parent never displaces one they
+ * named), then the locality each phase or block belongs to — the lead
+ * who named JP Nagar 4th Phase is told about JP Nagar's other phases
+ * rather than nothing. MAX_NEAR_MISS_SCANS still bounds the work.
+ */
+export function nearMissAreas(areas: string[]): string[] {
+  const seen = new Set<string>();
+  const keep = (list: string[]) =>
+    list.filter((area) => {
+      const key = area.toLowerCase();
+      if (!area || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  const explicit = keep(areas.map((area) => area.trim())).slice(
+    0,
+    MAX_NEAR_MISS_AREAS
+  );
+  const parents = keep(
+    explicit
+      .map((area) => parentLocalityLabel(area))
+      .filter((area): area is string => !!area)
+  ).slice(0, MAX_NEAR_MISS_AREAS);
+  return [...explicit, ...parents];
+}
+
 /** The near-miss line for this lead, or null when their areas hold no
  *  live stock at all. Best-effort: a failure costs the line, never the
  *  reply it sits in. */
@@ -266,21 +294,8 @@ export async function areaNearMissLine(args: {
 }): Promise<string | null> {
   if (args.brief.areas.length === 0) return null;
   try {
-    // A phase or block is searched as itself, then as its locality: the
-    // lead who named JP Nagar 4th Phase is told about JP Nagar's other
-    // phases rather than nothing.
-    const areas = [
-      ...new Map(
-        args.brief.areas
-          .map((area) => area.trim())
-          .filter(Boolean)
-          .flatMap((area) => [area, parentLocalityLabel(area)])
-          .filter((area): area is string => !!area)
-          .map((area) => [area.toLowerCase(), area] as const)
-      ).values(),
-    ].slice(0, MAX_NEAR_MISS_AREAS);
     let scans = 0;
-    for (const area of areas) {
+    for (const area of nearMissAreas(args.brief.areas)) {
       for (const listingType of nearMissListingTypes(args.brief.listingTypes)) {
         if (scans >= MAX_NEAR_MISS_SCANS) return null;
         scans += 1;

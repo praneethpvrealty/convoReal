@@ -30,10 +30,25 @@ describe('[CNV-005] transcript rules', () => {
         bot('d'),
         bot('e'),
       ]).map((turn) => turn.indexes)
-    ).toEqual([
-      [0, 1],
-      [4, 5, 6],
+    ).toEqual([[0, 1], [], [4, 5, 6]]);
+  });
+
+  it('flags a Show Properties tap the bot never answered', () => {
+    expect(rules([customer('🔘 Button: "Show Properties"')])).toEqual([
+      'promise-without-listing',
     ]);
+    expect(rules([customer('hello?')])).toEqual([]);
+  });
+
+  it('accepts a bare browse link as keeping the Show Properties promise', () => {
+    expect(
+      rules([
+        customer('🔘 Button: "Show Properties"'),
+        bot(
+          "I don't have a villa live right now.\n\nBrowse every live listing any time: https://www.convoreal.com/?v=vinutha"
+        ),
+      ])
+    ).toEqual([]);
   });
 
   it('limits bot bubbles per customer turn', () => {

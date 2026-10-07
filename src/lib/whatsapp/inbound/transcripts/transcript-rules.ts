@@ -79,7 +79,9 @@ function isReEngaged(createdAt: string | null | undefined, at?: string) {
 /**
  * Bot bubbles grouped by the customer turn they answer: everything the
  * bot sends before the lead writes is turn 0, then each customer
- * message opens a new turn.
+ * message opens a new turn. A customer turn the bot never answered is
+ * kept, with no indexes: silence after a tap is the worst answer, not
+ * no answer to judge.
  */
 export function botTurns(
   transcript: TranscriptMessage[]
@@ -94,7 +96,9 @@ export function botTurns(
       turns[turns.length - 1].indexes.push(index);
     }
   });
-  return turns.filter((turn) => turn.indexes.length > 0);
+  return turns.filter(
+    (turn) => turn.indexes.length > 0 || turn.customerIndex !== null
+  );
 }
 
 export function checkTranscript(
@@ -135,15 +139,24 @@ export function checkTranscript(
     }
     const customer =
       turn.customerIndex === null ? null : transcript[turn.customerIndex];
+    // A listing, or any link to browse — the catalogue is a property to
+    // show when nothing fits exactly.
     if (
       customer &&
       SHOW_PROPERTIES_TAP.test(customer.text.trim()) &&
-      !turn.indexes.some((i) => SHOWS_LISTING.test(transcript[i].text))
+      !turn.indexes.some(
+        (i) =>
+          SHOWS_LISTING.test(transcript[i].text) ||
+          LINK.test(transcript[i].text)
+      )
     ) {
       violations.push({
         rule: 'promise-without-listing',
-        index: turn.indexes[0],
-        note: 'the lead tapped a button that promised properties and was shown none',
+        index: turn.indexes[0] ?? (turn.customerIndex as number),
+        note:
+          turn.indexes.length === 0
+            ? 'the lead tapped a button that promised properties and got no reply'
+            : 'the lead tapped a button that promised properties and was shown none',
       });
     }
   }
