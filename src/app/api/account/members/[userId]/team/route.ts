@@ -48,6 +48,12 @@ export async function PATCH(
         { status: 403 }
       );
     }
+    if (ctx.isReadOnly) {
+      return NextResponse.json(
+        { error: 'Read-only members cannot make changes.' },
+        { status: 403 }
+      );
+    }
 
     const limit = await checkRateLimit(
       `leader:memberTeam:${ctx.userId}`,

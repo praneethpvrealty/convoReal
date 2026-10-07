@@ -25,6 +25,14 @@ than a written entry. Newest first.
   first. Snooze 3 days is gone from new cards (Still considering already
   holds the lead for a week); taps on older cards still work.
 
+- **Read-only members can no longer manage the team.** Changing a member's
+  role, org role or team, removing a member, transferring ownership and
+  deleting a workspace with teammates in it are refused for a read-only member
+  by the API and by the database functions behind them, so their own sign-in
+  cannot do it through the database API either. The bot-instruction hit
+  counter is now callable by the server only. **Migration required:**
+  `20261007081838_member_management_read_only.sql`.
+
 #### 6 October 2026
 
 - **Twelve internal database functions can no longer be called from outside
