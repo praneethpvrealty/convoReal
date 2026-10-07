@@ -77,6 +77,29 @@ describe('[CNV-006] /api/admin/bot-thread-reviews', () => {
     expect(all.reviews).toHaveLength(3);
   });
 
+  it('pages the queue by reviewed_at cursor', async () => {
+    tables.bot_thread_reviews = [1, 2, 3].map((n) => ({
+      id: `r-${n}`,
+      verdict: 'fail',
+      reviewed_at: `2026-10-08T00:0${n}:00Z`,
+    }));
+    const first = (await (
+      await GET(new Request(`${url}?verdict=fail&limit=2`))
+    ).json()) as { reviews: Row[]; nextCursor: string | null };
+    expect(first.reviews.map((r) => r.id)).toEqual(['r-3', 'r-2']);
+    expect(first.nextCursor).toBe('2026-10-08T00:02:00Z');
+
+    const second = (await (
+      await GET(
+        new Request(
+          `${url}?verdict=fail&limit=2&before=${encodeURIComponent(first.nextCursor as string)}`
+        )
+      )
+    ).json()) as { reviews: Row[]; nextCursor: string | null };
+    expect(second.reviews.map((r) => r.id)).toEqual(['r-1']);
+    expect(second.nextCursor).toBeNull();
+  });
+
   it('records the platform verdict on a thread and clears it again', async () => {
     const bad = await PATCH(
       new Request(url, {

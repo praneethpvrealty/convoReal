@@ -2,7 +2,9 @@
 // /api/admin/bot-thread-reviews — the nightly bot thread review queue.
 //
 //   GET   — reviewed threads, newest first; ?verdict=fail|pass|unscored|all
-//           (default: fail and unscored, the ones worth a look).
+//           (default: fail and unscored, the ones worth a look), a page
+//           at a time: ?limit (50, at most 100) and ?before=<reviewed_at>
+//           from the previous page's nextCursor.
 //   PATCH — the platform's own verdict on a thread: good, bad, or
 //           cleared, with a note. A thread marked bad is what "Copy as
 //           fixture" turns into a pinned transcript.
@@ -18,6 +20,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const VERDICTS = ['fail', 'pass', 'unscored'] as const;
 const ADMIN_VERDICTS = ['good', 'bad'] as const;
+const DEFAULT_PAGE = 50;
+const MAX_PAGE = 100;
 
 export async function GET(request: Request) {
   try {
@@ -26,18 +30,27 @@ export async function GET(request: Request) {
     return toErrorResponse(err);
   }
 
-  const verdict = new URL(request.url).searchParams.get('verdict') ?? '';
+  const params = new URL(request.url).searchParams;
+  const verdict = params.get('verdict') ?? '';
+  const before = params.get('before');
+  const limit = Math.min(
+    Math.max(Number(params.get('limit')) || DEFAULT_PAGE, 1),
+    MAX_PAGE
+  );
   let query = supabaseAdmin()
     .from('bot_thread_reviews')
     .select(
       'id, account_id, conversation_id, contact_id, review_day, window_start, window_end, transcript, rule_violations, score, verdict, issues, summary, model, admin_verdict, admin_note, admin_reviewed_at, reviewed_at, accounts(name), contacts(name, created_at)'
     )
     .order('reviewed_at', { ascending: false })
-    .limit(200);
+    .limit(limit);
   if ((VERDICTS as readonly string[]).includes(verdict)) {
     query = query.eq('verdict', verdict);
   } else if (verdict !== 'all') {
     query = query.in('verdict', ['fail', 'unscored']);
+  }
+  if (before && Number.isFinite(Date.parse(before))) {
+    query = query.lt('reviewed_at', before);
   }
 
   const { data, error } = await query;
@@ -48,7 +61,12 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-  return NextResponse.json({ reviews: data ?? [] });
+  const reviews = (data ?? []) as { reviewed_at: string }[];
+  return NextResponse.json({
+    reviews,
+    nextCursor:
+      reviews.length === limit ? reviews[reviews.length - 1].reviewed_at : null,
+  });
 }
 
 export async function PATCH(request: Request) {

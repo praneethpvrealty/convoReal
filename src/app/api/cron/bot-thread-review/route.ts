@@ -2,6 +2,8 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { runBotThreadReview } from '@/lib/whatsapp/inbound/transcripts/thread-review';
 
+export const maxDuration = 300;
+
 /**
  * Bot thread review cron — reads every conversation the bot wrote in
  * during the last day as one thread, runs the transcript rules and the

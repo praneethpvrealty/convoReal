@@ -13,6 +13,13 @@ function same(a: unknown, b: unknown): boolean {
 
 type RpcHandler = (args: Record<string, unknown>) => unknown;
 
+function compare(a: unknown, b: unknown): number {
+  const an = Number(a);
+  const bn = Number(b);
+  if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
+  return String(a ?? '').localeCompare(String(b ?? ''));
+}
+
 let nextId = 1;
 
 export function memorySupabase(
@@ -93,15 +100,15 @@ export function memorySupabase(
         return builder;
       },
       gt(column: string, value: unknown) {
-        filters.push((row) => Number(row[column]) > Number(value));
+        filters.push((row) => compare(row[column], value) > 0);
         return builder;
       },
       lt(column: string, value: unknown) {
-        filters.push((row) => Number(row[column]) < Number(value));
+        filters.push((row) => compare(row[column], value) < 0);
         return builder;
       },
       lte(column: string, value: unknown) {
-        filters.push((row) => Number(row[column]) <= Number(value));
+        filters.push((row) => compare(row[column], value) <= 0);
         return builder;
       },
       // PostgREST filter strings (ilike probes, nested and/or) are not

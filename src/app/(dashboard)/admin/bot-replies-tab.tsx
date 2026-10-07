@@ -12,7 +12,12 @@
 // keep catching it.
 // ============================================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { toast } from 'sonner';
 import {
@@ -67,58 +72,92 @@ const VERDICT_STYLE: Record<Verdict, string> = {
   unscored: 'border-amber-500/30 bg-amber-500/15 text-amber-400',
 };
 
+interface ReviewPage {
+  reviews: ThreadReview[];
+  nextCursor: string | null;
+}
+
+async function fetchReviewPage(
+  filter: Filter,
+  before: string | null
+): Promise<ReviewPage> {
+  const params = new URLSearchParams();
+  if (filter !== 'attention') params.set('verdict', filter);
+  if (before) params.set('before', before);
+  const query = params.toString();
+  const res = await fetch(
+    `/api/admin/bot-thread-reviews${query ? `?${query}` : ''}`
+  );
+  const json = (await res.json()) as ReviewPage & { error?: string };
+  if (!res.ok)
+    throw new Error(json.error || 'Could not load bot thread reviews');
+  return { reviews: json.reviews, nextCursor: json.nextCursor ?? null };
+}
+
 export default function BotRepliesTab() {
-  const [reviews, setReviews] = useState<ThreadReview[]>([]);
   const [filter, setFilter] = useState<Filter>('attention');
-  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const queryKey = ['admin', 'bot-thread-reviews', filter] as const;
 
-  const load = useCallback(async (which: Filter) => {
-    setLoading(true);
-    try {
-      const verdict = which === 'attention' ? '' : which;
-      const res = await fetch(
-        `/api/admin/bot-thread-reviews${verdict ? `?verdict=${verdict}` : ''}`
-      );
-      if (!res.ok) {
-        const data = (await res.json()) as { error?: string };
-        toast.error(data.error || 'Could not load bot thread reviews');
-        return;
-      }
-      const data = (await res.json()) as { reviews: ThreadReview[] };
-      setReviews(data.reviews);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const {
+    data,
+    isPending,
+    isError,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    queryKey,
+    queryFn: ({ pageParam }) => fetchReviewPage(filter, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  });
+  const reviews = useMemo(
+    () => data?.pages.flatMap((page) => page.reviews) ?? [],
+    [data]
+  );
 
-  useEffect(() => {
-    void load(filter);
-  }, [load, filter]);
-
-  const mark = async (review: ThreadReview, adminVerdict: AdminVerdict) => {
-    setBusy(review.id);
-    try {
+  const verdict = useMutation({
+    mutationFn: async (args: {
+      review: ThreadReview;
+      adminVerdict: AdminVerdict;
+    }) => {
       const res = await fetch('/api/admin/bot-thread-reviews', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: review.id, adminVerdict }),
+        body: JSON.stringify({
+          id: args.review.id,
+          adminVerdict: args.adminVerdict,
+        }),
       });
-      const data = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        toast.error(data.error || 'Could not save the verdict');
-        return;
-      }
-      setReviews((rows) =>
-        rows.map((row) =>
-          row.id === review.id ? { ...row, admin_verdict: adminVerdict } : row
-        )
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(json.error || 'Could not save the verdict');
+      return args;
+    },
+    onSuccess: ({ review, adminVerdict }) => {
+      queryClient.setQueryData<{ pages: ReviewPage[]; pageParams: unknown[] }>(
+        queryKey,
+        (current) =>
+          current && {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              reviews: page.reviews.map((row) =>
+                row.id === review.id
+                  ? { ...row, admin_verdict: adminVerdict }
+                  : row
+              ),
+            })),
+          }
       );
-    } finally {
-      setBusy(null);
-    }
-  };
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  const mark = (review: ThreadReview, adminVerdict: AdminVerdict) =>
+    verdict.mutate({ review, adminVerdict });
+  const busy = verdict.isPending ? verdict.variables?.review.id : null;
 
   const copyFixture = async (review: ThreadReview) => {
     try {
@@ -140,10 +179,17 @@ export default function BotRepliesTab() {
     [reviews]
   );
 
-  if (loading) {
+  if (isPending) {
     return (
       <div className="flex h-96 items-center justify-center">
         <ConvoRealLoader size={26} label="Loading bot thread reviews" />
+      </div>
+    );
+  }
+  if (isError) {
+    return (
+      <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+        {(error as Error).message}
       </div>
     );
   }
@@ -384,6 +430,16 @@ export default function BotRepliesTab() {
               </div>
             );
           })}
+          {hasNextPage && (
+            <Button
+              variant="outline"
+              className="self-center border-slate-700"
+              disabled={isFetchingNextPage}
+              onClick={() => void fetchNextPage()}
+            >
+              {isFetchingNextPage ? 'Loading…' : 'Load older threads'}
+            </Button>
+          )}
         </div>
       )}
     </div>

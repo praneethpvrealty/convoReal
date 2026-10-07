@@ -122,6 +122,7 @@ describe('[CNV-006] runBotThreadReview', () => {
       skipped: 0,
       failed: 0,
       verdicts: { pass: 0, fail: 1, unscored: 0 },
+      budgetExhausted: false,
     });
     const [row] = tables.bot_thread_reviews;
     expect(row.account_id).toBe('acc-1');
@@ -288,6 +289,7 @@ describe('[CNV-006] collection', () => {
     ];
 
     const judge = async () => '{"score": 90, "issues": []}';
+    // Batches of two, pages of two: one run still covers the window.
     const first = await runBotThreadReview({
       db: db as never,
       now: NOW,
@@ -295,11 +297,14 @@ describe('[CNV-006] collection', () => {
       limit: 2,
       pageSize: 2,
     });
-    expect(first.threads).toBe(2);
-    expect(first.reviewed).toBe(2);
+    expect(first).toMatchObject({
+      threads: 3,
+      reviewed: 3,
+      budgetExhausted: false,
+    });
     expect(
       tables.bot_thread_reviews.map((r) => r.conversation_id).sort()
-    ).toEqual(['conv-a', 'conv-b', 'conv-c']);
+    ).toEqual(['conv-a', 'conv-b', 'conv-c', 'conv-d']);
 
     const second = await runBotThreadReview({
       db: db as never,
@@ -308,10 +313,54 @@ describe('[CNV-006] collection', () => {
       limit: 2,
       pageSize: 2,
     });
-    expect(second.reviewed).toBe(1);
-    expect(
-      tables.bot_thread_reviews.map((r) => r.conversation_id).sort()
-    ).toEqual(['conv-a', 'conv-b', 'conv-c', 'conv-d']);
+    expect(second).toMatchObject({ threads: 0, reviewed: 0 });
+  });
+
+  it('stops at the time budget and says so', async () => {
+    const result = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge: async () => '{"score": 90, "issues": []}',
+      budgetMs: 0,
+    });
+    expect(result).toMatchObject({
+      threads: 0,
+      reviewed: 0,
+      budgetExhausted: true,
+    });
+  });
+
+  it('claims the row before judging, so an overlapping run never judges the same thread', async () => {
+    const judge = vi.fn<(prompt: string, system: string) => Promise<string>>(
+      async () => '{"score": 90, "issues": []}'
+    );
+    const raced = {
+      ...db,
+      from(table: string) {
+        const builder = db.from(table);
+        if (table !== 'bot_thread_reviews') return builder;
+        return {
+          ...builder,
+          insert: () => ({
+            select: () => ({
+              single: async () => ({
+                data: null,
+                error: { code: '23505', message: 'duplicate key' },
+              }),
+            }),
+          }),
+        };
+      },
+    };
+
+    const result = await runBotThreadReview({
+      db: raced as never,
+      now: NOW,
+      judge,
+    });
+
+    expect(result).toMatchObject({ threads: 1, reviewed: 0, skipped: 1 });
+    expect(judge).not.toHaveBeenCalled();
   });
 });
 
