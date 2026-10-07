@@ -25,7 +25,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Property } from '@/types';
-import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import { storagePublicUrl } from '@/lib/storage/url';
 import {
   DEAL_FLOOR_BUDGETS,
@@ -529,10 +528,7 @@ export function DealFloorBoard({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={showcaseImageUrl(
-                storagePublicUrl(featured.images[0]),
-                SHOWCASE_IMAGE_WIDTHS.hero
-              )}
+              src={storagePublicUrl(featured.images[0])}
               alt={featured.title}
               loading="lazy"
             />

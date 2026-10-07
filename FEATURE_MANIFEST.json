@@ -58,7 +58,7 @@
         },
         {
           "id": "INB-004",
-          "rule": "A buyer's stated locality matches inventory across spelling variants, listings in that locality lead every buyer-facing shortlist ordered by property-type fit before nearby listings, a stated plot type matches plot listings rather than houses, and a locality the buyer types is saved in the spelling they typed (or the curated locality) rather than a misspelt inventory variant.",
+          "rule": "A buyer's stated locality matches inventory across spelling variants, listings in that locality lead every buyer-facing shortlist ordered by property-type fit before nearby listings, a stated plot type ranks plot listings above houses, and a locality the buyer types is saved in the spelling they typed (or the curated locality) rather than a misspelt inventory variant.",
           "tests": [
             {
               "file": "src/lib/locality-match.test.ts",
@@ -528,6 +528,16 @@
             {
               "file": "src/lib/conversations/inbox-search.test.ts",
               "case": "[INB-030]"
+            }
+          ]
+        },
+        {
+          "id": "INB-031",
+          "rule": "Property type matching never crosses a sector: residential, commercial, industrial and agricultural seekers only ever match listings in their own sector. Within residential, a house or villa seeker also matches residential plots and a residential plot seeker (or a plot seeker who named no other sector) also matches houses and villas, both as partial type fits ranked below exact ones, unless the seeker's own words rule that type out (\"no plots\", \"no sites or land\", \"no house\", \"no villa\"); the swap applies to sale listings only, never to rentals, farm houses are not offered to plot seekers however the type is spelt, and apartment seekers still see neither.",
+          "tests": [
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[INB-031]"
             }
           ]
         }
@@ -2279,7 +2289,7 @@
         },
         {
           "id": "JRN-015",
-          "rule": "A client who types when to be checked back on — in reply to the enquiry check-in (the enquiry_checkin_notice template or an inbox check-in) or to the timeline question — gets the date read (\"wait for a week\", \"in 10 days\", \"5th October\"), a follow-up to-do filed at once for that contact×property (moved, never duplicated, when one is open), the journey item's planned step stamped, the unprompted-pitch quiet window set, the words logged on the journey and the agent notified; the bot then asks \"shall I check back with you in a week, on <date>?\" with Yes and Another date buttons. Yes acknowledges the date; Another date asks again and the typed answer moves the same reminder without asking a second time. A reply that names no date files no reminder.",
+          "rule": "A client who types when to be checked back on — in reply to the enquiry check-in (the enquiry_checkin_notice template or an inbox check-in) or to the timeline question — gets the date read (\"wait for a week\", \"in 10 days\", \"5th October\"), a follow-up to-do filed at once for that contact×property (moved, never duplicated, when one is open), the journey item's planned step stamped, the unprompted-pitch quiet window set, the words logged on the journey and the agent notified; the bot then asks \"shall I check back with you in a week, on <date>?\" with Yes and Another date buttons. Yes acknowledges the date; Another date asks again and the typed answer moves the same reminder without asking a second time. A reply that names no date files no reminder. A reply asking to be called (\"Please call me\") is logged on the journey but never answered with the timeline question: it goes on to the callback handover, which promises a call and notifies the assigned agent. The client offering to ring us is not such a request, including when the offer follows \"and\" (\"I'll check and call back tomorrow\"), while \"I'm busy and call me later\" still is; and a reply that rejects the listing and asks to be called (\"Not interested, please call me\") records the rejection without the factor prompt and still reaches the callback handover.",
           "tests": [
             {
               "file": "src/lib/journey/typed-check-back.test.ts",
@@ -2346,6 +2356,34 @@
             "supabase/migrations/20261001032200_journey_auto_open_deal_backfill.sql",
             "src/components/journey/journey-item-sheet.tsx",
             "mobile/app/(app)/journey.tsx"
+          ]
+        },
+        {
+          "id": "JRN-019",
+          "rule": "A client who answers an inbox check-in by typing a requirement (a property type, budget or size, such as \"Hsr layout 30x40 north and east facing only\") that names no check-back date is not treated as an update on the checked-in listing: nothing is logged on that listing's journey, no note, deal note or notification is written for it, and the timeline question is not sent; the message falls through to requirement qualification, which files it on the contact and replies with matching listings — or, when an agent sent the check-in and so owns the thread, files it and raises a Match Radar event for the agent instead of the bot replying. When qualification will not take the message (auto-qualification off, a parked requirement, or a contact who is not a buyer), the requirement is still appended to the contact and their preferences re-extracted, so it reaches matching. References to the checked-in listing itself (\"this plot\", \"the villa\") are not a requirement, so \"Not interested in this plot\" stays a check-in reply while \"Not interested in this plot; I need a villa under 2 crore\" is matched. A requirement asked as a question (\"Any villa under 2 crore?\", \"Can you find a villa that is under 2 crore?\") counts as a requirement. A reply that rejects the listing or asks a question naming it (\"Is the plot east facing?\", \"Is it a corner plot?\", \"Does this office have parking?\", \"Can it be used as an office?\") is still handled as a check-in reply, and a reply that asks to be checked back on at a date (\"check back in a week\", \"wait for 2 weeks\", \"call me after a week\") still files the check-back as JRN-015 describes; a date stated as part of the requirement (\"available next week\", \"can't wait, need a 2 BHK next week\") does not, and neither does a declined check-back (\"no need to check back\").",
+          "tests": [
+            {
+              "file": "src/lib/journey/typed-check-back.test.ts",
+              "case": "[JRN-019]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/client-response.ts",
+            "src/lib/ai/requirement-signal.ts"
+          ]
+        },
+        {
+          "id": "JRN-020",
+          "rule": "Text an agent types in reply to a WhatsApp closing card (\"Closing in progress\") is that agent's note on the deal the card names: it is logged on that journey item and the buyer's contact notes, the card is held back for the re-nudge period, and the agent is told it was noted, without asking who the client is and without messaging the buyer. The deal is read from the quoted card's buyer phone, and its listing when the buyer is closing on more than one; when that deal is no longer on a closing stage the agent is told the note was not saved. A quote of any other message is left to the paths below.",
+          "tests": [
+            {
+              "file": "src/lib/journey/closing-card-note.test.ts",
+              "case": "[JRN-020]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/closing-nudges.ts",
+            "src/lib/whatsapp/inbound/chain/steps/control-reply.ts"
           ]
         }
       ]
@@ -4141,7 +4179,7 @@
         },
         {
           "id": "ACC-004",
-          "rule": "A read-only member cannot write through a SECURITY DEFINER function either. Row-level security does not apply inside one, so each function that writes on behalf of the calling member guards with is_account_writer() rather than is_account_member(): allocate_invoice_number, deal_invoice_append, deal_invoice_remove, issue_invoice, journey_show_captured, sync_listing_status_from_deals and unmap_portal_ad at agent level, resync_pipeline_stage_deals, revoke_beta_invite and rotate_beta_invite at admin level. A read-only member calling one over PostgREST with their own JWT is refused the way a non-member is. sync_listing_status_from_deals keeps its service-role branch, so server code and triggers running as the service role still sync a listing. complete_copilot_appointment refuses read-only members with its own profile check and stays as it is. A new SECURITY DEFINER function that inserts, updates or deletes for the caller uses is_account_writer(); is_account_member() is for reads.",
+          "rule": "A read-only member cannot write through a SECURITY DEFINER function either. Row-level security does not apply inside one, so each function that writes on behalf of the calling member guards with is_account_writer() rather than is_account_member(): allocate_invoice_number, deal_invoice_append, deal_invoice_remove, issue_invoice, journey_show_captured, sync_listing_status_from_deals, unmap_portal_ad and bulk_tag_properties at agent level, resync_pipeline_stage_deals, revoke_beta_invite and rotate_beta_invite at admin level. A read-only member calling one over PostgREST with their own JWT is refused the way a non-member is. sync_listing_status_from_deals keeps its service-role branch, so server code and triggers running as the service role still sync a listing. complete_copilot_appointment refuses read-only members with its own profile check and stays as it is. A new SECURITY DEFINER function that inserts, updates or deletes for the caller uses is_account_writer(); is_account_member() is for reads.",
           "tests": [
             {
               "file": "src/lib/auth/read-only-definer-functions.test.ts",

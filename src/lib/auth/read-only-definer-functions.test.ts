@@ -29,6 +29,7 @@ const writeFunctions = [
     "public.is_account_writer(v_inv.issued_by_account_id, 'admin')",
   ],
   ['unmap_portal_ad', "is_account_writer(p_account_id, 'agent')"],
+  ['bulk_tag_properties', "is_account_writer(target_account_id, 'agent')"],
 ] as const;
 
 function definition(name: string) {

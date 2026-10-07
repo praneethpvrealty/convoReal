@@ -550,3 +550,44 @@ BEGIN
   RETURN QUERY SELECT v_property_id, v_untagged;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION public.bulk_tag_properties(
+  target_account_id UUID,
+  property_ids UUID[],
+  add_tags TEXT[] DEFAULT '{}',
+  remove_tags TEXT[] DEFAULT '{}'
+)
+RETURNS TABLE (id UUID, tags TEXT[])
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  UPDATE properties p
+  SET tags = COALESCE(
+    (
+      SELECT array_agg(d.tag ORDER BY d.ord)
+      FROM (
+        SELECT DISTINCT ON (lower(c.tag)) c.tag, c.ord
+        FROM (
+          SELECT t AS tag, o AS ord
+          FROM unnest(p.tags) WITH ORDINALITY AS e(t, o)
+          UNION ALL
+          SELECT t, 1000000 + o
+          FROM unnest(add_tags) WITH ORDINALITY AS a(t, o)
+        ) c
+        WHERE btrim(c.tag) <> ''
+          AND NOT EXISTS (
+            SELECT 1 FROM unnest(remove_tags) r
+            WHERE lower(btrim(r)) = lower(btrim(c.tag))
+          )
+        ORDER BY lower(c.tag), c.ord
+      ) d
+    ),
+    '{}'
+  ),
+  updated_at = NOW()
+  WHERE p.account_id = target_account_id
+    AND p.id = ANY(property_ids)
+    AND is_account_writer(target_account_id, 'agent')
+  RETURNING p.id, p.tags;
+$$;

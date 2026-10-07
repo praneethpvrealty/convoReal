@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Bookmark, MapPin, MessageCircle, X } from 'lucide-react';
 import type { Property } from '@/types';
-import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import { storagePublicUrl } from '@/lib/storage/url';
 import {
   dealFloorLocality,
@@ -118,10 +117,7 @@ export function QuickPicksDeck({
                   {property.images?.[0] ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={showcaseImageUrl(
-                        storagePublicUrl(property.images[0]),
-                        SHOWCASE_IMAGE_WIDTHS.thumb
-                      )}
+                      src={storagePublicUrl(property.images[0])}
                       alt={property.title}
                       loading="lazy"
                     />
@@ -221,10 +217,7 @@ export function QuickPicksDeck({
             {next.images?.[0] && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={showcaseImageUrl(
-                  storagePublicUrl(next.images[0]),
-                  SHOWCASE_IMAGE_WIDTHS.card
-                )}
+                src={storagePublicUrl(next.images[0])}
                 alt=""
                 loading="lazy"
               />
@@ -240,14 +233,7 @@ export function QuickPicksDeck({
           >
             {image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={showcaseImageUrl(image, SHOWCASE_IMAGE_WIDTHS.hero)}
-                alt={current.title}
-                onError={(event) => {
-                  if (event.currentTarget.src !== image)
-                    event.currentTarget.src = image;
-                }}
-              />
+              <img src={image} alt={current.title} />
             ) : (
               <PlotFace property={current} />
             )}

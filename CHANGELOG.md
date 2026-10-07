@@ -17,16 +17,50 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 6 October 2026
+
+- **Two more "call me" replies take the right path.** "I'll check and call back
+  tomorrow" is read as the client's own call again, not a request for the
+  team to ring, so the callback promise is no longer sent. "Not interested,
+  please call me" still records the rejection on the listing, but skips the
+  factor menu and goes to the callback handover, which promises a call and
+  alerts the agent. Invariant JRN-015.
+
+- **A note typed in reply to a closing card is filed on that deal.** Replying
+  "Legal done → Agreement" to a "Closing in progress" card used to be read as
+  a forwarded client reply, so the bot asked who the client was and offered
+  unrelated contacts. The card already names the buyer and the plot, so the
+  note is now logged on that journey item and the buyer's contact notes, the
+  card is held back for its re-nudge period, and the agent gets a "Noted"
+  confirmation. Nothing is sent to the buyer. Invariant JRN-020.
+
 #### 5 October 2026
 
-- **Read-only members can no longer write through database functions.** Ten
-  functions that write on a member's behalf (issuing an invoice and allocating
-  its number, attaching or removing a deal invoice, showing captured journey
-  items, syncing a listing's status from its deals, resyncing a pipeline
-  stage, unmapping a portal ad, revoking or resending a beta invite) checked
+- **Read-only members can no longer write through database functions.**
+  Eleven functions that write on a member's behalf (issuing an invoice and
+  allocating its number, attaching or removing a deal invoice, showing captured
+  journey items, syncing a listing's status from its deals, resyncing a
+  pipeline stage, unmapping a portal ad, bulk-tagging listings, revoking or
+  resending a beta invite) checked
   membership only, so a read-only member could call them directly with their
   own session. They now refuse read-only members. **Migration required:**
   `20261005114500_definer_write_functions_read_only.sql`. Invariant ACC-004.
+- **A new requirement typed in reply to a check-in now gets matching listings.**
+  A client who answered an enquiry check-in with what they want instead, such
+  as "Hsr layout 30x40 north and east facing only", had it logged as an update
+  on the listing the check-in was about and was asked when to check back. The
+  reply now goes to requirement matching: it is filed on the contact and the
+  client is sent listings that fit (or, when an agent sent the check-in, the
+  agent gets a Match Radar alert). A reply that asks to be checked back on at a
+  date is still filed as one. Invariant JRN-019.
+- **Listing photos load straight from storage instead of Supabase's image
+  resizer.** Every photo the resizer touched counted against the Pro plan's 100
+  origin images per billing cycle, and the showcase, ads and promote screens
+  had pushed it to 375. Web, WhatsApp and portal uploads are already shrunk to
+  1200px JPEG, and the mobile photo editor now hands each upload to the new
+  `POST /api/properties/images`, which applies the same resize and removes
+  the camera original. A test fails if anything requests the resizer
+  again.
 
 #### 4 October 2026
 

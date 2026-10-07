@@ -51,6 +51,7 @@ import { createNotification } from '@/lib/notifications/create';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { phonesMatch } from '@/lib/whatsapp/phone-utils';
 import {
   buildPurchaseProgressParams,
   pickPurchaseProgressTemplate,
@@ -64,6 +65,7 @@ import {
 export const CLOSING_ADVANCE_PREFIX = 'cls_next:';
 export const CLOSING_ASK_PREFIX = 'cls_ask:';
 export const CLOSING_SNOOZE_PREFIX = 'cls_snooze:';
+export const CLOSING_CARD_HEADER = '🧾 *Closing in progress*';
 
 /** No stage movement for this long and the deal is worth a card. Two
  *  weeks, not the radar's 48 hours: legal and registration move in
@@ -133,7 +135,7 @@ export function closingAdvanceButtonTitle(nextStageName: string): string {
 export function buildClosingCardBody(deal: ClosingDeal): string {
   const stalled = `${deal.daysStalled} day${deal.daysStalled === 1 ? '' : 's'}`;
   return [
-    '🧾 *Closing in progress*',
+    CLOSING_CARD_HEADER,
     ...(deal.partyName
       ? [
           `👥 ${deal.partyName}`,
@@ -776,4 +778,196 @@ function resolveBodyText(body: string, params: string[]): string {
   return (body || '').replace(/\{\{(\d+)\}\}/g, (_, n) => {
     return params[Number(n) - 1] ?? '';
   });
+}
+
+const CONTACT_LINE = '👤 ';
+const PARTY_CONTACT_LINE = '↳ ';
+const PROPERTY_LINE = '🏠 ';
+const NOTE_REASON_MAX = 500;
+
+export interface ClosingCardSubject {
+  phone: string;
+  propertyTitle: string | null;
+}
+
+/** Who and what a closing card was about, read back from its own body.
+ *  The card is the only thing a quote-reply names, and its buttons are
+ *  not stored with the message, so the lines buildClosingCardBody
+ *  writes are what identify the deal. */
+export function parseClosingCardSubject(
+  body: string | null | undefined
+): ClosingCardSubject | null {
+  if (!body || !body.includes(CLOSING_CARD_HEADER)) return null;
+  const lines = body.split('\n').map((line) => line.trim());
+  const contactLine =
+    lines.find((line) => line.startsWith(PARTY_CONTACT_LINE)) ??
+    lines.find((line) => line.startsWith(CONTACT_LINE));
+  if (!contactLine) return null;
+  const sep = contactLine.lastIndexOf(' · ');
+  if (sep < 0) return null;
+  const phone = contactLine.slice(sep + 3).trim();
+  if (phone.replace(/\D/g, '').length < 7) return null;
+  const titleLine = lines.find((line) => line.startsWith(PROPERTY_LINE));
+  const propertyTitle = titleLine
+    ? titleLine.slice(PROPERTY_LINE.length).trim() || null
+    : null;
+  return { phone, propertyTitle };
+}
+
+interface QuotedClosingDeal {
+  itemId: string;
+  contactId: string;
+  contactName: string | null;
+  propertyTitle: string | null;
+  nextStageName: string | null;
+}
+
+async function findQuotedClosingDeal(
+  db: SupabaseClient,
+  accountId: string,
+  subject: ClosingCardSubject
+): Promise<QuotedClosingDeal | null> {
+  const stages = await loadStages(db, accountId);
+  const closingIds = stages
+    .filter((s) => CLOSING_STAGE_KINDS.includes(s.stage_kind as never))
+    .map((s) => s.id);
+  if (!closingIds.length) return null;
+
+  const digits = subject.phone.replace(/\D/g, '');
+  const { data: contactRows } = await db
+    .from('contacts')
+    .select('id, name, phone')
+    .eq('account_id', accountId)
+    .like('phone', `%${digits.slice(-8)}`);
+  const contacts = (
+    (contactRows ?? []) as { id: string; name: string | null; phone: string }[]
+  ).filter((c) => c.phone && phonesMatch(c.phone, digits));
+  if (!contacts.length) return null;
+
+  const { data: itemRows } = await db
+    .from('journey_items')
+    .select('id, contact_id, property_id, stage_id')
+    .eq('account_id', accountId)
+    .eq('status', 'active')
+    .in('stage_id', closingIds)
+    .in(
+      'contact_id',
+      contacts.map((c) => c.id)
+    );
+  const items = (itemRows ?? []) as Omit<ItemRow, 'updated_at'>[];
+  if (!items.length) return null;
+
+  const { data: propertyRows } = await db
+    .from('properties')
+    .select('id, title')
+    .eq('account_id', accountId)
+    .in('id', [...new Set(items.map((i) => i.property_id))]);
+  const titles = new Map(
+    ((propertyRows ?? []) as { id: string; title: string | null }[]).map(
+      (p) => [p.id, p.title]
+    )
+  );
+  const matching =
+    items.length > 1 && subject.propertyTitle
+      ? items.filter(
+          (i) =>
+            (titles.get(i.property_id) || '').trim() === subject.propertyTitle
+        )
+      : items;
+  if (matching.length !== 1) return null;
+
+  const item = matching[0];
+  const idx = stages.findIndex((s) => s.id === item.stage_id);
+  return {
+    itemId: item.id,
+    contactId: item.contact_id,
+    contactName: contacts.find((c) => c.id === item.contact_id)?.name ?? null,
+    propertyTitle: titles.get(item.property_id) ?? null,
+    nextStageName: idx >= 0 ? (stages[idx + 1]?.name ?? null) : null,
+  };
+}
+
+/**
+ * The agent's own words typed against a closing card ("Legal done →
+ * agreement next"). The card already names the deal, so the text is a
+ * note on that journey item — never a forwarded client reply to be
+ * matched against the book, which is what it used to be read as, and
+ * never a message to the buyer. True means consumed.
+ */
+export async function handleQuotedClosingNote(args: {
+  accountId: string;
+  configOwnerUserId: string;
+  agentThread: { contactId: string; conversationId: string };
+  contextId: string;
+  text: string;
+}): Promise<boolean> {
+  const note = args.text.trim();
+  if (!note) return false;
+  const admin = supabaseAdmin();
+
+  const { data: quoted } = await admin
+    .from('messages')
+    .select('content_text')
+    .eq('conversation_id', args.agentThread.conversationId)
+    .eq('message_id', args.contextId)
+    .eq('sender_type', 'bot')
+    .maybeSingle();
+  const subject = parseClosingCardSubject(
+    (quoted as { content_text?: string | null } | null)?.content_text
+  );
+  if (!subject) return false;
+
+  const replyToAgent = async (text: string) => {
+    await sendWhatsAppMessageAndPersist({
+      accountId: args.accountId,
+      userId: args.configOwnerUserId,
+      contactId: args.agentThread.contactId,
+      conversationId: args.agentThread.conversationId,
+      kind: 'text',
+      senderType: 'bot',
+      text,
+    });
+  };
+
+  const deal = await findQuotedClosingDeal(admin, args.accountId, subject);
+  if (!deal) {
+    await replyToAgent(
+      "🗂 I couldn't find that deal on the closing board any more, so the note wasn't saved. Add it from the contact in the app."
+    );
+    return true;
+  }
+
+  const { error: evError } = await admin.from('journey_events').insert({
+    account_id: args.accountId,
+    item_id: deal.itemId,
+    event_type: 'client_response',
+    reason: `Agent update: ${note}`.slice(0, NOTE_REASON_MAX),
+    created_by: args.configOwnerUserId,
+  });
+  if (evError)
+    console.error('[closing-nudges] note event failed:', evError.message);
+
+  const { error: noteError } = await admin.from('contact_notes').insert({
+    contact_id: deal.contactId,
+    account_id: args.accountId,
+    user_id: args.configOwnerUserId,
+    note_text: `🧾 ${deal.propertyTitle || 'Closing'}: "${note}"`,
+  });
+  if (noteError)
+    console.error('[closing-nudges] contact note failed:', noteError.message);
+
+  await stampNudgeState(admin, args.accountId, deal.itemId, {
+    last_nudged_at: new Date().toISOString(),
+  });
+
+  const who = deal.contactName || subject.phone;
+  await replyToAgent(
+    `📝 Noted on ${who}'s deal` +
+      (deal.propertyTitle ? ` — ${deal.propertyTitle}` : '') +
+      `:\n_"${note}"_` +
+      (deal.nextStageName
+        ? `\n\nTap ✅ ${deal.nextStageName} on the card once that step is done.`
+        : '')
+  );
+  return true;
 }
