@@ -60,6 +60,16 @@ than a written entry. Newest first.
   flow and automation policies of `20261004155516` that never reached
   production, and `20261007054244_property_storage_write_read_only.sql`. All
   three change policies in place with `ALTER POLICY`. Invariant ACC-003.
+
+- **Read-only members can no longer write through database functions.**
+  Eleven functions that write on a member's behalf (issuing an invoice and
+  allocating its number, attaching or removing a deal invoice, showing captured
+  journey items, syncing a listing's status from its deals, resyncing a
+  pipeline stage, unmapping a portal ad, bulk-tagging listings, revoking or
+  resending a beta invite) checked
+  membership only, so a read-only member could call them directly with their
+  own session. They now refuse read-only members. **Migration required:**
+  `20261005114500_definer_write_functions_read_only.sql`. Invariant ACC-004.
 - **A new requirement typed in reply to a check-in now gets matching listings.**
   A client who answered an enquiry check-in with what they want instead, such
   as "Hsr layout 30x40 north and east facing only", had it logged as an update
