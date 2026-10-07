@@ -5,27 +5,29 @@
 // works on the day the agent opens it. A ₹5-10 Cr lead who said "we
 // can talk whenever" went six days unanswered that way. The daily cron
 // (/api/cron/follow-up-nudges) now sends the assigned agent a WhatsApp
-// card per quiet lead — the same shape as the enquiry card, because
-// that shape is what gets acted on:
+// card per quiet lead with its actions as reply buttons on the message
+// itself — the same shape as the enquiry card, because that shape is
+// what gets acted on:
 //
 //   💬 Check in        — the bot nudges the lead: free-form inside their
 //                        24-hour window, the approved enquiry_checkin
 //                        template outside it.
 //   🤔 Still considering — keep the lead HOT and check again in a week.
-//   ⏰ Snooze 3 days    — the card comes back later.
 //   ❄️ Mark cold        — closes the enquiry on the carded listing only.
 //                        The lead stays HOT while any other enquiry is
 //                        open; it goes COLD only when that was the last.
 //
 // follow_up_nudges (migration 272) is the per-lead state that keeps
 // this from becoming spam: never more than one card per lead per
-// FOLLOWUP_RENUDGE_DAYS, and snoozes are honoured.
+// FOLLOWUP_RENUDGE_DAYS, and snoozes are honoured. Cards no longer
+// offer Snooze 3 days; fup_snooze taps from older cards still work.
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { addDays } from 'date-fns';
 
 import type { Property } from '@/types';
+import type { InteractiveButton } from '@/lib/whatsapp/meta-api';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
@@ -151,48 +153,30 @@ export function buildFollowUpCardBody(lead: FollowUpLead): string {
     ...(lead.propertyTitle ? [`🏠 ${lead.propertyTitle}`] : []),
     `Hot lead — quiet for ${lead.daysSilent} day${lead.daysSilent === 1 ? '' : 's'}.`,
     '',
-    'Choose an update below. Check in messages the client; Still considering keeps the lead hot without sending anything.',
+    `Check in messages the client. Still considering keeps the lead hot and checks again in ${FOLLOWUP_CONSIDERING_DAYS} days.`,
   ].join('\n');
 }
 
-export function buildFollowUpActionSections(lead: FollowUpLead) {
+export function buildFollowUpActionButtons(
+  lead: FollowUpLead
+): InteractiveButton[] {
   return [
     {
-      title: 'Update this lead',
-      rows: [
-        {
-          id: `${FOLLOWUP_CHECKIN_PREFIX}${lead.contactId}`,
-          title: '💬 Check in',
-          description: 'Send a friendly WhatsApp follow-up',
-        },
-        {
-          id: `${FOLLOWUP_CONSIDERING_PREFIX}${lead.contactId}`,
-          title: '🤔 Still considering',
-          description: 'Keep hot and check again in 7 days',
-        },
-        {
-          id: `${FOLLOWUP_SNOOZE_PREFIX}${lead.contactId}`,
-          title: '⏰ Snooze 3 days',
-          description: 'Bring this reminder back in 3 days',
-        },
-        ...(lead.propertyId && !lead.propertyTitle
-          ? []
-          : [
-              lead.propertyId
-                ? {
-                    id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${lead.propertyId}`,
-                    title: '❄️ Mark cold',
-                    description:
-                      'Not interested in this listing; keep tracking others',
-                  }
-                : {
-                    id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${FOLLOWUP_NO_LISTING}`,
-                    title: '❄️ Mark cold',
-                    description: 'Stop follow-up reminders for this lead',
-                  },
-            ]),
-      ],
+      id: `${FOLLOWUP_CHECKIN_PREFIX}${lead.contactId}`,
+      title: '💬 Check in',
     },
+    {
+      id: `${FOLLOWUP_CONSIDERING_PREFIX}${lead.contactId}`,
+      title: '🤔 Still considering',
+    },
+    ...(lead.propertyId && !lead.propertyTitle
+      ? []
+      : [
+          {
+            id: `${FOLLOWUP_COLD_PREFIX}${lead.contactId}:${lead.propertyId || FOLLOWUP_NO_LISTING}`,
+            title: '❄️ Mark cold',
+          },
+        ]),
   ];
 }
 
@@ -548,10 +532,9 @@ export async function sendFollowUpNudges(
             : { toPhone: agent.phone }),
           kind: 'interactive',
           senderType: 'bot',
-          interactiveType: 'list',
+          interactiveType: 'buttons',
           interactiveBody: buildFollowUpCardBody(lead),
-          interactiveButtonLabel: 'Update lead',
-          interactiveSections: buildFollowUpActionSections(lead),
+          interactiveButtons: buildFollowUpActionButtons(lead),
         });
         if (!result.success) continue;
         nudges += 1;
