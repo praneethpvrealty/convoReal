@@ -440,7 +440,10 @@ describe('nearMissAreas', () => {
   it('[CNV-004] keeps every explicit area ahead of a phase parent locality', () => {
     expect(
       nearMissAreas(['JP Nagar 4th Phase', 'Whitefield', 'Indiranagar'])
-    ).toEqual(['JP Nagar 4th Phase', 'Whitefield', 'Indiranagar', 'JP Nagar']);
+    ).toEqual(['JP Nagar 4th Phase', 'JP Nagar', 'Whitefield', 'Indiranagar']);
+    expect(
+      nearMissAreas(['Whitefield', 'Indiranagar', 'JP Nagar 4th Phase', 'HSR'])
+    ).toEqual(['Whitefield', 'Indiranagar', 'JP Nagar 4th Phase', 'JP Nagar']);
     expect(nearMissAreas(['Dollars Colony', 'JP Nagar 4th Phase'])).toEqual([
       'Dollars Colony',
       'JP Nagar 4th Phase',

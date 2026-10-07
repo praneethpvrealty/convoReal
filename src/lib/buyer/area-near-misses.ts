@@ -256,11 +256,12 @@ async function linkedListings(
 }
 
 /**
- * The areas to scan, in order: the lead's own areas first (the first
- * MAX_NEAR_MISS_AREAS of them, so a parent never displaces one they
- * named), then the locality each phase or block belongs to — the lead
- * who named JP Nagar 4th Phase is told about JP Nagar's other phases
- * rather than nothing. MAX_NEAR_MISS_SCANS still bounds the work.
+ * The areas to scan, in order: each of the lead's own areas (the first
+ * MAX_NEAR_MISS_AREAS of them, none displaced by a parent), each
+ * followed at once by the locality it is a phase or block of — the
+ * lead who named JP Nagar 4th Phase is told about JP Nagar's other
+ * phases rather than nothing, and that parent is reached before the
+ * scan budget (MAX_NEAR_MISS_SCANS) runs out on later areas.
  */
 export function nearMissAreas(areas: string[]): string[] {
   const seen = new Set<string>();
@@ -275,12 +276,13 @@ export function nearMissAreas(areas: string[]): string[] {
     0,
     MAX_NEAR_MISS_AREAS
   );
-  const parents = keep(
-    explicit
-      .map((area) => parentLocalityLabel(area))
-      .filter((area): area is string => !!area)
-  ).slice(0, MAX_NEAR_MISS_AREAS);
-  return [...explicit, ...parents];
+  const ordered: string[] = [];
+  for (const area of explicit) {
+    ordered.push(area);
+    const parent = parentLocalityLabel(area);
+    if (parent) ordered.push(...keep([parent]));
+  }
+  return ordered;
 }
 
 /** The near-miss line for this lead, or null when their areas hold no

@@ -66,7 +66,7 @@ export async function sendLeadArrivalReplies(args: {
   });
   if (!autoReply.success) {
     console.error(
-      `[lead-webhook] Auto-reply FAILED for contact ${args.contactId}: ${String(autoReply.error ?? '').replace(/[\r\n]+/g, ' ')}`
+      `[lead-webhook] Auto-reply FAILED for contact ${args.contactId}: ${JSON.stringify(autoReply.error ?? '')}`
     );
   } else {
     console.log(
