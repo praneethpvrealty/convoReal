@@ -11,23 +11,41 @@ interface PolicyStatement {
   name: string;
   table: string;
   command: string;
+  altered: boolean;
   body: string;
+}
+
+const POLICY_PATTERN =
+  /(CREATE|ALTER) POLICY\s+("[^"]+"|\w+)\s+ON\s+(?:public\.)?(\w+)([\s\S]*?);/gi;
+
+const createdCommand = new Map<string, string>();
+for (const file of readdirSync(MIGRATIONS)
+  .filter((f) => f.endsWith('.sql'))
+  .sort()) {
+  const sql = readFileSync(join(MIGRATIONS, file), 'utf8');
+  for (const match of sql.matchAll(POLICY_PATTERN)) {
+    if (match[1].toUpperCase() !== 'CREATE') continue;
+    createdCommand.set(
+      `${match[3]}.${match[2].replace(/"/g, '')}`,
+      (/\bFOR\s+(\w+)/i.exec(match[4])?.[1] ?? 'ALL').toUpperCase()
+    );
+  }
 }
 
 function policies(sql: string, file: string): PolicyStatement[] {
   const found: PolicyStatement[] = [];
-  const pattern =
-    /(CREATE|ALTER) POLICY\s+("[^"]+"|\w+)\s+ON\s+(?:public\.)?(\w+)([\s\S]*?);/gi;
-  for (const match of sql.matchAll(pattern)) {
+  for (const match of sql.matchAll(POLICY_PATTERN)) {
     const rest = match[4];
+    const name = match[2].replace(/"/g, '');
+    const altered = match[1].toUpperCase() === 'ALTER';
     found.push({
       file,
-      name: match[2].replace(/"/g, ''),
+      name,
       table: match[3],
-      command:
-        match[1].toUpperCase() === 'ALTER'
-          ? 'ALTER'
-          : (/\bFOR\s+(\w+)/i.exec(rest)?.[1] ?? 'ALL').toUpperCase(),
+      command: altered
+        ? (createdCommand.get(`${match[3]}.${name}`) ?? 'ALL')
+        : (/\bFOR\s+(\w+)/i.exec(rest)?.[1] ?? 'ALL').toUpperCase(),
+      altered,
       body: rest,
     });
   }
@@ -66,7 +84,7 @@ describe('[ACC-003] read-only RLS on every workspace write policy', () => {
   it('alters each write policy in place so it can be re-run', () => {
     expect(migration).not.toMatch(/\bDROP POLICY\b/i);
     for (const policy of writes) {
-      expect(policy.command, `${policy.table}.${policy.name}`).toBe('ALTER');
+      expect(policy.altered, `${policy.table}.${policy.name}`).toBe(true);
     }
   });
 
@@ -167,6 +185,19 @@ describe('[ACC-003] read-only RLS on every workspace write policy', () => {
     ]) {
       expect(migration).toContain(`AND policyname = '${name}'\n  ) THEN`);
     }
+  });
+
+  it('reads the command of an altered policy from the migration that created it', () => {
+    const [select] = policies(
+      'ALTER POLICY contacts_select ON contacts USING (is_account_member(account_id));',
+      'later.sql'
+    );
+    expect(select.command).toBe('SELECT');
+    const [write] = policies(
+      "ALTER POLICY contacts_update ON contacts USING (is_account_writer(account_id, 'agent'));",
+      'later.sql'
+    );
+    expect(write.command).toBe('UPDATE');
   });
 
   it('lets a team leader edit their team only while they can write', () => {
