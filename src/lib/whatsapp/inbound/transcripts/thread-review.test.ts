@@ -72,7 +72,7 @@ function seed() {
         private: false,
         content_type: 'text',
         content_text:
-          "Great to hear from you, Sunil 👍 You're back on our radar. Call me on +91 99860 54104 or write to sunil@example.com.",
+          "Great to hear from you, Sunil 👍 You're back on our radar. Call me on +91 (99860) 54104 or write to sunil@example.com.",
         created_at: at(56),
       },
       // A staff note the lead never saw.
@@ -93,7 +93,7 @@ function seed() {
         private: false,
         content_type: 'text',
         content_text: 'Here it is: https://x/?property_id=p1',
-        created_at: at(60 * 30),
+        created_at: at(60 * 24 * 8),
       },
     ],
     bot_thread_reviews: [],
@@ -285,7 +285,12 @@ describe('[CNV-006] collection', () => {
       }))
     );
     tables.bot_thread_reviews = [
-      { conversation_id: 'conv-a', review_day: '2026-10-08', verdict: 'pass' },
+      {
+        conversation_id: 'conv-a',
+        review_day: '2026-10-08',
+        verdict: 'pass',
+        window_end: NOW.toISOString(),
+      },
     ];
 
     const judge = async () => '{"score": 90, "issues": []}';
@@ -314,6 +319,66 @@ describe('[CNV-006] collection', () => {
       pageSize: 2,
     });
     expect(second).toMatchObject({ threads: 0, reviewed: 0 });
+  });
+
+  it('reviews a thread again on a later day when the bot wrote after its last review', async () => {
+    const judge = async () => '{"score": 90, "issues": []}';
+    tables.bot_thread_reviews = [
+      {
+        conversation_id: 'conv-1',
+        review_day: '2026-10-07',
+        verdict: 'pass',
+        window_end: at(60 * 24),
+      },
+    ];
+    const result = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge,
+    });
+    expect(result.reviewed).toBe(1);
+    expect(tables.bot_thread_reviews).toHaveLength(2);
+
+    // Nothing new since that review: not reviewed again.
+    tables.bot_thread_reviews = [
+      {
+        conversation_id: 'conv-1',
+        review_day: '2026-10-07',
+        verdict: 'pass',
+        window_end: at(30),
+      },
+    ];
+    const again = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge,
+    });
+    expect(again.threads).toBe(0);
+  });
+
+  it('keeps a bubble an agent hid from the inbox, since the lead still received it', async () => {
+    tables.messages = [
+      {
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'bot',
+        private: false,
+        deleted_at: at(1),
+        content_type: 'text',
+        content_text: 'Here it is: https://x/?property_id=p1&v=c',
+        created_at: at(5),
+      },
+    ];
+    const result = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge: async () => '{"score": 90, "issues": []}',
+    });
+    expect(result.reviewed).toBe(1);
+    expect(
+      (tables.bot_thread_reviews[0].transcript as Array<{ text: string }>)[0]
+        .text
+    ).toContain('Here it is');
   });
 
   it('stops at the time budget and says so', async () => {

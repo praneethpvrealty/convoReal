@@ -1,4 +1,5 @@
 import type { TranscriptMessage } from './transcript-rules';
+import { maskContactDetails } from './mask';
 
 export interface ReviewForExport {
   review_day: string;
@@ -15,10 +16,6 @@ export interface ReviewForExport {
  * numbers and emails are already masked.
  */
 export function fixtureFromReview(review: ReviewForExport): string {
-  const mask = (text: string) =>
-    text
-      .replace(/(?:\+?\d[\s-]?){10,}/g, '[number]')
-      .replace(/\S+@\S+\.\S+/g, '[email]');
   return JSON.stringify(
     {
       id: `${review.review_day}-${review.conversation_id.slice(0, 8)}`,
@@ -35,7 +32,7 @@ export function fixtureFromReview(review: ReviewForExport): string {
         kind: bubble.kind,
         ...(bubble.templateName ? { templateName: bubble.templateName } : {}),
         ...(bubble.at ? { at: bubble.at } : {}),
-        text: mask(bubble.text),
+        text: maskContactDetails(bubble.text),
       })),
     },
     null,

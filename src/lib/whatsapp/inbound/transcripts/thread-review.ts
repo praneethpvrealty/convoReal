@@ -22,10 +22,14 @@ import {
   type TranscriptMessage,
   type TranscriptViolation,
 } from './transcript-rules';
+import { maskContactDetails } from './mask';
 
-/** Two hours past a day, so a run that starts late still overlaps the
- *  previous one; the per-day claim makes the overlap free. */
-export const REVIEW_LOOKBACK_MS = 26 * 60 * 60 * 1000;
+/** How far back a conversation's bot activity is still worth a review.
+ *  A thread the budget left over tonight, or one a slow night missed,
+ *  is picked up the next night: a conversation is reviewed whenever it
+ *  has bot activity newer than its last review's window. */
+export const REVIEW_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+export const MAX_COLLECT_PAGES = 50;
 /** Wall-clock budget for one invocation, under the route's maxDuration;
  *  a run that hits it reports so, and the next run picks up the rest. */
 export const REVIEW_TIME_BUDGET_MS = 240_000;
@@ -83,19 +87,13 @@ function ist(date: Date): string {
   return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 }
 
-function stripContactDetails(text: string): string {
-  return text
-    .replace(/(?:\+?\d[\s-]?){10,}/g, '[number]')
-    .replace(/\S+@\S+\.\S+/g, '[email]');
-}
-
 export function buildJudgePrompt(
   transcript: TranscriptMessage[],
   context: { contactCreatedAt: string | null; now: string }
 ): string {
   const lines = transcript.map(
     (m, i) =>
-      `[${i}] ${m.sender.toUpperCase()}${m.kind === 'template' ? ' (template)' : m.kind === 'interactive' ? ' (interactive)' : ''}${m.at ? ` @ ${m.at}` : ''}:\n${stripContactDetails(m.text)}`
+      `[${i}] ${m.sender.toUpperCase()}${m.kind === 'template' ? ' (template)' : m.kind === 'interactive' ? ' (interactive)' : ''}${m.at ? ` @ ${m.at}` : ''}:\n${maskContactDetails(m.text)}`
   );
   return [
     `Lead created: ${context.contactCreatedAt ?? 'unknown'}. Reviewed at: ${context.now}.`,
@@ -225,34 +223,28 @@ interface MessageRow {
 export const COLLECT_PAGE_SIZE = 1000;
 
 /**
- * Conversations the bot wrote to since `since` that have no review for
- * `reviewDay` yet, newest activity first. Pages through the bot's
- * messages until `limit` such conversations are found or the window is
- * exhausted, so a backlog beyond one night's cap is reached by the
- * next run rather than hidden behind the newest threads forever.
- * Private rows are staff notes, not bubbles the lead received.
+ * Conversations with bot activity newer than their last review, newest
+ * activity first. Pages through the bot's messages of the last week
+ * until `limit` such conversations are found or the window is
+ * exhausted, so a thread tonight's budget leaves over, or a slow night
+ * misses, is reached by the next run rather than lost. Private rows
+ * are staff notes, not bubbles the lead received; a bubble an agent
+ * hid from the inbox ("delete for me") was still received, so it stays.
  */
 export async function collectBotThreads(
   db: SupabaseClient,
   since: Date,
-  reviewDay: string,
   limit = MAX_THREADS_PER_RUN,
   pageSize = COLLECT_PAGE_SIZE,
   /** Conversations this run already gave up on; never collected twice. */
   exclude: ReadonlySet<string> = new Set()
 ): Promise<Array<{ conversationId: string; accountId: string | null }>> {
-  const { data: reviewed, error: reviewedError } = await db
-    .from('bot_thread_reviews')
-    .select('conversation_id')
-    .eq('review_day', reviewDay);
-  if (reviewedError) throw new Error(reviewedError.message);
-  const done = new Set(
-    ((reviewed ?? []) as { conversation_id: string }[]).map(
-      (row) => row.conversation_id
-    )
-  );
-  const seen = new Map<string, string | null>();
-  for (let from = 0; seen.size < limit; from += pageSize) {
+  const latestBotAt = new Map<
+    string,
+    { at: string; accountId: string | null }
+  >();
+  for (let page = 0; page < MAX_COLLECT_PAGES; page += 1) {
+    const from = page * pageSize;
     const { data, error } = await db
       .from('messages')
       .select('conversation_id, account_id, created_at')
@@ -262,26 +254,48 @@ export async function collectBotThreads(
       .order('created_at', { ascending: false })
       .range(from, from + pageSize - 1);
     if (error) throw new Error(error.message);
-    const page = (data ?? []) as Pick<
+    const rows = (data ?? []) as Pick<
       MessageRow,
-      'conversation_id' | 'account_id'
+      'conversation_id' | 'account_id' | 'created_at'
     >[];
-    for (const row of page) {
-      if (
-        done.has(row.conversation_id) ||
-        exclude.has(row.conversation_id) ||
-        seen.has(row.conversation_id)
-      )
-        continue;
-      seen.set(row.conversation_id, row.account_id);
-      if (seen.size >= limit) break;
+    for (const row of rows) {
+      if (exclude.has(row.conversation_id)) continue;
+      if (!latestBotAt.has(row.conversation_id))
+        latestBotAt.set(row.conversation_id, {
+          at: row.created_at,
+          accountId: row.account_id,
+        });
     }
-    if (page.length < pageSize) break;
+    if (rows.length < pageSize) break;
   }
-  return [...seen].map(([conversationId, accountId]) => ({
-    conversationId,
-    accountId,
-  }));
+  if (latestBotAt.size === 0) return [];
+
+  const ids = [...latestBotAt.keys()];
+  const lastReviewed = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += pageSize) {
+    const { data, error } = await db
+      .from('bot_thread_reviews')
+      .select('conversation_id, window_end')
+      .in('conversation_id', ids.slice(i, i + pageSize));
+    if (error) throw new Error(error.message);
+    for (const row of (data ?? []) as {
+      conversation_id: string;
+      window_end: string;
+    }[]) {
+      const prior = lastReviewed.get(row.conversation_id);
+      if (!prior || row.window_end > prior)
+        lastReviewed.set(row.conversation_id, row.window_end);
+    }
+  }
+
+  const due: Array<{ conversationId: string; accountId: string | null }> = [];
+  for (const [conversationId, { at, accountId }] of latestBotAt) {
+    const reviewedUpTo = lastReviewed.get(conversationId);
+    if (reviewedUpTo && at <= reviewedUpTo) continue;
+    due.push({ conversationId, accountId });
+    if (due.length >= limit) break;
+  }
+  return due;
 }
 
 export async function runBotThreadReview(
@@ -320,7 +334,6 @@ export async function runBotThreadReview(
     const threads = await collectBotThreads(
       db,
       new Date(now.getTime() - REVIEW_LOOKBACK_MS),
-      reviewDay,
       options.limit ?? MAX_THREADS_PER_RUN,
       options.pageSize,
       givenUp
@@ -358,7 +371,6 @@ export async function runBotThreadReview(
             )
             .eq('conversation_id', thread.conversationId)
             .eq('private', false)
-            .is('deleted_at', null)
             .gte('created_at', windowStart.toISOString())
             // Newest first under the cap, so a long thread keeps the
             // exchange that put it on tonight's list; restored to

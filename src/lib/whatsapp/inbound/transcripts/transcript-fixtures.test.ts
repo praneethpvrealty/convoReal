@@ -7,6 +7,7 @@ import {
   type TranscriptMessage,
   type TranscriptRuleId,
 } from './transcript-rules';
+import { carriesContactDetails } from './mask';
 
 interface TranscriptFixture {
   id: string;
@@ -50,8 +51,9 @@ describe('[CNV-005] pinned transcripts', () => {
   it('keeps every fixture free of a phone number or email', () => {
     for (const fixture of fixtures) {
       const text = JSON.stringify(fixture);
-      expect(text, fixture.id).not.toMatch(/(?:\+?\d[\s-]?){10,}/);
-      expect(text, fixture.id).not.toMatch(/\S+@\S+\.\S+/);
+      for (const bubble of fixture.transcript) {
+        expect(carriesContactDetails(bubble.text), fixture.id).toBe(false);
+      }
     }
   });
 });
