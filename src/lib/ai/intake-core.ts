@@ -567,3 +567,19 @@ export function readContactConfirm(
   }
   return null;
 }
+
+/**
+ * Picks between the two rules above for a card that lands on an open
+ * draft. `absorb` is the caller's finding that the card belongs with
+ * the draft (sent in the same burst, or as a reply to the draft
+ * itself), so a stranger joins it instead of superseding it.
+ */
+export function foldContactDrafts(
+  existing: ParsedContactDraftsContainer,
+  incoming: ParsedContactDraftsContainer,
+  absorb: boolean
+): ContactDraftReconciliation {
+  return absorb
+    ? { container: absorbContactDrafts(existing, incoming), replaced: false }
+    : reconcileContactDrafts(existing, incoming);
+}

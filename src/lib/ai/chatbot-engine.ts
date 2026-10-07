@@ -131,8 +131,8 @@ import {
 import {
   validateDraft,
   validateContactDraftsContainer,
-  reconcileContactDrafts,
   absorbContactDrafts,
+  foldContactDrafts,
   contactCardVersion,
   contactConfirmButtonId,
   readContactConfirm,
@@ -165,11 +165,14 @@ import {
   insertContactDraftSession,
   mutateContactDraft,
   insertPropertyDraftSession,
+  isContactCardBurst,
   isDraftSessionExpired,
+  isReplyToContactDraft,
   mutatePropertyDraft,
   overwriteContactDraftSession,
   touchPropertyDraftSession,
   type ContactDraftSessionRow,
+  type DraftSessionStatus,
 } from '@/lib/ai/draft-sessions';
 import {
   findContactByName,
@@ -881,6 +884,62 @@ async function readCurrentContactDraft(
   return undefined;
 }
 
+/**
+ * Folds a second card into the open contact draft against the row as it
+ * stands at write time, so a card saved in between is folded into
+ * rather than overwritten. Null when the write did not land.
+ */
+async function foldIntoContactDraft(
+  sessionId: string,
+  accountId: string,
+  incoming: ParsedContactDraftsContainer,
+  absorb: boolean
+): Promise<{
+  container: ParsedContactDraftsContainer;
+  status: DraftSessionStatus;
+  replaced: boolean;
+  version: string;
+} | null> {
+  let replaced = false;
+  const mutation = await mutateContactDraft(
+    supabaseAdmin(),
+    sessionId,
+    (latestSession) => {
+      const folded = foldContactDrafts(
+        latestSession.draft_data,
+        incoming,
+        absorb
+      );
+      replaced = folded.replaced;
+      return {
+        draft_data: folded.container,
+        status: validateContactDraftsContainer(folded.container).isValid
+          ? 'awaiting_confirmation'
+          : 'collecting',
+      };
+    },
+    accountId
+  );
+  if (mutation.status !== 'ok') {
+    console.error(
+      '[chatbot-engine] Failed to fold a card into the contact draft:',
+      mutation
+    );
+    return null;
+  }
+  return {
+    container: mutation.next.draft_data,
+    status: mutation.next.status,
+    replaced,
+    version: mutation.row.updated_at,
+  };
+}
+
+function whatsappSentAt(timestamp: string | undefined): number | null {
+  const seconds = Number(timestamp);
+  return timestamp && Number.isFinite(seconds) ? seconds * 1000 : null;
+}
+
 async function sendContactDraftSaveFailed(
   phoneNumberId: string,
   accessToken: string,
@@ -966,6 +1025,8 @@ export async function processOwnerChatbotMessage(
     };
     /** Set by WhatsApp on a quote-reply: the wamid being replied to. */
     context?: { id: string };
+    /** Unix seconds WhatsApp stamped when the message was sent. */
+    timestamp?: string;
   },
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string },
@@ -973,7 +1034,8 @@ export async function processOwnerChatbotMessage(
   accountId: string,
   userId: string,
   accessToken: string,
-  phoneNumberId: string
+  phoneNumberId: string,
+  { waited = false }: { waited?: boolean } = {}
 ): Promise<boolean> {
   // 1. Fetch active sessions for this contact
   const { data: propSessionData, error: propSessionErr } =
@@ -3468,6 +3530,25 @@ export async function processOwnerChatbotMessage(
     // someone already in the draft. All of them, and it merges against
     // the MATCHED contact rather than a shared index; one stranger and
     // the card is new business, so the old draft goes.
+    //
+    // Unless the card belongs with the draft: it waited for the lease
+    // behind a draft written moments ago (cards forwarded back to back),
+    // or it was sent as a reply to the draft itself. Then a stranger is
+    // appended and nothing is discarded.
+    const absorbIncoming =
+      Boolean(isMediaMsg || isContactCardMsg) &&
+      (isContactCardBurst(
+        contactSession,
+        { waited, sentAt: whatsappSentAt(message.timestamp) },
+        Date.now()
+      ) ||
+        (await isReplyToContactDraft(
+          supabaseAdmin(),
+          conversation.id,
+          message.context?.id,
+          contactSession
+        )));
+
     if (isMediaMsg) {
       if (!(await gatedBurn(accountId, 'contact_parse'))) {
         return await sendCreditsLockedReply(
@@ -3497,21 +3578,13 @@ export async function processOwnerChatbotMessage(
           buffer,
           mimeType
         );
-        const { container: mergedContainer, replaced } = reconcileContactDrafts(
-          container,
-          parsedIncoming
-        );
-        const { isValid, missingFields } =
-          validateContactDraftsContainer(mergedContainer);
-        const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
-
-        const version = await overwriteContactDraftSession(
-          supabaseAdmin(),
+        const folded = await foldIntoContactDraft(
           contactSession.id,
-          mergedContainer,
-          nextStatus
+          accountId,
+          parsedIncoming,
+          absorbIncoming
         );
-        if (!version) {
+        if (!folded) {
           return await sendContactDraftSaveFailed(
             phoneNumberId,
             accessToken,
@@ -3519,6 +3592,14 @@ export async function processOwnerChatbotMessage(
             conversation.id
           );
         }
+        const {
+          container: mergedContainer,
+          status: nextStatus,
+          replaced,
+          version,
+        } = folded;
+        const { missingFields } =
+          validateContactDraftsContainer(mergedContainer);
 
         await sendContactDraftPreview(
           phoneNumberId,
@@ -3560,21 +3641,13 @@ export async function processOwnerChatbotMessage(
       ? contactDraftsFromCards(cleanedText)
       : null;
     if (incomingCards) {
-      const { container: mergedContainer, replaced } = reconcileContactDrafts(
-        container,
-        incomingCards
-      );
-      const { isValid, missingFields } =
-        validateContactDraftsContainer(mergedContainer);
-      const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
-
-      const version = await overwriteContactDraftSession(
-        supabaseAdmin(),
+      const folded = await foldIntoContactDraft(
         contactSession.id,
-        mergedContainer,
-        nextStatus
+        accountId,
+        incomingCards,
+        absorbIncoming
       );
-      if (!version) {
+      if (!folded) {
         return await sendContactDraftSaveFailed(
           phoneNumberId,
           accessToken,
@@ -3582,6 +3655,13 @@ export async function processOwnerChatbotMessage(
           conversation.id
         );
       }
+      const {
+        container: mergedContainer,
+        status: nextStatus,
+        replaced,
+        version,
+      } = folded;
+      const { missingFields } = validateContactDraftsContainer(mergedContainer);
 
       await sendContactDraftPreview(
         phoneNumberId,

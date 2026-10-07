@@ -54,6 +54,7 @@ export interface InboundChainContext {
   ownerCheck: InboundChainPayload['ownerCheck'];
   contactRecord: ContactRow;
   conversation: ConversationRow;
+  waited: boolean;
   isFirstInboundMessage: boolean;
   isControlReply: boolean;
   assignedAgentUserId: string;
