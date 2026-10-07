@@ -24,6 +24,8 @@ export function memorySupabase(
     let patch: Row | null = null;
     let inserted: Row[] | null = null;
     let head = false;
+    let orderBy: { column: string; ascending: boolean } | null = null;
+    let window: { from: number; to: number } | null = null;
     const rows = () => (tables[table] ??= []);
     const run = (): Row[] => {
       if (inserted) return inserted.map((row) => structuredClone(row));
@@ -31,7 +33,17 @@ export function memorySupabase(
       if (patch) {
         for (const row of matched) Object.assign(row, structuredClone(patch));
       }
-      return matched.map((row) => structuredClone(row));
+      let out = matched.map((row) => structuredClone(row));
+      if (orderBy) {
+        const { column, ascending } = orderBy;
+        out = [...out].sort((a, b) => {
+          const av = String(a[column] ?? '');
+          const bv = String(b[column] ?? '');
+          return ascending ? av.localeCompare(bv) : bv.localeCompare(av);
+        });
+      }
+      if (window) out = out.slice(window.from, window.to + 1);
+      return out;
     };
     const store = (values: Row | Row[]) => {
       inserted = (Array.isArray(values) ? values : [values]).map((row) => {
@@ -101,10 +113,16 @@ export function memorySupabase(
       not() {
         return builder;
       },
-      order() {
+      order(column: string, options?: { ascending?: boolean }) {
+        orderBy = { column, ascending: options?.ascending ?? true };
         return builder;
       },
-      limit() {
+      limit(count: number) {
+        window = { from: 0, to: count - 1 };
+        return builder;
+      },
+      range(from: number, to: number) {
+        window = { from, to };
         return builder;
       },
       async maybeSingle() {

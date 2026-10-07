@@ -214,28 +214,55 @@ interface MessageRow {
   created_at: string;
 }
 
-/** Conversations the bot wrote in since `since`, newest activity first. */
+export const COLLECT_PAGE_SIZE = 1000;
+
+/**
+ * Conversations the bot wrote to since `since` that have no review for
+ * `reviewDay` yet, newest activity first. Pages through the bot's
+ * messages until `limit` such conversations are found or the window is
+ * exhausted, so a backlog beyond one night's cap is reached by the
+ * next run rather than hidden behind the newest threads forever.
+ * Private rows are staff notes, not bubbles the lead received.
+ */
 export async function collectBotThreads(
   db: SupabaseClient,
   since: Date,
-  limit = MAX_THREADS_PER_RUN
+  reviewDay: string,
+  limit = MAX_THREADS_PER_RUN,
+  pageSize = COLLECT_PAGE_SIZE
 ): Promise<Array<{ conversationId: string; accountId: string | null }>> {
-  const { data, error } = await db
-    .from('messages')
-    .select('conversation_id, account_id, created_at')
-    .eq('sender_type', 'bot')
-    .gte('created_at', since.toISOString())
-    .order('created_at', { ascending: false })
-    .limit(limit * 10);
-  if (error) throw new Error(error.message);
+  const { data: reviewed, error: reviewedError } = await db
+    .from('bot_thread_reviews')
+    .select('conversation_id')
+    .eq('review_day', reviewDay);
+  if (reviewedError) throw new Error(reviewedError.message);
+  const done = new Set(
+    ((reviewed ?? []) as { conversation_id: string }[]).map(
+      (row) => row.conversation_id
+    )
+  );
   const seen = new Map<string, string | null>();
-  for (const row of (data ?? []) as Pick<
-    MessageRow,
-    'conversation_id' | 'account_id'
-  >[]) {
-    if (!seen.has(row.conversation_id))
+  for (let from = 0; seen.size < limit; from += pageSize) {
+    const { data, error } = await db
+      .from('messages')
+      .select('conversation_id, account_id, created_at')
+      .eq('sender_type', 'bot')
+      .eq('private', false)
+      .gte('created_at', since.toISOString())
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw new Error(error.message);
+    const page = (data ?? []) as Pick<
+      MessageRow,
+      'conversation_id' | 'account_id'
+    >[];
+    for (const row of page) {
+      if (done.has(row.conversation_id) || seen.has(row.conversation_id))
+        continue;
       seen.set(row.conversation_id, row.account_id);
-    if (seen.size >= limit) break;
+      if (seen.size >= limit) break;
+    }
+    if (page.length < pageSize) break;
   }
   return [...seen].map(([conversationId, accountId]) => ({
     conversationId,
@@ -248,6 +275,7 @@ export async function runBotThreadReview(
     db?: SupabaseClient;
     now?: Date;
     limit?: number;
+    pageSize?: number;
     judge?: (prompt: string, system: string) => Promise<string>;
   } = {}
 ): Promise<ReviewRunResult> {
@@ -266,7 +294,9 @@ export async function runBotThreadReview(
   const threads = await collectBotThreads(
     db,
     new Date(now.getTime() - REVIEW_LOOKBACK_MS),
-    options.limit ?? MAX_THREADS_PER_RUN
+    reviewDay,
+    options.limit ?? MAX_THREADS_PER_RUN,
+    options.pageSize
   );
   result.threads = threads.length;
 
@@ -305,9 +335,13 @@ export async function runBotThreadReview(
             'conversation_id, account_id, sender_type, content_type, content_text, template_name, created_at'
           )
           .eq('conversation_id', thread.conversationId)
+          .eq('private', false)
           .is('deleted_at', null)
           .gte('created_at', windowStart.toISOString())
-          .order('created_at', { ascending: true })
+          // Newest first under the cap, so a long thread keeps the
+          // exchange that put it on tonight's list; restored to reading
+          // order below.
+          .order('created_at', { ascending: false })
           .limit(MAX_MESSAGES_PER_THREAD),
         contactId
           ? db
@@ -317,7 +351,9 @@ export async function runBotThreadReview(
               .maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
-      const transcript = transcriptFromMessages((rows ?? []) as MessageRow[]);
+      const transcript = transcriptFromMessages(
+        [...((rows ?? []) as MessageRow[])].reverse()
+      );
       if (!transcript.some((m) => m.sender === 'bot')) {
         result.skipped += 1;
         continue;
