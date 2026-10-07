@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
 import { unavailableListingReply } from '@/lib/inventory/listing-status';
+import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
 import {
   buildEnquiryNoticeParams,
   enquiryNoticeParamCount,
@@ -64,10 +65,19 @@ export async function sendUnavailableListingReply({
     .maybeSingle();
   if (!property) return 'available';
 
+  if (
+    !unavailableListingReply(
+      leadName,
+      (property as Property).title,
+      (property as Property).status
+    )
+  )
+    return 'available';
   const reply = unavailableListingReply(
     leadName,
     (property as Property).title,
-    (property as Property).status
+    (property as Property).status,
+    await accountShowcaseBrowseUrl(supabase, accountId, contactId)
   );
   if (!reply) return 'available';
 
@@ -85,7 +95,9 @@ export async function sendUnavailableListingReply({
     kind: 'text',
     text: reply,
   });
-  if (textResult.success) return 'text';
+  // A send Meta accepted is a message the lead has: a failure after
+  // that (persistence, bookkeeping) must not earn them a second one.
+  if (textResult.success || textResult.reachedMeta) return 'text';
   if (!isReengagementError(textResult.error)) {
     console.error(
       `[lead-webhook] Unavailable-listing reply failed for contact ${contactId}: ${textResult.error}`
@@ -179,7 +191,7 @@ export async function sendUnavailableListingReply({
       (_, n) => params[Number(n) - 1] ?? ''
     ),
   });
-  if (!templateResult.success) {
+  if (!templateResult.success && !templateResult.reachedMeta) {
     console.error(
       `[lead-webhook] Listing status notice failed for contact ${contactId}: ${templateResult.error}`
     );

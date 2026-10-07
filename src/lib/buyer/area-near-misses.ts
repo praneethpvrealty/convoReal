@@ -18,14 +18,21 @@ import {
   resolveListingType,
   type ListingType,
 } from '@/lib/matching';
-import { localityRowPrefilter, rowMatchesLocality } from '@/lib/locality-match';
+import {
+  localityRowPrefilter,
+  parentLocalityLabel,
+  rowMatchesLocality,
+} from '@/lib/locality-match';
 import { accountPropertiesShowcaseUrl } from '@/lib/showcase/account-showcase-url';
 import { formatInrCompact } from '@/lib/format/currency';
 
 const MAX_LINKED_LISTINGS = 5;
 export const NEAR_MISS_SCAN_LIMIT = 200;
 export const MAX_NEAR_MISS_AREAS = 3;
-export const MAX_NEAR_MISS_SCANS = 6;
+/** Every named area and every parent locality, each at Sale and Rent
+ *  when the lead stated no deal type: a parent never costs a named
+ *  area its scan, and a named phase always reaches its locality. */
+export const MAX_NEAR_MISS_SCANS = MAX_NEAR_MISS_AREAS * 2 * 2;
 
 type NearMissProperty = Pick<
   Property,
@@ -251,6 +258,34 @@ async function linkedListings(
   return nearMissLinkedListings(closest ?? nearMiss, brief);
 }
 
+/**
+ * The areas to scan, in order: the lead's own areas first (the first
+ * MAX_NEAR_MISS_AREAS of them), then the locality each phase or block
+ * belongs to — the lead who named JP Nagar 4th Phase is told about JP
+ * Nagar's other phases rather than nothing. MAX_NEAR_MISS_SCANS is
+ * sized for both groups, so neither displaces the other.
+ */
+export function nearMissAreas(areas: string[]): string[] {
+  const seen = new Set<string>();
+  const keep = (list: string[]) =>
+    list.filter((area) => {
+      const key = area.toLowerCase();
+      if (!area || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  const explicit = keep(areas.map((area) => area.trim())).slice(
+    0,
+    MAX_NEAR_MISS_AREAS
+  );
+  const parents = keep(
+    explicit
+      .map((area) => parentLocalityLabel(area))
+      .filter((area): area is string => !!area)
+  );
+  return [...explicit, ...parents];
+}
+
 /** The near-miss line for this lead, or null when their areas hold no
  *  live stock at all. Best-effort: a failure costs the line, never the
  *  reply it sits in. */
@@ -262,16 +297,8 @@ export async function areaNearMissLine(args: {
 }): Promise<string | null> {
   if (args.brief.areas.length === 0) return null;
   try {
-    const areas = [
-      ...new Map(
-        args.brief.areas
-          .map((area) => area.trim())
-          .filter(Boolean)
-          .map((area) => [area.toLowerCase(), area] as const)
-      ).values(),
-    ].slice(0, MAX_NEAR_MISS_AREAS);
     let scans = 0;
-    for (const area of areas) {
+    for (const area of nearMissAreas(args.brief.areas)) {
       for (const listingType of nearMissListingTypes(args.brief.listingTypes)) {
         if (scans >= MAX_NEAR_MISS_SCANS) return null;
         scans += 1;

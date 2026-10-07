@@ -15,6 +15,8 @@ const {
   buildAreaNearMissLine,
   findAreaNearMiss,
 } = await import('./area-near-misses');
+const { MAX_NEAR_MISS_AREAS, nearMissAreas } =
+  await import('./area-near-misses');
 
 const suryanagarPlot = {
   id: 'p1',
@@ -432,5 +434,33 @@ describe('areaNearMissLine query budget', () => {
       },
     });
     expect(queries).toBeLessThanOrEqual(MAX_NEAR_MISS_SCANS + 2);
+  });
+});
+
+describe('nearMissAreas', () => {
+  it('[CNV-004] keeps every explicit area ahead of a phase parent locality', () => {
+    expect(
+      nearMissAreas(['JP Nagar 4th Phase', 'Whitefield', 'Indiranagar'])
+    ).toEqual(['JP Nagar 4th Phase', 'Whitefield', 'Indiranagar', 'JP Nagar']);
+    expect(
+      nearMissAreas(['Whitefield', 'Indiranagar', 'JP Nagar 4th Phase', 'HSR'])
+    ).toEqual(['Whitefield', 'Indiranagar', 'JP Nagar 4th Phase', 'JP Nagar']);
+    // Sale and Rent for every named area and every parent fit the budget.
+    expect(MAX_NEAR_MISS_SCANS).toBeGreaterThanOrEqual(
+      MAX_NEAR_MISS_AREAS * 2 * 2
+    );
+    expect(nearMissAreas(['Dollars Colony', 'JP Nagar 4th Phase'])).toEqual([
+      'Dollars Colony',
+      'JP Nagar 4th Phase',
+      'JP Nagar',
+    ]);
+    expect(
+      nearMissAreas([
+        'JP Nagar 4th Phase',
+        'jp nagar',
+        ' ',
+        'JP Nagar 2nd Phase',
+      ])
+    ).toEqual(['JP Nagar 4th Phase', 'jp nagar', 'JP Nagar 2nd Phase']);
   });
 });

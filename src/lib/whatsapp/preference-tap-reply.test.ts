@@ -38,7 +38,13 @@ vi.mock('@/lib/whatsapp/listing-intent-prompt', () => ({
     applyDefaultBuyingIntent(...args),
 }));
 
-const { sendPreferenceTapReply, buildPreferenceTapReply } =
+const areaNearMissLine = vi.fn();
+
+vi.mock('@/lib/buyer/area-near-misses', () => ({
+  areaNearMissLine: (...args: unknown[]) => areaNearMissLine(...args),
+}));
+
+const { sendPreferenceTapReply, buildPreferenceTapReply, isReEngagedLead } =
   await import('./preference-tap-reply');
 
 /**
@@ -62,13 +68,15 @@ describe('buildPreferenceTapReply', () => {
         "One thing — what budget are you working with? I'll narrow these down.",
     });
 
-    expect(text).toContain('Great to hear from you, Sanjuali');
+    expect(text).toContain('Thanks for getting back to us, Sanjuali');
     expect(text).toContain(
       'your interest in *Commercial Land in Kudremukh Colony, Koramangala*'
     );
     expect(text).toContain('here are 2 live options');
     expect(text).toContain('*1. 1500 Sq.Ft. Residential Plot in Koramangala*');
-    expect(text).toContain('right properties at the right time');
+    expect(text).toContain(
+      'keep matching new listings against your requirement'
+    );
     expect(text).toContain('what budget are you working with?');
     // The form message follows this one and carries the tap CTA; this
     // text saying "tap below" would point at nothing.
@@ -82,8 +90,74 @@ describe('buildPreferenceTapReply', () => {
       listings: [],
       question: null,
     });
-    expect(text).toContain('Great to hear from you, there');
+    expect(text).toContain('Thanks for getting back to us, there');
     expect(text).not.toContain('MagicBricks');
+  });
+
+  it('[CNV-002] welcomes a returning lead back, never a new one', () => {
+    const base = {
+      contactName: 'Shirish',
+      enquiry: null,
+      listings: [],
+      question: null,
+    };
+    expect(buildPreferenceTapReply({ ...base, reEngaged: true })).toContain(
+      "Great to hear from you, Shirish 👍 You're back on our radar."
+    );
+    const fresh = buildPreferenceTapReply({ ...base, reEngaged: false });
+    expect(fresh).toContain('Thanks for getting back to us, Shirish 👍');
+    expect(fresh).not.toContain('radar');
+    expect(fresh).not.toMatch(/intelligent matching engine/i);
+  });
+
+  it('[CNV-002] names the near-miss stock and the showcase link before the question when nothing fits', () => {
+    const text = buildPreferenceTapReply({
+      contactName: 'Shirish',
+      enquiry: 'Commercial Land in Dollars Colony',
+      listings: [],
+      question:
+        "One thing — what budget are you working with? I'll narrow these down.",
+      nearMiss:
+        '📍 We do have 3 listings in JP Nagar, at ₹9.6 Cr–₹21.6 Cr. Take a look: https://x/?ids=a,b,c',
+      showcaseUrl: 'https://x/?v=c1',
+    });
+    expect(text).toBe(
+      [
+        'Thanks for getting back to us, Shirish 👍',
+        '',
+        "Nothing live right now fits your interest in *Commercial Land in Dollars Colony* exactly, but I'll keep watching and message you the moment the right property comes in.",
+        '',
+        '📍 We do have 3 listings in JP Nagar, at ₹9.6 Cr–₹21.6 Cr. Take a look: https://x/?ids=a,b,c',
+        '',
+        'Browse every live listing any time: https://x/?v=c1',
+        '',
+        "One thing — what budget are you working with? I'll narrow these down.",
+      ].join('\n')
+    );
+  });
+
+  it('[CNV-002] keeps the showcase link on the listings reply too, ahead of the question', () => {
+    const text = buildPreferenceTapReply({
+      contactName: 'Shirish',
+      enquiry: null,
+      listings: [LISTING],
+      question: null,
+      showcaseUrl: 'https://x/?v=c1',
+    });
+    const link = text.indexOf(
+      'Browse every live listing any time: https://x/?v=c1'
+    );
+    expect(link).toBeGreaterThan(text.indexOf(LISTING));
+    expect(link).toBeLessThan(text.indexOf('Want photos or a site visit'));
+  });
+});
+
+describe('isReEngagedLead', () => {
+  it('[CNV-002] treats a lead younger than a week as answering their own enquiry', () => {
+    const now = Date.parse('2026-10-07T10:15:00Z');
+    expect(isReEngagedLead('2026-10-07T10:14:47Z', now)).toBe(false);
+    expect(isReEngagedLead('2026-09-29T10:14:47Z', now)).toBe(true);
+    expect(isReEngagedLead(null, now)).toBe(false);
   });
 
   it('keeps the engine promise when nothing fits, and still asks', () => {
@@ -102,6 +176,7 @@ describe('buildPreferenceTapReply', () => {
     expect(text).toContain('*5 BHK Residential House in Bangalore*');
     expect(text).toContain('the moment the right property comes in');
     expect(text).toContain('what budget are you working with?');
+    expect(text).not.toMatch(/intelligent matching engine/i);
   });
 
   it('leaves the thread open when fully qualified with no match', () => {
@@ -159,6 +234,7 @@ const aMatch = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  areaNearMissLine.mockResolvedValue(null);
   generateMatchEventForContact.mockResolvedValue(undefined);
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
   sendListingFeedbackPrompt.mockResolvedValue(true);
@@ -171,12 +247,76 @@ describe('sendPreferenceTapReply', () => {
 
     await sendPreferenceTapReply(args());
 
+    expect(rankPropertiesForContact).toHaveBeenCalledTimes(1);
     expect(rankPropertiesForContact).toHaveBeenCalledWith(
       expect.anything(),
       'acct-1',
       'c1',
       { strictArea: true, excludeAlreadySent: true }
     );
+  });
+
+  it('[CNV-002] widens to the ordinary radius before saying nothing fits', async () => {
+    rankPropertiesForContact
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([aMatch]);
+
+    const result = await sendPreferenceTapReply(args());
+
+    expect(rankPropertiesForContact).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      'acct-1',
+      'c1',
+      { strictArea: false, excludeAlreadySent: true }
+    );
+    expect(result.matchCount).toBe(1);
+    expect(areaNearMissLine).not.toHaveBeenCalled();
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain('Plot in Koramangala');
+  });
+
+  it('[CNV-002] names the near-miss stock and the showcase link when both searches come back empty', async () => {
+    rankPropertiesForContact.mockResolvedValue([]);
+    areaNearMissLine.mockResolvedValue(
+      '📍 We do have 2 listings in Koramangala, at ₹9 Cr–₹12 Cr. Take a look: https://x/?ids=a,b'
+    );
+    sendBudgetBandPrompt.mockResolvedValue(true);
+
+    await sendPreferenceTapReply(args());
+
+    expect(rankPropertiesForContact).toHaveBeenCalledTimes(2);
+    expect(areaNearMissLine).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'acct-1',
+        contactId: 'c1',
+        brief: expect.objectContaining({
+          areas: ['Koramangala'],
+          listingTypes: ['Sale'],
+        }),
+      })
+    );
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain('📍 We do have 2 listings in Koramangala');
+    expect(text).toMatch(/Browse every live listing any time: http\S+v=c1/);
+    expect(text).toContain('Thanks for getting back to us, Sanjuali');
+  });
+
+  it('[CNV-002] greets a lead older than a week as returning', async () => {
+    rankPropertiesForContact.mockResolvedValue([aMatch]);
+
+    await sendPreferenceTapReply(
+      args({ ...contactRow, created_at: '2026-01-01T00:00:00Z' })
+    );
+
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain("You're back on our radar");
   });
 
   it('sends listings anchored on the enquiry, and asks for the budget', async () => {
@@ -275,6 +415,13 @@ describe('sendPreferenceTapReply', () => {
     );
 
     expect(result.formOffered).toBe(true);
+    // [CNV-002] The near-miss search uses the intent just defaulted, so a
+    // lead assumed to be buying is not shown rentals.
+    expect(areaNearMissLine).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brief: expect.objectContaining({ listingTypes: ['Sale'] }),
+      })
+    );
     const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
       text: string;
     };

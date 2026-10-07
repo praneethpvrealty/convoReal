@@ -3,13 +3,13 @@ import {
   appendListingStatusNote,
   listingStatusAgentLine,
   UNAVAILABLE_LISTING_AGENT_NOTE,
-  unavailableListingReply,
 } from '@/lib/inventory/listing-status';
 import { isInboundVisitRequest } from '@/lib/calendar/whatsapp-scheduler';
 import { createNotification } from '@/lib/notifications/create';
 import { BRIDGE_REPLY_HINT } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
 import {
   buildPropertyInterestAck,
   buildUnresolvedPropertyInterestAck,
@@ -54,11 +54,14 @@ export async function specificPropertyInterest(
       const ownerContactRequested = requestsHumanContact(contentText);
       const actionRequested = visitRequested || ownerContactRequested;
       const statusAgentLine = listingStatusAgentLine(enquiryPropertyStatus);
-      const unavailableReply = unavailableListingReply(
-        contactRecord.name,
-        enquiryPropertyTitle,
-        enquiryPropertyStatus
-      );
+      const unavailableReply = await unavailableListingReplyWithShowcase({
+        db: admin,
+        accountId,
+        contactId: contactRecord.id,
+        contactName: contactRecord.name,
+        propertyTitle: enquiryPropertyTitle,
+        status: enquiryPropertyStatus,
+      });
       await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,

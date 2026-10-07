@@ -257,6 +257,23 @@ export function rowMatchesBengaluruZone(
   );
 }
 
+const SUBDIVISION_TAIL =
+  /\s*,?\s*((\d+(st|nd|rd|th)?|[ivx]+)\s*(phase|stage|block|sector|main|cross)|(phase|stage|block|sector)\s*(\d+|[ivx]+))\b.*$/i;
+
+/**
+ * The locality a phase, stage, block or sector belongs to: "JP Nagar
+ * 4th Phase" → "JP Nagar", "Koramangala 1st Block" → "Koramangala".
+ * Null when the label has no such tail. A lead who named the phase
+ * still wants the locality's other phases shown before "nothing fits".
+ */
+export function parentLocalityLabel(label: string): string | null {
+  const trimmed = label.trim();
+  const parent = trimmed.replace(SUBDIVISION_TAIL, '').trim();
+  return parent && parent.toLowerCase() !== trimmed.toLowerCase()
+    ? parent
+    : null;
+}
+
 /**
  * Stem usable as an extra `%stem%` ILIKE probe alongside the raw label
  * when fetching name-match candidates (e.g. "Suryanagar" → "surya",
