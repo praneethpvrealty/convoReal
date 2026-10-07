@@ -17,6 +17,11 @@
  *   GOOGLE_MAPS_API_KEY — geocodes links that name a place instead of
  *   carrying coordinates; without it those rows are skipped.
  *
+ * A link that opens a route or a Street View panorama is rewritten as
+ * the plain pin of its destination or camera point at the same time
+ * (PRP-042); a buyer opening the stored route saw a source and a
+ * destination instead of the plot.
+ *
  * Idempotent — a row already sitting on its pin is left alone. Short
  * `maps.app.goo.gl` links cost one redirect each, and a place-name link
  * one Geocoding call, so the run is paced at ~5 links/second.
@@ -27,7 +32,7 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 import { haversineKm } from '../lib/geo';
-import { resolveCoordinatesFromMapLink } from '../lib/maps/resolve-location';
+import { resolveMapPin } from '../lib/maps/resolve-location';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -70,11 +75,42 @@ async function main() {
   let filled = 0;
   let agreed = 0;
   let unreadable = 0;
+  let relinked = 0;
+
+  const apply = async (
+    row: { id: string },
+    label: string,
+    note: string,
+    patch: Record<string, unknown>
+  ) => {
+    if (dryRun) {
+      console.log(`[dry] ${label}: ${note}`);
+      return;
+    }
+    const { error: updateErr } = await supabase
+      .from('properties')
+      .update(patch)
+      .eq('id', row.id);
+    if (updateErr) {
+      console.error(`  ✗ ${label}: update failed:`, updateErr.message);
+    } else {
+      console.log(`  ✓ ${label}: ${note}`);
+    }
+  };
 
   for (const [i, row] of candidates.entries()) {
-    const pin = await resolveCoordinatesFromMapLink(row.google_map_link!);
+    const { coordinates: pin, mapLink } = await resolveMapPin(
+      row.google_map_link!
+    );
+    const label = `${row.property_code || row.id} ${String(row.title || '').slice(0, 40)}`;
+    const relink = mapLink !== row.google_map_link;
+    const linkPatch = relink ? { google_map_link: mapLink } : {};
+    const linkNote = relink ? `, link → ${mapLink}` : '';
+    if (relink) relinked++;
+
     if (!pin) {
       unreadable++;
+      if (relink) await apply(row, label, `link → ${mapLink}`, linkPatch);
     } else {
       const hasCoords = row.latitude != null && row.longitude != null;
       const driftKm = hasCoords
@@ -88,30 +124,18 @@ async function main() {
 
       if (driftKm !== null && driftKm < minKm) {
         agreed++;
+        if (relink) await apply(row, label, `link → ${mapLink}`, linkPatch);
       } else {
-        const label = `${row.property_code || row.id} ${String(row.title || '').slice(0, 40)}`;
         const move =
           driftKm === null
             ? 'no stored coordinates'
             : `${driftKm.toFixed(2)} km off its pin`;
-
-        if (dryRun) {
-          console.log(
-            `[dry] ${label}: ${move} → ${pin.latitude},${pin.longitude}`
-          );
-        } else {
-          const { error: updateErr } = await supabase
-            .from('properties')
-            .update({ latitude: pin.latitude, longitude: pin.longitude })
-            .eq('id', row.id);
-          if (updateErr) {
-            console.error(`  ✗ ${label}: update failed:`, updateErr.message);
-          } else {
-            console.log(
-              `  ✓ ${label}: ${move} → ${pin.latitude},${pin.longitude}`
-            );
-          }
-        }
+        await apply(
+          row,
+          label,
+          `${move} → ${pin.latitude},${pin.longitude}${linkNote}`,
+          { latitude: pin.latitude, longitude: pin.longitude, ...linkPatch }
+        );
         if (driftKm === null) filled++;
         else moved++;
       }
@@ -121,7 +145,7 @@ async function main() {
   }
 
   console.log(
-    `Done. ${moved} moved onto their pin, ${filled} given coordinates, ${agreed} already agreed, ${unreadable} links carried no coordinates.`
+    `Done. ${moved} moved onto their pin, ${filled} given coordinates, ${agreed} already agreed, ${unreadable} links carried no coordinates, ${relinked} route or Street View links rewritten as pins.`
   );
 }
 

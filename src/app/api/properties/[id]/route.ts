@@ -7,7 +7,7 @@ import {
 } from '@/lib/rate-limit';
 import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
 import { geocodeAddress, hasGoogleMapsKey } from '@/lib/maps/google-places';
-import { resolveCoordinatesFromMapLink } from '@/lib/maps/resolve-location';
+import { resolveMapPin } from '@/lib/maps/resolve-location';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
 import { sanitizeFloorPlans } from '@/lib/inventory/floor-plans';
@@ -759,12 +759,11 @@ export async function PUT(
       updateData.google_map_link
     ) {
       try {
-        const pinned = await resolveCoordinatesFromMapLink(
-          updateData.google_map_link
-        );
-        if (pinned) {
-          updateData.latitude = pinned.latitude;
-          updateData.longitude = pinned.longitude;
+        const pin = await resolveMapPin(updateData.google_map_link);
+        updateData.google_map_link = pin.mapLink;
+        if (pin.coordinates) {
+          updateData.latitude = pin.coordinates.latitude;
+          updateData.longitude = pin.coordinates.longitude;
         }
       } catch (pinErr) {
         console.warn(

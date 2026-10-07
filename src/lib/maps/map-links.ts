@@ -64,11 +64,87 @@ const COORD_QUERY_PARAMS = [
   'mlat',
 ];
 
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment.replace(/\+/g, ' ')).trim();
+  } catch {
+    return segment.replace(/\+/g, ' ').trim();
+  }
+}
+
+/**
+ * The last waypoint of a `/maps/dir/<from>/<to>/...` route — the only
+ * part of a directions link that says anything about the property. The
+ * origin is wherever the sharer was standing, and the `@lat,lng`
+ * viewport is the midpoint of the drive between the two.
+ */
+function directionsDestination(url: string): string | null {
+  const match = url.match(/\/maps\/dir\/([^?#]*)/);
+  if (match) {
+    const waypoints = match[1]
+      .split('/')
+      .filter((s) => s && !s.startsWith('@') && !s.startsWith('data='));
+    const last = waypoints[waypoints.length - 1];
+    if (last) return decodeSegment(last);
+  }
+  try {
+    const params = new URL(url).searchParams;
+    const named = params.get('daddr') || params.get('destination');
+    return named ? named.replace(/\+/g, ' ').trim() || null : null;
+  } catch {
+    return null;
+  }
+}
+
+function isDirectionsUrl(url: string): boolean {
+  return /\/maps\/dir\//.test(url) || /[?&](?:daddr|destination)=/.test(url);
+}
+
+/** `@lat,lng,3a,75y,220h,100t` is a Street View camera, not a map. */
+function isStreetViewUrl(url: string): boolean {
+  return /@-?\d+\.\d+,-?\d+\.\d+,\d+(?:\.\d+)?a,\d+(?:\.\d+)?y/.test(url);
+}
+
+export type MapLinkShape = 'pin' | 'directions' | 'streetview';
+
+/**
+ * What a Maps URL opens: a place, a route, or a Street View panorama.
+ * Only the first is a pin anyone should be sent; the other two are what
+ * "Share" produces when the lister was navigating or looking at the
+ * street, and a buyer opening them sees a source and a destination or a
+ * street photo instead of the plot.
+ */
+export function mapLinkShape(url: string): MapLinkShape {
+  if (isDirectionsUrl(url)) return 'directions';
+  if (isStreetViewUrl(url)) return 'streetview';
+  return 'pin';
+}
+
+/**
+ * The plain pin a route or Street View link should be stored as: the
+ * route's destination, or the camera point. Null when the link is
+ * already a pin, or when it carries nothing to pin.
+ */
+export function mapLinkAsPin(url: string): string | null {
+  const shape = mapLinkShape(url);
+  if (shape === 'pin') return null;
+  const coords = extractCoordinatesFromMapUrl(url);
+  if (coords)
+    return googleMapsUrlForCoordinates(coords.latitude, coords.longitude);
+  const placeName = extractPlaceNameFromMapUrl(url);
+  return placeName
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeName)}`
+    : null;
+}
+
 /**
  * Pulls coordinates out of a canonical Maps URL. Handles the pin-share
  * query forms (`?api=1&query=lat,lng`, `?q=`, `?ll=`), the place-detail
  * form (`!3dlat!4dlng`), the viewport form (`@lat,lng,17z`), and a bare
- * `/maps/search/lat,+lng` path segment.
+ * `/maps/search/lat,+lng` path segment. A directions URL yields only
+ * its destination: a coordinate destination, the last `!3d!4d` place
+ * or the last `!1d{lng}!2d{lat}` waypoint, never the origin or the
+ * route's midpoint viewport.
  */
 export function extractCoordinatesFromMapUrl(url: string): Coordinates | null {
   let parsed: URL | null = null;
@@ -76,6 +152,24 @@ export function extractCoordinatesFromMapUrl(url: string): Coordinates | null {
     parsed = new URL(url);
   } catch {
     parsed = null;
+  }
+
+  if (isDirectionsUrl(url)) {
+    const destination = directionsDestination(url);
+    const destinationCoords = parseCoordinatePair(destination);
+    if (destinationCoords) return destinationCoords;
+    const placeData = [
+      ...url.matchAll(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/g),
+    ];
+    const lastPlace = placeData[placeData.length - 1];
+    if (lastPlace) return toCoordinates(lastPlace[1], lastPlace[2]);
+    const waypointData = [
+      ...url.matchAll(/!1d(-?\d+(?:\.\d+)?)!2d(-?\d+(?:\.\d+)?)/g),
+    ];
+    const lastWaypoint = waypointData[waypointData.length - 1];
+    return lastWaypoint
+      ? toCoordinates(lastWaypoint[2], lastWaypoint[1])
+      : null;
   }
 
   if (parsed) {
@@ -150,7 +244,9 @@ export function extractMapLinkFromText(
 export function extractPlaceNameFromMapUrl(url: string): string | null {
   const placeMatch = url.match(/\/maps\/place\/([^/@?]+)/);
   let placeName: string | null = null;
-  if (placeMatch) {
+  if (isDirectionsUrl(url)) {
+    placeName = directionsDestination(url);
+  } else if (placeMatch) {
     placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' ')).trim();
   } else {
     try {
