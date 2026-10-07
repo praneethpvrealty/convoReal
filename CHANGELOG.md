@@ -17,6 +17,14 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 7 October 2026
+
+- **Follow-up cards act in one tap.** The "Follow-up due" WhatsApp card now
+  carries 💬 Check in, 🤔 Still considering and ❄️ Mark cold as buttons on the
+  message itself, instead of an "Update lead" list that had to be opened
+  first. Snooze 3 days is gone from new cards (Still considering already
+  holds the lead for a week); taps on older cards still work.
+
 #### 6 October 2026
 
 - **Two more "call me" replies take the right path.** "I'll check and call back

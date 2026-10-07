@@ -6,7 +6,7 @@ import type { Property } from '@/types';
 
 import {
   parseFollowUpReply,
-  buildFollowUpActionSections,
+  buildFollowUpActionButtons,
   buildFollowUpCardBody,
   buildFollowUpCheckinText,
   buildClosedWindowFollowUpTemplateSend,
@@ -119,9 +119,9 @@ describe('buildFollowUpCardBody', () => {
   });
 });
 
-describe('buildFollowUpActionSections', () => {
-  it('offers all four dispositions through a WhatsApp list', () => {
-    const sections = buildFollowUpActionSections({
+describe('buildFollowUpActionButtons', () => {
+  it('offers three dispositions as reply buttons on the card itself', () => {
+    const buttons = buildFollowUpActionButtons({
       contactId: CONTACT_ID,
       name: 'Hari',
       phone: '+919945233018',
@@ -129,19 +129,17 @@ describe('buildFollowUpActionSections', () => {
       daysSilent: 6,
       propertyTitle: 'JP Nagar Plot',
     });
-    expect(sections[0].rows).toHaveLength(4);
-    expect(sections[0].rows.map((row) => row.title)).toEqual([
+    expect(buttons.map((button) => button.title)).toEqual([
       '💬 Check in',
       '🤔 Still considering',
-      '⏰ Snooze 3 days',
       '❄️ Mark cold',
     ]);
-    expect(sections[0].rows[1].id).toBe(
-      `${FOLLOWUP_CONSIDERING_PREFIX}${CONTACT_ID}`
+    expect(buttons[1].id).toBe(`${FOLLOWUP_CONSIDERING_PREFIX}${CONTACT_ID}`);
+    expect(buttons.some((b) => b.id.startsWith(FOLLOWUP_SNOOZE_PREFIX))).toBe(
+      false
     );
-    for (const row of sections[0].rows) {
-      expect(row.title.length).toBeLessThanOrEqual(24);
-      expect(row.description.length).toBeLessThanOrEqual(72);
+    for (const button of buttons) {
+      expect(button.title.length).toBeLessThanOrEqual(20);
     }
   });
 });
@@ -157,29 +155,26 @@ describe('[INB-021] Mark cold is scoped to the carded listing', () => {
   };
 
   it('names the listing in the cold row id', () => {
-    const rows = buildFollowUpActionSections({
+    const cold = buildFollowUpActionButtons({
       ...lead,
       propertyId: PROPERTY_ID,
-    })[0].rows;
-    const cold = rows[3];
+    })[2];
     expect(cold.id).toBe(`${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}:${PROPERTY_ID}`);
     expect(cold.id.length).toBeLessThanOrEqual(200);
-    expect(cold.description).toMatch(/this listing/);
-    expect(cold.description.length).toBeLessThanOrEqual(72);
   });
 
   it('offers no Mark cold on a card whose listing could not be named', () => {
-    const rows = buildFollowUpActionSections({
+    const rows = buildFollowUpActionButtons({
       ...lead,
       propertyId: PROPERTY_ID,
       propertyTitle: null,
-    })[0].rows;
-    expect(rows).toHaveLength(3);
+    });
+    expect(rows).toHaveLength(2);
     expect(rows.some((r) => r.id.startsWith(FOLLOWUP_COLD_PREFIX))).toBe(false);
   });
 
   it('falls back to a lead-wide cold when the card names no listing', () => {
-    const cold = buildFollowUpActionSections(lead)[0].rows[3];
+    const cold = buildFollowUpActionButtons(lead)[2];
     expect(cold.id).toBe(
       `${FOLLOWUP_COLD_PREFIX}${CONTACT_ID}:${FOLLOWUP_NO_LISTING}`
     );
