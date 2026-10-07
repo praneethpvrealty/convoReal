@@ -786,6 +786,16 @@ describe('[INB-025] isContactCardBurst', () => {
     ).toBe(true);
   });
 
+  it('leaves a card sent long before the draft was written to the replace rule', () => {
+    expect(
+      isContactCardBurst(
+        row,
+        { waited: false, sentAt: base - CONTACT_CARD_BURST_WINDOW_MS - 1 },
+        base + 5000
+      )
+    ).toBe(false);
+  });
+
   it('allows for WhatsApp stamping send times to the second', () => {
     expect(
       isContactCardBurst(
@@ -804,9 +814,12 @@ describe('[INB-025] isContactCardBurst', () => {
 describe('[INB-025] isReplyToContactDraft', () => {
   const session = { created_at: '2026-10-04T10:00:00.000Z' };
 
-  it('accepts a quoted bot message of the conversation sent since the draft opened', async () => {
+  const preview =
+    '📝 *Contact Drafts Updated:*\n\n*Contact #1:*\n• *Name:* Ravi\n• *Phone:* 9876543210\n• *Role/Classification:* Buyer\n';
+
+  it('accepts a contact-draft preview of the conversation sent since the draft opened', async () => {
     const { client, calls } = stubClient(() =>
-      ok({ created_at: '2026-10-04T10:00:05.000Z' })
+      ok({ created_at: '2026-10-04T10:00:05.000Z', content_text: preview })
     );
 
     expect(
@@ -828,7 +841,20 @@ describe('[INB-025] isReplyToContactDraft', () => {
 
   it('rejects a quoted bot message older than the draft', async () => {
     const { client } = stubClient(() =>
-      ok({ created_at: '2026-10-04T09:59:59.000Z' })
+      ok({ created_at: '2026-10-04T09:59:59.000Z', content_text: preview })
+    );
+
+    expect(
+      await isReplyToContactDraft(client, 'conv1', 'wamid.1', session)
+    ).toBe(false);
+  });
+
+  it('rejects a newer bot message that is not a contact-draft preview', async () => {
+    const { client } = stubClient(() =>
+      ok({
+        created_at: '2026-10-04T10:00:05.000Z',
+        content_text: '⏰ Reminder: site visit with Ravi at 5 PM today.',
+      })
     );
 
     expect(

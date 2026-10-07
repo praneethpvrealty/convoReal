@@ -11,6 +11,7 @@ import {
   validateContactDraftsContainer,
   formatDraftPreviewMessage,
   formatContactDraftsPreview,
+  isContactDraftPreviewText,
   backfillLocationFromMapLink,
   mergeFreeText,
   mergeContactDraft,
@@ -572,6 +573,36 @@ describe('formatDraftPreviewMessage', () => {
     expect(
       formatDraftPreviewMessage('h', draft, 'awaiting_confirmation', [])
     ).toContain('*Listing Owner/Agent:* Sridhar (9999900000) [Agent]');
+  });
+});
+
+describe('[INB-025] isContactDraftPreviewText', () => {
+  it('recognises every contact-draft preview the formatter renders', () => {
+    const container = makeContainer([
+      makeContact({ name: 'Ravi', phone: '9876543210' }),
+    ]);
+    for (const status of ['awaiting_confirmation', 'collecting']) {
+      expect(
+        isContactDraftPreviewText(
+          formatContactDraftsPreview(
+            '📝 *Contact Drafts Updated:*',
+            container,
+            status,
+            ['Phone']
+          )
+        )
+      ).toBe(true);
+    }
+  });
+
+  it('rejects other bot messages', () => {
+    expect(isContactDraftPreviewText(null)).toBe(false);
+    expect(isContactDraftPreviewText('⏰ Reminder: site visit at 5 PM.')).toBe(
+      false
+    );
+    expect(
+      isContactDraftPreviewText('Ravi said: Contact #1: call me back')
+    ).toBe(false);
   });
 });
 
