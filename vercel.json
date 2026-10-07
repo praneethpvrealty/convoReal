@@ -104,6 +104,10 @@
     {
       "path": "/api/cron/release-timer",
       "schedule": "7,22,37,52 * * * *"
+    },
+    {
+      "path": "/api/cron/bot-thread-review",
+      "schedule": "30 23 * * *"
     }
   ]
 }

@@ -786,6 +786,7 @@ Defined in `vercel.json`:
 - `/api/cron/voice-campaigns` — every 10 minutes
 - `/api/cron/guidance-batches` — every 15 minutes
 - `/api/cron/release-timer` — every 15 minutes (:07, :22, :37, :52); starts the release-timer GitHub workflow
+- `/api/cron/bot-thread-review` — daily 23:30 UTC (05:00 IST); reads every thread the bot wrote in during the last day through the transcript rules and the model judge into `bot_thread_reviews` (Admin → Bot replies)
 
 All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 
