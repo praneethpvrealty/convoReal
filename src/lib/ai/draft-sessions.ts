@@ -24,6 +24,12 @@ export const DRAFT_MUTATION_MAX_ATTEMPTS = 5;
 // it the draft is old business and a different person replaces it.
 export const CONTACT_CARD_BURST_WINDOW_MS = 60 * 1000;
 
+// A card WhatsApp stamped no later than the draft's last write (to the
+// second, so allow the rounding) was sent while that draft was being
+// built: Meta delivers several forwarded cards in one payload and they
+// are processed one after another without ever waiting for the lease.
+export const CONTACT_CARD_SENT_SLACK_MS = 2 * 1000;
+
 export type DraftSessionStatus = 'collecting' | 'awaiting_confirmation';
 
 export type PropertyDraftSessionMode = 'owner' | 'external';
@@ -300,13 +306,17 @@ export function isDraftSessionExpired(
 
 export function isContactCardBurst(
   row: Pick<ContactDraftSessionRow, 'updated_at'>,
-  waited: boolean,
+  card: { waited: boolean; sentAt: number | null },
   now: number
 ): boolean {
-  return (
-    waited &&
-    now - new Date(row.updated_at).getTime() <= CONTACT_CARD_BURST_WINDOW_MS
-  );
+  const written = new Date(row.updated_at).getTime();
+  if (
+    card.sentAt !== null &&
+    card.sentAt <= written + CONTACT_CARD_SENT_SLACK_MS
+  ) {
+    return true;
+  }
+  return card.waited && now - written <= CONTACT_CARD_BURST_WINDOW_MS;
 }
 
 /**

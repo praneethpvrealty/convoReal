@@ -935,6 +935,11 @@ async function foldIntoContactDraft(
   };
 }
 
+function whatsappSentAt(timestamp: string | undefined): number | null {
+  const seconds = Number(timestamp);
+  return timestamp && Number.isFinite(seconds) ? seconds * 1000 : null;
+}
+
 async function sendContactDraftSaveFailed(
   phoneNumberId: string,
   accessToken: string,
@@ -1020,6 +1025,8 @@ export async function processOwnerChatbotMessage(
     };
     /** Set by WhatsApp on a quote-reply: the wamid being replied to. */
     context?: { id: string };
+    /** Unix seconds WhatsApp stamped when the message was sent. */
+    timestamp?: string;
   },
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string },
@@ -3530,7 +3537,11 @@ export async function processOwnerChatbotMessage(
     // appended and nothing is discarded.
     const absorbIncoming =
       Boolean(isMediaMsg || isContactCardMsg) &&
-      (isContactCardBurst(contactSession, waited, Date.now()) ||
+      (isContactCardBurst(
+        contactSession,
+        { waited, sentAt: whatsappSentAt(message.timestamp) },
+        Date.now()
+      ) ||
         (await isReplyToContactDraft(
           supabaseAdmin(),
           conversation.id,

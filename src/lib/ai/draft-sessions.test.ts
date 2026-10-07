@@ -17,6 +17,7 @@ import {
   insertContactDraftSession,
   insertPropertyDraftSession,
   isContactCardBurst,
+  CONTACT_CARD_SENT_SLACK_MS,
   isDraftSessionExpired,
   isReplyToContactDraft,
   mutateContactDraft,
@@ -743,12 +744,13 @@ describe('isDraftSessionExpired', () => {
 describe('[INB-025] isContactCardBurst', () => {
   const updatedAt = '2026-10-04T10:00:00.000Z';
   const base = new Date(updatedAt).getTime();
+  const row = { updated_at: updatedAt };
 
   it('joins a card that waited to a draft written within the window', () => {
     expect(
       isContactCardBurst(
-        { updated_at: updatedAt },
-        true,
+        row,
+        { waited: true, sentAt: null },
         base + CONTACT_CARD_BURST_WINDOW_MS
       )
     ).toBe(true);
@@ -757,17 +759,41 @@ describe('[INB-025] isContactCardBurst', () => {
   it('leaves a card that waited behind an older draft to the replace rule', () => {
     expect(
       isContactCardBurst(
-        { updated_at: updatedAt },
-        true,
+        row,
+        { waited: true, sentAt: base + CONTACT_CARD_BURST_WINDOW_MS + 1 },
         base + CONTACT_CARD_BURST_WINDOW_MS + 1
       )
     ).toBe(false);
   });
 
-  it('leaves a card that did not wait to the replace rule', () => {
-    expect(isContactCardBurst({ updated_at: updatedAt }, false, base)).toBe(
-      false
-    );
+  it('leaves a card that did not wait and was sent after the draft to the replace rule', () => {
+    expect(
+      isContactCardBurst(
+        row,
+        { waited: false, sentAt: base + CONTACT_CARD_SENT_SLACK_MS + 1000 },
+        base + CONTACT_CARD_SENT_SLACK_MS + 1000
+      )
+    ).toBe(false);
+  });
+
+  it('joins a card from the same webhook payload that never waited for the lease', () => {
+    expect(
+      isContactCardBurst(
+        row,
+        { waited: false, sentAt: base - 3000 },
+        base + 5000
+      )
+    ).toBe(true);
+  });
+
+  it('allows for WhatsApp stamping send times to the second', () => {
+    expect(
+      isContactCardBurst(
+        row,
+        { waited: false, sentAt: base + CONTACT_CARD_SENT_SLACK_MS },
+        base + 10_000
+      )
+    ).toBe(true);
   });
 
   it('uses a one-minute window', () => {

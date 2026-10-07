@@ -157,8 +157,8 @@ describe('[INB-025] a card sent into an open contact draft', () => {
 
   it('appends a different person for a burst under the lease or a reply to the draft', () => {
     expect(start).toBeGreaterThan(-1);
-    expect(cards).toContain(
-      'isContactCardBurst(contactSession, waited, Date.now())'
+    expect(cards).toMatch(
+      /isContactCardBurst\(\s*contactSession,\s*\{ waited, sentAt: whatsappSentAt\(message\.timestamp\) \},\s*Date\.now\(\)\s*\)/
     );
     expect(cards).toMatch(
       /isReplyToContactDraft\(\s*supabaseAdmin\(\),\s*conversation\.id,\s*message\.context\?\.id,\s*contactSession\s*\)/
