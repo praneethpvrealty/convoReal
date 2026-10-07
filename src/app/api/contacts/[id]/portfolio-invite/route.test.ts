@@ -109,7 +109,10 @@ beforeEach(() => {
   updates = [];
   sendPortfolioInvite.mockReset();
   lookupAgentShareTarget.mockReset();
-  lookupAgentShareTarget.mockResolvedValue({ recipient: null });
+  lookupAgentShareTarget.mockResolvedValue({
+    recipient: null,
+    hasConvoRealAccount: false,
+  });
   readOnly = false;
 });
 
@@ -178,6 +181,18 @@ describe('GET /api/contacts/[id]/portfolio-invite', () => {
     queues['contacts'] = [{ data: { ...ownerBuyer, classification: 'Agent' } }];
     lookupAgentShareTarget.mockResolvedValue({
       recipient: { account_id: 'acc-2' },
+      hasConvoRealAccount: true,
+    });
+
+    const res = await GET(get(), { params });
+    expect((await res.json()).data.agentRegistered).toBe(true);
+  });
+
+  it('[CTM-011] counts an Agent contact whose ConvoReal account is in this brokerage as registered', async () => {
+    queues['contacts'] = [{ data: { ...ownerBuyer, classification: 'Agent' } }];
+    lookupAgentShareTarget.mockResolvedValue({
+      recipient: null,
+      hasConvoRealAccount: true,
     });
 
     const res = await GET(get(), { params });

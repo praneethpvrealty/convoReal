@@ -62,7 +62,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     });
     const agentRegistered = invite.sides.includes('agent')
       ? await lookupAgentShareTarget(ctx, contact.id)
-          .then((target) => Boolean(target.recipient))
+          .then((target) => target.hasConvoRealAccount)
           .catch(() => false)
       : false;
     return NextResponse.json({

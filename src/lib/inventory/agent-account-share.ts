@@ -21,6 +21,7 @@ interface AgentShareTarget {
   admin: SupabaseClient;
   contact: { id: string; name: string | null; phone: string };
   recipient: RecipientProfile | null;
+  hasConvoRealAccount: boolean;
   senderProfile: { full_name: string | null; phone: string | null } | null;
 }
 
@@ -65,6 +66,7 @@ export async function lookupAgentShareTarget(
   );
   if (error) throw error;
 
+  const rows = (recipientRows ?? []) as RecipientProfile[];
   return {
     admin,
     contact: {
@@ -72,10 +74,8 @@ export async function lookupAgentShareTarget(
       name: targetContact.name,
       phone: targetContact.phone,
     },
-    recipient:
-      ((recipientRows ?? []) as RecipientProfile[]).find(
-        (row) => row.account_id !== ctx.accountId
-      ) ?? null,
+    recipient: rows.find((row) => row.account_id !== ctx.accountId) ?? null,
+    hasConvoRealAccount: rows.length > 0,
     senderProfile,
   };
 }
