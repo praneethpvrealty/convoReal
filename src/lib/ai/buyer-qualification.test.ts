@@ -1598,6 +1598,21 @@ describe('portal plot lead replay (sandhiya)', () => {
     expect(latestIntentTurn(['1200 sqft'], '1200 sqft')).toBe('1200 sqft');
   });
 
+  it('[CNV-004] describes a bare sector with its noun and an enquiry-anchored budget as around, not up to', () => {
+    expect(
+      describeBrief({
+        ...portalBrief,
+        property_types: ['Commercial'],
+        areas: ['Dollars Colony'],
+        budget_max: 84000000,
+        budget_anchored: true,
+      })
+    ).toBe('a commercial property in Dollars Colony at around ₹8.4 Cr');
+    expect(describeBrief({ ...portalBrief, budget_max: 84000000 })).toBe(
+      'a vacant plot in KHB Suryanagar Phase at up to ₹8.4 Cr'
+    );
+  });
+
   it('[INB-014] describes the searched brief and asks a rung its fingerprint recognises', () => {
     expect(describeBrief(portalBrief)).toBe(
       'a vacant plot in KHB Suryanagar Phase'

@@ -19,6 +19,19 @@ than a written entry. Newest first.
 
 #### 7 October 2026
 
+- **Buyer conversations are now tested as threads, not sentences.** A replay
+  harness runs a portal lead's arrival and their "Update my preferences" and
+  "Show Properties" taps through the real reply code against an in-memory
+  inventory and reads the whole thread back: one arrival message, at most
+  two bot bubbles per reply, the live listing shown before any "nothing
+  fits", and on a dead end the locality's stock at another price plus the
+  showcase link. Seven transcript rules define a bad thread once, for the
+  harness, for pinned real threads (the 7 October JP Nagar thread is on
+  record with its violations) and for the nightly review that follows. The
+  near-miss search now also looks at a phase's parent locality, and the
+  on-demand brief says "a commercial property … around ₹8.4 Cr" when the
+  budget was only read off the enquired listing. No migration is required.
+
 - **The bot shows a buyer what is live before it says nothing fits, and
   every dead end hands them the showcase.** A tap on "Update my preferences"
   now runs the ordinary search when the tight one is empty, and a budget

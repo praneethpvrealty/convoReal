@@ -18,7 +18,11 @@ import {
   resolveListingType,
   type ListingType,
 } from '@/lib/matching';
-import { localityRowPrefilter, rowMatchesLocality } from '@/lib/locality-match';
+import {
+  localityRowPrefilter,
+  parentLocalityLabel,
+  rowMatchesLocality,
+} from '@/lib/locality-match';
 import { accountPropertiesShowcaseUrl } from '@/lib/showcase/account-showcase-url';
 import { formatInrCompact } from '@/lib/format/currency';
 
@@ -262,11 +266,16 @@ export async function areaNearMissLine(args: {
 }): Promise<string | null> {
   if (args.brief.areas.length === 0) return null;
   try {
+    // A phase or block is searched as itself, then as its locality: the
+    // lead who named JP Nagar 4th Phase is told about JP Nagar's other
+    // phases rather than nothing.
     const areas = [
       ...new Map(
         args.brief.areas
           .map((area) => area.trim())
           .filter(Boolean)
+          .flatMap((area) => [area, parentLocalityLabel(area)])
+          .filter((area): area is string => !!area)
           .map((area) => [area.toLowerCase(), area] as const)
       ).values(),
     ].slice(0, MAX_NEAR_MISS_AREAS);
