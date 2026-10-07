@@ -288,6 +288,16 @@ export function formatDraftPreviewMessage(
   return reply;
 }
 
+export function isContactDraftPreviewText(
+  text: string | null | undefined
+): boolean {
+  return (
+    !!text &&
+    /^\*Contact #\d+:\*$/m.test(text) &&
+    /^• \*Role\/Classification:\* /m.test(text)
+  );
+}
+
 /**
  * Renders a WhatsApp-markdown preview of parsed contact drafts. Pure
  * string formatting: duplicate-detection against the Engine is a data

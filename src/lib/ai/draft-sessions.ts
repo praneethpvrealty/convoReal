@@ -8,6 +8,7 @@ import type {
   ParsedContactDraftsContainer,
   ParsedPropertyDraft,
 } from '@/lib/ai/gemini';
+import { isContactDraftPreviewText } from '@/lib/ai/intake-core';
 
 type DB = TypedSupabaseClient;
 
@@ -312,7 +313,8 @@ export function isContactCardBurst(
   const written = new Date(row.updated_at).getTime();
   if (
     card.sentAt !== null &&
-    card.sentAt <= written + CONTACT_CARD_SENT_SLACK_MS
+    card.sentAt <= written + CONTACT_CARD_SENT_SLACK_MS &&
+    card.sentAt >= written - CONTACT_CARD_BURST_WINDOW_MS
   ) {
     return true;
   }
@@ -321,8 +323,8 @@ export function isContactCardBurst(
 
 /**
  * Whether a quote-reply points at something the bot said about this
- * draft: a bot message of the same conversation, sent since the draft
- * was opened.
+ * draft: a contact-draft preview of the same conversation, sent since
+ * the draft was opened.
  */
 export async function isReplyToContactDraft(
   db: DB,
@@ -333,13 +335,14 @@ export async function isReplyToContactDraft(
   if (!contextId || !row.created_at) return false;
   const { data, error } = await db
     .from('messages')
-    .select('created_at')
+    .select('created_at, content_text')
     .eq('conversation_id', conversationId)
     .eq('message_id', contextId)
     .eq('sender_type', 'bot')
     .maybeSingle();
   if (error || !data?.created_at) return false;
   return (
+    isContactDraftPreviewText(data.content_text) &&
     new Date(data.created_at).getTime() >= new Date(row.created_at).getTime()
   );
 }
