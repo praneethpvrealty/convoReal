@@ -35,10 +35,19 @@ CREATE INDEX IF NOT EXISTS bot_thread_reviews_verdict_idx
 CREATE INDEX IF NOT EXISTS bot_thread_reviews_account_idx
   ON bot_thread_reviews (account_id, reviewed_at DESC);
 
-DROP TRIGGER IF EXISTS set_updated_at ON bot_thread_reviews;
-CREATE TRIGGER set_updated_at
-  BEFORE UPDATE ON bot_thread_reviews
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'set_updated_at'
+      AND tgrelid = 'public.bot_thread_reviews'::regclass
+  ) THEN
+    CREATE TRIGGER set_updated_at
+      BEFORE UPDATE ON bot_thread_reviews
+      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+END
+$$;
 
 ALTER TABLE bot_thread_reviews ENABLE ROW LEVEL SECURITY;
 
