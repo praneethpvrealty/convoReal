@@ -17,6 +17,23 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 6 October 2026
+
+- **Two more "call me" replies take the right path.** "I'll check and call back
+  tomorrow" is read as the client's own call again, not a request for the
+  team to ring, so the callback promise is no longer sent. "Not interested,
+  please call me" still records the rejection on the listing, but skips the
+  factor menu and goes to the callback handover, which promises a call and
+  alerts the agent. Invariant JRN-015.
+
+- **A note typed in reply to a closing card is filed on that deal.** Replying
+  "Legal done → Agreement" to a "Closing in progress" card used to be read as
+  a forwarded client reply, so the bot asked who the client was and offered
+  unrelated contacts. The card already names the buyer and the plot, so the
+  note is now logged on that journey item and the buyer's contact notes, the
+  card is held back for its re-nudge period, and the agent gets a "Noted"
+  confirmation. Nothing is sent to the buyer. Invariant JRN-020.
+
 #### 5 October 2026
 
 - **Read-only members can no longer change anything in the workspace through
@@ -28,9 +45,27 @@ than a written entry. Newest first.
   profile, notification devices, notification read state and task-digest
   preference, and file a support ticket or bug report. A read-only member who
   opens a conversation no longer clears its shared unread count. **Migration
-  required:** `20261005083357_workspace_write_read_only_rls.sql` (apply
-  `20261004155516_flow_automation_write_read_only_rls.sql` first). Invariant
+  required:** `20261005083357_workspace_write_read_only_rls.sql` and
+  `20261007051025_flow_automation_write_policies_alter.sql`, which lands the
+  flow and automation policies of `20261004155516` that never reached
+  production. Both change policies in place with `ALTER POLICY`. Invariant
   ACC-003.
+- **A new requirement typed in reply to a check-in now gets matching listings.**
+  A client who answered an enquiry check-in with what they want instead, such
+  as "Hsr layout 30x40 north and east facing only", had it logged as an update
+  on the listing the check-in was about and was asked when to check back. The
+  reply now goes to requirement matching: it is filed on the contact and the
+  client is sent listings that fit (or, when an agent sent the check-in, the
+  agent gets a Match Radar alert). A reply that asks to be checked back on at a
+  date is still filed as one. Invariant JRN-019.
+- **Listing photos load straight from storage instead of Supabase's image
+  resizer.** Every photo the resizer touched counted against the Pro plan's 100
+  origin images per billing cycle, and the showcase, ads and promote screens
+  had pushed it to 375. Web, WhatsApp and portal uploads are already shrunk to
+  1200px JPEG, and the mobile photo editor now hands each upload to the new
+  `POST /api/properties/images`, which applies the same resize and removes
+  the camera original. A test fails if anything requests the resizer
+  again.
 
 #### 4 October 2026
 

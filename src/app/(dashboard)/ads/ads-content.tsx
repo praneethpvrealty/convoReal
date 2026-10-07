@@ -34,7 +34,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useCan } from '@/hooks/useCan';
-import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import { formatRelative } from '@/lib/format/date';
 import { formatAdMoney } from '@/lib/meta-ads/format';
 
@@ -491,10 +490,7 @@ export default function AdsPage() {
                             {c.propertyImage ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
-                                src={showcaseImageUrl(
-                                  c.propertyImage,
-                                  SHOWCASE_IMAGE_WIDTHS.thumb
-                                )}
+                                src={c.propertyImage}
                                 alt=""
                                 className="h-9 w-9 shrink-0 rounded object-cover"
                               />

@@ -20,7 +20,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { AD_COPY_LIMITS } from '@/lib/meta-ads/ad-copy';
 import { BUDGET_BOUNDS, RADIUS_BOUNDS } from '@/lib/meta-ads/campaign-build';
@@ -257,10 +256,7 @@ export function PromotePropertyDialog({
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={showcaseImageUrl(
-                              storagePublicUrl(img),
-                              SHOWCASE_IMAGE_WIDTHS.thumb
-                            )}
+                            src={storagePublicUrl(img)}
                             alt=""
                             className="h-full w-full object-cover"
                           />
@@ -331,10 +327,7 @@ export function PromotePropertyDialog({
                     </div>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={showcaseImageUrl(
-                        storagePublicUrl(selectedImage),
-                        SHOWCASE_IMAGE_WIDTHS.card
-                      )}
+                      src={storagePublicUrl(selectedImage)}
                       alt=""
                       className="aspect-square w-full object-cover"
                     />

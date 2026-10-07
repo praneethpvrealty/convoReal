@@ -17,14 +17,17 @@ interface PolicyStatement {
 function policies(sql: string, file: string): PolicyStatement[] {
   const found: PolicyStatement[] = [];
   const pattern =
-    /CREATE POLICY\s+("[^"]+"|\w+)\s+ON\s+(?:public\.)?(\w+)([\s\S]*?);/gi;
+    /(CREATE|ALTER) POLICY\s+("[^"]+"|\w+)\s+ON\s+(?:public\.)?(\w+)([\s\S]*?);/gi;
   for (const match of sql.matchAll(pattern)) {
-    const rest = match[3];
+    const rest = match[4];
     found.push({
       file,
-      name: match[1].replace(/"/g, ''),
-      table: match[2],
-      command: (/\bFOR\s+(\w+)/i.exec(rest)?.[1] ?? 'ALL').toUpperCase(),
+      name: match[2].replace(/"/g, ''),
+      table: match[3],
+      command:
+        match[1].toUpperCase() === 'ALTER'
+          ? 'ALTER'
+          : (/\bFOR\s+(\w+)/i.exec(rest)?.[1] ?? 'ALL').toUpperCase(),
       body: rest,
     });
   }
@@ -60,13 +63,17 @@ describe('[ACC-003] read-only RLS on every workspace write policy', () => {
     }
   });
 
-  it('drops each policy before recreating it so it can be re-run', () => {
-    for (const policy of own) {
-      const name = /^[a-z_][a-z0-9_]*$/.test(policy.name)
-        ? policy.name
-        : `"${policy.name}"`;
+  it('alters each write policy in place so it can be re-run', () => {
+    expect(migration).not.toMatch(/\bDROP POLICY\b/i);
+    for (const policy of writes) {
+      expect(policy.command, `${policy.table}.${policy.name}`).toBe('ALTER');
+    }
+  });
+
+  it('creates each added read policy only when it is missing', () => {
+    for (const policy of own.filter((p) => p.command === 'SELECT')) {
       expect(migration).toContain(
-        `DROP POLICY IF EXISTS ${name} ON ${policy.table};`
+        `tablename = '${policy.table}' AND policyname = '${policy.name}'`
       );
     }
   });

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, MapPin, Sparkles } from 'lucide-react';
-import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import type { Property } from '@/types';
 import { formatInrCompact } from '@/lib/format/currency';
 
@@ -163,16 +162,9 @@ export function SimilarProperties({
                 {p.images?.[0] && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={showcaseImageUrl(
-                      p.images[0],
-                      SHOWCASE_IMAGE_WIDTHS.card
-                    )}
+                    src={p.images[0]}
                     alt={p.title}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = p.images[0];
-                    }}
                   />
                 )}
                 {badge && (

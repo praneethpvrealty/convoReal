@@ -12,6 +12,7 @@ import {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SectionLabel } from '@/components/ui';
+import { ApiError, apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -27,12 +28,49 @@ function decodeBase64(b64: string): Uint8Array {
   return bytes;
 }
 
+async function uploadOriginal(base64: string): Promise<string> {
+  const accountId = useAuthStore.getState().profile?.account_id;
+  if (!accountId) throw new Error('Not signed in');
+  const rand = Math.random().toString(36).substring(2, 7);
+  const path = `${accountId}/img-${Date.now()}-${rand}.jpg`;
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, decodeBase64(base64).buffer as ArrayBuffer, {
+      contentType: 'image/jpeg',
+      upsert: true,
+      cacheControl: '3600',
+    });
+  if (error) throw new Error(error.message);
+  return `${BUCKET}/${path}`;
+}
+
+async function resize(path: string): Promise<string> {
+  const { data } = await apiFetch<{ data: { path: string } }>(
+    '/api/properties/images',
+    { method: 'POST', body: JSON.stringify({ path }) }
+  );
+  return data.path;
+}
+
+async function uploadAsset(base64: string): Promise<string> {
+  const original = await uploadOriginal(base64);
+  try {
+    return await resize(original);
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.status !== 429) throw e;
+    const waitSeconds = Math.min(e.retryAfterSeconds ?? 60, 60);
+    await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
+    return resize(original);
+  }
+}
+
 /**
- * Property photos editor: pick from the library, upload to the
- * `property-images` bucket, then store the bucket-relative path (same
- * shape the web form writes) in the images array. Index 0 is the cover;
- * tapping ☆ moves a photo to the front. Removing just drops it from the
- * array — the row is saved with the parent form.
+ * Property photos editor: pick from the library, upload the original to
+ * `property-images`, have `/api/properties/images` resize it to the same
+ * 1200px the web form stores, then keep the returned bucket-relative
+ * paths in the images array. Index 0 is the cover; tapping ☆ moves a
+ * photo to the front. Removing just drops it from the array — the row is
+ * saved with the parent form.
  */
 export function PropertyPhotoEditor({
   images,
@@ -75,41 +113,29 @@ export function PropertyPhotoEditor({
       base64: true,
     });
     if (result.canceled) return;
-    const accountId = useAuthStore.getState().profile?.account_id;
-    if (!accountId) {
-      show({ title: 'Not signed in' });
-      return;
-    }
     setBusy(true);
     haptic.tap();
     const uploaded: string[] = [];
     try {
       for (const asset of result.assets) {
         if (!asset.base64) continue;
-        const bytes = decodeBase64(asset.base64);
-        const rand = Math.random().toString(36).substring(2, 7);
-        const path = `${accountId}/img-${Date.now()}-${rand}.jpg`;
-        const { error } = await supabase.storage
-          .from(BUCKET)
-          .upload(path, bytes.buffer as ArrayBuffer, {
-            contentType: 'image/jpeg',
-            upsert: true,
-            cacheControl: '3600',
-          });
-        if (error) throw new Error(error.message);
-        uploaded.push(`${BUCKET}/${path}`);
+        uploaded.push(await uploadAsset(asset.base64));
       }
-      if (uploaded.length > 0) {
-        onChange([...images, ...uploaded]);
-        haptic.success();
-      }
+      haptic.success();
     } catch (e) {
       haptic.warn();
       show({
-        title: 'Upload failed',
-        message: e instanceof Error ? e.message : 'Please try again.',
+        title:
+          uploaded.length > 0 ? 'Some photos did not upload' : 'Upload failed',
+        message:
+          uploaded.length > 0
+            ? `${uploaded.length} of ${result.assets.length} added. ${e instanceof Error ? e.message : 'Please try again.'}`
+            : e instanceof Error
+              ? e.message
+              : 'Please try again.',
       });
     } finally {
+      if (uploaded.length > 0) onChange([...images, ...uploaded]);
       setBusy(false);
     }
   }

@@ -57,6 +57,8 @@ const BANGALORE_LOCALITIES_COORDS: Record<
   'cv raman nagar': { lat: 12.9792, lng: 77.6644 },
   kaggadasapura: { lat: 12.9821, lng: 77.6775 },
   'ramamurthy nagar': { lat: 13.0163, lng: 77.6785 },
+  horamavu: { lat: 13.0291, lng: 77.6643 },
+  'horamavu agara': { lat: 13.0298, lng: 77.6628 },
   'kr puram': { lat: 13.0104, lng: 77.7025 },
   mahadevapura: { lat: 12.9866, lng: 77.6975 },
   brookefield: { lat: 12.9649, lng: 77.718 },
@@ -296,6 +298,9 @@ const GROUP_TO_CATEGORY: Record<SubtypeGroup, Category | null> = {
  *  be offered as the bigger alternative: the ~3,100 sq.ft. corner sites
  *  of a 60x40 layout, not the 4,000 sq.ft. 50x80s. */
 const POINT_SIZE_HEADROOM = 1.35;
+
+const LAND_WORDS = ['plot', 'site', 'land'];
+const BUILDING_WORDS = ['house', 'villa', 'building', 'built'];
 
 const PLOT_GROUPS: SubtypeGroup[] = [
   'residential-plot',
@@ -710,6 +715,13 @@ function matchContactsSingleProfile(
     ? GROUP_TO_CATEGORY[propertyGroup]
     : null;
   const propertyListingType = resolveListingType(property);
+  const residentialLandHouseSwap =
+    !RENT_PRICED_LISTING_TYPES.includes(propertyListingType) &&
+    (propertyGroup === 'residential-plot' ||
+      (propertyGroup === 'house' &&
+        !/farm\s*house/i.test(
+          `${property.type || ''} ${property.title || ''}`
+        )));
   const price = Number(property.price || 0);
   const rentalIncome = property.rental_income
     ? Number(property.rental_income)
@@ -974,6 +986,20 @@ function matchContactsSingleProfile(
         (statedSectors.size === 0 ||
           (propertyCategory && statedSectors.has(propertyCategory)))
       ) {
+        typeVerdict = 'partial';
+      } else if (
+        residentialLandHouseSwap &&
+        (propertyGroup === 'residential-plot'
+          ? wantedGroups.has('house') &&
+            !LAND_WORDS.some((w) => isNegated(combinedText, w))
+          : (wantedGroups.has('residential-plot') ||
+              (wantedCategories.has('plot') &&
+                (statedSectors.size === 0 ||
+                  statedSectors.has('residential')))) &&
+            !BUILDING_WORDS.some((w) => isNegated(combinedText, w)))
+      ) {
+        // A house seeker will look at a residential site and a site
+        // seeker at an old house on one; neither crosses a sector.
         typeVerdict = 'partial';
       } else {
         typeVerdict = 'mismatch';
