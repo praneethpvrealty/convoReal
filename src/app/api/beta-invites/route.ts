@@ -4,7 +4,7 @@
 //   GET  — the calling account's own seats and their status.
 //   POST — spend one seat, returning the link exactly once.
 //
-// GET is admin+ for Settings → Invites. POST is agent+ so an account
+// GET is admin+ for Settings → Invites. POST is agent+ (not read-only) so an account
 // holder can append a personal app invitation while sharing inventory.
 //
 // The plaintext token is returned ONLY in the POST response. The row
@@ -20,7 +20,11 @@
 import { NextResponse } from 'next/server';
 import type { PostgrestError } from '@supabase/supabase-js';
 
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  requireRole,
+  requireWriteRole,
+  toErrorResponse,
+} from '@/lib/auth/account';
 import { safeSourceInventoryPreview } from '@/lib/agents/source-inventory-preview';
 import { inviteBaseUrl } from '@/lib/auth/invite-base-url';
 import {
@@ -105,7 +109,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
 
     const limit = await checkRateLimit(
       `beta:invite:${ctx.userId}`,

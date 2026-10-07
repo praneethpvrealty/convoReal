@@ -19,6 +19,8 @@ is_account_member(target_account_id UUID, min_role account_role_enum DEFAULT 'vi
 - `agent` (Value: 2) - Standard operational data modification (contacts, properties, chats, tasks).
 - `viewer` (Value: 1) - Read-only dashboard access.
 
+Write policies (INSERT, UPDATE, DELETE, ALL) use `is_account_writer(target_account_id, min_role DEFAULT 'agent')` instead: the same membership check, which also refuses a member whose `profiles.is_read_only` is set. Read-only members are stored at agent level, so `is_account_member()` alone would let them write. SELECT policies stay on `is_account_member()`.
+
 ---
 
 ## 2. Table Schemas by Module
