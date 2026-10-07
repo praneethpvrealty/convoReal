@@ -4528,6 +4528,7 @@
           ],
           "guards": [
             "supabase/migrations/20261007122307_bot_thread_reviews.sql",
+            "supabase/migrations/20261007145237_bot_thread_review_candidates.sql",
             "vercel.json",
             "src/app/(dashboard)/admin/bot-replies-tab.tsx"
           ]

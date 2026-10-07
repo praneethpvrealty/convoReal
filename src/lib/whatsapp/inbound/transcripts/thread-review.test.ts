@@ -98,7 +98,45 @@ function seed() {
     ],
     bot_thread_reviews: [],
   };
-  db = memorySupabase(tables);
+  db = memorySupabase(tables, { bot_thread_review_candidates: candidates });
+}
+
+/** What bot_thread_review_candidates computes in SQL, over the tables. */
+function candidates(args: Record<string, unknown>) {
+  const since = String(args.p_since);
+  const exclude = new Set((args.p_exclude as string[]) ?? []);
+  const latest = new Map<string, string>();
+  for (const m of tables.messages) {
+    if (
+      m.sender_type !== 'bot' ||
+      m.private !== false ||
+      m.status === 'failed' ||
+      String(m.created_at) < since ||
+      exclude.has(String(m.conversation_id))
+    )
+      continue;
+    const id = String(m.conversation_id);
+    const at = String(m.created_at);
+    if (!latest.has(id) || at > (latest.get(id) as string)) latest.set(id, at);
+  }
+  return [...latest]
+    .filter(([id, at]) => {
+      const reviewedUpTo = tables.bot_thread_reviews
+        .filter((r) => r.conversation_id === id)
+        .map((r) => String(r.window_end ?? ''))
+        .sort()
+        .at(-1);
+      return !reviewedUpTo || at > reviewedUpTo;
+    })
+    .sort((a, b) => b[1].localeCompare(a[1]))
+    .slice(0, Number(args.p_limit))
+    .map(([id, at]) => ({
+      conversation_id: id,
+      account_id:
+        (tables.conversations.find((c) => c.id === id)?.account_id as string) ??
+        null,
+      latest_bot_at: at,
+    }));
 }
 
 describe('[CNV-006] runBotThreadReview', () => {
@@ -267,7 +305,7 @@ describe('[CNV-006] collection', () => {
     expect(result).toMatchObject({ threads: 0, reviewed: 0 });
   });
 
-  it('pages past the cap and past threads already reviewed tonight', async () => {
+  it('continues in batches past the per-batch limit and past threads already reviewed', async () => {
     tables.conversations = ['a', 'b', 'c', 'd'].map((id) => ({
       id: `conv-${id}`,
       account_id: 'acc-1',
@@ -294,13 +332,12 @@ describe('[CNV-006] collection', () => {
     ];
 
     const judge = async () => '{"score": 90, "issues": []}';
-    // Batches of two, pages of two: one run still covers the window.
+    // Batches of two: one run still covers the window.
     const first = await runBotThreadReview({
       db: db as never,
       now: NOW,
       judge,
       limit: 2,
-      pageSize: 2,
     });
     expect(first).toMatchObject({
       threads: 3,
@@ -316,7 +353,6 @@ describe('[CNV-006] collection', () => {
       now: NOW,
       judge,
       limit: 2,
-      pageSize: 2,
     });
     expect(second).toMatchObject({ threads: 0, reviewed: 0 });
   });
@@ -379,6 +415,79 @@ describe('[CNV-006] collection', () => {
       (tables.bot_thread_reviews[0].transcript as Array<{ text: string }>)[0]
         .text
     ).toContain('Here it is');
+  });
+
+  it('never counts a delivery Meta reported as failed', async () => {
+    tables.messages = [
+      {
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'bot',
+        private: false,
+        status: 'failed',
+        content_type: 'text',
+        content_text: 'Never arrived',
+        created_at: at(5),
+      },
+    ];
+    const judge = async () => '{"score": 90, "issues": []}';
+    expect(
+      await runBotThreadReview({ db: db as never, now: NOW, judge })
+    ).toMatchObject({ threads: 0 });
+
+    tables.messages.push({
+      conversation_id: 'conv-1',
+      account_id: 'acc-1',
+      sender_type: 'bot',
+      private: false,
+      status: 'delivered',
+      content_type: 'text',
+      content_text: 'Here it is: https://x/?property_id=p1&v=c',
+      created_at: at(4),
+    });
+    await runBotThreadReview({ db: db as never, now: NOW, judge });
+    const transcript = tables.bot_thread_reviews[0].transcript as Array<{
+      text: string;
+    }>;
+    expect(transcript.map((m) => m.text)).toEqual([
+      'Here it is: https://x/?property_id=p1&v=c',
+    ]);
+  });
+
+  it('reads a thread picked up nights later around its own exchange', async () => {
+    tables.messages = [
+      {
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'customer',
+        private: false,
+        content_type: 'text',
+        content_text: 'any plots?',
+        created_at: at(60 * 24 * 3 + 30),
+      },
+      {
+        conversation_id: 'conv-1',
+        account_id: 'acc-1',
+        sender_type: 'bot',
+        private: false,
+        content_type: 'text',
+        content_text: 'Here it is: https://x/?property_id=p1&v=c',
+        created_at: at(60 * 24 * 3),
+      },
+    ];
+    const result = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge: async () => '{"score": 90, "issues": []}',
+    });
+    expect(result.reviewed).toBe(1);
+    const transcript = tables.bot_thread_reviews[0].transcript as Array<{
+      text: string;
+    }>;
+    expect(transcript.map((m) => m.text)).toEqual([
+      'any plots?',
+      'Here it is: https://x/?property_id=p1&v=c',
+    ]);
   });
 
   it('stops at the time budget and says so', async () => {

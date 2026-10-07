@@ -45,7 +45,9 @@ than a written entry. Newest first.
   bubbles. Admin → Bot replies lists the threads worth a look, takes a good
   or bad verdict, and copies a bad thread out as a fixture so the rules keep
   catching it. **Migration required:**
-  `20261007122307_bot_thread_reviews.sql` (additive: one new table).
+  `20261007122307_bot_thread_reviews.sql` (additive: one new table) and
+  `20261007145237_bot_thread_review_candidates.sql` (additive: one new
+  service-role function).
 
 - **Buyer conversations are now tested as threads, not sentences.** A replay
   harness runs a portal lead's arrival and their "Update my preferences" and

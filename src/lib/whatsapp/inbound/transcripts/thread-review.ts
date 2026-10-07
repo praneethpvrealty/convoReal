@@ -29,7 +29,6 @@ import { maskContactDetails } from './mask';
  *  is picked up the next night: a conversation is reviewed whenever it
  *  has bot activity newer than its last review's window. */
 export const REVIEW_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
-export const MAX_COLLECT_PAGES = 50;
 /** Wall-clock budget for one invocation, under the route's maxDuration;
  *  a run that hits it reports so, and the next run picks up the rest. */
 export const REVIEW_TIME_BUDGET_MS = 240_000;
@@ -220,82 +219,46 @@ interface MessageRow {
   created_at: string;
 }
 
-export const COLLECT_PAGE_SIZE = 1000;
+export interface ReviewCandidate {
+  conversationId: string;
+  accountId: string | null;
+  /** The newest bot message the review is for; the transcript window
+   *  is anchored on it, not on the run, so a thread picked up nights
+   *  later is still read around its own exchange. */
+  latestBotAt: string;
+}
 
 /**
- * Conversations with bot activity newer than their last review, newest
- * activity first. Pages through the bot's messages of the last week
- * until `limit` such conversations are found or the window is
- * exhausted, so a thread tonight's budget leaves over, or a slow night
- * misses, is reached by the next run rather than lost. Private rows
- * are staff notes, not bubbles the lead received; a bubble an agent
- * hid from the inbox ("delete for me") was still received, so it stays.
+ * Conversations due a review: bot activity since `since` newer than
+ * their last review's window, newest first, aggregated in SQL
+ * (bot_thread_review_candidates) so there is no page ceiling to age a
+ * thread out behind. Private rows are staff notes and failed
+ * deliveries never reached the lead; neither counts.
  */
 export async function collectBotThreads(
   db: SupabaseClient,
   since: Date,
   limit = MAX_THREADS_PER_RUN,
-  pageSize = COLLECT_PAGE_SIZE,
   /** Conversations this run already gave up on; never collected twice. */
   exclude: ReadonlySet<string> = new Set()
-): Promise<Array<{ conversationId: string; accountId: string | null }>> {
-  const latestBotAt = new Map<
-    string,
-    { at: string; accountId: string | null }
-  >();
-  for (let page = 0; page < MAX_COLLECT_PAGES; page += 1) {
-    const from = page * pageSize;
-    const { data, error } = await db
-      .from('messages')
-      .select('conversation_id, account_id, created_at')
-      .eq('sender_type', 'bot')
-      .eq('private', false)
-      .gte('created_at', since.toISOString())
-      .order('created_at', { ascending: false })
-      .range(from, from + pageSize - 1);
-    if (error) throw new Error(error.message);
-    const rows = (data ?? []) as Pick<
-      MessageRow,
-      'conversation_id' | 'account_id' | 'created_at'
-    >[];
-    for (const row of rows) {
-      if (exclude.has(row.conversation_id)) continue;
-      if (!latestBotAt.has(row.conversation_id))
-        latestBotAt.set(row.conversation_id, {
-          at: row.created_at,
-          accountId: row.account_id,
-        });
-    }
-    if (rows.length < pageSize) break;
-  }
-  if (latestBotAt.size === 0) return [];
-
-  const ids = [...latestBotAt.keys()];
-  const lastReviewed = new Map<string, string>();
-  for (let i = 0; i < ids.length; i += pageSize) {
-    const { data, error } = await db
-      .from('bot_thread_reviews')
-      .select('conversation_id, window_end')
-      .in('conversation_id', ids.slice(i, i + pageSize));
-    if (error) throw new Error(error.message);
-    for (const row of (data ?? []) as {
+): Promise<ReviewCandidate[]> {
+  const { data, error } = await db.rpc('bot_thread_review_candidates', {
+    p_since: since.toISOString(),
+    p_limit: limit,
+    p_exclude: [...exclude],
+  });
+  if (error) throw new Error(error.message);
+  return (
+    (data ?? []) as {
       conversation_id: string;
-      window_end: string;
-    }[]) {
-      const prior = lastReviewed.get(row.conversation_id);
-      if (!prior || row.window_end > prior)
-        lastReviewed.set(row.conversation_id, row.window_end);
-    }
-  }
-
-  const due: Array<{ conversationId: string; accountId: string | null }> = [];
-  for (const [conversationId, { at, accountId }] of latestBotAt) {
-    const reviewedUpTo = lastReviewed.get(conversationId);
-    if (reviewedUpTo && at <= reviewedUpTo) continue;
-    due.push({ conversationId, accountId });
-    if (due.length >= limit) break;
-  }
-  return due;
+      account_id: string | null;
+      latest_bot_at: string;
+    }[]
+  ).map((row) => ({
+    conversationId: row.conversation_id,
+    accountId: row.account_id,
+    latestBotAt: row.latest_bot_at,
+  }));
 }
 
 export async function runBotThreadReview(
@@ -305,7 +268,6 @@ export async function runBotThreadReview(
     /** Conversations collected per batch; the run continues in batches
      *  until the window is covered or the time budget is spent. */
     limit?: number;
-    pageSize?: number;
     budgetMs?: number;
     judge?: (prompt: string, system: string) => Promise<string>;
   } = {}
@@ -315,7 +277,6 @@ export async function runBotThreadReview(
   const startedAt = Date.now();
   const budgetMs = options.budgetMs ?? REVIEW_TIME_BUDGET_MS;
   const reviewDay = ist(now);
-  const windowStart = new Date(now.getTime() - REVIEW_WINDOW_MS);
   const result: ReviewRunResult = {
     threads: 0,
     reviewed: 0,
@@ -335,7 +296,6 @@ export async function runBotThreadReview(
       db,
       new Date(now.getTime() - REVIEW_LOOKBACK_MS),
       options.limit ?? MAX_THREADS_PER_RUN,
-      options.pageSize,
       givenUp
     );
     if (threads.length === 0) break;
@@ -362,6 +322,9 @@ export async function runBotThreadReview(
         }
         const contactId =
           (conversation as { contact_id?: string | null }).contact_id ?? null;
+        const windowStart = new Date(
+          Date.parse(thread.latestBotAt) - REVIEW_WINDOW_MS
+        );
 
         const [{ data: rows }, { data: contact }] = await Promise.all([
           db
@@ -371,6 +334,7 @@ export async function runBotThreadReview(
             )
             .eq('conversation_id', thread.conversationId)
             .eq('private', false)
+            .neq('status', 'failed')
             .gte('created_at', windowStart.toISOString())
             // Newest first under the cap, so a long thread keeps the
             // exchange that put it on tonight's list; restored to
