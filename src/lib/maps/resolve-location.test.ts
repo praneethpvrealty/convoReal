@@ -7,6 +7,7 @@ import {
   resolveCoordinatesFromMapLink,
   resolveLocationFromCoordinates,
   resolveLocationFromGoogleMapLink,
+  resolveMapPin,
 } from '@/lib/maps/resolve-location';
 
 describe('parseCoordinatePair', () => {
@@ -516,5 +517,154 @@ describe('resolveCoordinatesFromMapLink', () => {
     expect(
       await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/dead')
     ).toBeNull();
+  });
+});
+
+describe('resolveMapPin', () => {
+  const originalKey = process.env.GOOGLE_MAPS_API_KEY;
+  const routeUrl =
+    'https://www.google.com/maps/dir/12.8411525,77.6401829/Pash+Luxury+Apartments/data=!4m10!4m9!1m1!4e1!1m5!1m4!1s0x3bae6b888a6e94b1:0x1b121bd3b0d39e49!8m2!3d12.8632491!4d77.6536115!3e0?utm_source=mstt_0&g_st=aw';
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.GOOGLE_MAPS_API_KEY;
+  });
+
+  afterEach(() => {
+    if (originalKey === undefined) delete process.env.GOOGLE_MAPS_API_KEY;
+    else process.env.GOOGLE_MAPS_API_KEY = originalKey;
+  });
+
+  it('[PRP-042] stores a short link that opens a route as a pin on the destination', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      url: routeUrl,
+      json: async () => ({}),
+    } as unknown as Response);
+
+    expect(
+      await resolveMapPin('https://maps.app.goo.gl/F93K1ybtNMMc7Y8k9?g_st=aw')
+    ).toEqual({
+      coordinates: { latitude: 12.8632491, longitude: 77.6536115 },
+      mapLink:
+        'https://www.google.com/maps/search/?api=1&query=12.8632491,77.6536115',
+    });
+  });
+
+  it('[PRP-042] stores a pasted route as a pin without a network call', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    const pin = await resolveMapPin(routeUrl);
+    expect(pin.mapLink).toBe(
+      'https://www.google.com/maps/search/?api=1&query=12.8632491,77.6536115'
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('[PRP-042] stores a Street View short link as a pin on the camera point', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      url: 'https://www.google.com/maps/@12.9347296,77.614563,3a,75y,215.83h,96.36t/data=!3m5!1e1!3m3!1sabc!2e0!6shttps:%2F%2Fstreetviewpixels-pa.googleapis.com',
+      json: async () => ({}),
+    } as unknown as Response);
+
+    expect(
+      await resolveMapPin('https://maps.app.goo.gl/RUBjJ59KjHgzNAnR6')
+    ).toEqual({
+      coordinates: { latitude: 12.9347296, longitude: 77.614563 },
+      mapLink:
+        'https://www.google.com/maps/search/?api=1&query=12.9347296,77.614563',
+    });
+  });
+
+  it('[PRP-042] geocodes a named destination and pins the point, not the name', async () => {
+    process.env.GOOGLE_MAPS_API_KEY = 'test-key';
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        url: 'https://www.google.com/maps/dir/My+Location/Pash+Luxury+Apartments/@12.85,77.64,13z',
+        json: async () => ({}),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: 'OK',
+          results: [
+            {
+              place_id: 'pla',
+              formatted_address: 'Pash Luxury Apartments, Bengaluru',
+              geometry: { location: { lat: 12.8633, lng: 77.6536 } },
+            },
+          ],
+        }),
+      } as unknown as Response);
+
+    expect(await resolveMapPin('https://maps.app.goo.gl/named')).toEqual({
+      coordinates: { latitude: 12.8633, longitude: 77.6536 },
+      mapLink:
+        'https://www.google.com/maps/search/?api=1&query=12.8633,77.6536',
+    });
+  });
+
+  it('[PRP-042] keeps a pin link exactly as the lister pasted it', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      url: 'https://www.google.com/maps/place/Radhe+Medical/@12.8706889,77.5830609,82m/data=!3m1!1e3!4m6!3m5!1s0x1!8m2!3d12.8707505!4d77.5828702',
+      json: async () => ({}),
+    } as unknown as Response);
+
+    expect(
+      await resolveMapPin('https://maps.app.goo.gl/jnmEijCWr74XxQHL8')
+    ).toEqual({
+      coordinates: { latitude: 12.8707505, longitude: 77.5828702 },
+      mapLink: 'https://maps.app.goo.gl/jnmEijCWr74XxQHL8',
+    });
+  });
+
+  it('[PRP-042] keeps the link when the redirect fails', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+    expect(await resolveMapPin('https://maps.app.goo.gl/dead')).toEqual({
+      coordinates: null,
+      mapLink: 'https://maps.app.goo.gl/dead',
+    });
+  });
+});
+
+describe('resolveLocationFromGoogleMapLink on a route', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.GOOGLE_MAPS_API_KEY;
+  });
+
+  it('[PRP-042] names the pin link to store beside the destination it resolved', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        url: 'https://www.google.com/maps/dir/12.8411525,77.6401829/Pash+Luxury+Apartments/data=!4m10!4m9!1m1!4e1!1m5!1m4!1s0x1!8m2!3d12.8632491!4d77.6536115!3e0',
+        json: async () => ({}),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        url: '',
+        json: async () => ({
+          display_name: 'Chikkathoguru, Bengaluru, Karnataka, India',
+          address: {
+            suburb: 'Chikkathoguru',
+            city: 'Bengaluru',
+            state: 'Karnataka',
+          },
+        }),
+      } as unknown as Response);
+
+    const result = await resolveLocationFromGoogleMapLink(
+      'https://maps.app.goo.gl/F93K1ybtNMMc7Y8k9?g_st=aw'
+    );
+
+    expect(result).toMatchObject({
+      sublocality: 'Chikkathoguru',
+      latitude: 12.8632491,
+      longitude: 77.6536115,
+      mapLink:
+        'https://www.google.com/maps/search/?api=1&query=12.8632491,77.6536115',
+    });
   });
 });

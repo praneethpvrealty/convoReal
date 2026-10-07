@@ -16,7 +16,7 @@ import {
   rowMatchesLocality,
 } from '@/lib/locality-match';
 import { geocodeAddress, hasGoogleMapsKey } from '@/lib/maps/google-places';
-import { resolveCoordinatesFromMapLink } from '@/lib/maps/resolve-location';
+import { resolveMapPin } from '@/lib/maps/resolve-location';
 import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
 import { sanitizeFloorPlans } from '@/lib/inventory/floor-plans';
 import { isoDateOrNull } from '@/lib/inventory/iso-date';
@@ -120,22 +120,23 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
     rows.map(async (row: any) => {
       try {
         // The row's own pin, when it has one, is exact and free.
-        const pinned = row.google_map_link
-          ? await resolveCoordinatesFromMapLink(row.google_map_link)
+        const pin = row.google_map_link
+          ? await resolveMapPin(row.google_map_link)
           : null;
-        if (pinned) {
+        if (pin?.coordinates) {
+          const healed = {
+            latitude: pin.coordinates.latitude,
+            longitude: pin.coordinates.longitude,
+            google_map_link: pin.mapLink,
+          };
           await supabase
             .from('properties')
             // Backfilling a derived pin while listing; the response uses
             // the value below either way.
             // eslint-disable-next-line convoreal/supabase-write-guard
-            .update({ latitude: pinned.latitude, longitude: pinned.longitude })
+            .update(healed)
             .eq('id', row.id);
-          return {
-            ...row,
-            latitude: pinned.latitude,
-            longitude: pinned.longitude,
-          };
+          return { ...row, ...healed };
         }
       } catch (pinErr) {
         console.warn(
@@ -902,12 +903,11 @@ export async function POST(request: Request) {
     // the locality centroid autocomplete supplies.
     if (insertData.google_map_link) {
       try {
-        const pinned = await resolveCoordinatesFromMapLink(
-          insertData.google_map_link
-        );
-        if (pinned) {
-          insertData.latitude = pinned.latitude;
-          insertData.longitude = pinned.longitude;
+        const pin = await resolveMapPin(insertData.google_map_link);
+        insertData.google_map_link = pin.mapLink;
+        if (pin.coordinates) {
+          insertData.latitude = pin.coordinates.latitude;
+          insertData.longitude = pin.coordinates.longitude;
         }
       } catch (pinErr) {
         console.warn(

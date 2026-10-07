@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 7 October 2026
 
+- **A shared map link is always a pin, never a route.** A buyer who opened
+  the Map line on a 40,000 sq ft plot in Chikkathoguru saw two locations: the
+  lister had shared the listing's Google Maps link while navigating, so the
+  stored link opened a drive from wherever they stood to the destination, and
+  every surface passed it on as pasted. A link that opens a route or a Street
+  View panorama is now reduced to a plain pin at the route's destination or
+  the camera point when a listing is created or its map link edited, through
+  WhatsApp intake and parked pins, while listings self-heal and in the
+  pin-repair script, and the web form names a pasted route or Street View
+  link for what it is. Run `npx tsx src/scripts/reconcile-property-pins.ts`
+  to rewrite the links already stored.
 - **The bot no longer calls an under-contract listing available.** A buyer
   asked "Is this available for sale?" about a plot that had been Under Contract
   for nine days and was told yes: the listing Q&A never passed the status to

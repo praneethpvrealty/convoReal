@@ -79,7 +79,7 @@ export async function backfillLocationFromMapLink(
     state: derived.state || draft.state,
     latitude: draft.latitude ?? derived.latitude,
     longitude: draft.longitude ?? derived.longitude,
-    google_map_link: draft.google_map_link || source,
+    google_map_link: derived.mapLink || draft.google_map_link || source,
     geo_resolved_from: source,
   };
 }

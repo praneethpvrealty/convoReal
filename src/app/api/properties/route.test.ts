@@ -192,6 +192,41 @@ describe('GET /api/properties near-search self-heal', () => {
   });
 });
 
+describe('GET /api/properties map-link self-heal', () => {
+  const nearUrl =
+    'http://test/api/properties?near_lat=12.86&near_lng=77.65&near_label=Chikkathoguru';
+
+  it('[PRP-042] rewrites a route link as a pin on its destination while healing the coordinates', async () => {
+    ungeocodedRows.push({
+      id: 'prop-3',
+      location: 'Chikatogur, Electronic City Phase 1',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      latitude: null,
+      longitude: null,
+      google_map_link: 'https://maps.app.goo.gl/F93K1ybtNMMc7Y8k9?g_st=aw',
+    });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      url: 'https://www.google.com/maps/dir/12.8411525,77.6401829/Pash+Luxury+Apartments/data=!4m10!4m9!1m1!4e1!1m5!1m4!1s0x1!8m2!3d12.8632491!4d77.6536115!3e0',
+      json: async () => ({}),
+    } as unknown as Response);
+
+    await GET(new Request(nearUrl));
+    fetchSpy.mockRestore();
+
+    expect(geocodeAddress).not.toHaveBeenCalled();
+    expect(updates).toHaveLength(1);
+    expect(updates[0].id).toBe('prop-3');
+    expect(updates[0].patch).toEqual({
+      latitude: 12.8632491,
+      longitude: 77.6536115,
+      google_map_link:
+        'https://www.google.com/maps/search/?api=1&query=12.8632491,77.6536115',
+    });
+  });
+});
+
 describe('GET /api/properties needs_attention filter', () => {
   it('[PRP-030] limits to Available listings missing photos, a price or a map pin', async () => {
     const response = await GET(

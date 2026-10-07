@@ -49,7 +49,7 @@ export async function parkMapPin(input: {
 }): Promise<PendingMapPin> {
   const derived = await resolveLocationFromGoogleMapLink(input.mapLink);
   const pin: PendingMapPin = {
-    mapLink: input.mapLink,
+    mapLink: derived?.mapLink ?? input.mapLink,
     location: derived?.location ?? null,
     sublocality: derived?.sublocality ?? null,
     city: derived?.city ?? null,

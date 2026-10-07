@@ -26,6 +26,9 @@ import {
 import {
   extractCoordinatesFromMapUrl,
   extractPlaceNameFromMapUrl,
+  googleMapsUrlForCoordinates,
+  mapLinkAsPin,
+  mapLinkShape,
   type Coordinates,
 } from '@/lib/maps/map-links';
 
@@ -36,8 +39,11 @@ export {
   extractMapLinkFromText,
   extractPlaceNameFromMapUrl,
   googleMapsUrlForCoordinates,
+  mapLinkAsPin,
+  mapLinkShape,
   parseCoordinatePair,
   type Coordinates,
+  type MapLinkShape,
 } from '@/lib/maps/map-links';
 
 const FETCH_TIMEOUT_MS = 5000;
@@ -51,6 +57,37 @@ export interface ResolvedMapLocation {
   state: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** The plain pin to store in place of the link given, present only
+   *  when that link opened a route or a Street View panorama. */
+  mapLink?: string;
+}
+
+export interface ResolvedMapPin {
+  coordinates: Coordinates | null;
+  /** The link to store in place of the one given — the same link for a
+   *  pin, the destination or camera point as a plain pin for a route
+   *  or Street View panorama. */
+  mapLink: string;
+}
+
+/**
+ * A route or Street View link is reduced to the plain pin it was
+ * really about; a pin link is kept as the lister pasted it. When the
+ * geocoder placed a named destination, its coordinates beat the name.
+ */
+function storedMapLink(
+  original: string,
+  resolvedUrl: string,
+  coordinates: Coordinates | null
+): string {
+  if (mapLinkShape(resolvedUrl) === 'pin') return original;
+  if (coordinates) {
+    return googleMapsUrlForCoordinates(
+      coordinates.latitude,
+      coordinates.longitude
+    );
+  }
+  return mapLinkAsPin(resolvedUrl) ?? original;
 }
 
 async function fetchWithTimeout(
@@ -160,27 +197,46 @@ export async function resolveLocationFromCoordinates(
 export async function resolveCoordinatesFromMapLink(
   url: string
 ): Promise<Coordinates | null> {
-  const inline = extractCoordinatesFromMapUrl(url);
-  if (inline) return inline;
+  return (await resolveMapPin(url)).coordinates;
+}
+
+/**
+ * The coordinates behind a map link together with the link worth
+ * storing for them. A route shared from the Maps app (`/maps/dir/…`)
+ * or a Street View panorama opens as a drive or a street photo for the
+ * buyer — PROP-1784's "Map:" line showed a source and a destination —
+ * so those come back as the plain pin of the destination or camera
+ * point, while a pin link is returned exactly as given.
+ */
+export async function resolveMapPin(url: string): Promise<ResolvedMapPin> {
+  let resolvedUrl = url;
+  let coordinates = extractCoordinatesFromMapUrl(url);
 
   try {
-    let placeName = extractPlaceNameFromMapUrl(url);
-    if (!placeName) {
+    let placeName = coordinates ? null : extractPlaceNameFromMapUrl(url);
+    if (!coordinates && !placeName) {
       const res = await fetchWithTimeout(url, { redirect: 'follow' });
-      const resolvedUrl = res.url || url;
-      const pinned = extractCoordinatesFromMapUrl(resolvedUrl);
-      if (pinned) return pinned;
-      placeName = extractPlaceNameFromMapUrl(resolvedUrl);
+      resolvedUrl = res.url || url;
+      coordinates = extractCoordinatesFromMapUrl(resolvedUrl);
+      if (!coordinates) placeName = extractPlaceNameFromMapUrl(resolvedUrl);
     }
-    if (!placeName || !hasGoogleMapsKey()) return null;
-    const geocoded = await geocodeAddress(placeName);
-    return geocoded
-      ? { latitude: geocoded.latitude, longitude: geocoded.longitude }
-      : null;
+    if (!coordinates && placeName && hasGoogleMapsKey()) {
+      const geocoded = await geocodeAddress(placeName);
+      if (geocoded) {
+        coordinates = {
+          latitude: geocoded.latitude,
+          longitude: geocoded.longitude,
+        };
+      }
+    }
   } catch (err) {
-    console.error('[maps] resolveCoordinatesFromMapLink failed:', err);
-    return null;
+    console.error('[maps] resolveMapPin failed:', err);
   }
+
+  return {
+    coordinates,
+    mapLink: storedMapLink(url, resolvedUrl, coordinates),
+  };
 }
 
 /**
@@ -221,6 +277,9 @@ export async function resolveLocationFromGoogleMapLink(
         )
       : null;
 
+    const stored = storedMapLink(url, resolvedUrl, resolvedCoords);
+    const relink = stored !== url ? { mapLink: stored } : {};
+
     if (geo) {
       const named =
         placeName &&
@@ -228,7 +287,7 @@ export async function resolveLocationFromGoogleMapLink(
         !placeName.toLowerCase().includes(geo.city.toLowerCase())
           ? `${placeName}, ${geo.city}`
           : placeName;
-      return { ...geo, location: named || geo.location };
+      return { ...geo, location: named || geo.location, ...relink };
     }
 
     if (placeName) {
@@ -239,6 +298,7 @@ export async function resolveLocationFromGoogleMapLink(
         state: null,
         latitude: resolvedCoords?.latitude ?? null,
         longitude: resolvedCoords?.longitude ?? null,
+        ...relink,
       };
     }
 

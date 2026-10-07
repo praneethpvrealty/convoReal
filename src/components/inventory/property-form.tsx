@@ -47,7 +47,10 @@ import {
   Tag,
 } from 'lucide-react';
 import { haversineKm } from '@/lib/geo';
-import { extractCoordinatesFromMapUrl } from '@/lib/maps/map-links';
+import {
+  extractCoordinatesFromMapUrl,
+  mapLinkShape,
+} from '@/lib/maps/map-links';
 import {
   getMatchingContacts,
   inMatchAudience,
@@ -1982,7 +1985,11 @@ export function PropertyForm({
                           title={googleMapLink || address || property?.location}
                         >
                           {googleMapLink
-                            ? 'Click below to launch maps'
+                            ? mapLinkShape(googleMapLink) === 'directions'
+                              ? 'Directions link: the destination is saved as the pin'
+                              : mapLinkShape(googleMapLink) === 'streetview'
+                                ? 'Street View link: the camera point is saved as the pin'
+                                : 'Click below to launch maps'
                             : address ||
                               property?.location ||
                               'No coordinates added'}

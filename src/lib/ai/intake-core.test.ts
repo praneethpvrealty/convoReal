@@ -197,6 +197,24 @@ describe('backfillLocationFromMapLink', () => {
     });
   });
 
+  it('[PRP-042] stores the pin a route link was reduced to, not the route', async () => {
+    mockResolve.mockResolvedValue({
+      ...resolved,
+      mapLink:
+        'https://www.google.com/maps/search/?api=1&query=12.8669,77.5565483',
+    });
+    const draft = makeDraft({
+      location: null,
+      google_map_link: 'https://maps.app.goo.gl/F93K1ybtNMMc7Y8k9?g_st=aw',
+    });
+
+    const result = await backfillLocationFromMapLink(draft);
+
+    expect(result.google_map_link).toBe(
+      'https://www.google.com/maps/search/?api=1&query=12.8669,77.5565483'
+    );
+  });
+
   it('resolves a bare coordinate pair sent as the location', async () => {
     mockResolveCoords.mockResolvedValue(resolved);
     const draft = makeDraft({

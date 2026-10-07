@@ -1945,6 +1945,32 @@
             }
           ],
           "guards": ["src/components/settings/meta-ads-tab.tsx"]
+        },
+        {
+          "id": "PRP-042",
+          "rule": "A map link that opens a route (/maps/dir/…, ?daddr=) or a Street View panorama (@lat,lng,3a,…) is never stored or shared as pasted: on create, on a map-link edit, through WhatsApp intake and a parked pin, in the listing self-heal and in the pin-repair script it is replaced by a plain pin at the route's destination or the panorama's camera point, the destination's own coordinates or the last waypoint win over the origin and the midpoint viewport, and a pin link is kept exactly as the lister pasted it. The web form names a pasted route or Street View link for what it is.",
+          "tests": [
+            {
+              "file": "src/lib/maps/map-links.test.ts",
+              "case": "[PRP-042]"
+            },
+            {
+              "file": "src/lib/maps/resolve-location.test.ts",
+              "case": "[PRP-042]"
+            },
+            {
+              "file": "src/lib/ai/intake-core.test.ts",
+              "case": "[PRP-042]"
+            },
+            {
+              "file": "src/app/api/properties/route.test.ts",
+              "case": "[PRP-042]"
+            }
+          ],
+          "guards": [
+            "src/lib/maps/map-links.ts",
+            "src/lib/maps/resolve-location.ts"
+          ]
         }
       ]
     },
