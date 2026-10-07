@@ -145,6 +145,7 @@ Two canonical rules the subsections below do not otherwise restate:
 - Every operational table must have `account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE`.
 - Enable RLS on every operational table.
 - Use `is_account_member()` (SECURITY DEFINER) in RLS policies for tenant membership.
+- **A write policy uses `is_account_writer(account_id, min_role)`, never `is_account_member()`.** `is_account_member()` ranks a member by `org_role` and never looks at `profiles.is_read_only`, and a read-only member is stored at agent level, so a write policy built on it lets them INSERT, UPDATE and DELETE with their own JWT whatever the API route refuses. `is_account_writer()` is the same check plus the read-only refusal. Keep `is_account_member()` for SELECT policies and for the few rows a read-only member owns (their own digest preference, their push device, a support ticket or bug report). A `FOR ALL` policy also grants SELECT: when it is the table's only read path, add a separate `FOR SELECT` policy on `is_account_member()` so read-only members can still read. `src/lib/auth/read-only-rls-workspace.test.ts` fails a later migration that breaks this (ACC-003).
 - Service-role clients must still enforce `account_id` scoping in code; do not rely on RLS alone when bypassing it.
 - Aggregate in SQL, not in the browser. `count: 'exact'` is a real `COUNT(*)`, not a metadata read — several of them on one screen means several scans of the account's rows. Selecting rows to `reduce()` them client-side ships a payload that grows with account activity. Add a `SECURITY DEFINER` function that names its account and guards with `is_account_member()` (see migrations 168–170).
 - Never interpolate a query result into a `.in()` / `.not('id','in', …)` filter without a bound — that list travels in the URL. Use a correlated `NOT EXISTS` inside a function instead.
@@ -531,8 +532,9 @@ Plus:
 
 - `CREATE TRIGGER set_updated_at BEFORE UPDATE ON <table> FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();`
 - `ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;`
-- RLS policies using `is_account_member(target_account_id, min_role)`.
+- RLS policies using `is_account_member(target_account_id, min_role)` for SELECT and `is_account_writer(target_account_id, min_role)` for INSERT, UPDATE, DELETE and ALL (§2.6).
 - Use `IF NOT EXISTS` for idempotency.
+- Change an existing policy with `ALTER POLICY`, not `DROP POLICY` followed by `CREATE POLICY`. The Supabase connector holds any statement containing `DROP` for an interactive confirmation that an agent session cannot give, so such a migration never reaches production: the policy half of `20261004155516_flow_automation_write_read_only_rls.sql` stayed unapplied that way. `ALTER POLICY` keeps the policy's command and roles, so it cannot change those; a new policy goes behind an `IF NOT EXISTS` check on `pg_policies`.
 
 ### 7.3 Key tables by domain
 
@@ -560,6 +562,7 @@ Plus:
 
 - Every operational row is scoped to `account_id`.
 - `is_account_member(account_id, min_role)` checks the requesting user’s membership and role.
+- `is_account_writer(account_id, min_role)` is the same check and also refuses a read-only member (`profiles.is_read_only`); every workspace write policy uses it.
 - Roles: `owner` > `admin` > `agent` > `viewer`.
 - The server Supabase client (`src/lib/supabase/server.ts`) supports both cookie-based SSR sessions and mobile `Authorization: Bearer <jwt>` tokens. RLS enforces access for both.
 

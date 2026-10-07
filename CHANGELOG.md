@@ -51,6 +51,25 @@ than a written entry. Newest first.
 
 #### 5 October 2026
 
+- **Read-only members can no longer change anything in the workspace through
+  the database.** Row-level security used to stop a read-only member only on
+  automations, flows, appointments, portal listings and contact deletion; every
+  other table accepted their writes if they called the database directly. Now
+  169 write policies across 108 tables refuse them, at every role level. They
+  can still read everything they could before, and can still edit their own
+  profile, notification devices, notification read state and task-digest
+  preference, and file a support ticket or bug report. A read-only member who
+  opens a conversation no longer clears its shared unread count. Listing
+  photos and property documents in storage get the same rule, and the
+  property-documents bucket, which accepted an upload, overwrite or delete
+  from anyone holding the public key, now takes them only from a member who
+  can write to the account the file is filed under. Flow media gets the same rule on its `account-<id>` folder, which also lets the flow builder's media upload through: production still had the older per-user policies, which refused the account folder it uploads to. **Migration required:**
+  `20261005083357_workspace_write_read_only_rls.sql`,
+  `20261007051025_flow_automation_write_policies_alter.sql`, which lands the
+  flow and automation policies of `20261004155516` that never reached
+  production, and `20261007054244_property_storage_write_read_only.sql`. All
+  three change policies in place with `ALTER POLICY`. Invariant ACC-003.
+
 - **Read-only members can no longer write through database functions.**
   Eleven functions that write on a member's behalf (issuing an invoice and
   allocating its number, attaching or removing a deal invoice, showing captured

@@ -4178,6 +4178,22 @@
           ]
         },
         {
+          "id": "ACC-003",
+          "rule": "Row-level security refuses a read-only member (profiles.is_read_only) on every workspace write, at every role level, so their own JWT cannot INSERT, UPDATE or DELETE through PostgREST whatever an API route allows. Every write policy uses is_account_writer() (is_account_member() plus the read-only check) or names is_read_only itself; a new migration that adds a write policy on is_account_member() alone fails the test. A read-only member keeps every read they had: where a tightened FOR ALL policy was a table's only read path (contact_property_inquiries, portal_accounts, portal_import_items) a separate SELECT policy keeps it. They may still write only rows that are their own or are not a workspace change: their profile, notification devices, notification read state, task-digest preference (agent_task_digest_settings), a support ticket and a bug report. Members who are not read-only are unaffected. The storage write policies on the property-images, property-images-private and property-documents buckets follow the same rule: each requires is_account_writer() on the account id that is the object's first folder, so a read-only member cannot upload, replace or delete listing media, and nobody can write a property document under an account they cannot write to.",
+          "tests": [
+            {
+              "file": "src/lib/auth/read-only-rls-workspace.test.ts",
+              "case": "[ACC-003]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261005083357_workspace_write_read_only_rls.sql",
+            "supabase/migrations/20261004155516_flow_automation_write_read_only_rls.sql",
+            "supabase/migrations/20261007051025_flow_automation_write_policies_alter.sql",
+            "supabase/migrations/20261007054244_property_storage_write_read_only.sql"
+          ]
+        },
+        {
           "id": "ACC-005",
           "rule": "A SECURITY DEFINER function that writes without checking who called it is never reachable over PostgREST RPC. _bcast_bump, bump_copilot_qa_hit, vote_copilot_qa, log_copilot_unmet_request, sync_contact_budget_band, seed_default_reminder_templates, claim_broadcast_dispatch, release_broadcast_dispatch, renew_broadcast_dispatch, renew_broadcast_recipient_claims, claim_broadcast_recipients and recompute_broadcast_counts take a row or account id and write to it with no membership check, so EXECUTE on each is revoked from PUBLIC, anon and authenticated and granted to service_role alone: a signed-out visitor or a member of another account calling one with their own key is refused by the database before the body runs. Their only callers keep working: the broadcast dispatcher and the Copilot answer cache and demand log call them through the service-role client (supabaseAdmin), and the broadcast-count, budget-band and default-template triggers reach theirs from SECURITY DEFINER trigger functions that run as the function owner. A new SECURITY DEFINER function that writes either guards its account with is_account_writer() when a member calls it with their own JWT, or revokes EXECUTE from PUBLIC, anon and authenticated when only server code and triggers call it; granting service_role alone in the migration is not enough, because a new function in public is executable by every role until it is revoked.",
           "tests": [
