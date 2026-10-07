@@ -953,6 +953,40 @@ describe('getMatchingContacts', () => {
       ).toHaveLength(0);
     });
 
+    it('[CNV-002] stretches an enquiry-anchored max by 15%, never a stated one', () => {
+      // shirish enquired on a ₹8.4 Cr plot in JP Nagar 4th Phase; the
+      // same-size plot in 2nd Phase at ₹9.6 Cr is what the agent shows
+      // next. A stated ₹8.4 Cr budget keeps the 10% rule.
+      const plot = createTestProperty({
+        type: 'Commercial Plot',
+        price: 96000000,
+        location: 'JP Nagar 2nd Phase, Bangalore',
+        sublocality: 'JP Nagar 2nd Phase',
+        listing_type: 'Sale',
+      });
+      const anchored = createTestContact({
+        property_interests: ['Commercial'],
+        pref_areas: ['JP Nagar 4th Phase'],
+        pref_budget_max: 84000000,
+        pref_budget_anchor: 84000000,
+        pref_listing_types: ['Sale'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const [result] = getMatchingContacts(plot, [anchored]);
+      expect(result?.details.budget).toBe('partial');
+
+      expect(
+        getMatchingContacts(createTestProperty({ ...plot, price: 100000000 }), [
+          anchored,
+        ])
+      ).toHaveLength(0);
+      expect(
+        getMatchingContacts(plot, [
+          { ...anchored, pref_budget_anchor: null, max_budget: 84000000 },
+        ])
+      ).toHaveLength(0);
+    });
+
     it('[INB-029] ignores a locality the requirement history names once the contact has stated areas', () => {
       const hsrHouse = createTestProperty({
         type: 'Residential House',
@@ -1436,6 +1470,39 @@ describe('getMatchingContacts', () => {
   });
 
   describe('Strict Area, Land ROI Bypass, and Min Budget 20% Gap logic', () => {
+    it('[CNV-002] places a phase of a known locality at that locality for the strict radius', () => {
+      // "JP Nagar 4th Phase" has no coordinates of its own; an exact-key
+      // miss used to skip the radius check and fall back to a substring
+      // test that no other phase could pass.
+      const secondPhasePlot = createTestProperty({
+        type: 'Commercial Plot',
+        price: 80000000,
+        location: 'JP Nagar 2nd Phase, Bangalore',
+        sublocality: 'JP Nagar 2nd Phase',
+        latitude: 12.9119,
+        longitude: 77.5951,
+        listing_type: 'Sale',
+      });
+      const contact = createTestContact({
+        property_interests: ['Commercial'],
+        pref_areas: ['JP Nagar 4th Phase'],
+        strict_area_match: true,
+        pref_listing_types: ['Sale'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const [result] = getMatchingContacts(secondPhasePlot, [contact]);
+      expect(result?.details.location).toBe('match');
+
+      const whitefieldPlot = createTestProperty({
+        ...secondPhasePlot,
+        location: 'Whitefield, Bangalore',
+        sublocality: 'Whitefield',
+        latitude: 12.9698,
+        longitude: 77.75,
+      });
+      expect(getMatchingContacts(whitefieldPlot, [contact])).toHaveLength(0);
+    });
+
     it('bypasses ROI expectation mismatch for raw land properties', () => {
       const contact = createTestContact({
         min_roi: 8.0,

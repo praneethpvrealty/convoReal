@@ -1123,8 +1123,11 @@ function matchContactsSingleProfile(
         const maxAllowedDistance = sourceContact.strict_area_match ? 5 : 20;
 
         for (const area of wantedAreas) {
+          // The same lookup the property side uses: a contact filed under
+          // "JP Nagar 4th Phase" sits where JP Nagar is, and an exact-key
+          // miss here used to drop the radius check altogether.
           const areaCoords =
-            contactAreaCoords[area] ?? BANGALORE_LOCALITIES_COORDS[area];
+            contactAreaCoords[area] ?? coordinatesForArea(area);
           if (areaCoords) {
             checkedProximity = true;
             const dist = calculateHaversineDistance(
@@ -1224,10 +1227,11 @@ function matchContactsSingleProfile(
         ? Number(sourceContact.pref_budget_max)
         : null
     );
-    let maxIsCeiling =
+    const anchoredMax =
       explicitMax === null &&
       budgetMin === null &&
       isEnquiryBudgetAnchor(budgetMax, contact.pref_budget_anchor);
+    let maxIsCeiling = anchoredMax;
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
       const parsed = parseBudgetFromText(combinedText);
       budgetMin = parsed.min;
@@ -1246,6 +1250,17 @@ function matchContactsSingleProfile(
 
     const BUDGET_TOLERANCE_MIN = 0.2; // Allowing 20% gap/tolerance on lower side
     const BUDGET_TOLERANCE_MAX = 0.1; // Keeping strict 10% gap/tolerance on upper side
+    // A max the lead never stated — the price of the listing they
+    // enquired about — is what they were willing to look at, not a
+    // limit they set. The same-size plot two phases over at 14% more is
+    // what the agent would show next, so an anchored max stretches as
+    // far as the lead webhook's own price match does (15%) before a
+    // listing is called out of budget.
+    const ENQUIRY_ANCHOR_TOLERANCE_MAX = 0.15;
+    const upperTolerance =
+      anchoredMax && !perSqftBudget
+        ? ENQUIRY_ANCHOR_TOLERANCE_MAX
+        : BUDGET_TOLERANCE_MAX;
     // A max with no min still anchors intent: a ₹20 Cr buyer is not
     // shopping at ₹4 Cr. Half the max is the implied floor; the lower
     // tolerance below it grades partial, further out excludes. Three
@@ -1289,7 +1304,7 @@ function matchContactsSingleProfile(
           budgetComparisonValue >= floor * (1 - BUDGET_TOLERANCE_MIN);
         const nearMax =
           budgetMax === null ||
-          budgetComparisonValue <= budgetMax * (1 + BUDGET_TOLERANCE_MAX);
+          budgetComparisonValue <= budgetMax * (1 + upperTolerance);
         budgetVerdict = nearMin && nearMax ? 'partial' : 'mismatch';
       }
     }

@@ -5,7 +5,7 @@ import {
   parseEnquiryReply,
   resolveEnquiryTeamPhone,
 } from '@/lib/whatsapp/enquiry-card';
-import { unavailableListingReply } from '@/lib/inventory/listing-status';
+import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { handlePropertyShareYesReply } from '@/lib/whatsapp/inbound/property-share-replies';
@@ -115,11 +115,14 @@ export async function handleEnquiryCardReply(
   });
   if (!conversation) return false;
 
-  const unavailableReply = unavailableListingReply(
-    lead.name,
-    propertyRow?.title,
-    propertyRow?.status
-  );
+  const unavailableReply = await unavailableListingReplyWithShowcase({
+    db: admin,
+    accountId,
+    contactId: action.contactId,
+    contactName: lead.name,
+    propertyTitle: propertyRow?.title,
+    status: propertyRow?.status,
+  });
   if (unavailableReply) {
     const { data: alreadyTold } = await admin
       .from('messages')

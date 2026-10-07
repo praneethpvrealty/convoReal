@@ -2,14 +2,12 @@ import {
   buildEnquiryAckText,
   sendPropertyEnquiryCard,
 } from '@/lib/whatsapp/enquiry-card';
-import {
-  appendListingStatusNote,
-  unavailableListingReply,
-} from '@/lib/inventory/listing-status';
+import { appendListingStatusNote } from '@/lib/inventory/listing-status';
 import { createNotification } from '@/lib/notifications/create';
 import { BRIDGE_REPLY_HINT } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
 import type { InboundChainContext, StepResult } from '../context';
 
 export async function deliberateEnquiry(
@@ -98,11 +96,14 @@ export async function deliberateEnquiry(
       kind: 'text',
       senderType: 'bot',
       text:
-        unavailableListingReply(
-          contactRecord.name,
-          enquiryPropertyTitle,
-          enquiryPropertyStatus
-        ) ??
+        (await unavailableListingReplyWithShowcase({
+          db: supabaseAdmin(),
+          accountId,
+          contactId: contactRecord.id,
+          contactName: contactRecord.name,
+          propertyTitle: enquiryPropertyTitle,
+          status: enquiryPropertyStatus,
+        })) ??
         appendListingStatusNote(
           buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
           enquiryPropertyStatus

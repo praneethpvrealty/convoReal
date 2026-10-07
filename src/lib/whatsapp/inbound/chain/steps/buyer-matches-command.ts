@@ -27,6 +27,7 @@ export async function buyerMatchesCommand(
     const matchReply = await buildBuyerMatchReplyWithListings({
       accountId,
       contactId: contactRecord.id,
+      conversationId: conversation.id,
     });
     if (matchReply) {
       await sendWhatsAppMessageAndPersist({

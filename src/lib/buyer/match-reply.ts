@@ -20,6 +20,9 @@ import {
   type CuratedMatch,
 } from './matches-ranking';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
+import { ENQUIRY_NOTICE_TEMPLATE_NAMES } from '@/lib/whatsapp/enquiry-notice-template';
+import { LISTING_AVAILABILITY_TEMPLATE_NAME } from '@/lib/whatsapp/listing-availability-template';
 import { areaNearMissLine } from './area-near-misses';
 import {
   buildWidenSearchQuestion,
@@ -108,6 +111,7 @@ export async function buildBuyerMatchReply(args: {
   accountId: string;
   contactId: string;
   db?: SupabaseClient;
+  conversationId?: string | null;
 }): Promise<string | null> {
   const reply = await buildBuyerMatchReplyWithListings(args);
   return reply?.text ?? null;
@@ -119,10 +123,58 @@ export async function buildBuyerMatchReply(args: {
  * suppress previously-sent listings, has no way of knowing the buyer
  * was shown these minutes ago and sends them again.
  */
+const RECENT_BOT_MESSAGES = 10;
+
+/**
+ * Whether the thread's recent bot messages already told the lead this
+ * listing is gone — the status notice at arrival, or an earlier reply.
+ * Saying it a third time in the same hour reads as a bot on a loop.
+ */
+async function threadAlreadySaidUnavailable(
+  db: SupabaseClient,
+  conversationId: string | null | undefined,
+  propertyTitle: string
+): Promise<boolean> {
+  if (!conversationId) return false;
+  try {
+    const { data } = await db
+      .from('messages')
+      .select('content_text, template_name')
+      .eq('conversation_id', conversationId)
+      .eq('sender_type', 'bot')
+      .neq('status', 'failed')
+      .order('created_at', { ascending: false })
+      .limit(RECENT_BOT_MESSAGES);
+    const noticeNames = new Set([
+      ...ENQUIRY_NOTICE_TEMPLATE_NAMES,
+      LISTING_AVAILABILITY_TEMPLATE_NAME,
+    ]);
+    const title = propertyTitle.trim().toLowerCase();
+    return (
+      (data as
+        | { content_text: string | null; template_name: string | null }[]
+        | null) ?? []
+    ).some(
+      (row) =>
+        (row.template_name && noticeNames.has(row.template_name)) ||
+        (!!row.content_text &&
+          /no longer available|not available right now|already been sold|under contract|off the market/i.test(
+            row.content_text
+          ) &&
+          (!title || row.content_text.toLowerCase().includes(title)))
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function buildBuyerMatchReplyWithListings(args: {
   accountId: string;
   contactId: string;
   db?: SupabaseClient;
+  /** The thread the reply lands in; lets the reply skip repeating a
+   *  status the thread already carries. */
+  conversationId?: string | null;
 }): Promise<{ text: string; propertyIds: string[] } | null> {
   const db = args.db || supabaseAdmin();
   try {
@@ -176,18 +228,37 @@ export async function buildBuyerMatchReplyWithListings(args: {
     const matches = availableEnquiry
       ? pinEnquiredProperty(rankedMatches, availableEnquiry)
       : rankedMatches;
+    const unavailableTitle =
+      unavailableEnquiryTitle &&
+      !(await threadAlreadySaidUnavailable(
+        db,
+        args.conversationId,
+        unavailableEnquiryTitle
+      ))
+        ? unavailableEnquiryTitle
+        : null;
     if (matches.length === 0) {
+      const [followUp, showcaseUrl] = await Promise.all([
+        hasBrief
+          ? noMatchesFollowUp(db, args.accountId, contact)
+          : Promise.resolve({ brief: '', question: null, nearMiss: null }),
+        accountShowcaseBrowseUrl(db, args.accountId, contact.id),
+      ]);
       return {
-        text: unavailableEnquiryTitle
+        text: unavailableTitle
           ? buildUnavailableEnquiryMessage({
               contactName: contact.name,
-              propertyTitle: unavailableEnquiryTitle,
+              propertyTitle: unavailableTitle,
               hasAlternatives: false,
+              nearMiss: followUp.nearMiss,
+              question: followUp.question,
+              showcaseUrl,
             })
-          : buildNoMatchesMessage(
-              contact.name,
-              await noMatchesFollowUp(db, args.accountId, contact)
-            ),
+          : buildNoMatchesMessage(contact.name, {
+              ...followUp,
+              brief: followUp.brief || null,
+              showcaseUrl,
+            }),
         propertyIds: [],
       };
     }
@@ -205,10 +276,10 @@ export async function buildBuyerMatchReplyWithListings(args: {
       enquiredPropertyId: availableEnquiry?.id,
     });
     return {
-      text: unavailableEnquiryTitle
+      text: unavailableTitle
         ? `${buildUnavailableEnquiryMessage({
             contactName: contact.name,
-            propertyTitle: unavailableEnquiryTitle,
+            propertyTitle: unavailableTitle,
             hasAlternatives: true,
           })}\n\n${digest}`
         : digest,

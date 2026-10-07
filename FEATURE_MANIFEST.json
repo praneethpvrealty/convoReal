@@ -4430,6 +4430,28 @@
               "case": "[CNV-001]"
             }
           ]
+        },
+        {
+          "id": "CNV-002",
+          "rule": "A lead who taps Update my preferences is shown live listings before being told nothing fits: the 5 km strict search runs first and the ordinary 20 km search only when it is empty; a budget inferred from the enquired listing's price (pref_budget_anchor) admits listings up to 15% above it as partial fits while a stated budget keeps the 10% rule; a stated area that is a phase or block of a known locality takes that locality's coordinates for the radius. The reply greets a lead created within the last week as answering their own enquiry and only an older lead as back on our radar, never praises the matching engine, names the near-miss stock in the lead's own locality when nothing fits, carries the lead's attributed showcase link, and ends on the one qualifying question.",
+          "tests": [
+            { "file": "src/lib/matching.test.ts", "case": "[CNV-002]" },
+            {
+              "file": "src/lib/whatsapp/preference-tap-reply.test.ts",
+              "case": "[CNV-002]"
+            }
+          ]
+        },
+        {
+          "id": "CNV-003",
+          "rule": "The on-demand matches reply (MATCHES, Show Properties) never answers a dead end bare: when the enquired listing is unavailable and nothing fits it names that listing once (without its trailing punctuation), the near-miss stock in the lead's locality, the lead's attributed showcase link, then the widening question; when the thread's recent bot messages already told the lead the listing is unavailable (a status notice template or an earlier reply) it does not say so again; every no-match reply ends with the showcase link ahead of its question.",
+          "tests": [
+            {
+              "file": "src/lib/buyer/match-reply.test.ts",
+              "case": "[CNV-003]"
+            },
+            { "file": "src/lib/buyer/digest.test.ts", "case": "[CNV-003]" }
+          ]
         }
       ]
     }
