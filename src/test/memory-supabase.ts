@@ -121,11 +121,15 @@ export function memorySupabase(
       },
       // PostgREST filter strings (ilike probes, nested and/or) are not
       // parsed: every row passes and the caller's own in-memory check
-      // decides, which is what each of them does anyway.
+      // decides, which is what each of them does anyway. `not(col, 'is',
+      // value)` is the one negation that is honoured.
       or() {
         return builder;
       },
-      not() {
+      not(column?: string, operator?: string, value?: unknown) {
+        if (column && operator === 'is') {
+          filters.push((row) => (row[column] ?? null) !== (value ?? null));
+        }
         return builder;
       },
       order(column: string, options?: { ascending?: boolean }) {

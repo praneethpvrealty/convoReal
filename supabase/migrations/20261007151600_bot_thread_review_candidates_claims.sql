@@ -3,7 +3,10 @@
 -- run holds while it judges. A claim older than that with no judged_at
 -- was left by a run that died, so the conversation is due again and the
 -- run takes the stale row over. Kept in step with CLAIM_STALE_MS in
--- src/lib/whatsapp/inbound/transcripts/thread-review.ts.
+-- src/lib/whatsapp/inbound/transcripts/thread-review.ts. Oldest due
+-- first: what one night's budget leaves over is reviewed ahead of the
+-- next day's traffic, so a thread waits its turn and is never pushed
+-- behind newer activity until it ages out.
 
 CREATE OR REPLACE FUNCTION public.bot_thread_review_candidates(
   p_since TIMESTAMPTZ,
@@ -39,7 +42,7 @@ AS $$
           OR r.reviewed_at > now() - interval '15 minutes')),
     '-infinity'::timestamptz
   )
-  ORDER BY a.latest_bot_at DESC
+  ORDER BY a.latest_bot_at ASC
   LIMIT p_limit;
 $$;
 

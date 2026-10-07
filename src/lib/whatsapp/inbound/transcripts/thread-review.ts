@@ -26,8 +26,9 @@ import { maskContactDetails } from './mask';
 
 /** How far back a conversation's bot activity is still worth a review.
  *  A thread the budget left over tonight, or one a slow night missed,
- *  is picked up the next night: a conversation is reviewed whenever it
- *  has bot activity newer than its last review's window. */
+ *  is picked up the next night ahead of newer threads: a conversation
+ *  is reviewed whenever it has bot activity newer than its last
+ *  review's window, oldest first. */
 export const REVIEW_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 /** Wall-clock budget for one invocation, under the route's maxDuration;
  *  a run that hits it reports so, and the next run picks up the rest. */
@@ -234,7 +235,8 @@ export interface ReviewCandidate {
 
 /**
  * Conversations due a review: bot activity since `since` newer than
- * their last review's window, newest first, aggregated in SQL
+ * their last review's window, oldest due first so what one night left
+ * over goes ahead of the next day's traffic, aggregated in SQL
  * (bot_thread_review_candidates) so there is no page ceiling to age a
  * thread out behind. Private rows are staff notes and failed
  * deliveries never reached the lead; neither counts.
@@ -344,24 +346,31 @@ export async function runBotThreadReview(
         // the thread up to and including it, newest first under the
         // cap, then a short tail of what followed; restored to reading
         // order below.
-        const [{ data: upTo }, { data: after }, { data: contact }] =
-          await Promise.all([
-            visible()
-              .lte('created_at', thread.latestBotAt)
-              .order('created_at', { ascending: false })
-              .limit(MAX_MESSAGES_PER_THREAD - MAX_MESSAGES_AFTER_BOT),
-            visible()
-              .gt('created_at', thread.latestBotAt)
-              .order('created_at', { ascending: true })
-              .limit(MAX_MESSAGES_AFTER_BOT),
-            contactId
-              ? db
-                  .from('contacts')
-                  .select('id, created_at')
-                  .eq('id', contactId)
-                  .maybeSingle()
-              : Promise.resolve({ data: null }),
-          ]);
+        const [
+          { data: upTo, error: upToError },
+          { data: after, error: afterError },
+          { data: contact, error: contactError },
+        ] = await Promise.all([
+          visible()
+            .lte('created_at', thread.latestBotAt)
+            .order('created_at', { ascending: false })
+            .limit(MAX_MESSAGES_PER_THREAD - MAX_MESSAGES_AFTER_BOT),
+          visible()
+            .gt('created_at', thread.latestBotAt)
+            .order('created_at', { ascending: true })
+            .limit(MAX_MESSAGES_AFTER_BOT),
+          contactId
+            ? db
+                .from('contacts')
+                .select('id, created_at')
+                .eq('id', contactId)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+        ]);
+        // A partial read is never finalised: the thread fails tonight
+        // and is still due tomorrow.
+        const readError = upToError ?? afterError ?? contactError;
+        if (readError) throw new Error(readError.message);
         const transcript = transcriptFromMessages([
           ...[...((upTo ?? []) as MessageRow[])].reverse(),
           ...((after ?? []) as MessageRow[]),

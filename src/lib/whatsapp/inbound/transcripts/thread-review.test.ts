@@ -134,7 +134,7 @@ function candidates(args: Record<string, unknown>) {
         .at(-1);
       return !reviewedUpTo || at > reviewedUpTo;
     })
-    .sort((a, b) => b[1].localeCompare(a[1]))
+    .sort((a, b) => a[1].localeCompare(b[1]))
     .slice(0, Number(args.p_limit))
     .map(([id, at]) => ({
       conversation_id: id,
@@ -604,6 +604,77 @@ describe('[CNV-006] collection', () => {
       'any plots?',
       'Here it is: https://x/?property_id=p1&v=c',
     ]);
+  });
+
+  it("reviews the oldest due thread first, so a night's leftovers go ahead of new traffic", async () => {
+    tables.conversations = ['old', 'new'].map((id) => ({
+      id: `conv-${id}`,
+      account_id: 'acc-1',
+      contact_id: null,
+    }));
+    tables.messages = [
+      {
+        conversation_id: 'conv-new',
+        account_id: 'acc-1',
+        sender_type: 'bot',
+        private: false,
+        content_type: 'text',
+        content_text: 'https://x/?v=new',
+        created_at: at(5),
+      },
+      {
+        conversation_id: 'conv-old',
+        account_id: 'acc-1',
+        sender_type: 'bot',
+        private: false,
+        content_type: 'text',
+        content_text: 'https://x/?v=old',
+        created_at: at(60 * 24 * 2),
+      },
+    ];
+    const judged: string[] = [];
+    await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge: async (prompt) => {
+        judged.push(prompt.includes('?v=old') ? 'old' : 'new');
+        return '{"score": 90, "issues": []}';
+      },
+      limit: 1,
+    });
+    expect(judged).toEqual(['old', 'new']);
+  });
+
+  it('fails a thread rather than finalising a partial read', async () => {
+    const judge = vi.fn<(prompt: string, system: string) => Promise<string>>(
+      async () => '{"score": 90, "issues": []}'
+    );
+    const flaky = {
+      ...db,
+      from(table: string) {
+        const builder = db.from(table);
+        if (table !== 'contacts') return builder;
+        return {
+          ...builder,
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: null,
+                error: { message: 'connection reset' },
+              }),
+            }),
+          }),
+        };
+      },
+    };
+    const result = await runBotThreadReview({
+      db: flaky as never,
+      now: NOW,
+      judge,
+    });
+    expect(result).toMatchObject({ threads: 1, reviewed: 0, failed: 1 });
+    expect(tables.bot_thread_reviews).toHaveLength(0);
+    expect(judge).not.toHaveBeenCalled();
   });
 
   it('stops at the time budget and says so', async () => {

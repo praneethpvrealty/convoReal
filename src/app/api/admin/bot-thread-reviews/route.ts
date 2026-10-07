@@ -42,6 +42,8 @@ export async function GET(request: Request) {
     .select(
       'id, account_id, conversation_id, contact_id, review_day, window_start, window_end, transcript, rule_violations, score, verdict, issues, summary, model, admin_verdict, admin_note, admin_reviewed_at, reviewed_at, accounts(name), contacts(name, created_at)'
     )
+    // A claim the judge has not answered yet is not a review.
+    .not('judged_at', 'is', null)
     .order('reviewed_at', { ascending: false })
     .limit(limit);
   if ((VERDICTS as readonly string[]).includes(verdict)) {

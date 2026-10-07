@@ -33,12 +33,30 @@ beforeEach(() => {
   state.admin = true;
   tables = {
     bot_thread_reviews: [
-      { id: 'r-fail', verdict: 'fail', reviewed_at: '2026-10-08T00:00:00Z' },
-      { id: 'r-pass', verdict: 'pass', reviewed_at: '2026-10-08T00:00:00Z' },
+      {
+        id: 'r-fail',
+        verdict: 'fail',
+        reviewed_at: '2026-10-08T00:00:00Z',
+        judged_at: '2026-10-08T00:00:00Z',
+      },
+      {
+        id: 'r-pass',
+        verdict: 'pass',
+        reviewed_at: '2026-10-08T00:00:00Z',
+        judged_at: '2026-10-08T00:00:00Z',
+      },
       {
         id: 'r-unscored',
         verdict: 'unscored',
         reviewed_at: '2026-10-08T00:00:00Z',
+        judged_at: '2026-10-08T00:00:00Z',
+      },
+      // A claim the judge has not answered yet.
+      {
+        id: 'r-pending',
+        verdict: 'unscored',
+        reviewed_at: '2026-10-08T00:00:00Z',
+        judged_at: null,
       },
     ],
   };
@@ -57,7 +75,7 @@ describe('[CNV-006] /api/admin/bot-thread-reviews', () => {
     ).toBe(403);
   });
 
-  it('lists the threads worth a look by default, and any verdict on request', async () => {
+  it('lists the finished threads worth a look by default, and any verdict on request', async () => {
     const attention = (await (await GET(new Request(url))).json()) as {
       reviews: Row[];
     };
@@ -82,6 +100,7 @@ describe('[CNV-006] /api/admin/bot-thread-reviews', () => {
       id: `r-${n}`,
       verdict: 'fail',
       reviewed_at: `2026-10-08T00:0${n}:00Z`,
+      judged_at: `2026-10-08T00:0${n}:00Z`,
     }));
     const first = (await (
       await GET(new Request(`${url}?verdict=fail&limit=2`))
