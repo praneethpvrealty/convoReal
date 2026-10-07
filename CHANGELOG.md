@@ -28,6 +28,12 @@ than a written entry. Newest first.
   server and the database triggers that already used them. **Migration
   required:** `20261006033422_internal_definer_functions_service_role_only.sql`.
 
+- **Read-only members can no longer hand off a contact or issue a beta
+  invitation.** Both actions are refused for a read-only member by the API and
+  by the database functions behind them, so calling the function directly with
+  the member's own sign-in is refused too. **Migration required:**
+  `20261006035538_handoff_beta_invite_read_only.sql`. Invariant ACC-006.
+
 - **Two more "call me" replies take the right path.** "I'll check and call back
   tomorrow" is read as the client's own call again, not a request for the
   team to ring, so the callback promise is no longer sent. "Not interested,
