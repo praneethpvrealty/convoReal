@@ -44,12 +44,16 @@ than a written entry. Newest first.
   can still read everything they could before, and can still edit their own
   profile, notification devices, notification read state and task-digest
   preference, and file a support ticket or bug report. A read-only member who
-  opens a conversation no longer clears its shared unread count. **Migration
-  required:** `20261005083357_workspace_write_read_only_rls.sql` and
+  opens a conversation no longer clears its shared unread count. Listing
+  photos and property documents in storage get the same rule, and the
+  property-documents bucket, which accepted an upload, overwrite or delete
+  from anyone holding the public key, now takes them only from a member who
+  can write to the account the file is filed under. **Migration required:**
+  `20261005083357_workspace_write_read_only_rls.sql`,
   `20261007051025_flow_automation_write_policies_alter.sql`, which lands the
   flow and automation policies of `20261004155516` that never reached
-  production. Both change policies in place with `ALTER POLICY`. Invariant
-  ACC-003.
+  production, and `20261007054244_property_storage_write_read_only.sql`. All
+  three change policies in place with `ALTER POLICY`. Invariant ACC-003.
 - **A new requirement typed in reply to a check-in now gets matching listings.**
   A client who answered an enquiry check-in with what they want instead, such
   as "Hsr layout 30x40 north and east facing only", had it logged as an update

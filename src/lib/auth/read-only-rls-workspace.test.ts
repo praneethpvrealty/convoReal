@@ -117,6 +117,35 @@ describe('[ACC-003] read-only RLS on every workspace write policy', () => {
     }
   });
 
+  it('holds listing media and property documents in storage to the same rule', () => {
+    const storage = readFileSync(
+      join(MIGRATIONS, '20261007054244_property_storage_write_read_only.sql'),
+      'utf8'
+    );
+    const altered = [
+      ...storage.matchAll(
+        /ALTER POLICY "([^"]+)" ON storage\.objects([\s\S]*?);/g
+      ),
+    ];
+    expect(altered.map((m) => m[1]).sort()).toEqual([
+      'Agents can delete private property images',
+      'Agents can delete property images',
+      'Agents can update private property images',
+      'Agents can update property images',
+      'Agents can upload private property images',
+      'Agents can upload property images',
+      'Users can delete property documents',
+      'Users can update property documents',
+      'Users can upload property documents',
+    ]);
+    for (const [, name, body] of altered) {
+      expect(body, name).toMatch(
+        /bucket_id = 'property-(images|images-private|documents)'\s+AND public\.is_account_writer\(\(\(storage\.foldername\(name\)\)\[1\]\)::uuid, 'agent'\)/
+      );
+      expect(body, name).not.toContain('is_account_member(');
+    }
+  });
+
   it('lets a team leader edit their team only while they can write', () => {
     const teams = writes.find((p) => p.name === 'teams_update');
     expect(teams?.body).toMatch(
