@@ -1,4 +1,5 @@
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
+import { listingTitleForMessage } from '@/lib/inventory/listing-title';
 
 /**
  * Which listings the proactive senders are still allowed to talk about.
@@ -99,27 +100,34 @@ const ENQUIRY_STATUS_PHRASES: Record<string, string> = {
 export const UNAVAILABLE_LISTING_AGENT_NOTE =
   'The buyer was told the listing is not available and asked for their requirements and budget — follow up with matching options.';
 
+/** The line every dead-end reply ends on: whatever the bot could not
+ *  find, the buyer can always browse the live catalogue themselves. */
+export function showcaseBrowseLine(showcaseUrl: string): string {
+  return `Browse every live listing any time: ${showcaseUrl}`;
+}
+
 export function unavailableListingReply(
   contactName: string | null | undefined,
   propertyTitle: string | null | undefined,
-  status: string | null | undefined
+  status: string | null | undefined,
+  showcaseUrl?: string | null
 ): string | null {
   const value = (status ?? '').trim();
   if (!value || value === 'Available' || value === 'Pending Review')
     return null;
   const first = leadFirstName(contactName);
   const greeting = first ? `Hi ${first}, thank you` : 'Hi, thank you';
-  const subject = propertyTitle?.trim()
-    ? `*${propertyTitle.trim()}*`
-    : 'this property';
+  const title = listingTitleForMessage(propertyTitle);
+  const subject = title ? `*${title}*` : 'this property';
   const nudge =
     "Please share your requirements and budget, and I'll send you the best matching options.";
+  const browse = showcaseUrl ? `\n\n${showcaseBrowseLine(showcaseUrl)}` : '';
   if (value === 'Sold') {
-    return `${greeting} for your interest in ${subject}. I'm sorry — this property has already been sold. I'd be glad to find you something similar. ${nudge}`;
+    return `${greeting} for your interest in ${subject}. I'm sorry — this property has already been sold. I'd be glad to find you something similar. ${nudge}${browse}`;
   }
   const phrase =
     ENQUIRY_STATUS_PHRASES[value] ?? `marked ${value.toLowerCase()} right now`;
-  return `${greeting} for your interest in ${subject}. I'm sorry — this property is ${phrase}. If it becomes available again, we'll come back and update you right here. Meanwhile, ${nudge.charAt(0).toLowerCase()}${nudge.slice(1)}`;
+  return `${greeting} for your interest in ${subject}. I'm sorry — this property is ${phrase}. If it becomes available again, we'll come back and update you right here. Meanwhile, ${nudge.charAt(0).toLowerCase()}${nudge.slice(1)}${browse}`;
 }
 
 export function listingStatusAgentLine(

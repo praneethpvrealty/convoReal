@@ -10,6 +10,7 @@ const mockDb = {
   contact_tags: [] as MockRecord[],
   email_sync_logs: [] as MockRecord[],
   tags: [] as MockRecord[],
+  property_portal_listings: [] as MockRecord[],
   properties: [
     {
       id: 'prop-123',
@@ -36,12 +37,15 @@ vi.mock('@/lib/supabase/admin', () => {
     if (table === 'profiles')
       return { data: { user_id: 'user-456' }, error: null };
     if (table === 'properties') return { data: mockDb.properties, error: null };
+    if (table === 'property_portal_listings')
+      return { data: mockDb.property_portal_listings[0] ?? null, error: null };
     if (table === 'contacts') return { data: null, error: null };
     return { data: null, error: null };
   };
 
   const mockSupabase = {
     from: vi.fn().mockImplementation((table) => {
+      let propertyId: unknown;
       const builder = {
         then: (
           resolve: (value: {
@@ -82,7 +86,10 @@ vi.mock('@/lib/supabase/admin', () => {
           return { data: null, error: null };
         }),
         delete: vi.fn().mockImplementation(() => builder),
-        eq: vi.fn().mockImplementation(() => builder),
+        eq: vi.fn().mockImplementation((column: string, value: unknown) => {
+          if (table === 'properties' && column === 'id') propertyId = value;
+          return builder;
+        }),
         or: vi.fn().mockImplementation(() => builder),
         in: vi.fn().mockImplementation(() => builder),
         order: vi.fn().mockImplementation(() => builder),
@@ -90,6 +97,11 @@ vi.mock('@/lib/supabase/admin', () => {
         maybeSingle: vi.fn().mockImplementation(() => {
           if (table === 'contacts')
             return Promise.resolve({ data: null, error: null });
+          if (table === 'properties' && propertyId !== undefined)
+            return Promise.resolve({
+              data: mockDb.properties.find((p) => p.id === propertyId) ?? null,
+              error: null,
+            });
           return Promise.resolve({ data: selectImpl(table).data, error: null });
         }),
         single: vi.fn().mockImplementation(() => {
@@ -146,6 +158,7 @@ import {
   POST,
 } from './route';
 import { sendUnavailableListingReply } from './unavailable-listing';
+import { sendAutoReply } from './auto-reply';
 
 describe('Email Webhook Lead Parsing', () => {
   describe('parsePortalLead', () => {
@@ -1076,7 +1089,9 @@ Content-Transfer-Encoding: quoted-printable
       mockDb.contacts = [];
       mockDb.contact_property_inquiries = [];
       mockDb.contact_tags = [];
+      mockDb.property_portal_listings = [];
       vi.mocked(sendUnavailableListingReply).mockClear();
+      vi.mocked(sendAutoReply).mockClear();
       mockDb.email_sync_logs = [];
       // reset properties to initial state
       mockDb.properties = [
@@ -1500,6 +1515,87 @@ Content-Transfer-Encoding: quoted-printable
       // or not it resolved.
       expect(mockDb.contacts[0].lead_portal).toBe('housing');
       expect(mockDb.contacts[0].lead_portal_listing_id).toBe('20327451');
+    });
+
+    it('[CNV-001] records the exact-matched listing own locality, type and price beside the portal wording', async () => {
+      // 99acres calls the plot's area "Dollars Colony"; inventory files
+      // it under JP Nagar 4th Phase. A lead filed under the portal's
+      // name alone never matched a single JP Nagar listing afterwards.
+      mockDb.properties.push({
+        id: 'prop-20',
+        title: '#20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.',
+        type: 'Commercial Land',
+        location: 'JP Nagar 4th Phase, Bangalore, Karnataka',
+        sublocality: 'JP Nagar 4th Phase',
+        bedrooms: null,
+        area_sqft: null,
+        land_area: 2400,
+        land_area_unit: 'Sq.Ft.',
+        price: 84000000,
+        property_code: 'PROP-20',
+      });
+      mockDb.property_portal_listings.push({
+        account_id: 'acc-789',
+        portal: '99acres',
+        portal_listing_id: 'K89065520',
+        property_id: 'prop-20',
+      });
+
+      const req = new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subject:
+              'Buyer wants to know about your Rs8.4 Crore, Commercial Land/Inst. Land in  Dollars Colony',
+            from: '99_SUPPORT <nnacres-services@99acres.com>',
+            text: [
+              'You have received a response on Rs8.4 Crore , Commercial Land/Inst. Land in Dollars Colony (K89065520) on 99acres.com',
+              'Shirish',
+              '+91-9986054104 (Verified)',
+            ].join('\n'),
+          }),
+        }
+      );
+
+      expect((await POST(req)).status).toBe(200);
+
+      const contact = mockDb.contacts[0];
+      expect(contact.last_inquired_property_id).toBe('prop-20');
+      expect(contact.pref_areas).toEqual([
+        'Dollars Colony',
+        'JP Nagar 4th Phase',
+      ]);
+      expect(contact.property_interests).toContain('Commercial');
+      expect(contact.pref_budget_max).toBe(84000000);
+      expect(contact.pref_budget_anchor).toBe(84000000);
+    });
+
+    it('[CNV-001] greets a lead on an unavailable listing with the status notice alone', async () => {
+      vi.mocked(sendUnavailableListingReply).mockResolvedValueOnce('template');
+
+      const req = new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subject:
+              'Hot Lead - Buyer has contacted you on Magicbricks for - Industrial Land for sale in Bommasandra',
+            from: 'MagicBricks <info@magicbricks.com>',
+            text: [
+              'A user is interested in your Property, ID 79221031: Industrial Land in Bommasandra, Bangalore.',
+              "Sender's Name: Pushpa (Individual)",
+              'Mobile: 9740750397',
+            ].join('\n'),
+          }),
+        }
+      );
+
+      expect((await POST(req)).status).toBe(200);
+      expect(sendUnavailableListingReply).toHaveBeenCalledTimes(1);
+      expect(sendAutoReply).not.toHaveBeenCalled();
     });
 
     it('does not file an enquiry that names no locality against a same-type listing', async () => {

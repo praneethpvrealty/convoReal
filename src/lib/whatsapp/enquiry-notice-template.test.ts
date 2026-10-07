@@ -126,6 +126,29 @@ describe('describeEnquiredProperty', () => {
       describeEnquiredProperty(prop({ title: 'Plot 42', location: 'Mysore' }))
     ).toBe('Plot 42, Mysore');
   });
+
+  it('[CNV-001] names a locality the title already carries only once, and drops the title trailing stop', () => {
+    expect(
+      describeEnquiredProperty(
+        prop({
+          title:
+            '#20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase.',
+          sublocality: 'JP Nagar 4th Phase',
+          city: 'Bangalore',
+        })
+      )
+    ).toBe(
+      '#20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase, Bangalore'
+    );
+    expect(
+      describeEnquiredProperty(
+        prop({
+          title: 'Villa in Whitefield, Bangalore',
+          location: 'Whitefield, Bangalore, Karnataka',
+        })
+      )
+    ).toBe('Villa in Whitefield, Bangalore, Karnataka');
+  });
 });
 
 describe('buildEnquiryNoticeParams', () => {

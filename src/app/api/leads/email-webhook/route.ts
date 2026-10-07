@@ -18,8 +18,7 @@ import {
 import { toSquareFeet } from '@/lib/ai/listing-derivations';
 import { resolveHousingPhone } from './phone-resolver';
 import { writeSyncLog, assignTagsToContact } from './db-utils';
-import { sendAutoReply } from './auto-reply';
-import { sendUnavailableListingReply } from './unavailable-listing';
+import { sendLeadArrivalReplies } from './lead-replies';
 import { portalKeyFromSource } from '@/lib/portals/listing-identity';
 import { placeholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
@@ -665,6 +664,49 @@ export async function POST(request: Request) {
     const inferredAreas: string[] = [];
     const propertyInterests: string[] = [];
 
+    // The listing the enquiry resolved to is the strongest statement of
+    // what this lead wants: its own locality, type and price. The portal
+    // phrases the locality its own way ("Dollars Colony" for a plot
+    // inventory files under JP Nagar 4th Phase), so the listing's label
+    // is recorded beside the portal's, or every later match runs against
+    // a name the inventory never uses.
+    const absorbListingFacts = (
+      listings: Array<{
+        price?: number | string | null;
+        location?: string | null;
+        sublocality?: string | null;
+        type?: string | null;
+      }>
+    ) => {
+      if (listings.length === 0) return;
+      if (!inferredBudget) {
+        const maxPrice = Math.max(...listings.map((p) => Number(p.price) || 0));
+        if (maxPrice > 0) inferredBudget = maxPrice;
+      }
+      for (const p of listings) {
+        const mainArea = areaLabelFromListing(p);
+        if (mainArea) {
+          const areaLower = mainArea.toLowerCase();
+          const formattedArea =
+            areaLower === 'hsr' || areaLower === 'jp nagar'
+              ? mainArea.toUpperCase()
+              : mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
+          if (
+            !areasOfInterest.includes(formattedArea) &&
+            !inferredAreas.includes(formattedArea)
+          ) {
+            inferredAreas.push(formattedArea);
+          }
+        }
+        if (p.type) {
+          const interest = interestFromTypeText(p.type);
+          if (interest && !propertyInterests.includes(interest)) {
+            propertyInterests.push(interest);
+          }
+        }
+      }
+    };
+
     if (parsed.requirementText) {
       maxBudget = parseBudgetToINR(parsed.requirementText);
 
@@ -792,6 +834,15 @@ export async function POST(request: Request) {
           console.log(
             `[lead-webhook] Exact portal match: ${leadPortal} listing ${parsed.portalListingId} -> property ${link.property_id}`
           );
+          const { data: exactListing } = await supabase
+            .from('properties')
+            .select('id, price, location, sublocality, type')
+            .eq('account_id', accountId)
+            .eq('id', link.property_id)
+            .maybeSingle();
+          if (exactListing && exactListing.id === link.property_id) {
+            absorbListingFacts([exactListing]);
+          }
         }
       } catch (err) {
         console.error('[lead-webhook] Portal listing lookup failed:', err);
@@ -936,48 +987,7 @@ export async function POST(request: Request) {
               .filter((sp) => sp.score >= 3 && sp.score === maxScore)
               .map((sp) => sp.property);
 
-            if (bestMatchedProperties.length > 0) {
-              // Use the highest price from best matched properties as the inferred budget if the ad quoted none
-              if (!inferredBudget) {
-                const maxPrice = Math.max(
-                  ...bestMatchedProperties.map((p) => p.price || 0)
-                );
-                if (maxPrice > 0) {
-                  inferredBudget = maxPrice;
-                }
-              }
-
-              // Add areas from best matched property locations
-              bestMatchedProperties.forEach((p: PropertyForMatching) => {
-                const mainArea = areaLabelFromListing(p);
-                if (mainArea) {
-                  const areaLower = mainArea.toLowerCase();
-                  let formattedArea = mainArea;
-                  if (areaLower === 'hsr' || areaLower === 'jp nagar') {
-                    formattedArea = mainArea.toUpperCase();
-                  } else {
-                    formattedArea =
-                      mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
-                  }
-                  if (
-                    !areasOfInterest.includes(formattedArea) &&
-                    !inferredAreas.includes(formattedArea)
-                  ) {
-                    inferredAreas.push(formattedArea);
-                  }
-                }
-              });
-
-              // Add property interests from best matched property types
-              bestMatchedProperties.forEach((p: PropertyForMatching) => {
-                if (p.type) {
-                  const interest = interestFromTypeText(p.type);
-                  if (interest && !propertyInterests.includes(interest)) {
-                    propertyInterests.push(interest);
-                  }
-                }
-              });
-            }
+            absorbListingFacts(bestMatchedProperties);
           }
         }
       } catch (err) {
@@ -1256,38 +1266,18 @@ export async function POST(request: Request) {
         match: matchAudit,
       });
 
-      // Trigger automatic WhatsApp reply — always send for email leads
-      const replyResult = await sendAutoReply({
+      await sendLeadArrivalReplies({
         supabase,
         accountId,
+        userId,
         syncConfig,
-        conversationId,
+        contactId: existingContact.id,
+        conversationId: conversationId || null,
         cleanPhone,
         leadName: existingContact.name || '',
         leadSource: parsed.source || '',
-        forceSend: true,
+        matchedPropertyId: matchedPropertyIds[0] ?? null,
       });
-      if (!replyResult.success) {
-        console.error(
-          `[lead-webhook] Auto-reply FAILED for existing contact ${existingContact.id}: ${replyResult.error}`
-        );
-      } else {
-        console.log(
-          `[lead-webhook] Auto-reply SENT for existing contact ${existingContact.id}: messageId=${replyResult.messageId}`
-        );
-      }
-
-      if (matchedPropertyIds.length > 0) {
-        await sendUnavailableListingReply({
-          supabase,
-          accountId,
-          userId,
-          contactId: existingContact.id,
-          conversationId: conversationId || null,
-          leadName: existingContact.name || '',
-          propertyId: matchedPropertyIds[0],
-        });
-      }
 
       // Fire automations for existing contact getting a new lead
       void runAutomationsForTrigger({
@@ -1459,38 +1449,18 @@ export async function POST(request: Request) {
       match: matchAudit,
     });
 
-    // Trigger automatic WhatsApp reply — always send for email leads
-    const replyResult = await sendAutoReply({
+    await sendLeadArrivalReplies({
       supabase,
       accountId,
+      userId,
       syncConfig,
+      contactId: newContact.id,
       conversationId: conversation?.id || null,
       cleanPhone,
       leadName: parsed.name || '',
       leadSource: parsed.source || '',
-      forceSend: true,
+      matchedPropertyId: matchedPropertyIds[0] ?? null,
     });
-    if (!replyResult.success) {
-      console.error(
-        `[lead-webhook] Auto-reply FAILED for new contact ${newContact.id}: ${replyResult.error}`
-      );
-    } else {
-      console.log(
-        `[lead-webhook] Auto-reply SENT for new contact ${newContact.id}: messageId=${replyResult.messageId}`
-      );
-    }
-
-    if (matchedPropertyIds.length > 0) {
-      await sendUnavailableListingReply({
-        supabase,
-        accountId,
-        userId,
-        contactId: newContact.id,
-        conversationId: conversation?.id || null,
-        leadName: parsed.name || '',
-        propertyId: matchedPropertyIds[0],
-      });
-    }
 
     // Fire automations for the new contact (e.g. welcome message, property info)
     void runAutomationsForTrigger({

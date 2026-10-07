@@ -44,6 +44,8 @@ import {
   templateButtonLabel,
 } from '@/lib/whatsapp/template-copy';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
+import { listingTitleForMessage } from '@/lib/inventory/listing-title';
+import { textContainsLocality } from '@/lib/locality-match';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import type { Property } from '@/types';
 import { BRANDING } from '@/config/branding';
@@ -123,17 +125,22 @@ export function buildEnquiryNoticeTemplatePayload(
 /** "3 BHK at Prestige Lakeside Habitat, Whitefield" — enough for the
  *  lead to recognise their own enquiry at a glance. */
 export function describeEnquiredProperty(property: Property): string {
-  const title = property.title?.trim() || 'your enquiry';
+  const title = listingTitleForMessage(property.title) || 'your enquiry';
   const bhk =
     property.bedrooms && property.bedrooms > 0
       ? `${property.bedrooms} BHK at `
       : '';
-  const locality =
-    [property.sublocality?.trim(), property.city?.trim()]
-      .filter(Boolean)
-      .join(', ') ||
-    property.location?.trim() ||
-    '';
+  // Agents routinely put the locality in the title ("… Plot on 100 feet
+  // JP Nagar 4th Phase"); naming it again after the comma read as a
+  // stutter. Only the parts the title does not already say are added.
+  const named = [property.sublocality, property.city].filter(
+    (part): part is string => !!part?.trim()
+  );
+  const segments = named.length ? named : (property.location ?? '').split(',');
+  const locality = segments
+    .map((part) => part.trim())
+    .filter((part) => part && !textContainsLocality(title, part))
+    .join(', ');
   return sanitizeTemplateParam(
     `${bhk}${title}${locality ? `, ${locality}` : ''}`
   );

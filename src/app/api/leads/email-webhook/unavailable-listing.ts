@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
 import { unavailableListingReply } from '@/lib/inventory/listing-status';
+import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
 import {
   buildEnquiryNoticeParams,
   enquiryNoticeParamCount,
@@ -64,10 +65,19 @@ export async function sendUnavailableListingReply({
     .maybeSingle();
   if (!property) return 'available';
 
+  if (
+    !unavailableListingReply(
+      leadName,
+      (property as Property).title,
+      (property as Property).status
+    )
+  )
+    return 'available';
   const reply = unavailableListingReply(
     leadName,
     (property as Property).title,
-    (property as Property).status
+    (property as Property).status,
+    await accountShowcaseBrowseUrl(supabase, accountId, contactId)
   );
   if (!reply) return 'available';
 
