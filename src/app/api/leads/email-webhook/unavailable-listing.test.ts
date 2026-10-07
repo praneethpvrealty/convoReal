@@ -84,6 +84,19 @@ describe('sendUnavailableListingReply', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('[CNV-001] counts a send Meta accepted as delivered even when bookkeeping failed afterwards', async () => {
+    send.mockResolvedValue({
+      success: false,
+      reachedMeta: true,
+      error: 'messages insert failed',
+    });
+    const supabase = fakeDb({ properties: property });
+    expect(await sendUnavailableListingReply({ supabase, ...args })).toBe(
+      'text'
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it('[PRP-014] tells a portal lead the listing is under contract and asks for requirements and budget', async () => {
     send.mockResolvedValue({ success: true });
     const supabase = fakeDb({ properties: property });
@@ -97,6 +110,11 @@ describe('sendUnavailableListingReply', () => {
     expect(call.text).toMatch(/under contract/);
     expect(call.text).toMatch(/we'll come back and update you/);
     expect(call.text).toMatch(/requirements and budget/);
+    // [CNV-001] A dead end always hands the lead the catalogue, attributed
+    // to them so the visit shows on Showcase Pulse.
+    expect(call.text).toMatch(
+      /Browse every live listing any time: http\S+v=contact-1/
+    );
   });
 
   it('[PRP-014] falls back to the approved status notice outside the 24-hour window', async () => {
@@ -120,7 +138,7 @@ describe('sendUnavailableListingReply', () => {
     expect(call.templateParams).toEqual([
       'Sandeep',
       'Aryavarta Ventures',
-      '2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase, JP Nagar 4th Phase, Bangalore',
+      '2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase, Bangalore',
     ]);
     expect(call.text).toContain('update from Aryavarta Ventures');
     expect(resolveSendLanguage).toHaveBeenCalledWith(
@@ -179,7 +197,7 @@ describe('sendUnavailableListingReply', () => {
     expect(call.templateParams).toEqual([
       'Sandeep',
       'Aryavarta Ventures',
-      '2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase, JP Nagar 4th Phase, Bangalore',
+      '2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase, Bangalore',
       'Under contract',
     ]);
     expect(call.text).toContain('is Under contract');

@@ -4399,6 +4399,39 @@
           ]
         }
       ]
+    },
+    {
+      "id": "buyer-conversations",
+      "name": "Buyer conversations — what a lead hears from the bot, read as one thread",
+      "surfaces": ["whatsapp"],
+      "invariants": [
+        {
+          "id": "CNV-001",
+          "rule": "A portal lead whose enquired listing has left the market is greeted by one message, the listing status notice (free-form inside an open window, the approved Utility template outside it), never the welcome auto-reply beside it; the welcome goes out only when no notice is sent. The notice names the listing once, without repeating a locality its title already carries and without the title's trailing punctuation, and the free-form reply ends with the lead's attributed showcase link. The exact-matched listing's own locality, type and price are recorded on the lead beside the portal's wording of them.",
+          "tests": [
+            {
+              "file": "src/app/api/leads/email-webhook/lead-replies.test.ts",
+              "case": "[CNV-001]"
+            },
+            {
+              "file": "src/app/api/leads/email-webhook/route.test.ts",
+              "case": "[CNV-001]"
+            },
+            {
+              "file": "src/app/api/leads/email-webhook/unavailable-listing.test.ts",
+              "case": "[CNV-001]"
+            },
+            {
+              "file": "src/lib/whatsapp/enquiry-notice-template.test.ts",
+              "case": "[CNV-001]"
+            },
+            {
+              "file": "src/lib/inventory/listing-status.test.ts",
+              "case": "[CNV-001]"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

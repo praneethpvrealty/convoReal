@@ -19,6 +19,18 @@ than a written entry. Newest first.
 
 #### 7 October 2026
 
+- **A portal lead on a listing that has left the market hears one message,
+  not two.** The welcome ("tell me your requirement and I'll share
+  properties") and, two seconds later, the status notice ("the listing is no
+  longer available") used to go out together and contradict each other. The
+  notice is now the greeting whenever it is sent; the welcome goes out only
+  when there is no notice to send. The notice names the listing once (no
+  repeated locality, no trailing full stop inside the bold) and the free-form
+  reply ends with the lead's own showcase link. A lead matched exactly to a
+  portal ad now also records the listing's own locality, type and price, so
+  "Dollars Colony" from the portal no longer hides every JP Nagar listing
+  from the match. No migration is required.
+
 - **Follow-up cards act in one tap.** The "Follow-up due" WhatsApp card now
   carries 💬 Check in, 🤔 Still considering and ❄️ Mark cold as buttons on the
   message itself, instead of an "Update lead" list that had to be opened
