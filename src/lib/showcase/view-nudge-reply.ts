@@ -145,7 +145,7 @@ export async function handleViewNudgeReply(args: {
 
   if (repeatTap) return true;
 
-  await db.from('listing_feedback').upsert(
+  const { error: feedbackError } = await db.from('listing_feedback').upsert(
     {
       account_id: accountId,
       contact_id: contact.id,
@@ -155,6 +155,9 @@ export async function handleViewNudgeReply(args: {
     },
     { onConflict: 'contact_id,property_id' }
   );
+  if (feedbackError) {
+    console.error('[view-nudge-reply] interest not recorded:', feedbackError);
+  }
 
   const contactName = contact.name?.trim() || 'A lead';
   const contactPhone =
@@ -196,6 +199,6 @@ export async function handleViewNudgeReply(args: {
     entityId: conversationId,
     link: `/inbox?conversation=${conversationId}`,
   });
-  if (!todoError) await recordResponse();
+  if (!todoError && !feedbackError) await recordResponse();
   return true;
 }

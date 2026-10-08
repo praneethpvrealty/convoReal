@@ -28,7 +28,8 @@ than a written entry. Newest first.
   contact every three days, never during client quiet hours, and never to
   anyone who opted out of alerts or is already talking to the team. The agent
   alert can be switched off under Settings → Notifications → Showcase.
-  **Migration required:** `20261008032901_showcase_view_nudges.sql`.
+  **Migration required:** `20261008032901_showcase_view_nudges.sql` and
+  `20261008043556_showcase_view_nudge_fair_batches.sql`.
 - **Agents hear about hot viewers.** When a known contact spends 2+ minutes on
   one listing, or comes back to it on separate days, their agent gets a "🔥 Hot
   viewer" alert naming the listing and how long they looked, so the call happens

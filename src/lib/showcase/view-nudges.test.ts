@@ -89,7 +89,10 @@ function fakeDb(state: {
 
   const resolve = (q: Query) => {
     queries.push(q);
-    if (q.op === 'insert' && q.table === state.failInsert) {
+    if (
+      (q.op === 'insert' || q.op === 'upsert') &&
+      q.table === state.failInsert
+    ) {
       return { data: null, error: { message: 'insert failed' } };
     }
     if (q.op === 'update' && failedUpdates < (state.failUpdates ?? 0)) {
@@ -568,6 +571,17 @@ describe('[PLS-007] answers to the showcase view check-in', () => {
       okOrder.indexOf('todos:insert')
     );
     expect(order).toContain('todos:insert');
+  });
+
+  it('leaves the answer unrecorded when the interest verdict was not saved', async () => {
+    const { db, queries } = fakeDb({
+      tables: openNudge(),
+      failInsert: 'listing_feedback',
+    });
+    expect(await reply(db, 'v')).toBe(true);
+    expect(queries.some((q) => q.table === 'todos')).toBe(true);
+    expect(h.notify).toHaveBeenCalledTimes(1);
+    expect(responseRecorded(queries)).toBe(false);
   });
 
   it('still alerts the agent and adds the to-do when the buyer acknowledgement fails, and says so', async () => {
