@@ -29,12 +29,30 @@ describe('showcase location search', () => {
     expect(locationCandidates(properties)).toEqual([
       'Bengaluru',
       'Indiranagar',
-      'Indiranagar, Bengaluru',
       'Koramangala',
-      'Koramangala, Bengaluru',
       'Whitefield',
-      'Whitefield, Bengaluru',
     ]);
+  });
+
+  it('folds "<place>, <city>" into the bare place, including the Bangalore spelling', () => {
+    const catalog = [
+      { id: 'a', location: '6th block, F Sector', city: 'Bengaluru' },
+      { id: 'b', location: '6th block, F Sector, Bangalore', city: null },
+      { id: 'c', location: 'Aavalahalli', city: 'Bengaluru' },
+      { id: 'd', location: 'Aavalahalli, Bandapura', city: 'Bengaluru' },
+      { id: 'e', location: 'HSR Layout, Bengaluru', city: 'Bengaluru' },
+    ] as unknown as Property[];
+
+    expect(locationCandidates(catalog)).toEqual([
+      '6th block, F Sector',
+      'Aavalahalli',
+      'Aavalahalli, Bandapura',
+      'Bengaluru',
+      'HSR Layout, Bengaluru',
+    ]);
+    expect(matchesSelectedLocation(catalog[1], ['6th block, F Sector'])).toBe(
+      true
+    );
   });
 
   it('uses OR logic for selected location chips', () => {

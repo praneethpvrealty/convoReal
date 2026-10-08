@@ -11,6 +11,7 @@ import {
   onTestFinished,
 } from 'vitest';
 import {
+  act,
   render,
   cleanup,
   screen,
@@ -140,6 +141,11 @@ afterEach(() => {
   localStorage.clear();
 });
 
+function pickLocality(option: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'Locality' }));
+  fireEvent.click(screen.getByRole('option', { name: option }));
+}
+
 function pick(blank: string, option: string) {
   const trigger = screen.getByRole('combobox', { name: blank });
   fireEvent.pointerDown(trigger);
@@ -185,7 +191,7 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     expect(
       screen.getByRole('combobox', { name: 'Property kind' })
     ).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: 'Locality' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Locality' })).toBeTruthy();
     expect(screen.getByRole('combobox', { name: 'Budget' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /See 4 matches/ })).toBeTruthy();
 
@@ -218,9 +224,148 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     expect(grid().getByText(rental.title)).toBeTruthy();
     expect(grid().getByText(plot.title)).toBeTruthy();
 
-    pick('Locality', 'Kasavanahalli');
+    pickLocality('Kasavanahalli');
     expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
     expect(grid().getByText(villa.title)).toBeTruthy();
+  });
+
+  it('filters the Locality blank as the visitor types and offers a nearby search for an unlisted place', () => {
+    renderDealFloor();
+    fireEvent.click(screen.getByRole('button', { name: 'Locality' }));
+    const search = screen.getByRole('combobox', { name: 'Search localities' });
+    fireEvent.change(search, { target: { value: 'kasa' } });
+    const list = within(screen.getByRole('listbox', { name: 'Localities' }));
+    expect(list.getByRole('option', { name: 'Kasavanahalli' })).toBeTruthy();
+    expect(list.queryByRole('option', { name: 'Domlur' })).toBeNull();
+
+    fireEvent.change(search, { target: { value: 'Hebbal' } });
+    expect(
+      list.getByRole('option', { name: 'Search near “Hebbal”' })
+    ).toBeTruthy();
+    expect(screen.getByText(/No listed locality matches/)).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: 'domlur' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(
+      screen.getByRole('button', { name: 'Locality' }).textContent
+    ).toContain('Domlur');
+    expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
+  });
+
+  it('offers a listed locality together with everything within 5 km', async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation();
+    const nearUrls: string[] = [];
+    vi.mocked(fetch).mockImplementation(((url: string) => {
+      if (String(url).startsWith('/api/public/properties/near?')) {
+        nearUrls.push(String(url));
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                label: 'Kasavanahalli',
+                results: [
+                  { id: villa.id, tier: 'exact', distance_km: 0 },
+                  { id: plot.id, tier: 'nearby', distance_km: 3 },
+                ],
+              },
+            }),
+        } as Response);
+      }
+      return defaultFetch!(url);
+    }) as typeof fetch);
+    onTestFinished(() => {
+      vi.mocked(fetch).mockImplementation(defaultFetch!);
+    });
+    renderDealFloor();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Locality' }));
+    fireEvent.change(
+      screen.getByRole('combobox', { name: 'Search localities' }),
+      { target: { value: 'kasa' } }
+    );
+    expect(
+      screen.getByRole('option', { name: 'Kasavanahalli & nearby' })
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('option', { name: 'Kasavanahalli' }));
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Include places near Kasavanahalli' })
+    );
+    expect(
+      await screen.findByRole('button', {
+        name: 'Remove Near Kasavanahalli · 5 km',
+      })
+    ).toBeTruthy();
+    expect(new URL(nearUrls[0], 'http://x').searchParams.get('q')).toBe(
+      'Kasavanahalli'
+    );
+    expect(screen.getByRole('button', { name: /See 2 matches/ })).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Listings in Kasavanahalli first, then nearby by distance.'
+      )
+    ).toBeTruthy();
+  });
+
+  it('keeps a locality picked while a nearby search is still running', async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation();
+    let respond: (value: Response) => void = () => {};
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      String(url).startsWith('/api/public/properties/near?')
+        ? new Promise<Response>((resolve) => {
+            respond = resolve;
+          })
+        : defaultFetch!(url)) as typeof fetch);
+    onTestFinished(() => {
+      vi.mocked(fetch).mockImplementation(defaultFetch!);
+    });
+    renderDealFloor();
+
+    pickLocality('Kasavanahalli');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Include places near Kasavanahalli' })
+    );
+    pickLocality('Domlur');
+    await act(async () => {
+      respond({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              label: 'Kasavanahalli',
+              results: [{ id: villa.id, tier: 'exact', distance_km: 0 }],
+            },
+          }),
+      } as Response);
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Locality' }).textContent
+    ).toContain('Domlur');
+    expect(
+      screen.queryByRole('button', { name: 'Remove Near Kasavanahalli · 5 km' })
+    ).toBeNull();
+  });
+
+  it('shows why including nearby places failed beside the action', async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation();
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      String(url).startsWith('/api/public/properties/near?')
+        ? Promise.resolve({ ok: false, status: 429 } as Response)
+        : defaultFetch!(url)) as typeof fetch);
+    onTestFinished(() => {
+      vi.mocked(fetch).mockImplementation(defaultFetch!);
+    });
+    renderDealFloor();
+
+    pickLocality('Kasavanahalli');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Include places near Kasavanahalli' })
+    );
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Too many location searches. Try again in a minute.'
+    );
   });
 
   it('draws a plot face from the listing fields instead of "No Photos Available"', () => {
@@ -399,7 +544,7 @@ describe('Deal Floor showcase design [PRP-020]', () => {
       vi.mocked(fetch).mockImplementation(defaultFetch!);
     });
     renderDealFloor();
-    pick('Locality', 'a place not listed…');
+    pickLocality('a place not listed…');
     const input = await screen.findByLabelText('Search near a place');
     fireEvent.change(input, { target: { value: 'Hebbal' } });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -416,7 +561,7 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     ).toBe(true);
     expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
     expect(
-      screen.getByRole('combobox', { name: 'Locality' }).textContent
+      screen.getByRole('button', { name: 'Locality' }).textContent
     ).toContain('near Hebbal');
     expect(
       screen.getByText('No listings in Hebbal, so these are the nearest.')
