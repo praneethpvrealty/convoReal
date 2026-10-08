@@ -1894,7 +1894,11 @@ async function confirmCatalogProduct({
       break;
     }
   }
-  const stillProcessing = `Meta is still processing ${retailerId} in catalog ${catalogId}. Sync again in a minute.`;
+  if (!allFinished) {
+    throw new Error(
+      `Meta is still processing ${retailerId} in catalog ${catalogId}. Sync again in a minute.`
+    );
+  }
 
   const filter = JSON.stringify({ retailer_id: { eq: retailerId } });
   const res = await fetch(
@@ -1902,18 +1906,15 @@ async function confirmCatalogProduct({
     { headers }
   );
   if (!res.ok) {
-    if (allFinished) return;
-    throw new Error(stillProcessing);
+    await throwMetaError(
+      res,
+      `Could not confirm ${retailerId} in Meta Catalog: ${res.status}`
+    );
   }
   const json = (await res.json().catch(() => ({}))) as {
     data?: Array<{ retailer_id?: string }>;
   };
-  if (!Array.isArray(json.data)) {
-    if (allFinished) return;
-    throw new Error(stillProcessing);
-  }
-  if (!json.data.some((p) => p.retailer_id === retailerId)) {
-    if (!allFinished) throw new Error(stillProcessing);
+  if (!(json.data ?? []).some((p) => p.retailer_id === retailerId)) {
     throw new Error(
       `Meta accepted the sync but ${retailerId} is not in catalog ${catalogId}. Check that this catalog is the one connected to your WhatsApp Business Account in Commerce Manager.`
     );

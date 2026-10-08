@@ -18,6 +18,7 @@ export interface CatalogShareContext {
 }
 
 const CATALOG_SEND_TIMEOUT_MS = 120_000;
+const CATALOG_SYNC_TIMEOUT_MS = 60_000;
 
 export async function fetchCatalogShareContext(
   accountId: string,
@@ -55,7 +56,7 @@ export async function syncPropertyToCatalog(
 ): Promise<string> {
   const res = await apiFetch<{ synced_at?: string }>(
     `/api/properties/${propertyId}/sync-catalog`,
-    { method: 'POST' }
+    { method: 'POST', timeoutMs: CATALOG_SYNC_TIMEOUT_MS }
   );
   return res?.synced_at ?? new Date().toISOString();
 }

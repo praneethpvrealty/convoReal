@@ -567,6 +567,43 @@ describe('[PRP-043] syncProductToCatalog — confirms the item reached the catal
     }
   });
 
+  it('fails the sync when the catalog lookup errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.endsWith('/batch')) return json({ handles: ['h1'] });
+        if (url.includes('check_batch_request_status'))
+          return json({ data: [{ status: 'finished', errors: [] }] });
+        return Promise.resolve(new Response('{}', { status: 503 }));
+      })
+    );
+    await expect(
+      syncProductToCatalog({ catalogId: 'c1', accessToken: 't', property })
+    ).rejects.toThrow('Could not confirm PROP-1111 in Meta Catalog: 503');
+  });
+
+  it('never calls an unfinished batch synced, even with an older product row', async () => {
+    vi.useFakeTimers();
+    try {
+      stubMeta(
+        { data: [{ status: 'started', errors: [] }] },
+        { data: [{ id: '9', retailer_id: 'PROP-1111' }] }
+      );
+      const sync = syncProductToCatalog({
+        catalogId: 'c1',
+        accessToken: 't',
+        property,
+      });
+      const settled = expect(sync).rejects.toThrow(
+        'Meta is still processing PROP-1111'
+      );
+      await vi.runAllTimersAsync();
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('succeeds once the product is in the catalog', async () => {
     const fetchMock = stubMeta(
       { data: [{ status: 'finished', errors: [] }] },
