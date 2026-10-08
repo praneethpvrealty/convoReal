@@ -1935,6 +1935,16 @@ export function ShowcaseView({
               scrollToListings();
               setNearOpen(true);
             }}
+            onSearchNear={async (query) => {
+              const found = await searchNearby(query);
+              if (found) {
+                setDeckMode(false);
+                scrollToListings();
+              }
+              return found;
+            }}
+            nearbyPending={nearbyPending}
+            nearbyError={nearbyError}
             maxBudget={maxBudget}
             onBudgetChange={setMaxBudget}
             matchCount={filteredProperties.length}

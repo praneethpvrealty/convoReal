@@ -140,6 +140,11 @@ afterEach(() => {
   localStorage.clear();
 });
 
+function pickLocality(option: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'Locality' }));
+  fireEvent.click(screen.getByRole('option', { name: option }));
+}
+
 function pick(blank: string, option: string) {
   const trigger = screen.getByRole('combobox', { name: blank });
   fireEvent.pointerDown(trigger);
@@ -185,7 +190,7 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     expect(
       screen.getByRole('combobox', { name: 'Property kind' })
     ).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: 'Locality' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Locality' })).toBeTruthy();
     expect(screen.getByRole('combobox', { name: 'Budget' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /See 4 matches/ })).toBeTruthy();
 
@@ -218,9 +223,32 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     expect(grid().getByText(rental.title)).toBeTruthy();
     expect(grid().getByText(plot.title)).toBeTruthy();
 
-    pick('Locality', 'Kasavanahalli');
+    pickLocality('Kasavanahalli');
     expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
     expect(grid().getByText(villa.title)).toBeTruthy();
+  });
+
+  it('filters the Locality blank as the visitor types and offers a nearby search for an unlisted place', () => {
+    renderDealFloor();
+    fireEvent.click(screen.getByRole('button', { name: 'Locality' }));
+    const search = screen.getByRole('combobox', { name: 'Search localities' });
+    fireEvent.change(search, { target: { value: 'kasa' } });
+    const list = within(screen.getByRole('listbox', { name: 'Localities' }));
+    expect(list.getByRole('option', { name: 'Kasavanahalli' })).toBeTruthy();
+    expect(list.queryByRole('option', { name: 'Domlur' })).toBeNull();
+
+    fireEvent.change(search, { target: { value: 'Hebbal' } });
+    expect(
+      list.getByRole('option', { name: 'Search near “Hebbal”' })
+    ).toBeTruthy();
+    expect(screen.getByText(/No listed locality matches/)).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: 'domlur' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(
+      screen.getByRole('button', { name: 'Locality' }).textContent
+    ).toContain('Domlur');
+    expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
   });
 
   it('draws a plot face from the listing fields instead of "No Photos Available"', () => {
@@ -399,7 +427,7 @@ describe('Deal Floor showcase design [PRP-020]', () => {
       vi.mocked(fetch).mockImplementation(defaultFetch!);
     });
     renderDealFloor();
-    pick('Locality', 'a place not listed…');
+    pickLocality('a place not listed…');
     const input = await screen.findByLabelText('Search near a place');
     fireEvent.change(input, { target: { value: 'Hebbal' } });
     fireEvent.click(screen.getByRole('button', { name: 'Search' }));
@@ -416,7 +444,7 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     ).toBe(true);
     expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
     expect(
-      screen.getByRole('combobox', { name: 'Locality' }).textContent
+      screen.getByRole('button', { name: 'Locality' }).textContent
     ).toContain('near Hebbal');
     expect(
       screen.getByText('No listings in Hebbal, so these are the nearest.')

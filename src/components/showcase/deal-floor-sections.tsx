@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import {
   ArrowRight,
+  Check,
+  ChevronDown,
   Loader2,
   LocateFixed,
   MapPin,
@@ -46,6 +48,9 @@ interface DealFloorHeroProps {
   onLocationChange: (value: string | null) => void;
   nearbyLabel: string | null;
   onSearchNearRequest: () => void;
+  onSearchNear: (query: string) => Promise<boolean>;
+  nearbyPending: boolean;
+  nearbyError: string | null;
   maxBudget: number | null;
   onBudgetChange: (value: number | null) => void;
   matchCount: number;
@@ -54,8 +59,6 @@ interface DealFloorHeroProps {
 }
 
 const ANY = '__any__';
-const NEAR_ACTIVE = '__near_active__';
-const NEAR_REQUEST = '__near__';
 
 function Blank({
   label,
@@ -101,6 +104,200 @@ function Blank({
   );
 }
 
+interface LocalityOption {
+  key: string;
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+}
+
+function LocalityBlank({
+  locations,
+  selectedLocation,
+  onLocationChange,
+  nearbyLabel,
+  onSearchNearRequest,
+  onSearchNear,
+  nearbyPending,
+  nearbyError,
+  fontClassName,
+}: {
+  locations: string[];
+  selectedLocation: string | null;
+  onLocationChange: (value: string | null) => void;
+  nearbyLabel: string | null;
+  onSearchNearRequest: () => void;
+  onSearchNear: (query: string) => Promise<boolean>;
+  nearbyPending: boolean;
+  nearbyError: string | null;
+  fontClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState(0);
+  const listId = useId();
+  const term = query.trim().replace(/\s+/g, ' ');
+  const needle = term.toLocaleLowerCase();
+
+  const close = () => {
+    setOpen(false);
+    setQuery('');
+    setActive(0);
+  };
+
+  const matches = needle
+    ? locations.filter((location) =>
+        location.toLocaleLowerCase().includes(needle)
+      )
+    : locations;
+  const options: LocalityOption[] = [
+    ...(needle
+      ? []
+      : [
+          {
+            key: ANY,
+            label: 'any locality',
+            selected: !selectedLocation && !nearbyLabel,
+            onSelect: () => {
+              onLocationChange(null);
+              close();
+            },
+          },
+        ]),
+    ...matches.map((location) => ({
+      key: `location:${location}`,
+      label: location,
+      selected: !nearbyLabel && selectedLocation === location,
+      onSelect: () => {
+        onLocationChange(location);
+        close();
+      },
+    })),
+    ...(nearbyLabel && !needle
+      ? [
+          {
+            key: 'near-active',
+            label: `near ${nearbyLabel}`,
+            selected: true,
+            onSelect: close,
+          },
+        ]
+      : []),
+    term.length >= 3
+      ? {
+          key: 'near-query',
+          label: `Search near “${term}”`,
+          selected: false,
+          onSelect: () => {
+            void onSearchNear(term).then((found) => {
+              if (found) close();
+            });
+          },
+        }
+      : {
+          key: 'near-request',
+          label: 'a place not listed…',
+          selected: false,
+          onSelect: () => {
+            close();
+            onSearchNearRequest();
+          },
+        },
+  ];
+  const activeIndex = Math.min(active, options.length - 1);
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => (next ? setOpen(true) : close())}
+    >
+      <PopoverTrigger aria-label="Locality" className="df-blank">
+        <span data-slot="select-value">
+          {nearbyLabel
+            ? `near ${nearbyLabel}`
+            : (selectedLocation ?? 'any locality')}
+        </span>
+        <ChevronDown aria-hidden="true" />
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className={cn('df-blank-menu df-locality', fontClassName)}
+      >
+        <div className="df-locality-search">
+          <Search className="size-4" aria-hidden="true" />
+          <input
+            role="combobox"
+            aria-label="Search localities"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-autocomplete="list"
+            aria-activedescendant={`${listId}-${activeIndex}`}
+            value={query}
+            placeholder="Type a locality"
+            autoComplete="off"
+            autoFocus
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setActive(0);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setActive((activeIndex + 1) % options.length);
+              } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setActive((activeIndex - 1 + options.length) % options.length);
+              } else if (event.key === 'Enter') {
+                event.preventDefault();
+                options[activeIndex]?.onSelect();
+              }
+            }}
+          />
+          {nearbyPending && (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          )}
+        </div>
+        <div
+          id={listId}
+          role="listbox"
+          aria-label="Localities"
+          className="df-locality-list"
+        >
+          {options.map((option, index) => (
+            <div
+              key={option.key}
+              id={`${listId}-${index}`}
+              role="option"
+              aria-selected={option.selected}
+              data-highlighted={index === activeIndex ? '' : undefined}
+              data-selected={option.selected ? '' : undefined}
+              className="df-blank-item df-locality-item"
+              onPointerMove={() => setActive(index)}
+              onClick={option.onSelect}
+            >
+              {option.label}
+              {option.selected && (
+                <Check className="size-4" aria-hidden="true" />
+              )}
+            </div>
+          ))}
+        </div>
+        {needle && matches.length === 0 && (
+          <p className="df-near-hint">
+            No listed locality matches. Search near it to see listings within 5
+            km.
+          </p>
+        )}
+        {nearbyError && (
+          <p role="alert" className="df-near-error">
+            {nearbyError}
+          </p>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function DealFloorHero({
   siteName,
   fontClassName,
@@ -113,6 +310,9 @@ export function DealFloorHero({
   onLocationChange,
   nearbyLabel,
   onSearchNearRequest,
+  onSearchNear,
+  nearbyPending,
+  nearbyError,
   maxBudget,
   onBudgetChange,
   matchCount,
@@ -143,24 +343,15 @@ export function DealFloorHero({
           fontClassName={fontClassName}
         />{' '}
         in{' '}
-        <Blank
-          label="Locality"
-          value={nearbyLabel ? NEAR_ACTIVE : (selectedLocation ?? '')}
-          options={[
-            { value: '', label: 'any locality' },
-            ...locations.map((location) => ({
-              value: location,
-              label: location,
-            })),
-            ...(nearbyLabel
-              ? [{ value: NEAR_ACTIVE, label: `near ${nearbyLabel}` }]
-              : []),
-            { value: NEAR_REQUEST, label: 'a place not listed…' },
-          ]}
-          onChange={(value) => {
-            if (value === NEAR_REQUEST) onSearchNearRequest();
-            else if (value !== NEAR_ACTIVE) onLocationChange(value || null);
-          }}
+        <LocalityBlank
+          locations={locations}
+          selectedLocation={selectedLocation}
+          onLocationChange={onLocationChange}
+          nearbyLabel={nearbyLabel}
+          onSearchNearRequest={onSearchNearRequest}
+          onSearchNear={onSearchNear}
+          nearbyPending={nearbyPending}
+          nearbyError={nearbyError}
           fontClassName={fontClassName}
         />{' '}
         <Blank
