@@ -75,7 +75,7 @@ export async function recordPropertyShares({
       }),
     });
     const payload = (await res.json().catch(() => null)) as {
-      data?: { recorded?: number };
+      data?: { recorded?: number; failed?: string[] };
       error?: string;
     } | null;
     if (!res.ok) {
@@ -83,7 +83,14 @@ export async function recordPropertyShares({
       console.error('Property share log failed:', message);
       return { created: 0, error: message };
     }
-    return { created: payload?.data?.recorded ?? 0, error: null };
+    const created = payload?.data?.recorded ?? 0;
+    const failed = payload?.data?.failed?.length ?? 0;
+    if (failed > 0) {
+      const message = `${failed} share${failed === 1 ? '' : 's'} could not be recorded`;
+      console.error('Property share log failed:', message);
+      return { created, error: message };
+    }
+    return { created, error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Property share log failed:', message);

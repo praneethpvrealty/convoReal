@@ -99,8 +99,27 @@ describe('[JRN-009] logPropertyShare', () => {
     };
     await expect(
       logPropertyShare(makeDb(), 'acc-1', 'user-1', 'p-1', 'c-1')
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(true);
     expect(upserts).toHaveLength(1);
+  });
+
+  it('reports a ledger write that failed instead of swallowing it', async () => {
+    const db = makeDb() as unknown as {
+      from: (table: string) => Record<string, unknown>;
+    };
+    const failing = {
+      from(table: string) {
+        const builder = db.from(table);
+        return {
+          ...builder,
+          upsert: () =>
+            Promise.resolve({ data: null, error: { message: 'denied' } }),
+        };
+      },
+    } as never;
+    await expect(
+      logPropertyShare(failing, 'acc-1', 'user-1', 'p-1', 'c-1')
+    ).resolves.toBe(false);
   });
 });
 
