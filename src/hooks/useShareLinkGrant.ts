@@ -134,22 +134,23 @@ export function useShareLinkGrant({
       const existing = contactGrantsRef.current[contactId];
       if (existing) return existing;
       const generation = generationRef.current;
-      try {
-        const grant = await mintGrant(contactId);
-        if (generation === generationRef.current) {
-          contactGrantsRef.current = {
-            ...contactGrantsRef.current,
-            [contactId]: grant.token,
-          };
-        }
-        onGrantsChangedRef.current();
-        return grant.token;
-      } catch (err) {
-        console.error('[property-share] Contact grant mint failed:', err);
-        return ensureLinkGrant();
+      const grant = await mintGrant(contactId);
+      if (generation !== generationRef.current) {
+        void revokeShareGrant(propertyId, grant.id).then(() =>
+          onGrantsChangedRef.current()
+        );
+        throw new Error(
+          'This share was cancelled before its link was unmasked'
+        );
       }
+      contactGrantsRef.current = {
+        ...contactGrantsRef.current,
+        [contactId]: grant.token,
+      };
+      onGrantsChangedRef.current();
+      return grant.token;
     },
-    [unmasked, propertyId, mintGrant, ensureLinkGrant]
+    [unmasked, propertyId, mintGrant]
   );
 
   const forgetGrant = useCallback((grant: ShareGrantKey): boolean => {
