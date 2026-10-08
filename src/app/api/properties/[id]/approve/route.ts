@@ -5,7 +5,10 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
-import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
+import {
+  autoSyncPropertyCatalogIfNeeded,
+  markCatalogSyncPending,
+} from '@/lib/whatsapp/catalog-sync-helper';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 
 // POST /api/properties/[id]/approve
@@ -82,6 +85,8 @@ export async function POST(
         { status: 409 }
       );
     }
+
+    await markCatalogSyncPending(ctx.supabase, id, ctx.accountId);
 
     // Approve: mark Available + publish
     const { data: updated, error: updateError } = await ctx.supabase

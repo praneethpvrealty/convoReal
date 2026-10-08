@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const events: string[] = [];
 const updates: Record<string, unknown>[] = [];
 let listingType = 'Sale';
+let autoSync = true;
 
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   syncProductToCatalog: vi.fn(async () => {
@@ -14,7 +15,7 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   decrypt: () => 'token',
 }));
 
-const { autoSyncPropertyCatalogIfNeeded } =
+const { autoSyncPropertyCatalogIfNeeded, markCatalogSyncPending } =
   await import('./catalog-sync-helper');
 
 function db() {
@@ -35,7 +36,7 @@ function db() {
                 ? {
                     access_token: 'enc',
                     catalog_id: 'c1',
-                    auto_sync_catalog: true,
+                    auto_sync_catalog: autoSync,
                   }
                 : { id: 'p1', listing_type: listingType },
             error: null,
@@ -54,6 +55,7 @@ beforeEach(() => {
   events.length = 0;
   updates.length = 0;
   listingType = 'Sale';
+  autoSync = true;
 });
 
 describe('[PRP-044] autoSyncPropertyCatalogIfNeeded', () => {
@@ -75,5 +77,20 @@ describe('[PRP-044] autoSyncPropertyCatalogIfNeeded', () => {
       meta_catalog_synced_at: null,
       meta_catalog_error: null,
     });
+  });
+});
+
+describe('[PRP-044] markCatalogSyncPending', () => {
+  it('clears the sync state before the save responds when auto-sync is on', async () => {
+    await markCatalogSyncPending(db() as never, 'p1', 'acc-1');
+    expect(updates).toEqual([
+      { meta_catalog_synced_at: null, meta_catalog_error: null },
+    ]);
+  });
+
+  it('leaves a manually synced listing alone when auto-sync is off', async () => {
+    autoSync = false;
+    await markCatalogSyncPending(db() as never, 'p1', 'acc-1');
+    expect(updates).toEqual([]);
   });
 });

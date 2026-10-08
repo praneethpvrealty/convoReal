@@ -47,6 +47,7 @@ export async function fetchCatalogShareContext(
   ]);
   if (config.error) throw config.error;
   if (row.error) throw row.error;
+  if (showcase.error) throw showcase.error;
   return {
     catalogId: config.data?.catalog_id ?? null,
     syncedAt: row.data?.meta_catalog_synced_at ?? null,

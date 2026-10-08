@@ -5,7 +5,10 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
-import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
+import {
+  autoSyncPropertyCatalogIfNeeded,
+  markCatalogSyncPending,
+} from '@/lib/whatsapp/catalog-sync-helper';
 import { geocodeAddress, hasGoogleMapsKey } from '@/lib/maps/google-places';
 import { resolveMapPin } from '@/lib/maps/resolve-location';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
@@ -882,6 +885,8 @@ export async function PUT(
         }
       }
     }
+
+    await markCatalogSyncPending(ctx.supabase, id, ctx.accountId);
 
     // Fetch the updated property with relations
     const { data: finalData, error: fetchErr } = await ctx.supabase
