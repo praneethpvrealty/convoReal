@@ -342,6 +342,53 @@ describe('[PLS-006] showcase view check-in buttons', () => {
     ).toBe(englishCheckin);
   });
 
+  it('[CLG-001] treats en_GB as the English fallback', () => {
+    const tamilFollowup = {
+      name: 'showcase_view_followup',
+      status: 'APPROVED',
+      category: 'Utility',
+      language: 'ta',
+    };
+    const britishCheckin = {
+      name: 'showcase_view_checkin',
+      status: 'APPROVED',
+      category: 'Utility',
+      language: 'en_GB',
+    };
+    expect(
+      usableViewNudgeTemplate([tamilFollowup, britishCheckin], 'pending', 'kn')
+    ).toBe(britishCheckin);
+  });
+
+  it('skips a Marketing row the contact cannot receive for a Utility one in English', () => {
+    const kannadaMarketing = {
+      name: 'showcase_view_followup',
+      status: 'APPROVED',
+      category: 'Marketing',
+      language: 'kn',
+    };
+    const englishUtility = {
+      name: 'showcase_view_checkin',
+      status: 'APPROVED',
+      category: 'Utility',
+      language: 'en_US',
+    };
+    expect(
+      usableViewNudgeTemplate(
+        [kannadaMarketing, englishUtility],
+        'pending',
+        'kn'
+      )
+    ).toBe(englishUtility);
+    expect(
+      usableViewNudgeTemplate(
+        [kannadaMarketing, englishUtility],
+        'granted',
+        'kn'
+      )
+    ).toBe(kannadaMarketing);
+  });
+
   it('returns the approved language row, not another row under the same name', () => {
     const pendingHindi = {
       name: 'showcase_view_followup',

@@ -1,10 +1,8 @@
 import { BRANDING } from '@/config/branding';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
-import type { LanguageCode } from '@/lib/languages';
+import { metaLanguageCode, type LanguageCode } from '@/lib/languages';
 import type { InteractiveButton } from '@/lib/whatsapp/meta-api';
-import { pickApprovedTemplate } from '@/lib/whatsapp/pick-approved-template';
-import { narrowToLanguage } from '@/lib/whatsapp/template-language';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 
 export const SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME = 'showcase_view_followup';
@@ -170,27 +168,35 @@ export interface ViewNudgeTemplateRow {
   language?: string | null;
 }
 
+const ENGLISH_META_CODES = new Set(['en_US', 'en_GB', 'en']);
+
 export function usableViewNudgeTemplate<T extends ViewNudgeTemplateRow>(
-  allRows: T[],
+  rows: T[],
   alertsConsent: string | null | undefined,
   language: LanguageCode = 'en'
 ): T | null {
-  const inLanguage = narrowToLanguage(allRows, language);
-  const rows =
-    inLanguage === allRows ? narrowToLanguage(allRows, 'en') : inLanguage;
-  const normalized = rows.map((row) => ({
-    ...row,
-    category:
-      (row.category ?? '').toUpperCase() === 'UTILITY'
-        ? 'Utility'
-        : row.category,
-  }));
-  const picked = pickApprovedTemplate(
-    normalized,
-    SHOWCASE_VIEW_NUDGE_TEMPLATE_NAMES
+  const isUtility = (row: T) =>
+    (row.category ?? '').toUpperCase() === 'UTILITY';
+  const eligible = rows.filter(
+    (row) =>
+      row.status === 'APPROVED' &&
+      (SHOWCASE_VIEW_NUDGE_TEMPLATE_NAMES as readonly string[]).includes(
+        row.name
+      ) &&
+      (isUtility(row) || alertsConsent === 'granted')
   );
-  const chosen = picked ? rows[normalized.indexOf(picked)] : null;
-  if (!chosen) return null;
-  if ((chosen.category ?? '').toUpperCase() === 'UTILITY') return chosen;
-  return alertsConsent === 'granted' ? chosen : null;
+  const wanted = metaLanguageCode(language);
+  const inWanted = eligible.filter((row) => row.language === wanted);
+  const inEnglish = eligible.filter((row) =>
+    ENGLISH_META_CODES.has(row.language ?? '')
+  );
+  const tier = inWanted.length
+    ? inWanted
+    : inEnglish.length
+      ? inEnglish
+      : eligible;
+  const rank = (row: T) =>
+    (isUtility(row) ? 0 : 2) +
+    (row.name === SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME ? 0 : 1);
+  return [...tier].sort((a, b) => rank(a) - rank(b))[0] ?? null;
 }
