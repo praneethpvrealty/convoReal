@@ -63,6 +63,22 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     defaults: { app: true, whatsapp: true },
   },
   {
+    key: 'showcase_hot_viewer',
+    group: 'Showcase',
+    label: 'Hot viewer on a listing',
+    description:
+      'A known contact spends 2+ minutes on one listing, or comes back to it on separate days. WhatsApp and push wait out your quiet hours.',
+    defaults: { app: true, whatsapp: true },
+  },
+  {
+    key: 'showcase_viewer_response',
+    group: 'Showcase',
+    label: 'Viewer asks for a visit or call',
+    description:
+      'A buyer who spent time on a listing answers the WhatsApp check-in with "Book a visit" or "Call me back". A to-do is added either way.',
+    defaults: { app: true, whatsapp: true },
+  },
+  {
     key: 'portal_listing_expiry',
     group: 'Inventory',
     label: 'Portal listing expiry',

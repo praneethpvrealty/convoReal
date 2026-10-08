@@ -14,6 +14,7 @@ const EXPECTED_ORDER = [
   'enquiryReviewReply',
   'bridgedAgentReply',
   'autoHeat',
+  'showcaseViewNudgeTap',
   'inventorySelection',
   'specificPropertyInterest',
   'deliberateEnquiry',

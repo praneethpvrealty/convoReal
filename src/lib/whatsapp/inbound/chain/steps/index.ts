@@ -4,6 +4,7 @@ import { enquiryDropoffReason } from './enquiry-dropoff-reason';
 import { enquiryReviewReply } from './enquiry-review-reply';
 import { bridgedAgentReply } from './bridged-agent-reply';
 import { autoHeat } from './auto-heat';
+import { showcaseViewNudgeTap } from './showcase-view-nudge-tap';
 import { inventorySelection } from './inventory-selection';
 import { specificPropertyInterest } from './specific-property-interest';
 import { deliberateEnquiry } from './deliberate-enquiry';
@@ -47,6 +48,7 @@ export const INBOUND_STEPS: InboundStep[] = [
   { name: 'enquiryReviewReply', run: enquiryReviewReply },
   { name: 'bridgedAgentReply', run: bridgedAgentReply },
   { name: 'autoHeat', run: autoHeat },
+  { name: 'showcaseViewNudgeTap', run: showcaseViewNudgeTap },
   { name: 'inventorySelection', run: inventorySelection },
   { name: 'specificPropertyInterest', run: specificPropertyInterest },
   { name: 'deliberateEnquiry', run: deliberateEnquiry },
