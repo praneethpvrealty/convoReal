@@ -29,6 +29,12 @@ than a written entry. Newest first.
   anyone who opted out of alerts or is already talking to the team. The agent
   alert can be switched off under Settings → Notifications → Showcase.
   **Migration required:** `20261008032901_showcase_view_nudges.sql`.
+- **Agents hear about hot viewers.** When a known contact spends 2+ minutes on
+  one listing, or comes back to it on separate days, their agent gets a "🔥 Hot
+  viewer" alert naming the listing and how long they looked, so the call happens
+  while the interest is fresh. Once a week per contact and listing, once a day
+  per contact, and WhatsApp and push wait out the agent's quiet hours.
+  **Migration required:** `20261008034526_showcase_hot_viewer_alerts.sql`.
 
 - **"Is this available?" is answered about the listing the buyer means.** On
   7 October a buyer asked it under a showcase enquiry for Akshay Nagar and was

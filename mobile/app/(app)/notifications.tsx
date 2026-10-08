@@ -60,6 +60,10 @@ function openTarget(n: NotificationRow) {
     router.push(`/(app)/conversation/${n.entity_id}`);
     return;
   }
+  if (n.entity_type === 'contact' && n.entity_id) {
+    router.push(`/(app)/contact/${n.entity_id}`);
+    return;
+  }
   if (n.link?.startsWith('/calendar')) {
     router.push('/(app)/(tabs)/calendar');
     return;

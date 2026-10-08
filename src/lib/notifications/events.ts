@@ -99,6 +99,14 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     defaults: { app: true, whatsapp: true },
   },
   {
+    key: 'showcase_hot_viewer',
+    group: 'Showcase',
+    label: 'Hot viewer on a listing',
+    description:
+      'A known contact spends 2+ minutes on one listing, or comes back to it on separate days. WhatsApp and push wait out your quiet hours.',
+    defaults: { app: true, whatsapp: true },
+  },
+  {
     key: 'showcase_viewer_response',
     group: 'Showcase',
     label: 'Viewer asks for a visit or call',
