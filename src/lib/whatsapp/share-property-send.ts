@@ -72,7 +72,8 @@ export async function logPropertyShare(
   contactId: string,
   classification?: string | null,
   options: ShareLedgerOptions = {}
-) {
+): Promise<boolean> {
+  let recorded = true;
   const recipientClassification =
     classification === undefined
       ? (
@@ -96,8 +97,10 @@ export async function logPropertyShare(
     },
     { onConflict: 'account_id,property_id,contact_id', ignoreDuplicates: true }
   );
-  if (error)
+  if (error) {
+    recorded = false;
     console.error('[share-property-send] share ledger failed:', error.message);
+  }
 
   try {
     const capture = await captureJourneyItems(db, {
@@ -107,14 +110,18 @@ export async function logPropertyShare(
       source: 'whatsapp_share',
       hidden: !options.journeyVisible,
     });
-    if (capture.error)
+    if (capture.error) {
+      recorded = false;
       console.error(
         '[share-property-send] journey capture failed:',
         capture.error
       );
+    }
   } catch (err) {
+    recorded = false;
     console.error('[share-property-send] journey capture threw:', err);
   }
+  return recorded;
 }
 
 /**
