@@ -5,7 +5,10 @@ import {
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
-import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
+import {
+  autoSyncPropertyCatalogIfNeeded,
+  catalogSyncPendingFields,
+} from '@/lib/whatsapp/catalog-sync-helper';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 
 // POST /api/properties/[id]/approve
@@ -86,7 +89,11 @@ export async function POST(
     // Approve: mark Available + publish
     const { data: updated, error: updateError } = await ctx.supabase
       .from('properties')
-      .update({ status: 'Available', is_published: true })
+      .update({
+        status: 'Available',
+        is_published: true,
+        ...(await catalogSyncPendingFields(ctx.supabase, ctx.accountId)),
+      })
       .eq('id', id)
       .eq('account_id', ctx.accountId)
       .select(

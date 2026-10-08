@@ -106,9 +106,13 @@ export async function POST(request: NextRequest) {
 
     const db = supabaseAdmin();
     let recorded = 0;
+    const failed: string[] = [];
     for (const recipient of unique) {
-      if (!owned.has(recipient.contactId)) continue;
-      await logPropertyShare(
+      if (!owned.has(recipient.contactId)) {
+        failed.push(recipient.contactId);
+        continue;
+      }
+      const written = await logPropertyShare(
         db,
         ctx.accountId,
         ctx.userId,
@@ -117,10 +121,11 @@ export async function POST(request: NextRequest) {
         owned.get(recipient.contactId) ?? null,
         { channel, journeyVisible }
       );
-      recorded += 1;
+      if (written) recorded += 1;
+      else failed.push(recipient.contactId);
     }
 
-    return NextResponse.json({ data: { recorded } });
+    return NextResponse.json({ data: { recorded, failed } });
   } catch (err) {
     return toErrorResponse(err);
   }

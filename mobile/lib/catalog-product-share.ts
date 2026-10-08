@@ -47,6 +47,7 @@ export async function fetchCatalogShareContext(
   ]);
   if (config.error) throw config.error;
   if (row.error) throw row.error;
+  if (showcase.error) throw showcase.error;
   return {
     catalogId: config.data?.catalog_id ?? null,
     syncedAt: row.data?.meta_catalog_synced_at ?? null,
@@ -131,15 +132,22 @@ async function recordCatalogShares(
   propertyId: string,
   contacts: Contact[]
 ): Promise<boolean> {
-  const body = JSON.stringify({
-    property_id: propertyId,
-    recipients: contacts.map((c) => ({ contact_id: c.id })),
-    channel: 'whatsapp',
-  });
+  let pending = contacts.map((c) => c.id);
   for (let attempt = 0; attempt < SHARE_LOG_ATTEMPTS; attempt++) {
     try {
-      await apiFetch('/api/properties/share-log', { method: 'POST', body });
-      return true;
+      const res = await apiFetch<{ data?: { failed?: string[] } }>(
+        '/api/properties/share-log',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            property_id: propertyId,
+            recipients: pending.map((id) => ({ contact_id: id })),
+            channel: 'whatsapp',
+          }),
+        }
+      );
+      pending = res?.data?.failed ?? [];
+      if (pending.length === 0) return true;
     } catch {
       continue;
     }

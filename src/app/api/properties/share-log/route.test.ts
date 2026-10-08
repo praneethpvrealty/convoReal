@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let ctxRows: Record<string, unknown[]>;
 let ledgerCalls: unknown[][];
+let ledgerFails: Set<string>;
 let role: 'agent' | 'viewer';
 
 function ctxDb() {
@@ -45,6 +46,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 vi.mock('@/lib/whatsapp/share-property-send', () => ({
   logPropertyShare: vi.fn(async (...args: unknown[]) => {
     ledgerCalls.push(args);
+    return !ledgerFails.has(args[4] as string);
   }),
 }));
 
@@ -60,6 +62,7 @@ function request(body: unknown) {
 beforeEach(() => {
   role = 'agent';
   ledgerCalls = [];
+  ledgerFails = new Set();
   ctxRows = {
     properties: [{ id: 'p-1' }],
     contacts: [
@@ -87,7 +90,7 @@ describe('[JRN-009] POST /api/properties/share-log', () => {
     const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json).toEqual({ data: { recorded: 2 } });
+    expect(json).toEqual({ data: { recorded: 2, failed: ['c-stranger'] } });
     expect(ledgerCalls).toEqual([
       [
         { tag: 'admin' },
@@ -135,6 +138,20 @@ describe('[JRN-009] POST /api/properties/share-log', () => {
     expect(ledgerCalls[0]?.[6]).toEqual({
       channel: 'whatsapp',
       journeyVisible: false,
+    });
+  });
+
+  it('counts only the shares the ledger wrote and names the ones it did not', async () => {
+    ledgerFails.add('c-2');
+    const res = await POST(
+      request({
+        property_id: 'p-1',
+        recipients: [{ contact_id: 'c-1' }, { contact_id: 'c-2' }],
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      data: { recorded: 1, failed: ['c-2'] },
     });
   });
 

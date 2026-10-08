@@ -83,6 +83,23 @@ describe('[JRN-009] recordPropertyShares goes through the server ledger', () => 
     expect(result).toEqual({ created: 0, error: 'Forbidden' });
   });
 
+  it('reports shares the ledger could not write', async () => {
+    response = {
+      ok: true,
+      status: 200,
+      body: { data: { recorded: 1, failed: ['contact-2'] } },
+    };
+    const result = await recordPropertyShares({
+      accountId: 'account-1',
+      propertyId: 'property-1',
+      recipients: [{ contactId: 'contact-1' }, { contactId: 'contact-2' }],
+    });
+    expect(result).toEqual({
+      created: 1,
+      error: '1 share could not be recorded',
+    });
+  });
+
   it('sends nothing for an empty recipient list', async () => {
     const result = await recordPropertyShares({
       accountId: 'account-1',

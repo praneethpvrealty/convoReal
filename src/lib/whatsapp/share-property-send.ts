@@ -72,7 +72,7 @@ export async function logPropertyShare(
   contactId: string,
   classification?: string | null,
   options: ShareLedgerOptions = {}
-) {
+): Promise<boolean> {
   const recipientClassification =
     classification === undefined
       ? (
@@ -115,6 +115,7 @@ export async function logPropertyShare(
   } catch (err) {
     console.error('[share-property-send] journey capture threw:', err);
   }
+  return !error;
 }
 
 /**
