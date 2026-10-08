@@ -2025,6 +2025,25 @@
           ]
         },
         {
+          "id": "PRP-045",
+          "rule": "The web share dialog names the listing in its header without a trailing full stop. Revoking an unmasked link takes two steps: Revoke, then Revoke now, with Keep to back out, matching the mobile confirmation; nothing is revoked on the first click. A listing with no documents or guarded photos offers no switch for them and instead links to the listing to add them. The paid Click-to-WhatsApp ad sits under Send from Engine, not among the share channels. With no search typed, Send personally on web, and the Share on WhatsApp and Broadcast pickers on mobile, list the eight most recently contacted reachable contacts by when they were last contacted (an edit to the contact does not count), named contacts ahead of phone-only ones; a name that is only the phone number, in its local, trunk-prefixed or international form, counts as no name and the number is shown once.",
+          "tests": [
+            {
+              "file": "src/components/inventory/property-share-dialog.test.tsx",
+              "case": "[PRP-045]"
+            },
+            {
+              "file": "src/lib/inventory/share-recipients.test.ts",
+              "case": "[PRP-045]"
+            }
+          ],
+          "guards": [
+            "src/components/inventory/property-share-dialog.tsx",
+            "src/lib/inventory/share-recipients.ts",
+            "mobile/components/contact-picker-sheet.tsx"
+          ]
+        },
+        {
           "id": "PRP-044",
           "rule": "A listing can be shared as a WhatsApp catalog product card from the web share dialog and the mobile share sheet whenever the account has a Meta catalog: both show the same sync status (not synced, sync failed, indexing for 90 seconds after a sync, synced), both offer Sync now, both refuse to send until indexing has finished, and both send through the same product broadcast with the same retailer id (property code, else id) and caption, whose location never carries a guarded listing's street address. Only recipients the broadcast reports as sent are recorded on the share ledger. A sync counts as synced only once Meta's batch has finished without errors and the product is found in the catalog under that retailer id; otherwise the listing shows Sync failed with Meta's reason, so a send never reaches Meta for a product the catalog does not hold; an automatic resync after an edit or approval clears the previous sync first, so the card is not offered while the new one is unconfirmed.",
           "tests": [
