@@ -38,9 +38,17 @@ CREATE INDEX IF NOT EXISTS idx_showcase_events_identified_views
     AND contact_id IS NOT NULL
     AND property_id IS NOT NULL;
 
-DROP TRIGGER IF EXISTS set_updated_at ON showcase_view_nudges;
-CREATE TRIGGER set_updated_at BEFORE UPDATE ON showcase_view_nudges
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'set_updated_at'
+      AND tgrelid = 'public.showcase_view_nudges'::regclass
+  ) THEN
+    CREATE TRIGGER set_updated_at BEFORE UPDATE ON showcase_view_nudges
+      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  END IF;
+END $$;
 
 ALTER TABLE showcase_view_nudges ENABLE ROW LEVEL SECURITY;
 
