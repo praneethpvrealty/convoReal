@@ -19,6 +19,14 @@ than a written entry. Newest first.
 
 #### 8 October 2026
 
+- **Showcase check-ins resubmitted as a Utility template.** Meta approved
+  `showcase_view_checkin` as Marketing, so outside the 24-hour window the
+  check-in reached only contacts who had opted into alerts. The template now
+  reads as a follow-up on the listing the brokerage shared, names the
+  brokerage and the property, and drops the opt-out footer, under the new name
+  `showcase_view_followup`, auto-submitted once per account. A Utility row is
+  used ahead of the old one; until it is approved, the old Marketing template
+  still serves opted-in contacts.
 - **Buyers who linger on a listing get a WhatsApp check-in.** A known contact
   who spends 30 seconds or more on a property in the showcase is asked, half an
   hour after they stop browsing, whether they want to **Book a visit**, get a
