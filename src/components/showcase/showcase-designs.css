@@ -1425,6 +1425,16 @@
     flex: 0 0 7.5rem;
   }
   [data-showcase-design='deal-floor'] .df-blank {
-    max-width: 11em;
+    max-width: 100%;
+    border-radius: 0.6em;
+    text-align: start;
+  }
+  [data-showcase-design='deal-floor'] .df-blank [data-slot='select-value'] {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
+  [data-showcase-design='deal-floor'] .df-btn-link {
+    text-align: start;
   }
 }
