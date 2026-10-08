@@ -6,6 +6,7 @@ import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { submitMessageTemplate } from '@/lib/whatsapp/meta-api';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { renderShareTemplateBody } from '@/lib/whatsapp/share-property-preview';
 import { resolveSendLanguage } from '@/lib/whatsapp/template-language';
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components';
 import {
@@ -401,6 +402,7 @@ async function sendViewNudge(
       brandName,
       propertyTitle
     );
+    const bodyParams = viewNudgeTemplateBodyParams(template.name, params);
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId,
@@ -410,13 +412,15 @@ async function sendViewNudge(
       senderType: 'bot',
       templateName: template.name,
       templateLanguage: template.language || 'en_US',
-      templateParams: viewNudgeTemplateBodyParams(template.name, params),
+      templateParams: bodyParams,
       messageParams: {
-        body: viewNudgeTemplateBodyParams(template.name, params),
+        body: bodyParams,
         buttonParams: viewNudgeButtonParams(property.id as string),
       },
       templateRow: template,
-      text: renderViewNudgeBody(template.name, params),
+      text: template.body_text
+        ? renderShareTemplateBody(template.body_text, bodyParams)
+        : renderViewNudgeBody(template.name, params),
       customDbClient: db,
     });
     if (result?.success === false && !result.reachedMeta) {

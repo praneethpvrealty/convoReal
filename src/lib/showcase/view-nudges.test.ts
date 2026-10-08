@@ -597,6 +597,28 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     expect(h.submit).not.toHaveBeenCalled();
   });
 
+  it('[CLG-001] records the localized body the contact actually received', async () => {
+    const tables = baseTables({
+      accounts: [{ id: ACCOUNT, name: 'Aryavarta Ventures' }],
+      message_templates: [
+        {
+          account_id: ACCOUNT,
+          name: 'showcase_view_checkin',
+          status: 'APPROVED',
+          category: 'Utility',
+          language: 'kn',
+          body_text: 'ನಮಸ್ಕಾರ {{1}}, {{2}}',
+        },
+      ],
+    });
+    tables.contacts[0].preferred_language = 'kn';
+    const { db } = fakeDb({ candidates: [candidate], tables });
+    await processShowcaseViewNudges(db);
+    const args = h.send.mock.calls[0][0];
+    expect(args.templateLanguage).toBe('kn');
+    expect(args.text).toBe('ನಮಸ್ಕಾರ Ravi, 3 BHK in Kondapur');
+  });
+
   it('still sends the in-window buttons when the brokerage cannot be read', async () => {
     h.conversation = {
       last_customer_message_at: new Date(
