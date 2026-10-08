@@ -105,12 +105,20 @@ export async function processHotViewerAlerts(
         .eq('account_id', candidate.account_id)
         .maybeSingle(),
     ]);
-    const release = () =>
-      db
-        .from('showcase_hot_viewer_alerts')
-        .delete()
-        .eq('id', alertId as string)
-        .eq('account_id', candidate.account_id);
+    const release = async () => {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { error: releaseError } = await db
+          .from('showcase_hot_viewer_alerts')
+          .delete()
+          .eq('id', alertId as string)
+          .eq('account_id', candidate.account_id);
+        if (!releaseError) return;
+        console.error(
+          `[hot-viewers] failed to release ${alertId} (attempt ${attempt}):`,
+          releaseError
+        );
+      }
+    };
     if (contactRead.error || propertyRead.error || configRead.error) {
       console.error(
         '[hot-viewers] reload failed, claim released:',

@@ -32,10 +32,12 @@ function fakeDb(state: {
   candidates: Row[];
   claimId?: string | null;
   failRead?: string;
+  failDeletes?: number;
   tables: Record<string, Row[]>;
 }) {
   const rpcCalls: Array<{ fn: string; args: Row }> = [];
   const updates: Array<{ table: string; payload: unknown }> = [];
+  let deletesToFail = state.failDeletes ?? 0;
   const db = {
     rpc: async (fn: string, args: Row) => {
       rpcCalls.push({ fn, args });
@@ -49,6 +51,7 @@ function fakeDb(state: {
     },
     from: (table: string) => {
       const filters: Row = {};
+      let isDelete = false;
       const api = {
         select: () => api,
         update: (payload: unknown) => {
@@ -57,6 +60,7 @@ function fakeDb(state: {
         },
         delete: () => {
           updates.push({ table, payload: 'delete' });
+          isDelete = true;
           return api;
         },
         eq: (column: string, value: unknown) => {
@@ -75,8 +79,14 @@ function fakeDb(state: {
                   ) ?? null,
                 error: null,
               },
-        then: (onFulfilled: (v: unknown) => unknown) =>
-          Promise.resolve({ data: null, error: null }).then(onFulfilled),
+        then: (onFulfilled: (v: unknown) => unknown) => {
+          const failed = isDelete && deletesToFail > 0;
+          if (failed) deletesToFail--;
+          return Promise.resolve({
+            data: null,
+            error: failed ? { message: 'delete failed' } : null,
+          }).then(onFulfilled);
+        },
       };
       return api;
     },
@@ -243,6 +253,22 @@ describe('[PLS-008] hot viewer alerts', () => {
     expect(await processHotViewerAlerts(db)).toBe(0);
     expect(h.notify).not.toHaveBeenCalled();
     expect(updates).toEqual([
+      { table: 'showcase_hot_viewer_alerts', payload: 'delete' },
+    ]);
+  });
+
+  it('retries releasing a claim when the delete fails', async () => {
+    const t = tables();
+    t.properties[0] = { ...t.properties[0], status: 'Sold' };
+    const { db, updates } = fakeDb({
+      candidates: [candidate],
+      failDeletes: 2,
+      tables: t,
+    });
+    expect(await processHotViewerAlerts(db)).toBe(0);
+    expect(updates).toEqual([
+      { table: 'showcase_hot_viewer_alerts', payload: 'delete' },
+      { table: 'showcase_hot_viewer_alerts', payload: 'delete' },
       { table: 'showcase_hot_viewer_alerts', payload: 'delete' },
     ]);
   });

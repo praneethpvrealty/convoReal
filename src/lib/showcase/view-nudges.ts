@@ -183,14 +183,15 @@ export async function processShowcaseViewNudges(
           : { status: 'retry' };
 
     if (outcome.status === 'deferred') {
-      const { error: releaseError } = await db
-        .from('showcase_view_nudges')
-        .delete()
-        .eq('id', nudgeId as string)
-        .eq('account_id', candidate.account_id);
-      if (releaseError) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { error: releaseError } = await db
+          .from('showcase_view_nudges')
+          .delete()
+          .eq('id', nudgeId as string)
+          .eq('account_id', candidate.account_id);
+        if (!releaseError) break;
         console.error(
-          `[view-nudges] failed to release ${nudgeId}:`,
+          `[view-nudges] failed to release ${nudgeId} (attempt ${attempt}):`,
           releaseError
         );
       }
