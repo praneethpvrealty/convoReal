@@ -6,6 +6,8 @@ import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { submitMessageTemplate } from '@/lib/whatsapp/meta-api';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { renderShareTemplateBody } from '@/lib/whatsapp/share-property-preview';
+import { resolveSendLanguage } from '@/lib/whatsapp/template-language';
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components';
 import {
   normalizeCategory,
@@ -13,12 +15,14 @@ import {
 } from '@/lib/whatsapp/template-status-normalize';
 import {
   SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME,
+  SHOWCASE_VIEW_NUDGE_TEMPLATE_NAMES,
   buildViewNudgeButtonsBody,
   buildViewNudgeParams,
   buildViewNudgeTemplatePayload,
   renderViewNudgeBody,
   usableViewNudgeTemplate,
   viewNudgeButtonParams,
+  viewNudgeTemplateBodyParams,
   viewNudgeButtons,
 } from '@/lib/showcase/view-nudge-template';
 import type { MessageTemplate } from '@/types';
@@ -55,12 +59,15 @@ export async function ensureViewNudgeTemplate(
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
-    .eq('name', SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME);
+    .in('name', [...SHOWCASE_VIEW_NUDGE_TEMPLATE_NAMES]);
   if (error) {
     console.error('[view-nudges] template lookup failed:', error);
     return [];
   }
-  if (rows && rows.length > 0) return rows as MessageTemplate[];
+  const existing = (rows ?? []) as MessageTemplate[];
+  if (existing.some((row) => row.name === SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME)) {
+    return existing;
+  }
 
   try {
     const { data: config } = await db
@@ -73,7 +80,7 @@ export async function ensureViewNudgeTemplate(
       !config.access_token ||
       config.integration_type === 'sandbox'
     ) {
-      return [];
+      return existing;
     }
 
     const { data: account } = await db
@@ -81,7 +88,7 @@ export async function ensureViewNudgeTemplate(
       .select('owner_user_id')
       .eq('id', accountId)
       .maybeSingle();
-    if (!account?.owner_user_id) return [];
+    if (!account?.owner_user_id) return existing;
 
     const payload = buildViewNudgeTemplatePayload();
     const meta = await submitMessageTemplate({
@@ -123,7 +130,7 @@ export async function ensureViewNudgeTemplate(
   } catch (err) {
     console.error('[view-nudges] template auto-submit failed:', err);
   }
-  return [];
+  return existing;
 }
 
 export async function processShowcaseViewNudges(
@@ -342,10 +349,7 @@ async function sendViewNudge(
   const excluded = showcaseOutreachExclusion(contactId, contact, property);
   if (excluded) return { status: 'skipped', reason: excluded };
 
-  const params = buildViewNudgeParams(
-    contact.name as string | null,
-    (property.title as string | null) || 'Property'
-  );
+  const propertyTitle = (property.title as string | null) || 'Property';
 
   try {
     if (isWithinCustomerWindow(conversation?.last_customer_message_at)) {
@@ -356,7 +360,13 @@ async function sendViewNudge(
         kind: 'interactive',
         senderType: 'bot',
         interactiveType: 'buttons',
-        interactiveBody: buildViewNudgeButtonsBody(params),
+        interactiveBody: buildViewNudgeButtonsBody(
+          buildViewNudgeParams(
+            contact.name as string | null,
+            null,
+            propertyTitle
+          )
+        ),
         interactiveButtons: viewNudgeButtons(property.id as string),
         customDbClient: db,
       });
@@ -372,9 +382,27 @@ async function sendViewNudge(
 
     const template = usableViewNudgeTemplate(
       await ensureViewNudgeTemplate(db, accountId),
-      contact.buyer_alerts_consent as string | null
+      contact.buyer_alerts_consent as string | null,
+      await resolveSendLanguage(db, accountId, contactId)
     );
     if (!template) return { status: 'deferred' };
+
+    let brandName: string | null = null;
+    if (template.name === SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME) {
+      const { data: account, error: accountError } = await db
+        .from('accounts')
+        .select('name')
+        .eq('id', accountId)
+        .maybeSingle();
+      if (accountError) return { status: 'retry' };
+      brandName = (account as { name?: string | null } | null)?.name ?? null;
+    }
+    const params = buildViewNudgeParams(
+      contact.name as string | null,
+      brandName,
+      propertyTitle
+    );
+    const bodyParams = viewNudgeTemplateBodyParams(template.name, params);
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId,
@@ -384,13 +412,15 @@ async function sendViewNudge(
       senderType: 'bot',
       templateName: template.name,
       templateLanguage: template.language || 'en_US',
-      templateParams: params,
+      templateParams: bodyParams,
       messageParams: {
-        body: params,
+        body: bodyParams,
         buttonParams: viewNudgeButtonParams(property.id as string),
       },
       templateRow: template,
-      text: renderViewNudgeBody(params),
+      text: template.body_text
+        ? renderShareTemplateBody(template.body_text, bodyParams)
+        : renderViewNudgeBody(template.name, params),
       customDbClient: db,
     });
     if (result?.success === false && !result.reachedMeta) {
