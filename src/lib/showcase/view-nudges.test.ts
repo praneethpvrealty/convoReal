@@ -4,7 +4,7 @@ type Row = Record<string, unknown>;
 
 interface Query {
   table: string;
-  op: 'select' | 'update' | 'insert' | 'upsert';
+  op: 'select' | 'update' | 'insert' | 'upsert' | 'delete';
   payload?: unknown;
   filters: Record<string, unknown>;
 }
@@ -80,8 +80,10 @@ function fakeDb(state: {
   candidates?: Row[];
   claimId?: string | null;
   failInsert?: string;
+  failUpdates?: number;
   tables: Record<string, Row[]>;
 }) {
+  let failedUpdates = 0;
   const queries: Query[] = [];
   const rpcCalls: Array<{ fn: string; args: Row }> = [];
 
@@ -89,6 +91,10 @@ function fakeDb(state: {
     queries.push(q);
     if (q.op === 'insert' && q.table === state.failInsert) {
       return { data: null, error: { message: 'insert failed' } };
+    }
+    if (q.op === 'update' && failedUpdates < (state.failUpdates ?? 0)) {
+      failedUpdates++;
+      return { data: null, error: { message: 'update failed' } };
     }
     if (q.op !== 'select') return { data: null, error: null };
     const rows = (state.tables[q.table] ?? []).filter((row) =>
@@ -104,6 +110,10 @@ function fakeDb(state: {
       update: (payload: unknown) => {
         q.op = 'update';
         q.payload = payload;
+        return api;
+      },
+      delete: () => {
+        q.op = 'delete';
         return api;
       },
       insert: (payload: unknown) => {
@@ -344,7 +354,7 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     });
   });
 
-  it('submits the template once and skips the send while it awaits approval', async () => {
+  it('submits the template once and releases the claim while it awaits approval, so the visitor is asked once it is approved', async () => {
     const { db, queries } = fakeDb({
       candidates: [candidate],
       tables: baseTables({
@@ -364,10 +374,31 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     expect(h.submit).toHaveBeenCalledTimes(1);
     expect(h.send).not.toHaveBeenCalled();
     expect(totals.skipped).toBe(1);
-    expect(nudgeUpdate(queries)).toEqual({
-      status: 'skipped',
-      skip_reason: 'no_template',
+    expect(nudgeUpdate(queries)).toBeUndefined();
+    expect(
+      queries.find(
+        (q) => q.table === 'showcase_view_nudges' && q.op === 'delete'
+      )?.filters
+    ).toEqual({ id: 'nudge-1', account_id: ACCOUNT });
+  });
+
+  it('retries marking a delivered check-in so a database blip cannot send it twice', async () => {
+    h.conversation = {
+      last_customer_message_at: new Date(
+        Date.now() - 3 * 60 * 60 * 1000
+      ).toISOString(),
+    };
+    const { db, queries } = fakeDb({
+      candidates: [candidate],
+      failUpdates: 2,
+      tables: baseTables(),
     });
+    expect((await processShowcaseViewNudges(db)).sent).toBe(1);
+    const marks = queries.filter(
+      (q) => q.table === 'showcase_view_nudges' && q.op === 'update'
+    );
+    expect(marks).toHaveLength(3);
+    expect(marks[2].payload).toMatchObject({ status: 'sent' });
   });
 
   it('skips a visitor who has written in since the view', async () => {

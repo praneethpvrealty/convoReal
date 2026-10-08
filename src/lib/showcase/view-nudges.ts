@@ -41,6 +41,7 @@ type SendOutcome =
       channel: 'buttons' | 'template';
     }
   | { status: 'skipped'; reason: string }
+  | { status: 'deferred' }
   | { status: 'retry' };
 
 export async function ensureViewNudgeTemplate(
@@ -162,6 +163,22 @@ export async function processShowcaseViewNudges(
     const outcome: SendOutcome =
       leased.status === 'ran' ? leased.value : { status: 'retry' };
 
+    if (outcome.status === 'deferred') {
+      const { error: releaseError } = await db
+        .from('showcase_view_nudges')
+        .delete()
+        .eq('id', nudgeId as string)
+        .eq('account_id', candidate.account_id);
+      if (releaseError) {
+        console.error(
+          `[view-nudges] failed to release ${nudgeId}:`,
+          releaseError
+        );
+      }
+      totals.skipped++;
+      continue;
+    }
+
     const update =
       outcome.status === 'sent'
         ? {
@@ -173,13 +190,17 @@ export async function processShowcaseViewNudges(
         : outcome.status === 'skipped'
           ? { status: 'skipped', skip_reason: outcome.reason }
           : { status: 'failed' };
-    const { error: markError } = await db
-      .from('showcase_view_nudges')
-      .update(update)
-      .eq('id', nudgeId as string)
-      .eq('account_id', candidate.account_id);
-    if (markError) {
-      console.error(`[view-nudges] failed to mark ${nudgeId}:`, markError);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const { error: markError } = await db
+        .from('showcase_view_nudges')
+        .update(update)
+        .eq('id', nudgeId as string)
+        .eq('account_id', candidate.account_id);
+      if (!markError) break;
+      console.error(
+        `[view-nudges] failed to mark ${nudgeId} (attempt ${attempt}):`,
+        markError
+      );
     }
 
     if (outcome.status === 'sent') totals.sent++;
@@ -266,7 +287,7 @@ async function sendViewNudge(
       await ensureViewNudgeTemplate(db, accountId),
       contact.buyer_alerts_consent as string | null
     );
-    if (!template) return { status: 'skipped', reason: 'no_template' };
+    if (!template) return { status: 'deferred' };
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId,
