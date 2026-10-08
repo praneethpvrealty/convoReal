@@ -65,6 +65,7 @@ on:
       - 'src/lib/inventory/share-log-request.ts'
       - 'src/lib/inventory/location-privacy.ts'
       - 'src/lib/inventory/property-options.ts'
+      - 'src/lib/inventory/share-recipients.ts'
       - 'src/lib/showcase/message-preview.ts'
       - 'src/lib/sweep/gap-actions.ts'
       - 'src/lib/today/insights.ts'

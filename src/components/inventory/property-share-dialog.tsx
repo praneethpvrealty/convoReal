@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -53,6 +54,11 @@ import {
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { useShareLinkGrant } from '@/hooks/useShareLinkGrant';
+import {
+  DEFAULT_SHARE_RECIPIENT_COUNT,
+  defaultShareRecipients,
+  hasRealName,
+} from '@/lib/inventory/share-recipients';
 import {
   isLocationGuarded,
   localityLabel,
@@ -121,6 +127,22 @@ interface ActiveGrant {
   created_at: string;
   contact: { id: string; name: string | null; phone: string } | null;
 }
+
+const SHARE_TONE_CHOICES: { value: ShareTone; label: string }[] = [
+  { value: 'professional', label: 'Professional' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'friendly', label: 'Friendly' },
+];
+
+const SHARE_DETAIL_CHOICES: {
+  value: ShareDetailLevel;
+  label: string;
+  hint: string;
+}[] = [
+  { value: 'quick', label: 'Quick', hint: 'Title, price and link' },
+  { value: 'standard', label: 'Standard', hint: 'Headline specs and link' },
+  { value: 'complete', label: 'Complete', hint: 'Everything in the message' },
+];
 
 interface PropertyShareDialogProps {
   open: boolean;
@@ -251,6 +273,12 @@ export function PropertyShareDialog({
   const [activeGrants, setActiveGrants] = useState<ActiveGrant[] | null>(null);
   const [grantsVersion, setGrantsVersion] = useState(0);
   const [revokingGrantId, setRevokingGrantId] = useState<string | null>(null);
+  const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!confirmRevokeId) return;
+    const timer = setTimeout(() => setConfirmRevokeId(null), 5000);
+    return () => clearTimeout(timer);
+  }, [confirmRevokeId]);
   const bumpGrants = useCallback(() => setGrantsVersion((v) => v + 1), []);
 
   useEffect(() => {
@@ -442,6 +470,19 @@ export function PropertyShareDialog({
 
   const currentMessage = messageDraft ?? autoMessage;
 
+  const messageRef = useRef<HTMLTextAreaElement | null>(null);
+  const shownMessageRef = useRef<string | null>(null);
+  const [messageFlash, setMessageFlash] = useState(false);
+  useEffect(() => {
+    const previous = shownMessageRef.current;
+    shownMessageRef.current = autoMessage;
+    if (messageRef.current) messageRef.current.scrollTop = 0;
+    if (previous === null || previous === autoMessage) return;
+    setMessageFlash(true);
+    const timer = setTimeout(() => setMessageFlash(false), 700);
+    return () => clearTimeout(timer);
+  }, [autoMessage]);
+
   // Default (cover) photo as a File, for attaching to native shares and
   // clipboard copies. Uses the listing's first photo; when the listing has
   // none (common for land/plots), falls back to a branded flyer rendered
@@ -528,14 +569,20 @@ export function PropertyShareDialog({
   >(null);
   const personalShareSectionRef = useRef<HTMLDivElement | null>(null);
 
+  const reachableContacts = useMemo(
+    () =>
+      contacts.filter(
+        (contact) =>
+          hasPhone(contact) &&
+          (audienceTab !== 'agent' || contact.classification === 'Agent')
+      ),
+    [contacts, audienceTab]
+  );
+
   const personalContacts = useMemo(() => {
     const q = personalSearch.toLowerCase().trim();
-    const reachable = contacts.filter(
-      (contact) =>
-        hasPhone(contact) &&
-        (audienceTab !== 'agent' || contact.classification === 'Agent')
-    );
-    if (!q) return reachable;
+    const reachable = reachableContacts;
+    if (!q) return defaultShareRecipients(reachable);
     return rankContactSearchResults(
       reachable.filter(
         (c) =>
@@ -544,7 +591,7 @@ export function PropertyShareDialog({
       ),
       q
     );
-  }, [contacts, personalSearch, audienceTab]);
+  }, [reachableContacts, personalSearch]);
 
   const personalizedUrl = useCallback(
     (contactId: string, contactGrantToken: string | null) => {
@@ -1723,6 +1770,10 @@ export function PropertyShareDialog({
 
   if (!property) return null;
 
+  const listingName =
+    (property.title || 'this listing').trim().replace(/[.\s]+$/, '') ||
+    'this listing';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-700 bg-slate-900 text-slate-200 sm:max-w-4xl">
@@ -1731,14 +1782,14 @@ export function PropertyShareDialog({
             <Share2 className="text-primary size-5" />
             Share Property Details
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-400">
+          <DialogDescription className="truncate text-xs text-slate-400">
             {broadcastStep === 'link'
-              ? `Share public showcasing details of "${property.title}" directly.`
+              ? listingName
               : shareMode === 'greeting'
-                ? `Send interactive greeting buttons for "${property.title}" to your contacts.`
+                ? `Greeting buttons for ${listingName}`
                 : shareMode === 'catalog'
-                  ? `Send interactive catalog product messages for "${property.title}" to your contacts.`
-                  : `Send WhatsApp details of "${property.title}" using verified message templates.`}
+                  ? `Catalog product card for ${listingName}`
+                  : `Approved template for ${listingName}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -1781,7 +1832,7 @@ export function PropertyShareDialog({
                 >
                   <tab.icon className="size-4" />
                   <span className="text-xs font-bold">{tab.label}</span>
-                  <span className="hidden text-[9px] text-slate-500 sm:block">
+                  <span className="hidden text-xs text-slate-500 sm:block">
                     {tab.desc}
                   </span>
                 </button>
@@ -1796,86 +1847,69 @@ export function PropertyShareDialog({
                     : 'Message for a buyer/client — the link opens your public showcase page with photos, map, and an inquiry form.'}
                 </p>
 
-                {/* Tone (client only) */}
-                {audienceTab === 'client' && (
-                  <div className="space-y-2">
-                    <Label className="text-[11px] font-semibold text-slate-300">
-                      Tone
-                    </Label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        {
-                          value: 'professional',
-                          label: 'Professional',
-                          icon: '💼',
-                        },
-                        { value: 'casual', label: 'Casual', icon: '👋' },
-                        { value: 'friendly', label: 'Friendly', icon: '😊' },
-                      ].map((style) => (
+                {/* Tone and detail */}
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    {audienceTab === 'client' && (
+                      <div
+                        role="radiogroup"
+                        aria-label="Tone"
+                        className="flex items-center gap-1.5"
+                      >
+                        <span className="text-xs font-semibold text-slate-300">
+                          Tone
+                        </span>
+                        {SHARE_TONE_CHOICES.map((style) => (
+                          <button
+                            key={style.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={messageStyle === style.value}
+                            onClick={() => setMessageStyle(style.value)}
+                            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${
+                              messageStyle === style.value
+                                ? 'bg-primary/10 border-primary/50 text-primary'
+                                : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
+                            }`}
+                          >
+                            {style.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <div
+                      role="radiogroup"
+                      aria-label="Detail"
+                      className="flex items-center gap-1.5"
+                    >
+                      <span className="text-xs font-semibold text-slate-300">
+                        Detail
+                      </span>
+                      {SHARE_DETAIL_CHOICES.map((lvl) => (
                         <button
-                          key={style.value}
+                          key={lvl.value}
                           type="button"
-                          onClick={() =>
-                            setMessageStyle(style.value as ShareTone)
-                          }
-                          className={`flex items-center justify-center gap-1.5 rounded-lg border p-2 text-[10px] font-medium transition-all ${
-                            messageStyle === style.value
+                          role="radio"
+                          aria-checked={detailLevel === lvl.value}
+                          title={lvl.hint}
+                          onClick={() => setDetailLevel(lvl.value)}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-all ${
+                            detailLevel === lvl.value
                               ? 'bg-primary/10 border-primary/50 text-primary'
                               : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
                           }`}
                         >
-                          <span className="text-sm">{style.icon}</span>
-                          {style.label}
+                          {lvl.label}
                         </button>
                       ))}
                     </div>
                   </div>
-                )}
-
-                {/* Detail level */}
-                <div className="space-y-2">
-                  <Label className="text-[11px] font-semibold text-slate-300">
-                    How much detail?
-                  </Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(
-                      [
-                        {
-                          value: 'quick',
-                          label: 'Quick',
-                          hint: 'Title + price + link',
-                        },
-                        {
-                          value: 'standard',
-                          label: 'Standard',
-                          hint: 'Headline specs + link',
-                        },
-                        {
-                          value: 'complete',
-                          label: 'Complete',
-                          hint: 'Everything in the message',
-                        },
-                      ] as const
-                    ).map((lvl) => (
-                      <button
-                        key={lvl.value}
-                        type="button"
-                        onClick={() => setDetailLevel(lvl.value)}
-                        className={`flex flex-col items-center gap-0.5 rounded-lg border p-2 transition-all ${
-                          detailLevel === lvl.value
-                            ? 'bg-primary/10 border-primary/50 text-primary'
-                            : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
-                        }`}
-                      >
-                        <span className="text-[11px] font-bold">
-                          {lvl.label}
-                        </span>
-                        <span className="text-[9px] text-slate-500">
-                          {lvl.hint}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  <p className="text-xs text-slate-500">
+                    {
+                      SHARE_DETAIL_CHOICES.find((l) => l.value === detailLevel)
+                        ?.hint
+                    }
+                  </p>
                 </div>
 
                 {audienceTab === 'agent' && (
@@ -1896,10 +1930,10 @@ export function PropertyShareDialog({
                       <Square className="mt-0.5 size-4 shrink-0 text-slate-500" />
                     )}
                     <span>
-                      <span className="block text-[11px] font-bold text-slate-200">
+                      <span className="block text-xs font-bold text-slate-200">
                         Let them add and re-share this listing
                       </span>
-                      <span className="mt-0.5 block text-[10px] leading-relaxed text-slate-500">
+                      <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
                         Adds a “Request ConvoReal invite” option. After
                         onboarding with the same WhatsApp number, this property
                         enters their Pending Review inventory with your source
@@ -1912,29 +1946,34 @@ export function PropertyShareDialog({
                 {/* Editable message */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[11px] font-semibold text-slate-300">
+                    <Label className="text-xs font-semibold text-slate-300">
                       Message — tap to edit
                     </Label>
                     {messageDraft !== null ? (
                       <button
                         type="button"
                         onClick={() => setMessageDraft(null)}
-                        className="flex items-center gap-1 text-[10px] text-amber-400 hover:text-amber-300"
+                        className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300"
                       >
                         <RotateCcw className="size-3" />
                         Reset edits
                       </button>
                     ) : (
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-xs text-slate-500">
                         Auto-generated from the listing
                       </span>
                     )}
                   </div>
                   <textarea
+                    ref={messageRef}
                     value={currentMessage}
                     onChange={(e) => setMessageDraft(e.target.value)}
                     rows={detailLevel === 'complete' ? 12 : 7}
-                    className="focus:ring-primary/50 focus:border-primary/50 w-full resize-y rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-500 focus:ring-2 focus:outline-none"
+                    className={`focus:ring-primary/50 focus:border-primary/50 w-full resize-y rounded-lg border bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 transition-colors duration-500 placeholder:text-slate-500 focus:ring-2 focus:outline-none ${
+                      messageFlash
+                        ? 'border-primary/70 bg-primary/10'
+                        : 'border-slate-700'
+                    }`}
                   />
                 </div>
 
@@ -1942,14 +1981,14 @@ export function PropertyShareDialog({
                 <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
                   <div className="flex items-center gap-1.5">
                     <Lock className="size-3.5 text-amber-500" />
-                    <Label className="text-[11px] font-semibold text-slate-300">
+                    <Label className="text-xs font-semibold text-slate-300">
                       Unmask this share
                     </Label>
                     {grantBusy && (
                       <Loader2 className="size-3 animate-spin text-slate-500" />
                     )}
                   </div>
-                  <p className="text-[10px] leading-relaxed text-slate-500">
+                  <p className="text-xs leading-relaxed text-slate-500">
                     Off by default — the masked link is what turns a viewer into
                     a captured lead. Switch any on and this link opens unmasked,
                     with no request to approve. It expires on its own and you
@@ -1991,40 +2030,54 @@ export function PropertyShareDialog({
                             ? 'None marked'
                             : null,
                       },
-                    ].map((sw) => (
-                      <button
-                        key={sw.key}
-                        type="button"
-                        disabled={
-                          Boolean(sw.disabledHint) ||
-                          grantBusy ||
-                          !canManageGrants
-                        }
-                        onClick={sw.toggle}
-                        className={`flex items-center gap-2 rounded-lg border p-2.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-                          sw.on
-                            ? 'border-primary/50 bg-primary/10 text-primary'
-                            : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
-                        }`}
-                      >
-                        {sw.on ? (
-                          <CheckSquare className="size-4 shrink-0" />
-                        ) : (
-                          <Square className="size-4 shrink-0" />
-                        )}
-                        <sw.icon className="size-3.5 shrink-0" />
-                        <span className="truncate text-[11px] font-semibold">
-                          {sw.disabledHint
-                            ? `${sw.label} — ${sw.disabledHint}`
-                            : sw.label}
-                        </span>
-                      </button>
-                    ))}
+                    ]
+                      .filter((sw) => !sw.disabledHint)
+                      .map((sw) => (
+                        <button
+                          key={sw.key}
+                          type="button"
+                          disabled={grantBusy || !canManageGrants}
+                          onClick={sw.toggle}
+                          className={`flex items-center gap-2 rounded-lg border p-2.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                            sw.on
+                              ? 'border-primary/50 bg-primary/10 text-primary'
+                              : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
+                          }`}
+                        >
+                          {sw.on ? (
+                            <CheckSquare className="size-4 shrink-0" />
+                          ) : (
+                            <Square className="size-4 shrink-0" />
+                          )}
+                          <sw.icon className="size-3.5 shrink-0" />
+                          <span className="truncate text-xs font-semibold">
+                            {sw.label}
+                          </span>
+                        </button>
+                      ))}
                   </div>
+                  {(propertyDocumentCount === 0 ||
+                    propertyPrivateImageCount === 0) && (
+                    <p className="text-xs text-slate-500">
+                      {propertyDocumentCount === 0 &&
+                      propertyPrivateImageCount === 0
+                        ? 'No documents or guarded photos on this listing yet.'
+                        : propertyDocumentCount === 0
+                          ? 'No documents on this listing yet.'
+                          : 'No guarded photos on this listing yet.'}{' '}
+                      <Link
+                        href={`/inventory?propertyId=${property.id}`}
+                        onClick={() => onOpenChange(false)}
+                        className="text-primary font-semibold hover:underline"
+                      >
+                        Open the listing to add them
+                      </Link>
+                    </p>
+                  )}
                   {/* Expiry — changing it after a key exists revokes that
                       key; the next copy or send mints a fresh one. */}
                   <div className="flex items-center gap-2 pt-0.5">
-                    <span className="shrink-0 text-[10px] font-semibold text-slate-400">
+                    <span className="shrink-0 text-xs font-semibold text-slate-400">
                       Expires after
                     </span>
                     <div className="flex gap-1">
@@ -2034,7 +2087,7 @@ export function PropertyShareDialog({
                           type="button"
                           disabled={grantBusy || !canManageGrants}
                           onClick={() => setGrantTtl(choice.key)}
-                          className={`rounded-md border px-2 py-1 text-[10px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                          className={`rounded-md border px-2 py-1 text-xs font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                             grantTtl === choice.key
                               ? 'border-primary/50 bg-primary/10 text-primary'
                               : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
@@ -2047,12 +2100,12 @@ export function PropertyShareDialog({
                   </div>
 
                   {linkGrant ? (
-                    <p className="text-[10px] font-medium text-emerald-400">
+                    <p className="text-xs font-medium text-emerald-400">
                       This link is unmasked. Sending it to a contact below gives
                       them their own key, revocable on its own.
                     </p>
                   ) : unmasked ? (
-                    <p className="text-[10px] font-medium text-amber-400">
+                    <p className="text-xs font-medium text-amber-400">
                       Nothing is unmasked yet. The key is created the first time
                       you copy, preview or send this link, so switching an
                       option back off leaves nothing to revoke.
@@ -2063,7 +2116,7 @@ export function PropertyShareDialog({
                       earlier session, so nothing stays unmasked unnoticed. */}
                   {activeGrants && activeGrants.length > 0 && (
                     <div className="space-y-1.5 border-t border-slate-800 pt-2.5">
-                      <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                      <p className="text-xs font-bold tracking-wider text-slate-400 uppercase">
                         Active unmasked links ({activeGrants.length})
                       </p>
                       {activeGrants.map((g) => {
@@ -2079,19 +2132,19 @@ export function PropertyShareDialog({
                             className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2"
                           >
                             <div className="min-w-0 space-y-0.5">
-                              <p className="flex items-center gap-1.5 truncate text-[11px] font-bold text-white">
+                              <p className="flex items-center gap-1.5 truncate text-xs font-bold text-white">
                                 <span className="truncate">
                                   {g.contact
                                     ? g.contact.name || g.contact.phone
                                     : 'Generic link'}
                                 </span>
                                 {isCurrent && (
-                                  <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.5 text-[8px] font-bold text-emerald-400">
+                                  <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.5 text-xs font-bold text-emerald-400">
                                     THIS SHARE
                                   </span>
                                 )}
                               </p>
-                              <p className="truncate text-[9px] font-medium text-slate-500">
+                              <p className="truncate text-xs font-medium text-slate-500">
                                 {reveals.join(' · ')} · expires{' '}
                                 {formatDistanceToNowStrict(
                                   new Date(g.expires_at),
@@ -2104,22 +2157,47 @@ export function PropertyShareDialog({
                                   : ' · not opened yet'}
                               </p>
                             </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={
-                                revokingGrantId !== null || !canManageGrants
-                              }
-                              onClick={() => void handleRevokeGrant(g)}
-                              className="h-7 shrink-0 border-rose-900/60 px-2 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 hover:text-rose-300"
-                            >
-                              {revokingGrantId === g.id ? (
-                                <Loader2 className="size-3 animate-spin" />
-                              ) : (
-                                <Ban className="size-3" />
-                              )}
-                              Revoke
-                            </Button>
+                            {confirmRevokeId === g.id ? (
+                              <div className="flex shrink-0 items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setConfirmRevokeId(null)}
+                                  className="h-7 px-2 text-xs text-slate-400 hover:text-white"
+                                >
+                                  Keep
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  disabled={revokingGrantId !== null}
+                                  onClick={() => {
+                                    setConfirmRevokeId(null);
+                                    void handleRevokeGrant(g);
+                                  }}
+                                  className="h-7 bg-rose-600 px-2 text-xs font-bold text-white hover:bg-rose-500"
+                                >
+                                  <Ban className="size-3" />
+                                  Revoke now
+                                </Button>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={
+                                  revokingGrantId !== null || !canManageGrants
+                                }
+                                onClick={() => setConfirmRevokeId(g.id)}
+                                className="h-7 shrink-0 border-rose-900/60 px-2 text-xs font-bold text-rose-400 hover:bg-rose-950/40 hover:text-rose-300"
+                              >
+                                {revokingGrantId === g.id ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <Ban className="size-3" />
+                                )}
+                                Revoke
+                              </Button>
+                            )}
                           </div>
                         );
                       })}
@@ -2130,10 +2208,10 @@ export function PropertyShareDialog({
                 {/* Direct share targets */}
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center justify-between gap-2">
-                    <Label className="text-[11px] font-semibold text-slate-300">
+                    <Label className="text-xs font-semibold text-slate-300">
                       More ways to send
                     </Label>
-                    <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                    <span className="flex items-center gap-1 text-xs text-slate-500">
                       <ImageIcon className="size-3" />
                       Cover photo attaches on mobile; on desktop the link
                       preview shows it — or use Copy Photo.
@@ -2317,26 +2395,13 @@ export function PropertyShareDialog({
                             More apps…
                           </Button>
                         )}
-                        {onPromote && (
-                          <Button
-                            onClick={() => {
-                              onOpenChange(false);
-                              if (property) onPromote(property);
-                            }}
-                            title="Run a Click-to-WhatsApp Meta ad for this listing — clicks open a WhatsApp chat with you"
-                            className="flex h-9 items-center gap-1.5 bg-gradient-to-r from-fuchsia-600 to-violet-600 px-4 text-xs font-semibold text-white hover:from-fuchsia-700 hover:to-violet-700"
-                          >
-                            <Megaphone className="size-3.5" />
-                            Promote as WhatsApp Ad
-                          </Button>
-                        )}
                       </div>
                     );
                   })()}
                 </div>
 
                 {!property.is_published && audienceTab === 'client' && (
-                  <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-[11px] text-amber-400">
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-400">
                     <span className="text-xs">⚠️</span>
                     <div>
                       <span className="block font-bold">
@@ -2354,11 +2419,11 @@ export function PropertyShareDialog({
                   ref={personalShareSectionRef}
                   className="space-y-2.5 border-t border-slate-800 pt-3"
                 >
-                  <Label className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-300">
+                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
                     <UserCheck className="text-primary size-3.5" />
                     Send personally (tracked)
                   </Label>
-                  <p className="text-[11px] font-medium text-slate-500">
+                  <p className="text-xs font-medium text-slate-500">
                     {audienceTab === 'agent' ? (
                       <>
                         Registered ConvoReal agents can receive the listing
@@ -2412,6 +2477,11 @@ export function PropertyShareDialog({
                     </p>
                   ) : (
                     <div className="max-h-56 scrollbar-thin scrollbar-thumb-slate-800 space-y-1.5 overflow-y-auto pr-0.5">
+                      {!personalSearch.trim() && (
+                        <p className="text-xs font-semibold text-slate-400">
+                          Recently contacted
+                        </p>
+                      )}
                       {personalContacts.slice(0, 50).map((contact) => (
                         <div
                           key={contact.id}
@@ -2420,12 +2490,14 @@ export function PropertyShareDialog({
                           <div className="min-w-0">
                             <span className="flex items-center gap-1.5 truncate text-xs font-bold text-white">
                               <span className="truncate">
-                                {contact.name || contact.phone}
+                                {hasRealName(contact)
+                                  ? contact.name
+                                  : contact.phone}
                               </span>
                               <NameTagBadge tag={contact.name_tag} />
                             </span>
-                            {contact.name && (
-                              <span className="block truncate text-[10px] font-medium text-slate-500">
+                            {hasRealName(contact) && (
+                              <span className="block truncate text-xs font-medium text-slate-500">
                                 📞 {contact.phone}
                               </span>
                             )}
@@ -2441,7 +2513,7 @@ export function PropertyShareDialog({
                                     void handleInventoryShare(contact)
                                   }
                                   title="Add to this agent's ConvoReal review queue"
-                                  className="border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary flex h-7 items-center gap-1 px-2.5 text-[11px]"
+                                  className="border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary flex h-7 items-center gap-1 px-2.5 text-xs"
                                 >
                                   {inventorySharingContactId === contact.id ? (
                                     <Loader2 className="size-3 animate-spin" />
@@ -2454,7 +2526,7 @@ export function PropertyShareDialog({
                             <Button
                               size="sm"
                               onClick={() => handleWhatsAppPersonal(contact)}
-                              className="flex h-7 items-center gap-1 bg-emerald-600 px-2.5 text-[11px] font-bold text-white hover:bg-emerald-500"
+                              className="flex h-7 items-center gap-1 bg-emerald-600 px-2.5 text-xs font-bold text-white hover:bg-emerald-500"
                             >
                               <Smartphone className="size-3" />
                               WhatsApp
@@ -2464,7 +2536,7 @@ export function PropertyShareDialog({
                               variant="outline"
                               onClick={() => void handleCopyPersonal(contact)}
                               title="Copy the personalised message + tracked link"
-                              className="text-slate-350 flex h-7 items-center gap-1 border-slate-800 px-2 text-[11px] hover:bg-slate-800"
+                              className="text-slate-350 flex h-7 items-center gap-1 border-slate-800 px-2 text-xs hover:bg-slate-800"
                             >
                               {copiedPersonalId === contact.id ? (
                                 <Check className="size-3 text-emerald-400" />
@@ -2475,9 +2547,18 @@ export function PropertyShareDialog({
                           </div>
                         </div>
                       ))}
+                      {!personalSearch.trim() &&
+                        reachableContacts.length >
+                          DEFAULT_SHARE_RECIPIENT_COUNT && (
+                          <p className="pt-1 text-center text-xs font-medium text-slate-500">
+                            Search to find any of your{' '}
+                            {reachableContacts.length} contacts
+                          </p>
+                        )}
                       {personalContacts.length > 50 && (
-                        <p className="pt-1 text-center text-[10px] font-medium text-slate-500">
-                          Showing first 50 — refine the search to find others
+                        <p className="pt-1 text-center text-xs font-medium text-slate-500">
+                          Showing the first 50. Refine the search to find
+                          others.
                         </p>
                       )}
                     </div>
@@ -2545,7 +2626,7 @@ export function PropertyShareDialog({
                         🛍️ Share as WhatsApp Product Card
                       </h3>
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px]">
+                        <span className="text-xs">
                           {metaCatalogSyncedAt && !metaCatalogError ? (
                             indexingTimeLeft > 0 ? (
                               <span className="font-medium text-amber-400">
@@ -2636,7 +2717,7 @@ export function PropertyShareDialog({
                     )}
 
                     {indexingTimeLeft > 0 && (
-                      <div className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 p-2.5 text-[11px] text-amber-400">
+                      <div className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 p-2.5 text-xs text-amber-400">
                         <Loader2 className="size-3.5 shrink-0 animate-spin text-amber-400" />
                         <div>
                           Meta Catalog is indexing the product. Ready to share
@@ -2668,6 +2749,31 @@ export function PropertyShareDialog({
                         {indexingTimeLeft > 0
                           ? `Indexing (${indexingTimeLeft}s)`
                           : 'Select Contacts & Send Product Card'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {onPromote && (
+                  <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                    <h3 className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-white uppercase">
+                      <Megaphone className="size-3.5" />
+                      Promote as a WhatsApp ad
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Run a paid Click-to-WhatsApp Meta ad for this listing.
+                      Each click opens a WhatsApp chat with you.
+                    </p>
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={() => {
+                          onOpenChange(false);
+                          onPromote(property);
+                        }}
+                        className="flex h-9 items-center gap-1.5 bg-gradient-to-r from-fuchsia-600 to-violet-600 px-4 text-xs font-semibold text-white hover:from-fuchsia-700 hover:to-violet-700"
+                      >
+                        <Megaphone className="size-3.5" />
+                        Set up the ad
                       </Button>
                     </div>
                   </div>
@@ -2852,7 +2958,7 @@ export function PropertyShareDialog({
                     {appliedAudience.ids.length === 1 ? '' : 's'} from{' '}
                     {audienceListingLabel(appliedAudience.listing)} selected
                   </p>
-                  <p className="mt-0.5 text-[11px] text-slate-400">
+                  <p className="mt-0.5 text-xs text-slate-400">
                     Everyone who enquired about or viewed that listing is ticked
                     below.
                     {appliedAudience.unreachable > 0 &&
@@ -2862,7 +2968,7 @@ export function PropertyShareDialog({
                 <button
                   type="button"
                   onClick={undoAppliedAudience}
-                  className="text-primary hover:text-primary/80 shrink-0 cursor-pointer text-[11px] font-bold"
+                  className="text-primary hover:text-primary/80 shrink-0 cursor-pointer text-xs font-bold"
                 >
                   Undo
                 </button>
@@ -2963,7 +3069,7 @@ export function PropertyShareDialog({
                   <div className="space-y-1">
                     <Label
                       htmlFor="fresh-name"
-                      className="text-[11px] font-semibold text-slate-400"
+                      className="text-xs font-semibold text-slate-400"
                     >
                       Full Name
                     </Label>
@@ -2978,7 +3084,7 @@ export function PropertyShareDialog({
                   <div className="space-y-1">
                     <Label
                       htmlFor="fresh-phone"
-                      className="text-[11px] font-semibold text-slate-400"
+                      className="text-xs font-semibold text-slate-400"
                     >
                       Phone Number *
                     </Label>
@@ -2994,7 +3100,7 @@ export function PropertyShareDialog({
                   <div className="space-y-1">
                     <Label
                       htmlFor="fresh-classification"
-                      className="text-[11px] font-semibold text-slate-400"
+                      className="text-xs font-semibold text-slate-400"
                     >
                       Classification
                     </Label>
@@ -3090,7 +3196,7 @@ export function PropertyShareDialog({
                       <>
                         <NameTagBadge tag={c.name_tag} />
                         <span
-                          className={`py-0.2 inline-flex shrink-0 items-center rounded px-1.5 text-[9px] font-bold ${
+                          className={`py-0.2 inline-flex shrink-0 items-center rounded px-1.5 text-xs font-bold ${
                             c.classification === 'Buyer'
                               ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
                               : 'border border-sky-500/20 bg-sky-500/10 text-sky-400'
@@ -3173,7 +3279,7 @@ export function PropertyShareDialog({
                   <>
                     {selectedTemplate && (
                       <span
-                        className="mr-1.5 hidden max-w-[200px] truncate text-[11px] text-slate-400 italic md:inline"
+                        className="mr-1.5 hidden max-w-[200px] truncate text-xs text-slate-400 italic md:inline"
                         title={`Template: ${selectedTemplate.name}`}
                       >
                         Template: {selectedTemplate.name}
@@ -3278,7 +3384,7 @@ export function PropertyShareDialog({
               {selectedTemplate &&
                 selectedTemplate.category &&
                 selectedTemplate.category !== 'Utility' && (
-                  <p className="text-[11px] text-amber-400">
+                  <p className="text-xs text-amber-400">
                     {selectedTemplate.category} templates are capped per
                     recipient — WhatsApp drops the send with error 131049 for
                     anyone at their limit. A Utility template reaches everyone.
@@ -3289,7 +3395,7 @@ export function PropertyShareDialog({
             {/* Header image selector */}
             {selectedTemplate?.header_type === 'image' && (
               <div className="space-y-1.5 rounded-xl border border-slate-800 bg-slate-950/20 p-3">
-                <Label className="mb-1 block text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                <Label className="mb-1 block text-xs font-semibold tracking-wider text-slate-400 uppercase">
                   Select Broadcast Header Image
                 </Label>
                 <div className="flex max-w-full items-center gap-2 overflow-x-auto py-1">
@@ -3316,7 +3422,7 @@ export function PropertyShareDialog({
                           }}
                         />
                         {idx === 0 && (
-                          <span className="py-0.2 absolute inset-x-0 bottom-0 bg-slate-900/80 text-center text-[7px] font-bold text-amber-400">
+                          <span className="absolute inset-x-0 bottom-0 bg-slate-900/80 text-center text-xs font-bold text-amber-400">
                             Default
                           </span>
                         )}
@@ -3330,7 +3436,7 @@ export function PropertyShareDialog({
               <div className="grid grid-cols-1 gap-4 rounded-xl border border-slate-800 bg-slate-950/15 p-4 md:grid-cols-2">
                 {/* Variable Mappings */}
                 <div className="space-y-3">
-                  <h5 className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  <h5 className="text-xs font-bold tracking-wider text-slate-400 uppercase">
                     Dynamic Variable Parameters
                   </h5>
                   <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1">
@@ -3345,7 +3451,7 @@ export function PropertyShareDialog({
                           key={key}
                           className="space-y-1.5 rounded-lg border border-slate-800/40 bg-slate-900/40 p-2.5"
                         >
-                          <Label className="flex items-center justify-between text-[10px] font-bold text-slate-300">
+                          <Label className="flex items-center justify-between text-xs font-bold text-slate-300">
                             <span>Variable {placeholder}</span>
                           </Label>
                           <div className="flex gap-2">
@@ -3429,7 +3535,7 @@ export function PropertyShareDialog({
 
                 {/* Smartphone Preview Box */}
                 <div className="flex h-full flex-col space-y-2">
-                  <h5 className="flex items-center gap-1 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  <h5 className="flex items-center gap-1 text-xs font-bold tracking-wider text-slate-400 uppercase">
                     <Smartphone className="text-primary size-3.5" /> Live
                     Template Preview
                   </h5>
@@ -3521,7 +3627,7 @@ export function PropertyShareDialog({
                         return body;
                       })()}
                     </div>
-                    <div className="mt-4 flex items-center justify-between border-t border-slate-800/80 pt-2 text-[9px] text-slate-600">
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-800/80 pt-2 text-xs text-slate-600">
                       <span>Live view placeholders.</span>
                       <span className="font-semibold">
                         {selectedTemplate.language || 'en_US'}
@@ -3602,22 +3708,22 @@ export function PropertyShareDialog({
                     <div className="text-xs font-bold text-white">
                       {res.name}
                     </div>
-                    <div className="mt-0.5 text-[10px] text-slate-500">
+                    <div className="mt-0.5 text-xs text-slate-500">
                       {res.phone}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {res.status === 'sent' ? (
-                      <Badge className="border border-green-500/20 bg-green-500/10 text-[10px] font-bold text-green-400">
+                      <Badge className="border border-green-500/20 bg-green-500/10 text-xs font-bold text-green-400">
                         Success
                       </Badge>
                     ) : (
                       <div className="flex flex-col items-end">
-                        <Badge className="border border-red-500/20 bg-red-500/10 text-[10px] font-bold text-red-400">
+                        <Badge className="border border-red-500/20 bg-red-500/10 text-xs font-bold text-red-400">
                           Failed
                         </Badge>
                         {res.error && (
-                          <span className="text-red-450 mt-0.5 text-[9px]">
+                          <span className="text-red-450 mt-0.5 text-xs">
                             {res.error}
                           </span>
                         )}
