@@ -1852,6 +1852,7 @@ const CATALOG_BATCH_POLL_MS = 1500;
 
 interface CatalogBatchStatus {
   status?: string;
+  errors_total_count?: number;
   errors?: Array<{ message?: string }>;
 }
 
@@ -1883,8 +1884,14 @@ async function confirmCatalogProduct({
       const errors = (batch?.errors ?? [])
         .map((e) => e.message)
         .filter((m): m is string => Boolean(m));
-      if (errors.length > 0) {
-        throw new Error(`Meta rejected the catalog item: ${errors.join('; ')}`);
+      if (errors.length > 0 || (batch?.errors_total_count ?? 0) > 0) {
+        throw new Error(
+          `Meta rejected the catalog item: ${
+            errors.length > 0
+              ? errors.join('; ')
+              : `${batch?.errors_total_count} error(s) reported`
+          }`
+        );
       }
       if (batch?.status === 'finished') {
         finished = true;

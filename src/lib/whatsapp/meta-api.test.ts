@@ -541,6 +541,16 @@ describe('[PRP-043] syncProductToCatalog — confirms the item reached the catal
     ).rejects.toThrow('Meta rejected the catalog item: Bad image');
   });
 
+  it('fails the sync when Meta counts errors it does not describe', async () => {
+    stubMeta(
+      { data: [{ status: 'finished', errors_total_count: 1, errors: [] }] },
+      { data: [{ id: '9', retailer_id: 'PROP-1111' }] }
+    );
+    await expect(
+      syncProductToCatalog({ catalogId: 'c1', accessToken: 't', property })
+    ).rejects.toThrow('Meta rejected the catalog item: 1 error(s) reported');
+  });
+
   it('fails the sync when the finished batch left no product behind', async () => {
     stubMeta({ data: [{ status: 'finished', errors: [] }] }, { data: [] });
     await expect(
