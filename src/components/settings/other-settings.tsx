@@ -491,8 +491,9 @@ export function OtherSettingsPanel() {
         if (resetError) {
           console.error('Error resetting catalog sync:', resetError);
           toast.error(
-            'Currency saved, but synced catalog items keep the old currency. Sync them again from each listing.'
+            'Currency saved, but synced catalog items keep the old currency. Save again to retry.'
           );
+          return;
         }
         setSavedCurrency(currency);
       }
