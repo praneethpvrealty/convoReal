@@ -108,7 +108,10 @@ export async function POST(request: NextRequest) {
     let recorded = 0;
     const failed: string[] = [];
     for (const recipient of unique) {
-      if (!owned.has(recipient.contactId)) continue;
+      if (!owned.has(recipient.contactId)) {
+        failed.push(recipient.contactId);
+        continue;
+      }
       const written = await logPropertyShare(
         db,
         ctx.accountId,

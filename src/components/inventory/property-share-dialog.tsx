@@ -1360,7 +1360,11 @@ export function PropertyShareDialog({
       })),
     })
       .then((r) => {
-        if (r.error) console.error('Property share log failed:', r.error);
+        if (!r.error) return;
+        console.error('Property share log failed:', r.error);
+        toast.warning(
+          'Sent, but the share could not be recorded on the contact timeline.'
+        );
       })
       .catch((err) => console.error('Property share log failed:', err));
   }
