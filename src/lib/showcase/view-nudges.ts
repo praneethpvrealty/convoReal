@@ -13,12 +13,14 @@ import {
 } from '@/lib/whatsapp/template-status-normalize';
 import {
   SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME,
+  SHOWCASE_VIEW_NUDGE_TEMPLATE_NAMES,
   buildViewNudgeButtonsBody,
   buildViewNudgeParams,
   buildViewNudgeTemplatePayload,
   renderViewNudgeBody,
   usableViewNudgeTemplate,
   viewNudgeButtonParams,
+  viewNudgeTemplateBodyParams,
   viewNudgeButtons,
 } from '@/lib/showcase/view-nudge-template';
 import type { MessageTemplate } from '@/types';
@@ -55,12 +57,15 @@ export async function ensureViewNudgeTemplate(
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
-    .eq('name', SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME);
+    .in('name', [...SHOWCASE_VIEW_NUDGE_TEMPLATE_NAMES]);
   if (error) {
     console.error('[view-nudges] template lookup failed:', error);
     return [];
   }
-  if (rows && rows.length > 0) return rows as MessageTemplate[];
+  const existing = (rows ?? []) as MessageTemplate[];
+  if (existing.some((row) => row.name === SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME)) {
+    return existing;
+  }
 
   try {
     const { data: config } = await db
@@ -73,7 +78,7 @@ export async function ensureViewNudgeTemplate(
       !config.access_token ||
       config.integration_type === 'sandbox'
     ) {
-      return [];
+      return existing;
     }
 
     const { data: account } = await db
@@ -81,7 +86,7 @@ export async function ensureViewNudgeTemplate(
       .select('owner_user_id')
       .eq('id', accountId)
       .maybeSingle();
-    if (!account?.owner_user_id) return [];
+    if (!account?.owner_user_id) return existing;
 
     const payload = buildViewNudgeTemplatePayload();
     const meta = await submitMessageTemplate({
@@ -123,7 +128,7 @@ export async function ensureViewNudgeTemplate(
   } catch (err) {
     console.error('[view-nudges] template auto-submit failed:', err);
   }
-  return [];
+  return existing;
 }
 
 export async function processShowcaseViewNudges(
@@ -342,8 +347,14 @@ async function sendViewNudge(
   const excluded = showcaseOutreachExclusion(contactId, contact, property);
   if (excluded) return { status: 'skipped', reason: excluded };
 
+  const { data: account } = await db
+    .from('accounts')
+    .select('name')
+    .eq('id', accountId)
+    .maybeSingle();
   const params = buildViewNudgeParams(
     contact.name as string | null,
+    (account as { name?: string | null } | null)?.name ?? null,
     (property.title as string | null) || 'Property'
   );
 
@@ -384,13 +395,13 @@ async function sendViewNudge(
       senderType: 'bot',
       templateName: template.name,
       templateLanguage: template.language || 'en_US',
-      templateParams: params,
+      templateParams: viewNudgeTemplateBodyParams(template.name, params),
       messageParams: {
-        body: params,
+        body: viewNudgeTemplateBodyParams(template.name, params),
         buttonParams: viewNudgeButtonParams(property.id as string),
       },
       templateRow: template,
-      text: renderViewNudgeBody(params),
+      text: renderViewNudgeBody(template.name, params),
       customDbClient: db,
     });
     if (result?.success === false && !result.reachedMeta) {

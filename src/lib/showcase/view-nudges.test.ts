@@ -112,7 +112,9 @@ function fakeDb(state: {
       return { data: null, error: { message: 'read failed' } };
     }
     const rows = (state.tables[q.table] ?? []).filter((row) =>
-      Object.entries(q.filters).every(([k, v]) => row[k] === v)
+      Object.entries(q.filters).every(([k, v]) =>
+        Array.isArray(v) ? v.includes(row[k]) : row[k] === v
+      )
     );
     return { data: rows, error: null };
   };
@@ -142,6 +144,10 @@ function fakeDb(state: {
       },
       eq: (column: string, value: unknown) => {
         q.filters[column] = value;
+        return api;
+      },
+      in: (column: string, values: unknown[]) => {
+        q.filters[column] = values;
         return api;
       },
       gte: () => api,
@@ -262,7 +268,10 @@ describe('[PLS-006] showcase view check-in buttons', () => {
     expect(payload.buttons?.map((b) => b.text)).toEqual(
       Object.values(VIEW_NUDGE_BUTTON_LABELS)
     );
-    expect(payload.footer_text!.length).toBeLessThanOrEqual(60);
+    expect(payload.name).toBe('showcase_view_followup');
+    expect(payload.footer_text).toBeUndefined();
+    expect(payload.body_text).toContain('Property: {{3}}');
+    expect(payload.sample_values?.body).toHaveLength(3);
     const params = viewNudgeButtonParams(PROPERTY);
     expect(buttons.map((b, i) => params[i] === b.id)).toEqual([
       true,
@@ -283,6 +292,33 @@ describe('[PLS-006] showcase view check-in buttons', () => {
     expect(usableViewNudgeTemplate([utility], 'pending')).toBe(utility);
     expect(
       usableViewNudgeTemplate([{ ...utility, status: 'PENDING' }], 'granted')
+    ).toBeNull();
+  });
+
+  it('prefers the Utility follow-up over the Marketing check-in, and keeps the old one for opted-in contacts until then', () => {
+    const legacy = {
+      name: 'showcase_view_checkin',
+      status: 'APPROVED',
+      category: 'Marketing',
+    };
+    const followup = {
+      name: 'showcase_view_followup',
+      status: 'APPROVED',
+      category: 'Utility',
+    };
+    expect(usableViewNudgeTemplate([legacy, followup], 'pending')).toBe(
+      followup
+    );
+    const pendingFollowup = { ...followup, status: 'PENDING' };
+    expect(usableViewNudgeTemplate([legacy, pendingFollowup], 'granted')).toBe(
+      legacy
+    );
+    expect(
+      usableViewNudgeTemplate([legacy, pendingFollowup], 'pending')
+    ).toBeNull();
+    const marketingFollowup = { ...followup, category: 'Marketing' };
+    expect(
+      usableViewNudgeTemplate([legacy, marketingFollowup], 'pending')
     ).toBeNull();
   });
 });
@@ -397,6 +433,38 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
       status: 'sent',
       channel: 'template',
     });
+  });
+
+  it('sends the Utility follow-up template naming the brokerage and the listing', async () => {
+    const { db } = fakeDb({
+      candidates: [candidate],
+      tables: baseTables({
+        accounts: [{ id: ACCOUNT, name: 'Aryavarta Ventures' }],
+        message_templates: [
+          {
+            account_id: ACCOUNT,
+            name: 'showcase_view_followup',
+            status: 'APPROVED',
+            category: 'Utility',
+            language: 'en_US',
+          },
+        ],
+      }),
+    });
+    await processShowcaseViewNudges(db);
+    const args = h.send.mock.calls[0][0];
+    expect(args.templateName).toBe('showcase_view_followup');
+    expect(args.templateParams).toEqual([
+      'Ravi',
+      'Aryavarta Ventures',
+      '3 BHK in Kondapur',
+    ]);
+    expect(args.messageParams.body).toEqual(args.templateParams);
+    expect(args.text).toContain(
+      'this is a follow-up on the listing Aryavarta Ventures shared with you'
+    );
+    expect(args.text).toContain('Property: 3 BHK in Kondapur');
+    expect(h.submit).not.toHaveBeenCalled();
   });
 
   it('submits the template once and releases the claim while it awaits approval, so the visitor is asked once it is approved', async () => {
