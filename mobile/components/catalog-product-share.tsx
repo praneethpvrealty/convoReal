@@ -116,7 +116,7 @@ export function CatalogProductShare({
     setSending(true);
     haptic.send();
     try {
-      const { sent, failed } = await sendCatalogProduct(
+      const { sent, failed, unrecorded } = await sendCatalogProduct(
         catalogId,
         currency,
         property,
@@ -124,6 +124,26 @@ export function CatalogProductShare({
       );
       setPicking(false);
       if (sent.length > 0) onShared?.(sent.map((c) => c.id));
+      if (unrecorded) {
+        haptic.warn();
+        notify(
+          failed.length === 0
+            ? 'Sent, but not recorded'
+            : `Sent to ${sent.length} of ${contacts.length}`,
+          [
+            `The product card reached ${sent
+              .map((c) => c.name || contactHandle(c))
+              .join(
+                ', '
+              )}, but the share could not be recorded on their timeline. Check your connection; the messages are in their chats.`,
+            ...failed.map(
+              ({ contact, error }) =>
+                `${contact.name || contactHandle(contact)}: ${error}`
+            ),
+          ].join('\n\n')
+        );
+        return;
+      }
       if (failed.length === 0) {
         haptic.success();
         onDone();

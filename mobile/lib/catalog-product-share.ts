@@ -17,8 +17,10 @@ export interface CatalogShareContext {
   currency: string;
 }
 
-const CATALOG_SEND_TIMEOUT_MS = 60_000;
-const CATALOG_SEND_BATCH = 5;
+const CATALOG_SEND_BASE_TIMEOUT_MS = 30_000;
+const CATALOG_SEND_PER_RECIPIENT_MS = 10_000;
+const CATALOG_SEND_MAX_TIMEOUT_MS = 300_000;
+const SHARE_LOG_ATTEMPTS = 3;
 const CATALOG_SYNC_TIMEOUT_MS = 60_000;
 
 export async function fetchCatalogShareContext(
@@ -67,61 +69,72 @@ export async function sendCatalogProduct(
   currency: string,
   property: Property,
   contacts: Contact[]
-): Promise<{ sent: Contact[]; failed: { contact: Contact; error: string }[] }> {
+): Promise<{
+  sent: Contact[];
+  failed: { contact: Contact; error: string }[];
+  unrecorded: boolean;
+}> {
   const reachable = contacts.filter(hasPhone);
   const unreachable = contacts
     .filter((c) => !hasPhone(c))
     .map((contact) => ({ contact, error: 'No phone number' }));
-  const sent: Contact[] = [];
-  const failed: { contact: Contact; error: string }[] = [...unreachable];
-  for (let i = 0; i < reachable.length; i += CATALOG_SEND_BATCH) {
-    const batch = reachable.slice(i, i + CATALOG_SEND_BATCH);
-    let results: CatalogSendResult[] | undefined;
+  if (reachable.length === 0) {
+    return { sent: [], failed: unreachable, unrecorded: false };
+  }
+  const res = await apiFetch<{ results?: CatalogSendResult[] }>(
+    '/api/whatsapp/broadcast',
+    {
+      method: 'POST',
+      timeoutMs: Math.min(
+        CATALOG_SEND_MAX_TIMEOUT_MS,
+        CATALOG_SEND_BASE_TIMEOUT_MS +
+          reachable.length * CATALOG_SEND_PER_RECIPIENT_MS
+      ),
+      body: JSON.stringify({
+        recipients: reachable.map((c) => ({
+          phone: c.phone,
+          contact_id: c.id,
+        })),
+        broadcast_type: 'product',
+        product_catalog_id: catalogId,
+        product_retailer_id: catalogProductRetailerId(property),
+        content_text: catalogProductCaption(property, currency),
+        property_id: property.id,
+      }),
+    }
+  );
+  const outcomes = matchCatalogSendResults(reachable, res?.results);
+  const sent: Contact[] = outcomes.filter((o) => o.sent).map((o) => o.contact);
+  const failed = [
+    ...unreachable,
+    ...outcomes
+      .filter((o) => !o.sent)
+      .map((o) => ({
+        contact: o.contact as Contact,
+        error: o.error ?? 'Delivery failure',
+      })),
+  ];
+  const unrecorded =
+    sent.length > 0 && !(await recordCatalogShares(property.id, sent));
+  return { sent, failed, unrecorded };
+}
+
+async function recordCatalogShares(
+  propertyId: string,
+  contacts: Contact[]
+): Promise<boolean> {
+  const body = JSON.stringify({
+    property_id: propertyId,
+    recipients: contacts.map((c) => ({ contact_id: c.id })),
+    channel: 'whatsapp',
+  });
+  for (let attempt = 0; attempt < SHARE_LOG_ATTEMPTS; attempt++) {
     try {
-      const res = await apiFetch<{ results?: CatalogSendResult[] }>(
-        '/api/whatsapp/broadcast',
-        {
-          method: 'POST',
-          timeoutMs: CATALOG_SEND_TIMEOUT_MS,
-          body: JSON.stringify({
-            recipients: batch.map((c) => ({
-              phone: c.phone,
-              contact_id: c.id,
-            })),
-            broadcast_type: 'product',
-            product_catalog_id: catalogId,
-            product_retailer_id: catalogProductRetailerId(property),
-            content_text: catalogProductCaption(property, currency),
-            property_id: property.id,
-          }),
-        }
-      );
-      results = res?.results;
-    } catch (err) {
-      const error = err instanceof Error ? err.message : 'Send failed';
-      failed.push(...batch.map((contact) => ({ contact, error })));
+      await apiFetch('/api/properties/share-log', { method: 'POST', body });
+      return true;
+    } catch {
       continue;
     }
-    const outcomes = matchCatalogSendResults(batch, results);
-    const batchSent = outcomes.filter((o) => o.sent).map((o) => o.contact);
-    for (const o of outcomes) {
-      if (!o.sent) {
-        failed.push({
-          contact: o.contact,
-          error: o.error ?? 'Delivery failure',
-        });
-      }
-    }
-    if (batchSent.length === 0) continue;
-    sent.push(...batchSent);
-    await apiFetch('/api/properties/share-log', {
-      method: 'POST',
-      body: JSON.stringify({
-        property_id: property.id,
-        recipients: batchSent.map((c) => ({ contact_id: c.id })),
-        channel: 'whatsapp',
-      }),
-    }).catch(() => undefined);
   }
-  return { sent, failed };
+  return false;
 }
