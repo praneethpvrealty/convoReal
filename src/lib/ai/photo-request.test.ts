@@ -21,6 +21,7 @@ vi.mock('@/lib/showcase/account-showcase-url', () => ({
 const {
   requestsPropertyPhotos,
   photoHandoverText,
+  isPhotoHandoverText,
   buildPhotoReplyText,
   sendSubjectPhotos,
 } = await import('./photo-request');
@@ -74,6 +75,23 @@ describe('photoHandoverText', () => {
 
   it('still promises the photos when no listing is pinned', () => {
     expect(photoHandoverText(null)).toMatch(/photos/i);
+  });
+});
+
+describe('[INB-035] isPhotoHandoverText', () => {
+  it('recognises both shapes of the photo handover', () => {
+    expect(isPhotoHandoverText(photoHandoverText('Bilekahalli Plot'))).toBe(
+      true
+    );
+    expect(isPhotoHandoverText(photoHandoverText(null))).toBe(true);
+  });
+
+  it('does not mistake other replies for it', () => {
+    expect(isPhotoHandoverText('Here are the photos of *Bilekahalli*')).toBe(
+      false
+    );
+    expect(isPhotoHandoverText('')).toBe(false);
+    expect(isPhotoHandoverText(null)).toBe(false);
   });
 });
 

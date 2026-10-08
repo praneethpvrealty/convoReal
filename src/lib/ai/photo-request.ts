@@ -82,6 +82,17 @@ export function photoHandoverText(title?: string | null): string {
     : "Let me get those photos from the team — I'll send them right across.";
 }
 
+export function isPhotoHandoverText(text: string | null | undefined): boolean {
+  const t = text ?? '';
+  const [head, tail] = photoHandoverText('\u0000').split('\u0000');
+  return (
+    t === photoHandoverText(null) ||
+    (t.length > head.length + tail.length &&
+      t.startsWith(head) &&
+      t.endsWith(tail))
+  );
+}
+
 export interface PhotoReplyPart {
   title: string | null;
   sent: number;

@@ -224,6 +224,7 @@ export function PropertyShareDialog({
   >('Buyer');
   const [addingFresh, setAddingFresh] = useState(false);
   const [currency, setCurrency] = useState('INR');
+  const [currencyLoadFailed, setCurrencyLoadFailed] = useState(false);
   const [showcaseSubdomain, setShowcaseSubdomain] = useState<string | null>(
     null
   );
@@ -962,10 +963,10 @@ export function PropertyShareDialog({
           .select('currency, subdomain')
           .eq('account_id', accountId)
           .maybeSingle()
-          .then(({ data }) => {
-            if (data?.currency) {
-              setCurrency(data.currency);
-            }
+          .then(({ data, error }) => {
+            setCurrencyLoadFailed(Boolean(error));
+            if (error) return;
+            setCurrency(data?.currency || 'INR');
             setShowcaseSubdomain(data?.subdomain || null);
           });
       }
@@ -1407,7 +1408,11 @@ export function PropertyShareDialog({
       })),
     })
       .then((r) => {
-        if (r.error) console.error('Property share log failed:', r.error);
+        if (!r.error) return;
+        console.error('Property share log failed:', r.error);
+        toast.warning(
+          'Sent, but the share could not be recorded on the contact timeline.'
+        );
       })
       .catch((err) => console.error('Property share log failed:', err));
   }
@@ -1617,6 +1622,12 @@ export function PropertyShareDialog({
   // Execute catalog product sharing request
   async function handleSendCatalogBroadcast() {
     if (!catalogId || selectedContactIds.length === 0 || !property) return;
+    if (currencyLoadFailed) {
+      toast.error(
+        'Could not load your price currency. Reopen this dialog and try again.'
+      );
+      return;
+    }
     setSendingBroadcast(true);
     setBroadcastStep('sending');
 
@@ -2698,6 +2709,13 @@ export function PropertyShareDialog({
                       shopping experience with inline image, details, and price.
                     </p>
 
+                    {currencyLoadFailed && (
+                      <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-2.5 text-[11px] text-red-400">
+                        Could not load your price currency, so the product card
+                        can&apos;t be sent. Reopen this dialog to try again.
+                      </div>
+                    )}
+
                     {indexingTimeLeft > 0 && (
                       <div className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 p-2.5 text-xs text-amber-400">
                         <Loader2 className="size-3.5 shrink-0 animate-spin text-amber-400" />
@@ -2722,7 +2740,8 @@ export function PropertyShareDialog({
                           !metaCatalogSyncedAt ||
                           !!metaCatalogError ||
                           indexingTimeLeft > 0 ||
-                          syncingCatalog
+                          syncingCatalog ||
+                          currencyLoadFailed
                         }
                         className="bg-primary hover:bg-primary/90 text-primary-foreground flex h-9 cursor-pointer items-center gap-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -3236,7 +3255,8 @@ export function PropertyShareDialog({
                     disabled={
                       selectedContactIds.length === 0 ||
                       sendingBroadcast ||
-                      indexingTimeLeft > 0
+                      indexingTimeLeft > 0 ||
+                      currencyLoadFailed
                     }
                     onClick={handleSendCatalogBroadcast}
                     className="flex h-9 items-center gap-1.5 bg-emerald-600 text-xs font-semibold text-white hover:bg-emerald-700"

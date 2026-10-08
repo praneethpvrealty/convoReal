@@ -1,5 +1,6 @@
 import {
   answerLeadQuestion,
+  isHandoverText,
   looksLikeQuestion,
   mergeLeadAnswers,
   previousLeadQuestion,
@@ -14,6 +15,7 @@ import {
   retrieveBotInstructions,
 } from '@/lib/ai/bot-instructions';
 import {
+  isPhotoHandoverText,
   photoHandoverText,
   requestsPropertyPhotos,
   sendSubjectPhotos,
@@ -23,7 +25,44 @@ import { createNotification } from '@/lib/notifications/create';
 import { relayLeadMessageToBridgedAgent } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { latestTeamReply } from '@/lib/whatsapp/agent-takeover';
 import type { InboundChainContext, StepResult } from '../context';
+
+export function withoutHandovers(
+  answers: LeadAnswer[],
+  subjects: { title?: string | null }[]
+): LeadAnswer | null {
+  const kept = answers.flatMap((answer, i) =>
+    answer.source === 'handover' ? [] : [{ answer, subject: subjects[i] ?? {} }]
+  );
+  if (kept.length === 0) return null;
+  if (kept.length === answers.length)
+    return mergeLeadAnswers(answers, subjects);
+  const merged = mergeLeadAnswers(
+    kept.map((k) => k.answer),
+    kept.map((k) => k.subject)
+  );
+  return {
+    ...merged,
+    text: kept
+      .map(({ answer, subject }) => {
+        const title = subject.title?.trim();
+        return title ? `*${title}*\n${answer.text}` : answer.text;
+      })
+      .join('\n\n'),
+  };
+}
+
+export async function handoverAlreadyPromised(
+  db: Parameters<typeof latestTeamReply>[0],
+  conversationId: string
+): Promise<boolean> {
+  const latest = await latestTeamReply(db, conversationId);
+  return (
+    latest?.senderType === 'bot' &&
+    (isHandoverText(latest.text) || isPhotoHandoverText(latest.text))
+  );
+}
 
 export async function leadQuestion(
   ctx: InboundChainContext
@@ -42,6 +81,7 @@ export async function leadQuestion(
     inboundText,
     tappedHumanRequest,
     flowConsumed,
+    agentHandling,
   } = ctx;
   // A lead's question nothing above claimed. Answer it from the listing
   // they were last sent — free fields first, then Gemini grounded in
@@ -106,6 +146,8 @@ export async function leadQuestion(
         leadText)
       : leadText;
     let answer: LeadAnswer;
+    let answers: LeadAnswer[];
+    let answerSubjects: { title?: string | null }[];
     if (photoRequest) {
       const sentPhotos = await sendSubjectPhotos({
         db: admin,
@@ -121,13 +163,15 @@ export async function leadQuestion(
         text: photoHandoverText(subjects[0]?.title),
         source: 'handover',
       };
+      answers = [answer];
+      answerSubjects = subjects.slice(0, 1);
     } else {
       const { data: qaConfig } = await admin
         .from('whatsapp_config')
         .select('share_seller_final_price')
         .eq('account_id', accountId)
         .maybeSingle();
-      const answers = await Promise.all(
+      answers = await Promise.all(
         (subjects.length > 0 ? subjects : [null]).map(async (subject) => {
           const [portalListings, botInstructions] = await Promise.all([
             subject
@@ -155,23 +199,34 @@ export async function leadQuestion(
         })
       );
       answer = mergeLeadAnswers(answers, subjects);
+      answerSubjects = subjects;
     }
 
-    await sendWhatsAppMessageAndPersist({
-      accountId,
-      userId: configOwnerUserId,
-      contactId: contactRecord.id,
-      conversationId: conversation.id,
-      kind: 'text',
-      senderType: 'bot',
-      text: answer.text,
-    });
+    const holdHandovers =
+      answer.source === 'handover' &&
+      (agentHandling ||
+        (await handoverAlreadyPromised(admin, conversation.id)));
+    const reply = holdHandovers
+      ? withoutHandovers(answers, answerSubjects)
+      : answer;
 
-    await markBotInstructionsFired(
-      admin,
-      accountId,
-      answer.appliedInstructionIds ?? []
-    );
+    if (reply) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        kind: 'text',
+        senderType: 'bot',
+        text: reply.text,
+      });
+
+      await markBotInstructionsFired(
+        admin,
+        accountId,
+        reply.appliedInstructionIds ?? []
+      );
+    }
 
     if (answer.source === 'handover') {
       // The lead has been promised a person, so make sure one hears

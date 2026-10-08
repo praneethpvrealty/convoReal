@@ -105,6 +105,7 @@ jobs:
               - 'src/lib/radar/send-refusal.ts'
               - 'src/lib/inventory/card-badges.ts'
               - 'src/lib/inventory/catalog-product-share.ts'
+              - 'src/lib/inventory/share-log-request.ts'
               - 'src/lib/inventory/location-privacy.ts'
               - 'src/lib/inventory/property-options.ts'
               - 'src/lib/inventory/share-recipients.ts'

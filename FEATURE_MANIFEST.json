@@ -598,6 +598,26 @@
             "src/lib/learning/subject.ts",
             "src/lib/ai/lead-question.ts"
           ]
+        },
+        {
+          "id": "INB-035",
+          "rule": "The bot never answers a lead's question with a handover line (\"let me check that with the team\", the callback promise, the photo handover) while a human agent is handling the thread, meaning an agent has replied in that conversation within the last 24 hours: the lead hears nothing from the bot, and the assigned agent is still notified, the question is still relayed to their WhatsApp and the thread is still marked pending. A concrete answer the bot holds (from the listing's own fields, the seller's final price, a portal comparison or a grounded model answer) still goes out while an agent is live; when a question covers several listings (INB-034) only the handover parts are dropped and each remaining answer goes out under its listing's title. With no agent reply in the last 24 hours the handover line is sent, but only once: when the bot's latest message in the thread within the last 24 hours, with no agent reply after it, was already a handover line (any of the three, or the photo handover); a message Meta marked failed never counts as either the agent's reply or the bot's promise, the lead hears no second promise, a concrete answer still goes out, and the agent is notified again.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/inbound/chain/lead-question-step.test.ts",
+              "case": "[INB-035]"
+            },
+            { "file": "src/lib/ai/lead-question.test.ts", "case": "[INB-035]" },
+            { "file": "src/lib/ai/photo-request.test.ts", "case": "[INB-035]" },
+            {
+              "file": "src/lib/whatsapp/agent-takeover.test.ts",
+              "case": "[INB-035]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/inbound/chain/steps/lead-question.ts",
+            "src/lib/whatsapp/agent-takeover.ts"
+          ]
         }
       ]
     },
@@ -2045,7 +2065,7 @@
         },
         {
           "id": "PRP-044",
-          "rule": "A listing can be shared as a WhatsApp catalog product card from the web share dialog and the mobile share sheet whenever the account has a Meta catalog: both show the same sync status (not synced, sync failed, indexing for 90 seconds after a sync, synced), both offer Sync now, both refuse to send until indexing has finished, and both send through the same product broadcast with the same retailer id (property code, else id) and caption, whose location never carries a guarded listing's street address. Only recipients the broadcast reports as sent are recorded on the share ledger. A sync counts as synced only once Meta's batch has finished without errors and the product is found in the catalog under that retailer id; otherwise the listing shows Sync failed with Meta's reason, so a send never reaches Meta for a product the catalog does not hold; an automatic resync after an edit or approval clears the previous sync first, so the card is not offered while the new one is unconfirmed.",
+          "rule": "A listing can be shared as a WhatsApp catalog product card from the web share dialog and the mobile share sheet whenever the account has a Meta catalog: both show the same sync status (not synced, sync failed, indexing for 90 seconds after a sync, synced), both offer Sync now, both refuse to send until indexing has finished, and both send through the same product broadcast with the same retailer id (property code, else id) and caption, whose location never carries a guarded listing's street address. Only recipients the broadcast reports as sent are recorded on the share ledger. A sync counts as synced only once Meta's batch has finished without errors and the product is found in the catalog under that retailer id; otherwise the listing shows Sync failed with Meta's reason, so a send never reaches Meta for a product the catalog does not hold; the catalog item is priced in the account's showcase currency (INR when none is set), a sync fails rather than guessing when that currency cannot be read, and changing the account currency clears every synced item so none is offered at the old price currency; an automatic resync after an edit or approval clears the previous sync in the same write as the save, so the card is not offered while the new one is unconfirmed; the mobile sheet refuses to guess the price currency when the account's showcase settings cannot be read.",
           "tests": [
             {
               "file": "src/lib/inventory/catalog-product-share.test.ts",
@@ -2236,7 +2256,7 @@
         },
         {
           "id": "JRN-009",
-          "rule": "Every confirmed property share captures the contact×property pair on the journey through one server-side ledger writer, whichever surface sent it: the share sheet on web and mobile (both channels), a personal-WhatsApp or email share the agent logs, a contact's hand-picked listings, Radar sends and the bot's own listing sends; the ledger's insert trigger makes the same capture for a row written any other way, reading the visibility the writer recorded on it. A share the agent composed for one contact is visible at once; a broadcast or bot batch waits hidden in the Captured tray; re-sharing never duplicates, resurrects or un-hides a pair.",
+          "rule": "Every confirmed property share captures the contact×property pair on the journey through one server-side ledger writer, whichever surface sent it: the share sheet on web and mobile (both channels), a personal-WhatsApp or email share the agent logs, a contact's hand-picked listings, Radar sends and the bot's own listing sends; the ledger's insert trigger makes the same capture for a row written any other way, reading the visibility the writer recorded on it. A share the agent composed for one contact is visible at once; a broadcast or bot batch waits hidden in the Captured tray; re-sharing never duplicates, resurrects or un-hides a pair. The share-log endpoint counts as recorded only the shares whose ledger row and journey capture both landed and names every other requested recipient as failed, so the web share dialog, the web email share and the mobile product-card send report a share that was sent but not recorded instead of claiming it was logged.",
           "tests": [
             {
               "file": "src/lib/journey/capture-server.test.ts",
@@ -2524,6 +2544,40 @@
           "guards": [
             "src/lib/journey/closing-nudges.ts",
             "src/lib/whatsapp/inbound/chain/steps/control-reply.ts"
+          ]
+        },
+        {
+          "id": "JRN-021",
+          "rule": "A share the ledger could not record is never reported as recorded. The server ledger writer never throws and never turns a delivered message into a send error, but it reports whether both the ledger row and the journey capture landed. POST /api/properties/share-log answers 200 with `recorded` counting only the recipients whose writes both landed and `failed` listing every other requested contact id. Every client that logs a share through it, on web and mobile (the share sheet, a logged personal-WhatsApp or email share, the mobile product-card send), reads the answer through one shared reader that retries the failed recipients, up to three attempts, retries a transport failure the same way, stops at once on a refusal, and treats a recorded count short of the recipients sent as unrecorded: the email share and the mobile product card tell the agent the share went out but was not recorded.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/share-property-send.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/app/api/properties/share-log/route.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/inventory/share-log-request.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/inventory/share-log.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-021]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/share-property-send.ts",
+            "src/app/api/properties/share-log/route.ts",
+            "src/lib/inventory/share-log-request.ts",
+            "src/lib/inventory/share-log.ts",
+            "mobile/lib/catalog-product-share.ts",
+            "mobile/lib/property-share-actions.ts"
           ]
         }
       ]
@@ -4058,7 +4112,7 @@
         },
         {
           "id": "PLS-006",
-          "rule": "An identified showcase visitor (contact_id set, with a phone) whose view_property dwell on one Available listing totals at least 30 seconds within the last 24 hours gets one WhatsApp check-in for that listing, sent only after their showcase activity has been quiet for 30 minutes (checked again under the send lease, which releases the claim if they are browsing again), with each view counted for at most 30 minutes because the public beacon is not trusted to cap it, and outside the account's client quiet hours. Nobody is asked twice about a listing, a contact gets at most one check-in in any 3 days, and none goes to a contact who is dead, archived, chain-only, declined alerts, inside a pitch-quiet window, classified Agent or Developer, the listing's owner (all checked again under the send lease), who wrote in or was written to by an agent since the view (checked again under the send lease), or whose share-feedback request for the listing was sent in the last 3 days or is due. While the 24-hour window is open it goes as free-form buttons naming the listing (Book a visit / Call me back / Not for me); otherwise as the approved showcase_view_checkin template whose quick replies carry the same reply ids, auto-submitted once per account and never resubmitted; while no usable template exists the claim is released rather than skipped, so the visitor is still asked once it is approved. A Marketing-categorised template goes only to contacts who granted alerts. Each check-in is claimed before sending, a claim whose contact conversation is busy with another send is released rather than spent, its WhatsApp message id is stored, and marking it sent is retried so a delivered check-in is not sent again.",
+          "rule": "An identified showcase visitor (contact_id set, with a phone) whose view_property dwell on one Available listing totals at least 30 seconds within the last 24 hours gets one WhatsApp check-in for that listing, sent only after their showcase activity has been quiet for 30 minutes (checked again under the send lease, which releases the claim if they are browsing again), with each view counted for at most 30 minutes because the public beacon is not trusted to cap it, and outside the account's client quiet hours. Nobody is asked twice about a listing, a contact gets at most one check-in in any 3 days, and none goes to a contact who is dead, archived, chain-only, declined alerts, inside a pitch-quiet window, classified Agent or Developer, the listing's owner (all checked again under the send lease), who wrote in or was written to by an agent since the view (checked again under the send lease), or whose share-feedback request for the listing was sent in the last 3 days or is due. While the 24-hour window is open it goes as free-form buttons naming the listing (Book a visit / Call me back / Not for me); otherwise as an approved template whose quick replies carry the same reply ids: the showcase_view_followup template (name, brokerage, listing; no opt-out footer), auto-submitted once per account as Utility and never resubmitted, ahead of the earlier showcase_view_checkin template, and a Utility row ahead of a Marketing one whatever its name, choosing among rows in the contact's language first (CLG-001); while no usable template exists the claim is released rather than skipped, so the visitor is still asked once it is approved. A Marketing-categorised template goes only to contacts who granted alerts. Each check-in is claimed before sending, a claim whose contact conversation is busy with another send is released rather than spent, its WhatsApp message id is stored, and marking it sent is retried so a delivered check-in is not sent again.",
           "tests": [
             {
               "file": "src/lib/showcase/view-nudges.test.ts",
