@@ -42,6 +42,7 @@ export async function leadQuestion(
     inboundText,
     tappedHumanRequest,
     flowConsumed,
+    agentHandling,
   } = ctx;
   // A lead's question nothing above claimed. Answer it from the listing
   // they were last sent — free fields first, then Gemini grounded in
@@ -157,21 +158,29 @@ export async function leadQuestion(
       answer = mergeLeadAnswers(answers, subjects);
     }
 
-    await sendWhatsAppMessageAndPersist({
-      accountId,
-      userId: configOwnerUserId,
-      contactId: contactRecord.id,
-      conversationId: conversation.id,
-      kind: 'text',
-      senderType: 'bot',
-      text: answer.text,
-    });
+    // An agent who replied within the last 24 hours is the person the
+    // handover line would promise, and they are already in the thread:
+    // the bot repeating "let me check with the team" over them only
+    // tells the lead a machine is talking. A concrete answer from the
+    // listing still goes out; a handover is left to the agent, who is
+    // still notified below.
+    if (answer.source !== 'handover' || !agentHandling) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        kind: 'text',
+        senderType: 'bot',
+        text: answer.text,
+      });
 
-    await markBotInstructionsFired(
-      admin,
-      accountId,
-      answer.appliedInstructionIds ?? []
-    );
+      await markBotInstructionsFired(
+        admin,
+        accountId,
+        answer.appliedInstructionIds ?? []
+      );
+    }
 
     if (answer.source === 'handover') {
       // The lead has been promised a person, so make sure one hears
