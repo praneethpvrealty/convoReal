@@ -360,6 +360,24 @@ describe('[PLS-006] showcase view check-in buttons', () => {
     ).toBe(britishCheckin);
   });
 
+  it('[CLG-001] ranks every English locale together for an English contact', () => {
+    const usMarketing = {
+      name: 'showcase_view_followup',
+      status: 'APPROVED',
+      category: 'Marketing',
+      language: 'en_US',
+    };
+    const britishUtility = {
+      name: 'showcase_view_checkin',
+      status: 'APPROVED',
+      category: 'Utility',
+      language: 'en_GB',
+    };
+    expect(
+      usableViewNudgeTemplate([usMarketing, britishUtility], 'granted', 'en')
+    ).toBe(britishUtility);
+  });
+
   it('skips a Marketing row the contact cannot receive for a Utility one in English', () => {
     const kannadaMarketing = {
       name: 'showcase_view_followup',

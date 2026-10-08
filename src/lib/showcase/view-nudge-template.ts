@@ -186,10 +186,12 @@ export function usableViewNudgeTemplate<T extends ViewNudgeTemplateRow>(
       (isUtility(row) || alertsConsent === 'granted')
   );
   const wanted = metaLanguageCode(language);
-  const inWanted = eligible.filter((row) => row.language === wanted);
   const inEnglish = eligible.filter((row) =>
     ENGLISH_META_CODES.has(row.language ?? '')
   );
+  const inWanted = ENGLISH_META_CODES.has(wanted)
+    ? inEnglish
+    : eligible.filter((row) => row.language === wanted);
   const tier = inWanted.length
     ? inWanted
     : inEnglish.length
