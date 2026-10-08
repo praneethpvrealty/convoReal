@@ -62,7 +62,10 @@ beforeEach(() => {
   ledgerCalls = [];
   ctxRows = {
     properties: [{ id: 'p-1' }],
-    contacts: [{ id: 'c-1' }, { id: 'c-2' }],
+    contacts: [
+      { id: 'c-1', classification: 'Buyer' },
+      { id: 'c-2', classification: 'Agent' },
+    ],
   };
 });
 
@@ -107,7 +110,24 @@ describe('[JRN-009] POST /api/properties/share-log', () => {
     ]);
   });
 
+  it('classifies each recipient from its contact row, not the request', async () => {
+    await POST(
+      request({
+        property_id: 'p-1',
+        recipients: [
+          { contact_id: 'c-2' },
+          { contact_id: 'c-1', classification: 'Agent' },
+        ],
+      })
+    );
+    expect(ledgerCalls.map((call) => [call[4], call[5]])).toEqual([
+      ['c-2', 'Agent'],
+      ['c-1', 'Buyer'],
+    ]);
+  });
+
   it('defaults to a hidden WhatsApp capture', async () => {
+    ctxRows.contacts = [{ id: 'c-1' }];
     await POST(
       request({ property_id: 'p-1', recipients: [{ contact_id: 'c-1' }] })
     );

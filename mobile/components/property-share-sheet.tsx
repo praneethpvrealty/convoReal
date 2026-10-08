@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 
 import { AppDialog, type DialogAction } from '@/components/app-dialog';
+import { CatalogProductShare } from '@/components/catalog-product-share';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { FilterChip, SectionLabel } from '@/components/ui';
@@ -70,7 +71,8 @@ const DETAILS: { value: ShareDetailLevel; label: string }[] = [
  * Mobile port of the web share dialog: audience, tone and detail
  * pickers over the same message builder (lib/share-message mirrors
  * the web module 1:1), an editable draft, and channel buttons.
- * "Send from Engine" stays in the conversation thread's template picker.
+ * "Send from Engine" stays in the conversation thread's template picker,
+ * except the WhatsApp catalog product card, which sends from here.
  *
  * Opened from a contact's linked listing the recipient is already
  * known, so `contact` preselects it: both send paths address that
@@ -819,6 +821,14 @@ export function PropertyShareSheet({
             <Ionicons name="chevron-forward" size={16} color={colors.primary} />
           )}
         </Pressable>
+
+        <CatalogProductShare
+          property={property}
+          visible={visible}
+          recipients={recipients}
+          onShared={onShared}
+          onDone={onClose}
+        />
 
         <SectionLabel text="Send via" />
         <View style={styles.channelGrid}>

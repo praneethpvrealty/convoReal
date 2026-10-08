@@ -81,6 +81,12 @@ import {
   propertyShareMapUrl,
 } from '@/lib/whatsapp/property-share-template';
 import {
+  catalogProductCaption,
+  catalogProductRetailerId,
+  catalogShareState,
+  matchCatalogSendResults,
+} from '@/lib/inventory/catalog-product-share';
+import {
   buildPropertyShareMessage,
   buildShareTargets,
   greetingName,
@@ -247,26 +253,21 @@ export function PropertyShareDialog({
   const bumpGrants = useCallback(() => setGrantsVersion((v) => v + 1), []);
 
   useEffect(() => {
-    if (!metaCatalogSyncedAt) {
-      setIndexingTimeLeft(0);
-      return;
-    }
-
-    const calculateTimeLeft = () => {
-      const syncedTime = new Date(metaCatalogSyncedAt).getTime();
-      const elapsed = (Date.now() - syncedTime) / 1000;
-      const cooldown = 90; // 90 seconds indexing cooldown for Meta Catalog
-      if (elapsed < cooldown) {
-        setIndexingTimeLeft(Math.ceil(cooldown - elapsed));
-      } else {
-        setIndexingTimeLeft(0);
-      }
-    };
-
-    calculateTimeLeft();
-    const interval = setInterval(calculateTimeLeft, 1000);
+    const tick = () =>
+      setIndexingTimeLeft(
+        catalogShareState(
+          {
+            meta_catalog_synced_at: metaCatalogSyncedAt,
+            meta_catalog_error: metaCatalogError,
+          },
+          Date.now()
+        ).secondsLeft
+      );
+    tick();
+    if (!metaCatalogSyncedAt) return;
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [metaCatalogSyncedAt]);
+  }, [metaCatalogSyncedAt, metaCatalogError]);
 
   useEffect(() => {
     if (open && accountId) {
@@ -1581,8 +1582,6 @@ export function PropertyShareDialog({
         contact_id: contact.id,
       }));
 
-      const bodyText = `🏠 *${property.title}*\n💰 Price: ${formattedPrice}\n📍 Location: ${property.sublocality || (isLocationGuarded(property) ? localityLabel(property) : property.location)}`;
-
       const response = await fetch('/api/whatsapp/broadcast', {
         method: 'POST',
         headers: {
@@ -1592,8 +1591,8 @@ export function PropertyShareDialog({
           recipients: recipientsPayload,
           broadcast_type: 'product',
           product_catalog_id: catalogId,
-          product_retailer_id: property.property_code || property.id,
-          content_text: bodyText,
+          product_retailer_id: catalogProductRetailerId(property),
+          content_text: catalogProductCaption(property, currency),
           property_id: property.id,
         }),
       });
@@ -1605,27 +1604,15 @@ export function PropertyShareDialog({
 
       const resData = await response.json();
 
-      const resultsMap = selectedContacts.map((c) => {
-        const matchResult = resData.results?.find(
-          (r: {
-            phone: string;
-            status?: 'sent' | 'failed' | null;
-            error?: string | null;
-          }) =>
-            c.phone !== null &&
-            (r.phone === c.phone ||
-              r.phone.includes(c.phone) ||
-              c.phone.includes(r.phone))
-        );
-        return {
-          name: c.name || 'Unknown',
-          phone: c.phone ?? '',
-          status: (matchResult?.status || 'failed') as 'sent' | 'failed',
-          error:
-            matchResult?.error ||
-            (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
-        };
-      });
+      const resultsMap = matchCatalogSendResults(
+        selectedContacts,
+        resData.results
+      ).map(({ contact, sent, error }) => ({
+        name: contact.name || 'Unknown',
+        phone: contact.phone ?? '',
+        status: (sent ? 'sent' : 'failed') as 'sent' | 'failed',
+        error,
+      }));
 
       captureSharesToJourney(
         selectedContacts
@@ -2653,7 +2640,8 @@ export function PropertyShareDialog({
                         disabled={
                           !metaCatalogSyncedAt ||
                           !!metaCatalogError ||
-                          indexingTimeLeft > 0
+                          indexingTimeLeft > 0 ||
+                          syncingCatalog
                         }
                         className="bg-primary hover:bg-primary/90 text-primary-foreground flex h-9 cursor-pointer items-center gap-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                       >

@@ -5,6 +5,7 @@ import {
   sendInteractiveButtons,
   sendInteractiveList,
   sendTemplateMessage,
+  syncProductToCatalog,
 } from './meta-api';
 
 // All assertions in this file run BEFORE the network call. We stub fetch
@@ -496,5 +497,143 @@ describe('sendFlowMessage', () => {
       mode: 'published',
       flow_action: 'data_exchange',
     });
+  });
+});
+
+describe('[PRP-044] syncProductToCatalog — confirms the item reached the catalog', () => {
+  const property = {
+    id: 'p1',
+    property_code: 'PROP-1111',
+    title: 'Plot',
+    price: 110600000,
+    type: 'Commercial Land',
+    location: 'ITPL Road',
+    images: [],
+  } as unknown as Parameters<typeof syncProductToCatalog>[0]['property'];
+  const json = (body: unknown) =>
+    Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubMeta(
+    batchStatus: unknown,
+    products: unknown
+  ): ReturnType<typeof vi.fn> {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith('/batch')) return json({ handles: ['h1'] });
+      if (url.includes('check_batch_request_status')) return json(batchStatus);
+      if (url.includes('/products?')) return json(products);
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  it('fails the sync with the reason Meta rejected the item for', async () => {
+    stubMeta(
+      { data: [{ status: 'finished', errors: [{ message: 'Bad image' }] }] },
+      { data: [] }
+    );
+    await expect(
+      syncProductToCatalog({ catalogId: 'c1', accessToken: 't', property })
+    ).rejects.toThrow('Meta rejected the catalog item: Bad image');
+  });
+
+  it('fails the sync when Meta counts errors it does not describe', async () => {
+    stubMeta(
+      { data: [{ status: 'finished', errors_total_count: 1, errors: [] }] },
+      { data: [{ id: '9', retailer_id: 'PROP-1111' }] }
+    );
+    await expect(
+      syncProductToCatalog({ catalogId: 'c1', accessToken: 't', property })
+    ).rejects.toThrow('Meta rejected the catalog item: 1 error(s) reported');
+  });
+
+  it('fails the sync when the finished batch left no product behind', async () => {
+    stubMeta({ data: [{ status: 'finished', errors: [] }] }, { data: [] });
+    await expect(
+      syncProductToCatalog({ catalogId: 'c1', accessToken: 't', property })
+    ).rejects.toThrow('PROP-1111 is not in catalog c1');
+  });
+
+  it('never calls an unfinished batch synced when the product is absent', async () => {
+    vi.useFakeTimers();
+    try {
+      stubMeta({ data: [{ status: 'started', errors: [] }] }, { data: [] });
+      const sync = syncProductToCatalog({
+        catalogId: 'c1',
+        accessToken: 't',
+        property,
+      });
+      const settled = expect(sync).rejects.toThrow(
+        'Meta is still processing PROP-1111'
+      );
+      await vi.runAllTimersAsync();
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fails the sync when the catalog lookup errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.endsWith('/batch')) return json({ handles: ['h1'] });
+        if (url.includes('check_batch_request_status'))
+          return json({ data: [{ status: 'finished', errors: [] }] });
+        return Promise.resolve(new Response('{}', { status: 503 }));
+      })
+    );
+    await expect(
+      syncProductToCatalog({ catalogId: 'c1', accessToken: 't', property })
+    ).rejects.toThrow('Could not confirm PROP-1111 in Meta Catalog: 503');
+  });
+
+  it('never calls an unfinished batch synced, even with an older product row', async () => {
+    vi.useFakeTimers();
+    try {
+      stubMeta(
+        { data: [{ status: 'started', errors: [] }] },
+        { data: [{ id: '9', retailer_id: 'PROP-1111' }] }
+      );
+      const sync = syncProductToCatalog({
+        catalogId: 'c1',
+        accessToken: 't',
+        property,
+      });
+      const settled = expect(sync).rejects.toThrow(
+        'Meta is still processing PROP-1111'
+      );
+      await vi.runAllTimersAsync();
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fails the sync when Meta returns no batch handle', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith('/batch')) return json({});
+      return json({ data: [{ id: '9', retailer_id: 'PROP-1111' }] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(
+      syncProductToCatalog({ catalogId: 'c1', accessToken: 't', property })
+    ).rejects.toThrow('Meta did not return a batch handle for PROP-1111');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('succeeds once the product is in the catalog', async () => {
+    const fetchMock = stubMeta(
+      { data: [{ status: 'finished', errors: [] }] },
+      { data: [{ id: '9', retailer_id: 'PROP-1111' }] }
+    );
+    await expect(
+      syncProductToCatalog({ catalogId: 'c1', accessToken: 't', property })
+    ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
