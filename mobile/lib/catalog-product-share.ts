@@ -4,6 +4,7 @@ import {
   matchCatalogSendResults,
   type CatalogSendResult,
 } from '@shared/lib/inventory/catalog-product-share';
+import { postShareLog } from '@shared/lib/inventory/share-log-request';
 
 import { apiFetch } from '@/lib/api';
 import { hasPhone } from '@/lib/reachability';
@@ -20,7 +21,6 @@ export interface CatalogShareContext {
 const CATALOG_SEND_BASE_TIMEOUT_MS = 30_000;
 const CATALOG_SEND_PER_RECIPIENT_MS = 10_000;
 const CATALOG_SEND_MAX_TIMEOUT_MS = 300_000;
-const SHARE_LOG_ATTEMPTS = 3;
 export const CATALOG_SEND_MAX_RECIPIENTS = 25;
 const CATALOG_SYNC_TIMEOUT_MS = 60_000;
 
@@ -131,18 +131,17 @@ async function recordCatalogShares(
   propertyId: string,
   contacts: Contact[]
 ): Promise<boolean> {
-  const body = JSON.stringify({
-    property_id: propertyId,
-    recipients: contacts.map((c) => ({ contact_id: c.id })),
-    channel: 'whatsapp',
-  });
-  for (let attempt = 0; attempt < SHARE_LOG_ATTEMPTS; attempt++) {
-    try {
-      await apiFetch('/api/properties/share-log', { method: 'POST', body });
-      return true;
-    } catch {
-      continue;
+  const outcome = await postShareLog(
+    (body) =>
+      apiFetch('/api/properties/share-log', {
+        method: 'POST',
+        body,
+      }),
+    {
+      property_id: propertyId,
+      recipients: contacts.map((c) => ({ contact_id: c.id })),
+      channel: 'whatsapp',
     }
-  }
-  return false;
+  );
+  return outcome.complete;
 }

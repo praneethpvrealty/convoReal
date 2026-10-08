@@ -2506,6 +2506,40 @@
             "src/lib/journey/closing-nudges.ts",
             "src/lib/whatsapp/inbound/chain/steps/control-reply.ts"
           ]
+        },
+        {
+          "id": "JRN-021",
+          "rule": "A share the ledger could not record is never reported as recorded. The server ledger writer never throws and never turns a delivered message into a send error, but it reports whether both the ledger row and the journey capture landed. POST /api/properties/share-log answers 200 with `recorded` counting only the recipients whose writes both landed and `failed` listing the contact ids whose write did not. Every client that logs a share through it, on web and mobile (the share sheet, a logged personal-WhatsApp or email share, the mobile product-card send), reads the answer through one shared reader that retries the failed recipients, up to three attempts, retries a transport failure the same way, stops at once on a refusal, and treats a recorded count short of the recipients sent as unrecorded: the email share and the mobile product card tell the agent the share went out but was not recorded.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/share-property-send.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/app/api/properties/share-log/route.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/inventory/share-log-request.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/inventory/share-log.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-021]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/share-property-send.ts",
+            "src/app/api/properties/share-log/route.ts",
+            "src/lib/inventory/share-log-request.ts",
+            "src/lib/inventory/share-log.ts",
+            "mobile/lib/catalog-product-share.ts",
+            "mobile/lib/property-share-actions.ts"
+          ]
         }
       ]
     },
