@@ -390,8 +390,20 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
         accounts: [{ id: ACCOUNT, owner_user_id: OWNER }],
       }),
     });
+    h.submit.mockResolvedValue({
+      id: 'meta-1',
+      status: 'PENDING',
+      category: 'MARKETING',
+    });
     const totals = await processShowcaseViewNudges(db);
     expect(h.submit).toHaveBeenCalledTimes(1);
+    expect(
+      (
+        queries.find(
+          (q) => q.table === 'message_templates' && q.op === 'insert'
+        )?.payload as { category: string }
+      ).category
+    ).toBe('Marketing');
     expect(h.send).not.toHaveBeenCalled();
     expect(totals.skipped).toBe(1);
     expect(nudgeUpdate(queries)).toBeUndefined();

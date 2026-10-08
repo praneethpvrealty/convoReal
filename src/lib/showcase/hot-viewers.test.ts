@@ -63,6 +63,8 @@ function fakeDb(state: {
           filters[column] = value;
           return api;
         },
+        gt: () => api,
+        limit: () => api,
         maybeSingle: async () =>
           table === state.failRead
             ? { data: null, error: { message: 'read failed' } }
@@ -237,6 +239,23 @@ describe('[PLS-008] hot viewer alerts', () => {
     const { db, updates } = fakeDb({
       candidates: [candidate],
       tables: tables(),
+    });
+    expect(await processHotViewerAlerts(db)).toBe(0);
+    expect(h.notify).not.toHaveBeenCalled();
+    expect(updates).toEqual([
+      { table: 'showcase_hot_viewer_alerts', payload: 'delete' },
+    ]);
+  });
+
+  it('releases the claim and alerts nobody while the visitor is browsing again', async () => {
+    const { db, updates } = fakeDb({
+      candidates: [candidate],
+      tables: {
+        ...tables(),
+        showcase_events: [
+          { id: 'evt-1', account_id: ACCOUNT, contact_id: CONTACT },
+        ],
+      },
     });
     expect(await processHotViewerAlerts(db)).toBe(0);
     expect(h.notify).not.toHaveBeenCalled();

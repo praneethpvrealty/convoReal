@@ -7,7 +7,10 @@ import { decrypt } from '@/lib/whatsapp/encryption';
 import { submitMessageTemplate } from '@/lib/whatsapp/meta-api';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components';
-import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize';
+import {
+  normalizeCategory,
+  normalizeStatus,
+} from '@/lib/whatsapp/template-status-normalize';
 import {
   SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME,
   buildViewNudgeButtonsBody,
@@ -91,7 +94,9 @@ export async function ensureViewNudgeTemplate(
       account_id: accountId,
       user_id: account.owner_user_id,
       name: payload.name,
-      category: payload.category,
+      category: meta.category
+        ? normalizeCategory(meta.category)
+        : payload.category,
       language: payload.language,
       body_text: payload.body_text,
       footer_text: payload.footer_text ?? null,

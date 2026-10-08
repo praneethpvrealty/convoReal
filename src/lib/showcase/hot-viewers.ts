@@ -145,6 +145,22 @@ export async function processHotViewerAlerts(
       continue;
     }
 
+    const { data: recentActivity, error: recentActivityError } = await db
+      .from('showcase_events')
+      .select('id')
+      .eq('account_id', candidate.account_id)
+      .eq('contact_id', candidate.contact_id)
+      .gt(
+        'created_at',
+        new Date(Date.now() - HOT_VIEWER_SETTLE_MINUTES * 60_000).toISOString()
+      )
+      .limit(1)
+      .maybeSingle();
+    if (recentActivityError || recentActivity) {
+      await release();
+      continue;
+    }
+
     const alert = buildHotViewerAlert({
       contactName: (contact.name as string | null)?.trim() || 'A visitor',
       contactPhone: (contact.phone as string | null) ?? null,
