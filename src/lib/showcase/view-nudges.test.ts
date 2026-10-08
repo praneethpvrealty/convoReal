@@ -145,6 +145,7 @@ function fakeDb(state: {
         return api;
       },
       gte: () => api,
+      gt: () => api,
       is: () => api,
       limit: () => api,
       maybeSingle: () => {
@@ -472,6 +473,24 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     });
     expect((await processShowcaseViewNudges(db)).sent).toBe(1);
     expect(nudgeUpdate(queries)).toMatchObject({ status: 'sent' });
+  });
+
+  it('releases the claim, sending nothing, when the visitor is browsing again', async () => {
+    const { db, queries } = fakeDb({
+      candidates: [candidate],
+      tables: baseTables({
+        showcase_events: [
+          { id: 'e1', account_id: ACCOUNT, contact_id: CONTACT },
+        ],
+      }),
+    });
+    await processShowcaseViewNudges(db);
+    expect(h.send).not.toHaveBeenCalled();
+    expect(
+      queries.some(
+        (q) => q.table === 'showcase_view_nudges' && q.op === 'delete'
+      )
+    ).toBe(true);
   });
 
   it('skips a visitor who has written in since the view', async () => {

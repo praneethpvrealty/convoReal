@@ -35,7 +35,8 @@ than a written entry. Newest first.
   viewer" alert naming the listing and how long they looked, so the call happens
   while the interest is fresh. Once a week per contact and listing, once a day
   per contact, and WhatsApp and push wait out the agent's quiet hours.
-  **Migration required:** `20261008034526_showcase_hot_viewer_alerts.sql`.
+  **Migration required:** `20261008034526_showcase_hot_viewer_alerts.sql` and
+  `20261008063957_showcase_hot_viewer_dwell_cap.sql`.
 - **A location question after two cards is answered for both, and a
   correction for the one it names.** Two cards went to a buyer forty-eight
   seconds apart; "Can u share the exact location?" was answered from the

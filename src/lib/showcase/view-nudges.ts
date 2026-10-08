@@ -237,6 +237,19 @@ async function sendViewNudge(
   ) {
     return { status: 'skipped', reason: 'replied_since_view' };
   }
+  const { data: recentActivity, error: recentActivityError } = await db
+    .from('showcase_events')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .gt(
+      'created_at',
+      new Date(Date.now() - VIEW_NUDGE_SETTLE_MINUTES * 60_000).toISOString()
+    )
+    .limit(1)
+    .maybeSingle();
+  if (recentActivityError) return { status: 'retry' };
+  if (recentActivity) return { status: 'deferred' };
   if (conversation?.id) {
     const { data: agentMessage, error: agentMessageError } = await db
       .from('messages')

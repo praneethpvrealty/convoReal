@@ -4,7 +4,8 @@
 -- contact order, so one account whose check-ins wait on template
 -- approval (claims released every sweep) could fill every batch and
 -- starve the rest. The batch is now drawn at random from all
--- qualifying contacts.
+-- qualifying contacts. Each view counts for at most 30 minutes, the cap
+-- the showcase applies, since the public beacon is not trusted to.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.showcase_view_nudge_candidates(
@@ -31,7 +32,7 @@ AS $$
       e.contact_id,
       e.property_id,
       LEAST(
-        SUM(GREATEST(COALESCE((e.metadata->>'duration_ms')::BIGINT, 0), 0)),
+        SUM(LEAST(GREATEST(COALESCE((e.metadata->>'duration_ms')::BIGINT, 0), 0), 1800000)),
         2147483647
       )::INTEGER AS dwell_ms,
       MAX(e.created_at) AS viewed_at
