@@ -797,7 +797,7 @@ const JP_NAGAR = {
   status: 'Available',
 };
 
-describe('[INB-033] questionSubjectProperties', () => {
+describe('[INB-034] questionSubjectProperties', () => {
   const shares = [
     { property_id: 'prop-2080', created_at: '2026-10-07T15:02:34Z' },
     { property_id: 'prop-1784', created_at: '2026-10-07T15:01:46Z' },
@@ -836,7 +836,7 @@ describe('[INB-033] questionSubjectProperties', () => {
   });
 });
 
-describe('[INB-033] previousLeadQuestion', () => {
+describe('[INB-034] previousLeadQuestion', () => {
   it('finds the question the correction belongs to, skipping the correction itself', async () => {
     const db = fakeDb({
       messages: [

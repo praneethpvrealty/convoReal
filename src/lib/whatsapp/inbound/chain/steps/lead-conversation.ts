@@ -142,18 +142,9 @@ export async function leadConversation(
     ) {
       const hasRequirement = carriesRequirementSignal(contentText);
       if (!hasRequirement) {
-        let quotedPropertyId: string | null = null;
-        if (message.context?.id) {
-          const { data: quotedMsg } = await supabaseAdmin()
-            .from('messages')
-            .select('property_id, content_text')
-            .eq('message_id', message.context.id)
-            .maybeSingle();
-          if (quotedMsg?.property_id) {
-            quotedPropertyId = quotedMsg.property_id;
-          }
-        }
-
+        // messages has no property_id column, so the quoted listing is
+        // read from the quoted message's own text by the subject
+        // resolver rather than looked up here.
         const handledDisinterest = await handlePropertyDisinterestMessage({
           db: supabaseAdmin(),
           accountId,
@@ -161,7 +152,10 @@ export async function leadConversation(
           contact: contactRecord,
           conversationId: conversation.id,
           inboundText: contentText,
-          quotedPropertyId,
+          inbound: {
+            messageId: message.id,
+            quotedMessageId: message.context?.id ?? null,
+          },
           recordOnly: requestsHumanContact(contentText),
         });
         if (handledDisinterest) return 'handled';

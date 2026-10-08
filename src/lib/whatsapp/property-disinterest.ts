@@ -3,7 +3,10 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import type { InteractiveListSection } from '@/lib/whatsapp/meta-api';
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
 import { questionSubjectProperties } from '@/lib/ai/lead-question';
-import { resolvePropertySubject } from '@/lib/learning/subject';
+import {
+  resolvePropertySubject,
+  type InboundSubjectContext,
+} from '@/lib/learning/subject';
 import type { Property } from '@/types';
 
 /**
@@ -94,6 +97,9 @@ export async function handlePropertyDisinterestMessage(args: {
   conversationId: string;
   inboundText: string;
   quotedPropertyId?: string | null;
+  /** The inbound message and the one it quotes, for the subject
+   *  resolver to read the quoted listing from. */
+  inbound?: InboundSubjectContext;
   /** Record the rejection but send no factor prompt, so the message
    *  goes on to whatever it also asked for ("not interested, call me"). */
   recordOnly?: boolean;
@@ -106,6 +112,7 @@ export async function handlePropertyDisinterestMessage(args: {
     conversationId,
     inboundText,
     quotedPropertyId,
+    inbound,
   } = args;
 
   let subjectProperty: Pick<Property, 'id' | 'title'> | null = null;
@@ -128,7 +135,8 @@ export async function handlePropertyDisinterestMessage(args: {
       accountId,
       contact.id,
       conversationId,
-      inboundText
+      inboundText,
+      inbound
     );
     if (subjects.length > 0) {
       subjectProperty = subjects[0];
@@ -141,7 +149,8 @@ export async function handlePropertyDisinterestMessage(args: {
       db,
       accountId,
       contact.id,
-      conversationId
+      conversationId,
+      inbound
     );
     if (propId) {
       const { data } = await db

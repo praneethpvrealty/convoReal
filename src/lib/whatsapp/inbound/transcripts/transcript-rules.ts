@@ -20,6 +20,9 @@ export interface TranscriptMessage {
   text: string;
   templateName?: string | null;
   at?: string;
+  /** Reviewed in an earlier window; read for what follows it, never
+   *  reported on again. */
+  context?: boolean;
 }
 
 export interface TranscriptContext {
@@ -205,7 +208,7 @@ export function checkTranscript(
     }
   });
 
-  return violations;
+  return violations.filter((v) => !transcript[v.index]?.context);
 }
 
 /** Rows as the inbox stores them, mapped onto the shape the rules read. */

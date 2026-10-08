@@ -241,7 +241,7 @@ describe('the live handlers still route through here', () => {
   });
 });
 
-describe('[INB-033] a correction that names a shared listing by a figure', () => {
+describe('[INB-034] a correction that names a shared listing by a figure', () => {
   it('routes "No this 40,000 sqft one" to the listing Q&A, not the ladder', () => {
     expect(routeLeadMessage('No this 40,000 sqft one')).toBe(
       'shortlist_reference'

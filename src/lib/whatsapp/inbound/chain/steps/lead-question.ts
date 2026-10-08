@@ -73,12 +73,15 @@ export async function leadQuestion(
     // Plural: a buyer who asks about "options 1 & 2" asked two
     // questions, and answering only the first leaves the second
     // hanging on a listing they had already numbered for us.
+    // The buyer's message and the one they swiped to quote travel with
+    // the question: a quoted share names its listing outright.
     const subjects = await questionSubjectProperties(
       admin,
       accountId,
       contactRecord.id,
       conversation.id,
-      leadText
+      leadText,
+      { messageId: message.id, quotedMessageId: message.context?.id ?? null }
     );
 
     // A photo request is answered with the photos themselves, not with

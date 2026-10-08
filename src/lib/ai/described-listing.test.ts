@@ -44,13 +44,13 @@ const FLAT = {
 };
 
 describe('referencesSharedListing', () => {
-  it('[INB-033] reads the correction that went unanswered', () => {
+  it('[INB-034] reads the correction that went unanswered', () => {
     expect(referencesSharedListing('No this 40,000 sqft one')).toBe(true);
     expect(referencesSharedListing('I meant the 16 Cr plot')).toBe(true);
     expect(referencesSharedListing('that 3 BHK one please')).toBe(true);
   });
 
-  it('[INB-033] leaves a stated requirement to the ladder', () => {
+  it('[INB-034] leaves a stated requirement to the ladder', () => {
     expect(referencesSharedListing('I want a 2400 sqft plot')).toBe(false);
     expect(referencesSharedListing('looking for 3 bhk in Whitefield')).toBe(
       false
@@ -58,7 +58,7 @@ describe('referencesSharedListing', () => {
     expect(referencesSharedListing('budget 2 cr')).toBe(false);
   });
 
-  it('[INB-033] needs a figure, not just a demonstrative', () => {
+  it('[INB-034] needs a figure, not just a demonstrative', () => {
     expect(referencesSharedListing('this one')).toBe(false);
     expect(referencesSharedListing('Location is here')).toBe(false);
     expect(referencesSharedListing('')).toBe(false);
@@ -69,7 +69,7 @@ describe('referencesSharedListing', () => {
 describe('describedListingAmong', () => {
   const shared = [JP_NAGAR, CHIKATOGUR, FLAT];
 
-  it('[INB-033] picks the listing whose land area the buyer named', () => {
+  it('[INB-034] picks the listing whose land area the buyer named', () => {
     expect(describedListingAmong('No this 40,000 sqft one', shared)).toBe(
       'prop-1784'
     );
@@ -78,7 +78,7 @@ describe('describedListingAmong', () => {
     );
   });
 
-  it('[INB-033] picks by built-up area, price or bedrooms', () => {
+  it('[INB-034] picks by built-up area, price or bedrooms', () => {
     expect(describedListingAmong('the 5760 sq ft one', shared)).toBe(
       'prop-2080'
     );
@@ -91,7 +91,7 @@ describe('describedListingAmong', () => {
     expect(describedListingAmong('that 3 bhk one', shared)).toBe('prop-flat');
   });
 
-  it('[INB-033] picks by a word only one listing carries', () => {
+  it('[INB-034] picks by a word only one listing carries', () => {
     expect(describedListingAmong('where is the Chikatogur one?', shared)).toBe(
       'prop-1784'
     );
@@ -99,14 +99,14 @@ describe('describedListingAmong', () => {
     expect(describedListingAmong('the Prestige one', shared)).toBe('prop-flat');
   });
 
-  it('[INB-033] names nothing when the description fits several or none', () => {
+  it('[INB-034] names nothing when the description fits several or none', () => {
     expect(describedListingAmong('the commercial one', shared)).toBeNull();
     expect(describedListingAmong('the 2400 sqft one', shared)).toBeNull();
     expect(describedListingAmong('where exactly is it?', shared)).toBeNull();
     expect(describedListingAmong('No this 40,000 sqft one', [])).toBeNull();
   });
 
-  it('[INB-033] does not let a figure that fits nothing fall through to a loose word match', () => {
+  it('[INB-034] does not let a figure that fits nothing fall through to a loose word match', () => {
     expect(describedListingAmong('the 9000 sqft Chikatogur one', shared)).toBe(
       'prop-1784'
     );

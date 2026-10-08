@@ -567,23 +567,30 @@
         },
         {
           "id": "INB-033",
-          "rule": "A lead's question is answered for the listing they mean, never for whichever card happened to go last. Listings shared within ten minutes of each other are one batch: a question that follows is answered for every listing in the batch (up to three), each under its title, so two localities are tellable apart. A message that names one of the recent shares by a figure it carries (land or built-up area, price in crore or lakh, bedrooms) or by a word only that listing's title or locality carries is answered for that listing alone, and when such a message only points (\"No this 40,000 sqft one\") the question the lead asked just before it is the one answered. A figure with a demonstrative is a reference and reaches the listing Q&A; a figure stating a requirement (\"I want a 2400 sqft plot\") still belongs to the ladder. A description that fits several of the shares, or none, names nothing, and an agent who has since moved the thread to a single other listing still wins.",
+          "rule": "The listing a lead's message is about is read from the strongest signal in the thread before anything is answered from it: the message the lead quoted (by the property code in a share link or enquiry, else the listing's full title), then a listing the lead named since the latest share (a showcase enquiry seconds old), then a listing an agent has since pitched, whichever of those two was said more recently, and only then the share ledger. A quote or message naming several listings, is never guessed: it goes to a person. A question that is the lead's first word after two different listings were shared within five minutes of each other is never answered from one of them: a reader that answers one listing (photo requests, disinterest, the agent price learner) hands it to a person, and the lead Q&A answers it for every listing of the batch (INB-034). The same resolution serves the lead Q&A, photo requests, disinterest and the agent price learner.",
+          "tests": [
+            { "file": "src/lib/learning/subject.test.ts", "case": "[INB-033]" }
+          ]
+        },
+        {
+          "id": "INB-034",
+          "rule": "A lead's question is answered for the listing they mean, never for whichever card happened to go last. Listings shared within five minutes of each other are one batch: a question that follows, with nothing quoted and no word from the lead in between, is answered for every listing in the batch (up to three, newest first), each under its title, so two localities are tellable apart. A message that names one of the recent shares by a figure it carries (land or built-up area, price in crore or lakh, bedrooms) or by a word only that listing's title or locality carries is answered for that listing alone, and when such a message only points (\"No this 40,000 sqft one\") the question the lead asked just before it is the one answered. A figure with a demonstrative is a reference and reaches the listing Q&A; a figure stating a requirement (\"I want a 2400 sqft plot\") still belongs to the ladder. A description that fits several of the shares, or none, names nothing, and a quote, a listing the lead named, or an agent who has since moved the thread to a single other listing still wins (INB-033).",
           "tests": [
             {
               "file": "src/lib/ai/described-listing.test.ts",
-              "case": "[INB-033]"
+              "case": "[INB-034]"
             },
             {
               "file": "src/lib/learning/subject.test.ts",
-              "case": "[INB-033]"
+              "case": "[INB-034]"
             },
             {
               "file": "src/lib/ai/lead-question.test.ts",
-              "case": "[INB-033]"
+              "case": "[INB-034]"
             },
             {
               "file": "src/lib/ai/lead-routing.test.ts",
-              "case": "[INB-033]"
+              "case": "[INB-034]"
             }
           ],
           "guards": [
@@ -4560,6 +4567,33 @@
           ],
           "guards": [
             "src/lib/whatsapp/inbound/transcripts/fixtures/2026-10-07-portal-lead-jp-nagar.json"
+          ]
+        },
+        {
+          "id": "CNV-006",
+          "rule": "Every conversation the bot wrote in during the last day is reviewed nightly (05:00 IST) as one thread: the transcript rules run first, then the model judge scores it with the lead's numbers and emails masked, and one bot_thread_reviews row per conversation per IST day records the transcript, the violations, the score, the issues and a verdict that fails on any rule violation or a score under 70, is unscored only when the rules pass and the judge gave no score, and is never recomputed on a rerun; a run that dies mid-judge leaves a claim the next night takes over, and a judge that throws releases its claim so the thread is retried rather than recorded unscored. Platform admins see failed and unscored threads on Admin → Bot replies with the issues beside the bubbles, record their own good or bad verdict, and copy a thread out as a fixture whose expected violations are the ones the rules found.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/inbound/transcripts/thread-review.test.ts",
+              "case": "[CNV-006]"
+            },
+            {
+              "file": "src/app/api/cron/bot-thread-review/route.test.ts",
+              "case": "[CNV-006]"
+            },
+            {
+              "file": "src/app/api/admin/bot-thread-reviews/route.test.ts",
+              "case": "[CNV-006]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261007122307_bot_thread_reviews.sql",
+            "supabase/migrations/20261007145237_bot_thread_review_candidates.sql",
+            "supabase/migrations/20261007151500_bot_thread_review_judged_at.sql",
+            "supabase/migrations/20261007151600_bot_thread_review_windows.sql",
+            "supabase/migrations/20261007155000_bot_thread_review_messages_index.sql",
+            "vercel.json",
+            "src/app/(dashboard)/admin/bot-replies-tab.tsx"
           ]
         }
       ]

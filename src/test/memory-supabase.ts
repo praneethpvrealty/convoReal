@@ -13,6 +13,66 @@ function same(a: unknown, b: unknown): boolean {
 
 type RpcHandler = (args: Record<string, unknown>) => unknown;
 
+function compare(a: unknown, b: unknown): number {
+  const an = Number(a);
+  const bn = Number(b);
+  if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
+  return String(a ?? '').localeCompare(String(b ?? ''));
+}
+
+function splitClauses(expression: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const ch of expression) {
+    if (ch === '(') depth += 1;
+    if (ch === ')') depth -= 1;
+    if (ch === ',' && depth === 0) {
+      out.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) out.push(current);
+  return out;
+}
+
+function parseClause(clause: string): Filter {
+  const text = clause.trim();
+  if (text.startsWith('and(') && text.endsWith(')')) {
+    const parts = splitClauses(text.slice(4, -1)).map(parseClause);
+    return (row) => parts.every((part) => part(row));
+  }
+  if (text.startsWith('or(') && text.endsWith(')')) {
+    const parts = splitClauses(text.slice(3, -1)).map(parseClause);
+    return (row) => parts.some((part) => part(row));
+  }
+  const [column, operator, ...rest] = text.split('.');
+  let value: unknown = rest.join('.');
+  if (typeof value === 'string' && /^".*"$/.test(value))
+    value = value.slice(1, -1);
+  if (value === 'null') value = null;
+  switch (operator) {
+    case 'eq':
+      return (row) => same(row[column] ?? null, value);
+    case 'neq':
+      return (row) => !same(row[column] ?? null, value);
+    case 'is':
+      return (row) => (row[column] ?? null) === value;
+    case 'lt':
+      return (row) => compare(row[column], value) < 0;
+    case 'lte':
+      return (row) => compare(row[column], value) <= 0;
+    case 'gt':
+      return (row) => compare(row[column], value) > 0;
+    case 'gte':
+      return (row) => compare(row[column], value) >= 0;
+    default:
+      return () => true;
+  }
+}
+
 let nextId = 1;
 
 export function memorySupabase(
@@ -22,8 +82,11 @@ export function memorySupabase(
   const from = (table: string) => {
     const filters: Filter[] = [];
     let patch: Row | null = null;
+    let removing = false;
     let inserted: Row[] | null = null;
     let head = false;
+    const orderBy: { column: string; ascending: boolean }[] = [];
+    let window: { from: number; to: number } | null = null;
     const rows = () => (tables[table] ??= []);
     const run = (): Row[] => {
       if (inserted) return inserted.map((row) => structuredClone(row));
@@ -31,7 +94,23 @@ export function memorySupabase(
       if (patch) {
         for (const row of matched) Object.assign(row, structuredClone(patch));
       }
-      return matched.map((row) => structuredClone(row));
+      if (removing) {
+        tables[table] = rows().filter((row) => !matched.includes(row));
+      }
+      let out = matched.map((row) => structuredClone(row));
+      if (orderBy.length) {
+        out = [...out].sort((a, b) => {
+          for (const { column, ascending } of orderBy) {
+            const av = String(a[column] ?? '');
+            const bv = String(b[column] ?? '');
+            const cmp = ascending ? av.localeCompare(bv) : bv.localeCompare(av);
+            if (cmp !== 0) return cmp;
+          }
+          return 0;
+        });
+      }
+      if (window) out = out.slice(window.from, window.to + 1);
+      return out;
     };
     const store = (values: Row | Row[]) => {
       inserted = (Array.isArray(values) ? values : [values]).map((row) => {
@@ -52,6 +131,10 @@ export function memorySupabase(
       },
       update(values: Row) {
         patch = values;
+        return builder;
+      },
+      delete() {
+        removing = true;
         return builder;
       },
       insert(values: Row | Row[]) {
@@ -81,30 +164,43 @@ export function memorySupabase(
         return builder;
       },
       gt(column: string, value: unknown) {
-        filters.push((row) => Number(row[column]) > Number(value));
+        filters.push((row) => compare(row[column], value) > 0);
         return builder;
       },
       lt(column: string, value: unknown) {
-        filters.push((row) => Number(row[column]) < Number(value));
+        filters.push((row) => compare(row[column], value) < 0);
         return builder;
       },
       lte(column: string, value: unknown) {
-        filters.push((row) => Number(row[column]) <= Number(value));
+        filters.push((row) => compare(row[column], value) <= 0);
         return builder;
       },
-      // PostgREST filter strings (ilike probes, nested and/or) are not
-      // parsed: every row passes and the caller's own in-memory check
-      // decides, which is what each of them does anyway.
-      or() {
+      // A PostgREST filter string is parsed for eq/neq/lt/lte/gt/gte/is
+      // clauses and and(...) groups; any other operator (an ilike probe)
+      // passes every row and the caller's own in-memory check decides,
+      // which is what each of them does anyway. `not(col, 'is', value)`
+      // is the one negation that is honoured.
+      or(expression: string) {
+        const clauses = splitClauses(expression).map(parseClause);
+        filters.push((row) => clauses.some((clause) => clause(row)));
         return builder;
       },
-      not() {
+      not(column?: string, operator?: string, value?: unknown) {
+        if (column && operator === 'is') {
+          filters.push((row) => (row[column] ?? null) !== (value ?? null));
+        }
         return builder;
       },
-      order() {
+      order(column: string, options?: { ascending?: boolean }) {
+        orderBy.push({ column, ascending: options?.ascending ?? true });
         return builder;
       },
-      limit() {
+      limit(count: number) {
+        window = { from: 0, to: count - 1 };
+        return builder;
+      },
+      range(from: number, to: number) {
+        window = { from, to };
         return builder;
       },
       async maybeSingle() {

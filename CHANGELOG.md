@@ -19,15 +19,27 @@ than a written entry. Newest first.
 
 #### 8 October 2026
 
-- **The bot answers a location question for the listing the buyer means.**
-  Two cards went to a buyer forty-eight seconds apart; "Can u share the exact
-  location?" was answered from the second, and the correction "No this 40,000
-  sqft one" carried a size, read as a requirement, and went unanswered.
-  Listings shared within ten minutes of each other are now one batch, and a
-  question that follows is answered for each of them under its title. A
-  message that names one of the recent shares by its area, price, bedrooms or
-  a word only its title carries is answered for that listing alone, and when
-  it only points, the question asked just before it is the one answered.
+- **A location question after two cards is answered for both, and a
+  correction for the one it names.** Two cards went to a buyer forty-eight
+  seconds apart; "Can u share the exact location?" was answered from the
+  second, and the correction "No this 40,000 sqft one" carried a size, read
+  as a requirement, and went unanswered. The lead Q&A now answers a question
+  that follows two listings shared within five minutes of each other for each
+  of them under its title, where the single-listing readers still hand over.
+  A message that names one of the recent shares by its area, price, bedrooms
+  or a word only its title carries is answered for that listing alone, and
+  when it only points, the question asked just before it is the one answered.
+
+- **"Is this available?" is answered about the listing the buyer means.** On
+  7 October a buyer asked it under a showcase enquiry for Akshay Nagar and was
+  told the listing was under contract: the bot answered from an older
+  under-contract share, because the enquiry had not reached the share ledger.
+  Later the same buyer quoted the 40,000 sq.ft. share and was answered about
+  the listing shared a minute after it. The bot now reads the quoted message
+  first, then a listing the buyer just enquired about, then an agent's pitch,
+  then the share ledger; a question that follows two listings shared back to
+  back, with nothing quoted, goes to the agent. The disinterest flow's quote
+  lookup, which read a column that does not exist, now uses the same reading.
 
 #### 7 October 2026
 
@@ -61,6 +73,23 @@ than a written entry. Newest first.
 - **Q&A prices read the way the listing message wrote them.** ₹8.40 Cr, not
   ₹8,40,00,000, and a locality is no longer repeated when the location line
   already carries it.
+- **Every bot thread is reviewed the next morning.** A nightly job (05:00
+  IST) reads each conversation the bot wrote in during the last day as one
+  thread, runs the transcript rules and then a model judge over it, and
+  records a pass, fail or unscored verdict with the issues beside the
+  bubbles. Admin → Bot replies lists the threads worth a look, takes a good
+  or bad verdict, and copies a bad thread out as a fixture so the rules keep
+  catching it. **Migration required:**
+  `20261007122307_bot_thread_reviews.sql` (additive: one new table) and
+  `20261007145237_bot_thread_review_candidates.sql` (additive: one new
+  service-role function), `20261007151500_bot_thread_review_judged_at.sql`
+  (additive: one nullable column) and
+  `20261007151600_bot_thread_review_windows.sql` (additive: the function
+  that succeeds it, returning where each thread's next window starts, so a
+  claim a dead run left behind is taken over, the oldest due thread is
+  reviewed first and nothing after the first review on record ages out) and
+  `20261007155000_bot_thread_review_messages_index.sql` (additive: a partial
+  index over delivered bot messages for that scan).
 
 - **Buyer conversations are now tested as threads, not sentences.** A replay
   harness runs a portal lead's arrival and their "Update my preferences" and

@@ -34,7 +34,10 @@ import {
   type PortalListingFigures,
   type ReconcilableProperty,
 } from '@/lib/portals/listing-reconcile';
-import { resolveSubjectProperties } from '@/lib/learning/subject';
+import {
+  resolveSubjectProperties,
+  type InboundSubjectContext,
+} from '@/lib/learning/subject';
 import {
   parseOrdinalReferences,
   resolveShortlistReference,
@@ -518,8 +521,9 @@ async function describedSubject(
  * numbered the shortlist and invited exactly this. A description comes
  * next: a buyer who says "the 40,000 sqft one" has named a listing as
  * surely as by number. Failing both it is the shared subject resolver:
- * the latest batch of shares reconciled against what the agent has
- * since said, every listing of the batch when it sent several.
+ * the message the buyer quoted, a listing they just enquired about, an
+ * agent's pitch, then the share ledger — every listing of a batch when
+ * two were sent back to back, each answered under its title.
  *
  * Empty means the thread cannot be pinned to a listing, which the
  * caller reads as a handover: a buyer told "let me check and come back"
@@ -532,7 +536,8 @@ export async function questionSubjectProperties(
   contactId: string,
   conversationId?: string | null,
   /** The buyer's own words, read for "option 2" / "the 40,000 sqft one". */
-  questionText?: string | null
+  questionText?: string | null,
+  inbound?: InboundSubjectContext
 ): Promise<SubjectProperty[]> {
   if (conversationId && questionText) {
     const numbered = await resolveShortlistReference(
@@ -558,7 +563,8 @@ export async function questionSubjectProperties(
     db,
     accountId,
     contactId,
-    conversationId
+    conversationId,
+    inbound
   );
   return propertyIds.length > 0 ? loadSubjects(db, accountId, propertyIds) : [];
 }
@@ -611,14 +617,16 @@ export async function questionSubjectProperty(
   accountId: string,
   contactId: string,
   conversationId?: string | null,
-  questionText?: string | null
+  questionText?: string | null,
+  inbound?: InboundSubjectContext
 ): Promise<SubjectProperty | null> {
   const subjects = await questionSubjectProperties(
     db,
     accountId,
     contactId,
     conversationId,
-    questionText
+    questionText,
+    inbound
   );
   return subjects[0] ?? null;
 }
