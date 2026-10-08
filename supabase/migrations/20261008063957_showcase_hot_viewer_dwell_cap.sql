@@ -3,7 +3,9 @@
 -- The public showcase beacon accepts any duration_ms a browser sends,
 -- and the 30-minute cap is applied only in the page. A hot-viewer alert
 -- now counts each view for at most 30 minutes, so one forged event
--- cannot raise it.
+-- cannot raise it. The batch is drawn at random from all qualifying
+-- contacts, so one busy account cannot starve the rest past the
+-- 24-hour freshness window.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.showcase_hot_viewer_candidates(
@@ -24,7 +26,7 @@ RETURNS TABLE (
   viewed_at TIMESTAMPTZ
 )
 LANGUAGE sql
-STABLE
+VOLATILE
 SET search_path = public
 AS $$
   WITH views AS (
@@ -84,10 +86,14 @@ AS $$
           )
       )
   )
-  SELECT DISTINCT ON (q.account_id, q.contact_id)
-    q.account_id, q.contact_id, q.property_id, q.dwell_ms, q.view_days, q.viewed_at
-  FROM qualifying q
-  ORDER BY q.account_id, q.contact_id, q.dwell_ms DESC, q.view_days DESC
+  SELECT d.account_id, d.contact_id, d.property_id, d.dwell_ms, d.view_days, d.viewed_at
+  FROM (
+    SELECT DISTINCT ON (q.account_id, q.contact_id)
+      q.account_id, q.contact_id, q.property_id, q.dwell_ms, q.view_days, q.viewed_at
+    FROM qualifying q
+    ORDER BY q.account_id, q.contact_id, q.dwell_ms DESC, q.view_days DESC
+  ) d
+  ORDER BY random()
   LIMIT p_limit;
 $$;
 
