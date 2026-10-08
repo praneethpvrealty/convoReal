@@ -36,6 +36,16 @@ than a written entry. Newest first.
   while the interest is fresh. Once a week per contact and listing, once a day
   per contact, and WhatsApp and push wait out the agent's quiet hours.
   **Migration required:** `20261008034526_showcase_hot_viewer_alerts.sql`.
+- **A location question after two cards is answered for both, and a
+  correction for the one it names.** Two cards went to a buyer forty-eight
+  seconds apart; "Can u share the exact location?" was answered from the
+  second, and the correction "No this 40,000 sqft one" carried a size, read
+  as a requirement, and went unanswered. The lead Q&A now answers a question
+  that follows two listings shared within five minutes of each other for each
+  of them under its title, where the single-listing readers still hand over.
+  A message that names one of the recent shares by its area, price, bedrooms
+  or a word only its title carries is answered for that listing alone, and
+  when it only points, the question asked just before it is the one answered.
 
 - **"Is this available?" is answered about the listing the buyer means.** On
   7 October a buyer asked it under a showcase enquiry for Akshay Nagar and was

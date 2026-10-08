@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   decideSubject,
+  decideSubjects,
   listingsReferencedIn,
   propertiesNamedIn,
   resolvePropertySubject,
+  resolveSubjectProperties,
   resolveSubjectShift,
+  shareBurst,
   type ListingRef,
   type ShareRecord,
   type ThreadMessage,
@@ -615,5 +618,279 @@ describe('[INB-033] resolvePropertySubject reads the quote and the enquiry from 
       { messageId: 'wamid.q2', quotedMessageId: 'wamid.share1784' }
     );
     expect(subjects.map((subject) => subject.id)).toEqual(['prop-1784']);
+  });
+});
+
+describe('[INB-034] shareBurst', () => {
+  const at = (iso: string, propertyId: string) => ({
+    propertyId,
+    at: Date.parse(iso),
+  });
+
+  it('treats two cards sent seconds apart as one batch, newest first', () => {
+    expect(
+      shareBurst([
+        at('2026-10-07T15:02:34Z', 'prop-2080'),
+        at('2026-10-07T15:01:46Z', 'prop-1784'),
+        at('2026-10-07T14:40:46Z', 'prop-1081'),
+      ])
+    ).toEqual(['prop-2080', 'prop-1784']);
+  });
+
+  it('keeps only the latest card when the earlier ones are old news', () => {
+    expect(
+      shareBurst([
+        at('2026-10-07T15:02:34Z', 'prop-2080'),
+        at('2026-10-07T14:40:46Z', 'prop-1081'),
+      ])
+    ).toEqual(['prop-2080']);
+  });
+
+  it('ends a batch where the buyer spoke between two cards', () => {
+    expect(
+      shareBurst(
+        [
+          at('2026-10-07T15:02:34Z', 'prop-2080'),
+          at('2026-10-07T15:01:46Z', 'prop-1784'),
+        ],
+        [Date.parse('2026-10-07T15:02:00Z')]
+      )
+    ).toEqual(['prop-2080']);
+  });
+
+  it('caps a batch at the subjects one reply is answered about', () => {
+    expect(
+      shareBurst([
+        at('2026-10-07T15:02:40Z', 'a'),
+        at('2026-10-07T15:02:30Z', 'b'),
+        at('2026-10-07T15:02:20Z', 'c'),
+        at('2026-10-07T15:02:10Z', 'd'),
+      ])
+    ).toEqual(['a', 'b', 'c']);
+    expect(shareBurst([])).toEqual([]);
+  });
+});
+
+describe('[INB-034] decideSubjects answers a question after two cards for both', () => {
+  const burst = () => ({
+    messages: thread([
+      ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
+      ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
+      [
+        '2026-10-07T15:20:00Z',
+        'customer',
+        'Can u share the exact location?',
+        'wamid.q2',
+      ],
+    ]),
+    shares: [
+      { propertyId: 'prop-2080', at: '2026-10-07T15:02:34Z' },
+      { propertyId: 'prop-1784', at: '2026-10-07T15:01:46Z' },
+    ],
+    candidates: LISTINGS,
+    currentMessageId: 'wamid.q2',
+  });
+
+  it('returns the whole burst, newest first, where the single reading hands over', () => {
+    expect(decideSubject(burst())).toBeNull();
+    expect(decideSubjects(burst())).toEqual(['prop-2080', 'prop-1784']);
+  });
+
+  it('follows a quote to the one listing it shared', () => {
+    expect(
+      decideSubjects({ ...burst(), quotedText: SHARE_CHIKATOGUR })
+    ).toEqual(['prop-1784']);
+  });
+
+  it('still refuses a quote naming several listings', () => {
+    expect(
+      decideSubjects({
+        ...burst(),
+        quotedText: `${SHARE_CHIKATOGUR}\n${SHARE_JP_8TH}`,
+      })
+    ).toEqual([]);
+  });
+
+  it('still follows the agent to a single listing they pitched', () => {
+    const args = burst();
+    args.messages = thread([
+      ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
+      ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
+      ['2026-10-07T15:10:00Z', 'agent', 'Have some inventories in Oval Reef'],
+      ['2026-10-07T15:20:00Z', 'customer', 'Is it gated?', 'wamid.q2'],
+    ]);
+    args.candidates = [...LISTINGS, { ...OVAL_REEF, status: 'Available' }];
+    expect(decideSubjects(args)).toEqual(['prop-oval']);
+  });
+
+  it('is the latest share alone when the buyer replied between the two cards', () => {
+    const args = burst();
+    args.messages = thread([
+      ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
+      ['2026-10-07T15:02:00Z', 'customer', 'okay', 'wamid.ok'],
+      ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
+      [
+        '2026-10-07T15:20:00Z',
+        'customer',
+        'Can u share the exact location?',
+        'wamid.q2',
+      ],
+    ]);
+    expect(decideSubjects(args)).toEqual(['prop-2080']);
+  });
+
+  it('is the latest share alone once the buyer has spoken since the burst', () => {
+    const args = burst();
+    args.messages = thread([
+      ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
+      ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
+      ['2026-10-07T15:05:00Z', 'customer', 'ok', 'wamid.ok'],
+      ['2026-10-07T15:20:00Z', 'customer', 'Is this available?', 'wamid.q2'],
+    ]);
+    expect(decideSubjects(args)).toEqual(['prop-2080']);
+  });
+
+  it('is empty when nothing was ever shared', () => {
+    expect(
+      decideSubjects({ messages: [], shares: [], candidates: LISTINGS })
+    ).toEqual([]);
+  });
+});
+
+describe('[INB-034] resolveSubjectProperties reads the burst from the thread', () => {
+  const tables = () => ({
+    properties: LISTINGS.map((listing) => ({ ...listing, account_id: 'acc' })),
+    property_shares: [
+      {
+        account_id: 'acc',
+        contact_id: 'c1',
+        property_id: 'prop-1784',
+        created_at: '2026-10-07T15:01:46Z',
+      },
+      {
+        account_id: 'acc',
+        contact_id: 'c1',
+        property_id: 'prop-2080',
+        created_at: '2026-10-07T15:02:34Z',
+      },
+    ],
+    messages: [
+      {
+        conversation_id: 'conv',
+        sender_type: 'agent',
+        content_text: SHARE_CHIKATOGUR,
+        message_id: 'wamid.share1784',
+        created_at: '2026-10-07T15:01:45Z',
+      },
+      {
+        conversation_id: 'conv',
+        sender_type: 'agent',
+        content_text: SHARE_JP_8TH,
+        message_id: 'wamid.share2080',
+        created_at: '2026-10-07T15:02:34Z',
+      },
+      {
+        conversation_id: 'conv',
+        sender_type: 'customer',
+        content_text: 'Can u share the exact location?',
+        message_id: 'wamid.q2',
+        created_at: '2026-10-07T15:20:00Z',
+      },
+    ],
+  });
+
+  it('gives the Q&A both cards where the single reading hands over', async () => {
+    const db = memorySupabase(tables()) as unknown as SupabaseClient;
+    await expect(
+      resolvePropertySubject(db, 'acc', 'c1', 'conv', { messageId: 'wamid.q2' })
+    ).resolves.toBeNull();
+    await expect(
+      resolveSubjectProperties(db, 'acc', 'c1', 'conv', {
+        messageId: 'wamid.q2',
+      })
+    ).resolves.toEqual(['prop-2080', 'prop-1784']);
+  });
+
+  it('carries the burst through the lead Q&A subject lookup', async () => {
+    const db = memorySupabase(tables()) as unknown as SupabaseClient;
+    const subjects = await questionSubjectProperties(
+      db,
+      'acc',
+      'c1',
+      'conv',
+      'Can u share the exact location?',
+      { messageId: 'wamid.q2' }
+    );
+    expect(subjects.map((subject) => subject.id)).toEqual([
+      'prop-2080',
+      'prop-1784',
+    ]);
+  });
+
+  it('lets a quoted share beat a description that fits another card', async () => {
+    const db = memorySupabase(tables()) as unknown as SupabaseClient;
+    const subjects = await questionSubjectProperties(
+      db,
+      'acc',
+      'c1',
+      'conv',
+      'is the 5,760 sqft one still available?',
+      { messageId: 'wamid.q2', quotedMessageId: 'wamid.share1784' }
+    );
+    expect(subjects.map((subject) => subject.id)).toEqual(['prop-1784']);
+  });
+
+  it('reads the described card from the thread when its ledger row is old', async () => {
+    const data = tables();
+    data.property_shares = [
+      {
+        account_id: 'acc',
+        contact_id: 'c1',
+        property_id: 'prop-1784',
+        created_at: '2026-09-01T09:00:00Z',
+      },
+      ...['prop-1004', 'prop-1110', 'prop-1081', 'prop-2080'].map(
+        (property_id, i) => ({
+          account_id: 'acc',
+          contact_id: 'c1',
+          property_id,
+          created_at: `2026-10-07T15:0${i}:00Z`,
+        })
+      ),
+    ];
+    data.properties = data.properties.map((row) =>
+      row.id === 'prop-1784'
+        ? { ...row, land_area: '40000', land_area_unit: 'Sq.Ft.' }
+        : row
+    );
+    const db = memorySupabase(data) as unknown as SupabaseClient;
+    const subjects = await questionSubjectProperties(
+      db,
+      'acc',
+      'c1',
+      'conv',
+      'No this 40,000 sqft one',
+      { messageId: 'wamid.q2' }
+    );
+    expect(subjects.map((subject) => subject.id)).toEqual(['prop-1784']);
+  });
+
+  it('is the latest share alone when there is no thread to read', async () => {
+    const db = memorySupabase(tables()) as unknown as SupabaseClient;
+    await expect(resolveSubjectProperties(db, 'acc', 'c1')).resolves.toEqual([
+      'prop-2080',
+    ]);
+    await expect(
+      resolveSubjectProperties(
+        memorySupabase({
+          properties: [],
+          property_shares: [],
+          messages: [],
+        }) as unknown as SupabaseClient,
+        'acc',
+        'c1',
+        'conv'
+      )
+    ).resolves.toEqual([]);
   });
 });

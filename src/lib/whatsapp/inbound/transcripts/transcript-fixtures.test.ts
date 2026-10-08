@@ -50,7 +50,6 @@ describe('[CNV-005] pinned transcripts', () => {
 
   it('keeps every fixture free of a phone number or email', () => {
     for (const fixture of fixtures) {
-      const text = JSON.stringify(fixture);
       for (const bubble of fixture.transcript) {
         expect(carriesContactDetails(bubble.text), fixture.id).toBe(false);
       }

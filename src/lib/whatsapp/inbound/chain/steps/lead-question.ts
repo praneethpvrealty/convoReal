@@ -2,11 +2,13 @@ import {
   answerLeadQuestion,
   looksLikeQuestion,
   mergeLeadAnswers,
+  previousLeadQuestion,
   questionSubjectProperties,
   requestsHumanContact,
   subjectPortalListings,
   type LeadAnswer,
 } from '@/lib/ai/lead-question';
+import { referencesSharedListing } from '@/lib/ai/described-listing';
 import {
   markBotInstructionsFired,
   retrieveBotInstructions,
@@ -60,7 +62,11 @@ export async function leadQuestion(
           // "Option 2" is not question-shaped, but the shortlist that
           // numbered it closed with "reply with the number", so it is an
           // answer to us and it is about one listing.
-          parseOrdinalReferences(inboundText).length > 0)))
+          parseOrdinalReferences(inboundText).length > 0 ||
+          // "No this 40,000 sqft one" is a correction: it names the
+          // listing, and the question it belongs to was asked just
+          // before it.
+          referencesSharedListing(inboundText))))
   ) {
     const leadText = tappedHumanRequest ?? inboundText;
     const admin = supabaseAdmin();
@@ -87,6 +93,18 @@ export async function leadQuestion(
     // answers.
     const photoRequest =
       requestsPropertyPhotos(leadText) && !requestsHumanContact(leadText);
+    // A message that only points at a listing is answered with the
+    // question the buyer asked just before it, for that listing.
+    const pointsOnly =
+      subjects.length > 0 &&
+      referencesSharedListing(leadText) &&
+      !looksLikeQuestion(leadText) &&
+      !requestsHumanContact(leadText) &&
+      !photoRequest;
+    const question = pointsOnly
+      ? ((await previousLeadQuestion(admin, conversation.id, leadText)) ??
+        leadText)
+      : leadText;
     let answer: LeadAnswer;
     if (photoRequest) {
       const sentPhotos = await sendSubjectPhotos({
@@ -128,7 +146,7 @@ export async function leadQuestion(
           ]);
           return answerLeadQuestion({
             accountId,
-            question: leadText,
+            question,
             property: subject,
             shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
             portalListings,
