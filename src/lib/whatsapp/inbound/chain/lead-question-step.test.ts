@@ -230,6 +230,31 @@ describe('[INB-035] withoutHandovers', () => {
     );
   });
 
+  it('names every remaining listing even when their answers read the same', () => {
+    expect(
+      withoutHandovers(
+        [
+          { text: HANDOVER_TEXT, source: 'handover' },
+          { text: 'It is East facing.', source: 'listing' },
+          { text: 'It is East facing.', source: 'listing' },
+        ],
+        subjects
+      )?.text
+    ).toBe('*Plot B*\nIt is East facing.\n\n*Plot C*\nIt is East facing.');
+  });
+
+  it('merges as before when nothing was withheld', () => {
+    expect(
+      withoutHandovers(
+        [
+          { text: 'It is East facing.', source: 'listing' },
+          { text: 'It is East facing.', source: 'listing' },
+        ],
+        subjects
+      )?.text
+    ).toBe('It is East facing.');
+  });
+
   it('returns a single-listing answer unchanged', () => {
     const answer = { text: '2,400 sq.ft.', source: 'listing' as const };
     expect(withoutHandovers([answer], [{ title: 'Plot A' }])).toEqual(answer);

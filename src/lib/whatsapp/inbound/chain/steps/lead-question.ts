@@ -43,14 +43,24 @@ export function withoutHandovers(
     answer.source === 'handover' ? [] : [{ answer, subject: subjects[i] ?? {} }]
   );
   if (kept.length === 0) return null;
+  if (kept.length === answers.length)
+    return mergeLeadAnswers(answers, subjects);
+  // Once one listing's answer is withheld, every answer that remains
+  // must name its listing, even when two read the same — otherwise
+  // "It is East facing." reads as true of the one left unanswered.
   const merged = mergeLeadAnswers(
     kept.map((k) => k.answer),
     kept.map((k) => k.subject)
   );
-  const title = kept[0].subject.title?.trim();
-  return kept.length === 1 && answers.length > 1 && title
-    ? { ...merged, text: `*${title}*\n${merged.text}` }
-    : merged;
+  return {
+    ...merged,
+    text: kept
+      .map(({ answer, subject }) => {
+        const title = subject.title?.trim();
+        return title ? `*${title}*\n${answer.text}` : answer.text;
+      })
+      .join('\n\n'),
+  };
 }
 
 export async function leadQuestion(
