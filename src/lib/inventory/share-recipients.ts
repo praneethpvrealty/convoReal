@@ -1,24 +1,35 @@
-import type { Contact } from '@/types';
-
 export const DEFAULT_SHARE_RECIPIENT_COUNT = 8;
 
-type RecipientFields = Pick<
-  Contact,
-  'id' | 'name' | 'phone' | 'last_contacted_at' | 'updated_at'
->;
+interface RecipientFields {
+  id: string;
+  name?: string | null;
+  phone?: string | null;
+  last_contacted_at?: string | null;
+}
 
-function activityTime(contact: RecipientFields): number {
-  const stamp = contact.last_contacted_at ?? contact.updated_at;
-  const time = stamp ? Date.parse(stamp) : NaN;
+function contactedAt(contact: RecipientFields): number {
+  const time = contact.last_contacted_at
+    ? Date.parse(contact.last_contacted_at)
+    : NaN;
   return Number.isNaN(time) ? 0 : time;
 }
 
-export function hasRealName(contact: Pick<Contact, 'name' | 'phone'>): boolean {
+export function hasRealName(contact: {
+  name?: string | null;
+  phone?: string | null;
+}): boolean {
   const name = contact.name?.trim();
   if (!name) return false;
-  const digits = name.replace(/\D/g, '');
+  if (!/^[\d\s+\-().]+$/.test(name)) return true;
+  const nameDigits = name.replace(/\D/g, '');
   const phoneDigits = (contact.phone ?? '').replace(/\D/g, '');
-  return !(digits.length >= 7 && digits === phoneDigits);
+  if (nameDigits.length < 7 || !phoneDigits) return true;
+  if (nameDigits === phoneDigits) return false;
+  return !(
+    nameDigits.length >= 8 &&
+    phoneDigits.length >= 8 &&
+    nameDigits.slice(-8) === phoneDigits.slice(-8)
+  );
 }
 
 export function defaultShareRecipients<T extends RecipientFields>(
@@ -27,8 +38,8 @@ export function defaultShareRecipients<T extends RecipientFields>(
 ): T[] {
   return [...contacts]
     .sort((a, b) => {
-      const byActivity = activityTime(b) - activityTime(a);
-      if (byActivity !== 0) return byActivity;
+      const byContact = contactedAt(b) - contactedAt(a);
+      if (byContact !== 0) return byContact;
       const byName = Number(hasRealName(b)) - Number(hasRealName(a));
       if (byName !== 0) return byName;
       return (a.name ?? '').localeCompare(b.name ?? '');

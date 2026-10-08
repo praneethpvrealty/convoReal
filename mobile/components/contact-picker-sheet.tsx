@@ -19,6 +19,10 @@ import type { Contact } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 import { contactHandle } from '@/lib/reachability';
 import { rankContactSearchResults } from '@/lib/contact-search-rank';
+import {
+  defaultShareRecipients,
+  hasRealName,
+} from '@shared/lib/inventory/share-recipients';
 
 /**
  * Pick Engine contacts by name or phone — the same debounced `contacts`
@@ -49,6 +53,7 @@ export function ContactPickerSheet({
   searchKey,
   initialSelected,
   maxSelections = Number.POSITIVE_INFINITY,
+  recentWhenEmpty = false,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -76,6 +81,9 @@ export function ContactPickerSheet({
   searchKey?: string;
   initialSelected?: Contact[];
   maxSelections?: number;
+  /** Before anything is typed, list the eight most recently contacted
+   *  reachable contacts, the same default the web share dialog uses. */
+  recentWhenEmpty?: boolean;
 }) {
   const { colors, fonts: f } = useTheme();
   const [search, setSearch] = useState('');
@@ -160,8 +168,27 @@ export function ContactPickerSheet({
       return { contacts, tags };
     },
   });
-  const results = data?.contacts ?? [];
-  const tagsById = data?.tags ?? {};
+  const showRecent = recentWhenEmpty && !searchContacts && debounced.length < 2;
+  const { data: recentData, isFetching: recentFetching } = useQuery({
+    queryKey: ['contact-picker-recent', searchKey ?? 'all'],
+    enabled: visible && showRecent,
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from('contacts')
+        .select('id, name, name_tag, phone, last_contacted_at')
+        .eq('is_merged', false)
+        .eq('status', 'active')
+        .not('phone', 'is', null)
+        .order('last_contacted_at', { ascending: false, nullsFirst: false })
+        .limit(40);
+      return defaultShareRecipients(
+        (rows ?? []) as (Contact & { last_contacted_at: string | null })[]
+      );
+    },
+  });
+  const recent = recentData ?? [];
+  const results = showRecent ? recent : (data?.contacts ?? []);
+  const tagsById = showRecent ? {} : (data?.tags ?? {});
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title={title}>
@@ -270,11 +297,22 @@ export function ContactPickerSheet({
             />
 
             <View style={{ minHeight: 96, maxHeight: 300, flexShrink: 1 }}>
-              {debounced.length < 2 ? (
-                <Text style={[styles.hint, { color: colors.textFaint }]}>
-                  Type at least 2 characters to search your contacts.
-                </Text>
-              ) : isFetching ? (
+              {debounced.length < 2 && !(showRecent && recent.length > 0) ? (
+                showRecent && recentFetching ? (
+                  <View
+                    style={{
+                      paddingVertical: spacing.xl,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <ActivityIndicator color={colors.primary} />
+                  </View>
+                ) : (
+                  <Text style={[styles.hint, { color: colors.textFaint }]}>
+                    Type at least 2 characters to search your contacts.
+                  </Text>
+                )
+              ) : !showRecent && isFetching ? (
                 <View
                   style={{ paddingVertical: spacing.xl, alignItems: 'center' }}
                 >
@@ -291,6 +329,17 @@ export function ContactPickerSheet({
                   showsVerticalScrollIndicator={false}
                 >
                   <View style={{ gap: spacing.sm }}>
+                    {showRecent ? (
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontFamily: f.semibold,
+                          color: colors.textMuted,
+                        }}
+                      >
+                        Recently contacted
+                      </Text>
+                    ) : null}
                     {results.map((c) => {
                       const isPicked = picked.some((p) => p.id === c.id);
                       return (
@@ -354,7 +403,7 @@ export function ContactPickerSheet({
                                 }}
                                 numberOfLines={1}
                               >
-                                {c.name || c.phone}
+                                {hasRealName(c) ? c.name : c.phone}
                               </Text>
                               {c.name_tag ? (
                                 <View style={nameTagCap}>
@@ -363,7 +412,7 @@ export function ContactPickerSheet({
                               ) : null}
                             </View>
                             <View style={styles.metaRow}>
-                              {c.name ? (
+                              {hasRealName(c) ? (
                                 <Text
                                   style={{
                                     fontSize: 12,

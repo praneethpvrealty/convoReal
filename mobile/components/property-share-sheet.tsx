@@ -880,6 +880,7 @@ export function PropertyShareSheet({
         onClose={() => setPicker(null)}
         onSelect={shareExternalWithContact}
         title="Share on WhatsApp"
+        recentWhenEmpty
         hint="Pick a contact to open WhatsApp addressed to them and log the share on their timeline. WhatsApp opens one chat at a time — to reach several people at once, use Send via ConvoReal WhatsApp above."
         // Keep the property draft in this sheet and switch directly to
         // the multi-recipient Engine picker.
@@ -895,6 +896,7 @@ export function PropertyShareSheet({
         confirmLabel="Broadcast"
         onSelectMany={sendViaConvoRealMany}
         title="Broadcast this property"
+        recentWhenEmpty
         hint="Choose the buyers who should receive this listing. The property stays attached and ConvoReal handles the approved WhatsApp template automatically. Search again to add more — your picks are kept."
         busy={engineSending}
         busyLabel="Sending from ConvoReal…"

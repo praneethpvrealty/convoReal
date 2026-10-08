@@ -34,12 +34,29 @@ describe('[PRP-045] defaultShareRecipients', () => {
         name: 'Zara',
         last_contacted_at: '2026-10-07T00:00:00Z',
       }),
-      contact('mid', { name: 'Meera', updated_at: '2026-09-20T00:00:00Z' }),
+      contact('mid', {
+        name: 'Meera',
+        last_contacted_at: '2026-09-20T00:00:00Z',
+      }),
     ];
     expect(defaultShareRecipients(rows).map((c) => c.id)).toEqual([
       'new',
       'mid',
       'old',
+    ]);
+  });
+
+  it('ignores edits, so a never-contacted contact is not recent', () => {
+    const rows = [
+      contact('edited', { name: 'Zed', updated_at: '2026-10-08T00:00:00Z' }),
+      contact('contacted', {
+        name: 'Abbas',
+        last_contacted_at: '2026-01-01T00:00:00Z',
+      }),
+    ];
+    expect(defaultShareRecipients(rows).map((c) => c.id)).toEqual([
+      'contacted',
+      'edited',
     ]);
   });
 
@@ -73,5 +90,20 @@ describe('[PRP-045] hasRealName', () => {
     ).toBe(false);
     expect(hasRealName({ name: 'Abbas', phone: '919916042446' })).toBe(true);
     expect(hasRealName({ name: '  ', phone: '919916042446' })).toBe(false);
+  });
+
+  it('matches a local or trunk-prefixed number against the stored one', () => {
+    expect(hasRealName({ name: '9986551010', phone: '919986551010' })).toBe(
+      false
+    );
+    expect(hasRealName({ name: '09986551010', phone: '+919986551010' })).toBe(
+      false
+    );
+    expect(hasRealName({ name: '9986551010', phone: '919700606010' })).toBe(
+      true
+    );
+    expect(hasRealName({ name: 'Flat 51010', phone: '919986551010' })).toBe(
+      true
+    );
   });
 });
