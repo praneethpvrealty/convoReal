@@ -324,6 +324,24 @@ describe('[PLS-006] showcase view check-in buttons', () => {
     ).toBe(englishFollowup);
   });
 
+  it('[CLG-001] falls back to English, not another language, when the contact has no approved row', () => {
+    const tamilFollowup = {
+      name: 'showcase_view_followup',
+      status: 'APPROVED',
+      category: 'Utility',
+      language: 'ta',
+    };
+    const englishCheckin = {
+      name: 'showcase_view_checkin',
+      status: 'APPROVED',
+      category: 'Utility',
+      language: 'en_US',
+    };
+    expect(
+      usableViewNudgeTemplate([tamilFollowup, englishCheckin], 'pending', 'kn')
+    ).toBe(englishCheckin);
+  });
+
   it('returns the approved language row, not another row under the same name', () => {
     const pendingHindi = {
       name: 'showcase_view_followup',

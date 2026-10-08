@@ -175,7 +175,9 @@ export function usableViewNudgeTemplate<T extends ViewNudgeTemplateRow>(
   alertsConsent: string | null | undefined,
   language: LanguageCode = 'en'
 ): T | null {
-  const rows = narrowToLanguage(allRows, language);
+  const inLanguage = narrowToLanguage(allRows, language);
+  const rows =
+    inLanguage === allRows ? narrowToLanguage(allRows, 'en') : inLanguage;
   const normalized = rows.map((row) => ({
     ...row,
     category:
