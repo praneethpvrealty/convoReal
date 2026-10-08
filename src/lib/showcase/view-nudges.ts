@@ -384,15 +384,19 @@ async function sendViewNudge(
     );
     if (!template) return { status: 'deferred' };
 
-    const { data: account, error: accountError } = await db
-      .from('accounts')
-      .select('name')
-      .eq('id', accountId)
-      .maybeSingle();
-    if (accountError) return { status: 'retry' };
+    let brandName: string | null = null;
+    if (template.name === SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME) {
+      const { data: account, error: accountError } = await db
+        .from('accounts')
+        .select('name')
+        .eq('id', accountId)
+        .maybeSingle();
+      if (accountError) return { status: 'retry' };
+      brandName = (account as { name?: string | null } | null)?.name ?? null;
+    }
     const params = buildViewNudgeParams(
       contact.name as string | null,
-      (account as { name?: string | null } | null)?.name ?? null,
+      brandName,
       propertyTitle
     );
 

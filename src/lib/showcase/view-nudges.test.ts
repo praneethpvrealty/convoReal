@@ -504,6 +504,27 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     });
   });
 
+  it('sends the legacy check-in without reading the brokerage it does not name', async () => {
+    const { db } = fakeDb({
+      candidates: [candidate],
+      failSelect: 'accounts',
+      tables: baseTables({
+        message_templates: [
+          {
+            account_id: ACCOUNT,
+            name: 'showcase_view_checkin',
+            status: 'APPROVED',
+            category: 'Utility',
+            language: 'en_US',
+          },
+        ],
+      }),
+    });
+    await processShowcaseViewNudges(db);
+    expect(h.send).toHaveBeenCalledTimes(1);
+    expect(h.send.mock.calls[0][0].templateName).toBe('showcase_view_checkin');
+  });
+
   it('retries rather than sending under the product name when the brokerage cannot be read', async () => {
     const { db, queries } = fakeDb({
       candidates: [candidate],
