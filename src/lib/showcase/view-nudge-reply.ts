@@ -53,6 +53,16 @@ export function buildViewNudgeAgentAlert(
   };
 }
 
+async function readWithRetry<T extends { error: unknown }>(
+  read: () => PromiseLike<T>
+): Promise<T> {
+  let result = await read();
+  for (let attempt = 2; result.error && attempt <= 3; attempt++) {
+    result = await read();
+  }
+  return result;
+}
+
 export function buildViewNudgeNotOpenReply(
   firstName: string,
   propertyTitle: string
@@ -73,21 +83,33 @@ export async function handleViewNudgeReply(args: {
   const { db, accountId, configOwnerUserId, contact, conversationId } = args;
   const { choice, propertyId } = parsed;
 
-  const { data: property } = await db
-    .from('properties')
-    .select('id, title, user_id, status')
-    .eq('id', propertyId)
-    .eq('account_id', accountId)
-    .maybeSingle();
+  const propertyRead = await readWithRetry(() =>
+    db
+      .from('properties')
+      .select('id, title, user_id, status')
+      .eq('id', propertyId)
+      .eq('account_id', accountId)
+      .maybeSingle()
+  );
+  if (propertyRead.error) {
+    console.error('[view-nudge-reply] listing unreadable:', propertyRead.error);
+  }
+  const property = propertyRead.data;
   if (!property) return false;
 
-  const { data: nudge } = await db
-    .from('showcase_view_nudges')
-    .select('id, response')
-    .eq('account_id', accountId)
-    .eq('contact_id', contact.id)
-    .eq('property_id', propertyId)
-    .maybeSingle();
+  const nudgeRead = await readWithRetry(() =>
+    db
+      .from('showcase_view_nudges')
+      .select('id, response')
+      .eq('account_id', accountId)
+      .eq('contact_id', contact.id)
+      .eq('property_id', propertyId)
+      .maybeSingle()
+  );
+  if (nudgeRead.error) {
+    console.error('[view-nudge-reply] check-in unreadable:', nudgeRead.error);
+  }
+  const nudge = nudgeRead.data;
   const repeatTap = nudge?.response === choice;
   const recordResponse = async () => {
     if (!nudge || repeatTap) return;
@@ -142,17 +164,14 @@ export async function handleViewNudgeReply(args: {
   }
 
   const propertyTitle = (property.title as string | null) || 'this property';
-  const readContact = () =>
+  const contactRead = await readWithRetry(() =>
     db
       .from('contacts')
       .select('assigned_agent_id, phone')
       .eq('id', contact.id)
       .eq('account_id', accountId)
-      .maybeSingle();
-  let contactRead = await readContact();
-  for (let attempt = 2; contactRead.error && attempt <= 3; attempt++) {
-    contactRead = await readContact();
-  }
+      .maybeSingle()
+  );
   if (contactRead.error) {
     console.error(
       '[view-nudge-reply] assigned agent unreadable, using the listing manager:',

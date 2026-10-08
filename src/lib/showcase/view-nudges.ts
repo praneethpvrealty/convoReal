@@ -252,11 +252,12 @@ async function sendViewNudge(
     if (agentMessage) return { status: 'skipped', reason: 'agent_in_touch' };
   }
 
-  const { data: config } = await db
+  const { data: config, error: configError } = await db
     .from('whatsapp_config')
     .select('user_id')
     .eq('account_id', accountId)
     .maybeSingle();
+  if (configError) return { status: 'retry' };
   if (!config?.user_id) return { status: 'skipped', reason: 'no_whatsapp' };
 
   const { data: contact, error: contactError } = await db

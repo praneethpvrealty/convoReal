@@ -88,6 +88,7 @@ function fakeDb(state: {
   claimId?: string | null;
   failInsert?: string;
   failUpdates?: number;
+  failSelect?: string;
   tables: Record<string, Row[]>;
 }) {
   let failedUpdates = 0;
@@ -107,6 +108,9 @@ function fakeDb(state: {
       return { data: null, error: { message: 'update failed' } };
     }
     if (q.op !== 'select') return { data: null, error: null };
+    if (q.table === state.failSelect) {
+      return { data: null, error: { message: 'read failed' } };
+    }
     const rows = (state.tables[q.table] ?? []).filter((row) =>
       Object.entries(q.filters).every(([k, v]) => row[k] === v)
     );
@@ -145,9 +149,10 @@ function fakeDb(state: {
       limit: () => api,
       maybeSingle: () => {
         const { data } = resolve(q);
+        const { error } = resolve(q);
         return Promise.resolve({
           data: Array.isArray(data) ? (data[0] ?? null) : null,
-          error: null,
+          error,
         });
       },
       then: (onFulfilled: (v: unknown) => unknown) =>
@@ -437,6 +442,17 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
       status: 'skipped',
       skip_reason: 'agent_in_touch',
     });
+  });
+
+  it('retries rather than skips when the WhatsApp config cannot be read', async () => {
+    const { db, queries } = fakeDb({
+      candidates: [candidate],
+      failSelect: 'whatsapp_config',
+      tables: baseTables(),
+    });
+    expect((await processShowcaseViewNudges(db)).failed).toBe(1);
+    expect(h.send).not.toHaveBeenCalled();
+    expect(nudgeUpdate(queries)).toEqual({ status: 'failed' });
   });
 
   it('skips a visitor who has written in since the view', async () => {
