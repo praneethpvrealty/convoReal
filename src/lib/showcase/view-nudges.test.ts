@@ -467,6 +467,17 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     expect(h.submit).not.toHaveBeenCalled();
   });
 
+  it('retries rather than sending under the product name when the brokerage cannot be read', async () => {
+    const { db, queries } = fakeDb({
+      candidates: [candidate],
+      failSelect: 'accounts',
+      tables: baseTables(),
+    });
+    await processShowcaseViewNudges(db);
+    expect(h.send).not.toHaveBeenCalled();
+    expect(nudgeUpdate(queries)).toEqual({ status: 'failed' });
+  });
+
   it('submits the template once and releases the claim while it awaits approval, so the visitor is asked once it is approved', async () => {
     const { db, queries } = fakeDb({
       candidates: [candidate],

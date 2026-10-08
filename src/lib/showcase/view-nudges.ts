@@ -347,11 +347,12 @@ async function sendViewNudge(
   const excluded = showcaseOutreachExclusion(contactId, contact, property);
   if (excluded) return { status: 'skipped', reason: excluded };
 
-  const { data: account } = await db
+  const { data: account, error: accountError } = await db
     .from('accounts')
     .select('name')
     .eq('id', accountId)
     .maybeSingle();
+  if (accountError) return { status: 'retry' };
   const params = buildViewNudgeParams(
     contact.name as string | null,
     (account as { name?: string | null } | null)?.name ?? null,
