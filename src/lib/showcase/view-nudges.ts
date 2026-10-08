@@ -347,17 +347,7 @@ async function sendViewNudge(
   const excluded = showcaseOutreachExclusion(contactId, contact, property);
   if (excluded) return { status: 'skipped', reason: excluded };
 
-  const { data: account, error: accountError } = await db
-    .from('accounts')
-    .select('name')
-    .eq('id', accountId)
-    .maybeSingle();
-  if (accountError) return { status: 'retry' };
-  const params = buildViewNudgeParams(
-    contact.name as string | null,
-    (account as { name?: string | null } | null)?.name ?? null,
-    (property.title as string | null) || 'Property'
-  );
+  const propertyTitle = (property.title as string | null) || 'Property';
 
   try {
     if (isWithinCustomerWindow(conversation?.last_customer_message_at)) {
@@ -368,7 +358,13 @@ async function sendViewNudge(
         kind: 'interactive',
         senderType: 'bot',
         interactiveType: 'buttons',
-        interactiveBody: buildViewNudgeButtonsBody(params),
+        interactiveBody: buildViewNudgeButtonsBody(
+          buildViewNudgeParams(
+            contact.name as string | null,
+            null,
+            propertyTitle
+          )
+        ),
         interactiveButtons: viewNudgeButtons(property.id as string),
         customDbClient: db,
       });
@@ -387,6 +383,18 @@ async function sendViewNudge(
       contact.buyer_alerts_consent as string | null
     );
     if (!template) return { status: 'deferred' };
+
+    const { data: account, error: accountError } = await db
+      .from('accounts')
+      .select('name')
+      .eq('id', accountId)
+      .maybeSingle();
+    if (accountError) return { status: 'retry' };
+    const params = buildViewNudgeParams(
+      contact.name as string | null,
+      (account as { name?: string | null } | null)?.name ?? null,
+      propertyTitle
+    );
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId,

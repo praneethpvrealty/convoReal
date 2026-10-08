@@ -485,11 +485,40 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     expect(h.submit).not.toHaveBeenCalled();
   });
 
-  it('retries rather than sending under the product name when the brokerage cannot be read', async () => {
+  it('still sends the in-window buttons when the brokerage cannot be read', async () => {
+    h.conversation = {
+      last_customer_message_at: new Date(
+        Date.now() - 3 * 60 * 60 * 1000
+      ).toISOString(),
+    };
     const { db, queries } = fakeDb({
       candidates: [candidate],
       failSelect: 'accounts',
       tables: baseTables(),
+    });
+    await processShowcaseViewNudges(db);
+    expect(h.send).toHaveBeenCalledTimes(1);
+    expect(nudgeUpdate(queries)).toMatchObject({
+      status: 'sent',
+      channel: 'buttons',
+    });
+  });
+
+  it('retries rather than sending under the product name when the brokerage cannot be read', async () => {
+    const { db, queries } = fakeDb({
+      candidates: [candidate],
+      failSelect: 'accounts',
+      tables: baseTables({
+        message_templates: [
+          {
+            account_id: ACCOUNT,
+            name: 'showcase_view_followup',
+            status: 'APPROVED',
+            category: 'Utility',
+            language: 'en_US',
+          },
+        ],
+      }),
     });
     await processShowcaseViewNudges(db);
     expect(h.send).not.toHaveBeenCalled();
