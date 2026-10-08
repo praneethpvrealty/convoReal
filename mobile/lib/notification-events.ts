@@ -63,6 +63,14 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     defaults: { app: true, whatsapp: true },
   },
   {
+    key: 'showcase_viewer_response',
+    group: 'Showcase',
+    label: 'Viewer asks for a visit or call',
+    description:
+      'A buyer who spent time on a listing answers the WhatsApp check-in with "Book a visit" or "Call me back". A to-do is added either way.',
+    defaults: { app: true, whatsapp: true },
+  },
+  {
     key: 'portal_listing_expiry',
     group: 'Inventory',
     label: 'Portal listing expiry',

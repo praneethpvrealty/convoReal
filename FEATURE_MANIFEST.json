@@ -3972,6 +3972,26 @@
             { "file": "src/lib/pulse/queries.test.ts", "case": "[PLS-005]" },
             { "file": "src/lib/mobile-parity.test.ts", "case": "[PLS-005]" }
           ]
+        },
+        {
+          "id": "PLS-006",
+          "rule": "An identified showcase visitor (contact_id set, with a phone) whose view_property dwell on one Available listing totals at least 30 seconds within the last 24 hours gets one WhatsApp check-in for that listing, sent only after their showcase activity has been quiet for 30 minutes and outside the account's client quiet hours. Nobody is asked twice about a listing, a contact gets at most one check-in in any 3 days, and none goes to a contact who is dead, archived, chain-only, declined alerts, inside a pitch-quiet window, classified Agent or Developer, the listing's owner, who wrote in or was written to by an agent since the view, or whose share-feedback request for the listing was sent in the last 3 days or is due. While the 24-hour window is open it goes as free-form buttons naming the listing (Book a visit / Call me back / Not for me); otherwise as the approved showcase_view_checkin template whose quick replies carry the same reply ids, auto-submitted once per account and never resubmitted. A Marketing-categorised template goes only to contacts who granted alerts. Each check-in is claimed before sending, and its WhatsApp message id is stored.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/view-nudges.test.ts",
+              "case": "[PLS-006]"
+            }
+          ]
+        },
+        {
+          "id": "PLS-007",
+          "rule": "Book a visit and Call me back on a showcase check-in are acknowledged to the buyer naming the listing, recorded on the check-in and as interest on listing_feedback, and put on the assigned agent (the contact's assigned agent, else the listing's manager, else the WhatsApp owner) as a high-priority to-do (call back due within the hour, visit within three hours) and an alert under the Viewer asks for a visit or call notification setting, whose WhatsApp ping is reply-bridged to the buyer's thread. A repeated tap is acknowledged again without a second to-do or alert. Not for me goes to the listing-feedback reason list and alerts nobody. A tap naming a listing outside the account does nothing.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/view-nudges.test.ts",
+              "case": "[PLS-007]"
+            }
+          ]
         }
       ]
     },

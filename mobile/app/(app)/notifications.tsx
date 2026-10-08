@@ -26,6 +26,7 @@ const TYPE_ICONS: Record<
   daily_digest: 'sunny-outline',
   location_request: 'location-outline',
   document_request: 'document-text-outline',
+  listing_interest: 'eye-outline',
   portal_listing_expiry: 'time-outline',
   requirement_shared: 'swap-horizontal-outline',
   requirement_response: 'home-outline',

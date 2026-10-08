@@ -90,6 +90,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/showcase-view-nudges",
+      "schedule": "4,19,34,49 * * * *"
+    },
+    {
       "path": "/api/cron/flow-run-sweep",
       "schedule": "40 * * * *"
     },

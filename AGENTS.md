@@ -784,6 +784,7 @@ Defined in `vercel.json`:
 - `/api/cron/credit-refunds` — hourly at :17; retries the AI-credit refunds queued in `credit_refund_retries`
 - `/api/appointments/cron` — every 15 minutes
 - `/api/cron/voice-campaigns` — every 10 minutes
+- `/api/cron/showcase-view-nudges` — every 15 minutes (:04, :19, :34, :49); WhatsApp check-in (Book a visit / Call me back / Not for me) to an identified showcase visitor who spent 30s+ on a listing, outside client quiet hours
 - `/api/cron/guidance-batches` — every 15 minutes
 - `/api/cron/release-timer` — every 15 minutes (:07, :22, :37, :52); starts the release-timer GitHub workflow
 - `/api/cron/bot-thread-review` — daily 23:30 UTC (05:00 IST); reads every thread the bot wrote in during the last day through the transcript rules and the model judge into `bot_thread_reviews` (Admin → Bot replies)

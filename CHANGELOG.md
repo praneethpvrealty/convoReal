@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 8 October 2026
 
+- **Buyers who linger on a listing get a WhatsApp check-in.** A known contact
+  who spends 30 seconds or more on a property in the showcase is asked, half an
+  hour after they stop browsing, whether they want to **Book a visit**, get a
+  **Call me back**, or say it is **Not for me**. Visit and call-back answers go
+  straight to the assigned agent as an alert and a high-priority to-do; "Not
+  for me" asks what didn't fit and tunes their matches. At most one check-in per
+  contact every three days, never during client quiet hours, and never to
+  anyone who opted out of alerts or is already talking to the team. The agent
+  alert can be switched off under Settings → Notifications → Showcase.
+  **Migration required:** `20261008032901_showcase_view_nudges.sql`.
+
 - **"Is this available?" is answered about the listing the buyer means.** On
   7 October a buyer asked it under a showcase enquiry for Akshay Nagar and was
   told the listing was under contract: the bot answered from an older
