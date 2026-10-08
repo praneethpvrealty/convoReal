@@ -34,7 +34,10 @@ import {
   type PortalListingFigures,
   type ReconcilableProperty,
 } from '@/lib/portals/listing-reconcile';
-import { resolvePropertySubject } from '@/lib/learning/subject';
+import {
+  resolvePropertySubject,
+  type InboundSubjectContext,
+} from '@/lib/learning/subject';
 import { resolveShortlistReference } from '@/lib/ai/shortlist-reference';
 import type { Property } from '@/types';
 import { generateText } from '@/lib/ai/gemini';
@@ -471,8 +474,8 @@ async function loadSubjects(
  * Numbers the buyer used win, because they are the most explicit thing
  * anyone in the thread has said about which listing is meant — the bot
  * numbered the shortlist and invited exactly this. Failing that it is
- * the shared subject resolver: the share ledger reconciled against what
- * the agent has since said.
+ * the shared subject resolver: the message the buyer quoted, a listing
+ * they just enquired about, an agent's pitch, then the share ledger.
  *
  * Empty means the thread cannot be pinned to a listing, which the
  * caller reads as a handover: a buyer told "let me check and come back"
@@ -485,7 +488,8 @@ export async function questionSubjectProperties(
   contactId: string,
   conversationId?: string | null,
   /** The buyer's own words, read for "option 2" / "the first one". */
-  questionText?: string | null
+  questionText?: string | null,
+  inbound?: InboundSubjectContext
 ): Promise<SubjectProperty[]> {
   if (conversationId && questionText) {
     const numbered = await resolveShortlistReference(
@@ -501,7 +505,8 @@ export async function questionSubjectProperties(
     db,
     accountId,
     contactId,
-    conversationId
+    conversationId,
+    inbound
   );
   return propertyId ? loadSubjects(db, accountId, [propertyId]) : [];
 }
@@ -512,14 +517,16 @@ export async function questionSubjectProperty(
   accountId: string,
   contactId: string,
   conversationId?: string | null,
-  questionText?: string | null
+  questionText?: string | null,
+  inbound?: InboundSubjectContext
 ): Promise<SubjectProperty | null> {
   const subjects = await questionSubjectProperties(
     db,
     accountId,
     contactId,
     conversationId,
-    questionText
+    questionText,
+    inbound
   );
   return subjects[0] ?? null;
 }

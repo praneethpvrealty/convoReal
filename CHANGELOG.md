@@ -17,6 +17,19 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 8 October 2026
+
+- **"Is this available?" is answered about the listing the buyer means.** On
+  7 October a buyer asked it under a showcase enquiry for Akshay Nagar and was
+  told the listing was under contract: the bot answered from an older
+  under-contract share, because the enquiry had not reached the share ledger.
+  Later the same buyer quoted the 40,000 sq.ft. share and was answered about
+  the listing shared a minute after it. The bot now reads the quoted message
+  first, then a listing the buyer just enquired about, then an agent's pitch,
+  then the share ledger; a question that follows two listings shared back to
+  back, with nothing quoted, goes to the agent. The disinterest flow's quote
+  lookup, which read a column that does not exist, now uses the same reading.
+
 #### 7 October 2026
 
 - **A shared map link is always a pin, never a route.** A buyer who opened
