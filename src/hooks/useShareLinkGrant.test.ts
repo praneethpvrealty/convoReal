@@ -142,6 +142,37 @@ describe('[PRP-043] useShareLinkGrant', () => {
     expect(calls('DELETE')).toHaveLength(0);
   });
 
+  it('rejects and revokes a key whose mint outlives the dialog', async () => {
+    let finishMint: (value: unknown) => void = () => {};
+    fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return new Promise((resolve) => {
+          finishMint = resolve;
+        });
+      }
+      return respond({ data: null });
+    });
+    const { result, rerender } = render({
+      open: true,
+      revealLocation: true,
+      ttl: '7d',
+    });
+    let pending: Promise<string | null> = Promise.resolve(null);
+    act(() => {
+      pending = result.current.ensureLinkGrant();
+    });
+    rerender({ open: false, revealLocation: true, ttl: '7d' });
+    await act(async () => {
+      finishMint({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 'g5', token: 'tok5' } }),
+      });
+      await expect(pending).rejects.toThrow('cancelled');
+    });
+    await waitFor(() => expect(calls('DELETE')).toHaveLength(1));
+    expect(calls('DELETE')[0][0]).toContain('grant_id=g5');
+  });
+
   it('falls back to the share-wide key when a contact key fails', async () => {
     fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
       if (init?.method !== 'POST') return respond({ data: null });

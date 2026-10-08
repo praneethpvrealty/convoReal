@@ -684,6 +684,14 @@ export function PropertyShareDialog({
     })();
   };
 
+  const copyShareLink = () =>
+    shareGenerically(async (share) => {
+      await navigator.clipboard.writeText(share.url);
+      setCopiedLink(true);
+      toast.success('Link copied!');
+      setTimeout(() => setCopiedLink(false), 2000);
+    });
+
   const handleInventoryShare = async (contact: Contact) => {
     if (!property) return;
     setInventorySharingContactId(contact.id);
@@ -2701,18 +2709,16 @@ export function PropertyShareDialog({
                     readOnly
                     aria-label="Share link"
                     value={displayUrl}
+                    onCopy={(event) => {
+                      if (!unmasked || linkGrant) return;
+                      event.preventDefault();
+                      copyShareLink();
+                    }}
                     className="h-9 flex-1 border-slate-700 bg-slate-800/50 font-mono text-xs text-slate-300 select-all"
                   />
                   <Button
                     disabled={grantBusy}
-                    onClick={() =>
-                      shareGenerically(async (share) => {
-                        await navigator.clipboard.writeText(share.url);
-                        setCopiedLink(true);
-                        toast.success('Link copied!');
-                        setTimeout(() => setCopiedLink(false), 2000);
-                      })
-                    }
+                    onClick={copyShareLink}
                     variant="outline"
                     className="flex h-9 shrink-0 items-center gap-1.5 border-slate-700 px-3 text-xs text-slate-300 hover:bg-slate-800"
                   >

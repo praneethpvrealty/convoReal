@@ -45,7 +45,7 @@ export function useShareLinkGrant({
   const [linkGrant, setLinkGrant] = useState<ShareGrantKey | null>(null);
   const [grantBusy, setGrantBusy] = useState(false);
   const linkGrantRef = useRef<HeldGrant | null>(null);
-  const pendingRef = useRef<Promise<ShareGrantKey | null> | null>(null);
+  const pendingRef = useRef<Promise<ShareGrantKey> | null>(null);
   const contactGrantsRef = useRef<Record<string, string>>({});
   const generationRef = useRef(0);
   const onGrantsChangedRef = useRef(onGrantsChanged);
@@ -109,7 +109,9 @@ export function useShareLinkGrant({
         .then((grant) => {
           if (generation !== generationRef.current) {
             void revokeShareGrant(propertyId, grant.id);
-            return null;
+            throw new Error(
+              'This share was cancelled before its link was unmasked'
+            );
           }
           linkGrantRef.current = { ...grant, propertyId };
           setLinkGrant(grant);
@@ -123,7 +125,7 @@ export function useShareLinkGrant({
         });
     }
     const grant = await pendingRef.current;
-    return grant?.token ?? null;
+    return grant.token;
   }, [unmasked, propertyId, mintGrant]);
 
   const ensureContactGrant = useCallback(
