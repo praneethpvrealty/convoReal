@@ -564,6 +564,13 @@
               "case": "[INB-032]"
             }
           ]
+        },
+        {
+          "id": "INB-033",
+          "rule": "The listing a lead's message is about is read from the strongest signal in the thread before anything is answered from it: the message the lead quoted (by the property code in a share link or enquiry, else the listing's full title), then a listing the lead named since the latest share (a showcase enquiry seconds old), then a listing an agent has since pitched, whichever of those two was said more recently, and only then the share ledger. A quote or message naming several listings, or a question that is the lead's first word after two different listings were shared within five minutes of each other, is never guessed: it goes to a person. The same resolution serves the lead Q&A, photo requests, disinterest and the agent price learner.",
+          "tests": [
+            { "file": "src/lib/learning/subject.test.ts", "case": "[INB-033]" }
+          ]
         }
       ]
     },
