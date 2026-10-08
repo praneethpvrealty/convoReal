@@ -48,7 +48,7 @@ interface DealFloorHeroProps {
   onLocationChange: (value: string | null) => void;
   nearbyLabel: string | null;
   onSearchNearRequest: () => void;
-  onSearchNear: (query: string) => Promise<boolean>;
+  onSearchNear: (query: string, placeLabel?: string) => Promise<boolean>;
   nearbyPending: boolean;
   nearbyError: string | null;
   maxBudget: number | null;
@@ -128,7 +128,7 @@ function LocalityBlank({
   onLocationChange: (value: string | null) => void;
   nearbyLabel: string | null;
   onSearchNearRequest: () => void;
-  onSearchNear: (query: string) => Promise<boolean>;
+  onSearchNear: (query: string, placeLabel?: string) => Promise<boolean>;
   nearbyPending: boolean;
   nearbyError: string | null;
   fontClassName?: string;
@@ -186,7 +186,7 @@ function LocalityBlank({
           label: `${location} & nearby`,
           selected: false,
           onSelect: () => {
-            void onSearchNear(location).then((found) => {
+            void onSearchNear(location, location).then((found) => {
               if (found) close();
             });
           },
@@ -401,7 +401,7 @@ export function DealFloorHero({
             disabled={nearbyPending}
             onClick={() => {
               setIncludeTried(selectedLocation);
-              void onSearchNear(selectedLocation);
+              void onSearchNear(selectedLocation, selectedLocation);
             }}
           >
             {nearbyPending ? (
