@@ -74,6 +74,15 @@ export const HANDOVER_TEXT =
 export const PHOTO_IDENTIFICATION_HANDOVER_TEXT =
   "Good question — I'll confirm exactly which one it is in the photo with the team and come right back to you.";
 
+export function isHandoverText(text: string | null | undefined): boolean {
+  const t = text ?? '';
+  return [
+    HANDOVER_TEXT,
+    PHOTO_IDENTIFICATION_HANDOVER_TEXT,
+    CALLBACK_HANDOVER_TEXT,
+  ].some((line) => t.includes(line));
+}
+
 export type LeadAnswerSource = 'listing' | 'ai' | 'handover';
 
 export interface LeadAnswer {
