@@ -34,8 +34,15 @@ import {
   type PortalListingFigures,
   type ReconcilableProperty,
 } from '@/lib/portals/listing-reconcile';
-import { resolvePropertySubject } from '@/lib/learning/subject';
-import { resolveShortlistReference } from '@/lib/ai/shortlist-reference';
+import { resolveSubjectProperties } from '@/lib/learning/subject';
+import {
+  parseOrdinalReferences,
+  resolveShortlistReference,
+} from '@/lib/ai/shortlist-reference';
+import {
+  describedListingAmong,
+  type DescribedCandidate,
+} from '@/lib/ai/described-listing';
 import type { Property } from '@/types';
 import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
@@ -465,14 +472,54 @@ async function loadSubjects(
     .filter((row): row is SubjectProperty => !!row);
 }
 
+/** Shares read back when a buyer describes one of them. A buyer points
+ *  at something sent recently; six covers two shortlists. */
+const DESCRIBED_LOOKBACK_SHARES = 6;
+
+/**
+ * The listing among the buyer's recent shares that their words describe
+ * — "the 40,000 sqft one", "the Chikatogur plot" — or null when they
+ * describe none, or more than one, of them.
+ */
+async function describedSubject(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  text: string
+): Promise<string | null> {
+  const { data: shares } = await db
+    .from('property_shares')
+    .select('property_id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: false })
+    .limit(DESCRIBED_LOOKBACK_SHARES);
+  const ids = [...new Set((shares ?? []).map((s) => s.property_id as string))];
+  if (ids.length === 0) return null;
+
+  const { data: candidates } = await db
+    .from('properties')
+    .select(
+      'id, title, location, sublocality, project, price, area_sqft, super_built_area, land_area, land_area_unit, bedrooms'
+    )
+    .eq('account_id', accountId)
+    .in('id', ids);
+  return describedListingAmong(
+    text,
+    (candidates ?? []) as DescribedCandidate[]
+  );
+}
+
 /**
  * The listings a question is about.
  *
  * Numbers the buyer used win, because they are the most explicit thing
  * anyone in the thread has said about which listing is meant — the bot
- * numbered the shortlist and invited exactly this. Failing that it is
- * the shared subject resolver: the share ledger reconciled against what
- * the agent has since said.
+ * numbered the shortlist and invited exactly this. A description comes
+ * next: a buyer who says "the 40,000 sqft one" has named a listing as
+ * surely as by number. Failing both it is the shared subject resolver:
+ * the latest batch of shares reconciled against what the agent has
+ * since said, every listing of the batch when it sent several.
  *
  * Empty means the thread cannot be pinned to a listing, which the
  * caller reads as a handover: a buyer told "let me check and come back"
@@ -484,7 +531,7 @@ export async function questionSubjectProperties(
   accountId: string,
   contactId: string,
   conversationId?: string | null,
-  /** The buyer's own words, read for "option 2" / "the first one". */
+  /** The buyer's own words, read for "option 2" / "the 40,000 sqft one". */
   questionText?: string | null
 ): Promise<SubjectProperty[]> {
   if (conversationId && questionText) {
@@ -497,13 +544,65 @@ export async function questionSubjectProperties(
     if (numbered.length > 0) return loadSubjects(db, accountId, numbered);
   }
 
-  const propertyId = await resolvePropertySubject(
+  if (questionText) {
+    const described = await describedSubject(
+      db,
+      accountId,
+      contactId,
+      questionText
+    );
+    if (described) return loadSubjects(db, accountId, [described]);
+  }
+
+  const propertyIds = await resolveSubjectProperties(
     db,
     accountId,
     contactId,
     conversationId
   );
-  return propertyId ? loadSubjects(db, accountId, [propertyId]) : [];
+  return propertyIds.length > 0 ? loadSubjects(db, accountId, propertyIds) : [];
+}
+
+/** Customer messages read back for the question a correction answers. */
+const PREVIOUS_QUESTION_LOOKBACK = 6;
+
+/**
+ * The question a buyer asked just before pointing at a listing.
+ *
+ * "Can u share the exact location?" answered from the wrong card, then
+ * "No this 40,000 sqft one": the second message names the listing and
+ * the first carries the question, and the buyer expects the two read
+ * together. Null when nothing recent reads as a question, and the
+ * current message is skipped whether or not it has been persisted yet.
+ */
+export async function previousLeadQuestion(
+  db: SupabaseClient,
+  conversationId: string,
+  currentText: string
+): Promise<string | null> {
+  const { data } = await db
+    .from('messages')
+    .select('content_text')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'customer')
+    .not('content_text', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(PREVIOUS_QUESTION_LOOKBACK);
+
+  const texts = (data ?? []).map((row) =>
+    ((row.content_text as string) || '').trim()
+  );
+  const start = texts[0] === currentText.trim() ? 1 : 0;
+  return (
+    texts
+      .slice(start)
+      .find(
+        (text) =>
+          looksLikeQuestion(text) &&
+          !requestsHumanContact(text) &&
+          parseOrdinalReferences(text).length === 0
+      ) ?? null
+  );
 }
 
 /** The single listing a question is about, for callers that answer one. */

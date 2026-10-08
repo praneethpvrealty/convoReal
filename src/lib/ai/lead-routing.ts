@@ -25,6 +25,7 @@ import { requestsHumanContact } from '@/lib/ai/lead-question';
 import { requestsMoreListings } from '@/lib/ai/more-listings';
 import { requestsPropertyPhotos } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
+import { referencesSharedListing } from '@/lib/ai/described-listing';
 import {
   asksAboutSharedListing,
   carriesRequirementSignal,
@@ -96,11 +97,19 @@ export function routeLeadMessage(text?: string | null): LeadRoute {
   // to the whole message, so a real requirement never lands here.
   if (requestsMoreListings(value)) return 'more_listings';
 
-  const hasRequirement = carriesRequirementSignal(value);
+  // "No this 40,000 sqft one" names a listing the buyer was sent by its
+  // size, and the size is what made it read as a requirement — so the
+  // correction went unanswered. A message pointing at a shared listing
+  // carries no requirement by construction, whatever figure it quotes.
+  const pointsAtShare = referencesSharedListing(value);
+  const hasRequirement = !pointsAtShare && carriesRequirementSignal(value);
   if (isPropertyDisinterest(value) && !hasRequirement)
     return 'property_disinterest';
   if (requestsPropertyPhotos(value) && !hasRequirement) return 'photo_request';
-  if (parseOrdinalReferences(value).length > 0 && !hasRequirement) {
+  if (
+    (pointsAtShare || parseOrdinalReferences(value).length > 0) &&
+    !hasRequirement
+  ) {
     return 'shortlist_reference';
   }
   // A question about the listing in the thread carries no requirement
@@ -141,7 +150,7 @@ export const LEAD_ROUTE_EXPLANATIONS: Record<LeadRoute, string> = {
   photo_request:
     "Asks for a listing's photos. The bot sends the photos of whichever listing the thread is pinned to, then a link to the full gallery.",
   shortlist_reference:
-    "Names a listing by its shortlist number. The bot answers that listing's question from its own fields, then Gemini grounded in them.",
+    'Names a listing by its shortlist number or by a figure it carries ("this 40,000 sqft one"). The bot answers that listing\'s question — the one just asked, when the message only points — from its own fields, then Gemini grounded in them.',
   listing_question:
     'Asks about the listing already in the thread ("is this still available?", "is it the pink house?"). The bot answers from that listing\'s own fields and status, then Gemini grounded in them, and hands a question only a person can answer to the agent.',
   qualification:

@@ -17,6 +17,18 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 8 October 2026
+
+- **The bot answers a location question for the listing the buyer means.**
+  Two cards went to a buyer forty-eight seconds apart; "Can u share the exact
+  location?" was answered from the second, and the correction "No this 40,000
+  sqft one" carried a size, read as a requirement, and went unanswered.
+  Listings shared within ten minutes of each other are now one batch, and a
+  question that follows is answered for each of them under its title. A
+  message that names one of the recent shares by its area, price, bedrooms or
+  a word only its title carries is answered for that listing alone, and when
+  it only points, the question asked just before it is the one answered.
+
 #### 7 October 2026
 
 - **A shared map link is always a pin, never a route.** A buyer who opened

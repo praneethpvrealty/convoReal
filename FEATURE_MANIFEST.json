@@ -564,6 +564,33 @@
               "case": "[INB-032]"
             }
           ]
+        },
+        {
+          "id": "INB-033",
+          "rule": "A lead's question is answered for the listing they mean, never for whichever card happened to go last. Listings shared within ten minutes of each other are one batch: a question that follows is answered for every listing in the batch (up to three), each under its title, so two localities are tellable apart. A message that names one of the recent shares by a figure it carries (land or built-up area, price in crore or lakh, bedrooms) or by a word only that listing's title or locality carries is answered for that listing alone, and when such a message only points (\"No this 40,000 sqft one\") the question the lead asked just before it is the one answered. A figure with a demonstrative is a reference and reaches the listing Q&A; a figure stating a requirement (\"I want a 2400 sqft plot\") still belongs to the ladder. A description that fits several of the shares, or none, names nothing, and an agent who has since moved the thread to a single other listing still wins.",
+          "tests": [
+            {
+              "file": "src/lib/ai/described-listing.test.ts",
+              "case": "[INB-033]"
+            },
+            {
+              "file": "src/lib/learning/subject.test.ts",
+              "case": "[INB-033]"
+            },
+            {
+              "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[INB-033]"
+            },
+            {
+              "file": "src/lib/ai/lead-routing.test.ts",
+              "case": "[INB-033]"
+            }
+          ],
+          "guards": [
+            "src/lib/ai/described-listing.ts",
+            "src/lib/learning/subject.ts",
+            "src/lib/ai/lead-question.ts"
+          ]
         }
       ]
     },

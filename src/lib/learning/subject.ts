@@ -21,6 +21,7 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { MAX_REFERENCED_SUBJECTS } from '@/lib/ai/shortlist-reference';
 
 export interface SubjectCandidate {
   id: string;
@@ -129,6 +130,78 @@ export function resolveSubjectShift(
  *  a listing named yesterday does not outrank today's. */
 const SUBJECT_LOOKBACK_MESSAGES = 8;
 
+/** Shares this close together went out as one batch: an agent sending
+ *  two cards in a row, a shortlist of three. A question that follows is
+ *  about the batch, not about whichever card happened to go last. */
+export const SHARE_BURST_MS = 10 * 60 * 1000;
+
+interface RecentShare {
+  property_id: string;
+  created_at: string;
+}
+
+async function recentShares(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<RecentShare[]> {
+  const { data } = await db
+    .from('property_shares')
+    .select('property_id, created_at')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: false })
+    .limit(MAX_REFERENCED_SUBJECTS + 1);
+  return (data ?? []) as RecentShare[];
+}
+
+/**
+ * The listings shared in the latest batch, newest first, capped at the
+ * number one question is answered about. Pure so the batch rule is
+ * testable without a database.
+ */
+export function shareBurst(shares: RecentShare[]): string[] {
+  const newest = shares[0];
+  if (!newest) return [];
+  const since = new Date(newest.created_at).getTime();
+  const ids: string[] = [];
+  for (const share of shares) {
+    if (since - new Date(share.created_at).getTime() > SHARE_BURST_MS) break;
+    if (!ids.includes(share.property_id)) ids.push(share.property_id);
+  }
+  return ids.slice(0, MAX_REFERENCED_SUBJECTS);
+}
+
+async function agentShiftVerdict(
+  db: SupabaseClient,
+  accountId: string,
+  conversationId: string,
+  sharedId: string | null
+): Promise<SubjectVerdict> {
+  const { data: agentMessages } = await db
+    .from('messages')
+    .select('content_text')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'agent')
+    .not('content_text', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(SUBJECT_LOOKBACK_MESSAGES);
+
+  if (!agentMessages?.length) return { kind: 'unchanged' };
+
+  const { data: candidates } = await db
+    .from('properties')
+    .select('id, project, title')
+    .eq('account_id', accountId)
+    .eq('status', 'Available');
+
+  return resolveSubjectShift(
+    agentMessages.map((m) => (m.content_text as string) || ''),
+    (candidates ?? []) as SubjectCandidate[],
+    sharedId
+  );
+}
+
 /**
  * The listing a conversation is currently about, for every learner
  * that needs one.
@@ -155,42 +228,46 @@ export async function resolvePropertySubject(
   contactId: string,
   conversationId?: string | null
 ): Promise<string | null> {
-  const { data: share } = await db
-    .from('property_shares')
-    .select('property_id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const sharedId = (share?.property_id as string | undefined) ?? null;
+  const shares = await recentShares(db, accountId, contactId);
+  const sharedId = shares[0]?.property_id ?? null;
   if (!conversationId) return sharedId;
 
-  const { data: agentMessages } = await db
-    .from('messages')
-    .select('content_text')
-    .eq('conversation_id', conversationId)
-    .eq('sender_type', 'agent')
-    .not('content_text', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(SUBJECT_LOOKBACK_MESSAGES);
-
-  if (!agentMessages?.length) return sharedId;
-
-  const { data: candidates } = await db
-    .from('properties')
-    .select('id, project, title')
-    .eq('account_id', accountId)
-    .eq('status', 'Available');
-
-  const verdict = resolveSubjectShift(
-    agentMessages.map((m) => (m.content_text as string) || ''),
-    (candidates ?? []) as SubjectCandidate[],
+  const verdict = await agentShiftVerdict(
+    db,
+    accountId,
+    conversationId,
     sharedId
   );
-
   if (verdict.kind === 'ambiguous') return null;
   if (verdict.kind === 'moved') return verdict.propertyId;
   return sharedId;
+}
+
+/**
+ * Every listing a question may be about: the whole latest batch of
+ * shares rather than its last card, so a buyer sent two listings in a
+ * row and asking "where exactly?" hears both locations, each under its
+ * title, instead of one of them with no way to tell which. An agent who
+ * has since moved the thread to a single other listing still wins, and
+ * a thread that cannot be pinned still answers nothing.
+ */
+export async function resolveSubjectProperties(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  conversationId?: string | null
+): Promise<string[]> {
+  const shares = await recentShares(db, accountId, contactId);
+  const burst = shareBurst(shares);
+  if (!conversationId) return burst;
+
+  const verdict = await agentShiftVerdict(
+    db,
+    accountId,
+    conversationId,
+    burst[0] ?? null
+  );
+  if (verdict.kind === 'ambiguous') return [];
+  if (verdict.kind === 'moved') return [verdict.propertyId];
+  return burst;
 }

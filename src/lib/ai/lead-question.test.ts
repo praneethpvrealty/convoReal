@@ -24,7 +24,10 @@ import {
   CALLBACK_HANDOVER_TEXT,
   PHOTO_IDENTIFICATION_HANDOVER_TEXT,
   mergeLeadAnswers,
+  previousLeadQuestion,
+  questionSubjectProperties,
 } from './lead-question';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const property = {
   title: 'Commercial Plot on 19th Main',
@@ -749,5 +752,121 @@ describe('mergeLeadAnswers', () => {
 
   it('hands over when nothing could be resolved at all', () => {
     expect(mergeLeadAnswers([], []).source).toBe('handover');
+  });
+});
+
+function fakeDb(tables: Record<string, unknown[]>) {
+  const from = (table: string) => {
+    const rows = tables[table] ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chain: any = {};
+    for (const method of ['select', 'eq', 'not', 'order', 'limit', 'in']) {
+      chain[method] = () => chain;
+    }
+    chain.maybeSingle = async () => ({ data: rows[0] ?? null });
+    chain.then = (resolve: (value: unknown) => unknown) =>
+      Promise.resolve({ data: rows }).then(resolve);
+    return chain;
+  };
+  return { from } as unknown as SupabaseClient;
+}
+
+const CHIKATOGUR = {
+  id: 'prop-1784',
+  title: '40,000 Sq.Ft. Commercial Plot in Chikatogur, Electronic City Phase 1',
+  location: 'Chikatogur, Electronic City Phase 1',
+  sublocality: 'Chikkathoguru',
+  city: 'Bengaluru',
+  state: 'Karnataka',
+  price: '160000000',
+  land_area: '40000',
+  land_area_unit: 'Sq.Ft.',
+  listing_type: 'Sale',
+  status: 'Available',
+};
+const JP_NAGAR = {
+  id: 'prop-2080',
+  title: '5,760 Sq.Ft. Commercial Property in JP Nagar 8th Phase',
+  location: 'BK Circle, JP Nagar 8th Phase',
+  sublocality: 'Kothnur',
+  city: 'Bengaluru',
+  state: 'Karnataka',
+  price: 132480000,
+  area_sqft: 5760,
+  listing_type: 'Sale',
+  status: 'Available',
+};
+
+describe('[INB-033] questionSubjectProperties', () => {
+  const shares = [
+    { property_id: 'prop-2080', created_at: '2026-10-07T15:02:34Z' },
+    { property_id: 'prop-1784', created_at: '2026-10-07T15:01:46Z' },
+  ];
+
+  it('answers a question after two cards in a row for both, newest first', async () => {
+    const db = fakeDb({
+      property_shares: shares,
+      properties: [CHIKATOGUR, JP_NAGAR],
+      messages: [],
+    });
+    const subjects = await questionSubjectProperties(
+      db,
+      'acct',
+      'contact',
+      'conv',
+      'Can u share the exact location?'
+    );
+    expect(subjects.map((s) => s.id)).toEqual(['prop-2080', 'prop-1784']);
+  });
+
+  it('answers a correction for the listing it describes alone', async () => {
+    const db = fakeDb({
+      property_shares: shares,
+      properties: [CHIKATOGUR, JP_NAGAR],
+      messages: [],
+    });
+    const subjects = await questionSubjectProperties(
+      db,
+      'acct',
+      'contact',
+      'conv',
+      'No this 40,000 sqft one'
+    );
+    expect(subjects.map((s) => s.id)).toEqual(['prop-1784']);
+  });
+});
+
+describe('[INB-033] previousLeadQuestion', () => {
+  it('finds the question the correction belongs to, skipping the correction itself', async () => {
+    const db = fakeDb({
+      messages: [
+        { content_text: 'No this 40,000 sqft one' },
+        { content_text: 'Can u share the exact location?' },
+        { content_text: 'Is this available?' },
+      ],
+    });
+    expect(
+      await previousLeadQuestion(db, 'conv', 'No this 40,000 sqft one')
+    ).toBe('Can u share the exact location?');
+  });
+
+  it('skips a callback request and a bare option number on the way back', async () => {
+    const db = fakeDb({
+      messages: [
+        { content_text: 'please call me' },
+        { content_text: '2' },
+        { content_text: 'What is the price?' },
+      ],
+    });
+    expect(await previousLeadQuestion(db, 'conv', 'the 16 cr one')).toBe(
+      'What is the price?'
+    );
+  });
+
+  it('is null when nothing recent reads as a question', async () => {
+    const db = fakeDb({
+      messages: [{ content_text: 'This one' }, { content_text: 'ok' }],
+    });
+    expect(await previousLeadQuestion(db, 'conv', 'This one')).toBeNull();
   });
 });

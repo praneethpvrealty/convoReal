@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { propertiesNamedIn, resolveSubjectShift } from './subject';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  propertiesNamedIn,
+  resolveSubjectProperties,
+  resolveSubjectShift,
+  shareBurst,
+} from './subject';
 
 const OVAL_REEF = {
   id: 'prop-oval',
@@ -128,5 +134,111 @@ describe('resolveSubjectShift', () => {
     expect(resolveSubjectShift([], [OVAL_REEF], 'prop-oval')).toEqual({
       kind: 'unchanged',
     });
+  });
+});
+
+describe('shareBurst', () => {
+  const at = (iso: string, property_id: string) => ({
+    property_id,
+    created_at: iso,
+  });
+
+  it('[INB-033] treats two cards sent seconds apart as one batch, newest first', () => {
+    expect(
+      shareBurst([
+        at('2026-10-07T15:02:34Z', 'prop-2080'),
+        at('2026-10-07T15:01:46Z', 'prop-1784'),
+        at('2026-10-07T14:40:46Z', 'prop-1081'),
+      ])
+    ).toEqual(['prop-2080', 'prop-1784']);
+  });
+
+  it('[INB-033] keeps only the latest card when the earlier ones are old news', () => {
+    expect(
+      shareBurst([
+        at('2026-10-07T15:02:34Z', 'prop-2080'),
+        at('2026-10-07T14:40:46Z', 'prop-1081'),
+      ])
+    ).toEqual(['prop-2080']);
+  });
+
+  it('[INB-033] caps a batch at the subjects one question is answered about', () => {
+    expect(
+      shareBurst([
+        at('2026-10-07T15:02:40Z', 'a'),
+        at('2026-10-07T15:02:30Z', 'b'),
+        at('2026-10-07T15:02:20Z', 'c'),
+        at('2026-10-07T15:02:10Z', 'd'),
+      ])
+    ).toEqual(['a', 'b', 'c']);
+    expect(shareBurst([])).toEqual([]);
+  });
+});
+
+function fakeDb(tables: Record<string, unknown[]>) {
+  const from = (table: string) => {
+    const rows = tables[table] ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chain: any = {};
+    for (const method of ['select', 'eq', 'not', 'order', 'limit', 'in']) {
+      chain[method] = () => chain;
+    }
+    chain.maybeSingle = async () => ({ data: rows[0] ?? null });
+    chain.then = (resolve: (value: unknown) => unknown) =>
+      Promise.resolve({ data: rows }).then(resolve);
+    return chain;
+  };
+  return { from } as unknown as SupabaseClient;
+}
+
+describe('resolveSubjectProperties', () => {
+  const shares = [
+    { property_id: 'prop-2080', created_at: '2026-10-07T15:02:34Z' },
+    { property_id: 'prop-1784', created_at: '2026-10-07T15:01:46Z' },
+    { property_id: 'prop-1081', created_at: '2026-10-07T14:40:46Z' },
+  ];
+
+  it('[INB-033] answers for the whole batch when the agent has named nothing else', async () => {
+    const db = fakeDb({
+      property_shares: shares,
+      messages: [{ content_text: 'Location is here' }],
+      properties: [OVAL_REEF, JADE_A],
+    });
+    expect(
+      await resolveSubjectProperties(db, 'acct', 'contact', 'conv')
+    ).toEqual(['prop-2080', 'prop-1784']);
+  });
+
+  it('[INB-033] still follows the agent to a single listing they pitched', async () => {
+    const db = fakeDb({
+      property_shares: shares,
+      messages: [{ content_text: 'Have some inventories in Oval Reef' }],
+      properties: [OVAL_REEF, JADE_A],
+    });
+    expect(
+      await resolveSubjectProperties(db, 'acct', 'contact', 'conv')
+    ).toEqual(['prop-oval']);
+  });
+
+  it('[INB-033] answers nothing when the agent moved to a project with several listings', async () => {
+    const db = fakeDb({
+      property_shares: shares,
+      messages: [{ content_text: 'Have some inventories in Jade Gardens' }],
+      properties: [OVAL_REEF, JADE_A, JADE_B],
+    });
+    expect(
+      await resolveSubjectProperties(db, 'acct', 'contact', 'conv')
+    ).toEqual([]);
+  });
+
+  it('[INB-033] is the batch alone when there is no thread to read', async () => {
+    const db = fakeDb({ property_shares: shares });
+    expect(await resolveSubjectProperties(db, 'acct', 'contact')).toEqual([
+      'prop-2080',
+      'prop-1784',
+    ]);
+    expect(
+      await resolveSubjectProperties(fakeDb({}), 'acct', 'contact', 'conv')
+    ).toEqual([]);
   });
 });

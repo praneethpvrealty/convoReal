@@ -240,3 +240,36 @@ describe('the live handlers still route through here', () => {
     expect(ladder).toBeGreaterThan(routed);
   });
 });
+
+describe('[INB-033] a correction that names a shared listing by a figure', () => {
+  it('routes "No this 40,000 sqft one" to the listing Q&A, not the ladder', () => {
+    expect(routeLeadMessage('No this 40,000 sqft one')).toBe(
+      'shortlist_reference'
+    );
+    expect(routeLeadMessage('I meant the 16 Cr plot')).toBe(
+      'shortlist_reference'
+    );
+    expect(standsDownFromQualification('No this 40,000 sqft one')).toBe(true);
+    expect(isBuyerRequirementMessage('No this 40,000 sqft one')).toBe(false);
+  });
+
+  it('keeps a stated size or budget with the ladder', () => {
+    expect(routeLeadMessage('I want a 2400 sqft plot')).toBe('qualification');
+    expect(isBuyerRequirementMessage('I want a 2400 sqft plot')).toBe(true);
+    expect(routeLeadMessage('looking for 3 bhk under 2 cr')).toBe(
+      'qualification'
+    );
+  });
+
+  it('lets a callback, a rejection and photos keep their precedence', () => {
+    expect(routeLeadMessage('call me about this 40,000 sqft one')).toBe(
+      'callback_handover'
+    );
+    expect(routeLeadMessage("don't like this 3 bhk one")).toBe(
+      'property_disinterest'
+    );
+    expect(routeLeadMessage('send photos of the 40,000 sqft one')).toBe(
+      'photo_request'
+    );
+  });
+});
