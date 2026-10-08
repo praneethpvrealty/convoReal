@@ -143,15 +143,15 @@ export async function processShowcaseViewNudges(
     return totals;
   }
 
-  const quietByAccount = new Map<string, boolean>();
+  const startedAt = Date.now();
+  const clock = () => new Date(now.getTime() + Date.now() - startedAt);
   for (const candidate of (data ?? []) as ViewNudgeCandidate[]) {
-    let quiet = quietByAccount.get(candidate.account_id);
-    if (quiet === undefined) {
-      quiet = (await resolveQuietPeriod(candidate.account_id, 'client', now))
-        .isQuiet;
-      quietByAccount.set(candidate.account_id, quiet);
-    }
-    if (quiet) continue;
+    const { isQuiet } = await resolveQuietPeriod(
+      candidate.account_id,
+      'client',
+      clock()
+    );
+    if (isQuiet) continue;
 
     const { data: nudgeId, error: claimError } = await db.rpc(
       'claim_showcase_view_nudge',

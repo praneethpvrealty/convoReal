@@ -317,6 +317,31 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     expect(totals.sent).toBe(0);
   });
 
+  it('stops claiming once client quiet hours begin partway through a batch', async () => {
+    const second = {
+      ...candidate,
+      property_id: '99999999-2222-4333-8444-555555555555',
+    };
+    h.conversation = {
+      last_customer_message_at: new Date(
+        Date.now() - 3 * 60 * 60 * 1000
+      ).toISOString(),
+    };
+    h.send.mockImplementation(async () => {
+      h.quiet = true;
+      return { success: true, whatsappMessageId: 'wamid.1' };
+    });
+    const { db, rpcCalls } = fakeDb({
+      candidates: [candidate, second],
+      tables: baseTables(),
+    });
+    await processShowcaseViewNudges(db);
+    expect(
+      rpcCalls.filter((c) => c.fn === 'claim_showcase_view_nudge')
+    ).toHaveLength(1);
+    expect(h.send).toHaveBeenCalledTimes(1);
+  });
+
   it('sends free-form buttons naming the property while the window is open and stores the wamid', async () => {
     h.conversation = {
       last_customer_message_at: new Date(
