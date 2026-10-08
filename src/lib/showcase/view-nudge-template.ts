@@ -74,7 +74,7 @@ const FOLLOWUP_BODY_LINES = (name: string, brand: string, title: string) => [
   '',
   `Property: ${title}`,
   '',
-  'Our records show you opened this listing. Choose an option below so we can action your request, or reply here.',
+  'It seems you are interested in this property. Choose an option below so we can action your request, or reply here.',
 ];
 
 export function buildViewNudgeTemplatePayload(): TemplatePayload {
