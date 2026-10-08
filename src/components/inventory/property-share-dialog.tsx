@@ -38,6 +38,7 @@ import {
   Search,
   UserCheck,
   Lock,
+  LockOpen,
   MapPin,
   FileText,
   Ban,
@@ -51,6 +52,7 @@ import {
 } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
+import { useShareLinkGrant } from '@/hooks/useShareLinkGrant';
 import {
   isLocationGuarded,
   localityLabel,
@@ -58,6 +60,7 @@ import {
 import {
   DEFAULT_SHARE_GRANT_TTL_KEY,
   SHARE_GRANT_TTL_CHOICES,
+  applyShareGrant,
   type ShareGrantTtlKey,
 } from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
@@ -234,13 +237,6 @@ export function PropertyShareDialog({
   const [grantTtl, setGrantTtl] = useState<ShareGrantTtlKey>(
     DEFAULT_SHARE_GRANT_TTL_KEY
   );
-  const [linkGrant, setLinkGrant] = useState<{
-    id: string;
-    token: string;
-  } | null>(null);
-  const [grantBusy, setGrantBusy] = useState(false);
-  const linkGrantRef = useRef<{ id: string; token: string } | null>(null);
-  const contactGrantsRef = useRef<Record<string, string>>({});
 
   // Every live grant on this listing, so an agent can see what is
   // currently unmasked — including links minted in an earlier session —
@@ -301,42 +297,22 @@ export function PropertyShareDialog({
     [property?.private_images]
   );
 
-  const mintGrant = useCallback(
-    async (contactId: string | null) => {
-      if (!propertyId) return null;
-      const res = await fetch(`/api/properties/${propertyId}/share-grants`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contact_id: contactId,
-          reveal_location: revealLocation,
-          reveal_documents: revealDocuments,
-          reveal_private_images: revealPrivateImages,
-          expires_in: grantTtl,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to unmask this share');
-      return json.data as { id: string; token: string };
-    },
-    [propertyId, revealLocation, revealDocuments, revealPrivateImages, grantTtl]
-  );
-
-  const revokeGrant = useCallback(
-    async (grantId: string) => {
-      if (!propertyId) return;
-      try {
-        await fetch(
-          `/api/properties/${propertyId}/share-grants?grant_id=${grantId}`,
-          { method: 'DELETE' }
-        );
-        bumpGrants();
-      } catch (err) {
-        console.error('[property-share] Grant revoke failed:', err);
-      }
-    },
-    [propertyId, bumpGrants]
-  );
+  const {
+    linkGrant,
+    grantBusy,
+    unmasked,
+    ensureLinkGrant,
+    ensureContactGrant,
+    forgetGrant,
+  } = useShareLinkGrant({
+    open,
+    propertyId,
+    revealLocation,
+    revealDocuments,
+    revealPrivateImages,
+    ttl: grantTtl,
+    onGrantsChanged: bumpGrants,
+  });
 
   useEffect(() => {
     if (!open || !propertyId) return;
@@ -374,18 +350,11 @@ export function PropertyShareDialog({
       // Revoking the key this dialog is currently handing out has to
       // reset the switches too, or the composed message would keep
       // carrying a token that no longer opens anything.
-      if (linkGrantRef.current?.id === grant.id) {
-        linkGrantRef.current = null;
-        setLinkGrant(null);
+      if (forgetGrant(grant)) {
         setRevealLocation(false);
         setRevealDocuments(false);
         setRevealPrivateImages(false);
       }
-      contactGrantsRef.current = Object.fromEntries(
-        Object.entries(contactGrantsRef.current).filter(
-          ([, token]) => token !== grant.token
-        )
-      );
       toast.success('Link revoked — it now opens masked.');
       bumpGrants();
     } catch (err) {
@@ -396,104 +365,17 @@ export function PropertyShareDialog({
     }
   };
 
-  // Any change to what is revealed invalidates the previous key: the old
-  // grant is revoked so a link already copied cannot outlive the toggle
-  // that produced it.
-  useEffect(() => {
-    if (!open || !propertyId) return;
-    let cancelled = false;
-    Promise.resolve().then(async () => {
-      if (cancelled) return;
-      const previous = linkGrantRef.current;
-      linkGrantRef.current = null;
-      contactGrantsRef.current = {};
-      setLinkGrant(null);
-      if (previous) void revokeGrant(previous.id);
-      if (!revealLocation && !revealDocuments && !revealPrivateImages) return;
-
-      setGrantBusy(true);
-      try {
-        const grant = await mintGrant(null);
-        if (cancelled || !grant) return;
-        linkGrantRef.current = grant;
-        setLinkGrant(grant);
-        bumpGrants();
-      } catch (err) {
-        if (cancelled) return;
-        toast.error(
-          err instanceof Error ? err.message : 'Failed to unmask this share'
-        );
-        setRevealLocation(false);
-        setRevealDocuments(false);
-        setRevealPrivateImages(false);
-      } finally {
-        if (!cancelled) setGrantBusy(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    open,
-    propertyId,
-    revealLocation,
-    revealDocuments,
-    revealPrivateImages,
-    mintGrant,
-    revokeGrant,
-    bumpGrants,
-  ]);
-
   // Closing the dialog resets the switches; the grant itself stays live
   // for the link already sent.
   useEffect(() => {
     if (open) return;
-    linkGrantRef.current = null;
-    contactGrantsRef.current = {};
     Promise.resolve().then(() => {
-      setLinkGrant(null);
       setRevealLocation(false);
       setRevealDocuments(false);
       setRevealPrivateImages(false);
       setGrantTtl(DEFAULT_SHARE_GRANT_TTL_KEY);
     });
   }, [open]);
-
-  const grantToken = linkGrant?.token ?? null;
-
-  /** A grant bound to this recipient, minted on first send to them. */
-  const ensureContactGrant = useCallback(
-    async (contactId: string): Promise<string | null> => {
-      if (!revealLocation && !revealDocuments && !revealPrivateImages) {
-        return null;
-      }
-      const existing = contactGrantsRef.current[contactId];
-      if (existing) return existing;
-      try {
-        const grant = await mintGrant(contactId);
-        if (!grant) return null;
-        contactGrantsRef.current = {
-          ...contactGrantsRef.current,
-          [contactId]: grant.token,
-        };
-        bumpGrants();
-        return grant.token;
-      } catch (err) {
-        console.error('[property-share] Contact grant mint failed:', err);
-        // Fall back to the share-wide grant rather than sending a link
-        // that silently drops the reveal the agent asked for.
-        return grantToken;
-      }
-    },
-    [
-      revealLocation,
-      revealDocuments,
-      revealPrivateImages,
-      mintGrant,
-      grantToken,
-      bumpGrants,
-    ]
-  );
 
   // Currency Formatter
   const formattedPrice = useMemo(() => {
@@ -515,13 +397,12 @@ export function PropertyShareDialog({
             showcaseSubdomain
           )
         : '';
-    const grantSuffix = grantToken ? `&g=${grantToken}` : '';
     const onboardingSuffix =
       audienceTab === 'agent' && offerInventoryOnboarding ? '&onboard=1' : '';
     const url =
       audienceTab === 'agent'
-        ? `${origin}/?property_id=${property.id}&mode=view${onboardingSuffix}${grantSuffix}`
-        : `${origin}/?property_id=${property.id}${grantSuffix}`;
+        ? `${origin}/?property_id=${property.id}&mode=view${onboardingSuffix}`
+        : `${origin}/?property_id=${property.id}`;
     const message = buildPropertyShareMessage({
       property,
       url,
@@ -543,7 +424,6 @@ export function PropertyShareDialog({
     currency,
     profile,
     showcaseSubdomain,
-    grantToken,
     offerInventoryOnboarding,
   ]);
 
@@ -555,7 +435,6 @@ export function PropertyShareDialog({
     detailLevel,
     messageStyle,
     property?.id,
-    grantToken,
     offerInventoryOnboarding,
   ]);
 
@@ -622,21 +501,19 @@ export function PropertyShareDialog({
   // Get showcase URL for copying
   const showcaseUrl = useMemo(() => {
     if (!property) return '';
-    const grantSuffix = grantToken ? `&g=${grantToken}` : '';
     return typeof window !== 'undefined'
-      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}${grantSuffix}`
-      : `/?property_id=${property.id}${grantSuffix}`;
-  }, [property, showcaseSubdomain, grantToken]);
+      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}`
+      : `/?property_id=${property.id}`;
+  }, [property, showcaseSubdomain]);
 
   // Agent showcase URL — clean listing detail page (no inquiry form, no buttons)
   const agentShowcaseUrl = useMemo(() => {
     if (!property) return '';
-    const grantSuffix = grantToken ? `&g=${grantToken}` : '';
     const onboardingSuffix = offerInventoryOnboarding ? '&onboard=1' : '';
     return typeof window !== 'undefined'
-      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}&mode=view${onboardingSuffix}${grantSuffix}`
-      : `/?property_id=${property.id}&mode=view${onboardingSuffix}${grantSuffix}`;
-  }, [property, showcaseSubdomain, grantToken, offerInventoryOnboarding]);
+      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}&mode=view${onboardingSuffix}`
+      : `/?property_id=${property.id}&mode=view${onboardingSuffix}`;
+  }, [property, showcaseSubdomain, offerInventoryOnboarding]);
 
   // ── Send personally (tracked) ────────────────────────────────
   // Same property link tagged with ?v=<contactId>, so the recipient's
@@ -710,31 +587,52 @@ export function PropertyShareDialog({
     ]
   );
 
-  const handleWhatsAppPersonal = (contact: Contact) => {
-    const needsGrant = revealLocation || revealDocuments || revealPrivateImages;
-    // Minting is a round trip, and a window opened after an await is
-    // what popup blockers exist to stop. Claim the tab on the click,
-    // then point it at WhatsApp once the recipient's key exists.
-    const pending = needsGrant ? window.open('', '_blank') : null;
-    if (pending) pending.opener = null;
+  const openInTab = (href: string, pending: Window | null) => {
+    if (pending) pending.location.href = href;
+    else window.open(href, '_blank', 'noopener');
+  };
 
+  const claimTab = (needsMint: boolean): Window | null => {
+    const pending = needsMint ? window.open('', '_blank') : null;
+    if (pending) pending.opener = null;
+    return pending;
+  };
+
+  const unmaskFailed = (err: unknown, pending: Window | null) => {
+    pending?.close();
+    console.error('[property-share] Unmask failed:', err);
+    toast.error(
+      err instanceof Error ? err.message : 'Failed to unmask this share'
+    );
+  };
+
+  const handleWhatsAppPersonal = (contact: Contact) => {
+    const pending = claimTab(unmasked);
     void (async () => {
-      const token = needsGrant ? await ensureContactGrant(contact.id) : null;
-      const message = buildPersonalMessage(contact, token);
-      const phone = (contact.phone ?? '').replace(/\D/g, '');
-      const href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-      if (pending) pending.location.href = href;
-      else window.open(href, '_blank', 'noopener');
-      captureSharesToJourney([contact.id], true);
+      try {
+        const token = await ensureContactGrant(contact.id);
+        const message = buildPersonalMessage(contact, token);
+        const phone = (contact.phone ?? '').replace(/\D/g, '');
+        openInTab(
+          `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+          pending
+        );
+        captureSharesToJourney([contact.id], true);
+      } catch (err) {
+        unmaskFailed(err, pending);
+      }
     })();
   };
 
   const handleCopyPersonal = async (contact: Contact) => {
+    let token: string | null;
     try {
-      const token =
-        revealLocation || revealDocuments || revealPrivateImages
-          ? await ensureContactGrant(contact.id)
-          : null;
+      token = await ensureContactGrant(contact.id);
+    } catch (err) {
+      unmaskFailed(err, null);
+      return;
+    }
+    try {
       await navigator.clipboard.writeText(buildPersonalMessage(contact, token));
       setCopiedPersonalId(contact.id);
       toast.success(
@@ -745,6 +643,45 @@ export function PropertyShareDialog({
       toast.error('Failed to copy message');
       console.error(err);
     }
+  };
+
+  const activeUrl = audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl;
+  const displayUrl = applyShareGrant(
+    activeUrl,
+    activeUrl,
+    linkGrant?.token ?? null
+  );
+
+  const shareGenerically = (
+    send: (
+      share: { url: string; message: string },
+      pending: Window | null
+    ) => void | Promise<void>,
+    opensTab = false
+  ) => {
+    const pending = claimTab(opensTab && unmasked && !linkGrant);
+    void (async () => {
+      let token: string | null;
+      try {
+        token = await ensureLinkGrant();
+      } catch (err) {
+        unmaskFailed(err, pending);
+        return;
+      }
+      try {
+        await send(
+          {
+            url: applyShareGrant(activeUrl, activeUrl, token),
+            message: applyShareGrant(currentMessage, activeUrl, token),
+          },
+          pending
+        );
+      } catch (err) {
+        pending?.close();
+        console.error('[property-share] Share failed:', err);
+        toast.error('Failed to share');
+      }
+    })();
   };
 
   const handleInventoryShare = async (contact: Contact) => {
@@ -2078,8 +2015,8 @@ export function PropertyShareDialog({
                       </button>
                     ))}
                   </div>
-                  {/* Expiry — chosen before the key is minted; changing it
-                      revokes the old key and issues a fresh one. */}
+                  {/* Expiry — changing it after a key exists revokes that
+                      key; the next copy or send mints a fresh one. */}
                   <div className="flex items-center gap-2 pt-0.5">
                     <span className="shrink-0 text-[10px] font-semibold text-slate-400">
                       Expires after
@@ -2103,12 +2040,18 @@ export function PropertyShareDialog({
                     </div>
                   </div>
 
-                  {grantToken && (
+                  {linkGrant ? (
                     <p className="text-[10px] font-medium text-emerald-400">
                       This link is unmasked. Sending it to a contact below gives
                       them their own key, revocable on its own.
                     </p>
-                  )}
+                  ) : unmasked ? (
+                    <p className="text-[10px] font-medium text-amber-400">
+                      Nothing is unmasked yet. The key is created the first time
+                      you copy, preview or send this link, so switching an
+                      option back off leaves nothing to revoke.
+                    </p>
+                  ) : null}
 
                   {/* Live keys on this listing — including any minted in an
                       earlier session, so nothing stays unmasked unnoticed. */}
@@ -2178,56 +2121,11 @@ export function PropertyShareDialog({
                   )}
                 </div>
 
-                {/* Link + copy */}
-                <div className="flex gap-2">
-                  <Input
-                    readOnly
-                    value={
-                      audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl
-                    }
-                    className="h-9 flex-1 border-slate-700 bg-slate-800/50 font-mono text-xs text-slate-300 select-all"
-                  />
-                  <Button
-                    onClick={async () => {
-                      await navigator.clipboard.writeText(
-                        audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl
-                      );
-                      setCopiedLink(true);
-                      toast.success('Link copied!');
-                      setTimeout(() => setCopiedLink(false), 2000);
-                    }}
-                    variant="outline"
-                    className="flex h-9 shrink-0 items-center gap-1.5 border-slate-700 px-3 text-xs text-slate-300 hover:bg-slate-800"
-                  >
-                    {copiedLink ? (
-                      <Check className="size-3.5" />
-                    ) : (
-                      <Copy className="size-3.5" />
-                    )}
-                    Link
-                  </Button>
-                  <Button
-                    onClick={() =>
-                      window.open(
-                        audienceTab === 'agent'
-                          ? agentShowcaseUrl
-                          : showcaseUrl,
-                        '_blank'
-                      )
-                    }
-                    variant="outline"
-                    className="flex h-9 shrink-0 items-center gap-1.5 border-slate-700 px-3 text-xs text-slate-300 hover:bg-slate-800"
-                  >
-                    <ExternalLink className="size-3.5" />
-                    Preview
-                  </Button>
-                </div>
-
                 {/* Direct share targets */}
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center justify-between gap-2">
                     <Label className="text-[11px] font-semibold text-slate-300">
-                      Send via
+                      More ways to send
                     </Label>
                     <span className="flex items-center gap-1 text-[10px] text-slate-500">
                       <ImageIcon className="size-3" />
@@ -2236,40 +2134,24 @@ export function PropertyShareDialog({
                     </span>
                   </div>
                   {(() => {
-                    const activeUrl =
-                      audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl;
-                    const targets = buildShareTargets(
-                      currentMessage,
-                      activeUrl,
-                      property.title || 'Property Details'
-                    );
+                    const targetsFor = (share: {
+                      url: string;
+                      message: string;
+                    }) =>
+                      buildShareTargets(
+                        share.message,
+                        share.url,
+                        property.title || 'Property Details'
+                      );
                     return (
                       <div className="flex flex-wrap gap-2">
                         <Button
-                          onClick={() => {
-                            const preselected = contacts.find(
-                              (contact) => contact.id === preSelectedContactId
-                            );
-                            if (preselected) {
-                              handleWhatsAppPersonal(preselected);
-                              return;
-                            }
-                            personalShareSectionRef.current?.scrollIntoView({
-                              behavior: 'smooth',
-                              block: 'start',
-                            });
-                            toast.info(
-                              'Choose the recipient below so their Showcase link is tracked.'
-                            );
-                          }}
-                          className="flex h-9 items-center gap-1.5 bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700"
-                        >
-                          <MessageCircle className="size-3.5" />
-                          WhatsApp
-                        </Button>
-                        <Button
                           onClick={() =>
-                            window.open(targets.telegram, '_blank', 'noopener')
+                            shareGenerically(
+                              (share, pending) =>
+                                openInTab(targetsFor(share).telegram, pending),
+                              true
+                            )
                           }
                           className="flex h-9 items-center gap-1.5 bg-sky-600 px-4 text-xs font-semibold text-white hover:bg-sky-700"
                         >
@@ -2277,9 +2159,11 @@ export function PropertyShareDialog({
                           Telegram
                         </Button>
                         <Button
-                          onClick={() => {
-                            window.location.href = targets.email;
-                          }}
+                          onClick={() =>
+                            shareGenerically((share) => {
+                              window.location.href = targetsFor(share).email;
+                            })
+                          }
                           variant="outline"
                           className="flex h-9 items-center gap-1.5 border-slate-700 px-4 text-xs font-semibold text-slate-300 hover:bg-slate-800"
                         >
@@ -2287,33 +2171,16 @@ export function PropertyShareDialog({
                           Email
                         </Button>
                         <Button
-                          onClick={() => {
-                            window.location.href = targets.sms;
-                          }}
+                          onClick={() =>
+                            shareGenerically((share) => {
+                              window.location.href = targetsFor(share).sms;
+                            })
+                          }
                           variant="outline"
                           className="flex h-9 items-center gap-1.5 border-slate-700 px-4 text-xs font-semibold text-slate-300 hover:bg-slate-800"
                         >
                           <Smartphone className="size-3.5" />
                           SMS
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            await navigator.clipboard.writeText(currentMessage);
-                            setCopiedMessage(true);
-                            toast.success(
-                              'Message + link copied! Paste it in any app.'
-                            );
-                            setTimeout(() => setCopiedMessage(false), 2000);
-                          }}
-                          variant="outline"
-                          className="flex h-9 items-center gap-1.5 border-slate-700 px-4 text-xs font-semibold text-slate-300 hover:bg-slate-800"
-                        >
-                          {copiedMessage ? (
-                            <Check className="size-3.5" />
-                          ) : (
-                            <Copy className="size-3.5" />
-                          )}
-                          {copiedMessage ? 'Copied!' : 'Copy Message'}
                         </Button>
                         <Button
                           disabled={copyingPhoto}
@@ -2376,12 +2243,13 @@ export function PropertyShareDialog({
                                 (row) => row.id === preSelectedContactId
                               );
                               if (!contact) return;
-                              const token =
-                                revealLocation ||
-                                revealDocuments ||
-                                revealPrivateImages
-                                  ? await ensureContactGrant(contact.id)
-                                  : null;
+                              let token: string | null;
+                              try {
+                                token = await ensureContactGrant(contact.id);
+                              } catch (err) {
+                                unmaskFailed(err, null);
+                                return;
+                              }
                               const trackedMessage = buildPersonalMessage(
                                 contact,
                                 token
@@ -2792,16 +2660,140 @@ export function PropertyShareDialog({
               </>
             )}
 
-            <div className="flex justify-end border-t border-slate-800 pt-3.5">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                className="hover:bg-slate-850 h-9 border-slate-800 text-xs text-slate-300"
+            {audienceTab === 'engine' ? (
+              <div className="flex justify-end border-t border-slate-800 pt-3.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  className="hover:bg-slate-850 h-9 border-slate-800 text-xs text-slate-300"
+                >
+                  Close
+                </Button>
+              </div>
+            ) : (
+              <div
+                data-testid="share-send-bar"
+                className="sticky bottom-0 z-10 -mx-4 space-y-2 border-t border-slate-800 bg-slate-900/95 px-4 py-3 backdrop-blur"
               >
-                Close
-              </Button>
-            </div>
+                {(grantBusy || unmasked) && (
+                  <p
+                    className={`flex items-center gap-1.5 text-xs font-medium ${
+                      linkGrant ? 'text-emerald-400' : 'text-amber-400'
+                    }`}
+                  >
+                    {grantBusy ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : linkGrant ? (
+                      <LockOpen className="size-3.5" />
+                    ) : (
+                      <Lock className="size-3.5" />
+                    )}
+                    {grantBusy
+                      ? 'Creating the unmasked key…'
+                      : linkGrant
+                        ? 'Unmasked key is live for this link.'
+                        : 'Unmasked on first copy, preview or send. Nothing is live yet.'}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    aria-label="Share link"
+                    value={displayUrl}
+                    className="h-9 flex-1 border-slate-700 bg-slate-800/50 font-mono text-xs text-slate-300 select-all"
+                  />
+                  <Button
+                    disabled={grantBusy}
+                    onClick={() =>
+                      shareGenerically(async (share) => {
+                        await navigator.clipboard.writeText(share.url);
+                        setCopiedLink(true);
+                        toast.success('Link copied!');
+                        setTimeout(() => setCopiedLink(false), 2000);
+                      })
+                    }
+                    variant="outline"
+                    className="flex h-9 shrink-0 items-center gap-1.5 border-slate-700 px-3 text-xs text-slate-300 hover:bg-slate-800"
+                  >
+                    {copiedLink ? (
+                      <Check className="size-3.5" />
+                    ) : (
+                      <Copy className="size-3.5" />
+                    )}
+                    Link
+                  </Button>
+                  <Button
+                    disabled={grantBusy}
+                    onClick={() =>
+                      shareGenerically(
+                        (share, pending) => openInTab(share.url, pending),
+                        true
+                      )
+                    }
+                    variant="outline"
+                    className="flex h-9 shrink-0 items-center gap-1.5 border-slate-700 px-3 text-xs text-slate-300 hover:bg-slate-800"
+                  >
+                    <ExternalLink className="size-3.5" />
+                    Preview
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    onClick={() => {
+                      const preselected = contacts.find(
+                        (contact) => contact.id === preSelectedContactId
+                      );
+                      if (preselected) {
+                        handleWhatsAppPersonal(preselected);
+                        return;
+                      }
+                      personalShareSectionRef.current?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start',
+                      });
+                      toast.info(
+                        'Choose the recipient below so their Showcase link is tracked.'
+                      );
+                    }}
+                    className="flex h-9 items-center gap-1.5 bg-emerald-600 px-4 text-xs font-semibold text-white hover:bg-emerald-700"
+                  >
+                    <MessageCircle className="size-3.5" />
+                    WhatsApp
+                  </Button>
+                  <Button
+                    disabled={grantBusy}
+                    onClick={() =>
+                      shareGenerically(async (share) => {
+                        await navigator.clipboard.writeText(share.message);
+                        setCopiedMessage(true);
+                        toast.success(
+                          'Message + link copied! Paste it in any app.'
+                        );
+                        setTimeout(() => setCopiedMessage(false), 2000);
+                      })
+                    }
+                    variant="outline"
+                    className="flex h-9 items-center gap-1.5 border-slate-700 px-4 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+                  >
+                    {copiedMessage ? (
+                      <Check className="size-3.5" />
+                    ) : (
+                      <Copy className="size-3.5" />
+                    )}
+                    {copiedMessage ? 'Copied!' : 'Copy Message'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onOpenChange(false)}
+                    className="hover:bg-slate-850 ml-auto h-9 border-slate-800 text-xs text-slate-300"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

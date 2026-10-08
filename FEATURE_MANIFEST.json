@@ -2005,6 +2005,24 @@
             "src/lib/maps/map-links.ts",
             "src/lib/maps/resolve-location.ts"
           ]
+        },
+        {
+          "id": "PRP-043",
+          "rule": "Turning on an unmask option in the share dialog (exact location, documents, guarded photos) or changing its expiry mints no share grant: the share-wide key is minted the first time the link leaves the dialog (copy link, copy message, preview, Telegram, email, SMS), reused for every later send of that link, and a contact's own key is minted only when that contact is sent to. Changing what a minted key reveals revokes it, closing the dialog never revokes a key already handed out, and a send whose key cannot be minted is stopped with an error instead of going out masked. The link, WhatsApp, Copy Message and Close stay in a bar pinned to the bottom of the client and co-broker tabs, which says whether the link is still masked, being unmasked, or unmasked. Mobile only lists and revokes keys, so it has nothing to mint.",
+          "tests": [
+            {
+              "file": "src/hooks/useShareLinkGrant.test.ts",
+              "case": "[PRP-043]"
+            },
+            {
+              "file": "src/lib/inventory/share-grants.test.ts",
+              "case": "[PRP-043]"
+            }
+          ],
+          "guards": [
+            "src/hooks/useShareLinkGrant.ts",
+            "src/components/inventory/property-share-dialog.tsx"
+          ]
         }
       ]
     },

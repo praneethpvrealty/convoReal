@@ -80,6 +80,21 @@ export interface GrantedReveals {
   listing: boolean;
 }
 
+export function applyShareGrant(
+  text: string,
+  baseUrl: string,
+  token: string | null
+): string {
+  if (!token || !baseUrl) return text;
+  const escaped = baseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const separator = baseUrl.includes('?') ? '&' : '?';
+  const granted = `${baseUrl}${separator}g=${encodeURIComponent(token)}`;
+  return text.replace(
+    new RegExp(`${escaped}(?![\\w&=%-])`, 'g'),
+    () => granted
+  );
+}
+
 export function mintShareGrantToken(ttlMs: number = SHARE_GRANT_TTL_MS): {
   token: string;
   expiresAt: string;
