@@ -264,7 +264,7 @@ export function CatalogProductShare({
           </Text>
         ) : null}
         <Pressable
-          disabled={!ready || sending}
+          disabled={!ready || sending || syncing}
           onPress={() =>
             recipients.length ? void send(recipients) : setPicking(true)
           }
@@ -274,14 +274,17 @@ export function CatalogProductShare({
               ? `Send product card to ${recipientName}`
               : 'Select contacts and send product card'
           }
-          accessibilityState={{ disabled: !ready || sending, busy: sending }}
+          accessibilityState={{
+            disabled: !ready || sending || syncing,
+            busy: sending,
+          }}
           style={[
             styles.sendButton,
             {
               backgroundColor: colors.primarySoft,
               borderColor: colors.primary,
             },
-            (!ready || sending) && { opacity: 0.5 },
+            (!ready || sending || syncing) && { opacity: 0.5 },
           ]}
         >
           <Ionicons name="pricetag-outline" size={18} color={colors.primary} />

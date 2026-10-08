@@ -2764,7 +2764,8 @@ export function PropertyShareDialog({
                         disabled={
                           !metaCatalogSyncedAt ||
                           !!metaCatalogError ||
-                          indexingTimeLeft > 0
+                          indexingTimeLeft > 0 ||
+                          syncingCatalog
                         }
                         className="bg-primary hover:bg-primary/90 text-primary-foreground flex h-9 cursor-pointer items-center gap-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
                       >

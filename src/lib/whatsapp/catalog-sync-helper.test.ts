@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const events: string[] = [];
 const updates: Record<string, unknown>[] = [];
+let listingType = 'Sale';
 
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   syncProductToCatalog: vi.fn(async () => {
@@ -36,7 +37,7 @@ function db() {
                     catalog_id: 'c1',
                     auto_sync_catalog: true,
                   }
-                : { id: 'p1', listing_type: 'Sale' },
+                : { id: 'p1', listing_type: listingType },
             error: null,
           }),
         then: (resolve: unknown) =>
@@ -52,6 +53,7 @@ function db() {
 beforeEach(() => {
   events.length = 0;
   updates.length = 0;
+  listingType = 'Sale';
 });
 
 describe('[PRP-043] autoSyncPropertyCatalogIfNeeded', () => {
@@ -63,5 +65,15 @@ describe('[PRP-043] autoSyncPropertyCatalogIfNeeded', () => {
       meta_catalog_error: null,
     });
     expect(updates[1]?.meta_catalog_synced_at).toEqual(expect.any(String));
+  });
+
+  it('clears the previous sync of a listing that can no longer be synced', async () => {
+    listingType = 'JV/JD';
+    await autoSyncPropertyCatalogIfNeeded(db() as never, 'p1', 'acc-1');
+    expect(events).toEqual(['update']);
+    expect(updates[0]).toEqual({
+      meta_catalog_synced_at: null,
+      meta_catalog_error: null,
+    });
   });
 });
