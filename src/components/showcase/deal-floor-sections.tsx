@@ -339,6 +339,7 @@ export function DealFloorHero({
   onSeeMatches,
   onPlay,
 }: DealFloorHeroProps) {
+  const [includeTried, setIncludeTried] = useState<string | null>(null);
   const typeValue = kinds.some((kind) => kind.key === selectedType)
     ? selectedType
     : 'All';
@@ -398,7 +399,10 @@ export function DealFloorHero({
             type="button"
             className="df-btn-link"
             disabled={nearbyPending}
-            onClick={() => void onSearchNear(selectedLocation)}
+            onClick={() => {
+              setIncludeTried(selectedLocation);
+              void onSearchNear(selectedLocation);
+            }}
           >
             {nearbyPending ? (
               <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -413,6 +417,14 @@ export function DealFloorHero({
           or play Quick Picks
         </button>
       </div>
+      {nearbyError &&
+        !nearbyLabel &&
+        selectedLocation &&
+        includeTried === selectedLocation && (
+          <p role="alert" className="df-near-error">
+            {nearbyError}
+          </p>
+        )}
       <p className="df-hero-copy">
         Every choice narrows the catalogue live. Shortlist{' '}
         {MATCH_REPORT_SHORTLIST} and we send your match report on WhatsApp.

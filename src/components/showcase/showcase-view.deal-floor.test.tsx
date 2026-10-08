@@ -11,6 +11,7 @@ import {
   onTestFinished,
 } from 'vitest';
 import {
+  act,
   render,
   cleanup,
   screen,
@@ -305,6 +306,66 @@ describe('Deal Floor showcase design [PRP-020]', () => {
         'Listings in Kasavanahalli first, then nearby by distance.'
       )
     ).toBeTruthy();
+  });
+
+  it('keeps a locality picked while a nearby search is still running', async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation();
+    let respond: (value: Response) => void = () => {};
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      String(url).startsWith('/api/public/properties/near?')
+        ? new Promise<Response>((resolve) => {
+            respond = resolve;
+          })
+        : defaultFetch!(url)) as typeof fetch);
+    onTestFinished(() => {
+      vi.mocked(fetch).mockImplementation(defaultFetch!);
+    });
+    renderDealFloor();
+
+    pickLocality('Kasavanahalli');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Include places near Kasavanahalli' })
+    );
+    pickLocality('Domlur');
+    await act(async () => {
+      respond({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              label: 'Kasavanahalli',
+              results: [{ id: villa.id, tier: 'exact', distance_km: 0 }],
+            },
+          }),
+      } as Response);
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Locality' }).textContent
+    ).toContain('Domlur');
+    expect(
+      screen.queryByRole('button', { name: 'Remove Near Kasavanahalli · 5 km' })
+    ).toBeNull();
+  });
+
+  it('shows why including nearby places failed beside the action', async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation();
+    vi.mocked(fetch).mockImplementation(((url: string) =>
+      String(url).startsWith('/api/public/properties/near?')
+        ? Promise.resolve({ ok: false, status: 429 } as Response)
+        : defaultFetch!(url)) as typeof fetch);
+    onTestFinished(() => {
+      vi.mocked(fetch).mockImplementation(defaultFetch!);
+    });
+    renderDealFloor();
+
+    pickLocality('Kasavanahalli');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Include places near Kasavanahalli' })
+    );
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Too many location searches. Try again in a minute.'
+    );
   });
 
   it('draws a plot face from the listing fields instead of "No Photos Available"', () => {
