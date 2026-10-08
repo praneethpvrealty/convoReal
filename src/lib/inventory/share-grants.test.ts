@@ -9,6 +9,7 @@ import {
   isGrantLive,
   grantedReveals,
   resolveShareGrant,
+  applyShareGrant,
   type ShareGrant,
 } from './share-grants';
 
@@ -200,5 +201,34 @@ describe('resolveShareGrant', () => {
       resolveShareGrant(client, 'abc', 'p1', 'a1')
     ).resolves.toBeNull();
     expect(from).not.toHaveBeenCalled();
+  });
+});
+
+describe('[PRP-043] applyShareGrant', () => {
+  const client = 'https://acme.convoreal.com/?property_id=p1';
+  const agent = `${client}&mode=view`;
+
+  it('adds the key to every bare copy of the link', () => {
+    const text = `Photos:\n${client}\n\nAgain: ${client}.`;
+    expect(applyShareGrant(text, client, 'tok')).toBe(
+      `Photos:\n${client}&g=tok\n\nAgain: ${client}&g=tok.`
+    );
+  });
+
+  it('leaves the text alone when there is no key', () => {
+    expect(applyShareGrant(`See ${client}`, client, null)).toBe(
+      `See ${client}`
+    );
+  });
+
+  it('never keys a longer link that only shares the prefix', () => {
+    expect(applyShareGrant(`See ${agent}`, client, 'tok')).toBe(`See ${agent}`);
+    expect(applyShareGrant(`See ${client}&g=old`, client, 'tok')).toBe(
+      `See ${client}&g=old`
+    );
+  });
+
+  it('keys the co-broker link as a whole', () => {
+    expect(applyShareGrant(agent, agent, 'tok')).toBe(`${agent}&g=tok`);
   });
 });
