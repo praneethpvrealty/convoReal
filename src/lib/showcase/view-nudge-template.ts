@@ -172,18 +172,18 @@ export function usableViewNudgeTemplate<T extends ViewNudgeTemplateRow>(
   rows: T[],
   alertsConsent: string | null | undefined
 ): T | null {
+  const normalized = rows.map((row) => ({
+    ...row,
+    category:
+      (row.category ?? '').toUpperCase() === 'UTILITY'
+        ? 'Utility'
+        : row.category,
+  }));
   const picked = pickApprovedTemplate(
-    rows.map((row) => ({
-      ...row,
-      category:
-        (row.category ?? '').toUpperCase() === 'UTILITY'
-          ? 'Utility'
-          : row.category,
-    })),
+    normalized,
     SHOWCASE_VIEW_NUDGE_TEMPLATE_NAMES
   );
-  if (!picked) return null;
-  const chosen = rows.find((row) => row.name === picked.name) ?? null;
+  const chosen = picked ? rows[normalized.indexOf(picked)] : null;
   if (!chosen) return null;
   if ((chosen.category ?? '').toUpperCase() === 'UTILITY') return chosen;
   return alertsConsent === 'granted' ? chosen : null;

@@ -295,6 +295,24 @@ describe('[PLS-006] showcase view check-in buttons', () => {
     ).toBeNull();
   });
 
+  it('returns the approved language row, not another row under the same name', () => {
+    const pendingHindi = {
+      name: 'showcase_view_followup',
+      status: 'PENDING',
+      category: 'Marketing',
+      language: 'hi',
+    };
+    const approvedEnglish = {
+      name: 'showcase_view_followup',
+      status: 'APPROVED',
+      category: 'Utility',
+      language: 'en_US',
+    };
+    expect(
+      usableViewNudgeTemplate([pendingHindi, approvedEnglish], 'pending')
+    ).toBe(approvedEnglish);
+  });
+
   it('prefers the Utility follow-up over the Marketing check-in, and keeps the old one for opted-in contacts until then', () => {
     const legacy = {
       name: 'showcase_view_checkin',
