@@ -1460,7 +1460,10 @@ export function ShowcaseView({
     nearbyTicketRef.current += 1;
   }, [selectedLocations]);
 
-  const searchNearby = async (rawQuery: string): Promise<boolean> => {
+  const searchNearby = async (
+    rawQuery: string,
+    placeLabel?: string
+  ): Promise<boolean> => {
     const query = rawQuery.trim().replace(/\s+/g, ' ');
     if (query.length < 3 || nearbyPending) return false;
     const ticket = nearbyTicketRef.current;
@@ -1484,7 +1487,7 @@ export function ShowcaseView({
       };
       if (ticket !== nearbyTicketRef.current) return false;
       setNearbySearch({
-        label: body.data?.label || query,
+        label: placeLabel || body.data?.label || query,
         results: body.data?.results ?? [],
       });
       setSelectedLocations([]);
@@ -1942,8 +1945,8 @@ export function ShowcaseView({
               scrollToListings();
               setNearOpen(true);
             }}
-            onSearchNear={async (query) => {
-              const found = await searchNearby(query);
+            onSearchNear={async (query, placeLabel) => {
+              const found = await searchNearby(query, placeLabel);
               if (found) {
                 setDeckMode(false);
                 scrollToListings();
