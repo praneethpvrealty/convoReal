@@ -142,12 +142,24 @@ export async function handleViewNudgeReply(args: {
   }
 
   const propertyTitle = (property.title as string | null) || 'this property';
-  const { data: contactRow } = await db
-    .from('contacts')
-    .select('assigned_agent_id, phone')
-    .eq('id', contact.id)
-    .eq('account_id', accountId)
-    .maybeSingle();
+  const readContact = () =>
+    db
+      .from('contacts')
+      .select('assigned_agent_id, phone')
+      .eq('id', contact.id)
+      .eq('account_id', accountId)
+      .maybeSingle();
+  let contactRead = await readContact();
+  for (let attempt = 2; contactRead.error && attempt <= 3; attempt++) {
+    contactRead = await readContact();
+  }
+  if (contactRead.error) {
+    console.error(
+      '[view-nudge-reply] assigned agent unreadable, using the listing manager:',
+      contactRead.error
+    );
+  }
+  const contactRow = contactRead.data;
   const agentUserId =
     (contactRow?.assigned_agent_id as string | null) ??
     (property.user_id as string | null) ??

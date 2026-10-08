@@ -30,6 +30,7 @@ const PROPERTY = '11111111-2222-4333-8444-555555555555';
 function fakeDb(state: {
   candidates: Row[];
   claimId?: string | null;
+  failRead?: string;
   tables: Record<string, Row[]>;
 }) {
   const rpcCalls: Array<{ fn: string; args: Row }> = [];
@@ -61,13 +62,16 @@ function fakeDb(state: {
           filters[column] = value;
           return api;
         },
-        maybeSingle: async () => ({
-          data:
-            (state.tables[table] ?? []).find((row) =>
-              Object.entries(filters).every(([k, v]) => row[k] === v)
-            ) ?? null,
-          error: null,
-        }),
+        maybeSingle: async () =>
+          table === state.failRead
+            ? { data: null, error: { message: 'read failed' } }
+            : {
+                data:
+                  (state.tables[table] ?? []).find((row) =>
+                    Object.entries(filters).every(([k, v]) => row[k] === v)
+                  ) ?? null,
+                error: null,
+              },
         then: (onFulfilled: (v: unknown) => unknown) =>
           Promise.resolve({ data: null, error: null }).then(onFulfilled),
       };
@@ -206,6 +210,19 @@ describe('[PLS-008] hot viewer alerts', () => {
     const t = tables();
     t.properties[0] = { ...t.properties[0], status: 'Sold' };
     const { db, updates } = fakeDb({ candidates: [candidate], tables: t });
+    expect(await processHotViewerAlerts(db)).toBe(0);
+    expect(h.notify).not.toHaveBeenCalled();
+    expect(updates).toEqual([
+      { table: 'showcase_hot_viewer_alerts', payload: 'delete' },
+    ]);
+  });
+
+  it('releases the claim when the contact or listing cannot be read', async () => {
+    const { db, updates } = fakeDb({
+      candidates: [candidate],
+      failRead: 'contacts',
+      tables: tables(),
+    });
     expect(await processHotViewerAlerts(db)).toBe(0);
     expect(h.notify).not.toHaveBeenCalled();
     expect(updates).toEqual([

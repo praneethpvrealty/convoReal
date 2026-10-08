@@ -83,37 +83,49 @@ export async function processHotViewerAlerts(
     }
     if (!alertId) continue;
 
-    const [{ data: contact }, { data: property }, { data: config }] =
-      await Promise.all([
-        db
-          .from('contacts')
-          .select('name, phone, assigned_agent_id')
-          .eq('id', candidate.contact_id)
-          .eq('account_id', candidate.account_id)
-          .maybeSingle(),
-        db
-          .from('properties')
-          .select('title, user_id, status')
-          .eq('id', candidate.property_id)
-          .eq('account_id', candidate.account_id)
-          .maybeSingle(),
-        db
-          .from('whatsapp_config')
-          .select('user_id')
-          .eq('account_id', candidate.account_id)
-          .maybeSingle(),
-      ]);
+    const [contactRead, propertyRead, configRead] = await Promise.all([
+      db
+        .from('contacts')
+        .select('name, phone, assigned_agent_id')
+        .eq('id', candidate.contact_id)
+        .eq('account_id', candidate.account_id)
+        .maybeSingle(),
+      db
+        .from('properties')
+        .select('title, user_id, status')
+        .eq('id', candidate.property_id)
+        .eq('account_id', candidate.account_id)
+        .maybeSingle(),
+      db
+        .from('whatsapp_config')
+        .select('user_id')
+        .eq('account_id', candidate.account_id)
+        .maybeSingle(),
+    ]);
+    const release = () =>
+      db
+        .from('showcase_hot_viewer_alerts')
+        .delete()
+        .eq('id', alertId as string)
+        .eq('account_id', candidate.account_id);
+    if (contactRead.error || propertyRead.error || configRead.error) {
+      console.error(
+        '[hot-viewers] reload failed, claim released:',
+        contactRead.error ?? propertyRead.error ?? configRead.error
+      );
+      await release();
+      continue;
+    }
+    const contact = contactRead.data;
+    const property = propertyRead.data;
+    const config = configRead.data;
     const agentUserId =
       (contact?.assigned_agent_id as string | null) ??
       (property?.user_id as string | null) ??
       (config?.user_id as string | null) ??
       null;
     if (property && property.status !== 'Available') {
-      await db
-        .from('showcase_hot_viewer_alerts')
-        .delete()
-        .eq('id', alertId as string)
-        .eq('account_id', candidate.account_id);
+      await release();
       continue;
     }
     if (!contact || !property || !agentUserId) continue;
