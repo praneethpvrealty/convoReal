@@ -15,7 +15,7 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   decrypt: () => 'token',
 }));
 
-const { autoSyncPropertyCatalogIfNeeded, markCatalogSyncPending } =
+const { autoSyncPropertyCatalogIfNeeded, catalogSyncPendingFields } =
   await import('./catalog-sync-helper');
 
 function db() {
@@ -80,17 +80,37 @@ describe('[PRP-044] autoSyncPropertyCatalogIfNeeded', () => {
   });
 });
 
-describe('[PRP-044] markCatalogSyncPending', () => {
-  it('clears the sync state before the save responds when auto-sync is on', async () => {
-    await markCatalogSyncPending(db() as never, 'p1', 'acc-1');
-    expect(updates).toEqual([
-      { meta_catalog_synced_at: null, meta_catalog_error: null },
-    ]);
+describe('[PRP-044] catalogSyncPendingFields', () => {
+  it('clears the sync state in the save itself when auto-sync is on', async () => {
+    await expect(
+      catalogSyncPendingFields(db() as never, 'acc-1')
+    ).resolves.toEqual({
+      meta_catalog_synced_at: null,
+      meta_catalog_error: null,
+    });
   });
 
   it('leaves a manually synced listing alone when auto-sync is off', async () => {
     autoSync = false;
-    await markCatalogSyncPending(db() as never, 'p1', 'acc-1');
-    expect(updates).toEqual([]);
+    await expect(
+      catalogSyncPendingFields(db() as never, 'acc-1')
+    ).resolves.toEqual({});
+  });
+
+  it('fails the save before writing when the config cannot be read', async () => {
+    const failing = {
+      from: () => {
+        const builder = {
+          select: () => builder,
+          eq: () => builder,
+          maybeSingle: () =>
+            Promise.resolve({ data: null, error: new Error('timeout') }),
+        };
+        return builder;
+      },
+    };
+    await expect(
+      catalogSyncPendingFields(failing as never, 'acc-1')
+    ).rejects.toThrow('timeout');
   });
 });

@@ -2,23 +2,18 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { syncProductToCatalog } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 
-export async function markCatalogSyncPending(
+export async function catalogSyncPendingFields(
   supabase: SupabaseClient,
-  propertyId: string,
   accountId: string
-): Promise<void> {
-  const { data: config } = await supabase
+): Promise<{ meta_catalog_synced_at?: null; meta_catalog_error?: null }> {
+  const { data: config, error } = await supabase
     .from('whatsapp_config')
     .select('catalog_id, auto_sync_catalog')
     .eq('account_id', accountId)
     .maybeSingle();
-  if (!config?.catalog_id || !config.auto_sync_catalog) return;
-  await supabase
-    .from('properties')
-    // eslint-disable-next-line convoreal/supabase-write-guard
-    .update({ meta_catalog_synced_at: null, meta_catalog_error: null })
-    .eq('id', propertyId)
-    .eq('account_id', accountId);
+  if (error) throw error;
+  if (!config?.catalog_id || !config.auto_sync_catalog) return {};
+  return { meta_catalog_synced_at: null, meta_catalog_error: null };
 }
 
 /**

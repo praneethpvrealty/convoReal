@@ -7,7 +7,7 @@ import {
 } from '@/lib/rate-limit';
 import {
   autoSyncPropertyCatalogIfNeeded,
-  markCatalogSyncPending,
+  catalogSyncPendingFields,
 } from '@/lib/whatsapp/catalog-sync-helper';
 import { geocodeAddress, hasGoogleMapsKey } from '@/lib/maps/google-places';
 import { resolveMapPin } from '@/lib/maps/resolve-location';
@@ -819,6 +819,11 @@ export async function PUT(
       }
     }
 
+    Object.assign(
+      updateData,
+      await catalogSyncPendingFields(ctx.supabase, ctx.accountId)
+    );
+
     const { data: updated, error: updateError } = await ctx.supabase
       .from('properties')
       .update(updateData)
@@ -885,8 +890,6 @@ export async function PUT(
         }
       }
     }
-
-    await markCatalogSyncPending(ctx.supabase, id, ctx.accountId);
 
     // Fetch the updated property with relations
     const { data: finalData, error: fetchErr } = await ctx.supabase
