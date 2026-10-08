@@ -295,6 +295,35 @@ describe('[PLS-006] showcase view check-in buttons', () => {
     ).toBeNull();
   });
 
+  it('[CLG-001] keeps a contact on the check-in in their language over the English follow-up', () => {
+    const kannadaCheckin = {
+      name: 'showcase_view_checkin',
+      status: 'APPROVED',
+      category: 'Utility',
+      language: 'kn',
+    };
+    const englishFollowup = {
+      name: 'showcase_view_followup',
+      status: 'APPROVED',
+      category: 'Utility',
+      language: 'en_US',
+    };
+    expect(
+      usableViewNudgeTemplate(
+        [kannadaCheckin, englishFollowup],
+        'pending',
+        'kn'
+      )
+    ).toBe(kannadaCheckin);
+    expect(
+      usableViewNudgeTemplate(
+        [kannadaCheckin, englishFollowup],
+        'pending',
+        'en'
+      )
+    ).toBe(englishFollowup);
+  });
+
   it('returns the approved language row, not another row under the same name', () => {
     const pendingHindi = {
       name: 'showcase_view_followup',

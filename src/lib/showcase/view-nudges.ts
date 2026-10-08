@@ -6,6 +6,7 @@ import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { submitMessageTemplate } from '@/lib/whatsapp/meta-api';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { resolveSendLanguage } from '@/lib/whatsapp/template-language';
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components';
 import {
   normalizeCategory,
@@ -380,7 +381,8 @@ async function sendViewNudge(
 
     const template = usableViewNudgeTemplate(
       await ensureViewNudgeTemplate(db, accountId),
-      contact.buyer_alerts_consent as string | null
+      contact.buyer_alerts_consent as string | null,
+      await resolveSendLanguage(db, accountId, contactId)
     );
     if (!template) return { status: 'deferred' };
 

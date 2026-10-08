@@ -1,8 +1,10 @@
 import { BRANDING } from '@/config/branding';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
+import type { LanguageCode } from '@/lib/languages';
 import type { InteractiveButton } from '@/lib/whatsapp/meta-api';
 import { pickApprovedTemplate } from '@/lib/whatsapp/pick-approved-template';
+import { narrowToLanguage } from '@/lib/whatsapp/template-language';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 
 export const SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME = 'showcase_view_followup';
@@ -169,9 +171,11 @@ export interface ViewNudgeTemplateRow {
 }
 
 export function usableViewNudgeTemplate<T extends ViewNudgeTemplateRow>(
-  rows: T[],
-  alertsConsent: string | null | undefined
+  allRows: T[],
+  alertsConsent: string | null | undefined,
+  language: LanguageCode = 'en'
 ): T | null {
+  const rows = narrowToLanguage(allRows, language);
   const normalized = rows.map((row) => ({
     ...row,
     category:
