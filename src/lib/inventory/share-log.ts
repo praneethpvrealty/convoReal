@@ -13,10 +13,16 @@
  * write the ledger and the journey as two separate requests, and for
  * six weeks nearly every share reached the ledger and never the journey.
  * Idempotent by construction: re-sharing never duplicates or bumps
- * created_at.
+ * created_at. The route answers 200 with the recipients it could not
+ * write; those are retried, and a share still missing afterwards comes
+ * back as an error rather than a quiet short count.
  */
 
 import { createClient } from '@/lib/supabase/client';
+import {
+  postShareLog,
+  type ShareLogResponse,
+} from '@/lib/inventory/share-log-request';
 import type { Contact } from '@/types';
 
 export type ShareRecipientKind = 'buyer' | 'agent';
@@ -60,42 +66,35 @@ export async function recordPropertyShares({
   error: string | null;
 }> {
   if (recipients.length === 0) return { created: 0, error: null };
-  try {
-    const res = await fetch('/api/properties/share-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        property_id: propertyId,
-        recipients: recipients.map((r) => ({
-          contact_id: r.contactId,
-          classification: r.classification ?? null,
-        })),
-        channel,
-        journey_visible: journeyVisible,
-      }),
-    });
-    const payload = (await res.json().catch(() => null)) as {
-      data?: { recorded?: number; failed?: string[] };
-      error?: string;
-    } | null;
-    if (!res.ok) {
-      const message = payload?.error || `Share log failed (${res.status})`;
-      console.error('Property share log failed:', message);
-      return { created: 0, error: message };
+  const outcome = await postShareLog(
+    async (body) => {
+      const res = await fetch('/api/properties/share-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+      const payload = (await res.json().catch(() => null)) as
+        (ShareLogResponse & { error?: string }) | null;
+      if (!res.ok) {
+        throw Object.assign(
+          new Error(payload?.error || `Share log failed (${res.status})`),
+          { status: res.status }
+        );
+      }
+      return payload;
+    },
+    {
+      property_id: propertyId,
+      recipients: recipients.map((r) => ({
+        contact_id: r.contactId,
+        classification: r.classification ?? null,
+      })),
+      channel,
+      journey_visible: journeyVisible,
     }
-    const created = payload?.data?.recorded ?? 0;
-    const failed = payload?.data?.failed?.length ?? 0;
-    if (failed > 0) {
-      const message = `${failed} share${failed === 1 ? '' : 's'} could not be recorded`;
-      console.error('Property share log failed:', message);
-      return { created, error: message };
-    }
-    return { created, error: null };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('Property share log failed:', message);
-    return { created: 0, error: message };
-  }
+  );
+  if (outcome.error) console.error('Property share log failed:', outcome.error);
+  return { created: outcome.recorded, error: outcome.error };
 }
 
 /**

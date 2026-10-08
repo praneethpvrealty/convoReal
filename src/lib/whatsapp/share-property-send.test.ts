@@ -18,7 +18,10 @@ const { logListingsSent, logPropertyShare } =
 
 let upserts: Array<{ table: string; row: unknown }>;
 
-function makeDb(classification: string | null = 'Buyer') {
+function makeDb(
+  classification: string | null = 'Buyer',
+  upsertError: { message: string } | null = null
+) {
   return {
     from(table: string) {
       const builder: Record<string, (...args: unknown[]) => unknown> = {
@@ -31,7 +34,7 @@ function makeDb(classification: string | null = 'Buyer') {
           return builder;
         },
         then: (resolve: unknown, reject: unknown) =>
-          Promise.resolve({ data: null, error: null }).then(
+          Promise.resolve({ data: null, error: upsertError }).then(
             resolve as (v: unknown) => unknown,
             reject as (v: unknown) => unknown
           ),
@@ -52,8 +55,15 @@ beforeEach(() => {
 
 describe('[JRN-009] logPropertyShare', () => {
   it('writes the ledger row and captures the pair hidden by default', async () => {
-    await logPropertyShare(makeDb(), 'acc-1', 'user-1', 'p-1', 'c-1');
+    const recorded = await logPropertyShare(
+      makeDb(),
+      'acc-1',
+      'user-1',
+      'p-1',
+      'c-1'
+    );
 
+    expect(recorded).toBe(true);
     expect(upserts).toEqual([
       {
         table: 'property_shares',
@@ -93,33 +103,34 @@ describe('[JRN-009] logPropertyShare', () => {
     expect(captures[0]).toMatchObject({ hidden: false });
   });
 
-  it('never lets a journey failure fail the share', async () => {
+  it('never lets a journey failure fail the share, and reports it unrecorded', async () => {
     captureImpl = async () => {
       throw new Error('journey down');
     };
     await expect(
       logPropertyShare(makeDb(), 'acc-1', 'user-1', 'p-1', 'c-1')
-    ).resolves.toBe(true);
+    ).resolves.toBe(false);
     expect(upserts).toHaveLength(1);
   });
 
-  it('reports a ledger write that failed instead of swallowing it', async () => {
-    const db = makeDb() as unknown as {
-      from: (table: string) => Record<string, unknown>;
-    };
-    const failing = {
-      from(table: string) {
-        const builder = db.from(table);
-        return {
-          ...builder,
-          upsert: () =>
-            Promise.resolve({ data: null, error: { message: 'denied' } }),
-        };
-      },
-    } as never;
+  it('[JRN-021] reports a journey capture that came back with an error', async () => {
+    captureImpl = async () => ({ created: 0, error: 'rls' });
     await expect(
-      logPropertyShare(failing, 'acc-1', 'user-1', 'p-1', 'c-1')
+      logPropertyShare(makeDb(), 'acc-1', 'user-1', 'p-1', 'c-1')
     ).resolves.toBe(false);
+  });
+
+  it('[JRN-021] reports a ledger write that failed and still attempts the journey capture', async () => {
+    await expect(
+      logPropertyShare(
+        makeDb('Buyer', { message: 'ledger down' }),
+        'acc-1',
+        'user-1',
+        'p-1',
+        'c-1'
+      )
+    ).resolves.toBe(false);
+    expect(captures).toHaveLength(1);
   });
 });
 

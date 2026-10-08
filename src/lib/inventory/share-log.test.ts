@@ -11,7 +11,7 @@ let response: { ok: boolean; status: number; body: unknown };
 
 beforeEach(() => {
   calls.length = 0;
-  response = { ok: true, status: 200, body: { data: { recorded: 1 } } };
+  response = { ok: true, status: 200, body: { data: { recorded: 2 } } };
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: RequestInit) => {
@@ -19,7 +19,10 @@ beforeEach(() => {
       return {
         ok: response.ok,
         status: response.status,
-        json: async () => response.body,
+        json: async () =>
+          typeof response.body === 'function'
+            ? response.body(calls.length)
+            : response.body,
       };
     })
   );
@@ -41,7 +44,7 @@ describe('[JRN-009] recordPropertyShares goes through the server ledger', () => 
       ],
     });
 
-    expect(result).toEqual({ created: 1, error: null });
+    expect(result).toEqual({ created: 2, error: null });
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('/api/properties/share-log');
     expect(calls[0].init.method).toBe('POST');
@@ -83,20 +86,31 @@ describe('[JRN-009] recordPropertyShares goes through the server ledger', () => 
     expect(result).toEqual({ created: 0, error: 'Forbidden' });
   });
 
-  it('reports shares the ledger could not write', async () => {
+  it('[JRN-021] retries the recipients the server could not record and reports a share still missing', async () => {
     response = {
       ok: true,
       status: 200,
-      body: { data: { recorded: 1, failed: ['contact-2'] } },
+      body: (call: number) => ({
+        data: { recorded: call === 1 ? 1 : 0, failed: ['contact-2'] },
+      }),
     };
     const result = await recordPropertyShares({
       accountId: 'account-1',
       propertyId: 'property-1',
       recipients: [{ contactId: 'contact-1' }, { contactId: 'contact-2' }],
     });
+
+    expect(calls).toHaveLength(3);
+    expect(
+      calls.map((call) =>
+        JSON.parse(call.init.body as string).recipients.map(
+          (r: { contact_id: string }) => r.contact_id
+        )
+      )
+    ).toEqual([['contact-1', 'contact-2'], ['contact-2'], ['contact-2']]);
     expect(result).toEqual({
       created: 1,
-      error: '1 share could not be recorded',
+      error: '1 of 2 shares could not be recorded',
     });
   });
 

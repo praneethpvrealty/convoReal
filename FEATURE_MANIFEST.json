@@ -2217,7 +2217,7 @@
         },
         {
           "id": "JRN-009",
-          "rule": "Every confirmed property share captures the contact×property pair on the journey through one server-side ledger writer, whichever surface sent it: the share sheet on web and mobile (both channels), a personal-WhatsApp or email share the agent logs, a contact's hand-picked listings, Radar sends and the bot's own listing sends; the ledger's insert trigger makes the same capture for a row written any other way, reading the visibility the writer recorded on it. A share the agent composed for one contact is visible at once; a broadcast or bot batch waits hidden in the Captured tray; re-sharing never duplicates, resurrects or un-hides a pair. The share-log endpoint counts as recorded only the shares the ledger actually wrote and names every other requested recipient as failed, so the web share dialog, the web email share and the mobile product-card send report a share that was sent but not recorded instead of claiming it was logged.",
+          "rule": "Every confirmed property share captures the contact×property pair on the journey through one server-side ledger writer, whichever surface sent it: the share sheet on web and mobile (both channels), a personal-WhatsApp or email share the agent logs, a contact's hand-picked listings, Radar sends and the bot's own listing sends; the ledger's insert trigger makes the same capture for a row written any other way, reading the visibility the writer recorded on it. A share the agent composed for one contact is visible at once; a broadcast or bot batch waits hidden in the Captured tray; re-sharing never duplicates, resurrects or un-hides a pair. The share-log endpoint counts as recorded only the shares whose ledger row and journey capture both landed and names every other requested recipient as failed, so the web share dialog, the web email share and the mobile product-card send report a share that was sent but not recorded instead of claiming it was logged.",
           "tests": [
             {
               "file": "src/lib/journey/capture-server.test.ts",
@@ -2505,6 +2505,40 @@
           "guards": [
             "src/lib/journey/closing-nudges.ts",
             "src/lib/whatsapp/inbound/chain/steps/control-reply.ts"
+          ]
+        },
+        {
+          "id": "JRN-021",
+          "rule": "A share the ledger could not record is never reported as recorded. The server ledger writer never throws and never turns a delivered message into a send error, but it reports whether both the ledger row and the journey capture landed. POST /api/properties/share-log answers 200 with `recorded` counting only the recipients whose writes both landed and `failed` listing every other requested contact id. Every client that logs a share through it, on web and mobile (the share sheet, a logged personal-WhatsApp or email share, the mobile product-card send), reads the answer through one shared reader that retries the failed recipients, up to three attempts, retries a transport failure the same way, stops at once on a refusal, and treats a recorded count short of the recipients sent as unrecorded: the email share and the mobile product card tell the agent the share went out but was not recorded.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/share-property-send.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/app/api/properties/share-log/route.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/inventory/share-log-request.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/inventory/share-log.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-021]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/share-property-send.ts",
+            "src/app/api/properties/share-log/route.ts",
+            "src/lib/inventory/share-log-request.ts",
+            "src/lib/inventory/share-log.ts",
+            "mobile/lib/catalog-product-share.ts",
+            "mobile/lib/property-share-actions.ts"
           ]
         }
       ]
