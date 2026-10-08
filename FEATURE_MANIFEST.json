@@ -2081,6 +2081,17 @@
             }
           ],
           "guards": ["src/lib/inventory/catalog-product-share.ts"]
+        },
+        {
+          "id": "PRP-046",
+          "rule": "A listing's price reaches the Meta catalog in the currency's minor unit (the listing price times 100: paise, cents), which is how Meta's catalog batch reads it, on every sync path and for every currency, so the product card shows the same amount as its caption; the raw listing price shows on the card at a hundredth of its value.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/meta-api.test.ts",
+              "case": "[PRP-046]"
+            }
+          ],
+          "guards": ["src/lib/whatsapp/meta-api.ts"]
         }
       ]
     },

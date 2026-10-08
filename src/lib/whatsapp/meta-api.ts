@@ -1744,6 +1744,8 @@ export interface SyncProductToCatalogArgs {
 /**
  * Synchronize a property listing with the Meta Commerce Catalog.
  * Uses the Graph API Catalog batch endpoint with allow_upsert: true.
+ * That endpoint reads `price` in the currency's minor unit (paise, cents),
+ * so the listing price is sent multiplied by 100.
  */
 export async function syncProductToCatalog(
   args: SyncProductToCatalogArgs
@@ -1751,7 +1753,7 @@ export async function syncProductToCatalog(
   const { catalogId, accessToken, property, currency = 'INR' } = args;
   const url = `${META_API_BASE}/${catalogId}/batch`;
 
-  const price = Number(property.price) || 0;
+  const price = Math.round((Number(property.price) || 0) * 100);
   const title = property.title || 'Property Listing';
 
   const descriptionParts: string[] = [];

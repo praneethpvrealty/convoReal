@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 8 October 2026
 
+- **WhatsApp product cards show the full price.** A listing's price was sent to
+  the Meta catalog in rupees where Meta reads paise, so the card showed a
+  hundredth of the listing price (₹13,24,800 for a ₹13.25 Cr listing). The sync
+  now sends the amount in the minor unit Meta expects, for every currency.
+  Listings already in the catalog are corrected the next time they sync (Sync
+  now, or any edit with auto-sync on).
 - **Showcase check-ins resubmitted as a Utility template.** Meta approved
   `showcase_view_checkin` as Marketing, so outside the 24-hour window the
   check-in reached only contacts who had opted into alerts. The template now

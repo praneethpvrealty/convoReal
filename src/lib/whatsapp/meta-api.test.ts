@@ -655,4 +655,23 @@ describe('[PRP-044] syncProductToCatalog — confirms the item reached the catal
     expect(await batchCurrency('AED')).toBe('AED');
     expect(await batchCurrency()).toBe('INR');
   });
+
+  it('[PRP-046] sends the price in the minor unit Meta reads, whatever the currency', async () => {
+    const batchPrice = async (price: number, currency?: string) => {
+      const fetchMock = stubMeta(
+        { data: [{ status: 'finished', errors: [] }] },
+        { data: [{ id: '9', retailer_id: 'PROP-1111' }] }
+      );
+      await syncProductToCatalog({
+        catalogId: 'c1',
+        accessToken: 't',
+        property: { ...property, price },
+        currency,
+      });
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      return JSON.parse(String(init.body)).requests[0].data.price;
+    };
+    expect(await batchPrice(110600000)).toBe(11060000000);
+    expect(await batchPrice(450000.5, 'USD')).toBe(45000050);
+  });
 });
