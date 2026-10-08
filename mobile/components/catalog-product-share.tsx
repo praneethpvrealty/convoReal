@@ -27,6 +27,8 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import { contactHandle } from '@/lib/reachability';
 import type { Contact, Property } from '@/lib/types';
 
+const PENDING_SYNC_POLL_MS = 10_000;
+
 export function CatalogProductShare({
   property,
   visible,
@@ -44,14 +46,20 @@ export function CatalogProductShare({
   const queryClient = useQueryClient();
   const accountId = useAuthStore((s) => s.profile?.account_id) ?? null;
   const queryKey = ['catalog-share', accountId, property.id];
+  const [syncing, setSyncing] = useState(false);
   const context = useQuery({
     queryKey,
     queryFn: () => fetchCatalogShareContext(accountId as string, property.id),
     enabled: visible && Boolean(accountId),
     staleTime: 30_000,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.catalogId && !data.syncedAt && !data.error && !syncing
+        ? PENDING_SYNC_POLL_MS
+        : false;
+    },
   });
   const [now, setNow] = useState(() => Date.now());
-  const [syncing, setSyncing] = useState(false);
   const [sending, setSending] = useState(false);
   const [picking, setPicking] = useState(false);
   const [dialog, setDialog] = useState<{
