@@ -35,10 +35,20 @@ import {
   type ReconcilableProperty,
 } from '@/lib/portals/listing-reconcile';
 import {
-  resolvePropertySubject,
+  decideSubjects,
+  loadSubjectThread,
+  quotesListing,
+  shareEvents,
   type InboundSubjectContext,
 } from '@/lib/learning/subject';
-import { resolveShortlistReference } from '@/lib/ai/shortlist-reference';
+import {
+  parseOrdinalReferences,
+  resolveShortlistReference,
+} from '@/lib/ai/shortlist-reference';
+import {
+  describedListingAmong,
+  type DescribedCandidate,
+} from '@/lib/ai/described-listing';
 import type { Property } from '@/types';
 import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
@@ -468,14 +478,51 @@ async function loadSubjects(
     .filter((row): row is SubjectProperty => !!row);
 }
 
+/** Shares read back when a buyer describes one of them. A buyer points
+ *  at something sent recently; six covers two shortlists. */
+const DESCRIBED_LOOKBACK_SHARES = 6;
+
+/**
+ * The listing among the buyer's recent shares that their words describe
+ * — "the 40,000 sqft one", "the Chikatogur plot" — or null when they
+ * describe none, or more than one, of them. The shares are read from
+ * the thread, not the ledger alone: a re-share does not bump its ledger
+ * row, so the ledger's newest rows can miss the card sent a minute ago.
+ */
+async function describedSubject(
+  db: SupabaseClient,
+  accountId: string,
+  recentPropertyIds: string[],
+  text: string
+): Promise<string | null> {
+  const ids = recentPropertyIds.slice(0, DESCRIBED_LOOKBACK_SHARES);
+  if (ids.length === 0) return null;
+
+  const { data: candidates } = await db
+    .from('properties')
+    .select(
+      'id, title, location, sublocality, project, price, area_sqft, super_built_area, land_area, land_area_unit, bedrooms'
+    )
+    .eq('account_id', accountId)
+    .in('id', ids);
+  return describedListingAmong(
+    text,
+    (candidates ?? []) as DescribedCandidate[]
+  );
+}
+
 /**
  * The listings a question is about.
  *
  * Numbers the buyer used win, because they are the most explicit thing
  * anyone in the thread has said about which listing is meant — the bot
- * numbered the shortlist and invited exactly this. Failing that it is
- * the shared subject resolver: the message the buyer quoted, a listing
- * they just enquired about, an agent's pitch, then the share ledger.
+ * numbered the shortlist and invited exactly this. A quoted share comes
+ * next: swiping to reply on a card is pointing at it, whatever the
+ * words say. Then a description: a buyer who says "the 40,000 sqft one"
+ * has named a listing as surely as by number. Failing all three it is
+ * the shared subject resolver: a listing they just enquired about, an
+ * agent's pitch, then the share ledger — every listing of a batch when
+ * two were sent back to back, each answered under its title.
  *
  * Empty means the thread cannot be pinned to a listing, which the
  * caller reads as a handover: a buyer told "let me check and come back"
@@ -487,7 +534,7 @@ export async function questionSubjectProperties(
   accountId: string,
   contactId: string,
   conversationId?: string | null,
-  /** The buyer's own words, read for "option 2" / "the first one". */
+  /** The buyer's own words, read for "option 2" / "the 40,000 sqft one". */
   questionText?: string | null,
   inbound?: InboundSubjectContext
 ): Promise<SubjectProperty[]> {
@@ -501,14 +548,65 @@ export async function questionSubjectProperties(
     if (numbered.length > 0) return loadSubjects(db, accountId, numbered);
   }
 
-  const propertyId = await resolvePropertySubject(
+  const thread = await loadSubjectThread(
     db,
     accountId,
     contactId,
     conversationId,
     inbound
   );
-  return propertyId ? loadSubjects(db, accountId, [propertyId]) : [];
+  if (!thread) return [];
+
+  if (questionText && !quotesListing(thread)) {
+    const described = await describedSubject(
+      db,
+      accountId,
+      shareEvents(thread).map((event) => event.propertyId),
+      questionText
+    );
+    if (described) return loadSubjects(db, accountId, [described]);
+  }
+
+  const propertyIds = decideSubjects(thread);
+  return propertyIds.length > 0 ? loadSubjects(db, accountId, propertyIds) : [];
+}
+
+/**
+ * The question a buyer asked just before pointing at a listing.
+ *
+ * "Can u share the exact location?" answered from the wrong card, then
+ * "No this 40,000 sqft one": the second message names the listing and
+ * the first carries the question, and the buyer expects the two read
+ * together. Only the message immediately before counts — a pointer sent
+ * an hour after "ok" must not resurrect a question from earlier in the
+ * thread — so this is null when that message is not a question, and
+ * the current message is skipped whether or not it has been persisted
+ * yet.
+ */
+export async function previousLeadQuestion(
+  db: SupabaseClient,
+  conversationId: string,
+  currentText: string
+): Promise<string | null> {
+  const { data } = await db
+    .from('messages')
+    .select('content_text')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'customer')
+    .not('content_text', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(2);
+
+  const texts = (data ?? []).map((row) =>
+    ((row.content_text as string) || '').trim()
+  );
+  const previous = texts[texts[0] === currentText.trim() ? 1 : 0];
+  if (!previous) return null;
+  return looksLikeQuestion(previous) &&
+    !requestsHumanContact(previous) &&
+    parseOrdinalReferences(previous).length === 0
+    ? previous
+    : null;
 }
 
 /** The single listing a question is about, for callers that answer one. */

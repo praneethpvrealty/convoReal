@@ -21,6 +21,7 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { MAX_REFERENCED_SUBJECTS } from '@/lib/ai/shortlist-reference';
 
 export interface SubjectCandidate {
   id: string;
@@ -228,6 +229,8 @@ export interface ShareRecord {
  * 3. A listing an agent has since pitched (resolveSubjectShift).
  * 4. Two different listings shared back to back, with no word from the
  *    buyer in between, cannot be told apart: null, so a person answers.
+ *    decideSubjects gives the Q&A the whole burst instead, so "where
+ *    exactly?" is answered for each card under its title.
  * 5. The latest share.
  *
  * "Since" and "latest" are measured against the real last share, which
@@ -241,7 +244,7 @@ export interface ShareRecord {
  * Whichever of 2 and 3 was said more recently decides. A quote or a
  * message naming several listings is ambiguous, never a guess.
  */
-export function decideSubject(args: {
+export interface SubjectThread {
   /** Customer, agent and bot messages, newest first. */
   messages: ThreadMessage[];
   /** Ledger rows, newest first. */
@@ -251,31 +254,46 @@ export function decideSubject(args: {
   /** The inbound message being answered, so it is not counted as the
    *  buyer having spoken since the last share. */
   currentMessageId?: string | null;
-}): string | null {
-  const { messages, shares, candidates } = args;
+}
+
+type SubjectDecision =
+  | { kind: 'one'; propertyId: string }
+  | { kind: 'burst'; propertyIds: string[] }
+  | { kind: 'none' };
+
+export function decideSubject(args: SubjectThread): string | null {
+  const decision = decide(args);
+  return decision.kind === 'one' ? decision.propertyId : null;
+}
+
+/**
+ * The same reading for a caller that can answer several listings at
+ * once. A burst comes back whole, newest first and capped at the
+ * subjects one reply is answered about; everything else is decideSubject
+ * as a list.
+ */
+export function decideSubjects(args: SubjectThread): string[] {
+  const decision = decide(args);
+  if (decision.kind === 'one') return [decision.propertyId];
+  if (decision.kind === 'burst') return decision.propertyIds;
+  return [];
+}
+
+function decide(args: SubjectThread): SubjectDecision {
+  const { messages, candidates } = args;
+  const one = (propertyId: string): SubjectDecision => ({
+    kind: 'one',
+    propertyId,
+  });
+  const none: SubjectDecision = { kind: 'none' };
 
   if (args.quotedText) {
     const quoted = listingsReferencedIn(args.quotedText, candidates);
-    if (quoted.length === 1) return quoted[0];
-    if (quoted.length > 1) return null;
+    if (quoted.length === 1) return one(quoted[0]);
+    if (quoted.length > 1) return none;
   }
 
-  const sharedAt = new Map<string, number>();
-  const noteShare = (propertyId: string, at: number) => {
-    if (!Number.isFinite(at)) return;
-    if (at > (sharedAt.get(propertyId) ?? Number.NEGATIVE_INFINITY)) {
-      sharedAt.set(propertyId, at);
-    }
-  };
-  for (const share of shares) noteShare(share.propertyId, Date.parse(share.at));
-  for (const message of messages) {
-    if (message.sender === 'customer') continue;
-    const named = listingsReferencedIn(message.text, candidates);
-    if (named.length === 1) noteShare(named[0], Date.parse(message.at));
-  }
-  const events = [...sharedAt.entries()]
-    .map(([propertyId, at]) => ({ propertyId, at }))
-    .sort((a, b) => b.at - a.at);
+  const events = shareEvents(args);
 
   const latest = events[0] ?? null;
   const sharedId = latest?.propertyId ?? null;
@@ -288,29 +306,93 @@ export function decideSubject(args: {
     if (Date.parse(message.at) <= latestAt) break;
     if (message.sender === 'customer') {
       const named = listingsReferencedIn(message.text, candidates);
-      if (named.length === 1) return named[0];
-      if (named.length > 1) return null;
+      if (named.length === 1) return one(named[0]);
+      if (named.length > 1) return none;
       continue;
     }
     if (message.sender !== 'agent') continue;
     const verdict = resolveSubjectShift([message.text], available, sharedId);
-    if (verdict.kind === 'moved') return verdict.propertyId;
-    if (verdict.kind === 'ambiguous') return null;
+    if (verdict.kind === 'moved') return one(verdict.propertyId);
+    if (verdict.kind === 'ambiguous') return none;
     if (propertiesNamedIn(message.text, available).length > 0) break;
   }
 
-  const previous = events[1] ?? null;
-  if (latest && previous && latestAt - previous.at <= SHARE_BURST_WINDOW_MS) {
-    const buyerSpokeSince = messages.some(
+  const buyerSpokeAt = messages
+    .filter(
       (message) =>
         message.sender === 'customer' &&
-        Date.parse(message.at) > latestAt &&
         (!args.currentMessageId || message.messageId !== args.currentMessageId)
-    );
-    if (!buyerSpokeSince) return null;
+    )
+    .map((message) => Date.parse(message.at))
+    .filter((at) => Number.isFinite(at));
+  if (buyerSpokeAt.every((at) => at <= latestAt)) {
+    const burst = shareBurst(events, buyerSpokeAt);
+    if (burst.length > 1) return { kind: 'burst', propertyIds: burst };
   }
 
-  return sharedId;
+  return sharedId ? one(sharedId) : none;
+}
+
+export interface ShareEvent {
+  propertyId: string;
+  at: number;
+}
+
+/**
+ * When each listing was really last shared, newest first. The ledger
+ * row is a floor: a re-share does not bump it, so every outbound
+ * message naming exactly one listing counts as sharing it then.
+ */
+export function shareEvents(args: SubjectThread): ShareEvent[] {
+  const sharedAt = new Map<string, number>();
+  const noteShare = (propertyId: string, at: number) => {
+    if (!Number.isFinite(at)) return;
+    if (at > (sharedAt.get(propertyId) ?? Number.NEGATIVE_INFINITY)) {
+      sharedAt.set(propertyId, at);
+    }
+  };
+  for (const share of args.shares)
+    noteShare(share.propertyId, Date.parse(share.at));
+  for (const message of args.messages) {
+    if (message.sender === 'customer') continue;
+    const named = listingsReferencedIn(message.text, args.candidates);
+    if (named.length === 1) noteShare(named[0], Date.parse(message.at));
+  }
+  return [...sharedAt.entries()]
+    .map(([propertyId, at]) => ({ propertyId, at }))
+    .sort((a, b) => b.at - a.at);
+}
+
+/** True when the buyer swiped to reply on a message that names a
+ *  listing: that quote outranks anything else they say. */
+export function quotesListing(args: SubjectThread): boolean {
+  return (
+    !!args.quotedText &&
+    listingsReferencedIn(args.quotedText, args.candidates).length > 0
+  );
+}
+
+/**
+ * The listings sent as one batch, newest first: each share within the
+ * burst window of the one sent after it, with no word from the buyer
+ * between the two, capped at the subjects one reply can carry. Events
+ * are newest first.
+ */
+export function shareBurst(
+  events: ShareEvent[],
+  buyerSpokeAt: number[] = []
+): string[] {
+  const burst: string[] = [];
+  for (const event of events) {
+    const previous = burst.length > 0 ? events[burst.length - 1] : null;
+    if (previous) {
+      if (previous.at - event.at > SHARE_BURST_WINDOW_MS) break;
+      if (buyerSpokeAt.some((at) => at > event.at && at <= previous.at)) break;
+    }
+    burst.push(event.propertyId);
+    if (burst.length >= MAX_REFERENCED_SUBJECTS) break;
+  }
+  return burst;
 }
 
 export interface InboundSubjectContext {
@@ -343,6 +425,48 @@ export async function resolvePropertySubject(
   conversationId?: string | null,
   inbound?: InboundSubjectContext
 ): Promise<string | null> {
+  const thread = await loadSubjectThread(
+    db,
+    accountId,
+    contactId,
+    conversationId,
+    inbound
+  );
+  return thread ? decideSubject(thread) : null;
+}
+
+/**
+ * The listings a conversation is currently about, for the lead Q&A,
+ * which can answer several at once. Where resolvePropertySubject hands
+ * over a question that follows two cards sent back to back, this
+ * returns both, so "where exactly?" is answered for each under its
+ * title and the buyer can tell the two apart. Empty where the single
+ * reading is null for any other reason.
+ */
+export async function resolveSubjectProperties(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  conversationId?: string | null,
+  inbound?: InboundSubjectContext
+): Promise<string[]> {
+  const thread = await loadSubjectThread(
+    db,
+    accountId,
+    contactId,
+    conversationId,
+    inbound
+  );
+  return thread ? decideSubjects(thread) : [];
+}
+
+export async function loadSubjectThread(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  conversationId?: string | null,
+  inbound?: InboundSubjectContext
+): Promise<SubjectThread | null> {
   const { data: shareRows } = await db
     .from('property_shares')
     .select('property_id, created_at')
@@ -355,7 +479,11 @@ export async function resolvePropertySubject(
     propertyId: row.property_id as string,
     at: row.created_at as string,
   }));
-  if (!conversationId) return shares[0]?.propertyId ?? null;
+  if (!conversationId) {
+    return shares.length > 0
+      ? { messages: [], shares: [shares[0]], candidates: [] }
+      : null;
+  }
 
   const [{ data: messageRows }, { data: quoted }, { data: candidates }] =
     await Promise.all([
@@ -381,7 +509,7 @@ export async function resolvePropertySubject(
         .eq('account_id', accountId),
     ]);
 
-  return decideSubject({
+  return {
     messages: (messageRows ?? []).map((row) => ({
       sender: row.sender_type as string,
       text: (row.content_text as string) || '',
@@ -394,5 +522,5 @@ export async function resolvePropertySubject(
       ((quoted as { content_text?: string | null } | null)?.content_text as
         string | null | undefined) ?? null,
     currentMessageId: inbound?.messageId ?? null,
-  });
+  };
 }

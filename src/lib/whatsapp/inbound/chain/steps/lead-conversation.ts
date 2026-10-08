@@ -1,8 +1,6 @@
 import { processExternalListingMessage } from '@/lib/ai/chatbot-engine';
-import {
-  processBuyerQualificationMessage,
-  carriesRequirementSignal,
-} from '@/lib/ai/buyer-qualification';
+import { processBuyerQualificationMessage } from '@/lib/ai/buyer-qualification';
+import { carriesRequirementBrief } from '@/lib/ai/lead-routing';
 import {
   isPropertyDisinterest,
   handlePropertyDisinterestMessage,
@@ -140,7 +138,7 @@ export async function leadConversation(
       contentText &&
       isPropertyDisinterest(contentText)
     ) {
-      const hasRequirement = carriesRequirementSignal(contentText);
+      const hasRequirement = carriesRequirementBrief(contentText);
       if (!hasRequirement) {
         // messages has no property_id column, so the quoted listing is
         // read from the quoted message's own text by the subject

@@ -567,9 +567,36 @@
         },
         {
           "id": "INB-033",
-          "rule": "The listing a lead's message is about is read from the strongest signal in the thread before anything is answered from it: the message the lead quoted (by the property code in a share link or enquiry, else the listing's full title), then a listing the lead named since the latest share (a showcase enquiry seconds old), then a listing an agent has since pitched, whichever of those two was said more recently, and only then the share ledger. A quote or message naming several listings, or a question that is the lead's first word after two different listings were shared within five minutes of each other, is never guessed: it goes to a person. The same resolution serves the lead Q&A, photo requests, disinterest and the agent price learner.",
+          "rule": "The listing a lead's message is about is read from the strongest signal in the thread before anything is answered from it: the message the lead quoted (by the property code in a share link or enquiry, else the listing's full title), then a listing the lead named since the latest share (a showcase enquiry seconds old), then a listing an agent has since pitched, whichever of those two was said more recently, and only then the share ledger. A quote or message naming several listings, is never guessed: it goes to a person. A question that is the lead's first word after two different listings were shared within five minutes of each other is never answered from one of them: a reader that answers one listing (photo requests, disinterest, the agent price learner) hands it to a person, and the lead Q&A answers it for every listing of the batch (INB-034). The same resolution serves the lead Q&A, photo requests, disinterest and the agent price learner.",
           "tests": [
             { "file": "src/lib/learning/subject.test.ts", "case": "[INB-033]" }
+          ]
+        },
+        {
+          "id": "INB-034",
+          "rule": "A lead's question is answered for the listing they mean, never for whichever card happened to go last. Listings shared within five minutes of each other, with no word from the lead between them, are one batch: a question that follows, with nothing quoted and nothing said since, is answered for every listing in the batch (up to three, newest first), each under its title, so two localities are tellable apart. A message that names one of the recently shared listings (as the thread shows them, not the ledger's first-share dates) by a figure it carries (land area in any stored unit, built-up area, price in crore or lakh, bedrooms) or, without a figure, by a word only that listing's title or locality carries (\"the Chikatogur one\") is answered for that listing alone, and when such a message only points (\"No this 40,000 sqft one\") the question the lead asked in the message immediately before it is the one answered, never an older one. A demonstrative with a figure or a describing word is a reference and reaches the listing Q&A; a figure stating a requirement (\"I want a 2400 sqft plot\", \"I want one 2400 sqft plot\") still belongs to the ladder, and a rejection that points by figure (\"don't like this 3 bhk one\") is still recorded as a rejection. A description that fits several of the shares names nothing, a figure that fits none names nothing however well a word fits, and a quoted share wins over any description (INB-033).",
+          "tests": [
+            {
+              "file": "src/lib/ai/described-listing.test.ts",
+              "case": "[INB-034]"
+            },
+            {
+              "file": "src/lib/learning/subject.test.ts",
+              "case": "[INB-034]"
+            },
+            {
+              "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[INB-034]"
+            },
+            {
+              "file": "src/lib/ai/lead-routing.test.ts",
+              "case": "[INB-034]"
+            }
+          ],
+          "guards": [
+            "src/lib/ai/described-listing.ts",
+            "src/lib/learning/subject.ts",
+            "src/lib/ai/lead-question.ts"
           ]
         }
       ]
