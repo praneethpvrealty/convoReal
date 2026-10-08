@@ -173,19 +173,51 @@ describe('[PRP-043] useShareLinkGrant', () => {
     expect(calls('DELETE')[0][0]).toContain('grant_id=g5');
   });
 
-  it('falls back to the share-wide key when a contact key fails', async () => {
+  it('stops a contact send when its own key fails to mint', async () => {
     fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
       if (init?.method !== 'POST') return respond({ data: null });
       const body = JSON.parse(String(init.body));
-      if (body.contact_id) return respond({ error: 'nope' }, false);
+      if (body.contact_id)
+        return respond({ error: 'Contact not found' }, false);
       return respond({ data: { id: 'g9', token: 'tok9' } });
     });
-    vi.spyOn(console, 'error').mockImplementation(() => {});
     const { result } = render({ open: true, revealLocation: true, ttl: '7d' });
-    let token: string | null = null;
     await act(async () => {
-      token = await result.current.ensureContactGrant('c1');
+      await expect(result.current.ensureContactGrant('c1')).rejects.toThrow(
+        'Contact not found'
+      );
     });
-    expect(token).toBe('tok9');
+    expect(calls('POST')).toHaveLength(1);
+  });
+
+  it('rejects and revokes a contact key whose mint outlives the dialog', async () => {
+    let finishMint: (value: unknown) => void = () => {};
+    fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return new Promise((resolve) => {
+          finishMint = resolve;
+        });
+      }
+      return respond({ data: null });
+    });
+    const { result, rerender } = render({
+      open: true,
+      revealLocation: true,
+      ttl: '7d',
+    });
+    let pending: Promise<string | null> = Promise.resolve(null);
+    act(() => {
+      pending = result.current.ensureContactGrant('c1');
+    });
+    rerender({ open: false, revealLocation: true, ttl: '7d' });
+    await act(async () => {
+      finishMint({
+        ok: true,
+        json: () => Promise.resolve({ data: { id: 'g7', token: 'tok7' } }),
+      });
+      await expect(pending).rejects.toThrow('cancelled');
+    });
+    await waitFor(() => expect(calls('DELETE')).toHaveLength(1));
+    expect(calls('DELETE')[0][0]).toContain('grant_id=g7');
   });
 });
