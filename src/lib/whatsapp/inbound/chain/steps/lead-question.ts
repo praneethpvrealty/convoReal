@@ -25,6 +25,34 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { InboundChainContext, StepResult } from '../context';
 
+/**
+ * What the lead hears while an agent who replied within the last 24
+ * hours is handling the thread. That agent is the person a handover
+ * line would promise, so repeating "let me check with the team" over
+ * them only tells the lead a machine is talking: every handover is
+ * dropped, every concrete answer still goes out (each under its
+ * listing's title when the question covered several), and null means
+ * there is nothing left to say. The agent is still summoned for the
+ * dropped part.
+ */
+export function withoutHandovers(
+  answers: LeadAnswer[],
+  subjects: { title?: string | null }[]
+): LeadAnswer | null {
+  const kept = answers.flatMap((answer, i) =>
+    answer.source === 'handover' ? [] : [{ answer, subject: subjects[i] ?? {} }]
+  );
+  if (kept.length === 0) return null;
+  const merged = mergeLeadAnswers(
+    kept.map((k) => k.answer),
+    kept.map((k) => k.subject)
+  );
+  const title = kept[0].subject.title?.trim();
+  return kept.length === 1 && answers.length > 1 && title
+    ? { ...merged, text: `*${title}*\n${merged.text}` }
+    : merged;
+}
+
 export async function leadQuestion(
   ctx: InboundChainContext
 ): Promise<StepResult> {
@@ -107,6 +135,7 @@ export async function leadQuestion(
         leadText)
       : leadText;
     let answer: LeadAnswer;
+    let reply: LeadAnswer | null;
     if (photoRequest) {
       const sentPhotos = await sendSubjectPhotos({
         db: admin,
@@ -122,6 +151,7 @@ export async function leadQuestion(
         text: photoHandoverText(subjects[0]?.title),
         source: 'handover',
       };
+      reply = agentHandling ? null : answer;
     } else {
       const { data: qaConfig } = await admin
         .from('whatsapp_config')
@@ -156,15 +186,10 @@ export async function leadQuestion(
         })
       );
       answer = mergeLeadAnswers(answers, subjects);
+      reply = agentHandling ? withoutHandovers(answers, subjects) : answer;
     }
 
-    // An agent who replied within the last 24 hours is the person the
-    // handover line would promise, and they are already in the thread:
-    // the bot repeating "let me check with the team" over them only
-    // tells the lead a machine is talking. A concrete answer from the
-    // listing still goes out; a handover is left to the agent, who is
-    // still notified below.
-    if (answer.source !== 'handover' || !agentHandling) {
+    if (reply) {
       await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
@@ -172,13 +197,13 @@ export async function leadQuestion(
         conversationId: conversation.id,
         kind: 'text',
         senderType: 'bot',
-        text: answer.text,
+        text: reply.text,
       });
 
       await markBotInstructionsFired(
         admin,
         accountId,
-        answer.appliedInstructionIds ?? []
+        reply.appliedInstructionIds ?? []
       );
     }
 

@@ -601,7 +601,7 @@
         },
         {
           "id": "INB-035",
-          "rule": "The bot never answers a lead's question with a handover line (\"let me check that with the team\", the callback promise, the photo handover) while a human agent is handling the thread, meaning an agent has replied in that conversation within the last 24 hours: the lead hears nothing from the bot, and the assigned agent is still notified, the question is still relayed to their WhatsApp and the thread is still marked pending. A concrete answer the bot holds (from the listing's own fields, the seller's final price, a portal comparison or a grounded model answer) still goes out while an agent is live, and with no agent reply in the last 24 hours the handover line is sent as before.",
+          "rule": "The bot never answers a lead's question with a handover line (\"let me check that with the team\", the callback promise, the photo handover) while a human agent is handling the thread, meaning an agent has replied in that conversation within the last 24 hours: the lead hears nothing from the bot, and the assigned agent is still notified, the question is still relayed to their WhatsApp and the thread is still marked pending. A concrete answer the bot holds (from the listing's own fields, the seller's final price, a portal comparison or a grounded model answer) still goes out while an agent is live; when a question covers several listings (INB-034) only the handover parts are dropped and each remaining answer goes out under its listing's title. With no agent reply in the last 24 hours the handover line is sent as before.",
           "tests": [
             {
               "file": "src/lib/whatsapp/inbound/chain/lead-question-step.test.ts",

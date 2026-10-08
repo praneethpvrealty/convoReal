@@ -40,7 +40,7 @@ import { relayLeadMessageToBridgedAgent } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { InboundChainContext } from './context';
-import { leadQuestion } from './steps/lead-question';
+import { leadQuestion, withoutHandovers } from './steps/lead-question';
 
 const conversationUpdates: unknown[] = [];
 
@@ -163,5 +163,75 @@ describe('[INB-035] the bot does not hand over on top of a live agent', () => {
     expect(conversationUpdates).toEqual([
       expect.objectContaining({ status: 'pending' }),
     ]);
+  });
+
+  it('keeps the concrete answers of a multi-listing reply and drops only the handover part', async () => {
+    vi.mocked(questionSubjectProperties).mockResolvedValue([
+      { id: 'prop-1', title: 'Koramangala plot' },
+      { id: 'prop-2', title: 'JP Nagar villa' },
+    ] as unknown as Awaited<ReturnType<typeof questionSubjectProperties>>);
+    vi.mocked(answerLeadQuestion)
+      .mockResolvedValueOnce({ text: HANDOVER_TEXT, source: 'handover' })
+      .mockResolvedValueOnce({
+        text: 'It is East facing.',
+        source: 'listing',
+        intent: 'facing',
+      });
+
+    await leadQuestion(ctx({ agentHandling: true, inboundText: 'Facing?' }));
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: '*JP Nagar villa*\nIt is East facing.',
+      })
+    );
+    expect(createNotification).toHaveBeenCalled();
+    expect(conversationUpdates).toEqual([
+      expect.objectContaining({ status: 'pending' }),
+    ]);
+  });
+});
+
+describe('[INB-035] withoutHandovers', () => {
+  const subjects = [
+    { title: 'Plot A' },
+    { title: 'Plot B' },
+    { title: 'Plot C' },
+  ];
+
+  it('is null when every answer is a handover', () => {
+    expect(
+      withoutHandovers(
+        [
+          { text: HANDOVER_TEXT, source: 'handover' },
+          { text: HANDOVER_TEXT, source: 'handover' },
+        ],
+        subjects
+      )
+    ).toBeNull();
+  });
+
+  it('keeps every concrete answer under its own title', () => {
+    expect(
+      withoutHandovers(
+        [
+          { text: '2,400 sq.ft.', source: 'listing' },
+          { text: HANDOVER_TEXT, source: 'handover' },
+          { text: '3,000 sq.ft.', source: 'ai' },
+        ],
+        subjects
+      )
+    ).toEqual(
+      expect.objectContaining({
+        text: '*Plot A*\n2,400 sq.ft.\n\n*Plot C*\n3,000 sq.ft.',
+        source: 'listing',
+      })
+    );
+  });
+
+  it('returns a single-listing answer unchanged', () => {
+    const answer = { text: '2,400 sq.ft.', source: 'listing' as const };
+    expect(withoutHandovers([answer], [{ title: 'Plot A' }])).toEqual(answer);
   });
 });
