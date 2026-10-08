@@ -93,7 +93,7 @@ export async function processHotViewerAlerts(
           .maybeSingle(),
         db
           .from('properties')
-          .select('title, user_id')
+          .select('title, user_id, status')
           .eq('id', candidate.property_id)
           .eq('account_id', candidate.account_id)
           .maybeSingle(),
@@ -108,6 +108,14 @@ export async function processHotViewerAlerts(
       (property?.user_id as string | null) ??
       (config?.user_id as string | null) ??
       null;
+    if (property && property.status !== 'Available') {
+      await db
+        .from('showcase_hot_viewer_alerts')
+        .delete()
+        .eq('id', alertId as string)
+        .eq('account_id', candidate.account_id);
+      continue;
+    }
     if (!contact || !property || !agentUserId) continue;
 
     const { conversation } = await lookupConversation<{ id: string }>(db, {

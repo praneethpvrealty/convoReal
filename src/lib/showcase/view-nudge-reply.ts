@@ -53,6 +53,13 @@ export function buildViewNudgeAgentAlert(
   };
 }
 
+export function buildViewNudgeNotOpenReply(
+  firstName: string,
+  propertyTitle: string
+): string {
+  return `Thanks ${firstName}! *${propertyTitle}* isn't open for visits or calls right now. I'll let you know as soon as it is, and our team can share similar options meanwhile.`;
+}
+
 export async function handleViewNudgeReply(args: {
   db: SupabaseClient;
   accountId: string;
@@ -116,19 +123,22 @@ export async function handleViewNudgeReply(args: {
       propertyTitle: property.title as string | null,
       status: property.status as string | null,
     });
-    if (unavailable) {
-      await sendWhatsAppMessageAndPersist({
-        accountId,
-        userId: configOwnerUserId,
-        contactId: contact.id,
-        conversationId,
-        kind: 'text',
-        senderType: 'bot',
-        text: unavailable,
-        customDbClient: db,
-      });
-      return true;
-    }
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId: contact.id,
+      conversationId,
+      kind: 'text',
+      senderType: 'bot',
+      text:
+        unavailable ??
+        buildViewNudgeNotOpenReply(
+          viewNudgeFirstName(contact.name),
+          (property.title as string | null) || 'this property'
+        ),
+      customDbClient: db,
+    });
+    return true;
   }
 
   const propertyTitle = (property.title as string | null) || 'this property';
@@ -168,8 +178,6 @@ export async function handleViewNudgeReply(args: {
     console.error('[view-nudge-reply] acknowledgement not sent:', ack.error);
   }
 
-  if (repeatTap) return true;
-
   const { error: feedbackError } = await db.from('listing_feedback').upsert(
     {
       account_id: accountId,
@@ -183,6 +191,8 @@ export async function handleViewNudgeReply(args: {
   if (feedbackError) {
     console.error('[view-nudge-reply] interest not recorded:', feedbackError);
   }
+
+  if (repeatTap) return true;
 
   const contactName = contact.name?.trim() || 'A lead';
   const contactPhone =
@@ -224,6 +234,6 @@ export async function handleViewNudgeReply(args: {
     entityId: conversationId,
     link: `/inbox?conversation=${conversationId}`,
   });
-  if (!todoError && !feedbackError) await recordResponse();
+  if (!todoError) await recordResponse();
   return true;
 }

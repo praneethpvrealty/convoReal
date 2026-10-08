@@ -53,6 +53,10 @@ function fakeDb(state: {
           updates.push({ table, payload });
           return api;
         },
+        delete: () => {
+          updates.push({ table, payload: 'delete' });
+          return api;
+        },
         eq: (column: string, value: unknown) => {
           filters[column] = value;
           return api;
@@ -99,6 +103,7 @@ function tables(assignedAgent: string | null = 'agent-user') {
         account_id: ACCOUNT,
         title: '3 BHK in Kondapur',
         user_id: 'lister-user',
+        status: 'Available',
       },
     ],
     whatsapp_config: [{ account_id: ACCOUNT, user_id: 'owner-user' }],
@@ -195,6 +200,17 @@ describe('[PLS-008] hot viewer alerts', () => {
         link: `/contacts?contactId=${CONTACT}`,
       })
     );
+  });
+
+  it('releases the claim and alerts nobody when the listing stopped being Available', async () => {
+    const t = tables();
+    t.properties[0] = { ...t.properties[0], status: 'Sold' };
+    const { db, updates } = fakeDb({ candidates: [candidate], tables: t });
+    expect(await processHotViewerAlerts(db)).toBe(0);
+    expect(h.notify).not.toHaveBeenCalled();
+    expect(updates).toEqual([
+      { table: 'showcase_hot_viewer_alerts', payload: 'delete' },
+    ]);
   });
 
   it('alerts nobody when the claim is lost', async () => {

@@ -608,15 +608,35 @@ describe('[PLS-007] answers to the showcase view check-in', () => {
     expect(order).toContain('todos:insert');
   });
 
-  it('leaves the answer unrecorded when the interest verdict was not saved', async () => {
-    const { db, queries } = fakeDb({
+  it('rewrites a failed interest verdict on the next tap without a second to-do or alert', async () => {
+    const first = fakeDb({
       tables: openNudge(),
       failInsert: 'listing_feedback',
     });
-    expect(await reply(db, 'v')).toBe(true);
-    expect(queries.some((q) => q.table === 'todos')).toBe(true);
-    expect(h.notify).toHaveBeenCalledTimes(1);
-    expect(responseRecorded(queries)).toBe(false);
+    expect(await reply(first.db, 'v')).toBe(true);
+    expect(first.queries.some((q) => q.table === 'todos')).toBe(true);
+    expect(responseRecorded(first.queries)).toBe(true);
+
+    h.notify.mockClear();
+    const tables = openNudge();
+    tables.showcase_view_nudges[0].response = 'visit';
+    const again = fakeDb({ tables });
+    expect(await reply(again.db, 'v')).toBe(true);
+    expect(
+      again.queries.find((q) => q.table === 'listing_feedback')?.payload
+    ).toMatchObject({ verdict: 'interested' });
+    expect(again.queries.some((q) => q.table === 'todos')).toBe(false);
+    expect(h.notify).not.toHaveBeenCalled();
+  });
+
+  it('answers a tap on a listing now pending review without promising a visit or call', async () => {
+    const tables = openNudge();
+    tables.properties[0].status = 'Pending Review';
+    const { db, queries } = fakeDb({ tables });
+    expect(await reply(db, 'c')).toBe(true);
+    expect(h.send.mock.calls[0][0].text).toContain("isn't open for visits");
+    expect(queries.some((q) => q.table === 'todos')).toBe(false);
+    expect(h.notify).not.toHaveBeenCalled();
   });
 
   it('still alerts the agent and adds the to-do when the buyer acknowledgement fails, and says so', async () => {
