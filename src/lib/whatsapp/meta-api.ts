@@ -1738,6 +1738,7 @@ export interface SyncProductToCatalogArgs {
   accessToken: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   property: any;
+  currency?: string;
 }
 
 /**
@@ -1747,7 +1748,7 @@ export interface SyncProductToCatalogArgs {
 export async function syncProductToCatalog(
   args: SyncProductToCatalogArgs
 ): Promise<void> {
-  const { catalogId, accessToken, property } = args;
+  const { catalogId, accessToken, property, currency = 'INR' } = args;
   const url = `${META_API_BASE}/${catalogId}/batch`;
 
   const price = Number(property.price) || 0;
@@ -1786,7 +1787,7 @@ export async function syncProductToCatalog(
           description,
           image_url: heroImage,
           price,
-          currency: 'INR',
+          currency,
           availability: 'in stock',
           condition: 'new',
           url: productUrl,

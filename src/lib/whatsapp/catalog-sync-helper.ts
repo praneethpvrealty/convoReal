@@ -2,6 +2,21 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { syncProductToCatalog } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 
+export async function catalogCurrency(
+  supabase: SupabaseClient,
+  accountId: string
+): Promise<string> {
+  const { data, error } = await supabase
+    .from('showcase_settings')
+    .select('currency')
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Could not read the account currency: ${error.message}`);
+  }
+  return data?.currency || 'INR';
+}
+
 /**
  * Checks the active account's whatsapp_config for auto_sync_catalog,
  * retrieves credentials, and synchronizes the property with Meta's Catalog.
@@ -91,6 +106,7 @@ export async function autoSyncPropertyCatalogIfNeeded(
       catalogId: config.catalog_id,
       accessToken,
       property,
+      currency: await catalogCurrency(supabase, accountId),
     });
 
     // 5. Update success audit timestamp

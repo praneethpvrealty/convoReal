@@ -636,4 +636,23 @@ describe('[PRP-044] syncProductToCatalog — confirms the item reached the catal
     ).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
+
+  it('prices the catalog item in the currency it is given, INR otherwise', async () => {
+    const batchCurrency = async (currency?: string) => {
+      const fetchMock = stubMeta(
+        { data: [{ status: 'finished', errors: [] }] },
+        { data: [{ id: '9', retailer_id: 'PROP-1111' }] }
+      );
+      await syncProductToCatalog({
+        catalogId: 'c1',
+        accessToken: 't',
+        property,
+        currency,
+      });
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      return JSON.parse(String(init.body)).requests[0].data.currency;
+    };
+    expect(await batchCurrency('AED')).toBe('AED');
+    expect(await batchCurrency()).toBe('INR');
+  });
 });

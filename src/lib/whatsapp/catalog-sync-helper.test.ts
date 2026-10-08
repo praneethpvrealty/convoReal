@@ -14,7 +14,7 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   decrypt: () => 'token',
 }));
 
-const { autoSyncPropertyCatalogIfNeeded } =
+const { autoSyncPropertyCatalogIfNeeded, catalogCurrency } =
   await import('./catalog-sync-helper');
 
 function db() {
@@ -75,5 +75,39 @@ describe('[PRP-044] autoSyncPropertyCatalogIfNeeded', () => {
       meta_catalog_synced_at: null,
       meta_catalog_error: null,
     });
+  });
+});
+
+describe('[PRP-044] catalogCurrency', () => {
+  const settings = (result: { data: unknown; error: unknown }) => ({
+    from: () => {
+      const builder = {
+        select: () => builder,
+        eq: () => builder,
+        maybeSingle: () => Promise.resolve(result),
+      };
+      return builder;
+    },
+  });
+
+  it("uses the account's showcase currency, INR when none is set", async () => {
+    await expect(
+      catalogCurrency(
+        settings({ data: { currency: 'AED' }, error: null }) as never,
+        'acc-1'
+      )
+    ).resolves.toBe('AED');
+    await expect(
+      catalogCurrency(settings({ data: null, error: null }) as never, 'acc-1')
+    ).resolves.toBe('INR');
+  });
+
+  it('fails the sync rather than guessing when the currency cannot be read', async () => {
+    await expect(
+      catalogCurrency(
+        settings({ data: null, error: { message: 'timeout' } }) as never,
+        'acc-1'
+      )
+    ).rejects.toThrow('Could not read the account currency: timeout');
   });
 });
