@@ -59,6 +59,7 @@ interface DealFloorHeroProps {
 }
 
 const ANY = '__any__';
+const NEARBY_SUGGESTIONS = 3;
 
 function Blank({
   label,
@@ -164,15 +165,34 @@ function LocalityBlank({
             },
           },
         ]),
-    ...matches.map((location) => ({
-      key: `location:${location}`,
-      label: location,
-      selected: !nearbyLabel && selectedLocation === location,
-      onSelect: () => {
-        onLocationChange(location);
-        close();
-      },
-    })),
+    ...matches.flatMap((location, index) => {
+      const selected = !nearbyLabel && selectedLocation === location;
+      const option: LocalityOption = {
+        key: `location:${location}`,
+        label: location,
+        selected,
+        onSelect: () => {
+          onLocationChange(location);
+          close();
+        },
+      };
+      if (!(selected || (needle && index < NEARBY_SUGGESTIONS))) {
+        return [option];
+      }
+      return [
+        option,
+        {
+          key: `nearby:${location}`,
+          label: `${location} & nearby`,
+          selected: false,
+          onSelect: () => {
+            void onSearchNear(location).then((found) => {
+              if (found) close();
+            });
+          },
+        },
+      ];
+    }),
     ...(nearbyLabel && !needle
       ? [
           {
@@ -373,6 +393,21 @@ export function DealFloorHero({
           See {matchCount} {matchCount === 1 ? 'match' : 'matches'}
           <ArrowRight className="size-5" />
         </button>
+        {selectedLocation && !nearbyLabel && (
+          <button
+            type="button"
+            className="df-btn-link"
+            disabled={nearbyPending}
+            onClick={() => void onSearchNear(selectedLocation)}
+          >
+            {nearbyPending ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <LocateFixed className="size-4" aria-hidden="true" />
+            )}
+            Include places near {selectedLocation}
+          </button>
+        )}
         <button type="button" className="df-btn-link" onClick={onPlay}>
           <Play className="size-4" />
           or play Quick Picks

@@ -251,6 +251,62 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
   });
 
+  it('offers a listed locality together with everything within 5 km', async () => {
+    const defaultFetch = vi.mocked(fetch).getMockImplementation();
+    const nearUrls: string[] = [];
+    vi.mocked(fetch).mockImplementation(((url: string) => {
+      if (String(url).startsWith('/api/public/properties/near?')) {
+        nearUrls.push(String(url));
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: {
+                label: 'Kasavanahalli',
+                results: [
+                  { id: villa.id, tier: 'exact', distance_km: 0 },
+                  { id: plot.id, tier: 'nearby', distance_km: 3 },
+                ],
+              },
+            }),
+        } as Response);
+      }
+      return defaultFetch!(url);
+    }) as typeof fetch);
+    onTestFinished(() => {
+      vi.mocked(fetch).mockImplementation(defaultFetch!);
+    });
+    renderDealFloor();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Locality' }));
+    fireEvent.change(
+      screen.getByRole('combobox', { name: 'Search localities' }),
+      { target: { value: 'kasa' } }
+    );
+    expect(
+      screen.getByRole('option', { name: 'Kasavanahalli & nearby' })
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole('option', { name: 'Kasavanahalli' }));
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Include places near Kasavanahalli' })
+    );
+    expect(
+      await screen.findByRole('button', {
+        name: 'Remove Near Kasavanahalli · 5 km',
+      })
+    ).toBeTruthy();
+    expect(new URL(nearUrls[0], 'http://x').searchParams.get('q')).toBe(
+      'Kasavanahalli'
+    );
+    expect(screen.getByRole('button', { name: /See 2 matches/ })).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Listings in Kasavanahalli first, then nearby by distance.'
+      )
+    ).toBeTruthy();
+  });
+
   it('draws a plot face from the listing fields instead of "No Photos Available"', () => {
     renderDealFloor();
     expect(screen.queryByText('No Photos Available')).toBeNull();

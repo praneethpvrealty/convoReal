@@ -883,6 +883,10 @@
   font-size: 0.8rem;
   color: var(--showcase-muted);
 }
+[data-showcase-design='deal-floor'] .df-btn-link:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .df-locality {
   width: min(22rem, calc(100vw - 2rem));
   gap: 0.4rem;
