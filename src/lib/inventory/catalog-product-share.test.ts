@@ -75,7 +75,7 @@ describe('[PRP-043] WhatsApp catalog product card share', () => {
         { id: 'c', phone: '919900000003' },
       ],
       [
-        { phone: '+919900000001', status: 'sent' },
+        { phone: '919900000001', status: 'sent' },
         { phone: '919900000002', status: 'failed', error: 'Not on WhatsApp' },
       ]
     );
@@ -83,6 +83,23 @@ describe('[PRP-043] WhatsApp catalog product card share', () => {
       ['a', true, undefined],
       ['b', false, 'Not on WhatsApp'],
       ['c', false, undefined],
+    ]);
+  });
+
+  it('never lends one recipient’s result to another whose number overlaps', () => {
+    const outcomes = matchCatalogSendResults(
+      [
+        { id: 'local', phone: '9900000001' },
+        { id: 'prefixed', phone: '919900000001' },
+      ],
+      [
+        { phone: '9900000001', status: 'sent' },
+        { phone: '919900000001', status: 'failed', error: 'Rejected' },
+      ]
+    );
+    expect(outcomes.map((o) => [o.contact.id, o.sent])).toEqual([
+      ['local', true],
+      ['prefixed', false],
     ]);
   });
 

@@ -604,6 +604,18 @@ describe('[PRP-043] syncProductToCatalog — confirms the item reached the catal
     }
   });
 
+  it('fails the sync when Meta returns no batch handle', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith('/batch')) return json({});
+      return json({ data: [{ id: '9', retailer_id: 'PROP-1111' }] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(
+      syncProductToCatalog({ catalogId: 'c1', accessToken: 't', property })
+    ).rejects.toThrow('Meta did not return a batch handle for PROP-1111');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('succeeds once the product is in the catalog', async () => {
     const fetchMock = stubMeta(
       { data: [{ status: 'finished', errors: [] }] },

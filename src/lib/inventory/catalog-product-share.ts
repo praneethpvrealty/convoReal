@@ -73,14 +73,13 @@ export function matchCatalogSendResults<
   contacts: C[],
   results: CatalogSendResult[] | undefined
 ): Array<{ contact: C; sent: boolean; error?: string }> {
+  const remaining = [...(results ?? [])];
   return contacts.map((contact) => {
-    const match = (results ?? []).find(
-      (r) =>
-        contact.phone !== null &&
-        (r.phone === contact.phone ||
-          r.phone.includes(contact.phone) ||
-          contact.phone.includes(r.phone))
-    );
+    const index =
+      contact.phone === null
+        ? -1
+        : remaining.findIndex((r) => r.phone === contact.phone);
+    const match = index === -1 ? undefined : remaining.splice(index, 1)[0];
     const sent = match?.status === 'sent';
     return {
       contact,

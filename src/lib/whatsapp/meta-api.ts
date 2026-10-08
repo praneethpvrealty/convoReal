@@ -1839,6 +1839,11 @@ export async function syncProductToCatalog(
   const handles: string[] = Array.isArray(resJson.handles)
     ? resJson.handles.filter((h: unknown) => typeof h === 'string')
     : [];
+  if (handles.length === 0) {
+    throw new Error(
+      `Meta did not return a batch handle for ${retailerId}, so the sync cannot be confirmed. Sync again.`
+    );
+  }
   await confirmCatalogProduct({ catalogId, accessToken, retailerId, handles });
 }
 
