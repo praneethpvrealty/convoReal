@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle(),
       ctx.supabase
         .from('contacts')
-        .select('id')
+        .select('id, classification')
         .eq('account_id', ctx.accountId)
         .in(
           'id',
@@ -97,7 +97,12 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-    const owned = new Set((contacts ?? []).map((row) => row.id as string));
+    const owned = new Map(
+      (contacts ?? []).map((row) => [
+        row.id as string,
+        (row.classification as string | null) ?? null,
+      ])
+    );
 
     const db = supabaseAdmin();
     let recorded = 0;
@@ -109,7 +114,7 @@ export async function POST(request: NextRequest) {
         ctx.userId,
         propertyId,
         recipient.contactId,
-        recipient.classification,
+        owned.get(recipient.contactId) ?? null,
         { channel, journeyVisible }
       );
       recorded += 1;

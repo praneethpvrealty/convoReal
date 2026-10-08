@@ -106,13 +106,15 @@ export async function POST(
     }
 
     // Background: sync to Meta product catalog (fire-and-forget)
-    autoSyncPropertyCatalogIfNeeded(ctx.supabase, id, ctx.accountId).catch(
-      (err) => {
-        console.error(
-          '[POST /api/properties/[id]/approve] Catalog sync error:',
-          err
-        );
-      }
+    after(() =>
+      autoSyncPropertyCatalogIfNeeded(ctx.supabase, id, ctx.accountId).catch(
+        (err) => {
+          console.error(
+            '[POST /api/properties/[id]/approve] Catalog sync error:',
+            err
+          );
+        }
+      )
     );
 
     // Match Radar + buyer alerts continue after the response without being

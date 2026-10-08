@@ -1455,9 +1455,15 @@ export function ShowcaseView({
     setLocationQuery('');
   };
 
+  const nearbyTicketRef = useRef(0);
+  useEffect(() => {
+    nearbyTicketRef.current += 1;
+  }, [selectedLocations]);
+
   const searchNearby = async (rawQuery: string): Promise<boolean> => {
     const query = rawQuery.trim().replace(/\s+/g, ' ');
     if (query.length < 3 || nearbyPending) return false;
+    const ticket = nearbyTicketRef.current;
     setNearbyPending(true);
     setNearbyError(null);
     try {
@@ -1476,6 +1482,7 @@ export function ShowcaseView({
       const body = (await res.json()) as {
         data?: { label?: string; results?: NearbyMatch[] };
       };
+      if (ticket !== nearbyTicketRef.current) return false;
       setNearbySearch({
         label: body.data?.label || query,
         results: body.data?.results ?? [],
@@ -1935,6 +1942,16 @@ export function ShowcaseView({
               scrollToListings();
               setNearOpen(true);
             }}
+            onSearchNear={async (query) => {
+              const found = await searchNearby(query);
+              if (found) {
+                setDeckMode(false);
+                scrollToListings();
+              }
+              return found;
+            }}
+            nearbyPending={nearbyPending}
+            nearbyError={nearbyError}
             maxBudget={maxBudget}
             onBudgetChange={setMaxBudget}
             matchCount={filteredProperties.length}

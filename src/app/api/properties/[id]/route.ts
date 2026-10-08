@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
   checkRateLimit,
@@ -901,16 +901,18 @@ export async function PUT(
       );
     }
 
-    autoSyncPropertyCatalogIfNeeded(
-      ctx.supabase,
-      finalData.id,
-      ctx.accountId
-    ).catch((err) => {
-      console.error(
-        '[PUT /api/properties/[id]] Auto-sync background error:',
-        err
-      );
-    });
+    after(() =>
+      autoSyncPropertyCatalogIfNeeded(
+        ctx.supabase,
+        finalData.id,
+        ctx.accountId
+      ).catch((err) => {
+        console.error(
+          '[PUT /api/properties/[id]] Auto-sync background error:',
+          err
+        );
+      })
+    );
 
     // Tell everyone who showed interest or received the listing when its
     // buyer-visible lifecycle status changes. Internal moderation states
