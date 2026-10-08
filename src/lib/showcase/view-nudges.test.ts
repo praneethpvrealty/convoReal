@@ -79,6 +79,7 @@ const VIEWED_AT = new Date(Date.now() - 45 * 60 * 1000).toISOString();
 function fakeDb(state: {
   candidates?: Row[];
   claimId?: string | null;
+  failInsert?: string;
   tables: Record<string, Row[]>;
 }) {
   const queries: Query[] = [];
@@ -86,6 +87,9 @@ function fakeDb(state: {
 
   const resolve = (q: Query) => {
     queries.push(q);
+    if (q.op === 'insert' && q.table === state.failInsert) {
+      return { data: null, error: { message: 'insert failed' } };
+    }
     if (q.op !== 'select') return { data: null, error: null };
     const rows = (state.tables[q.table] ?? []).filter((row) =>
       Object.entries(q.filters).every(([k, v]) => row[k] === v)
@@ -498,6 +502,62 @@ describe('[PLS-007] answers to the showcase view check-in', () => {
       expect.objectContaining({ replyId: `lfb_n_${PROPERTY}` })
     );
     expect(h.notify).not.toHaveBeenCalled();
+  });
+
+  const openNudge = () =>
+    baseTables({
+      showcase_view_nudges: [
+        {
+          id: 'nudge-1',
+          account_id: ACCOUNT,
+          contact_id: CONTACT,
+          property_id: PROPERTY,
+          response: null,
+        },
+      ],
+    });
+  const responseRecorded = (queries: Query[]) =>
+    queries.some(
+      (q) => q.table === 'showcase_view_nudges' && q.op === 'update'
+    );
+
+  it('records the answer only after the to-do is written, so a failed to-do is retried on the next tap', async () => {
+    const { db, queries } = fakeDb({
+      tables: openNudge(),
+      failInsert: 'todos',
+    });
+    expect(await reply(db, 'c')).toBe(true);
+    expect(h.notify).toHaveBeenCalledTimes(1);
+    expect(responseRecorded(queries)).toBe(false);
+    const order = queries.map((q) => `${q.table}:${q.op}`);
+    const ok = fakeDb({ tables: openNudge() });
+    await reply(ok.db, 'c');
+    const okOrder = ok.queries.map((q) => `${q.table}:${q.op}`);
+    expect(okOrder.indexOf('showcase_view_nudges:update')).toBeGreaterThan(
+      okOrder.indexOf('todos:insert')
+    );
+    expect(order).toContain('todos:insert');
+  });
+
+  it('still alerts the agent and adds the to-do when the buyer acknowledgement fails, and says so', async () => {
+    h.send.mockResolvedValueOnce({ success: false, error: 'meta down' });
+    const { db, queries } = fakeDb({ tables: openNudge() });
+    expect(await reply(db, 'v')).toBe(true);
+    expect(queries.some((q) => q.table === 'todos')).toBe(true);
+    expect(h.notify.mock.calls[0][0].body).toContain(
+      "confirmation to them didn't go through"
+    );
+    expect(responseRecorded(queries)).toBe(true);
+  });
+
+  it('records Not for me only once the reason list was sent', async () => {
+    h.listingFeedback.mockResolvedValueOnce(false);
+    const failed = fakeDb({ tables: openNudge() });
+    expect(await reply(failed.db, 'n')).toBe(false);
+    expect(responseRecorded(failed.queries)).toBe(false);
+    const sent = fakeDb({ tables: openNudge() });
+    expect(await reply(sent.db, 'n')).toBe(true);
+    expect(responseRecorded(sent.queries)).toBe(true);
   });
 
   it('ignores a tap naming a property outside the account', async () => {

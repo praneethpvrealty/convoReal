@@ -30,17 +30,25 @@ export function buildViewNudgeAck(
 
 export function buildViewNudgeAgentAlert(
   choice: Exclude<ViewNudgeChoice, 'not_for_me'>,
-  args: { contactName: string; contactPhone: string; propertyTitle: string }
+  args: {
+    contactName: string;
+    contactPhone: string;
+    propertyTitle: string;
+    ackFailed?: boolean;
+  }
 ): { title: string; body: string } {
+  const unconfirmed = args.ackFailed
+    ? " Our WhatsApp confirmation to them didn't go through, so reach out directly."
+    : '';
   if (choice === 'callback') {
     return {
       title: `Call back ${args.contactName}`,
-      body: `${args.contactName} (${args.contactPhone}) viewed ${args.propertyTitle} on your showcase and asked for a call back. Call them within the hour.`,
+      body: `${args.contactName} (${args.contactPhone}) viewed ${args.propertyTitle} on your showcase and asked for a call back. Call them within the hour.${unconfirmed}`,
     };
   }
   return {
     title: `${args.contactName} wants to visit a listing`,
-    body: `${args.contactName} (${args.contactPhone}) viewed ${args.propertyTitle} on your showcase and tapped "Book a visit". Reply here to fix a time.`,
+    body: `${args.contactName} (${args.contactPhone}) viewed ${args.propertyTitle} on your showcase and tapped "Book a visit". Reply here to fix a time.${unconfirmed}`,
   };
 }
 
@@ -73,16 +81,20 @@ export async function handleViewNudgeReply(args: {
     .eq('property_id', propertyId)
     .maybeSingle();
   const repeatTap = nudge?.response === choice;
-  if (nudge && !repeatTap) {
-    await db
+  const recordResponse = async () => {
+    if (!nudge || repeatTap) return;
+    const { error } = await db
       .from('showcase_view_nudges')
       .update({ response: choice, responded_at: new Date().toISOString() })
       .eq('id', nudge.id)
       .eq('account_id', accountId);
-  }
+    if (error) {
+      console.error('[view-nudge-reply] response not recorded:', error);
+    }
+  };
 
   if (choice === 'not_for_me') {
-    return handleListingFeedbackReply({
+    const handled = await handleListingFeedbackReply({
       db,
       accountId,
       configOwnerUserId,
@@ -90,6 +102,8 @@ export async function handleViewNudgeReply(args: {
       conversationId,
       replyId: `lfb_n_${propertyId}`,
     });
+    if (handled) await recordResponse();
+    return handled;
   }
 
   const propertyTitle = (property.title as string | null) || 'this property';
@@ -107,7 +121,7 @@ export async function handleViewNudgeReply(args: {
     () => null
   );
 
-  await sendWhatsAppMessageAndPersist({
+  const ack = await sendWhatsAppMessageAndPersist({
     accountId,
     userId: configOwnerUserId,
     contactId: contact.id,
@@ -120,7 +134,14 @@ export async function handleViewNudgeReply(args: {
       agentName: agent?.name?.split(/\s+/)[0] || null,
     }),
     customDbClient: db,
+  }).catch((err: unknown) => {
+    console.error('[view-nudge-reply] acknowledgement failed:', err);
+    return null;
   });
+  const ackFailed = !ack || ack.success === false;
+  if (ackFailed && ack) {
+    console.error('[view-nudge-reply] acknowledgement not sent:', ack.error);
+  }
 
   if (repeatTap) return true;
 
@@ -162,6 +183,7 @@ export async function handleViewNudgeReply(args: {
     contactName,
     contactPhone,
     propertyTitle,
+    ackFailed,
   });
   await createNotification({
     accountId,
@@ -174,5 +196,6 @@ export async function handleViewNudgeReply(args: {
     entityId: conversationId,
     link: `/inbox?conversation=${conversationId}`,
   });
+  if (!todoError) await recordResponse();
   return true;
 }
