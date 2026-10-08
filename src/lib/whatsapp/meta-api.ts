@@ -1835,6 +1835,77 @@ export async function syncProductToCatalog(
       throw new Error(`Meta validation error: ${errorMessages.join('; ')}`);
     }
   }
+
+  const handles: string[] = Array.isArray(resJson.handles)
+    ? resJson.handles.filter((h: unknown) => typeof h === 'string')
+    : [];
+  await confirmCatalogProduct({ catalogId, accessToken, retailerId, handles });
+}
+
+const CATALOG_BATCH_POLLS = 8;
+const CATALOG_BATCH_POLL_MS = 1500;
+
+interface CatalogBatchStatus {
+  status?: string;
+  errors?: Array<{ message?: string }>;
+}
+
+async function confirmCatalogProduct({
+  catalogId,
+  accessToken,
+  retailerId,
+  handles,
+}: {
+  catalogId: string;
+  accessToken: string;
+  retailerId: string;
+  handles: string[];
+}): Promise<void> {
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  for (const handle of handles) {
+    let finished = false;
+    for (let attempt = 0; attempt < CATALOG_BATCH_POLLS; attempt++) {
+      const res = await fetch(
+        `${META_API_BASE}/${catalogId}/check_batch_request_status?handle=${encodeURIComponent(handle)}`,
+        { headers }
+      );
+      if (!res.ok) return;
+      const json = (await res.json().catch(() => ({}))) as {
+        data?: CatalogBatchStatus[];
+      };
+      const batch = json.data?.[0];
+      const errors = (batch?.errors ?? [])
+        .map((e) => e.message)
+        .filter((m): m is string => Boolean(m));
+      if (errors.length > 0) {
+        throw new Error(`Meta rejected the catalog item: ${errors.join('; ')}`);
+      }
+      if (batch?.status === 'finished') {
+        finished = true;
+        break;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, CATALOG_BATCH_POLL_MS)
+      );
+    }
+    if (!finished) return;
+  }
+
+  const filter = JSON.stringify({ retailer_id: { eq: retailerId } });
+  const res = await fetch(
+    `${META_API_BASE}/${catalogId}/products?fields=id,retailer_id&filter=${encodeURIComponent(filter)}`,
+    { headers }
+  );
+  if (!res.ok) return;
+  const json = (await res.json().catch(() => ({}))) as {
+    data?: Array<{ retailer_id?: string }>;
+  };
+  if (!Array.isArray(json.data)) return;
+  if (!json.data.some((p) => p.retailer_id === retailerId)) {
+    throw new Error(
+      `Meta accepted the sync but ${retailerId} is not in catalog ${catalogId}. Check that this catalog is the one connected to your WhatsApp Business Account in Commerce Manager.`
+    );
+  }
 }
 
 export interface DeleteProductFromCatalogArgs {
