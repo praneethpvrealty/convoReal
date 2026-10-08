@@ -87,7 +87,7 @@ export async function ensureViewNudgeTemplate(
       payload: buildMetaTemplatePayload(payload),
     });
 
-    await db.from('message_templates').insert({
+    const row = {
       account_id: accountId,
       user_id: account.owner_user_id,
       name: payload.name,
@@ -101,7 +101,17 @@ export async function ensureViewNudgeTemplate(
       meta_template_id: meta.id,
       submission_error: null,
       last_submitted_at: new Date().toISOString(),
-    });
+    };
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const { error: insertError } = await db
+        .from('message_templates')
+        .insert(row);
+      if (!insertError) break;
+      console.error(
+        `[view-nudges] submitted ${payload.name} (Meta id ${meta.id}) but could not record it (attempt ${attempt}):`,
+        insertError
+      );
+    }
     console.log(
       `[view-nudges] auto-submitted ${payload.name} for account ${accountId} (status ${meta.status})`
     );
@@ -217,14 +227,29 @@ async function sendViewNudge(
   const { account_id: accountId, contact_id: contactId } = candidate;
 
   const { conversation, error: conversationError } = await lookupConversation<{
+    id: string;
     last_customer_message_at: string | null;
-  }>(db, { accountId, contactId, columns: 'last_customer_message_at' });
+  }>(db, { accountId, contactId, columns: 'id, last_customer_message_at' });
   if (conversationError) return { status: 'retry' };
   if (
     conversation?.last_customer_message_at &&
     conversation.last_customer_message_at >= candidate.viewed_at
   ) {
     return { status: 'skipped', reason: 'replied_since_view' };
+  }
+  if (conversation?.id) {
+    const { data: agentMessage, error: agentMessageError } = await db
+      .from('messages')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('conversation_id', conversation.id)
+      .eq('sender_type', 'agent')
+      .gte('created_at', candidate.viewed_at)
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle();
+    if (agentMessageError) return { status: 'retry' };
+    if (agentMessage) return { status: 'skipped', reason: 'agent_in_touch' };
   }
 
   const { data: config } = await db

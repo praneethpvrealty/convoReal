@@ -10,6 +10,7 @@ interface Query {
 }
 
 const h = vi.hoisted(() => ({
+  conversationId: null as string | null,
   send: vi.fn(),
   notify: vi.fn(),
   listingFeedback: vi.fn(),
@@ -36,12 +37,18 @@ vi.mock('@/lib/whatsapp/encryption', () => ({ decrypt: (v: string) => v }));
 vi.mock('@/lib/notifications/quiet-hours', () => ({
   resolveQuietPeriod: async () => ({ isQuiet: h.quiet, deliverAt: null }),
 }));
+vi.mock('@/lib/inventory/unavailable-reply', () => ({
+  unavailableListingReplyWithShowcase: async (args: { status: string }) =>
+    args.status === 'Sold' ? 'Sorry, this one has been sold.' : null,
+}));
 vi.mock('@/lib/voice/assigned-agent', () => ({
   resolveAssignedAgent: async () => ({ name: 'Sharan Kumar', phone: '91999' }),
 }));
 vi.mock('@/lib/conversations/resolve', () => ({
   lookupConversation: async () => ({
-    conversation: h.conversation,
+    conversation: h.conversation
+      ? { id: h.conversationId, ...h.conversation }
+      : null,
     error: null,
   }),
 }));
@@ -133,6 +140,9 @@ function fakeDb(state: {
         q.filters[column] = value;
         return api;
       },
+      gte: () => api,
+      is: () => api,
+      limit: () => api,
       maybeSingle: () => {
         const { data } = resolve(q);
         return Promise.resolve({
@@ -214,6 +224,7 @@ beforeEach(() => {
   h.quiet = false;
   h.lease = 'run';
   h.conversation = null;
+  h.conversationId = null;
 });
 
 describe('[PLS-006] showcase view check-in buttons', () => {
@@ -402,6 +413,30 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     );
     expect(marks).toHaveLength(3);
     expect(marks[2].payload).toMatchObject({ status: 'sent' });
+  });
+
+  it('skips a visitor an agent has written to since the batch was read', async () => {
+    h.conversation = { last_customer_message_at: null };
+    h.conversationId = 'conv-1';
+    const { db, queries } = fakeDb({
+      candidates: [candidate],
+      tables: baseTables({
+        messages: [
+          {
+            id: 'm1',
+            account_id: ACCOUNT,
+            conversation_id: 'conv-1',
+            sender_type: 'agent',
+          },
+        ],
+      }),
+    });
+    await processShowcaseViewNudges(db);
+    expect(h.send).not.toHaveBeenCalled();
+    expect(nudgeUpdate(queries)).toEqual({
+      status: 'skipped',
+      skip_reason: 'agent_in_touch',
+    });
   });
 
   it('skips a visitor who has written in since the view', async () => {
@@ -603,6 +638,16 @@ describe('[PLS-007] answers to the showcase view check-in', () => {
     const sent = fakeDb({ tables: openNudge() });
     expect(await reply(sent.db, 'n')).toBe(true);
     expect(responseRecorded(sent.queries)).toBe(true);
+  });
+
+  it('answers a visit or call-back tap on a listing that has since sold with its status, promising nothing', async () => {
+    const tables = openNudge();
+    tables.properties[0].status = 'Sold';
+    const { db, queries } = fakeDb({ tables });
+    expect(await reply(db, 'v')).toBe(true);
+    expect(h.send.mock.calls[0][0].text).toBe('Sorry, this one has been sold.');
+    expect(queries.some((q) => q.table === 'todos')).toBe(false);
+    expect(h.notify).not.toHaveBeenCalled();
   });
 
   it('ignores a tap naming a property outside the account', async () => {

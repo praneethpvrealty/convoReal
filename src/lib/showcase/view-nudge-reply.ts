@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
 import { createNotification } from '@/lib/notifications/create';
 import { resolveAssignedAgent } from '@/lib/voice/assigned-agent';
 import { handleListingFeedbackReply } from '@/lib/whatsapp/listing-feedback';
@@ -67,7 +68,7 @@ export async function handleViewNudgeReply(args: {
 
   const { data: property } = await db
     .from('properties')
-    .select('id, title, user_id')
+    .select('id, title, user_id, status')
     .eq('id', propertyId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -104,6 +105,30 @@ export async function handleViewNudgeReply(args: {
     });
     if (handled) await recordResponse();
     return handled;
+  }
+
+  if (property.status !== 'Available') {
+    const unavailable = await unavailableListingReplyWithShowcase({
+      db,
+      accountId,
+      contactId: contact.id,
+      contactName: contact.name,
+      propertyTitle: property.title as string | null,
+      status: property.status as string | null,
+    });
+    if (unavailable) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contact.id,
+        conversationId,
+        kind: 'text',
+        senderType: 'bot',
+        text: unavailable,
+        customDbClient: db,
+      });
+      return true;
+    }
   }
 
   const propertyTitle = (property.title as string | null) || 'this property';
