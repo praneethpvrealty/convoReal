@@ -7,6 +7,7 @@ import {
   isBuyerRequirementMessage,
   standsDownFromQualification,
   LEAD_ROUTE_EXPLANATIONS,
+  carriesRequirementBrief,
 } from './lead-routing';
 
 // The router is the one place that says which handler owns a lead's
@@ -253,9 +254,19 @@ describe('[INB-034] a correction that names a shared listing by a figure', () =>
     expect(isBuyerRequirementMessage('No this 40,000 sqft one')).toBe(false);
   });
 
+  it('routes a correction that names the listing by a word of its own', () => {
+    expect(routeLeadMessage('No, the Chikatogur one')).toBe(
+      'shortlist_reference'
+    );
+  });
+
   it('keeps a stated size or budget with the ladder', () => {
     expect(routeLeadMessage('I want a 2400 sqft plot')).toBe('qualification');
     expect(isBuyerRequirementMessage('I want a 2400 sqft plot')).toBe(true);
+    expect(routeLeadMessage('I want one 2400 sqft plot')).toBe('qualification');
+    expect(isBuyerRequirementMessage('I want one 2400 sqft plot')).toBe(true);
+    expect(carriesRequirementBrief('I want one 2400 sqft plot')).toBe(true);
+    expect(carriesRequirementBrief("don't like this 3 bhk one")).toBe(false);
     expect(routeLeadMessage('looking for 3 bhk under 2 cr')).toBe(
       'qualification'
     );

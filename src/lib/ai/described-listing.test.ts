@@ -56,10 +56,22 @@ describe('referencesSharedListing', () => {
       false
     );
     expect(referencesSharedListing('budget 2 cr')).toBe(false);
+    expect(referencesSharedListing('I want one 2400 sqft plot')).toBe(false);
+    expect(referencesSharedListing('one 3 bhk flat in Whitefield')).toBe(false);
   });
 
-  it('[INB-034] needs a figure, not just a demonstrative', () => {
+  it('[INB-034] reads a listing pointed at by a word of its own', () => {
+    expect(referencesSharedListing('No, the Chikatogur one')).toBe(true);
+    expect(referencesSharedListing('I meant that Whitefield one')).toBe(true);
+    expect(referencesSharedListing('looking for this kind of house')).toBe(
+      false
+    );
+  });
+
+  it('[INB-034] needs a figure or a describing word, not just a demonstrative', () => {
     expect(referencesSharedListing('this one')).toBe(false);
+    expect(referencesSharedListing('the other one')).toBe(false);
+    expect(referencesSharedListing('the first one')).toBe(false);
     expect(referencesSharedListing('Location is here')).toBe(false);
     expect(referencesSharedListing('')).toBe(false);
     expect(referencesSharedListing(null)).toBe(false);
@@ -106,10 +118,51 @@ describe('describedListingAmong', () => {
     expect(describedListingAmong('No this 40,000 sqft one', [])).toBeNull();
   });
 
-  it('[INB-034] does not let a figure that fits nothing fall through to a loose word match', () => {
-    expect(describedListingAmong('the 9000 sqft Chikatogur one', shared)).toBe(
+  it('[INB-034] names nothing when the figure fits no listing, however well a word fits', () => {
+    expect(
+      describedListingAmong('the 9000 sqft Chikatogur one', shared)
+    ).toBeNull();
+    expect(describedListingAmong('the 9000 sqft one', shared)).toBeNull();
+  });
+
+  it('[INB-034] compares land area across every stored unit', () => {
+    const farm = {
+      ...FLAT,
+      id: 'prop-farm',
+      title: 'Farm Land near Doddaballapur',
+      location: 'Doddaballapur',
+      project: null,
+      bedrooms: null,
+      area_sqft: null,
+      land_area: '40',
+      land_area_unit: 'Gunta',
+    };
+    const grounds = {
+      ...farm,
+      id: 'prop-ground',
+      title: 'Corner Site in Anekal',
+      location: 'Anekal',
+      land_area: '2',
+      land_area_unit: 'Ground',
+    };
+    const candidates = [...shared, farm, grounds];
+    expect(describedListingAmong('the 1 acre one', candidates)).toBe(
+      'prop-farm'
+    );
+    expect(describedListingAmong('the 40 guntas one', candidates)).toBe(
+      'prop-farm'
+    );
+    expect(describedListingAmong('the 100 cents one', candidates)).toBe(
+      'prop-farm'
+    );
+    expect(describedListingAmong('the 4800 sqft one', candidates)).toBe(
+      'prop-ground'
+    );
+    expect(describedListingAmong('the 2 grounds one', candidates)).toBe(
+      'prop-ground'
+    );
+    expect(describedListingAmong('the 3716 sq.m. one', candidates)).toBe(
       'prop-1784'
     );
-    expect(describedListingAmong('the 9000 sqft one', shared)).toBeNull();
   });
 });

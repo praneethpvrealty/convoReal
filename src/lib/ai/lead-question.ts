@@ -35,7 +35,10 @@ import {
   type ReconcilableProperty,
 } from '@/lib/portals/listing-reconcile';
 import {
-  resolveSubjectProperties,
+  decideSubjects,
+  loadSubjectThread,
+  quotesListing,
+  shareEvents,
   type InboundSubjectContext,
 } from '@/lib/learning/subject';
 import {
@@ -482,22 +485,17 @@ const DESCRIBED_LOOKBACK_SHARES = 6;
 /**
  * The listing among the buyer's recent shares that their words describe
  * — "the 40,000 sqft one", "the Chikatogur plot" — or null when they
- * describe none, or more than one, of them.
+ * describe none, or more than one, of them. The shares are read from
+ * the thread, not the ledger alone: a re-share does not bump its ledger
+ * row, so the ledger's newest rows can miss the card sent a minute ago.
  */
 async function describedSubject(
   db: SupabaseClient,
   accountId: string,
-  contactId: string,
+  recentPropertyIds: string[],
   text: string
 ): Promise<string | null> {
-  const { data: shares } = await db
-    .from('property_shares')
-    .select('property_id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .order('created_at', { ascending: false })
-    .limit(DESCRIBED_LOOKBACK_SHARES);
-  const ids = [...new Set((shares ?? []).map((s) => s.property_id as string))];
+  const ids = recentPropertyIds.slice(0, DESCRIBED_LOOKBACK_SHARES);
   if (ids.length === 0) return null;
 
   const { data: candidates } = await db
@@ -518,10 +516,11 @@ async function describedSubject(
  *
  * Numbers the buyer used win, because they are the most explicit thing
  * anyone in the thread has said about which listing is meant — the bot
- * numbered the shortlist and invited exactly this. A description comes
- * next: a buyer who says "the 40,000 sqft one" has named a listing as
- * surely as by number. Failing both it is the shared subject resolver:
- * the message the buyer quoted, a listing they just enquired about, an
+ * numbered the shortlist and invited exactly this. A quoted share comes
+ * next: swiping to reply on a card is pointing at it, whatever the
+ * words say. Then a description: a buyer who says "the 40,000 sqft one"
+ * has named a listing as surely as by number. Failing all three it is
+ * the shared subject resolver: a listing they just enquired about, an
  * agent's pitch, then the share ledger — every listing of a batch when
  * two were sent back to back, each answered under its title.
  *
@@ -549,28 +548,28 @@ export async function questionSubjectProperties(
     if (numbered.length > 0) return loadSubjects(db, accountId, numbered);
   }
 
-  if (questionText) {
-    const described = await describedSubject(
-      db,
-      accountId,
-      contactId,
-      questionText
-    );
-    if (described) return loadSubjects(db, accountId, [described]);
-  }
-
-  const propertyIds = await resolveSubjectProperties(
+  const thread = await loadSubjectThread(
     db,
     accountId,
     contactId,
     conversationId,
     inbound
   );
+  if (!thread) return [];
+
+  if (questionText && !quotesListing(thread)) {
+    const described = await describedSubject(
+      db,
+      accountId,
+      shareEvents(thread).map((event) => event.propertyId),
+      questionText
+    );
+    if (described) return loadSubjects(db, accountId, [described]);
+  }
+
+  const propertyIds = decideSubjects(thread);
   return propertyIds.length > 0 ? loadSubjects(db, accountId, propertyIds) : [];
 }
-
-/** Customer messages read back for the question a correction answers. */
-const PREVIOUS_QUESTION_LOOKBACK = 6;
 
 /**
  * The question a buyer asked just before pointing at a listing.
@@ -578,8 +577,11 @@ const PREVIOUS_QUESTION_LOOKBACK = 6;
  * "Can u share the exact location?" answered from the wrong card, then
  * "No this 40,000 sqft one": the second message names the listing and
  * the first carries the question, and the buyer expects the two read
- * together. Null when nothing recent reads as a question, and the
- * current message is skipped whether or not it has been persisted yet.
+ * together. Only the message immediately before counts — a pointer sent
+ * an hour after "ok" must not resurrect a question from earlier in the
+ * thread — so this is null when that message is not a question, and
+ * the current message is skipped whether or not it has been persisted
+ * yet.
  */
 export async function previousLeadQuestion(
   db: SupabaseClient,
@@ -593,22 +595,18 @@ export async function previousLeadQuestion(
     .eq('sender_type', 'customer')
     .not('content_text', 'is', null)
     .order('created_at', { ascending: false })
-    .limit(PREVIOUS_QUESTION_LOOKBACK);
+    .limit(2);
 
   const texts = (data ?? []).map((row) =>
     ((row.content_text as string) || '').trim()
   );
-  const start = texts[0] === currentText.trim() ? 1 : 0;
-  return (
-    texts
-      .slice(start)
-      .find(
-        (text) =>
-          looksLikeQuestion(text) &&
-          !requestsHumanContact(text) &&
-          parseOrdinalReferences(text).length === 0
-      ) ?? null
-  );
+  const previous = texts[texts[0] === currentText.trim() ? 1 : 0];
+  if (!previous) return null;
+  return looksLikeQuestion(previous) &&
+    !requestsHumanContact(previous) &&
+    parseOrdinalReferences(previous).length === 0
+    ? previous
+    : null;
 }
 
 /** The single listing a question is about, for callers that answer one. */

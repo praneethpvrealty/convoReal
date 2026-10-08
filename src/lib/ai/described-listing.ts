@@ -11,6 +11,8 @@
 // and only ever names one.
 // ============================================================
 
+import { SQFT_PER_AREA_UNIT } from '@/lib/inventory/property-options';
+
 export interface DescribedCandidate {
   id: string;
   title?: string | null;
@@ -26,16 +28,23 @@ export interface DescribedCandidate {
 }
 
 type Measure =
-  | { kind: 'sqft'; value: number }
-  | { kind: 'acre'; value: number }
+  | { kind: 'area'; value: number }
   | { kind: 'price'; value: number }
   | { kind: 'bhk'; value: number };
 
 const MEASURE =
-  /(\d[\d,]*(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet)|sqft|sft|sq\.?\s*(?:yds?|yards?)|sqyds?|acres?|guntas?|gunthas?|cents?|cr|crores?|lakhs?|lacs?|bhk)\b/gi;
+  /(\d[\d,]*(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet)|sqft|sft|sq\.?\s*(?:yds?|yards?)|sqyds?|sq\.?\s*(?:m|mt|mtrs?|meters?|metres?)|sqm|acres?|guntas?|gunthas?|cents?|grounds?|cr|crores?|lakhs?|lacs?|bhk)\b/gi;
 
+/** "this", "that one", "the other one": the buyer is pointing back.
+ *  A bare "one" is a quantity ("I want one 2400 sqft plot"), so it
+ *  counts only after "the", as in "the 40,000 sqft one". */
 const REFERENCE_MARKER =
-  /\b(this|that|these|those|one|other|same|above|earlier|previous|former|latter|meant)\b/i;
+  /\b(this|that|these|those|other|same|above|earlier|previous|former|latter|meant)\b|\bthe\s+(?:\S+\s+){1,4}one\b/i;
+
+/** "the Chikatogur one", "that Kothnur one": a listing pointed at by a
+ *  word of its own rather than a figure. Only "one" closes it — "this
+ *  kind of house" is a requirement, not a pointer. */
+const DESCRIBED_POINTER = /\b(?:the|this|that)\s+((?:\S+\s+){1,3})one\b/i;
 
 const RELATIVE_TOLERANCE = 0.01;
 
@@ -87,6 +96,21 @@ const STOPWORDS = new Set([
   'interested',
   'option',
   'options',
+  'first',
+  'second',
+  'third',
+  'last',
+  'next',
+  'previous',
+  'earlier',
+  'above',
+  'latest',
+  'cheaper',
+  'bigger',
+  'smaller',
+  'larger',
+  'nearer',
+  'closer',
   'bengaluru',
   'bangalore',
   'karnataka',
@@ -104,15 +128,15 @@ function parseMeasures(text: string): Measure[] {
     const value = Number(match[1].replace(/,/g, ''));
     if (!Number.isFinite(value) || value <= 0) continue;
     const unit = match[2].toLowerCase().replace(/[.\s]/g, '');
-    if (/^(sqft|sqfeet|sft)$/.test(unit))
-      measures.push({ kind: 'sqft', value });
-    else if (/^sqy/.test(unit))
-      measures.push({ kind: 'sqft', value: value * 9 });
-    else if (/^acre/.test(unit)) measures.push({ kind: 'acre', value });
-    else if (/^gunt/.test(unit))
-      measures.push({ kind: 'acre', value: value / 40 });
-    else if (/^cent/.test(unit))
-      measures.push({ kind: 'acre', value: value / 100 });
+    const area = (sqftPerUnit: number) =>
+      measures.push({ kind: 'area', value: value * sqftPerUnit });
+    if (/^(sqft|sqfeet|sft)$/.test(unit)) area(1);
+    else if (/^sqy/.test(unit)) area(9);
+    else if (/^sqm/.test(unit)) area(SQFT_PER_AREA_UNIT['Sq.Mtr.']);
+    else if (/^acre/.test(unit)) area(SQFT_PER_AREA_UNIT.Acre);
+    else if (/^gunt/.test(unit)) area(SQFT_PER_AREA_UNIT.Gunta);
+    else if (/^cent/.test(unit)) area(SQFT_PER_AREA_UNIT.Cent);
+    else if (/^ground/.test(unit)) area(SQFT_PER_AREA_UNIT.Ground);
     else if (/^cr/.test(unit))
       measures.push({ kind: 'price', value: value * 1e7 });
     else if (/^la/.test(unit))
@@ -126,27 +150,29 @@ function close(a: number, b: number): boolean {
   return Math.abs(a - b) <= Math.max(a, b) * RELATIVE_TOLERANCE;
 }
 
-function landAreaIn(candidate: DescribedCandidate, kind: 'sqft' | 'acre') {
+/** Stored land area in square feet, whichever unit the lister chose. */
+function landAreaSqft(candidate: DescribedCandidate): number | null {
   const land = toNumber(candidate.land_area);
   if (land === null) return null;
-  const unit = (candidate.land_area_unit || '').toLowerCase();
-  const inAcres = /acre/.test(unit);
-  if (kind === 'acre') return inAcres ? land : null;
-  return inAcres || /yd|yard|gunta|cent|ground/.test(unit) ? null : land;
+  const unit = (candidate.land_area_unit || 'Sq.Ft.')
+    .toLowerCase()
+    .replace(/[^a-z]/g, '');
+  const factor = Object.entries(SQFT_PER_AREA_UNIT).find(
+    ([name]) => name.toLowerCase().replace(/[^a-z]/g, '') === unit
+  )?.[1];
+  if (factor !== undefined) return land * factor;
+  if (/yd|yard/.test(unit)) return land * 9;
+  return null;
 }
 
 function satisfies(candidate: DescribedCandidate, measure: Measure): boolean {
   switch (measure.kind) {
-    case 'sqft':
+    case 'area':
       return [
-        landAreaIn(candidate, 'sqft'),
+        landAreaSqft(candidate),
         toNumber(candidate.area_sqft),
         toNumber(candidate.super_built_area),
       ].some((area) => area !== null && close(area, measure.value));
-    case 'acre': {
-      const land = landAreaIn(candidate, 'acre');
-      return land !== null && close(land, measure.value);
-    }
     case 'price': {
       const price = toNumber(candidate.price);
       return price !== null && close(price, measure.value);
@@ -190,9 +216,10 @@ function soleWinner<T extends { id: string }>(
 
 /**
  * True when the message points at a listing by a figure — "this 40,000
- * sqft one", "the 16 Cr plot", "that 3 BHK". The figure on its own is
- * a requirement ("I want 2400 sqft"); the demonstrative is what makes
- * it a reference to something already in the thread.
+ * sqft one", "the 16 Cr plot", "that 3 BHK" — or by a word of its own,
+ * "No, the Chikatogur one". The figure on its own is a requirement ("I
+ * want 2400 sqft", "I want one 2400 sqft plot"); the demonstrative is
+ * what makes it a reference to something already in the thread.
  */
 export function referencesSharedListing(
   text: string | null | undefined
@@ -201,16 +228,20 @@ export function referencesSharedListing(
   if (!value) return false;
   if (!REFERENCE_MARKER.test(value)) return false;
   MEASURE.lastIndex = 0;
-  return MEASURE.test(value);
+  if (MEASURE.test(value)) return true;
+  const pointer = DESCRIBED_POINTER.exec(value);
+  return !!pointer && tokens(pointer[1]).length > 0;
 }
 
 /**
  * The one listing among the candidates that the text describes, or
  * null. A figure the buyer names (area, price, bedrooms) decides when
- * exactly one listing carries it; failing that, a word from the title
- * or locality that only one listing carries. Two listings that both
- * fit, or none that does, name nothing — the caller falls back to the
- * thread's own subject rather than guessing.
+ * exactly one listing carries it, and a figure none of them carries
+ * names nothing however well a word fits — "the 9000 sqft Chikatogur
+ * one" is not the 40,000 sqft Chikatogur plot. Without a figure, a word
+ * from the title or locality that only one listing carries decides. Two
+ * listings that both fit, or none that does, name nothing — the caller
+ * falls back to the thread's own subject rather than guessing.
  */
 export function describedListingAmong(
   text: string | null | undefined,
@@ -221,13 +252,12 @@ export function describedListingAmong(
 
   const measures = parseMeasures(value);
   if (measures.length > 0) {
-    const byFigure = soleWinner(
+    return soleWinner(
       candidates.map((candidate) => ({
         candidate,
         score: measures.filter((m) => satisfies(candidate, m)).length,
       }))
     );
-    if (byFigure) return byFigure;
   }
 
   const words = tokens(value);

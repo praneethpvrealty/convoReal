@@ -280,7 +280,7 @@ export function decideSubjects(args: SubjectThread): string[] {
 }
 
 function decide(args: SubjectThread): SubjectDecision {
-  const { messages, shares, candidates } = args;
+  const { messages, candidates } = args;
   const one = (propertyId: string): SubjectDecision => ({
     kind: 'one',
     propertyId,
@@ -293,22 +293,7 @@ function decide(args: SubjectThread): SubjectDecision {
     if (quoted.length > 1) return none;
   }
 
-  const sharedAt = new Map<string, number>();
-  const noteShare = (propertyId: string, at: number) => {
-    if (!Number.isFinite(at)) return;
-    if (at > (sharedAt.get(propertyId) ?? Number.NEGATIVE_INFINITY)) {
-      sharedAt.set(propertyId, at);
-    }
-  };
-  for (const share of shares) noteShare(share.propertyId, Date.parse(share.at));
-  for (const message of messages) {
-    if (message.sender === 'customer') continue;
-    const named = listingsReferencedIn(message.text, candidates);
-    if (named.length === 1) noteShare(named[0], Date.parse(message.at));
-  }
-  const events = [...sharedAt.entries()]
-    .map(([propertyId, at]) => ({ propertyId, at }))
-    .sort((a, b) => b.at - a.at);
+  const events = shareEvents(args);
 
   const latest = events[0] ?? null;
   const sharedId = latest?.propertyId ?? null;
@@ -332,30 +317,78 @@ function decide(args: SubjectThread): SubjectDecision {
     if (propertiesNamedIn(message.text, available).length > 0) break;
   }
 
-  const burst = shareBurst(events);
-  if (burst.length > 1) {
-    const buyerSpokeSince = messages.some(
+  const buyerSpokeAt = messages
+    .filter(
       (message) =>
         message.sender === 'customer' &&
-        Date.parse(message.at) > latestAt &&
         (!args.currentMessageId || message.messageId !== args.currentMessageId)
-    );
-    if (!buyerSpokeSince) return { kind: 'burst', propertyIds: burst };
+    )
+    .map((message) => Date.parse(message.at))
+    .filter((at) => Number.isFinite(at));
+  if (buyerSpokeAt.every((at) => at <= latestAt)) {
+    const burst = shareBurst(events, buyerSpokeAt);
+    if (burst.length > 1) return { kind: 'burst', propertyIds: burst };
   }
 
   return sharedId ? one(sharedId) : none;
 }
 
+export interface ShareEvent {
+  propertyId: string;
+  at: number;
+}
+
+/**
+ * When each listing was really last shared, newest first. The ledger
+ * row is a floor: a re-share does not bump it, so every outbound
+ * message naming exactly one listing counts as sharing it then.
+ */
+export function shareEvents(args: SubjectThread): ShareEvent[] {
+  const sharedAt = new Map<string, number>();
+  const noteShare = (propertyId: string, at: number) => {
+    if (!Number.isFinite(at)) return;
+    if (at > (sharedAt.get(propertyId) ?? Number.NEGATIVE_INFINITY)) {
+      sharedAt.set(propertyId, at);
+    }
+  };
+  for (const share of args.shares)
+    noteShare(share.propertyId, Date.parse(share.at));
+  for (const message of args.messages) {
+    if (message.sender === 'customer') continue;
+    const named = listingsReferencedIn(message.text, args.candidates);
+    if (named.length === 1) noteShare(named[0], Date.parse(message.at));
+  }
+  return [...sharedAt.entries()]
+    .map(([propertyId, at]) => ({ propertyId, at }))
+    .sort((a, b) => b.at - a.at);
+}
+
+/** True when the buyer swiped to reply on a message that names a
+ *  listing: that quote outranks anything else they say. */
+export function quotesListing(args: SubjectThread): boolean {
+  return (
+    !!args.quotedText &&
+    listingsReferencedIn(args.quotedText, args.candidates).length > 0
+  );
+}
+
 /**
  * The listings sent as one batch, newest first: each share within the
- * burst window of the one sent after it, capped at the subjects one
- * reply can carry. Events are newest first.
+ * burst window of the one sent after it, with no word from the buyer
+ * between the two, capped at the subjects one reply can carry. Events
+ * are newest first.
  */
-export function shareBurst(events: { propertyId: string; at: number }[]) {
+export function shareBurst(
+  events: ShareEvent[],
+  buyerSpokeAt: number[] = []
+): string[] {
   const burst: string[] = [];
   for (const event of events) {
     const previous = burst.length > 0 ? events[burst.length - 1] : null;
-    if (previous && previous.at - event.at > SHARE_BURST_WINDOW_MS) break;
+    if (previous) {
+      if (previous.at - event.at > SHARE_BURST_WINDOW_MS) break;
+      if (buyerSpokeAt.some((at) => at > event.at && at <= previous.at)) break;
+    }
     burst.push(event.propertyId);
     if (burst.length >= MAX_REFERENCED_SUBJECTS) break;
   }
@@ -427,7 +460,7 @@ export async function resolveSubjectProperties(
   return thread ? decideSubjects(thread) : [];
 }
 
-async function loadSubjectThread(
+export async function loadSubjectThread(
   db: SupabaseClient,
   accountId: string,
   contactId: string,

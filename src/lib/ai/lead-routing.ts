@@ -102,23 +102,34 @@ export function routeLeadMessage(text?: string | null): LeadRoute {
   // correction went unanswered. A message pointing at a shared listing
   // carries no requirement by construction, whatever figure it quotes.
   const pointsAtShare = referencesSharedListing(value);
-  const hasRequirement = !pointsAtShare && carriesRequirementSignal(value);
+  const hasRequirement = carriesRequirementBrief(value);
   if (isPropertyDisinterest(value) && !hasRequirement)
     return 'property_disinterest';
   if (requestsPropertyPhotos(value) && !hasRequirement) return 'photo_request';
-  if (
-    (pointsAtShare || parseOrdinalReferences(value).length > 0) &&
-    !hasRequirement
-  ) {
+  if (parseOrdinalReferences(value).length > 0 && !hasRequirement) {
     return 'shortlist_reference';
   }
   // A question about the listing in the thread carries no requirement
   // by definition (asksAboutSharedListing is what made hasRequirement
   // false), and the ladder has nothing to file from it: it belongs to
-  // the listing Q&A, which is what answers it live.
+  // the listing Q&A, which is what answers it live. It comes before the
+  // pointer below because "is it this pink house?" is a question first.
   if (asksAboutSharedListing(value)) return 'listing_question';
+  if (pointsAtShare && !hasRequirement) return 'shortlist_reference';
 
   return 'qualification';
+}
+
+/**
+ * True when the message states a requirement the ladder can file. A
+ * message pointing at a shared listing states none, whatever figure it
+ * quotes; the live disinterest branch and the router read it the same
+ * way so a rejection by size ("don't like this 3 bhk one") is recorded
+ * rather than filed as a brief.
+ */
+export function carriesRequirementBrief(text?: string | null): boolean {
+  const value = (text || '').trim();
+  return !referencesSharedListing(value) && carriesRequirementSignal(value);
 }
 
 /** True when the ladder must stand down and let another handler reply.

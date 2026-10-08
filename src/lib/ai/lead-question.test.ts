@@ -850,17 +850,32 @@ describe('[INB-034] previousLeadQuestion', () => {
     ).toBe('Can u share the exact location?');
   });
 
-  it('skips a callback request and a bare option number on the way back', async () => {
+  it('reads only the message immediately before, so an old question is not resurrected', async () => {
     const db = fakeDb({
       messages: [
-        { content_text: 'please call me' },
-        { content_text: '2' },
+        { content_text: 'the 16 cr one' },
+        { content_text: 'ok' },
         { content_text: 'What is the price?' },
       ],
     });
-    expect(await previousLeadQuestion(db, 'conv', 'the 16 cr one')).toBe(
-      'What is the price?'
-    );
+    expect(await previousLeadQuestion(db, 'conv', 'the 16 cr one')).toBeNull();
+  });
+
+  it('does not answer a callback request or a bare option number as the question', async () => {
+    expect(
+      await previousLeadQuestion(
+        fakeDb({ messages: [{ content_text: 'please call me' }] }),
+        'conv',
+        'the 16 cr one'
+      )
+    ).toBeNull();
+    expect(
+      await previousLeadQuestion(
+        fakeDb({ messages: [{ content_text: '2' }] }),
+        'conv',
+        'the 16 cr one'
+      )
+    ).toBeNull();
   });
 
   it('is null when nothing recent reads as a question', async () => {
@@ -868,5 +883,8 @@ describe('[INB-034] previousLeadQuestion', () => {
       messages: [{ content_text: 'This one' }, { content_text: 'ok' }],
     });
     expect(await previousLeadQuestion(db, 'conv', 'This one')).toBeNull();
+    expect(
+      await previousLeadQuestion(fakeDb({}), 'conv', 'This one')
+    ).toBeNull();
   });
 });

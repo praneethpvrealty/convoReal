@@ -646,6 +646,18 @@ describe('[INB-034] shareBurst', () => {
     ).toEqual(['prop-2080']);
   });
 
+  it('ends a batch where the buyer spoke between two cards', () => {
+    expect(
+      shareBurst(
+        [
+          at('2026-10-07T15:02:34Z', 'prop-2080'),
+          at('2026-10-07T15:01:46Z', 'prop-1784'),
+        ],
+        [Date.parse('2026-10-07T15:02:00Z')]
+      )
+    ).toEqual(['prop-2080']);
+  });
+
   it('caps a batch at the subjects one reply is answered about', () => {
     expect(
       shareBurst([
@@ -709,6 +721,22 @@ describe('[INB-034] decideSubjects answers a question after two cards for both',
     ]);
     args.candidates = [...LISTINGS, { ...OVAL_REEF, status: 'Available' }];
     expect(decideSubjects(args)).toEqual(['prop-oval']);
+  });
+
+  it('is the latest share alone when the buyer replied between the two cards', () => {
+    const args = burst();
+    args.messages = thread([
+      ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
+      ['2026-10-07T15:02:00Z', 'customer', 'okay', 'wamid.ok'],
+      ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
+      [
+        '2026-10-07T15:20:00Z',
+        'customer',
+        'Can u share the exact location?',
+        'wamid.q2',
+      ],
+    ]);
+    expect(decideSubjects(args)).toEqual(['prop-2080']);
   });
 
   it('is the latest share alone once the buyer has spoken since the burst', () => {
@@ -797,6 +825,54 @@ describe('[INB-034] resolveSubjectProperties reads the burst from the thread', (
       'prop-2080',
       'prop-1784',
     ]);
+  });
+
+  it('lets a quoted share beat a description that fits another card', async () => {
+    const db = memorySupabase(tables()) as unknown as SupabaseClient;
+    const subjects = await questionSubjectProperties(
+      db,
+      'acc',
+      'c1',
+      'conv',
+      'is the 5,760 sqft one still available?',
+      { messageId: 'wamid.q2', quotedMessageId: 'wamid.share1784' }
+    );
+    expect(subjects.map((subject) => subject.id)).toEqual(['prop-1784']);
+  });
+
+  it('reads the described card from the thread when its ledger row is old', async () => {
+    const data = tables();
+    data.property_shares = [
+      {
+        account_id: 'acc',
+        contact_id: 'c1',
+        property_id: 'prop-1784',
+        created_at: '2026-09-01T09:00:00Z',
+      },
+      ...['prop-1004', 'prop-1110', 'prop-1081', 'prop-2080'].map(
+        (property_id, i) => ({
+          account_id: 'acc',
+          contact_id: 'c1',
+          property_id,
+          created_at: `2026-10-07T15:0${i}:00Z`,
+        })
+      ),
+    ];
+    data.properties = data.properties.map((row) =>
+      row.id === 'prop-1784'
+        ? { ...row, land_area: '40000', land_area_unit: 'Sq.Ft.' }
+        : row
+    );
+    const db = memorySupabase(data) as unknown as SupabaseClient;
+    const subjects = await questionSubjectProperties(
+      db,
+      'acc',
+      'c1',
+      'conv',
+      'No this 40,000 sqft one',
+      { messageId: 'wamid.q2' }
+    );
+    expect(subjects.map((subject) => subject.id)).toEqual(['prop-1784']);
   });
 
   it('is the latest share alone when there is no thread to read', async () => {
