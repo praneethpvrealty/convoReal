@@ -25,16 +25,6 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { InboundChainContext, StepResult } from '../context';
 
-/**
- * What the lead hears while an agent who replied within the last 24
- * hours is handling the thread. That agent is the person a handover
- * line would promise, so repeating "let me check with the team" over
- * them only tells the lead a machine is talking: every handover is
- * dropped, every concrete answer still goes out (each under its
- * listing's title when the question covered several), and null means
- * there is nothing left to say. The agent is still summoned for the
- * dropped part.
- */
 export function withoutHandovers(
   answers: LeadAnswer[],
   subjects: { title?: string | null }[]
@@ -45,9 +35,6 @@ export function withoutHandovers(
   if (kept.length === 0) return null;
   if (kept.length === answers.length)
     return mergeLeadAnswers(answers, subjects);
-  // Once one listing's answer is withheld, every answer that remains
-  // must name its listing, even when two read the same — otherwise
-  // "It is East facing." reads as true of the one left unanswered.
   const merged = mergeLeadAnswers(
     kept.map((k) => k.answer),
     kept.map((k) => k.subject)
