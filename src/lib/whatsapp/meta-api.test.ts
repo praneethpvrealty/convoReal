@@ -548,6 +548,25 @@ describe('[PRP-043] syncProductToCatalog — confirms the item reached the catal
     ).rejects.toThrow('PROP-1111 is not in catalog c1');
   });
 
+  it('never calls an unfinished batch synced when the product is absent', async () => {
+    vi.useFakeTimers();
+    try {
+      stubMeta({ data: [{ status: 'started', errors: [] }] }, { data: [] });
+      const sync = syncProductToCatalog({
+        catalogId: 'c1',
+        accessToken: 't',
+        property,
+      });
+      const settled = expect(sync).rejects.toThrow(
+        'Meta is still processing PROP-1111'
+      );
+      await vi.runAllTimersAsync();
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('succeeds once the product is in the catalog', async () => {
     const fetchMock = stubMeta(
       { data: [{ status: 'finished', errors: [] }] },

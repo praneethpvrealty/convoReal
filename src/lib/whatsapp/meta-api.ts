@@ -1862,6 +1862,7 @@ async function confirmCatalogProduct({
   handles: string[];
 }): Promise<void> {
   const headers = { Authorization: `Bearer ${accessToken}` };
+  let allFinished = true;
   for (const handle of handles) {
     let finished = false;
     for (let attempt = 0; attempt < CATALOG_BATCH_POLLS; attempt++) {
@@ -1869,7 +1870,7 @@ async function confirmCatalogProduct({
         `${META_API_BASE}/${catalogId}/check_batch_request_status?handle=${encodeURIComponent(handle)}`,
         { headers }
       );
-      if (!res.ok) return;
+      if (!res.ok) break;
       const json = (await res.json().catch(() => ({}))) as {
         data?: CatalogBatchStatus[];
       };
@@ -1888,20 +1889,31 @@ async function confirmCatalogProduct({
         setTimeout(resolve, CATALOG_BATCH_POLL_MS)
       );
     }
-    if (!finished) return;
+    if (!finished) {
+      allFinished = false;
+      break;
+    }
   }
+  const stillProcessing = `Meta is still processing ${retailerId} in catalog ${catalogId}. Sync again in a minute.`;
 
   const filter = JSON.stringify({ retailer_id: { eq: retailerId } });
   const res = await fetch(
     `${META_API_BASE}/${catalogId}/products?fields=id,retailer_id&filter=${encodeURIComponent(filter)}`,
     { headers }
   );
-  if (!res.ok) return;
+  if (!res.ok) {
+    if (allFinished) return;
+    throw new Error(stillProcessing);
+  }
   const json = (await res.json().catch(() => ({}))) as {
     data?: Array<{ retailer_id?: string }>;
   };
-  if (!Array.isArray(json.data)) return;
+  if (!Array.isArray(json.data)) {
+    if (allFinished) return;
+    throw new Error(stillProcessing);
+  }
   if (!json.data.some((p) => p.retailer_id === retailerId)) {
+    if (!allFinished) throw new Error(stillProcessing);
     throw new Error(
       `Meta accepted the sync but ${retailerId} is not in catalog ${catalogId}. Check that this catalog is the one connected to your WhatsApp Business Account in Commerce Manager.`
     );

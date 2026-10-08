@@ -17,6 +17,7 @@ import { SectionLabel } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import {
   fetchCatalogShareContext,
+  type CatalogShareContext,
   sendCatalogProduct,
   syncPropertyToCatalog,
 } from '@/lib/catalog-product-share';
@@ -75,6 +76,7 @@ export function CatalogProductShare({
 
   if (!data?.catalogId) return null;
   const catalogId = data.catalogId;
+  const currency = data.currency;
 
   function notify(title: string, message?: string) {
     setDialog({
@@ -92,20 +94,16 @@ export function CatalogProductShare({
     haptic.tap();
     try {
       const syncedAt = await syncPropertyToCatalog(property.id);
-      queryClient.setQueryData(queryKey, {
-        catalogId,
-        syncedAt,
-        error: null,
-      });
+      queryClient.setQueryData<CatalogShareContext>(queryKey, (prev) =>
+        prev ? { ...prev, syncedAt, error: null } : prev
+      );
       setNow(Date.now());
       haptic.success();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sync failed';
-      queryClient.setQueryData(queryKey, {
-        catalogId,
-        syncedAt: null,
-        error: message,
-      });
+      queryClient.setQueryData<CatalogShareContext>(queryKey, (prev) =>
+        prev ? { ...prev, syncedAt: null, error: message } : prev
+      );
       haptic.warn();
       notify('Could not sync to catalog', message);
     } finally {
@@ -120,6 +118,7 @@ export function CatalogProductShare({
     try {
       const { sent, failed } = await sendCatalogProduct(
         catalogId,
+        currency,
         property,
         contacts
       );

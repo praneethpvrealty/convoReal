@@ -1068,13 +1068,18 @@ export async function POST(request: Request) {
       );
     }
 
-    autoSyncPropertyCatalogIfNeeded(
-      ctx.supabase,
-      finalData.id,
-      ctx.accountId
-    ).catch((err) => {
-      console.error('[POST /api/properties] Auto-sync background error:', err);
-    });
+    after(() =>
+      autoSyncPropertyCatalogIfNeeded(
+        ctx.supabase,
+        finalData.id,
+        ctx.accountId
+      ).catch((err) => {
+        console.error(
+          '[POST /api/properties] Auto-sync background error:',
+          err
+        );
+      })
+    );
 
     // Keep the response fast while ensuring the match-and-alert work is
     // allowed to finish after this serverless request returns.
