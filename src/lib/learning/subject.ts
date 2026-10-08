@@ -127,7 +127,11 @@ export function resolveSubjectShift(
 /** Human messages read back when deciding what the subject is. Far
  *  enough to catch a project pitched a few turns ago, short enough that
  *  a listing named yesterday does not outrank today's. */
-const SUBJECT_LOOKBACK_MESSAGES = 20;
+const SUBJECT_LOOKBACK_MESSAGES = 30;
+
+/** Ledger rows read back. A re-share does not bump its row, so the
+ *  newest rows are a floor, not the answer. */
+const SHARE_LOOKBACK_ROWS = 5;
 
 /** Two different listings shared this close together arrive as one
  *  burst: a buyer's next "is this available?" could mean either. */
@@ -224,15 +228,23 @@ export interface ShareRecord {
  * 3. A listing an agent has since pitched (resolveSubjectShift).
  * 4. Two different listings shared back to back, with no word from the
  *    buyer in between, cannot be told apart: null, so a person answers.
- * 5. The share ledger.
+ * 5. The latest share.
+ *
+ * "Since" and "latest" are measured against the real last share, which
+ * the ledger alone cannot give: recordPropertyShares upserts with
+ * ignoreDuplicates, so a listing re-sent today still carries the date
+ * it was first sent. Every outbound message that names exactly one
+ * listing — a share, its image caption, an enquiry acknowledgement —
+ * counts as sharing it at that moment. Anything said before the latest
+ * share is history the share superseded.
  *
  * Whichever of 2 and 3 was said more recently decides. A quote or a
  * message naming several listings is ambiguous, never a guess.
  */
 export function decideSubject(args: {
-  /** Customer and agent messages, newest first. */
+  /** Customer, agent and bot messages, newest first. */
   messages: ThreadMessage[];
-  /** Newest first. */
+  /** Ledger rows, newest first. */
   shares: ShareRecord[];
   candidates: ListingRef[];
   quotedText?: string | null;
@@ -248,16 +260,33 @@ export function decideSubject(args: {
     if (quoted.length > 1) return null;
   }
 
-  const latest = shares[0] ?? null;
+  const sharedAt = new Map<string, number>();
+  const noteShare = (propertyId: string, at: number) => {
+    if (!Number.isFinite(at)) return;
+    if (at > (sharedAt.get(propertyId) ?? Number.NEGATIVE_INFINITY)) {
+      sharedAt.set(propertyId, at);
+    }
+  };
+  for (const share of shares) noteShare(share.propertyId, Date.parse(share.at));
+  for (const message of messages) {
+    if (message.sender === 'customer') continue;
+    const named = listingsReferencedIn(message.text, candidates);
+    if (named.length === 1) noteShare(named[0], Date.parse(message.at));
+  }
+  const events = [...sharedAt.entries()]
+    .map(([propertyId, at]) => ({ propertyId, at }))
+    .sort((a, b) => b.at - a.at);
+
+  const latest = events[0] ?? null;
   const sharedId = latest?.propertyId ?? null;
-  const latestAt = latest ? Date.parse(latest.at) : Number.NEGATIVE_INFINITY;
+  const latestAt = latest?.at ?? Number.NEGATIVE_INFINITY;
   const available = candidates.filter(
     (candidate) => (candidate.status ?? 'Available') === 'Available'
   );
 
   for (const message of messages) {
+    if (Date.parse(message.at) <= latestAt) break;
     if (message.sender === 'customer') {
-      if (Date.parse(message.at) <= latestAt) continue;
       const named = listingsReferencedIn(message.text, candidates);
       if (named.length === 1) return named[0];
       if (named.length > 1) return null;
@@ -270,13 +299,8 @@ export function decideSubject(args: {
     if (propertiesNamedIn(message.text, available).length > 0) break;
   }
 
-  const previous = shares[1] ?? null;
-  if (
-    latest &&
-    previous &&
-    previous.propertyId !== latest.propertyId &&
-    Math.abs(latestAt - Date.parse(previous.at)) <= SHARE_BURST_WINDOW_MS
-  ) {
+  const previous = events[1] ?? null;
+  if (latest && previous && latestAt - previous.at <= SHARE_BURST_WINDOW_MS) {
     const buyerSpokeSince = messages.some(
       (message) =>
         message.sender === 'customer' &&
@@ -325,7 +349,7 @@ export async function resolvePropertySubject(
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
     .order('created_at', { ascending: false })
-    .limit(2);
+    .limit(SHARE_LOOKBACK_ROWS);
 
   const shares: ShareRecord[] = (shareRows ?? []).map((row) => ({
     propertyId: row.property_id as string,
@@ -339,7 +363,7 @@ export async function resolvePropertySubject(
         .from('messages')
         .select('sender_type, content_text, created_at, message_id')
         .eq('conversation_id', conversationId)
-        .in('sender_type', ['customer', 'agent'])
+        .in('sender_type', ['customer', 'agent', 'bot'])
         .not('content_text', 'is', null)
         .order('created_at', { ascending: false })
         .limit(SUBJECT_LOOKBACK_MESSAGES),

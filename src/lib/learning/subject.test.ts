@@ -417,6 +417,134 @@ describe('[INB-033] decideSubject replays the 7 October thread', () => {
   });
 });
 
+describe('[INB-033] decideSubject measures against the real last share', () => {
+  it('lets a bot re-share outrank an enquiry made after the first share', () => {
+    // A first shared in June; the buyer enquired about B in July; the
+    // bot re-sent A in October, which the ledger does not record.
+    const subject = decideSubject({
+      messages: thread([
+        ['2026-07-01T10:00:00Z', 'customer', ENQUIRY_HOSUR],
+        [
+          '2026-10-07T10:00:00Z',
+          'bot',
+          `🏠 *${CHIKATOGUR.title}*\nhttps://x.convoreal.com/?property_id=PROP-1784`,
+        ],
+        ['2026-10-07T10:05:00Z', 'customer', 'Is this available?', 'w'],
+      ]),
+      shares: [{ propertyId: 'prop-1784', at: '2026-06-01T10:00:00Z' }],
+      candidates: LISTINGS,
+      currentMessageId: 'w',
+    });
+    expect(subject).toBe('prop-1784');
+  });
+
+  it('ignores an agent pitch made before the latest share', () => {
+    const subject = decideSubject({
+      messages: thread([
+        [
+          '2026-10-07T09:00:00Z',
+          'agent',
+          'Have some inventories in Jade Gardens Devanahalli',
+        ],
+        [
+          '2026-10-07T10:30:00Z',
+          'customer',
+          'Is it by an A grade builder?',
+          'w',
+        ],
+      ]),
+      shares: [{ propertyId: 'prop-oval', at: '2026-10-07T10:00:00Z' }],
+      candidates: [OVAL_REEF, JADE_A],
+      currentMessageId: 'w',
+    });
+    expect(subject).toBe('prop-oval');
+  });
+
+  it('still lets an agent pitch made after the latest share move the subject', () => {
+    const subject = decideSubject({
+      messages: thread([
+        [
+          '2026-10-07T10:10:00Z',
+          'agent',
+          'Have some inventories in Jade Gardens Devanahalli',
+        ],
+        [
+          '2026-10-07T10:30:00Z',
+          'customer',
+          'Is it by an A grade builder?',
+          'w',
+        ],
+      ]),
+      shares: [{ propertyId: 'prop-oval', at: '2026-10-07T10:00:00Z' }],
+      candidates: [OVAL_REEF, JADE_A],
+      currentMessageId: 'w',
+    });
+    expect(subject).toBe('jade-a');
+  });
+
+  it('replays 20:09 and 20:18 IST with the bot messages in the thread', () => {
+    const base: [string, string, string, string?][] = [
+      ['2026-10-07T11:21:31Z', 'agent', JP_NAGAR_4TH.title as string],
+      ['2026-10-07T14:38:44Z', 'customer', ENQUIRY_AKSHAY],
+      [
+        '2026-10-07T14:38:55Z',
+        'bot',
+        `Thanks shirish! Your enquiry for *${AKSHAY_NAGAR.title}* has reached our team.`,
+      ],
+    ];
+    expect(
+      decideSubject({
+        messages: thread([
+          ...base,
+          ['2026-10-07T14:38:51Z', 'customer', 'Is this available? 👆🏻', 'q1'],
+        ]),
+        shares: [{ propertyId: 'prop-1004', at: '2026-10-07T11:21:32Z' }],
+        candidates: LISTINGS,
+        currentMessageId: 'q1',
+      })
+    ).toBe('prop-1110');
+
+    expect(
+      decideSubject({
+        messages: thread([
+          ...base,
+          ['2026-10-07T14:40:05Z', 'customer', ENQUIRY_HOSUR],
+          [
+            '2026-10-07T14:40:35Z',
+            'bot',
+            `Showcase image for ${AKSHAY_NAGAR.title}`,
+          ],
+          [
+            '2026-10-07T14:40:45Z',
+            'bot',
+            `Showcase image for ${HOSUR_ROAD.title}`,
+          ],
+          ['2026-10-07T14:41:24Z', 'customer', 'Interested in 1'],
+          [
+            '2026-10-07T14:41:30Z',
+            'bot',
+            `Great choice 👌 I've flagged your interest in *${HOSUR_ROAD.title}*`,
+          ],
+          ['2026-10-07T14:47:45Z', 'customer', 'What about this ?'],
+          [
+            '2026-10-07T14:48:33Z',
+            'customer',
+            'Is it available for sale ?',
+            'q3',
+          ],
+        ]),
+        shares: [
+          { propertyId: 'prop-1081', at: '2026-10-07T14:40:46Z' },
+          { propertyId: 'prop-1110', at: '2026-10-07T14:40:37Z' },
+          { propertyId: 'prop-1004', at: '2026-10-07T11:21:32Z' },
+        ],
+        candidates: LISTINGS,
+        currentMessageId: 'q3',
+      })
+    ).toBe('prop-1081');
+  });
+});
+
 describe('[INB-033] resolvePropertySubject reads the quote and the enquiry from the thread', () => {
   const tables = () => ({
     properties: LISTINGS.map((listing) => ({ ...listing, account_id: 'acc' })),
