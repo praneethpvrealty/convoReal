@@ -56,7 +56,7 @@ beforeEach(() => {
   listingType = 'Sale';
 });
 
-describe('[PRP-043] autoSyncPropertyCatalogIfNeeded', () => {
+describe('[PRP-044] autoSyncPropertyCatalogIfNeeded', () => {
   it('clears the previous sync before resyncing, then records the new one', async () => {
     await autoSyncPropertyCatalogIfNeeded(db() as never, 'p1', 'acc-1');
     expect(events).toEqual(['update', 'sync', 'update']);

@@ -500,7 +500,7 @@ describe('sendFlowMessage', () => {
   });
 });
 
-describe('[PRP-043] syncProductToCatalog — confirms the item reached the catalog', () => {
+describe('[PRP-044] syncProductToCatalog — confirms the item reached the catalog', () => {
   const property = {
     id: 'p1',
     property_code: 'PROP-1111',

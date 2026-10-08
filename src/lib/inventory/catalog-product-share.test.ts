@@ -14,7 +14,7 @@ import {
 const SYNCED = '2026-10-08T10:00:00.000Z';
 const syncedMs = new Date(SYNCED).getTime();
 
-describe('[PRP-043] WhatsApp catalog product card share', () => {
+describe('[PRP-044] WhatsApp catalog product card share', () => {
   it('is not sendable until a sync has finished indexing', () => {
     expect(catalogShareState({}, syncedMs)).toEqual({
       status: 'not_synced',
