@@ -130,11 +130,20 @@ export async function processHotViewerAlerts(
     }
     if (!contact || !property || !agentUserId) continue;
 
-    const { conversation } = await lookupConversation<{ id: string }>(db, {
-      accountId: candidate.account_id,
-      contactId: candidate.contact_id,
-      columns: 'id',
-    });
+    const { conversation, error: conversationError } =
+      await lookupConversation<{ id: string }>(db, {
+        accountId: candidate.account_id,
+        contactId: candidate.contact_id,
+        columns: 'id',
+      });
+    if (conversationError) {
+      console.error(
+        '[hot-viewers] conversation lookup failed, claim released:',
+        conversationError
+      );
+      await release();
+      continue;
+    }
 
     const alert = buildHotViewerAlert({
       contactName: (contact.name as string | null)?.trim() || 'A visitor',

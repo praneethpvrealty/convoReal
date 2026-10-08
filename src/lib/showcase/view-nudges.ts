@@ -301,7 +301,9 @@ async function sendViewNudge(
         interactiveButtons: viewNudgeButtons(property.id as string),
         customDbClient: db,
       });
-      if (result?.success === false) return { status: 'retry' };
+      if (result?.success === false && !result.reachedMeta) {
+        return { status: 'retry' };
+      }
       return {
         status: 'sent',
         messageId: result?.whatsappMessageId ?? null,
@@ -332,7 +334,9 @@ async function sendViewNudge(
       text: renderViewNudgeBody(params),
       customDbClient: db,
     });
-    if (result?.success === false) return { status: 'retry' };
+    if (result?.success === false && !result.reachedMeta) {
+      return { status: 'retry' };
+    }
     return {
       status: 'sent',
       messageId: result?.whatsappMessageId ?? null,

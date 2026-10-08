@@ -5,6 +5,7 @@ type Row = Record<string, unknown>;
 const h = vi.hoisted(() => ({
   notify: vi.fn(),
   conversation: null as { id: string } | null,
+  conversationError: null as { message: string } | null,
 }));
 
 vi.mock('@/lib/notifications/create', () => ({
@@ -13,7 +14,7 @@ vi.mock('@/lib/notifications/create', () => ({
 vi.mock('@/lib/conversations/resolve', () => ({
   lookupConversation: async () => ({
     conversation: h.conversation,
-    error: null,
+    error: h.conversationError,
   }),
 }));
 
@@ -117,6 +118,7 @@ function tables(assignedAgent: string | null = 'agent-user') {
 beforeEach(() => {
   h.notify.mockReset().mockResolvedValue({});
   h.conversation = null;
+  h.conversationError = null;
 });
 
 describe('[PLS-008] hot viewer alerts', () => {
@@ -221,6 +223,19 @@ describe('[PLS-008] hot viewer alerts', () => {
     const { db, updates } = fakeDb({
       candidates: [candidate],
       failRead: 'contacts',
+      tables: tables(),
+    });
+    expect(await processHotViewerAlerts(db)).toBe(0);
+    expect(h.notify).not.toHaveBeenCalled();
+    expect(updates).toEqual([
+      { table: 'showcase_hot_viewer_alerts', payload: 'delete' },
+    ]);
+  });
+
+  it('releases the claim when the conversation lookup fails', async () => {
+    h.conversationError = { message: 'lookup failed' };
+    const { db, updates } = fakeDb({
+      candidates: [candidate],
       tables: tables(),
     });
     expect(await processHotViewerAlerts(db)).toBe(0);

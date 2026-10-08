@@ -113,11 +113,13 @@ export async function handleViewNudgeReply(args: {
   const repeatTap = nudge?.response === choice;
   const recordResponse = async () => {
     if (!nudge || repeatTap) return;
-    const { error } = await db
-      .from('showcase_view_nudges')
-      .update({ response: choice, responded_at: new Date().toISOString() })
-      .eq('id', nudge.id)
-      .eq('account_id', accountId);
+    const { error } = await readWithRetry(() =>
+      db
+        .from('showcase_view_nudges')
+        .update({ response: choice, responded_at: new Date().toISOString() })
+        .eq('id', nudge.id)
+        .eq('account_id', accountId)
+    );
     if (error) {
       console.error('[view-nudge-reply] response not recorded:', error);
     }
@@ -145,7 +147,7 @@ export async function handleViewNudgeReply(args: {
       propertyTitle: property.title as string | null,
       status: property.status as string | null,
     });
-    await sendWhatsAppMessageAndPersist({
+    const notice = await sendWhatsAppMessageAndPersist({
       accountId,
       userId: configOwnerUserId,
       contactId: contact.id,
@@ -159,7 +161,21 @@ export async function handleViewNudgeReply(args: {
           (property.title as string | null) || 'this property'
         ),
       customDbClient: db,
-    });
+    }).catch(() => null);
+    if (!notice || notice.success === false) {
+      const name = contact.name?.trim() || 'A lead';
+      await createNotification({
+        accountId,
+        userId: (property.user_id as string | null) ?? configOwnerUserId,
+        type: 'listing_interest',
+        eventKey: 'showcase_viewer_response',
+        title: `${name} asked about a listing that is ${property.status}`,
+        body: `${name} tapped "${choice === 'callback' ? 'Call me back' : 'Book a visit'}" on ${property.title || 'a listing'}, which is now ${property.status}. Our WhatsApp reply didn't go through, so let them know directly.`,
+        entityType: 'conversation',
+        entityId: conversationId,
+        link: `/inbox?conversation=${conversationId}`,
+      });
+    }
     return true;
   }
 

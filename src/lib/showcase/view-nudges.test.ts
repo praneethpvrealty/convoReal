@@ -455,6 +455,25 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     expect(nudgeUpdate(queries)).toEqual({ status: 'failed' });
   });
 
+  it('marks a check-in Meta accepted as sent even when saving the message failed, so it is not sent twice', async () => {
+    h.conversation = {
+      last_customer_message_at: new Date(
+        Date.now() - 3 * 60 * 60 * 1000
+      ).toISOString(),
+    };
+    h.send.mockResolvedValueOnce({
+      success: false,
+      reachedMeta: true,
+      error: 'persist failed',
+    });
+    const { db, queries } = fakeDb({
+      candidates: [candidate],
+      tables: baseTables(),
+    });
+    expect((await processShowcaseViewNudges(db)).sent).toBe(1);
+    expect(nudgeUpdate(queries)).toMatchObject({ status: 'sent' });
+  });
+
   it('skips a visitor who has written in since the view', async () => {
     h.conversation = {
       last_customer_message_at: new Date().toISOString(),
@@ -684,6 +703,21 @@ describe('[PLS-007] answers to the showcase view check-in', () => {
     expect(h.send.mock.calls[0][0].text).toBe('Sorry, this one has been sold.');
     expect(queries.some((q) => q.table === 'todos')).toBe(false);
     expect(h.notify).not.toHaveBeenCalled();
+  });
+
+  it('alerts the listing manager when the unavailable-listing reply cannot be sent', async () => {
+    h.send.mockResolvedValueOnce({ success: false, error: 'meta down' });
+    const tables = openNudge();
+    tables.properties[0].status = 'Sold';
+    const { db, queries } = fakeDb({ tables });
+    expect(await reply(db, 'c')).toBe(true);
+    expect(queries.some((q) => q.table === 'todos')).toBe(false);
+    expect(h.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'lister-user',
+        title: expect.stringContaining('Sold'),
+      })
+    );
   });
 
   it('ignores a tap naming a property outside the account', async () => {
