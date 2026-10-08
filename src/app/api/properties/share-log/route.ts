@@ -21,7 +21,7 @@ import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
 //
 // Always 200 once the request is valid: `recorded` counts the
 // recipients whose ledger row and journey capture both landed, `failed`
-// lists the contact ids whose write did not, so the caller can retry
+// lists every other requested contact id, so the caller can retry
 // exactly those. The writes are idempotent, so a retry is safe.
 
 const MAX_RECIPIENTS = 500;
@@ -113,7 +113,10 @@ export async function POST(request: NextRequest) {
     let recorded = 0;
     const failed: string[] = [];
     for (const recipient of unique) {
-      if (!owned.has(recipient.contactId)) continue;
+      if (!owned.has(recipient.contactId)) {
+        failed.push(recipient.contactId);
+        continue;
+      }
       const ok = await logPropertyShare(
         db,
         ctx.accountId,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { syncProductToCatalog } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
+import { catalogCurrency } from '@/lib/whatsapp/catalog-sync-helper';
 
 export async function POST(
   request: Request,
@@ -91,6 +92,7 @@ export async function POST(
         catalogId: config.catalog_id,
         accessToken,
         property,
+        currency: await catalogCurrency(ctx.supabase, ctx.accountId),
       });
 
       // Update db row

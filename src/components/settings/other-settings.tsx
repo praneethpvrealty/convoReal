@@ -47,6 +47,7 @@ export function OtherSettingsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currency, setCurrency] = useState('INR');
+  const [savedCurrency, setSavedCurrency] = useState('INR');
   const [defaultCountryCode, setDefaultCountryCode] = useState('91');
   const [hasSettings, setHasSettings] = useState(false);
   const [selectedCountryIndex, setSelectedCountryIndex] = useState(0);
@@ -318,6 +319,7 @@ export function OtherSettingsPanel() {
           const loadedCurrency = data.currency || 'INR';
           const loadedCountryCode = data.default_country_code || '91';
           setCurrency(loadedCurrency);
+          setSavedCurrency(loadedCurrency);
           setDefaultCountryCode(loadedCountryCode);
 
           let idx = COUNTRIES.findIndex(
@@ -477,6 +479,23 @@ export function OtherSettingsPanel() {
 
         if (error) throw error;
         setHasSettings(true);
+      }
+
+      if (currency !== savedCurrency) {
+        const { error: resetError } = await supabase
+          .from('properties')
+          .update({ meta_catalog_synced_at: null, meta_catalog_error: null })
+          .eq('account_id', accountId)
+          .not('meta_catalog_synced_at', 'is', null)
+          .select('id');
+        if (resetError) {
+          console.error('Error resetting catalog sync:', resetError);
+          toast.error(
+            'Currency saved, but synced catalog items keep the old currency. Save again to retry.'
+          );
+          return;
+        }
+        setSavedCurrency(currency);
       }
 
       toast.success('Currency settings saved successfully');

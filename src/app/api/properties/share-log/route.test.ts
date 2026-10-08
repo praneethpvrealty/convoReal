@@ -90,7 +90,7 @@ describe('[JRN-009] POST /api/properties/share-log', () => {
     const json = await res.json();
 
     expect(res.status).toBe(200);
-    expect(json).toEqual({ data: { recorded: 2, failed: [] } });
+    expect(json).toEqual({ data: { recorded: 2, failed: ['c-stranger'] } });
     expect(ledgerCalls).toEqual([
       [
         { tag: 'admin' },
@@ -128,7 +128,7 @@ describe('[JRN-009] POST /api/properties/share-log', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      data: { recorded: 1, failed: ['c-2'] },
+      data: { recorded: 1, failed: ['c-2', 'c-stranger'] },
     });
     expect(ledgerCalls.map((call) => call[4])).toEqual(['c-1', 'c-2']);
   });
