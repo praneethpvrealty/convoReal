@@ -16,6 +16,7 @@ import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { SectionLabel } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import {
+  CATALOG_SEND_MAX_RECIPIENTS,
   fetchCatalogShareContext,
   type CatalogShareContext,
   sendCatalogProduct,
@@ -304,10 +305,11 @@ export function CatalogProductShare({
         visible={picking}
         onClose={() => setPicking(false)}
         multiSelect
+        maxSelections={CATALOG_SEND_MAX_RECIPIENTS}
         confirmLabel="Send"
         onSelectMany={(contacts) => void send(contacts)}
         title="Send product card"
-        hint="Choose the contacts who should receive this listing as a WhatsApp catalog product card from your business number."
+        hint={`Choose up to ${CATALOG_SEND_MAX_RECIPIENTS} contacts to receive this listing as a WhatsApp catalog product card from your business number.`}
         busy={sending}
         busyLabel="Sending product card…"
       />

@@ -21,6 +21,7 @@ const CATALOG_SEND_BASE_TIMEOUT_MS = 30_000;
 const CATALOG_SEND_PER_RECIPIENT_MS = 10_000;
 const CATALOG_SEND_MAX_TIMEOUT_MS = 300_000;
 const SHARE_LOG_ATTEMPTS = 3;
+export const CATALOG_SEND_MAX_RECIPIENTS = 25;
 const CATALOG_SYNC_TIMEOUT_MS = 60_000;
 
 export async function fetchCatalogShareContext(
@@ -74,10 +75,17 @@ export async function sendCatalogProduct(
   failed: { contact: Contact; error: string }[];
   unrecorded: boolean;
 }> {
-  const reachable = contacts.filter(hasPhone);
-  const unreachable = contacts
-    .filter((c) => !hasPhone(c))
-    .map((contact) => ({ contact, error: 'No phone number' }));
+  const withPhone = contacts.filter(hasPhone);
+  const reachable = withPhone.slice(0, CATALOG_SEND_MAX_RECIPIENTS);
+  const unreachable = [
+    ...contacts
+      .filter((c) => !hasPhone(c))
+      .map((contact) => ({ contact, error: 'No phone number' })),
+    ...withPhone.slice(CATALOG_SEND_MAX_RECIPIENTS).map((contact) => ({
+      contact,
+      error: `Not sent: product cards go to at most ${CATALOG_SEND_MAX_RECIPIENTS} contacts at a time`,
+    })),
+  ];
   if (reachable.length === 0) {
     return { sent: [], failed: unreachable, unrecorded: false };
   }
