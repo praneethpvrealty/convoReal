@@ -56,6 +56,14 @@ export async function autoSyncPropertyCatalogIfNeeded(
       return;
     }
 
+    // Until Meta confirms this sync, the listing is not synced: a share
+    // surface must not keep offering a product card for the previous one.
+    await supabase
+      .from('properties')
+      // eslint-disable-next-line convoreal/supabase-write-guard
+      .update({ meta_catalog_synced_at: null, meta_catalog_error: null })
+      .eq('id', propertyId);
+
     // 3. Decrypt the access token
     let accessToken: string;
     try {
