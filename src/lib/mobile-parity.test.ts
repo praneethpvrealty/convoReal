@@ -720,6 +720,20 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(recordShares).not.toContain("from('property_shares')");
   });
 
+  it('[JRN-021] reads the share-log verdict through one shared reader on web and mobile', () => {
+    const sources = [
+      webSource('lib/inventory/share-log.ts'),
+      mobileSource('lib/property-share-actions.ts'),
+      mobileSource('lib/catalog-product-share.ts'),
+    ];
+    for (const source of sources) {
+      expect(source).toContain('postShareLog(');
+      expect(source).toContain('/api/properties/share-log');
+    }
+    const catalog = mobileSource('lib/catalog-product-share.ts');
+    expect(catalog).toContain('return outcome.complete;');
+  });
+
   it('[JRN-011] removes a branch and the deal opened from it through one route on web and mobile', () => {
     const mobileApi = mobileSource('lib/api.ts');
     const webRemove = webSource('lib/journey/remove.ts');

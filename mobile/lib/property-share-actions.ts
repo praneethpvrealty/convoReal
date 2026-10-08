@@ -7,6 +7,8 @@
 // template outside it — mirroring Match Radar. Only a missing or
 // unapproved template comes back unsent.
 
+import { postShareLog } from '@shared/lib/inventory/share-log-request';
+
 import { apiFetch, ApiError, isRateLimited, isTimeout } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
@@ -18,6 +20,7 @@ import type { Contact, Property } from '@/lib/types';
  *  as already contacted on the listing's Matching Contacts list and
  *  captures the pair on their journey. The ledger goes through the same
  *  server route the web uses so the journey capture cannot be skipped.
+ *  A write the route reports as failed is retried there.
  *  A share is something the agent sent, not something the contact asked
  *  about, so it never touches last_inquired_property_id ("Contacted
  *  about"). Best-effort: failures don't block the WhatsApp hand-off the
@@ -46,10 +49,13 @@ export async function logExternalShare(
       account_id: profile.account_id,
       note_text: `📱 Shared via personal WhatsApp\n🏠 Property: ${label}`,
     }),
-    apiFetch('/api/properties/share-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    postShareLog(
+      (body) =>
+        apiFetch('/api/properties/share-log', {
+          method: 'POST',
+          body,
+        }),
+      {
         property_id: property.id,
         recipients: [
           {
@@ -58,8 +64,8 @@ export async function logExternalShare(
           },
         ],
         channel: 'whatsapp',
-      }),
-    }),
+      }
+    ),
   ]);
 }
 

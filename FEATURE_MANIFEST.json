@@ -2026,7 +2026,7 @@
         },
         {
           "id": "PRP-044",
-          "rule": "A listing can be shared as a WhatsApp catalog product card from the web share dialog and the mobile share sheet whenever the account has a Meta catalog: both show the same sync status (not synced, sync failed, indexing for 90 seconds after a sync, synced), both offer Sync now, both refuse to send until indexing has finished, and both send through the same product broadcast with the same retailer id (property code, else id) and caption, whose location never carries a guarded listing's street address. Only recipients the broadcast reports as sent are recorded on the share ledger. A sync counts as synced only once Meta's batch has finished without errors and the product is found in the catalog under that retailer id; otherwise the listing shows Sync failed with Meta's reason, so a send never reaches Meta for a product the catalog does not hold; an automatic resync after an edit or approval clears the previous sync first, so the card is not offered while the new one is unconfirmed.",
+          "rule": "A listing can be shared as a WhatsApp catalog product card from the web share dialog and the mobile share sheet whenever the account has a Meta catalog: both show the same sync status (not synced, sync failed, indexing for 90 seconds after a sync, synced), both offer Sync now, both refuse to send until indexing has finished, and both send through the same product broadcast with the same retailer id (property code, else id) and caption, whose location never carries a guarded listing's street address. Only recipients the broadcast reports as sent are recorded on the share ledger. A sync counts as synced only once Meta's batch has finished without errors and the product is found in the catalog under that retailer id; otherwise the listing shows Sync failed with Meta's reason, so a send never reaches Meta for a product the catalog does not hold; the catalog item is priced in the account's showcase currency (INR when none is set), a sync fails rather than guessing when that currency cannot be read, and changing the account currency clears every synced item so none is offered at the old price currency; an automatic resync after an edit or approval clears the previous sync in the same write as the save, so the card is not offered while the new one is unconfirmed; the mobile sheet refuses to guess the price currency when the account's showcase settings cannot be read.",
           "tests": [
             {
               "file": "src/lib/inventory/catalog-product-share.test.ts",
@@ -2217,7 +2217,7 @@
         },
         {
           "id": "JRN-009",
-          "rule": "Every confirmed property share captures the contact×property pair on the journey through one server-side ledger writer, whichever surface sent it: the share sheet on web and mobile (both channels), a personal-WhatsApp or email share the agent logs, a contact's hand-picked listings, Radar sends and the bot's own listing sends; the ledger's insert trigger makes the same capture for a row written any other way, reading the visibility the writer recorded on it. A share the agent composed for one contact is visible at once; a broadcast or bot batch waits hidden in the Captured tray; re-sharing never duplicates, resurrects or un-hides a pair.",
+          "rule": "Every confirmed property share captures the contact×property pair on the journey through one server-side ledger writer, whichever surface sent it: the share sheet on web and mobile (both channels), a personal-WhatsApp or email share the agent logs, a contact's hand-picked listings, Radar sends and the bot's own listing sends; the ledger's insert trigger makes the same capture for a row written any other way, reading the visibility the writer recorded on it. A share the agent composed for one contact is visible at once; a broadcast or bot batch waits hidden in the Captured tray; re-sharing never duplicates, resurrects or un-hides a pair. The share-log endpoint counts as recorded only the shares whose ledger row and journey capture both landed and names every other requested recipient as failed, so the web share dialog, the web email share and the mobile product-card send report a share that was sent but not recorded instead of claiming it was logged.",
           "tests": [
             {
               "file": "src/lib/journey/capture-server.test.ts",
@@ -2505,6 +2505,40 @@
           "guards": [
             "src/lib/journey/closing-nudges.ts",
             "src/lib/whatsapp/inbound/chain/steps/control-reply.ts"
+          ]
+        },
+        {
+          "id": "JRN-021",
+          "rule": "A share the ledger could not record is never reported as recorded. The server ledger writer never throws and never turns a delivered message into a send error, but it reports whether both the ledger row and the journey capture landed. POST /api/properties/share-log answers 200 with `recorded` counting only the recipients whose writes both landed and `failed` listing every other requested contact id. Every client that logs a share through it, on web and mobile (the share sheet, a logged personal-WhatsApp or email share, the mobile product-card send), reads the answer through one shared reader that retries the failed recipients, up to three attempts, retries a transport failure the same way, stops at once on a refusal, and treats a recorded count short of the recipients sent as unrecorded: the email share and the mobile product card tell the agent the share went out but was not recorded.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/share-property-send.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/app/api/properties/share-log/route.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/inventory/share-log-request.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/inventory/share-log.test.ts",
+              "case": "[JRN-021]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[JRN-021]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/share-property-send.ts",
+            "src/app/api/properties/share-log/route.ts",
+            "src/lib/inventory/share-log-request.ts",
+            "src/lib/inventory/share-log.ts",
+            "mobile/lib/catalog-product-share.ts",
+            "mobile/lib/property-share-actions.ts"
           ]
         }
       ]
