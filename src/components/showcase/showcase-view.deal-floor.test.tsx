@@ -263,7 +263,7 @@ describe('Deal Floor showcase design [PRP-020]', () => {
           json: () =>
             Promise.resolve({
               data: {
-                label: 'Kasavanahalli',
+                label: 'Kasava',
                 results: [
                   { id: villa.id, tier: 'exact', distance_km: 0 },
                   { id: plot.id, tier: 'nearby', distance_km: 3 },
@@ -300,6 +300,9 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     expect(new URL(nearUrls[0], 'http://x').searchParams.get('q')).toBe(
       'Kasavanahalli'
     );
+    expect(
+      screen.getByRole('button', { name: 'Locality' }).textContent
+    ).toContain('near Kasavanahalli');
     expect(screen.getByRole('button', { name: /See 2 matches/ })).toBeTruthy();
     expect(
       screen.getByText(
