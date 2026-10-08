@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { lookupConversation } from '@/lib/conversations/resolve';
 import { createNotification } from '@/lib/notifications/create';
+import { showcaseOutreachExclusion } from '@/lib/showcase/view-nudges';
 
 export const HOT_VIEWER_MIN_DWELL_MS = 120_000;
 export const HOT_VIEWER_MIN_DAYS = 2;
@@ -86,13 +87,15 @@ export async function processHotViewerAlerts(
     const [contactRead, propertyRead, configRead] = await Promise.all([
       db
         .from('contacts')
-        .select('name, phone, assigned_agent_id')
+        .select(
+          'name, phone, assigned_agent_id, is_dead, is_archived, chain_only, classification'
+        )
         .eq('id', candidate.contact_id)
         .eq('account_id', candidate.account_id)
         .maybeSingle(),
       db
         .from('properties')
-        .select('title, user_id, status')
+        .select('title, user_id, status, owner_contact_id')
         .eq('id', candidate.property_id)
         .eq('account_id', candidate.account_id)
         .maybeSingle(),
@@ -124,7 +127,12 @@ export async function processHotViewerAlerts(
       (property?.user_id as string | null) ??
       (config?.user_id as string | null) ??
       null;
-    if (property && property.status !== 'Available') {
+    if (
+      (property && property.status !== 'Available') ||
+      (contact &&
+        property &&
+        showcaseOutreachExclusion(candidate.contact_id, contact, property))
+    ) {
       await release();
       continue;
     }

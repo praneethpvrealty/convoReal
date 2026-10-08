@@ -487,6 +487,44 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     expect(nudgeUpdate(queries)).toMatchObject({ status: 'sent' });
   });
 
+  it('releases the claim without spending an attempt when the conversation lease is busy', async () => {
+    h.lease = 'busy';
+    const { db, queries } = fakeDb({
+      candidates: [candidate],
+      tables: baseTables(),
+    });
+    await processShowcaseViewNudges(db);
+    expect(h.send).not.toHaveBeenCalled();
+    expect(nudgeUpdate(queries)).toBeUndefined();
+    expect(
+      queries.some(
+        (q) => q.table === 'showcase_view_nudges' && q.op === 'delete'
+      )
+    ).toBe(true);
+  });
+
+  it.each([
+    ['contact_dead', { is_dead: true }, {}],
+    ['contact_archived', { is_archived: true }, {}],
+    ['chain_only', { chain_only: true }, {}],
+    ['trade_contact', { classification: 'Agent' }, {}],
+    ['listing_owner', {}, { owner_contact_id: CONTACT }],
+  ])(
+    'skips a visitor who became ineligible (%s) after the batch was read',
+    async (reason, contactPatch, propertyPatch) => {
+      const t = baseTables();
+      t.contacts[0] = { ...t.contacts[0], ...contactPatch };
+      t.properties[0] = { ...t.properties[0], ...propertyPatch };
+      const { db, queries } = fakeDb({ candidates: [candidate], tables: t });
+      await processShowcaseViewNudges(db);
+      expect(h.send).not.toHaveBeenCalled();
+      expect(nudgeUpdate(queries)).toEqual({
+        status: 'skipped',
+        skip_reason: reason,
+      });
+    }
+  );
+
   it('releases the claim, sending nothing, when the visitor is browsing again', async () => {
     const { db, queries } = fakeDb({
       candidates: [candidate],

@@ -176,7 +176,11 @@ export async function processShowcaseViewNudges(
       () => sendViewNudge(db, candidate)
     );
     const outcome: SendOutcome =
-      leased.status === 'ran' ? leased.value : { status: 'retry' };
+      leased.status === 'ran'
+        ? leased.value
+        : leased.status === 'busy'
+          ? { status: 'deferred' }
+          : { status: 'retry' };
 
     if (outcome.status === 'deferred') {
       const { error: releaseError } = await db
@@ -223,6 +227,31 @@ export async function processShowcaseViewNudges(
     else totals.failed++;
   }
   return totals;
+}
+
+export interface ShowcaseOutreachContact {
+  is_dead?: boolean | null;
+  is_archived?: boolean | null;
+  chain_only?: boolean | null;
+  classification?: string | null;
+}
+
+export function showcaseOutreachExclusion(
+  contactId: string,
+  contact: ShowcaseOutreachContact,
+  property: { owner_contact_id?: string | null }
+): string | null {
+  if (contact.is_dead) return 'contact_dead';
+  if (contact.is_archived) return 'contact_archived';
+  if (contact.chain_only) return 'chain_only';
+  if (
+    contact.classification === 'Agent' ||
+    contact.classification === 'Developer'
+  ) {
+    return 'trade_contact';
+  }
+  if (property.owner_contact_id === contactId) return 'listing_owner';
+  return null;
 }
 
 async function sendViewNudge(
@@ -280,19 +309,28 @@ async function sendViewNudge(
 
   const { data: contact, error: contactError } = await db
     .from('contacts')
-    .select('name, buyer_alerts_consent')
+    .select(
+      'name, phone, buyer_alerts_consent, is_dead, is_archived, chain_only, classification, pitch_quiet_until'
+    )
     .eq('id', contactId)
     .eq('account_id', accountId)
     .maybeSingle();
   if (contactError) return { status: 'retry' };
   if (!contact) return { status: 'skipped', reason: 'contact_missing' };
+  if (!contact.phone) return { status: 'skipped', reason: 'no_phone' };
   if (contact.buyer_alerts_consent === 'declined') {
     return { status: 'skipped', reason: 'alerts_declined' };
+  }
+  if (
+    contact.pitch_quiet_until &&
+    new Date(contact.pitch_quiet_until as string).getTime() > Date.now()
+  ) {
+    return { status: 'skipped', reason: 'pitch_quiet' };
   }
 
   const { data: property, error: propertyError } = await db
     .from('properties')
-    .select('id, title, status')
+    .select('id, title, status, owner_contact_id')
     .eq('id', candidate.property_id)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -300,6 +338,8 @@ async function sendViewNudge(
   if (!property || property.status !== 'Available') {
     return { status: 'skipped', reason: 'property_unavailable' };
   }
+  const excluded = showcaseOutreachExclusion(contactId, contact, property);
+  if (excluded) return { status: 'skipped', reason: excluded };
 
   const params = buildViewNudgeParams(
     contact.name as string | null,

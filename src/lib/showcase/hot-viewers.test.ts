@@ -93,7 +93,9 @@ const candidate = {
   viewed_at: new Date().toISOString(),
 };
 
-function tables(assignedAgent: string | null = 'agent-user') {
+function tables(
+  assignedAgent: string | null = 'agent-user'
+): Record<string, Row[]> {
   return {
     contacts: [
       {
@@ -213,6 +215,17 @@ describe('[PLS-008] hot viewer alerts', () => {
   it('releases the claim and alerts nobody when the listing stopped being Available', async () => {
     const t = tables();
     t.properties[0] = { ...t.properties[0], status: 'Sold' };
+    const { db, updates } = fakeDb({ candidates: [candidate], tables: t });
+    expect(await processHotViewerAlerts(db)).toBe(0);
+    expect(h.notify).not.toHaveBeenCalled();
+    expect(updates).toEqual([
+      { table: 'showcase_hot_viewer_alerts', payload: 'delete' },
+    ]);
+  });
+
+  it('releases the claim and alerts nobody when the contact is no longer eligible', async () => {
+    const t = tables();
+    t.contacts[0] = { ...t.contacts[0], classification: 'Developer' };
     const { db, updates } = fakeDb({ candidates: [candidate], tables: t });
     expect(await processHotViewerAlerts(db)).toBe(0);
     expect(h.notify).not.toHaveBeenCalled();
