@@ -86,3 +86,36 @@ export async function standDownActiveFlowRuns(
     return 0;
   }
 }
+
+export interface TeamReply {
+  senderType: 'agent' | 'bot';
+  text: string;
+}
+
+export async function latestTeamReply(
+  db: SupabaseClient,
+  conversationId: string,
+  now: Date = new Date()
+): Promise<TeamReply | null> {
+  try {
+    const since = new Date(
+      now.getTime() - AGENT_TAKEOVER_WINDOW_MS
+    ).toISOString();
+    const { data, error } = await db
+      .from('messages')
+      .select('sender_type, content_text')
+      .eq('conversation_id', conversationId)
+      .in('sender_type', ['agent', 'bot'])
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    const row = data?.[0];
+    if (error || !row) return null;
+    return {
+      senderType: row.sender_type as TeamReply['senderType'],
+      text: (row.content_text as string | null) ?? '',
+    };
+  } catch {
+    return null;
+  }
+}

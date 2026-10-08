@@ -1,5 +1,6 @@
 import {
   answerLeadQuestion,
+  isHandoverText,
   looksLikeQuestion,
   mergeLeadAnswers,
   previousLeadQuestion,
@@ -14,6 +15,7 @@ import {
   retrieveBotInstructions,
 } from '@/lib/ai/bot-instructions';
 import {
+  isPhotoHandoverText,
   photoHandoverText,
   requestsPropertyPhotos,
   sendSubjectPhotos,
@@ -23,6 +25,7 @@ import { createNotification } from '@/lib/notifications/create';
 import { relayLeadMessageToBridgedAgent } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { latestTeamReply } from '@/lib/whatsapp/agent-takeover';
 import type { InboundChainContext, StepResult } from '../context';
 
 export function withoutHandovers(
@@ -48,6 +51,17 @@ export function withoutHandovers(
       })
       .join('\n\n'),
   };
+}
+
+export async function handoverAlreadyPromised(
+  db: Parameters<typeof latestTeamReply>[0],
+  conversationId: string
+): Promise<boolean> {
+  const latest = await latestTeamReply(db, conversationId);
+  return (
+    latest?.senderType === 'bot' &&
+    (isHandoverText(latest.text) || isPhotoHandoverText(latest.text))
+  );
 }
 
 export async function leadQuestion(
@@ -132,7 +146,8 @@ export async function leadQuestion(
         leadText)
       : leadText;
     let answer: LeadAnswer;
-    let reply: LeadAnswer | null;
+    let answers: LeadAnswer[];
+    let answerSubjects: { title?: string | null }[];
     if (photoRequest) {
       const sentPhotos = await sendSubjectPhotos({
         db: admin,
@@ -148,14 +163,15 @@ export async function leadQuestion(
         text: photoHandoverText(subjects[0]?.title),
         source: 'handover',
       };
-      reply = agentHandling ? null : answer;
+      answers = [answer];
+      answerSubjects = subjects.slice(0, 1);
     } else {
       const { data: qaConfig } = await admin
         .from('whatsapp_config')
         .select('share_seller_final_price')
         .eq('account_id', accountId)
         .maybeSingle();
-      const answers = await Promise.all(
+      answers = await Promise.all(
         (subjects.length > 0 ? subjects : [null]).map(async (subject) => {
           const [portalListings, botInstructions] = await Promise.all([
             subject
@@ -183,8 +199,16 @@ export async function leadQuestion(
         })
       );
       answer = mergeLeadAnswers(answers, subjects);
-      reply = agentHandling ? withoutHandovers(answers, subjects) : answer;
+      answerSubjects = subjects;
     }
+
+    const holdHandovers =
+      answer.source === 'handover' &&
+      (agentHandling ||
+        (await handoverAlreadyPromised(admin, conversation.id)));
+    const reply = holdHandovers
+      ? withoutHandovers(answers, answerSubjects)
+      : answer;
 
     if (reply) {
       await sendWhatsAppMessageAndPersist({

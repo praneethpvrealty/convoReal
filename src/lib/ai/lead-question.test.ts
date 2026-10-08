@@ -24,6 +24,7 @@ import {
   CALLBACK_HANDOVER_TEXT,
   PHOTO_IDENTIFICATION_HANDOVER_TEXT,
   mergeLeadAnswers,
+  isHandoverText,
   previousLeadQuestion,
   questionSubjectProperties,
 } from './lead-question';
@@ -693,6 +694,22 @@ describe('answerLeadQuestion — portal rung and persona', () => {
       property,
     });
     expect(res.source).toBe('handover');
+  });
+});
+
+describe('[INB-035] isHandoverText', () => {
+  it('recognises every handover line, alone or under a listing title', () => {
+    expect(isHandoverText(HANDOVER_TEXT)).toBe(true);
+    expect(isHandoverText(CALLBACK_HANDOVER_TEXT)).toBe(true);
+    expect(isHandoverText(PHOTO_IDENTIFICATION_HANDOVER_TEXT)).toBe(true);
+    expect(
+      isHandoverText(`*Plot A*\n2,400 sq.ft.\n\n*Plot B*\n${HANDOVER_TEXT}`)
+    ).toBe(true);
+  });
+
+  it('does not mistake a concrete answer for one', () => {
+    expect(isHandoverText('It is East facing.')).toBe(false);
+    expect(isHandoverText(null)).toBe(false);
   });
 });
 

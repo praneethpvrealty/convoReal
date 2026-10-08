@@ -10,8 +10,8 @@ vi.mock('@/lib/ai/bot-instructions', () => ({
   retrieveBotInstructions: vi.fn(),
   markBotInstructionsFired: vi.fn(),
 }));
-vi.mock('@/lib/ai/photo-request', () => ({
-  photoHandoverText: vi.fn(() => 'photo handover'),
+vi.mock('@/lib/ai/photo-request', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/ai/photo-request')>()),
   requestsPropertyPhotos: vi.fn(() => false),
   sendSubjectPhotos: vi.fn(),
 }));
@@ -40,16 +40,19 @@ import { relayLeadMessageToBridgedAgent } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import type { InboundChainContext } from './context';
+import { photoHandoverText } from '@/lib/ai/photo-request';
 import { leadQuestion, withoutHandovers } from './steps/lead-question';
 
 const conversationUpdates: unknown[] = [];
+let teamReplies: { sender_type: string; content_text: string }[] = [];
 
 function fakeAdmin() {
   const chain: Record<string, unknown> = {};
-  for (const method of ['select', 'eq']) {
+  for (const method of ['select', 'eq', 'in', 'gte', 'order']) {
     chain[method] = vi.fn(() => chain);
   }
   chain.maybeSingle = vi.fn(async () => ({ data: null }));
+  chain.limit = vi.fn(async () => ({ data: teamReplies, error: null }));
   chain.update = vi.fn((row: unknown) => {
     conversationUpdates.push(row);
     return chain;
@@ -80,6 +83,7 @@ function ctx(overrides: Partial<InboundChainContext> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   conversationUpdates.length = 0;
+  teamReplies = [];
   vi.mocked(supabaseAdmin).mockReturnValue(
     fakeAdmin() as unknown as ReturnType<typeof supabaseAdmin>
   );
@@ -258,5 +262,72 @@ describe('[INB-035] withoutHandovers', () => {
   it('returns a single-listing answer unchanged', () => {
     const answer = { text: '2,400 sq.ft.', source: 'listing' as const };
     expect(withoutHandovers([answer], [{ title: 'Plot A' }])).toEqual(answer);
+  });
+});
+
+describe('[INB-035] the bot promises a person once', () => {
+  beforeEach(() => {
+    vi.mocked(answerLeadQuestion).mockResolvedValue({
+      text: HANDOVER_TEXT,
+      source: 'handover',
+    });
+  });
+
+  it('does not repeat the handover line when its last reply already promised one, but still summons the agent', async () => {
+    teamReplies = [{ sender_type: 'bot', content_text: HANDOVER_TEXT }];
+
+    await expect(leadQuestion(ctx())).resolves.toBe('handled');
+
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ entityId: 'conv-1' })
+    );
+    expect(relayLeadMessageToBridgedAgent).toHaveBeenCalled();
+    expect(conversationUpdates).toEqual([
+      expect.objectContaining({ status: 'pending' }),
+    ]);
+  });
+
+  it('treats an earlier photo handover as the same promise', async () => {
+    teamReplies = [
+      { sender_type: 'bot', content_text: photoHandoverText('Plot #493') },
+    ];
+
+    await leadQuestion(ctx());
+
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(createNotification).toHaveBeenCalled();
+  });
+
+  it('sends the handover line when the bot last said something else', async () => {
+    teamReplies = [{ sender_type: 'bot', content_text: 'It is East facing.' }];
+
+    await leadQuestion(ctx());
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({ text: HANDOVER_TEXT })
+    );
+  });
+
+  it('sends the handover line when nothing was said in the last 24 hours', async () => {
+    await leadQuestion(ctx());
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({ text: HANDOVER_TEXT })
+    );
+  });
+
+  it('still sends a concrete answer after an earlier handover', async () => {
+    teamReplies = [{ sender_type: 'bot', content_text: HANDOVER_TEXT }];
+    vi.mocked(answerLeadQuestion).mockResolvedValue({
+      text: 'It is East facing.',
+      source: 'listing',
+    });
+
+    await leadQuestion(ctx({ inboundText: 'Facing?' }));
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'It is East facing.' })
+    );
   });
 });

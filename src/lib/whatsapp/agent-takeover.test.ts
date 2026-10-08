@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   hasRecentAgentReply,
+  latestTeamReply,
   standDownActiveFlowRuns,
   AGENT_TAKEOVER_WINDOW_MS,
 } from './agent-takeover';
@@ -129,5 +130,38 @@ describe('standDownActiveFlowRuns', () => {
         'c1'
       )
     ).toBe(0);
+  });
+});
+
+describe('[INB-035] latestTeamReply', () => {
+  function replies(
+    rows: { sender_type: string; content_text: string | null }[] | null,
+    error: { message: string } | null = null
+  ): SupabaseClient {
+    const chain = {
+      select: () => chain,
+      eq: () => chain,
+      in: () => chain,
+      gte: () => chain,
+      order: () => chain,
+      limit: async () => ({ data: rows, error }),
+    };
+    return { from: () => chain } as unknown as SupabaseClient;
+  }
+
+  it('returns the newest bot or agent message', async () => {
+    await expect(
+      latestTeamReply(
+        replies([{ sender_type: 'bot', content_text: 'Hello' }]),
+        'conv-1'
+      )
+    ).resolves.toEqual({ senderType: 'bot', text: 'Hello' });
+  });
+
+  it('is null when nothing was said, or the lookup fails', async () => {
+    await expect(latestTeamReply(replies([]), 'conv-1')).resolves.toBeNull();
+    await expect(
+      latestTeamReply(replies(null, { message: 'boom' }), 'conv-1')
+    ).resolves.toBeNull();
   });
 });
