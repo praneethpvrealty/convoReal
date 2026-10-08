@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const events: string[] = [];
 const updates: Record<string, unknown>[] = [];
 let listingType = 'Sale';
+let autoSync = true;
 
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   syncProductToCatalog: vi.fn(async () => {
@@ -14,8 +15,11 @@ vi.mock('@/lib/whatsapp/encryption', () => ({
   decrypt: () => 'token',
 }));
 
-const { autoSyncPropertyCatalogIfNeeded, catalogCurrency } =
-  await import('./catalog-sync-helper');
+const {
+  autoSyncPropertyCatalogIfNeeded,
+  catalogCurrency,
+  catalogSyncPendingFields,
+} = await import('./catalog-sync-helper');
 
 function db() {
   return {
@@ -35,7 +39,7 @@ function db() {
                 ? {
                     access_token: 'enc',
                     catalog_id: 'c1',
-                    auto_sync_catalog: true,
+                    auto_sync_catalog: autoSync,
                   }
                 : { id: 'p1', listing_type: listingType },
             error: null,
@@ -54,6 +58,7 @@ beforeEach(() => {
   events.length = 0;
   updates.length = 0;
   listingType = 'Sale';
+  autoSync = true;
 });
 
 describe('[PRP-044] autoSyncPropertyCatalogIfNeeded', () => {
@@ -75,6 +80,41 @@ describe('[PRP-044] autoSyncPropertyCatalogIfNeeded', () => {
       meta_catalog_synced_at: null,
       meta_catalog_error: null,
     });
+  });
+});
+
+describe('[PRP-044] catalogSyncPendingFields', () => {
+  it('clears the sync state in the save itself when auto-sync is on', async () => {
+    await expect(
+      catalogSyncPendingFields(db() as never, 'acc-1')
+    ).resolves.toEqual({
+      meta_catalog_synced_at: null,
+      meta_catalog_error: null,
+    });
+  });
+
+  it('leaves a manually synced listing alone when auto-sync is off', async () => {
+    autoSync = false;
+    await expect(
+      catalogSyncPendingFields(db() as never, 'acc-1')
+    ).resolves.toEqual({});
+  });
+
+  it('fails the save before writing when the config cannot be read', async () => {
+    const failing = {
+      from: () => {
+        const builder = {
+          select: () => builder,
+          eq: () => builder,
+          maybeSingle: () =>
+            Promise.resolve({ data: null, error: new Error('timeout') }),
+        };
+        return builder;
+      },
+    };
+    await expect(
+      catalogSyncPendingFields(failing as never, 'acc-1')
+    ).rejects.toThrow('timeout');
   });
 });
 

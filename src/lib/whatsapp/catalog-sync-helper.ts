@@ -2,6 +2,20 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { syncProductToCatalog } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 
+export async function catalogSyncPendingFields(
+  supabase: SupabaseClient,
+  accountId: string
+): Promise<{ meta_catalog_synced_at?: null; meta_catalog_error?: null }> {
+  const { data: config, error } = await supabase
+    .from('whatsapp_config')
+    .select('catalog_id, auto_sync_catalog')
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!config?.catalog_id || !config.auto_sync_catalog) return {};
+  return { meta_catalog_synced_at: null, meta_catalog_error: null };
+}
+
 export async function catalogCurrency(
   supabase: SupabaseClient,
   accountId: string
