@@ -10,7 +10,7 @@ import {
 function db(
   rows: { id: string }[] | null,
   error: { message: string } | null = null,
-  capture?: { since?: string; senderType?: string }
+  capture?: { since?: string; senderType?: string; excluded?: string }
 ): SupabaseClient {
   return {
     from() {
@@ -25,10 +25,15 @@ function db(
                   if (capture && col2 === 'sender_type')
                     capture.senderType = String(v2);
                   return {
-                    gte(_c: string, since: string) {
-                      if (capture) capture.since = since;
+                    neq(col3: string, v3: unknown) {
+                      if (capture) capture.excluded = `${col3}=${v3}`;
                       return {
-                        limit: () => Promise.resolve({ data: rows, error }),
+                        gte(_c: string, since: string) {
+                          if (capture) capture.since = since;
+                          return {
+                            limit: () => Promise.resolve({ data: rows, error }),
+                          };
+                        },
                       };
                     },
                   };
@@ -52,10 +57,12 @@ describe('hasRecentAgentReply', () => {
   });
 
   it('only counts agent messages, inside a 24-hour window', async () => {
-    const capture: { since?: string; senderType?: string } = {};
+    const capture: { since?: string; senderType?: string; excluded?: string } =
+      {};
     const now = new Date('2026-08-07T16:21:00Z');
     await hasRecentAgentReply(db([], null, capture), 'conv-1', now);
     expect(capture.senderType).toBe('agent');
+    expect(capture.excluded).toBe('status=failed');
     expect(new Date(capture.since!).getTime()).toBe(
       now.getTime() - AGENT_TAKEOVER_WINDOW_MS
     );
@@ -136,12 +143,17 @@ describe('standDownActiveFlowRuns', () => {
 describe('[INB-035] latestTeamReply', () => {
   function replies(
     rows: { sender_type: string; content_text: string | null }[] | null,
-    error: { message: string } | null = null
+    error: { message: string } | null = null,
+    excluded: string[] = []
   ): SupabaseClient {
     const chain = {
       select: () => chain,
       eq: () => chain,
       in: () => chain,
+      neq: (col: string, value: string) => {
+        excluded.push(`${col}=${value}`);
+        return chain;
+      },
       gte: () => chain,
       order: () => chain,
       limit: async () => ({ data: rows, error }),
@@ -156,6 +168,12 @@ describe('[INB-035] latestTeamReply', () => {
         'conv-1'
       )
     ).resolves.toEqual({ senderType: 'bot', text: 'Hello' });
+  });
+
+  it('never counts a message Meta refused to deliver', async () => {
+    const excluded: string[] = [];
+    await latestTeamReply(replies([], null, excluded), 'conv-1');
+    expect(excluded).toEqual(['status=failed']);
   });
 
   it('is null when nothing was said, or the lookup fails', async () => {

@@ -48,7 +48,7 @@ let teamReplies: { sender_type: string; content_text: string }[] = [];
 
 function fakeAdmin() {
   const chain: Record<string, unknown> = {};
-  for (const method of ['select', 'eq', 'in', 'gte', 'order']) {
+  for (const method of ['select', 'eq', 'in', 'neq', 'gte', 'order']) {
     chain[method] = vi.fn(() => chain);
   }
   chain.maybeSingle = vi.fn(async () => ({ data: null }));

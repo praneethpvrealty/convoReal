@@ -40,6 +40,7 @@ export async function hasRecentAgentReply(
       .select('id')
       .eq('conversation_id', conversationId)
       .eq('sender_type', 'agent')
+      .neq('status', 'failed')
       .gte('created_at', since)
       .limit(1);
     if (error) return false;
@@ -106,6 +107,7 @@ export async function latestTeamReply(
       .select('sender_type, content_text')
       .eq('conversation_id', conversationId)
       .in('sender_type', ['agent', 'bot'])
+      .neq('status', 'failed')
       .gte('created_at', since)
       .order('created_at', { ascending: false })
       .limit(1);
