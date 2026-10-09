@@ -3735,11 +3735,6 @@ export async function processOwnerChatbotMessage(
   }
 
   // 4. Start New Session Flow (No Session Exists)
-  //
-  // A tap that reached here matched no dispatcher, so its label is all
-  // the classifier would see — and it read "✅ Legal done → Agreement"
-  // as a forwarded client reply. Taps fall through to the handlers
-  // below the owner chatbot instead, like the help reply below does.
   if (!isInteractiveTap && (isMediaMsg || cleanedText)) {
     // A bare video with no caption can't seed a draft (nothing to
     // parse) — the concurrency poll above already waited for a session
