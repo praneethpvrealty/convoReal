@@ -24,18 +24,19 @@ import type { Contact, Property } from '@/lib/types';
  *  A share is something the agent sent, not something the contact asked
  *  about, so it never touches last_inquired_property_id ("Contacted
  *  about"). Best-effort: failures don't block the WhatsApp hand-off the
- *  caller is about to make. */
+ *  caller is about to make. Resolves false when the ledger could not
+ *  record the share, so the caller can say so. */
 export async function logExternalShare(
   contact: Contact,
   property: Property
-): Promise<void> {
+): Promise<boolean> {
   const { profile, session } = useAuthStore.getState();
-  if (!profile?.account_id || !session?.user.id) return;
+  if (!profile?.account_id || !session?.user.id) return true;
   const now = new Date().toISOString();
   const label = property.property_code
     ? `[${property.property_code}] ${property.title}`
     : property.title;
-  await Promise.allSettled([
+  const [, , ledger] = await Promise.allSettled([
     supabase
       .from('contacts')
       // Touch settled alongside the note insert below; the note is the
@@ -67,6 +68,7 @@ export async function logExternalShare(
       }
     ),
   ]);
+  return ledger.status === 'fulfilled' && ledger.value.complete;
 }
 
 /**

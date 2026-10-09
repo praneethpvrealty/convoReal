@@ -23,6 +23,8 @@ import {
   postShareLog,
   type ShareLogResponse,
 } from '@/lib/inventory/share-log-request';
+
+export { SHARE_UNRECORDED_NOTICE } from '@/lib/inventory/share-log-request';
 import type { Contact } from '@/types';
 
 export type ShareRecipientKind = 'buyer' | 'agent';
