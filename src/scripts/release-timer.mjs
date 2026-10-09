@@ -336,8 +336,30 @@ async function carryOver(
   core.notice(`moved ${openMembers.length} open member(s) to ${next}`);
 }
 
+export const WORKFLOWS_TOKEN_SECRET = 'RELEASE_TIMER_WORKFLOWS_TOKEN';
+
+function refusedForWorkflows(error) {
+  return error.status === 403 && /workflow/i.test(error.message ?? '');
+}
+
+async function mergeMainInto(branchUpdater, params) {
+  try {
+    await branchUpdater.rest.pulls.updateBranch(params);
+    return 'merged';
+  } catch (error) {
+    if (error.status === 422) return 'conflict';
+    if (refusedForWorkflows(error)) return 'workflows';
+    throw error;
+  }
+}
+
+function workflowsReason(branch) {
+  return `main changes a file under .github/workflows/ and the timer's token may not push workflow changes; add the ${WORKFLOWS_TOKEN_SECRET} secret or merge main into ${branch} by hand`;
+}
+
 async function shipBranch({
   github,
+  branchUpdater,
   context,
   core,
   branch,
@@ -467,19 +489,20 @@ async function shipBranch({
       per_page: 1,
     });
     if (behindAtOpen > 0) {
-      try {
-        await github.rest.pulls.updateBranch({
-          owner,
-          repo,
-          pull_number: created.number,
-          expected_head_sha: tipSha,
-        });
+      const outcome = await mergeMainInto(branchUpdater, {
+        owner,
+        repo,
+        pull_number: created.number,
+        expected_head_sha: tipSha,
+      });
+      if (outcome === 'merged') {
         core.notice(`merged main into ${branch}; CI runs on the new head next`);
-      } catch (error) {
-        if (error.status !== 422) throw error;
+      } else if (outcome === 'conflict') {
         core.warning(
           `${branch}: main cannot be merged in cleanly; held next run`
         );
+      } else {
+        core.warning(`${branch}: ${workflowsReason(branch)}`);
       }
       return decision;
     }
@@ -520,17 +543,16 @@ async function shipBranch({
   if (decision.action === 'hold') return hold(decision.reason);
 
   if (decision.action === 'update-branch') {
-    try {
-      await github.rest.pulls.updateBranch({
-        owner,
-        repo,
-        pull_number: releasePr.number,
-        expected_head_sha: releasePr.headSha,
-      });
-    } catch (error) {
-      if (error.status !== 422) throw error;
+    const outcome = await mergeMainInto(branchUpdater, {
+      owner,
+      repo,
+      pull_number: releasePr.number,
+      expected_head_sha: releasePr.headSha,
+    });
+    if (outcome === 'conflict') {
       return hold('main cannot be merged into the release branch cleanly');
     }
+    if (outcome === 'workflows') return hold(workflowsReason(branch));
     core.notice(`merged main into ${branch}; CI runs on the new head next`);
     return decision;
   }
@@ -639,11 +661,12 @@ async function shipBranch({
 }
 
 /**
- * @param {{ github: any, context: any, core: any, dryRun?: boolean, now?: number }} options
+ * @param {{ github: any, branchUpdater?: any, context: any, core: any, dryRun?: boolean, now?: number }} options
  * @returns {Promise<Record<string, { action: string, reason: string }>>}
  */
 export async function run({
   github,
+  branchUpdater = github,
   context,
   core,
   dryRun = false,
@@ -676,6 +699,7 @@ export async function run({
     try {
       results[branch.name] = await shipBranch({
         github,
+        branchUpdater,
         context,
         core,
         branch: branch.name,
