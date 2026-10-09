@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { isEngineControlReplyId } from '@/lib/whatsapp/control-reply-ids';
 import {
@@ -11,6 +13,11 @@ import {
   FOLLOWUP_COLD_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
 } from '@/lib/contacts/follow-up-nudges';
+import {
+  CLOSING_ADVANCE_PREFIX,
+  CLOSING_ASK_PREFIX,
+  CLOSING_SNOOZE_PREFIX,
+} from '@/lib/journey/closing-nudges';
 import { AGENT_MESSAGE_CONTACT_PREFIX } from '@/lib/calendar/agent-reminder-actions';
 import {
   DOCUMENT_APPROVE_PREFIX,
@@ -46,6 +53,51 @@ describe('isEngineControlReplyId', () => {
         isEngineControlReplyId(`${prefix}3f2c8a1e-4b6d-4f0a-9c2e-8d7b6a5f4e3d`),
         prefix
       ).toBe(true);
+    }
+  });
+
+  it('[JRN-022] claims every closing card button', () => {
+    for (const prefix of [
+      CLOSING_ADVANCE_PREFIX,
+      CLOSING_ASK_PREFIX,
+      CLOSING_SNOOZE_PREFIX,
+    ]) {
+      expect(
+        isEngineControlReplyId(`${prefix}3f2c8a1e-4b6d-4f0a-9c2e-8d7b6a5f4e3d`),
+        prefix
+      ).toBe(true);
+    }
+  });
+
+  // The control dispatch only runs for a registered id, so a card wired
+  // into it but missing here never reaches its handler: the approvals,
+  // the enquiry card and the closing card each shipped that way. Every
+  // button prefix a module exports to the dispatch must be registered.
+  it('[JRN-022] claims every prefix the control dispatch imports', () => {
+    const root = process.cwd();
+    const dispatch = readFileSync(
+      join(root, 'src/lib/whatsapp/inbound/chain/steps/control-reply.ts'),
+      'utf8'
+    );
+    const modules = [...dispatch.matchAll(/from '@\/(lib\/[^']+)'/g)].map(
+      (m) => `src/${m[1]}.ts`
+    );
+    const prefixes = modules.flatMap((file) => {
+      let source: string;
+      try {
+        source = readFileSync(join(root, file), 'utf8');
+      } catch {
+        return [];
+      }
+      return [...source.matchAll(/export const (\w+_PREFIX) = '([^']+)'/g)].map(
+        (m) => ({ name: m[1], value: m[2], file })
+      );
+    });
+    expect(prefixes.length).toBeGreaterThan(10);
+    for (const { name, value, file } of prefixes) {
+      expect(isEngineControlReplyId(`${value}x`), `${name} in ${file}`).toBe(
+        true
+      );
     }
   });
 

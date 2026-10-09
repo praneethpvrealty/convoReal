@@ -27,6 +27,7 @@ import {
   buildPropertyCandidateButtons,
   buildPropertyCandidateReply,
   candidateButtonTitle,
+  candidateTerms,
   parseClientCandidateReplyId,
   parsePropertyCandidateReplyId,
   parsePropertyCandidateCancelId,
@@ -339,6 +340,49 @@ describe('a forwarded brief with no listing', () => {
       '\n\n🔎 Open their contact to see what in your inventory fits.';
     expect(text).not.toContain(PROPERTY_QUESTION_PROMPT);
     expect(text).toContain('direct purchase only');
+  });
+});
+
+describe('[JRN-022] the words a forward is matched on', () => {
+  const base = {
+    client_name: null,
+    client_phone: null,
+    property_code: null,
+    property_title: null,
+    next_action: null,
+    timeline_hint: null,
+    requirement: null,
+    mentioned_terms: [],
+  };
+
+  it('never mines the summary, which is the model paraphrasing', () => {
+    expect(
+      candidateTerms({
+        ...base,
+        response_summary:
+          'Stated that legal verification is complete and proceeding towards the agreement.',
+      })
+    ).toEqual([]);
+  });
+
+  it('still reads what the client actually named', () => {
+    expect(
+      candidateTerms({
+        ...base,
+        response_summary: 'Stated they are keen',
+        mentioned_terms: ['Lodha Sadhahalli'],
+      })
+    ).toEqual(['lodha', 'sadhahalli']);
+  });
+
+  it('falls back to the listing and brief the model read', () => {
+    expect(
+      candidateTerms({
+        ...base,
+        response_summary: 'Stated they are keen',
+        requirement: 'Villa near Devanahalli',
+      })
+    ).toEqual(['devanahalli']);
   });
 });
 
