@@ -55,6 +55,22 @@ describe('tap labels never enter the interpretive corridor', () => {
     expect(source).toContain(marker);
   });
 
+  // [JRN-022] The new-draft classifier sits past the session blocks,
+  // so the corridor above never covered it, and an unregistered card's
+  // "✅ Legal done → Agreement" was classified as a forwarded client
+  // reply. A tap that reaches it has matched nothing; it falls through.
+  it('[JRN-022] keeps a tap out of the new-draft classifier', () => {
+    const gate = source.indexOf(
+      'if (!isInteractiveTap && (isMediaMsg || cleanedText)) {'
+    );
+    const classifier = source.indexOf(
+      'await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType)'
+    );
+    expect(gate).toBeGreaterThan(-1);
+    expect(classifier).toBeGreaterThan(gate);
+    expect(source.indexOf('if (isMediaMsg || cleanedText) {')).toBe(-1);
+  });
+
   it('derives the tap flag from the interactive type', () => {
     expect(source).toContain(
       "const isInteractiveTap = message.type === 'interactive';"

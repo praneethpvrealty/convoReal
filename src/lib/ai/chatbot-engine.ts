@@ -3735,7 +3735,7 @@ export async function processOwnerChatbotMessage(
   }
 
   // 4. Start New Session Flow (No Session Exists)
-  if (isMediaMsg || cleanedText) {
+  if (!isInteractiveTap && (isMediaMsg || cleanedText)) {
     // A bare video with no caption can't seed a draft (nothing to
     // parse) — the concurrency poll above already waited for a session
     // from accompanying text/photos, so leave it in the inbox.
