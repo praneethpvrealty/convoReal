@@ -24,6 +24,9 @@ export interface ShareLogOutcome {
 
 export const SHARE_LOG_ATTEMPTS = 3;
 
+export const SHARE_UNRECORDED_NOTICE =
+  'Shared, but it could not be recorded against the listing. It will not show as already shared.';
+
 function isRefusal(err: unknown): boolean {
   const status = (err as { status?: unknown } | null)?.status;
   return (

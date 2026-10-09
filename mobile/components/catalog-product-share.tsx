@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { catalogShareState } from '@shared/lib/inventory/catalog-product-share';
+import { SHARE_UNRECORDED_NOTICE } from '@shared/lib/inventory/share-log-request';
 
 import { AppDialog, type DialogAction } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
@@ -137,14 +138,11 @@ export function CatalogProductShare({
         haptic.warn();
         notify(
           failed.length === 0
-            ? 'Sent, but not recorded'
+            ? 'Not recorded'
             : `Sent to ${sent.length} of ${contacts.length}`,
           [
-            `The product card reached ${sent
-              .map((c) => c.name || contactHandle(c))
-              .join(
-                ', '
-              )}, but the share could not be recorded on their timeline. Check your connection; the messages are in their chats.`,
+            SHARE_UNRECORDED_NOTICE,
+            `Sent to ${sent.map((c) => c.name || contactHandle(c)).join(', ')}.`,
             ...failed.map(
               ({ contact, error }) =>
                 `${contact.name || contactHandle(contact)}: ${error}`

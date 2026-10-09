@@ -6,7 +6,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type { Contact } from '@/types';
 import type { PickerProperty } from '@/lib/contacts/detail-queries';
-import { recordPropertyShares } from '@/lib/inventory/share-log';
+import {
+  SHARE_UNRECORDED_NOTICE,
+  recordPropertyShares,
+} from '@/lib/inventory/share-log';
 import { storagePublicUrl } from '@/lib/storage/url';
 import {
   Dialog,
@@ -182,6 +185,8 @@ export function LogExternalShareDialog({
           propertyId: selectedPropertyId,
           userId: user.id,
           recipients: [{ contactId, classification: contactClassification }],
+        }).then((r) => {
+          if (r.error) toast.warning(SHARE_UNRECORDED_NOTICE);
         });
       }
 
