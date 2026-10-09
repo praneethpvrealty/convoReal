@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -14,6 +15,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+
+import { SHARE_UNRECORDED_NOTICE } from '@shared/lib/inventory/share-log-request';
 
 import { AppDialog, type DialogAction } from '@/components/app-dialog';
 import { CatalogProductShare } from '@/components/catalog-product-share';
@@ -207,7 +210,9 @@ export function PropertyShareSheet({
   async function shareExternalWithContact(contact: Contact) {
     setPicker(null);
     haptic.send();
-    void logExternalShare(contact, property);
+    void logExternalShare(contact, property).then((recorded) => {
+      if (!recorded) Alert.alert('Not recorded', SHARE_UNRECORDED_NOTICE);
+    });
     const phone = (contact.phone ?? '').replace(/\D/g, '');
     const trackedUrl = propertyShareUrl({
       siteUrl: ENV.apiBaseUrl,

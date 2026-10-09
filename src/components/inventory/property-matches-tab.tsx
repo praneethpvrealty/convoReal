@@ -34,6 +34,7 @@ import {
   type MatchingResult,
 } from '@/lib/matching';
 import {
+  SHARE_UNRECORDED_NOTICE,
   fetchPropertyShareLog,
   recordPropertyShares,
 } from '@/lib/inventory/share-log';
@@ -691,7 +692,10 @@ export function PropertyMatchesTab({
             contactId: c.id,
             classification: c.classification,
           })),
-        }).then(() => fetchShareLog());
+        }).then((r) => {
+          if (r.error) toast.warning(SHARE_UNRECORDED_NOTICE);
+          return fetchShareLog();
+        });
       }
 
       setBroadcastResults(resultsMap);

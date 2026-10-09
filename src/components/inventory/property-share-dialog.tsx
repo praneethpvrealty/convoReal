@@ -52,7 +52,10 @@ import {
   type MatchDetails,
 } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
-import { recordPropertyShares } from '@/lib/inventory/share-log';
+import {
+  SHARE_UNRECORDED_NOTICE,
+  recordPropertyShares,
+} from '@/lib/inventory/share-log';
 import { useShareLinkGrant } from '@/hooks/useShareLinkGrant';
 import {
   DEFAULT_SHARE_RECIPIENT_COUNT,
@@ -1410,9 +1413,7 @@ export function PropertyShareDialog({
       .then((r) => {
         if (!r.error) return;
         console.error('Property share log failed:', r.error);
-        toast.warning(
-          'Sent, but the share could not be recorded on the contact timeline.'
-        );
+        toast.warning(SHARE_UNRECORDED_NOTICE);
       })
       .catch((err) => console.error('Property share log failed:', err));
   }

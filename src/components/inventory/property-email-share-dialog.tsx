@@ -31,7 +31,10 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { buildPropertyShareEmailContent } from '@/lib/email/property-share-email';
-import { recordPropertyShares } from '@/lib/inventory/share-log';
+import {
+  SHARE_UNRECORDED_NOTICE,
+  recordPropertyShares,
+} from '@/lib/inventory/share-log';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 
 interface PropertyEmailShareDialogProps {
@@ -260,7 +263,7 @@ export function PropertyEmailShareDialog({
     });
     setLogging(false);
     if (error) {
-      toast.error('Could not log the share. The email still went out.');
+      toast.warning(SHARE_UNRECORDED_NOTICE);
       return;
     }
     toast.success(

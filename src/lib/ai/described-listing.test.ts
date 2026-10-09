@@ -125,6 +125,17 @@ describe('describedListingAmong', () => {
     expect(describedListingAmong('the 9000 sqft one', shared)).toBeNull();
   });
 
+  it('[INB-034] reads the figure whatever was tested just before it', () => {
+    // The live step tests the text for a reference before the resolver
+    // parses it; a global regex would carry its lastIndex across.
+    expect(referencesSharedListing('No this 5,760 sqft one')).toBe(true);
+    expect(describedListingAmong('No this 40,000 sqft one', shared)).toBe(
+      'prop-1784'
+    );
+    expect(referencesSharedListing('No this 40,000 sqft one')).toBe(true);
+    expect(referencesSharedListing('No this 40,000 sqft one')).toBe(true);
+  });
+
   it('[INB-034] compares land area across every stored unit', () => {
     const farm = {
       ...FLAT,

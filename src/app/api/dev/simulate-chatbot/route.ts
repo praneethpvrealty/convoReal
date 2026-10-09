@@ -37,8 +37,20 @@ import {
   buildPhotoReplyText,
   photoHandoverText,
   plannedPhotoCount,
+  requestsPropertyPhotos,
 } from '@/lib/ai/photo-request';
-import { CALLBACK_HANDOVER_TEXT } from '@/lib/ai/lead-question';
+import {
+  answerLeadQuestion,
+  CALLBACK_HANDOVER_TEXT,
+  looksLikeQuestion,
+  mergeLeadAnswers,
+  previousLeadQuestion,
+  questionSubjectProperties,
+  requestsHumanContact,
+  subjectPortalListings,
+} from '@/lib/ai/lead-question';
+import { referencesSharedListing } from '@/lib/ai/described-listing';
+import { retrieveBotInstructions } from '@/lib/ai/bot-instructions';
 import { buildEnquiryAckText } from '@/lib/whatsapp/enquiry-card';
 import {
   buildPropertyInterestAck,
@@ -92,6 +104,7 @@ export async function POST(request: Request) {
       priorRequirements?: string;
       contactName?: string;
       subjectPropertyCode?: string;
+      quotedText?: string;
     } | null;
 
     const text = (body?.text || '').trim().slice(0, MAX_TEXT_LEN);
@@ -106,34 +119,16 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      const normalized = normalizePhoneWithCountryCode(phone);
-      const digits = normalized.replace(/\D/g, '');
-      const { data: contacts } = await ctx.supabase
-        .from('contacts')
-        .select('id, name')
-        .eq('account_id', ctx.accountId)
-        .or(
-          `phone.eq."${phone.replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${digits}`
-        )
-        .limit(2);
-      if (!contacts || contacts.length !== 1) {
-        return NextResponse.json(
-          {
-            error: contacts?.length
-              ? 'More than one contact has that phone.'
-              : 'No contact has that phone.',
-          },
-          { status: 404 }
-        );
-      }
+      const found = await contactByPhone(ctx.supabase, ctx.accountId, phone);
+      if ('error' in found) return found.error;
       const previewText = await buildBuyerMatchReply({
         accountId: ctx.accountId,
-        contactId: contacts[0].id,
+        contactId: found.contact.id,
         db: ctx.supabase,
       });
       return NextResponse.json({
         mode: 'buyer_matches',
-        contactName: contacts[0].name,
+        contactName: found.contact.name,
         previewText,
       });
     }
@@ -155,6 +150,9 @@ export async function POST(request: Request) {
           .slice(0, MAX_TEXT_LEN),
         contactName: (body.contactName || '').trim() || null,
         subjectPropertyCode: (body.subjectPropertyCode || '').trim() || null,
+        phone: phone || null,
+        quotedText:
+          (body.quotedText || '').trim().slice(0, MAX_TEXT_LEN) || null,
       });
     }
 
@@ -336,6 +334,8 @@ async function simulateLeadReply(args: {
   priorRequirements: string;
   contactName: string | null;
   subjectPropertyCode: string | null;
+  phone: string | null;
+  quotedText: string | null;
 }): Promise<NextResponse> {
   const {
     accountId,
@@ -344,6 +344,8 @@ async function simulateLeadReply(args: {
     priorRequirements,
     contactName,
     subjectPropertyCode,
+    phone,
+    quotedText,
   } = args;
 
   const route = routeLeadMessage(text);
@@ -355,10 +357,34 @@ async function simulateLeadReply(args: {
       text,
       contactName,
       subjectPropertyCode,
+      phone,
+      quotedText,
     });
   }
 
   const hasSignal = carriesRequirementSignal(text);
+  // A question with no requirement in it is left alone by the ladder
+  // live and reaches the listing Q&A step, so against a real thread it
+  // is answered from there — "Can u share the exact location?" names
+  // no listing word and routes as qualification.
+  if (phone && !hasSignal && looksLikeQuestion(text)) {
+    return replayListingAnswer({
+      accountId,
+      supabase,
+      text,
+      phone,
+      quotedText,
+      base: {
+        mode: 'lead_reply' as const,
+        route: 'listing_question' satisfies LeadRoute,
+        routeExplanation: LEAD_ROUTE_EXPLANATIONS.listing_question,
+        carriesRequirementSignal: false,
+        preferences: null,
+        nextQualifier: null,
+        ladderStoodDown: true,
+      },
+    });
+  }
   // A request for more listings files nothing — the brief stays as it
   // was and the reply is the next of what already matches it.
   const requirements =
@@ -476,9 +502,19 @@ async function simulateCarveOut(args: {
   text: string;
   contactName: string | null;
   subjectPropertyCode: string | null;
+  phone: string | null;
+  quotedText: string | null;
 }): Promise<NextResponse> {
-  const { accountId, supabase, route, text, contactName, subjectPropertyCode } =
-    args;
+  const {
+    accountId,
+    supabase,
+    route,
+    text,
+    contactName,
+    subjectPropertyCode,
+    phone,
+    quotedText,
+  } = args;
 
   const base = {
     mode: 'lead_reply' as const,
@@ -501,6 +537,16 @@ async function simulateCarveOut(args: {
   }
 
   if (route === 'shortlist_reference' || route === 'listing_question') {
+    if (phone) {
+      return replayListingAnswer({
+        accountId,
+        supabase,
+        text,
+        phone,
+        quotedText,
+        base,
+      });
+    }
     return NextResponse.json({
       ...base,
       previewText: null,
@@ -579,6 +625,149 @@ async function simulateCarveOut(args: {
       },
     ]),
   });
+}
+
+/**
+ * The listing Q&A run against a saved contact's real thread — the same
+ * subject resolution, the same previous-question lookup and the same
+ * answer ladder the live step uses, with nothing sent, nothing written
+ * and no credits charged. This is how a thread that went wrong is
+ * replayed after a fix: give the contact's phone and the message they
+ * sent, and read what the bot would say now.
+ */
+async function replayListingAnswer(args: {
+  accountId: string;
+  supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
+  text: string;
+  phone: string;
+  quotedText: string | null;
+  base: Record<string, unknown>;
+}): Promise<NextResponse> {
+  const { accountId, supabase, text, phone, quotedText, base } = args;
+  const found = await contactByPhone(supabase, accountId, phone);
+  if ('error' in found) return found.error;
+  const { contact } = found;
+
+  const { data: conversation } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contact.id)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!conversation) {
+    return NextResponse.json(
+      { error: 'That contact has no WhatsApp conversation yet.' },
+      { status: 404 }
+    );
+  }
+
+  const subjects = await questionSubjectProperties(
+    supabase,
+    accountId,
+    contact.id,
+    conversation.id,
+    text,
+    { quotedText }
+  );
+  const pointsOnly =
+    subjects.length > 0 &&
+    referencesSharedListing(text) &&
+    !looksLikeQuestion(text) &&
+    !requestsHumanContact(text) &&
+    !requestsPropertyPhotos(text);
+  const question = pointsOnly
+    ? ((await previousLeadQuestion(supabase, conversation.id, text)) ?? text)
+    : text;
+
+  const { data: qaConfig } = await supabase
+    .from('whatsapp_config')
+    .select('share_seller_final_price')
+    .eq('account_id', accountId)
+    .maybeSingle();
+  const answers = await Promise.all(
+    (subjects.length > 0 ? subjects : [null]).map(async (subject) => {
+      const [portalListings, botInstructions] = await Promise.all([
+        subject
+          ? subjectPortalListings(supabase, accountId, subject.id)
+          : Promise.resolve([]),
+        retrieveBotInstructions(supabase, {
+          accountId,
+          contactClassification: contact.classification ?? null,
+          listingType: subject?.listing_type ?? null,
+          language: contact.preferred_language ?? null,
+        }),
+      ]);
+      return answerLeadQuestion({
+        accountId,
+        question,
+        property: subject,
+        shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
+        portalListings,
+        botInstructions,
+        chargeCredits: false,
+      });
+    })
+  );
+  const answer = mergeLeadAnswers(answers, subjects);
+
+  return NextResponse.json({
+    ...base,
+    contactName: contact.name,
+    previewText: answer.text,
+    answeredFromListing: true,
+    answerSource: answer.source,
+    questionAnswered: question,
+    subjects: subjects.map((subject) => ({
+      propertyCode:
+        (subject as { property_code?: string | null }).property_code ?? null,
+      title: subject.title ?? null,
+    })),
+    notifiesAgent: answer.source === 'handover',
+  });
+}
+
+/** The one saved contact with this phone, or the response that says why
+ *  there is not exactly one. */
+async function contactByPhone(
+  supabase: Awaited<ReturnType<typeof requireRole>>['supabase'],
+  accountId: string,
+  phone: string
+): Promise<
+  | {
+      contact: {
+        id: string;
+        name: string | null;
+        classification: string | null;
+        preferred_language: string | null;
+      };
+    }
+  | { error: NextResponse }
+> {
+  const normalized = normalizePhoneWithCountryCode(phone);
+  const digits = normalized.replace(/\D/g, '');
+  const { data: contacts } = await supabase
+    .from('contacts')
+    .select('id, name, classification, preferred_language')
+    .eq('account_id', accountId)
+    .or(
+      `phone.eq."${phone.replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${digits}`
+    )
+    .limit(2);
+  if (!contacts || contacts.length !== 1) {
+    return {
+      error: NextResponse.json(
+        {
+          error: contacts?.length
+            ? 'More than one contact has that phone.'
+            : 'No contact has that phone.',
+        },
+        { status: 404 }
+      ),
+    };
+  }
+  return { contact: contacts[0] };
 }
 
 /** The listing an agent named, by the brokerage's own property code. */

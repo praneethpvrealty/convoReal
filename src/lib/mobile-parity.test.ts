@@ -734,6 +734,38 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(catalog).toContain('return outcome.complete;');
   });
 
+  it('[JRN-021] tells the agent when a share stays unrecorded, in the same words on all six surfaces', () => {
+    const actions = mobileSource('lib/property-share-actions.ts');
+    expect(actions).toContain(
+      "return ledger.status === 'fulfilled' && ledger.value.complete;"
+    );
+    expect(actions).toContain(
+      'if (!profile?.account_id || !session?.user.id) return false;'
+    );
+    expect(mobileSource('components/property-share-sheet.tsx')).toContain(
+      "if (!recorded) Alert.alert('Not recorded', SHARE_UNRECORDED_NOTICE);"
+    );
+    for (const file of [
+      'components/inventory/property-matches-tab.tsx',
+      'components/contacts/log-external-share-dialog.tsx',
+    ]) {
+      expect(webSource(file)).toContain(
+        'if (r.error) toast.warning(SHARE_UNRECORDED_NOTICE);'
+      );
+    }
+    for (const file of [
+      'components/inventory/property-share-dialog.tsx',
+      'components/inventory/property-email-share-dialog.tsx',
+    ]) {
+      expect(webSource(file)).toContain(
+        'toast.warning(SHARE_UNRECORDED_NOTICE);'
+      );
+    }
+    const card = mobileSource('components/catalog-product-share.tsx');
+    expect(card).toContain('SHARE_UNRECORDED_NOTICE,');
+    expect(card).toContain("? 'Not recorded'");
+  });
+
   it('[JRN-011] removes a branch and the deal opened from it through one route on web and mobile', () => {
     const mobileApi = mobileSource('lib/api.ts');
     const webRemove = webSource('lib/journey/remove.ts');

@@ -574,7 +574,7 @@
         },
         {
           "id": "INB-034",
-          "rule": "A lead's question is answered for the listing they mean, never for whichever card happened to go last. Listings shared within five minutes of each other, with no word from the lead between them, are one batch: a question that follows, with nothing quoted and nothing said since, is answered for every listing in the batch (up to three, newest first), each under its title, so two localities are tellable apart. A message that names one of the recently shared listings (as the thread shows them, not the ledger's first-share dates) by a figure it carries (land area in any stored unit, built-up area, price in crore or lakh, bedrooms) or, without a figure, by a word only that listing's title or locality carries (\"the Chikatogur one\") is answered for that listing alone, and when such a message only points (\"No this 40,000 sqft one\") the question the lead asked in the message immediately before it is the one answered, never an older one. A demonstrative with a figure or a describing word is a reference and reaches the listing Q&A; a figure stating a requirement (\"I want a 2400 sqft plot\", \"I want one 2400 sqft plot\") still belongs to the ladder, and a rejection that points by figure (\"don't like this 3 bhk one\") is still recorded as a rejection. A description that fits several of the shares names nothing, a figure that fits none names nothing however well a word fits, and a quoted share wins over any description (INB-033).",
+          "rule": "A lead's question is answered for the listing they mean, never for whichever card happened to go last. Listings shared within five minutes of each other, with no word from the lead between them, are one batch: a question that follows, with nothing quoted and nothing said since, is answered for every listing in the batch (up to three, newest first), each under its title, so two localities are tellable apart; a bare question or remark from the lead since the batch does not end it, and naming, numbering, quoting or describing a card does. A message that names one of the recently shared listings (as the thread shows them, not the ledger's first-share dates) by a figure it carries (land area in any stored unit, built-up area, price in crore or lakh, bedrooms) or, without a figure, by a word only that listing's title or locality carries (\"the Chikatogur one\") is answered for that listing alone, read against the cards the question was about before the wider thread, and when such a message only points (\"No this 40,000 sqft one\") the question the lead asked in the message immediately before it is the one answered, never an older one. A demonstrative with a figure or a describing word is a reference and reaches the listing Q&A; a figure stating a requirement (\"I want a 2400 sqft plot\", \"I want one 2400 sqft plot\") still belongs to the ladder, and a rejection that points by figure (\"don't like this 3 bhk one\") is still recorded as a rejection. A description that fits several of the shares names nothing, a figure that fits none names nothing however well a word fits, and a quoted share wins over any description (INB-033).",
           "tests": [
             {
               "file": "src/lib/ai/described-listing.test.ts",
@@ -590,6 +590,10 @@
             },
             {
               "file": "src/lib/ai/lead-routing.test.ts",
+              "case": "[INB-034]"
+            },
+            {
+              "file": "src/app/api/dev/simulate-chatbot/route.test.ts",
               "case": "[INB-034]"
             }
           ],
@@ -2548,7 +2552,7 @@
         },
         {
           "id": "JRN-021",
-          "rule": "A share the ledger could not record is never reported as recorded. The server ledger writer never throws and never turns a delivered message into a send error, but it reports whether both the ledger row and the journey capture landed. POST /api/properties/share-log answers 200 with `recorded` counting only the recipients whose writes both landed and `failed` listing every other requested contact id. Every client that logs a share through it, on web and mobile (the share sheet, a logged personal-WhatsApp or email share, the mobile product-card send), reads the answer through one shared reader that retries the failed recipients, up to three attempts, retries a transport failure the same way, stops at once on a refusal, and treats a recorded count short of the recipients sent as unrecorded: the email share and the mobile product card tell the agent the share went out but was not recorded.",
+          "rule": "A share the ledger could not record is never reported as recorded. The server ledger writer never throws and never turns a delivered message into a send error, but it reports whether both the ledger row and the journey capture landed. POST /api/properties/share-log answers 200 with `recorded` counting only the recipients whose writes both landed and `failed` listing every other requested contact id. Every client that logs a share through it, on web and mobile (the share sheet, a logged personal-WhatsApp or email share, the mobile product-card send), reads the answer through one shared reader that retries the failed recipients, up to three attempts, retries a transport failure the same way, stops at once on a refusal, and treats a recorded count short of the recipients sent as unrecorded. Every one of those surfaces then tells the agent the share went out but was not recorded: the web share dialog, the web Matching Contacts broadcast, the web email share, a personal-WhatsApp share logged from the web contact page or the mobile share sheet, and the mobile product card, all six in the same words.",
           "tests": [
             {
               "file": "src/lib/whatsapp/share-property-send.test.ts",
@@ -2577,7 +2581,10 @@
             "src/lib/inventory/share-log-request.ts",
             "src/lib/inventory/share-log.ts",
             "mobile/lib/catalog-product-share.ts",
-            "mobile/lib/property-share-actions.ts"
+            "mobile/lib/property-share-actions.ts",
+            "mobile/components/property-share-sheet.tsx",
+            "src/components/inventory/property-matches-tab.tsx",
+            "src/components/contacts/log-external-share-dialog.tsx"
           ]
         }
       ]
@@ -2604,7 +2611,7 @@
         },
         {
           "id": "JRN-022",
-          "rule": "A tap on a button the Engine put on an agent's WhatsApp card (the closing card's advance, update request and snooze among them) runs that button's action and is never read as a forwarded client reply or relayed to a lead: every button prefix a module hands to the control dispatch is registered as an Engine control reply. When a forwarded client reply names no client, the contacts offered as candidates are nominated only by words the client wrote, or failing those the listing and brief the model read, never by the model's own summary of the thread.",
+          "rule": "A tap on a button the Engine put on an agent's WhatsApp card (the closing card's advance, update request and snooze among them) runs that button's action and is never read as a forwarded client reply or relayed to a lead: every button prefix a module hands to the control dispatch is registered as an Engine control reply, and a tap from the account owner that no dispatcher recognises is never sent to the owner chatbot's new-draft classifier, so its label cannot be read as a forwarded conversation. When a forwarded client reply names no client, the contacts offered as candidates are nominated only by words the client wrote, or failing those the listing and brief the model read, never by the model's own summary of the thread.",
           "tests": [
             {
               "file": "src/lib/whatsapp/control-reply-ids.test.ts",
@@ -2613,9 +2620,14 @@
             {
               "file": "src/lib/journey/client-response.test.ts",
               "case": "[JRN-022]"
+            },
+            {
+              "file": "src/lib/ai/tap-label-corridor.test.ts",
+              "case": "[JRN-022]"
             }
           ],
           "guards": [
+            "src/lib/ai/chatbot-engine.ts",
             "src/lib/whatsapp/control-reply-ids.ts",
             "src/lib/whatsapp/inbound/chain/steps/control-reply.ts",
             "src/lib/journey/client-response.ts"
