@@ -2603,6 +2603,25 @@
           ]
         },
         {
+          "id": "JRN-022",
+          "rule": "A tap on a button the Engine put on an agent's WhatsApp card (the closing card's advance, update request and snooze among them) runs that button's action and is never read as a forwarded client reply or relayed to a lead: every button prefix a module hands to the control dispatch is registered as an Engine control reply. When a forwarded client reply names no client, the contacts offered as candidates are nominated only by words the client wrote, or failing those the listing and brief the model read, never by the model's own summary of the thread.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/control-reply-ids.test.ts",
+              "case": "[JRN-022]"
+            },
+            {
+              "file": "src/lib/journey/client-response.test.ts",
+              "case": "[JRN-022]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/control-reply-ids.ts",
+            "src/lib/whatsapp/inbound/chain/steps/control-reply.ts",
+            "src/lib/journey/client-response.ts"
+          ]
+        },
+        {
           "id": "REQ-006",
           "rule": "A requirement can be started from the Requirements screen itself on web and mobile, without first opening the contact: the agent picks the client, then writes the brief. The picker offers only contacts whose brief the save route will write, and mobile offers Edit on no other card, so no path opens a brief the server will refuse. The picked client arrives carrying the brief already on record, so an existing requirement is shown rather than silently replaced by the one being typed. Read-only members are not offered the flow.",
           "tests": [

@@ -1211,9 +1211,11 @@ function escapeLike(term: string): string {
 const MAX_CONTACTS_PER_TERM = 3;
 
 /** Terms worth asking the book about: what the client actually typed
- *  first, and only if they typed nothing nameable, the longer words of
- *  the summary. */
-function candidateTerms(parsed: ParsedClientReply): string[] {
+ *  first, and only if they typed nothing nameable, the listing and
+ *  brief the model read. Never the summary: it is the model's
+ *  paraphrase, and its verbs ("Stated", "complete") once nominated two
+ *  strangers whose notes happened to carry them. */
+export function candidateTerms(parsed: ParsedClientReply): string[] {
   const mentioned = (parsed.mentioned_terms || [])
     .flatMap((term) => term.split(/[^\p{L}\p{N}]+/u))
     .map((word) => word.toLowerCase())
@@ -1221,9 +1223,7 @@ function candidateTerms(parsed: ParsedClientReply): string[] {
   const deduped = [...new Set(mentioned)].slice(0, 6);
   if (deduped.length) return deduped;
   return distinctiveTerms(
-    [parsed.property_title, parsed.requirement, parsed.response_summary]
-      .filter(Boolean)
-      .join(' ')
+    [parsed.property_title, parsed.requirement].filter(Boolean).join(' ')
   );
 }
 

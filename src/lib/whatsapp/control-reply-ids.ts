@@ -34,6 +34,11 @@ import {
   FOLLOWUP_CONSIDERING_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
 } from '@/lib/contacts/follow-up-nudges';
+import {
+  CLOSING_ADVANCE_PREFIX,
+  CLOSING_ASK_PREFIX,
+  CLOSING_SNOOZE_PREFIX,
+} from '@/lib/journey/closing-nudges';
 import { POST_CALL_OPEN_PREFIX } from '@/lib/outreach/dispatcher';
 import { AGENT_MESSAGE_CONTACT_PREFIX } from '@/lib/calendar/agent-reminder-actions';
 import {
@@ -69,6 +74,12 @@ export const CONTROL_REPLY_PREFIXES = [
   FOLLOWUP_CONSIDERING_PREFIX,
   FOLLOWUP_SNOOZE_PREFIX,
   FOLLOWUP_COLD_PREFIX,
+  // The closing card is the radar's sibling and goes to the same agent.
+  // Left out of this list, "✅ Legal done → Agreement" skipped its
+  // handler and was read as a forwarded client reply.
+  CLOSING_ADVANCE_PREFIX,
+  CLOSING_ASK_PREFIX,
+  CLOSING_SNOOZE_PREFIX,
   // The post-call opener's quick reply — the tap that opens the
   // 24-hour window and asks for the matched-listing follow-up.
   POST_CALL_OPEN_PREFIX,
