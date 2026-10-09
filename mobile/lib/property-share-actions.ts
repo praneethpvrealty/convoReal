@@ -31,7 +31,7 @@ export async function logExternalShare(
   property: Property
 ): Promise<boolean> {
   const { profile, session } = useAuthStore.getState();
-  if (!profile?.account_id || !session?.user.id) return true;
+  if (!profile?.account_id || !session?.user.id) return false;
   const now = new Date().toISOString();
   const label = property.property_code
     ? `[${property.property_code}] ${property.title}`

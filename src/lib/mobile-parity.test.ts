@@ -739,6 +739,9 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(actions).toContain(
       "return ledger.status === 'fulfilled' && ledger.value.complete;"
     );
+    expect(actions).toContain(
+      'if (!profile?.account_id || !session?.user.id) return false;'
+    );
     expect(mobileSource('components/property-share-sheet.tsx')).toContain(
       "if (!recorded) Alert.alert('Not recorded', SHARE_UNRECORDED_NOTICE);"
     );
