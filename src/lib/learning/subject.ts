@@ -21,7 +21,15 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { MAX_REFERENCED_SUBJECTS } from '@/lib/ai/shortlist-reference';
+import {
+  MAX_REFERENCED_SUBJECTS,
+  parseOrdinalReferences,
+} from '@/lib/ai/shortlist-reference';
+import {
+  describedListingAmong,
+  referencesSharedListing,
+  type DescribedCandidate,
+} from '@/lib/ai/described-listing';
 
 export interface SubjectCandidate {
   id: string;
@@ -142,7 +150,7 @@ const SHARE_BURST_WINDOW_MS = 5 * 60 * 1000;
  *  phrase ("Plot A") that turns up in ordinary chatter. */
 const MIN_TITLE_LENGTH = 15;
 
-export interface ListingRef extends SubjectCandidate {
+export interface ListingRef extends SubjectCandidate, DescribedCandidate {
   property_code?: string | null;
   status?: string | null;
 }
@@ -230,7 +238,12 @@ export interface ShareRecord {
  * 4. Two different listings shared back to back, with no word from the
  *    buyer in between, cannot be told apart: null, so a person answers.
  *    decideSubjects gives the Q&A the whole burst instead, so "where
- *    exactly?" is answered for each card under its title.
+ *    exactly?" is answered for each card under its title. The burst
+ *    holds until the buyer settles it — names, numbers or describes a
+ *    listing; on 7 October "Is this available?" then "Can u share the
+ *    exact location?" were both about the same two cards, and the
+ *    second was answered from one of them because the first counted
+ *    as the buyer having spoken.
  * 5. The latest share.
  *
  * "Since" and "latest" are measured against the real last share, which
@@ -301,13 +314,27 @@ function decide(args: SubjectThread): SubjectDecision {
   const available = candidates.filter(
     (candidate) => (candidate.status ?? 'Available') === 'Available'
   );
+  const burst = shareBurst(
+    events,
+    messages
+      .filter(
+        (message) =>
+          message.sender === 'customer' &&
+          (!args.currentMessageId ||
+            message.messageId !== args.currentMessageId)
+      )
+      .map((message) => Date.parse(message.at))
+      .filter((at) => Number.isFinite(at))
+  );
+  const inFront = events
+    .slice(0, RECENT_CARDS)
+    .map((event) => event.propertyId);
 
   for (const message of messages) {
     if (Date.parse(message.at) <= latestAt) break;
     if (message.sender === 'customer') {
-      const named = listingsReferencedIn(message.text, candidates);
-      if (named.length === 1) return one(named[0]);
-      if (named.length > 1) return none;
+      const picked = cardPicked(message.text, candidates, burst, inFront);
+      if (picked.kind !== 'unsettled') return picked;
       continue;
     }
     if (message.sender !== 'agent') continue;
@@ -317,20 +344,63 @@ function decide(args: SubjectThread): SubjectDecision {
     if (propertiesNamedIn(message.text, available).length > 0) break;
   }
 
-  const buyerSpokeAt = messages
-    .filter(
-      (message) =>
-        message.sender === 'customer' &&
-        (!args.currentMessageId || message.messageId !== args.currentMessageId)
-    )
-    .map((message) => Date.parse(message.at))
-    .filter((at) => Number.isFinite(at));
-  if (buyerSpokeAt.every((at) => at <= latestAt)) {
-    const burst = shareBurst(events, buyerSpokeAt);
-    if (burst.length > 1) return { kind: 'burst', propertyIds: burst };
+  if (burst.length > 1) return { kind: 'burst', propertyIds: burst };
+  return sharedId ? one(sharedId) : none;
+}
+
+/** The cards in front of a buyer: the listings most recently shared,
+ *  which is what a description or a number can point at. */
+const RECENT_CARDS = 6;
+
+/**
+ * The card a buyer message picks, read since the latest share.
+ *
+ * A listing named by code or title settles it outright; two named is
+ * ambiguous. A shortlist number ("option 2", "the first one") counts
+ * the batch in the order the cards went out, since that is the order
+ * the shortlist numbered them. A description ("the 40,000 sqft one")
+ * is read against the batch first, then every card in front of them.
+ * A number that points outside the batch, a description that fits two
+ * cards or none, and every other message settle nothing: the batch
+ * stays a batch rather than collapsing to whichever card went last,
+ * and a quick-check tap ("Interested in 1") is settled by the bot's
+ * own reply naming the card, which the share events already carry.
+ */
+function cardPicked(
+  text: string,
+  candidates: ListingRef[],
+  burst: string[],
+  inFront: string[]
+): SubjectDecision | { kind: 'unsettled' } {
+  const named = listingsReferencedIn(text, candidates);
+  if (named.length === 1) return { kind: 'one', propertyId: named[0] };
+  if (named.length > 1) return { kind: 'none' };
+
+  const ordinals = parseOrdinalReferences(text);
+  if (ordinals.length > 0 && burst.length > 1) {
+    const sentOrder = [...burst].reverse();
+    const picked = ordinals
+      .map((n) => sentOrder[n - 1])
+      .filter((id): id is string => !!id);
+    if (picked.length === 1) return { kind: 'one', propertyId: picked[0] };
+    if (picked.length > 1) return { kind: 'none' };
+    return { kind: 'unsettled' };
   }
 
-  return sharedId ? one(sharedId) : none;
+  if (referencesSharedListing(text)) {
+    const pool = candidates.filter((candidate) =>
+      inFront.includes(candidate.id)
+    );
+    const described =
+      (burst.length > 1
+        ? describedListingAmong(
+            text,
+            pool.filter((candidate) => burst.includes(candidate.id))
+          )
+        : null) ?? describedListingAmong(text, pool);
+    if (described) return { kind: 'one', propertyId: described };
+  }
+  return { kind: 'unsettled' };
 }
 
 export interface ShareEvent {
@@ -401,6 +471,9 @@ export interface InboundSubjectContext {
   /** WhatsApp id of the message it quotes, when the buyer swiped to
    *  reply. */
   quotedMessageId?: string | null;
+  /** The quoted message's text when the caller already holds it — the
+   *  dev simulator replaying a thread — in place of the id lookup. */
+  quotedText?: string | null;
 }
 
 /**
@@ -495,7 +568,7 @@ export async function loadSubjectThread(
         .not('content_text', 'is', null)
         .order('created_at', { ascending: false })
         .limit(SUBJECT_LOOKBACK_MESSAGES),
-      inbound?.quotedMessageId
+      inbound?.quotedMessageId && !inbound.quotedText
         ? db
             .from('messages')
             .select('content_text')
@@ -505,7 +578,9 @@ export async function loadSubjectThread(
         : Promise.resolve({ data: null }),
       db
         .from('properties')
-        .select('id, project, title, property_code, status')
+        .select(
+          'id, project, title, property_code, status, location, sublocality, price, area_sqft, super_built_area, land_area, land_area_unit, bedrooms'
+        )
         .eq('account_id', accountId),
     ]);
 
@@ -519,8 +594,10 @@ export async function loadSubjectThread(
     shares,
     candidates: (candidates ?? []) as ListingRef[],
     quotedText:
+      inbound?.quotedText ??
       ((quoted as { content_text?: string | null } | null)?.content_text as
-        string | null | undefined) ?? null,
+        string | null | undefined) ??
+      null,
     currentMessageId: inbound?.messageId ?? null,
   };
 }

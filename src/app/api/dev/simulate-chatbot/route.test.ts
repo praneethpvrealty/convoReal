@@ -29,8 +29,10 @@ const db = {
   },
 } as never;
 
+let threadDb: unknown = null;
+
 vi.mock('@/lib/auth/account', () => ({
-  requireRole: async () => ({ accountId: 'acct-1', supabase: db }),
+  requireRole: async () => ({ accountId: 'acct-1', supabase: threadDb ?? db }),
   toErrorResponse: (err: unknown) => {
     throw err;
   },
@@ -43,6 +45,7 @@ vi.mock('@/lib/showcase/account-showcase-url', () => ({
 // The owner-intake half of the route imports these at module load; the
 // lead paths under test never call them.
 vi.mock('@/lib/ai/gemini', () => ({
+  generateText: async () => '',
   classifyImageOrText: async () => 'none',
   parseListingFromImageOrText: async () => ({}),
   parseContactFromImageOrText: async () => ({}),
@@ -50,14 +53,137 @@ vi.mock('@/lib/ai/gemini', () => ({
 }));
 
 const { POST } = await import('./route');
+const { memorySupabase } = await import('@/test/memory-supabase');
 
-function run(text: string, subjectPropertyCode?: string) {
+function run(
+  text: string,
+  subjectPropertyCode?: string,
+  phone?: string,
+  quotedText?: string
+) {
   return POST(
     new Request('http://localhost/api/dev/simulate-chatbot', {
       method: 'POST',
-      body: JSON.stringify({ mode: 'lead_reply', text, subjectPropertyCode }),
+      body: JSON.stringify({
+        mode: 'lead_reply',
+        text,
+        subjectPropertyCode,
+        phone,
+        quotedText,
+      }),
     })
   ).then((res) => res.json());
+}
+
+// shirish's thread of 7 October 2026: two cards 48 seconds apart, then
+// the location question that was answered from the second card only.
+const SHARE_CHIKATOGUR =
+  'Hi shirish,\n\nI wanted to share a property listing that might interest you:\n\n🏡 *40,000 Sq.Ft. Commercial Plot in Chikatogur, Electronic City Phase 1*\n💰 *₹16 Cr*\n\n📸 Photos & full details:\nhttps://aryavartaventures.convoreal.com/?property_id=PROP-1784&v=0a97fd6d';
+const SHARE_JP_8TH =
+  'Hi shirish,\n\nI wanted to share a property listing that might interest you:\n\n🏡 *5,760 Sq.Ft. Commercial Property in JP Nagar 8th Phase*\n💰 *₹13.25 Cr*\n\n📸 Photos & full details:\nhttps://aryavartaventures.convoreal.com/?property_id=PROP-2080&v=0a97fd6d';
+
+function shirishThread() {
+  return memorySupabase({
+    contacts: [
+      {
+        id: 'c1',
+        account_id: 'acct-1',
+        name: 'shirish',
+        phone: '+919986054104',
+        classification: 'Buyer',
+        preferred_language: null,
+      },
+    ],
+    conversations: [
+      {
+        id: 'conv',
+        account_id: 'acct-1',
+        contact_id: 'c1',
+        updated_at: '2026-10-07T15:20:26Z',
+      },
+    ],
+    property_shares: [
+      {
+        account_id: 'acct-1',
+        contact_id: 'c1',
+        property_id: 'prop-1784',
+        created_at: '2026-10-07T15:01:46Z',
+      },
+      {
+        account_id: 'acct-1',
+        contact_id: 'c1',
+        property_id: 'prop-2080',
+        created_at: '2026-10-07T15:02:34Z',
+      },
+    ],
+    messages: [
+      {
+        conversation_id: 'conv',
+        sender_type: 'agent',
+        content_text: SHARE_CHIKATOGUR,
+        message_id: 'wamid.share1784',
+        created_at: '2026-10-07T15:01:45Z',
+      },
+      {
+        conversation_id: 'conv',
+        sender_type: 'agent',
+        content_text: SHARE_JP_8TH,
+        message_id: 'wamid.share2080',
+        created_at: '2026-10-07T15:02:34Z',
+      },
+      {
+        conversation_id: 'conv',
+        sender_type: 'customer',
+        content_text: 'Is this available?',
+        message_id: 'wamid.q1',
+        created_at: '2026-10-07T15:20:00Z',
+      },
+      {
+        conversation_id: 'conv',
+        sender_type: 'customer',
+        content_text: 'Can u share the exact location?',
+        message_id: 'wamid.q2',
+        created_at: '2026-10-07T15:20:26Z',
+      },
+    ],
+    properties: [
+      {
+        id: 'prop-1784',
+        account_id: 'acct-1',
+        property_code: 'PROP-1784',
+        title:
+          '40,000 Sq.Ft. Commercial Plot in Chikatogur, Electronic City Phase 1',
+        type: 'Commercial Land',
+        listing_type: 'Sale',
+        status: 'Available',
+        price: '160000000',
+        land_area: '40000',
+        land_area_unit: 'Sq.Ft.',
+        location: 'Chikatogur, Electronic City Phase 1',
+        sublocality: 'Chikkathoguru',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+      },
+      {
+        id: 'prop-2080',
+        account_id: 'acct-1',
+        property_code: 'PROP-2080',
+        title: '5,760 Sq.Ft. Commercial Property in JP Nagar 8th Phase',
+        type: 'Commercial Building',
+        listing_type: 'Sale',
+        status: 'Available',
+        price: '132480000',
+        area_sqft: 5760,
+        location: 'BK Circle, JP Nagar 8th Phase',
+        sublocality: 'Kothnur',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+      },
+    ],
+    whatsapp_config: [],
+    portal_import_items: [],
+    bot_instructions: [],
+  });
 }
 
 describe('simulate-chatbot — lead routing', () => {
@@ -150,6 +276,78 @@ describe('simulate-chatbot — lead routing', () => {
     expect(result.previewText).toContain('Property Type');
     expect(result.previewText).toContain('Budget / Price');
     expect(result.previewText).toContain('reply by typing');
+  });
+
+  it("[INB-034] replays a saved contact's thread and answers the location for both cards", async () => {
+    threadDb = shirishThread();
+    try {
+      const result = await run(
+        'Can u share the exact location?',
+        undefined,
+        '+91 99860 54104'
+      );
+      expect(result.route).toBe('listing_question');
+      expect(result.contactName).toBe('shirish');
+      expect(
+        result.subjects.map((s: { propertyCode: string }) => s.propertyCode)
+      ).toEqual(['PROP-2080', 'PROP-1784']);
+      expect(result.previewText).toContain(
+        '*5,760 Sq.Ft. Commercial Property in JP Nagar 8th Phase*'
+      );
+      expect(result.previewText).toContain('JP Nagar 8th Phase');
+      expect(result.previewText).toContain(
+        '*40,000 Sq.Ft. Commercial Plot in Chikatogur, Electronic City Phase 1*'
+      );
+      expect(result.previewText).toContain('Chikkathoguru');
+
+      const correction = await run(
+        'No this 40,000 sqft one',
+        undefined,
+        '+919986054104'
+      );
+      expect(correction.route).toBe('shortlist_reference');
+      expect(
+        correction.subjects.map((s: { propertyCode: string }) => s.propertyCode)
+      ).toEqual(['PROP-1784']);
+      expect(correction.questionAnswered).toBe(
+        'Can u share the exact location?'
+      );
+      expect(correction.previewText).toContain('Chikkathoguru');
+      expect(correction.previewText).not.toContain('JP Nagar');
+    } finally {
+      threadDb = null;
+    }
+  });
+
+  it('[INB-034] follows the card the lead quoted in a replay', async () => {
+    threadDb = shirishThread();
+    try {
+      const result = await run(
+        'Is this available?',
+        undefined,
+        '+919986054104',
+        SHARE_CHIKATOGUR
+      );
+      expect(
+        result.subjects.map((s: { propertyCode: string }) => s.propertyCode)
+      ).toEqual(['PROP-1784']);
+    } finally {
+      threadDb = null;
+    }
+  });
+
+  it('says so when no contact has the phone', async () => {
+    threadDb = shirishThread();
+    try {
+      const result = await run(
+        'Is this available?',
+        undefined,
+        '+91 90000 00000'
+      );
+      expect(result.error).toBe('No contact has that phone.');
+    } finally {
+      threadDb = null;
+    }
   });
 
   it('charges no extraction on a carve-out', async () => {

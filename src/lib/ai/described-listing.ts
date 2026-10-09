@@ -32,8 +32,12 @@ type Measure =
   | { kind: 'price'; value: number }
   | { kind: 'bhk'; value: number };
 
-const MEASURE =
-  /(\d[\d,]*(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet)|sqft|sft|sq\.?\s*(?:yds?|yards?)|sqyds?|sq\.?\s*(?:m|mt|mtrs?|meters?|metres?)|sqm|acres?|guntas?|gunthas?|cents?|grounds?|cr|crores?|lakhs?|lacs?|bhk)\b/gi;
+const MEASURE_SOURCE =
+  '(\\d[\\d,]*(?:\\.\\d+)?)\\s*(sq\\.?\\s*(?:ft|feet)|sqft|sft|sq\\.?\\s*(?:yds?|yards?)|sqyds?|sq\\.?\\s*(?:m|mt|mtrs?|meters?|metres?)|sqm|acres?|guntas?|gunthas?|cents?|grounds?|cr|crores?|lakhs?|lacs?|bhk)\\b';
+/** Tested, never iterated: a global regex keeps its lastIndex between
+ *  calls, and the step tests the text before the resolver parses it. */
+const MEASURE = new RegExp(MEASURE_SOURCE, 'i');
+const MEASURES = new RegExp(MEASURE_SOURCE, 'gi');
 
 /** "this", "that one", "the other one": the buyer is pointing back.
  *  A bare "one" is a quantity ("I want one 2400 sqft plot"), so it
@@ -124,7 +128,7 @@ function toNumber(value: number | string | null | undefined): number | null {
 
 function parseMeasures(text: string): Measure[] {
   const measures: Measure[] = [];
-  for (const match of text.matchAll(MEASURE)) {
+  for (const match of text.matchAll(MEASURES)) {
     const value = Number(match[1].replace(/,/g, ''));
     if (!Number.isFinite(value) || value <= 0) continue;
     const unit = match[2].toLowerCase().replace(/[.\s]/g, '');
@@ -227,7 +231,6 @@ export function referencesSharedListing(
   const value = (text || '').trim();
   if (!value) return false;
   if (!REFERENCE_MARKER.test(value)) return false;
-  MEASURE.lastIndex = 0;
   if (MEASURE.test(value)) return true;
   const pointer = DESCRIBED_POINTER.exec(value);
   return !!pointer && tokens(pointer[1]).length > 0;

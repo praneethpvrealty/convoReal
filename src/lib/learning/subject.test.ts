@@ -172,12 +172,15 @@ const CHIKATOGUR: ListingRef = {
   property_code: 'PROP-1784',
   title: '40,000 Sq.Ft. Commercial Plot in Chikatogur, Electronic City Phase 1',
   status: 'Available',
+  land_area: '40000',
+  land_area_unit: 'Sq.Ft.',
 };
 const JP_NAGAR_8TH: ListingRef = {
   id: 'prop-2080',
   property_code: 'PROP-2080',
   title: '5,760 Sq.Ft. Commercial Property in JP Nagar 8th Phase',
   status: 'Available',
+  area_sqft: 5760,
 };
 const LISTINGS = [
   JP_NAGAR_4TH,
@@ -326,12 +329,18 @@ describe('[INB-033] decideSubject replays the 7 October thread', () => {
   });
 
   it('keeps answering the latest share once the buyer has spoken since the burst', () => {
-    // 20:10 two listings shared nine seconds apart; the buyer replied,
-    // then at 20:18 asked again about the one in front of them.
+    // 20:10 two listings shared nine seconds apart; the buyer tapped the
+    // quick check and the bot flagged the card they picked, then at
+    // 20:18 they asked again about the one in front of them.
     const subject = decideSubject({
       messages: thread([
         ['2026-10-07T14:40:05Z', 'customer', ENQUIRY_HOSUR],
         ['2026-10-07T14:41:24Z', 'customer', 'Interested in 1'],
+        [
+          '2026-10-07T14:41:30Z',
+          'bot',
+          `Great choice 👌 I've flagged your interest in *${HOSUR_ROAD.title}* — our team will reach out shortly.`,
+        ],
         ['2026-10-07T14:47:45Z', 'customer', 'What about this ?'],
         [
           '2026-10-07T14:48:33Z',
@@ -739,15 +748,66 @@ describe('[INB-034] decideSubjects answers a question after two cards for both',
     expect(decideSubjects(args)).toEqual(['prop-2080']);
   });
 
-  it('is the latest share alone once the buyer has spoken since the burst', () => {
+  it('holds the batch through a bare question or remark from the buyer', () => {
+    // 7 October: "Is this available?" then "Can u share the exact
+    // location?" were both about the same two cards.
     const args = burst();
     args.messages = thread([
       ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
       ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
       ['2026-10-07T15:05:00Z', 'customer', 'ok', 'wamid.ok'],
-      ['2026-10-07T15:20:00Z', 'customer', 'Is this available?', 'wamid.q2'],
+      ['2026-10-07T15:20:00Z', 'customer', 'Is this available?', 'wamid.q1'],
+      [
+        '2026-10-07T15:20:26Z',
+        'customer',
+        'Can u share the exact location?',
+        'wamid.q2',
+      ],
     ]);
-    expect(decideSubjects(args)).toEqual(['prop-2080']);
+    expect(decideSubjects(args)).toEqual(['prop-2080', 'prop-1784']);
+    expect(decideSubject(args)).toBeNull();
+  });
+
+  it('follows the card the buyer numbered or described, not the one sent last', () => {
+    const after = (settled: string) => {
+      const args = burst();
+      args.messages = thread([
+        ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
+        ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
+        ['2026-10-07T15:05:00Z', 'customer', settled, 'wamid.ok'],
+        ['2026-10-07T15:20:00Z', 'customer', 'Is this available?', 'wamid.q2'],
+      ]);
+      return decideSubjects(args);
+    };
+    expect(after('option 2')).toEqual(['prop-2080']);
+    expect(after('No this 5,760 sqft one')).toEqual(['prop-2080']);
+    expect(after('option 1')).toEqual(['prop-1784']);
+    expect(after('the first one')).toEqual(['prop-1784']);
+    expect(after('No this 40,000 sqft one')).toEqual(['prop-1784']);
+  });
+
+  it('holds the batch when a description fits none of the cards or a number points outside it', () => {
+    for (const unsettled of ['No this 9000 sqft one', 'option 3']) {
+      const args = burst();
+      args.messages = thread([
+        ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
+        ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
+        ['2026-10-07T15:05:00Z', 'customer', unsettled, 'wamid.ok'],
+        ['2026-10-07T15:20:00Z', 'customer', 'Is this available?', 'wamid.q2'],
+      ]);
+      expect(decideSubjects(args)).toEqual(['prop-2080', 'prop-1784']);
+    }
+  });
+
+  it('refuses when the buyer numbered two cards and then asks about "it"', () => {
+    const args = burst();
+    args.messages = thread([
+      ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
+      ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
+      ['2026-10-07T15:05:00Z', 'customer', 'options 1 and 2', 'wamid.ok'],
+      ['2026-10-07T15:20:00Z', 'customer', 'Is it gated?', 'wamid.q2'],
+    ]);
+    expect(decideSubjects(args)).toEqual([]);
   });
 
   it('is empty when nothing was ever shared', () => {
@@ -849,14 +909,19 @@ describe('[INB-034] resolveSubjectProperties reads the burst from the thread', (
         property_id: 'prop-1784',
         created_at: '2026-09-01T09:00:00Z',
       },
-      ...['prop-1004', 'prop-1110', 'prop-1081', 'prop-2080'].map(
-        (property_id, i) => ({
-          account_id: 'acc',
-          contact_id: 'c1',
-          property_id,
-          created_at: `2026-10-07T15:0${i}:00Z`,
-        })
-      ),
+      ...(
+        [
+          ['prop-1004', '2026-10-07T13:00:00Z'],
+          ['prop-1110', '2026-10-07T13:30:00Z'],
+          ['prop-1081', '2026-10-07T14:00:00Z'],
+          ['prop-2080', '2026-10-07T15:02:34Z'],
+        ] as const
+      ).map(([property_id, created_at]) => ({
+        account_id: 'acc',
+        contact_id: 'c1',
+        property_id,
+        created_at,
+      })),
     ];
     data.properties = data.properties.map((row) =>
       row.id === 'prop-1784'

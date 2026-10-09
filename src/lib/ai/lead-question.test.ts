@@ -814,11 +814,66 @@ const JP_NAGAR = {
   status: 'Available',
 };
 
+const HOSUR_ROAD = {
+  id: 'prop-1081',
+  title: '40000 Sq.Ft. Commercial/Residential Land for Sale on Hosur Road',
+  location: 'Electronic City Phase 1, Bangalore, Karnataka',
+  sublocality: 'Electronic City Phase 1',
+  city: 'Bengaluru',
+  state: 'Karnataka',
+  price: '240000000',
+  land_area: '40000',
+  land_area_unit: 'Sq.Ft.',
+  listing_type: 'Sale',
+  status: 'Under Contract',
+};
+
 describe('[INB-034] questionSubjectProperties', () => {
   const shares = [
     { property_id: 'prop-2080', created_at: '2026-10-07T15:02:34Z' },
     { property_id: 'prop-1784', created_at: '2026-10-07T15:01:46Z' },
   ];
+
+  it('reads a description against the two cards just sent before the older shares', async () => {
+    // 7 October: the Hosur Road plot sent at 20:10 IST is also 40,000
+    // sq.ft., so "the 40,000 sqft one" fitted two of the last six shares
+    // and named nothing; against the two cards of 20:31 it is one.
+    const db = fakeDb({
+      property_shares: [
+        ...shares,
+        { property_id: 'prop-1081', created_at: '2026-10-07T14:40:46Z' },
+      ],
+      properties: [CHIKATOGUR, JP_NAGAR, HOSUR_ROAD],
+      messages: [],
+    });
+    const subjects = await questionSubjectProperties(
+      db,
+      'acct',
+      'contact',
+      'conv',
+      'No this 40,000 sqft one'
+    );
+    expect(subjects.map((s) => s.id)).toEqual(['prop-1784']);
+  });
+
+  it('keeps the thread subject when a figure fits two shares and there is no batch', async () => {
+    const db = fakeDb({
+      property_shares: [
+        { property_id: 'prop-1784', created_at: '2026-10-07T15:01:46Z' },
+        { property_id: 'prop-1081', created_at: '2026-10-07T14:40:46Z' },
+      ],
+      properties: [CHIKATOGUR, HOSUR_ROAD],
+      messages: [],
+    });
+    const subjects = await questionSubjectProperties(
+      db,
+      'acct',
+      'contact',
+      'conv',
+      'No this 40,000 sqft one'
+    );
+    expect(subjects.map((s) => s.id)).toEqual(['prop-1784']);
+  });
 
   it('answers a question after two cards in a row for both, newest first', async () => {
     const db = fakeDb({
