@@ -1751,7 +1751,14 @@ export async function syncProductToCatalog(
   const { catalogId, accessToken, property, currency = 'INR' } = args;
   const url = `${META_API_BASE}/${catalogId}/batch`;
 
-  const price = Number(property.price) || 0;
+  const minorUnitDigits =
+    new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency,
+    }).resolvedOptions().maximumFractionDigits ?? 2;
+  const price = Math.round(
+    (Number(property.price) || 0) * 10 ** minorUnitDigits
+  );
   const title = property.title || 'Property Listing';
 
   const descriptionParts: string[] = [];

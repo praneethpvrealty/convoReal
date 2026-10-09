@@ -637,6 +637,26 @@ describe('[PRP-044] syncProductToCatalog — confirms the item reached the catal
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it("sends the price in the currency's minor units, as Meta's batch API expects", async () => {
+    const batchPrice = async (currency: string, price: number) => {
+      const fetchMock = stubMeta(
+        { data: [{ status: 'finished', errors: [] }] },
+        { data: [{ id: '9', retailer_id: 'PROP-1111' }] }
+      );
+      await syncProductToCatalog({
+        catalogId: 'c1',
+        accessToken: 't',
+        property: { ...property, price },
+        currency,
+      });
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      return JSON.parse(String(init.body)).requests[0].data.price;
+    };
+    expect(await batchPrice('INR', 110600000)).toBe(11060000000);
+    expect(await batchPrice('AED', 1250000.5)).toBe(125000050);
+    expect(await batchPrice('JPY', 50000000)).toBe(50000000);
+  });
+
   it('prices the catalog item in the currency it is given, INR otherwise', async () => {
     const batchCurrency = async (currency?: string) => {
       const fetchMock = stubMeta(
