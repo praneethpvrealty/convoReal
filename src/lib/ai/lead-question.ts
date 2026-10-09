@@ -498,14 +498,13 @@ const DESCRIBED_LOOKBACK_SHARES = 6;
  * the thread, not the ledger alone: a re-share does not bump its ledger
  * row, so the ledger's newest rows can miss the card sent a minute ago.
  */
-async function describedSubject(
+async function describedCandidates(
   db: SupabaseClient,
   accountId: string,
-  recentPropertyIds: string[],
-  text: string
-): Promise<string | null> {
+  recentPropertyIds: string[]
+): Promise<DescribedCandidate[]> {
   const ids = recentPropertyIds.slice(0, DESCRIBED_LOOKBACK_SHARES);
-  if (ids.length === 0) return null;
+  if (ids.length === 0) return [];
 
   const { data: candidates } = await db
     .from('properties')
@@ -514,10 +513,30 @@ async function describedSubject(
     )
     .eq('account_id', accountId)
     .in('id', ids);
-  return describedListingAmong(
-    text,
-    (candidates ?? []) as DescribedCandidate[]
-  );
+  return (candidates ?? []) as DescribedCandidate[];
+}
+
+/**
+ * The listing the buyer's words describe, read against the cards the
+ * question was about before the wider thread. On 7 October "No this
+ * 40,000 sqft one" fitted two of the last six shares — the Chikatogur
+ * plot and an earlier Hosur Road plot of the same size — and so named
+ * nothing; against the two cards just sent it names the Chikatogur
+ * plot alone.
+ */
+function describedSubject(
+  text: string,
+  candidates: DescribedCandidate[],
+  batch: string[]
+): string | null {
+  if (batch.length > 1) {
+    const within = describedListingAmong(
+      text,
+      candidates.filter((candidate) => batch.includes(candidate.id))
+    );
+    if (within) return within;
+  }
+  return describedListingAmong(text, candidates);
 }
 
 /**
@@ -566,17 +585,17 @@ export async function questionSubjectProperties(
   );
   if (!thread) return [];
 
+  const propertyIds = decideSubjects(thread);
   if (questionText && !quotesListing(thread)) {
-    const described = await describedSubject(
+    const candidates = await describedCandidates(
       db,
       accountId,
-      shareEvents(thread).map((event) => event.propertyId),
-      questionText
+      shareEvents(thread).map((event) => event.propertyId)
     );
+    const described = describedSubject(questionText, candidates, propertyIds);
     if (described) return loadSubjects(db, accountId, [described]);
   }
 
-  const propertyIds = decideSubjects(thread);
   return propertyIds.length > 0 ? loadSubjects(db, accountId, propertyIds) : [];
 }
 
@@ -691,6 +710,9 @@ export async function answerLeadQuestion(args: {
    *  against MagicBricks / 99acres / Housing. */
   portalListings?: PortalListingFigures[];
   botInstructions?: BotInstructionMatch[];
+  /** False for a dry run — the dev simulator — so the account is not
+   *  charged for a preview. Live sends leave it unset. */
+  chargeCredits?: boolean;
 }): Promise<LeadAnswer> {
   const { accountId, question, property } = args;
   // Before the listing check: a lead asking to be called is asking for
@@ -760,19 +782,22 @@ export async function answerLeadQuestion(args: {
 
   // Soft burn before the call: an account out of credits hands over to
   // a human rather than failing, and never pays for a call we skip.
-  try {
-    const burn = await burnCredits(
-      accountId,
-      AI_FEATURE,
-      AI_FEATURE_COSTS[AI_FEATURE],
-      {
-        hardBlock: false,
-      }
-    );
-    if (burn.deficit !== 0) return { text: HANDOVER_TEXT, source: 'handover' };
-  } catch (err) {
-    console.error('[lead-question] credit burn failed:', err);
-    return { text: HANDOVER_TEXT, source: 'handover' };
+  if (args.chargeCredits !== false) {
+    try {
+      const burn = await burnCredits(
+        accountId,
+        AI_FEATURE,
+        AI_FEATURE_COSTS[AI_FEATURE],
+        {
+          hardBlock: false,
+        }
+      );
+      if (burn.deficit !== 0)
+        return { text: HANDOVER_TEXT, source: 'handover' };
+    } catch (err) {
+      console.error('[lead-question] credit burn failed:', err);
+      return { text: HANDOVER_TEXT, source: 'handover' };
+    }
   }
 
   try {

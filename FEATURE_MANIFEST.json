@@ -574,7 +574,7 @@
         },
         {
           "id": "INB-034",
-          "rule": "A lead's question is answered for the listing they mean, never for whichever card happened to go last. Listings shared within five minutes of each other, with no word from the lead between them, are one batch: a question that follows, with nothing quoted and nothing said since, is answered for every listing in the batch (up to three, newest first), each under its title, so two localities are tellable apart. A message that names one of the recently shared listings (as the thread shows them, not the ledger's first-share dates) by a figure it carries (land area in any stored unit, built-up area, price in crore or lakh, bedrooms) or, without a figure, by a word only that listing's title or locality carries (\"the Chikatogur one\") is answered for that listing alone, and when such a message only points (\"No this 40,000 sqft one\") the question the lead asked in the message immediately before it is the one answered, never an older one. A demonstrative with a figure or a describing word is a reference and reaches the listing Q&A; a figure stating a requirement (\"I want a 2400 sqft plot\", \"I want one 2400 sqft plot\") still belongs to the ladder, and a rejection that points by figure (\"don't like this 3 bhk one\") is still recorded as a rejection. A description that fits several of the shares names nothing, a figure that fits none names nothing however well a word fits, and a quoted share wins over any description (INB-033).",
+          "rule": "A lead's question is answered for the listing they mean, never for whichever card happened to go last. Listings shared within five minutes of each other, with no word from the lead between them, are one batch: a question that follows, with nothing quoted and nothing said since, is answered for every listing in the batch (up to three, newest first), each under its title, so two localities are tellable apart; a bare question or remark from the lead since the batch does not end it, and naming, numbering, quoting or describing a card does. A message that names one of the recently shared listings (as the thread shows them, not the ledger's first-share dates) by a figure it carries (land area in any stored unit, built-up area, price in crore or lakh, bedrooms) or, without a figure, by a word only that listing's title or locality carries (\"the Chikatogur one\") is answered for that listing alone, read against the cards the question was about before the wider thread, and when such a message only points (\"No this 40,000 sqft one\") the question the lead asked in the message immediately before it is the one answered, never an older one. A demonstrative with a figure or a describing word is a reference and reaches the listing Q&A; a figure stating a requirement (\"I want a 2400 sqft plot\", \"I want one 2400 sqft plot\") still belongs to the ladder, and a rejection that points by figure (\"don't like this 3 bhk one\") is still recorded as a rejection. A description that fits several of the shares names nothing, a figure that fits none names nothing however well a word fits, and a quoted share wins over any description (INB-033).",
           "tests": [
             {
               "file": "src/lib/ai/described-listing.test.ts",
@@ -590,6 +590,10 @@
             },
             {
               "file": "src/lib/ai/lead-routing.test.ts",
+              "case": "[INB-034]"
+            },
+            {
+              "file": "src/app/api/dev/simulate-chatbot/route.test.ts",
               "case": "[INB-034]"
             }
           ],

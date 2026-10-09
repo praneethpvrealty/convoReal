@@ -21,7 +21,11 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { MAX_REFERENCED_SUBJECTS } from '@/lib/ai/shortlist-reference';
+import {
+  MAX_REFERENCED_SUBJECTS,
+  parseOrdinalReferences,
+} from '@/lib/ai/shortlist-reference';
+import { referencesSharedListing } from '@/lib/ai/described-listing';
 
 export interface SubjectCandidate {
   id: string;
@@ -230,7 +234,12 @@ export interface ShareRecord {
  * 4. Two different listings shared back to back, with no word from the
  *    buyer in between, cannot be told apart: null, so a person answers.
  *    decideSubjects gives the Q&A the whole burst instead, so "where
- *    exactly?" is answered for each card under its title.
+ *    exactly?" is answered for each card under its title. The burst
+ *    holds until the buyer settles it — names, numbers or describes a
+ *    listing; on 7 October "Is this available?" then "Can u share the
+ *    exact location?" were both about the same two cards, and the
+ *    second was answered from one of them because the first counted
+ *    as the buyer having spoken.
  * 5. The latest share.
  *
  * "Since" and "latest" are measured against the real last share, which
@@ -317,20 +326,44 @@ function decide(args: SubjectThread): SubjectDecision {
     if (propertiesNamedIn(message.text, available).length > 0) break;
   }
 
-  const buyerSpokeAt = messages
-    .filter(
-      (message) =>
-        message.sender === 'customer' &&
-        (!args.currentMessageId || message.messageId !== args.currentMessageId)
-    )
-    .map((message) => Date.parse(message.at))
-    .filter((at) => Number.isFinite(at));
-  if (buyerSpokeAt.every((at) => at <= latestAt)) {
-    const burst = shareBurst(events, buyerSpokeAt);
+  const buyerMessages = messages.filter(
+    (message) =>
+      message.sender === 'customer' &&
+      (!args.currentMessageId || message.messageId !== args.currentMessageId)
+  );
+  const buyerSettledSince = buyerMessages.some(
+    (message) =>
+      Date.parse(message.at) > latestAt &&
+      settlesSubject(message.text, candidates)
+  );
+  if (!buyerSettledSince) {
+    const burst = shareBurst(
+      events,
+      buyerMessages
+        .map((message) => Date.parse(message.at))
+        .filter((at) => Number.isFinite(at))
+    );
     if (burst.length > 1) return { kind: 'burst', propertyIds: burst };
   }
 
   return sharedId ? one(sharedId) : none;
+}
+
+/** The quick-check card's "Interested in 2" tap (listing-feedback.ts):
+ *  a buyer picking one card by its number. */
+const QUICK_CHECK_TAP = /\binterested in\s+\d+\b/i;
+
+/** A buyer message that picks one card out of a batch: a listing named,
+ *  a shortlist number or quick-check tap, or a description ("the 40,000
+ *  sqft one"). A bare question or an "ok" settles nothing, so the batch
+ *  stays a batch. */
+function settlesSubject(text: string, candidates: ListingRef[]): boolean {
+  return (
+    listingsReferencedIn(text, candidates).length > 0 ||
+    parseOrdinalReferences(text).length > 0 ||
+    QUICK_CHECK_TAP.test(text) ||
+    referencesSharedListing(text)
+  );
 }
 
 export interface ShareEvent {

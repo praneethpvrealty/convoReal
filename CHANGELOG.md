@@ -17,6 +17,21 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 9 October 2026
+
+- **A second question after two cards is still answered for both, and a
+  correction is read against those cards first.** Replaying shirish's
+  7 October thread showed two gaps left after the first fix: "Is this
+  available?" counted as the buyer having spoken, so "Can u share the exact
+  location?" collapsed to the latest card again; and "No this 40,000 sqft
+  one" fitted two of the last six shares, because an earlier Hosur Road plot
+  is also 40,000 sq.ft., so it named nothing. A batch now holds until the
+  buyer names, numbers, quotes or describes a card, and a description is read
+  against the batch before the wider thread. The dev simulator's lead reply
+  can now replay a saved contact's real thread: give their phone and the
+  message, and it shows the listings resolved and the exact reply, with
+  nothing sent and no credits charged.
+
 #### 8 October 2026
 
 - **Showcase check-ins resubmitted as a Utility template.** Meta approved

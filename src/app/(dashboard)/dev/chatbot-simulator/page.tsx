@@ -49,6 +49,9 @@ interface SimulateResult {
   ladderStoodDown?: boolean;
   notifiesAgent?: boolean;
   answeredFromListing?: boolean;
+  answerSource?: string;
+  questionAnswered?: string;
+  subjects?: { propertyCode: string | null; title: string | null }[];
   photoCount?: number;
   galleryCount?: number;
   carriesRequirementSignal?: boolean;
@@ -130,6 +133,7 @@ export default function ChatbotSimulatorPage() {
         body.priorRequirements = priorRequirements.trim();
         body.contactName = contactName.trim();
         body.subjectPropertyCode = subjectPropertyCode.trim();
+        if (phone.trim()) body.phone = phone.trim();
       } else if (image) {
         body.imageBase64 = await fileToBase64(image.file);
         body.mimeType = image.file.type;
@@ -257,6 +261,22 @@ export default function ChatbotSimulatorPage() {
                 value={subjectPropertyCode}
                 onChange={(e) => setSubjectPropertyCode(e.target.value)}
                 placeholder="e.g. PROP-1031"
+                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-600"
+              />
+
+              <label className="block text-sm font-semibold text-white">
+                Replay against a saved contact
+                <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                  Their WhatsApp number. A listing question is then answered
+                  from their real thread — the cards they were sent, what they
+                  quoted, what the agent said — exactly as the bot would now,
+                  without sending anything or charging credits.
+                </span>
+              </label>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. +91 98765 43210"
                 className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-600"
               />
             </>
@@ -397,10 +417,28 @@ export default function ChatbotSimulatorPage() {
                       something a person owes them.
                     </p>
                   )}
-                  {result.answeredFromListing && (
+                  {result.answeredFromListing && !result.previewText && (
                     <p className="mt-0.5 text-xs text-slate-400">
-                      The exact wording depends on the listing and the question,
-                      so it isn&apos;t previewed here.
+                      The exact wording depends on the listing and the question
+                      — enter the contact&apos;s phone to answer it from their
+                      real thread.
+                    </p>
+                  )}
+                  {result.subjects && (
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {result.subjects.length === 0
+                        ? 'No listing could be pinned to the thread, so a person is asked.'
+                        : `Answered for ${result.subjects
+                            .map((s) =>
+                              [s.propertyCode, s.title]
+                                .filter(Boolean)
+                                .join(' · ')
+                            )
+                            .join(' and ')}.`}
+                      {result.questionAnswered &&
+                      result.questionAnswered !== text.trim()
+                        ? ` The question answered is the one sent just before: “${result.questionAnswered}”.`
+                        : ''}
                     </p>
                   )}
                   {typeof result.photoCount === 'number' &&

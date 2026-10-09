@@ -739,15 +739,37 @@ describe('[INB-034] decideSubjects answers a question after two cards for both',
     expect(decideSubjects(args)).toEqual(['prop-2080']);
   });
 
-  it('is the latest share alone once the buyer has spoken since the burst', () => {
+  it('holds the batch through a bare question or remark from the buyer', () => {
+    // 7 October: "Is this available?" then "Can u share the exact
+    // location?" were both about the same two cards.
     const args = burst();
     args.messages = thread([
       ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
       ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
       ['2026-10-07T15:05:00Z', 'customer', 'ok', 'wamid.ok'],
-      ['2026-10-07T15:20:00Z', 'customer', 'Is this available?', 'wamid.q2'],
+      ['2026-10-07T15:20:00Z', 'customer', 'Is this available?', 'wamid.q1'],
+      [
+        '2026-10-07T15:20:26Z',
+        'customer',
+        'Can u share the exact location?',
+        'wamid.q2',
+      ],
     ]);
-    expect(decideSubjects(args)).toEqual(['prop-2080']);
+    expect(decideSubjects(args)).toEqual(['prop-2080', 'prop-1784']);
+    expect(decideSubject(args)).toBeNull();
+  });
+
+  it('is the latest share alone once the buyer has numbered or described a card', () => {
+    for (const settled of ['Interested in 1', 'No this 5,760 sqft one']) {
+      const args = burst();
+      args.messages = thread([
+        ['2026-10-07T15:01:45Z', 'agent', SHARE_CHIKATOGUR],
+        ['2026-10-07T15:02:34Z', 'agent', SHARE_JP_8TH],
+        ['2026-10-07T15:05:00Z', 'customer', settled, 'wamid.ok'],
+        ['2026-10-07T15:20:00Z', 'customer', 'Is this available?', 'wamid.q2'],
+      ]);
+      expect(decideSubjects(args)).toEqual(['prop-2080']);
+    }
   });
 
   it('is empty when nothing was ever shared', () => {
@@ -849,14 +871,19 @@ describe('[INB-034] resolveSubjectProperties reads the burst from the thread', (
         property_id: 'prop-1784',
         created_at: '2026-09-01T09:00:00Z',
       },
-      ...['prop-1004', 'prop-1110', 'prop-1081', 'prop-2080'].map(
-        (property_id, i) => ({
-          account_id: 'acc',
-          contact_id: 'c1',
-          property_id,
-          created_at: `2026-10-07T15:0${i}:00Z`,
-        })
-      ),
+      ...(
+        [
+          ['prop-1004', '2026-10-07T13:00:00Z'],
+          ['prop-1110', '2026-10-07T13:30:00Z'],
+          ['prop-1081', '2026-10-07T14:00:00Z'],
+          ['prop-2080', '2026-10-07T15:02:34Z'],
+        ] as const
+      ).map(([property_id, created_at]) => ({
+        account_id: 'acc',
+        contact_id: 'c1',
+        property_id,
+        created_at,
+      })),
     ];
     data.properties = data.properties.map((row) =>
       row.id === 'prop-1784'
