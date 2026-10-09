@@ -734,7 +734,7 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(catalog).toContain('return outcome.complete;');
   });
 
-  it('[JRN-021] tells the agent when a logged share stays unrecorded, on web and mobile', () => {
+  it('[JRN-021] tells the agent when a share stays unrecorded, in the same words on all six surfaces', () => {
     const actions = mobileSource('lib/property-share-actions.ts');
     expect(actions).toContain(
       "return ledger.status === 'fulfilled' && ledger.value.complete;"
@@ -750,6 +750,17 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
         'if (r.error) toast.warning(SHARE_UNRECORDED_NOTICE);'
       );
     }
+    for (const file of [
+      'components/inventory/property-share-dialog.tsx',
+      'components/inventory/property-email-share-dialog.tsx',
+    ]) {
+      expect(webSource(file)).toContain(
+        'toast.warning(SHARE_UNRECORDED_NOTICE);'
+      );
+    }
+    const card = mobileSource('components/catalog-product-share.tsx');
+    expect(card).toContain('SHARE_UNRECORDED_NOTICE,');
+    expect(card).toContain("? 'Not recorded'");
   });
 
   it('[JRN-011] removes a branch and the deal opened from it through one route on web and mobile', () => {
