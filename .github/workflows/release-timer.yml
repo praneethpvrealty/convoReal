@@ -37,7 +37,11 @@ jobs:
       - uses: actions/github-script@v9
         env:
           DRY_RUN: ${{ inputs.dry_run }}
+          WORKFLOWS_TOKEN: ${{ secrets.RELEASE_TIMER_WORKFLOWS_TOKEN }}
         with:
           script: |
             const { run } = await import(`${process.env.GITHUB_WORKSPACE}/src/scripts/release-timer.mjs`);
-            await run({ github, context, core, dryRun: process.env.DRY_RUN === 'true' });
+            const branchUpdater = process.env.WORKFLOWS_TOKEN
+              ? getOctokit(process.env.WORKFLOWS_TOKEN)
+              : github;
+            await run({ github, branchUpdater, context, core, dryRun: process.env.DRY_RUN === 'true' });

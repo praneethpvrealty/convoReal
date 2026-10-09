@@ -4,6 +4,7 @@ import {
   MOBILE_UPDATE_PENDING_LABEL,
   RELEASE_WINDOW_MINUTES,
   REVIEW_SETTLE_MINUTES,
+  WORKFLOWS_TOKEN_SECRET,
   decideRelease,
   mobileUpdatePaths,
   run,
@@ -784,6 +785,78 @@ describe('run', () => {
     expect(rest.pulls.merge).not.toHaveBeenCalled();
   });
 
+  it('merges main in with the workflows token when one is supplied', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      behindBy: 3,
+    });
+    const updateBranch = vi.fn(async () => ({}));
+    const branchUpdater = { rest: { pulls: { updateBranch } } };
+
+    expect(
+      (await run({ github, branchUpdater, context, core, now: NOW }))[
+        'release/batch'
+      ].action
+    ).toBe('update-branch');
+    expect(updateBranch).toHaveBeenCalledWith({
+      owner: 'owner',
+      repo: 'repo',
+      pull_number: 50,
+      expected_head_sha: 'tip',
+    });
+    expect(rest.pulls.updateBranch).not.toHaveBeenCalled();
+  });
+
+  it('holds with the missing secret named when main changes a workflow file', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      behindBy: 3,
+    });
+    rest.pulls.updateBranch.mockRejectedValueOnce(
+      Object.assign(
+        new Error(
+          'refusing to allow a GitHub App to create or update workflow `.github/workflows/ci.yml` without `workflows` permission'
+        ),
+        { status: 403 }
+      )
+    );
+    const quiet = { ...core, setFailed: vi.fn() };
+
+    const result = (await run({ github, context, core: quiet, now: NOW }))[
+      'release/batch'
+    ];
+
+    expect(result.action).toBe('hold');
+    expect(result.reason).toContain(WORKFLOWS_TOKEN_SECRET);
+    expect(rest.issues.createComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: expect.stringContaining(WORKFLOWS_TOKEN_SECRET),
+      })
+    );
+    expect(quiet.setFailed).not.toHaveBeenCalled();
+    expect(rest.pulls.merge).not.toHaveBeenCalled();
+  });
+
+  it('still fails the run on any other refusal to update the branch', async () => {
+    const { github, rest } = fakeGithub({
+      pulls: [member(1), releasePr()],
+      checkRuns: greenCi,
+      behindBy: 3,
+    });
+    rest.pulls.updateBranch.mockRejectedValueOnce(
+      Object.assign(new Error('Resource not accessible'), { status: 403 })
+    );
+    const loud = { ...core, setFailed: vi.fn() };
+
+    await run({ github, context, core: loud, now: NOW });
+
+    expect(loud.setFailed).toHaveBeenCalledWith(
+      'release/batch: Resource not accessible'
+    );
+  });
+
   it('does not merge when main moved after the release was tested', async () => {
     const { github, rest } = fakeGithub({
       pulls: [member(1), releasePr()],
@@ -827,6 +900,25 @@ describe('run', () => {
       expected_head_sha: 'tip',
     });
     expect(rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+  });
+
+  it('opens the release PR and warns when main changes a workflow file it cannot merge in', async () => {
+    const { github, rest } = fakeGithub({ pulls: [member(1)], behindBy: 2 });
+    rest.pulls.updateBranch.mockRejectedValueOnce(
+      Object.assign(new Error('without `workflows` permission'), {
+        status: 403,
+      })
+    );
+    const quiet = { ...core, warning: vi.fn(), setFailed: vi.fn() };
+
+    expect(
+      (await run({ github, context, core: quiet, now: NOW }))['release/batch']
+        .action
+    ).toBe('open-pr');
+    expect(quiet.warning).toHaveBeenCalledWith(
+      expect.stringContaining(WORKFLOWS_TOKEN_SECRET)
+    );
+    expect(quiet.setFailed).not.toHaveBeenCalled();
   });
 
   it('ignores a fork PR from a branch named like the release', async () => {
@@ -980,5 +1072,15 @@ describe('the mobile update the timer dispatches', () => {
       /\n  workflow_dispatch:\n {4}inputs:\n {6}channel:/
     );
     expect(workflow).toContain("CHANNEL: ${{ inputs.channel || 'preview' }}");
+  });
+});
+
+describe('release timer workflow', () => {
+  const workflow = readFileSync('.github/workflows/release-timer.yml', 'utf8');
+
+  it('hands the workflows token to the branch updater when the secret is set', () => {
+    expect(workflow).toContain(`secrets.${WORKFLOWS_TOKEN_SECRET}`);
+    expect(workflow).toContain('getOctokit(process.env.WORKFLOWS_TOKEN)');
+    expect(workflow).toContain('branchUpdater');
   });
 });
