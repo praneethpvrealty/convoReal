@@ -55,7 +55,12 @@ vi.mock('@/lib/ai/gemini', () => ({
 const { POST } = await import('./route');
 const { memorySupabase } = await import('@/test/memory-supabase');
 
-function run(text: string, subjectPropertyCode?: string, phone?: string) {
+function run(
+  text: string,
+  subjectPropertyCode?: string,
+  phone?: string,
+  quotedText?: string
+) {
   return POST(
     new Request('http://localhost/api/dev/simulate-chatbot', {
       method: 'POST',
@@ -64,6 +69,7 @@ function run(text: string, subjectPropertyCode?: string, phone?: string) {
         text,
         subjectPropertyCode,
         phone,
+        quotedText,
       }),
     })
   ).then((res) => res.json());
@@ -308,6 +314,23 @@ describe('simulate-chatbot — lead routing', () => {
       );
       expect(correction.previewText).toContain('Chikkathoguru');
       expect(correction.previewText).not.toContain('JP Nagar');
+    } finally {
+      threadDb = null;
+    }
+  });
+
+  it('[INB-034] follows the card the lead quoted in a replay', async () => {
+    threadDb = shirishThread();
+    try {
+      const result = await run(
+        'Is this available?',
+        undefined,
+        '+919986054104',
+        SHARE_CHIKATOGUR
+      );
+      expect(
+        result.subjects.map((s: { propertyCode: string }) => s.propertyCode)
+      ).toEqual(['PROP-1784']);
     } finally {
       threadDb = null;
     }

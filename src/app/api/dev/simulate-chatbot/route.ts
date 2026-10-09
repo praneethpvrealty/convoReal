@@ -104,6 +104,7 @@ export async function POST(request: Request) {
       priorRequirements?: string;
       contactName?: string;
       subjectPropertyCode?: string;
+      quotedText?: string;
     } | null;
 
     const text = (body?.text || '').trim().slice(0, MAX_TEXT_LEN);
@@ -150,6 +151,8 @@ export async function POST(request: Request) {
         contactName: (body.contactName || '').trim() || null,
         subjectPropertyCode: (body.subjectPropertyCode || '').trim() || null,
         phone: phone || null,
+        quotedText:
+          (body.quotedText || '').trim().slice(0, MAX_TEXT_LEN) || null,
       });
     }
 
@@ -332,6 +335,7 @@ async function simulateLeadReply(args: {
   contactName: string | null;
   subjectPropertyCode: string | null;
   phone: string | null;
+  quotedText: string | null;
 }): Promise<NextResponse> {
   const {
     accountId,
@@ -341,6 +345,7 @@ async function simulateLeadReply(args: {
     contactName,
     subjectPropertyCode,
     phone,
+    quotedText,
   } = args;
 
   const route = routeLeadMessage(text);
@@ -353,6 +358,7 @@ async function simulateLeadReply(args: {
       contactName,
       subjectPropertyCode,
       phone,
+      quotedText,
     });
   }
 
@@ -367,6 +373,7 @@ async function simulateLeadReply(args: {
       supabase,
       text,
       phone,
+      quotedText,
       base: {
         mode: 'lead_reply' as const,
         route: 'listing_question' satisfies LeadRoute,
@@ -496,6 +503,7 @@ async function simulateCarveOut(args: {
   contactName: string | null;
   subjectPropertyCode: string | null;
   phone: string | null;
+  quotedText: string | null;
 }): Promise<NextResponse> {
   const {
     accountId,
@@ -505,6 +513,7 @@ async function simulateCarveOut(args: {
     contactName,
     subjectPropertyCode,
     phone,
+    quotedText,
   } = args;
 
   const base = {
@@ -529,7 +538,14 @@ async function simulateCarveOut(args: {
 
   if (route === 'shortlist_reference' || route === 'listing_question') {
     if (phone) {
-      return replayListingAnswer({ accountId, supabase, text, phone, base });
+      return replayListingAnswer({
+        accountId,
+        supabase,
+        text,
+        phone,
+        quotedText,
+        base,
+      });
     }
     return NextResponse.json({
       ...base,
@@ -624,9 +640,10 @@ async function replayListingAnswer(args: {
   supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
   text: string;
   phone: string;
+  quotedText: string | null;
   base: Record<string, unknown>;
 }): Promise<NextResponse> {
-  const { accountId, supabase, text, phone, base } = args;
+  const { accountId, supabase, text, phone, quotedText, base } = args;
   const found = await contactByPhone(supabase, accountId, phone);
   if ('error' in found) return found.error;
   const { contact } = found;
@@ -651,7 +668,8 @@ async function replayListingAnswer(args: {
     accountId,
     contact.id,
     conversation.id,
-    text
+    text,
+    { quotedText }
   );
   const pointsOnly =
     subjects.length > 0 &&

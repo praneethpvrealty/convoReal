@@ -83,6 +83,7 @@ export default function ChatbotSimulatorPage() {
   const [contactName, setContactName] = useState('');
   const [subjectPropertyCode, setSubjectPropertyCode] = useState('');
   const [phone, setPhone] = useState('');
+  const [quotedText, setQuotedText] = useState('');
   const [image, setImage] = useState<{ file: File; previewUrl: string } | null>(
     null
   );
@@ -124,6 +125,7 @@ export default function ChatbotSimulatorPage() {
         contactName?: string;
         subjectPropertyCode?: string;
         phone?: string;
+        quotedText?: string;
       } = { text: text.trim() };
       if (mode === 'buyer_matches') {
         body.mode = 'buyer_matches';
@@ -134,6 +136,7 @@ export default function ChatbotSimulatorPage() {
         body.contactName = contactName.trim();
         body.subjectPropertyCode = subjectPropertyCode.trim();
         if (phone.trim()) body.phone = phone.trim();
+        if (quotedText.trim()) body.quotedText = quotedText.trim();
       } else if (image) {
         body.imageBase64 = await fileToBase64(image.file);
         body.mimeType = image.file.type;
@@ -268,9 +271,9 @@ export default function ChatbotSimulatorPage() {
                 Replay against a saved contact
                 <span className="mt-0.5 block text-xs font-normal text-slate-500">
                   Their WhatsApp number. A listing question is then answered
-                  from their real thread — the cards they were sent, what they
-                  quoted, what the agent said — exactly as the bot would now,
-                  without sending anything or charging credits.
+                  from their real thread — the cards they were sent, what the
+                  agent said — exactly as the bot would now, without sending
+                  anything or charging credits.
                 </span>
               </label>
               <input
@@ -278,6 +281,21 @@ export default function ChatbotSimulatorPage() {
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="e.g. +91 98765 43210"
                 className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-600"
+              />
+
+              <label className="block text-sm font-semibold text-white">
+                Message they quoted
+                <span className="mt-0.5 block text-xs font-normal text-slate-500">
+                  Optional. Paste the card or message the lead swiped to reply
+                  on; a quoted card names its listing outright.
+                </span>
+              </label>
+              <Textarea
+                value={quotedText}
+                onChange={(e) => setQuotedText(e.target.value)}
+                rows={2}
+                placeholder="e.g. the share message for PROP-1784"
+                className="resize-y border-slate-800 bg-slate-950 text-sm text-white placeholder:text-slate-600"
               />
             </>
           )}

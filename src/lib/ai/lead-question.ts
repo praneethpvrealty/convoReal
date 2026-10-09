@@ -498,24 +498,6 @@ const DESCRIBED_LOOKBACK_SHARES = 6;
  * the thread, not the ledger alone: a re-share does not bump its ledger
  * row, so the ledger's newest rows can miss the card sent a minute ago.
  */
-async function describedCandidates(
-  db: SupabaseClient,
-  accountId: string,
-  recentPropertyIds: string[]
-): Promise<DescribedCandidate[]> {
-  const ids = recentPropertyIds.slice(0, DESCRIBED_LOOKBACK_SHARES);
-  if (ids.length === 0) return [];
-
-  const { data: candidates } = await db
-    .from('properties')
-    .select(
-      'id, title, location, sublocality, project, price, area_sqft, super_built_area, land_area, land_area_unit, bedrooms'
-    )
-    .eq('account_id', accountId)
-    .in('id', ids);
-  return (candidates ?? []) as DescribedCandidate[];
-}
-
 /**
  * The listing the buyer's words describe, read against the cards the
  * question was about before the wider thread. On 7 October "No this
@@ -587,10 +569,11 @@ export async function questionSubjectProperties(
 
   const propertyIds = decideSubjects(thread);
   if (questionText && !quotesListing(thread)) {
-    const candidates = await describedCandidates(
-      db,
-      accountId,
-      shareEvents(thread).map((event) => event.propertyId)
+    const recent = shareEvents(thread)
+      .slice(0, DESCRIBED_LOOKBACK_SHARES)
+      .map((event) => event.propertyId);
+    const candidates: DescribedCandidate[] = thread.candidates.filter(
+      (candidate) => recent.includes(candidate.id)
     );
     const described = describedSubject(questionText, candidates, propertyIds);
     if (described) return loadSubjects(db, accountId, [described]);
