@@ -111,6 +111,10 @@ describe('findCopilotPropertyInterest', () => {
       ['owner_contact_id', [OWNER_ID]],
     ]);
     expect(stubs.get('properties')?.calls).toContainEqual([
+      'or',
+      ['listing_source.is.null,listing_source.neq.agent'],
+    ]);
+    expect(stubs.get('properties')?.calls).toContainEqual([
       'eq',
       ['account_id', 'acct-1'],
     ]);

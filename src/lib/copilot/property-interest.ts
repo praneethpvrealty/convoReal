@@ -70,11 +70,11 @@ export type PropertyInterestExecutor = (
 const PROPERTY_NOUN =
   '(?:propert(?:y|ies)|listings?|flats?|plots?|sites?|villas?|houses?|homes?|apartments?|offices?|shops?|units?|lands?|buildings?|projects?|farms?|farm\\s*houses?|pent\\s*houses?|bungalows?|showrooms?|warehouses?|godowns?)';
 const ENGAGEMENT =
-  /\b(?:show(?:ed|n|s|ing)?|express(?:ed|es|ing)?|ha(?:ve|s|d)|indicat(?:ed|es))\s+(?:an?\s+|any\s+|some\s+|their\s+)?interest\b|\binterested\b|\bkeen\s+on\b|\benquir(?:e|ed|ies|y|ing)\b|\binquir(?:e|ed|ies|y|ing)\b|\bview(?:ed|s)?\b|\bvisited\b|\bshortlisted\b|\bliked\b|\bengaged\b|\bresponded\b|\basked\s+(?:about|for)\b|\bsaw\b|\bseen\b|\bchecked\s+out\b|\bopened\b|\bclicked\b|\blooked\s+at\b|\bdekha\b|\bpoocha\b|\bpuchha\b/i;
+  /\b(?:show(?:ed|n|s|ing)?|express(?:ed|es|ing)?|ha(?:ve|s|d)|indicat(?:ed|es))\s+(?:an?\s+|any\s+|some\s+|their\s+)?interest\b|\binterested\b|\bkeen\s+on\b|\benquir(?:e|ed|ies|y|ing)\b|\binquir(?:e|ed|ies|y|ing)\b|\bview(?:ed|s|ing)?\b|\bvisit(?:ed|s|ing)?\b|\bshortlist(?:ed|s|ing)?\b|\blik(?:ed|es)\b|\bengag(?:ed|ing)\b|\bresponded\b|\basked\s+(?:about|for)\b|\bsaw\b|\bseen\b|\bchecked\s+out\b|\bopened\b|\bclicked\b|\blooked\s+at\b|\bdekha\b|\bpoocha\b|\bpuchha\b/i;
 const PAST_ENGAGEMENT =
   /\b(?:show(?:ed|n)|express(?:ed)|ha(?:ve|s|d)|indicat(?:ed))\s+(?:an?\s+|any\s+|some\s+|their\s+)?interest\b|\benquir(?:ed|ies|y)\b|\binquir(?:ed|ies|y)\b|\bviewed\b|\bvisited\b|\bshortlisted\b|\bliked\b|\bengaged\b|\bresponded\b|\basked\s+about\b|\bsaw\b|\bseen\b|\bchecked\s+out\b|\bopened\b|\bclicked\b|\blooked\s+at\b|\bdekha\b|\bpoocha\b|\bpuchha\b/i;
 const NOT_A_NAME =
-  /^(?:owner|owners|seller|sellers|landlord|client|clients|buyer|buyers|customer|customers|user|users|agent|agents|today|yesterday|tomorrow|week|month|year|this|that|these|those|my|our|your|their|his|her|its|someone|anyone|everyone|team|company|firm|builder|builders|tenant|tenants|lead|leads|contact|contacts|the|a|an|all|any|each|every|which|what|who|whose|it|list|one|in|on|at|about|for|of|to|with|from|by|and|or|interest|interested|enquired|enquire|enquiry|enquiries|inquired|inquire|inquiry|inquiries|viewed|view|views|visited|visit|shortlisted|liked|showed|shown|show|expressed|seen|saw|is|are|was|were|has|have|had|did|does|do|also|regarding|towards|kaun|kon|koi|ne|ki|ka|ke|jo|jisne|kisne|mein|me|hai|hain|ko|se|ya|aur)$/i;
+  /^(?:owner|owners|seller|sellers|landlord|client|clients|buyer|buyers|customer|customers|user|users|agent|agents|today|yesterday|tomorrow|week|month|year|this|that|these|those|my|our|your|their|his|her|its|someone|anyone|everyone|team|company|firm|builder|builders|tenant|tenants|lead|leads|contact|contacts|the|a|an|all|any|each|every|which|what|who|whose|it|list|one|in|on|at|about|for|of|to|with|from|by|and|or|interest|interested|enquired|enquire|enquiry|enquiries|inquired|inquire|inquiry|inquiries|viewed|view|views|visited|visit|shortlisted|liked|showed|shown|show|expressed|seen|saw|is|are|was|were|has|have|had|did|does|do|also|regarding|towards|been|being|already|just|ever|never|still|yet|recently|lately|all|kaun|kon|koi|ne|ki|ka|ke|jo|jisne|kisne|mein|me|hai|hain|ko|se|ya|aur)$/i;
 const NAME_WORD = String.raw`[\p{L}][\p{L}\p{N}.'’-]*`;
 const NAME = String.raw`(${NAME_WORD}(?:\s+${NAME_WORD}){0,2})`;
 const OWNER_POSSESSIVE = new RegExp(
@@ -124,6 +124,10 @@ const SUBJECT_WORDS =
 const NAVIGATION_COMMAND =
   /^\s*(?:please\s+)?(?:open|show|view|take\s+me\s+to|go\s+to)\s+(?:me\s+)?(?:the\s+)?[#@&]/i;
 const CONTACT_SUBJECT_FORMS: RegExp[] = [
+  new RegExp(
+    String.raw`\b(?:what|which)\s+(?:all\s+)?(?:has|have|had|did|does|do|is|was|are|were)\s+${NAME}\s+(?:been\s+)?(?:enquired|enquiring|enquire|inquired|inquiring|inquire|viewed|viewing|view|visited|visiting|visit|shortlisted|shortlisting|shortlist|liked|likes|seen|see|saw|asked|asking|ask|responded|engaged|showed|shown|show|expressed|looked|looking|opened|open|checked|check|interested)\b`,
+    'iu'
+  ),
   new RegExp(
     String.raw`\b(?:what|which)\s+(?:all\s+)?(?:${PROPERTY_NOUN.slice(3, -1)})\s+(?:did|has|have|was|were|is|does|do)\s+${NAME}\s+(?:enquire|inquire|view|visit|shortlist|like|see|ask|respond|engage|show|express|look|open|check|interested)`,
     'iu'
@@ -182,11 +186,11 @@ function cleanName(raw: string): string | null {
 }
 
 function readSignal(text: string): InterestSignal {
-  if (/\bshortlist(?:ed)?\b/i.test(text)) return 'shortlisted';
-  if (/\b(?:site\s+)?visit(?:ed|s)?\b/i.test(text)) return 'visited';
+  if (/\bshortlist(?:ed|s|ing)?\b/i.test(text)) return 'shortlisted';
+  if (/\b(?:site\s+)?visit(?:ed|s|ing)?\b/i.test(text)) return 'visited';
   if (/\bliked?\b|\bthumbs\s+up\b/i.test(text)) return 'liked';
   if (
-    /\bview(?:ed|s)?\b|\bsaw\b|\bseen\b|\bopened\b|\bclicked\b|\blooked\s+at\b|\bdekha\b/i.test(
+    /\bview(?:ed|s|ing)?\b|\bsaw\b|\bseen\b|\bopened\b|\bclicked\b|\blooked\s+at\b|\bdekha\b/i.test(
       text
     )
   )

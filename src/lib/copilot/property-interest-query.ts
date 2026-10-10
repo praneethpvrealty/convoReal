@@ -145,6 +145,7 @@ async function propertiesOwnedBy(
     .select(PROPERTY_SELECT)
     .eq('account_id', ctx.accountId)
     .in('owner_contact_id', ownerIds.slice(0, SUBJECT_LIMIT))
+    .or('listing_source.is.null,listing_source.neq.agent')
     .order('updated_at', { ascending: false })
     .limit(SUBJECT_LIMIT);
   if (error) throw new Error(error.message);
