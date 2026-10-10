@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEAL_MILESTONE_TEMPLATES,
+  applyMilestonePatch,
   milestoneProgress,
   milestoneUpdateData,
   parseMilestonePatch,
@@ -93,6 +94,29 @@ describe('parseMilestonePatch', () => {
       ok: true,
       value: { target_date: null, owner_id: null },
     });
+  });
+});
+
+describe('applyMilestonePatch', () => {
+  it('[TXW-033] flips one row exactly as the server will, leaving the rest alone', () => {
+    const now = new Date('2026-10-10T14:00:00Z');
+    const list = [
+      { id: 'a', status: 'completed' as const, completed_at: '2026-10-09' },
+      { id: 'b', status: 'pending' as const, completed_at: null },
+    ];
+    expect(
+      applyMilestonePatch(list, 'b', { status: 'completed' }, now)
+    ).toEqual([
+      list[0],
+      { id: 'b', status: 'completed', completed_at: now.toISOString() },
+    ]);
+    expect(applyMilestonePatch(list, 'a', { status: 'pending' }, now)).toEqual([
+      { id: 'a', status: 'pending', completed_at: null },
+      list[1],
+    ]);
+    expect(
+      applyMilestonePatch(list, 'zzz', { status: 'skipped' }, now)
+    ).toEqual(list);
   });
 });
 

@@ -18,9 +18,11 @@ import { Input } from '@/components/ui/input';
 import {
   DEAL_MILESTONE_STATUSES,
   DEAL_MILESTONE_STATUS_LABELS,
+  applyMilestonePatch,
   milestoneProgress,
   type DealMilestone,
   type DealMilestoneStatus,
+  type MilestonePatch,
 } from '@/lib/deals/milestones';
 import {
   DEAL_VISIBILITIES,
@@ -144,21 +146,31 @@ export function DealMilestonesPanel({
     }
   }
 
-  async function patch(m: DealMilestone, body: Record<string, unknown>) {
+  async function patch(m: DealMilestone, body: MilestonePatch) {
+    const key = ['deal-milestones', dealId];
     setBusyId(m.id);
+    await queryClient.cancelQueries({ queryKey: key });
+    const previous = queryClient.getQueryData<DealMilestone[]>(key);
+    if (previous) {
+      queryClient.setQueryData<DealMilestone[]>(
+        key,
+        applyMilestonePatch(previous, m.id, body)
+      );
+    }
     try {
       await call(
         `/api/deals/${dealId}/milestones/${m.id}`,
         { method: 'PATCH', body: JSON.stringify({ ...body, source: 'web' }) },
         'Could not update the milestone'
       );
-      await refresh();
     } catch (err) {
+      if (previous) queryClient.setQueryData(key, previous);
       toast.error(
         err instanceof Error ? err.message : 'Could not update the milestone'
       );
     } finally {
       setBusyId(null);
+      void refresh();
     }
   }
 

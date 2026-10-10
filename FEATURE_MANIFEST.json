@@ -3318,6 +3318,24 @@
             "src/components/deals/deal-timeline-panel.tsx",
             "mobile/lib/deal-workspace.ts"
           ]
+        },
+        {
+          "id": "TXW-033",
+          "rule": "Ticking or reopening a milestone shows on the spot, before the server answers, with the row locked against a second tap while its request is in flight; a failed request puts the row back as it was and says so. The flipped row carries the same status and completed_at the server will return, and the list is refetched afterwards so the server's row replaces the local one. Web and mobile apply the same rule.",
+          "tests": [
+            {
+              "file": "src/lib/deals/milestones.test.ts",
+              "case": "[TXW-033]"
+            },
+            {
+              "file": "src/components/deals/deal-milestones-panel.test.tsx",
+              "case": "[TXW-033]"
+            }
+          ],
+          "guards": [
+            "src/components/deals/deal-milestones-panel.tsx",
+            "mobile/app/(app)/deal/[id].tsx"
+          ]
         }
       ]
     },

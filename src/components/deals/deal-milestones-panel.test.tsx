@@ -8,32 +8,41 @@
 // ============================================================
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { DealMilestonesPanel } from '@/components/deals/deal-milestones-panel';
 
-const MILESTONES = [
-  {
-    id: 'm1',
-    title: 'Sale agreement signed',
-    position: 0,
-    status: 'pending',
-    target_date: '2026-10-10',
-    completed_at: null,
-    visibility: 'internal',
-    template_key: null,
-  },
-];
+const PENDING = {
+  id: 'm1',
+  title: 'Sale agreement signed',
+  position: 0,
+  status: 'pending',
+  target_date: '2026-10-10',
+  completed_at: null,
+  visibility: 'internal',
+  template_key: null,
+};
+const MILESTONES = [PENDING];
 
-function renderPanel() {
+function renderPanel(
+  onPatch?: () => Promise<{ ok: boolean; json: () => Promise<unknown> }>
+) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(() =>
-      Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ data: MILESTONES }),
-      })
+    vi.fn((_url: string, init?: RequestInit) =>
+      init?.method === 'PATCH' && onPatch
+        ? onPatch()
+        : Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: MILESTONES }),
+          })
     )
   );
   const client = new QueryClient({
@@ -75,5 +84,84 @@ describe('DealMilestonesPanel', () => {
     expect(screen.getByLabelText('Who can see it')).toBeTruthy();
     expect(screen.getByLabelText('Due')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Remove' })).toBeTruthy();
+  });
+
+  it('[TXW-033] ticks on the spot, locks the row while saving, then refetches', async () => {
+    let resolvePatch: (() => void) | null = null;
+    const saved = { ...MILESTONES[0], status: 'completed' };
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
+      init?.method === 'PATCH'
+        ? new Promise<{ ok: boolean; json: () => Promise<unknown> }>(
+            (resolve) => {
+              resolvePatch = () => {
+                MILESTONES.splice(0, 1, saved);
+                resolve({
+                  ok: true,
+                  json: () => Promise.resolve({ data: saved }),
+                });
+              };
+            }
+          )
+        : Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ data: [...MILESTONES] }),
+          })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <DealMilestonesPanel dealId="deal-1" canEdit />
+      </QueryClientProvider>
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Mark completed' })
+    );
+
+    const reopen = await screen.findByRole('button', { name: 'Reopen' });
+    expect(reopen.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('1 / 1 done')).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.filter(([, init]) => !init?.method)
+    ).toHaveLength(1);
+
+    resolvePatch!();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Reopen' }).hasAttribute('disabled')
+      ).toBe(false)
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([, init]) => !init?.method).length
+      ).toBeGreaterThan(1)
+    );
+    MILESTONES.splice(0, 1, PENDING);
+  });
+
+  it('[TXW-033] puts the row back when the save fails', async () => {
+    let failPatch: (() => void) | null = null;
+    renderPanel(
+      () =>
+        new Promise((resolve) => {
+          failPatch = () =>
+            resolve({
+              ok: false,
+              json: () => Promise.resolve({ error: 'Deal is closed' }),
+            });
+        })
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Mark completed' })
+    );
+    expect(await screen.findByRole('button', { name: 'Reopen' })).toBeTruthy();
+
+    failPatch!();
+    expect(
+      await screen.findByRole('button', { name: 'Mark completed' })
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Reopen' })).toBeNull();
   });
 });

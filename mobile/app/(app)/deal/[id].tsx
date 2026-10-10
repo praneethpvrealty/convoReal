@@ -1,5 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Clipboard from 'expo-clipboard';
@@ -172,6 +176,7 @@ import { supabase } from '@/lib/supabase';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { PipelineStage } from '@/lib/types';
+import { applyMilestonePatch } from '@shared/lib/deals/milestones';
 import { CLOSING_RECORD_LABEL } from '@shared/lib/deals/routes';
 import { dealFee, formatDealAmount } from '@shared/lib/pipelines/deal-money';
 
@@ -1151,16 +1156,19 @@ function OverviewTab({
                 <Pressable
                   disabled={!canEdit || busy === nextMilestone.id}
                   onPress={() =>
-                    void run(
+                    void tickMilestone(
+                      queryClient,
+                      dealId,
                       nextMilestone.id,
-                      () =>
-                        updateDealMilestone(dealId, nextMilestone.id, {
-                          status: 'completed',
-                        }),
-                      [
-                        ['deal-milestones', dealId],
-                        ['deal-events', dealId],
-                      ]
+                      'completed',
+                      {
+                        setBusy,
+                        onError: (err) =>
+                          dialog.show({
+                            title: 'That did not work',
+                            message: friendlyError(errorText(err)),
+                          }),
+                      }
                     )
                   }
                   hitSlop={10}
@@ -2430,6 +2438,45 @@ function TimelineTab({
   );
 }
 
+/** The tick flips before the server answers (TXW-033): the list in the
+ *  cache is patched the way the server will return it, the row stays
+ *  locked until the request settles, a failure puts the list back, and
+ *  the refetch afterwards replaces the local row with the real one. */
+async function tickMilestone(
+  queryClient: QueryClient,
+  dealId: string,
+  milestoneId: string,
+  status: DealMilestoneStatus,
+  handlers: {
+    setBusy: (id: string | null) => void;
+    onError: (err: unknown) => void;
+  }
+) {
+  const key = ['deal-milestones', dealId];
+  handlers.setBusy(milestoneId);
+  await queryClient.cancelQueries({ queryKey: key });
+  const previous = queryClient.getQueryData<DealMilestoneRow[]>(key);
+  if (previous) {
+    queryClient.setQueryData<DealMilestoneRow[]>(
+      key,
+      applyMilestonePatch(previous, milestoneId, { status })
+    );
+  }
+  try {
+    await updateDealMilestone(dealId, milestoneId, { status });
+    void haptic.success();
+  } catch (err) {
+    if (previous) queryClient.setQueryData(key, previous);
+    handlers.onError(err);
+  } finally {
+    handlers.setBusy(null);
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: key }),
+      queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+    ]);
+  }
+}
+
 function MilestonesTab({
   dealId,
   canEdit,
@@ -2508,9 +2555,14 @@ function MilestonesTab({
             label: DEAL_MILESTONE_STATUS_LABELS[s],
             onPress: () => {
               dialog.close();
-              void run(m.id, () =>
-                updateDealMilestone(dealId, m.id, { status: s })
-              );
+              void tickMilestone(queryClient, dealId, m.id, s, {
+                setBusy,
+                onError: (err) =>
+                  dialog.show({
+                    title: 'That did not work',
+                    message: friendlyError(errorText(err)),
+                  }),
+              });
             },
           })),
         { label: 'Cancel', variant: 'muted' as const, onPress: dialog.close },
@@ -2582,10 +2634,19 @@ function MilestonesTab({
                 <Pressable
                   disabled={!canEdit || busy === m.id}
                   onPress={() =>
-                    void run(m.id, () =>
-                      updateDealMilestone(dealId, m.id, {
-                        status: checked ? 'pending' : 'completed',
-                      })
+                    void tickMilestone(
+                      queryClient,
+                      dealId,
+                      m.id,
+                      checked ? 'pending' : 'completed',
+                      {
+                        setBusy,
+                        onError: (err) =>
+                          dialog.show({
+                            title: 'That did not work',
+                            message: friendlyError(errorText(err)),
+                          }),
+                      }
                     )
                   }
                   hitSlop={10}
