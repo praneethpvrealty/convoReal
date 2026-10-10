@@ -205,8 +205,6 @@ export function parseMilestonePatch(raw: unknown): ParseResult<MilestonePatch> {
   return { ok: true, value: patch };
 }
 
-/** The list as the server will return it once a patch lands, so a tick
- *  can flip on the spot and the real row replaces it on refetch. */
 export function applyMilestonePatch<
   T extends Pick<DealMilestone, 'id' | 'status' | 'completed_at'>,
 >(
@@ -219,6 +217,13 @@ export function applyMilestonePatch<
   return milestones.map((m) =>
     m.id === milestoneId ? ({ ...m, ...data } as T) : m
   );
+}
+
+export function withMilestoneRow<T extends Pick<DealMilestone, 'id'>>(
+  milestones: readonly T[],
+  row: T
+): T[] {
+  return milestones.map((m) => (m.id === row.id ? row : m));
 }
 
 /** What the row update carries: `completed_at` follows the status so

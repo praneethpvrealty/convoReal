@@ -10,6 +10,7 @@ import {
   milestoneUpdateData,
   parseMilestonePatch,
   standardMilestoneRows,
+  withMilestoneRow,
 } from './milestones';
 
 describe('standardMilestoneRows', () => {
@@ -116,6 +117,30 @@ describe('applyMilestonePatch', () => {
     ]);
     expect(
       applyMilestonePatch(list, 'zzz', { status: 'skipped' }, now)
+    ).toEqual(list);
+  });
+});
+
+describe('withMilestoneRow', () => {
+  it('[TXW-033] puts one row back without touching the others', () => {
+    const now = new Date('2026-10-10T14:00:00Z');
+    const list = [
+      { id: 'a', status: 'pending' as const, completed_at: null },
+      { id: 'b', status: 'pending' as const, completed_at: null },
+    ];
+    const flipped = applyMilestonePatch(
+      applyMilestonePatch(list, 'a', { status: 'completed' }, now),
+      'b',
+      { status: 'completed' },
+      now
+    );
+    expect(withMilestoneRow(flipped, list[0])).toEqual([list[0], flipped[1]]);
+    expect(
+      withMilestoneRow(list, {
+        id: 'zzz',
+        status: 'skipped',
+        completed_at: null,
+      })
     ).toEqual(list);
   });
 });

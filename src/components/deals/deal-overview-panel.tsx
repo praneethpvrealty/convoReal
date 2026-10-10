@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow, isValid, parseISO } from 'date-fns';
 import { ArrowRight, Check, Loader2 } from 'lucide-react';
@@ -17,6 +17,7 @@ import {
 import {
   applyMilestonePatch,
   milestoneProgress,
+  withMilestoneRow,
   type DealMilestone,
 } from '@/lib/deals/milestones';
 import {
@@ -86,7 +87,7 @@ export function DealOverviewPanel({
   onOpenTab,
 }: DealOverviewPanelProps) {
   const queryClient = useQueryClient();
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const { busy, lock, release } = useBusyIds();
   const currency = deal.currency ?? 'INR';
 
   const milestones = useQuery({
@@ -157,15 +158,15 @@ export function DealOverviewPanel({
 
   async function completeMilestone(m: DealMilestone) {
     const key = ['deal-milestones', dealId];
-    setBusyId(m.id);
+    lock(m.id);
     await queryClient.cancelQueries({ queryKey: key });
-    const previous = queryClient.getQueryData<DealMilestone[]>(key);
-    if (previous) {
-      queryClient.setQueryData<DealMilestone[]>(
-        key,
-        applyMilestonePatch(previous, m.id, { status: 'completed' })
-      );
-    }
+    const previousRow = queryClient
+      .getQueryData<DealMilestone[]>(key)
+      ?.find((row) => row.id === m.id);
+    queryClient.setQueryData<DealMilestone[]>(
+      key,
+      (rows) => rows && applyMilestonePatch(rows, m.id, { status: 'completed' })
+    );
     try {
       await call(
         `/api/deals/${dealId}/milestones/${m.id}`,
@@ -176,24 +177,30 @@ export function DealOverviewPanel({
         'Could not update the milestone'
       );
     } catch (err) {
-      if (previous) queryClient.setQueryData(key, previous);
+      if (previousRow) {
+        queryClient.setQueryData<DealMilestone[]>(
+          key,
+          (rows) => rows && withMilestoneRow(rows, previousRow)
+        );
+      }
       toast.error(
         err instanceof Error ? err.message : 'Could not update the milestone'
       );
     } finally {
-      setBusyId(null);
-      void Promise.all([
-        queryClient.invalidateQueries({ queryKey: key }),
-        queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
-        queryClient.invalidateQueries({
-          queryKey: ['transaction-workspace-index'],
-        }),
-      ]);
+      if (release(m.id)) {
+        void Promise.all([
+          queryClient.invalidateQueries({ queryKey: key }),
+          queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+          queryClient.invalidateQueries({
+            queryKey: ['transaction-workspace-index'],
+          }),
+        ]);
+      }
     }
   }
 
   async function completeTask(task: OverviewTask) {
-    setBusyId(task.id);
+    lock(task.id);
     try {
       await call(
         `/api/todos/${task.id}`,
@@ -209,7 +216,7 @@ export function DealOverviewPanel({
         err instanceof Error ? err.message : 'Could not update the task'
       );
     } finally {
-      setBusyId(null);
+      release(task.id);
     }
   }
 
@@ -284,8 +291,8 @@ export function DealOverviewPanel({
               <div className="flex items-center gap-3">
                 <TickButton
                   label={`Mark ${nextMilestone.title} completed`}
-                  disabled={!canEdit || busyId === nextMilestone.id}
-                  busy={busyId === nextMilestone.id}
+                  disabled={!canEdit || busy.has(nextMilestone.id)}
+                  busy={busy.has(nextMilestone.id)}
                   onClick={() => completeMilestone(nextMilestone)}
                 />
                 <div className="min-w-0">
@@ -322,8 +329,8 @@ export function DealOverviewPanel({
               <li key={task.id} className="flex items-center gap-3">
                 <TickButton
                   label={`Complete ${task.title}`}
-                  disabled={!canEdit || busyId === task.id}
-                  busy={busyId === task.id}
+                  disabled={!canEdit || busy.has(task.id)}
+                  busy={busy.has(task.id)}
                   onClick={() => completeTask(task)}
                 />
                 <div className="min-w-0">
@@ -615,4 +622,19 @@ function MoneyRow({
       {hint && <dd className="text-[11px] text-slate-500">{hint}</dd>}
     </div>
   );
+}
+
+function useBusyIds() {
+  const ids = useRef(new Set<string>());
+  const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
+  const lock = (id: string) => {
+    ids.current.add(id);
+    setBusy(new Set(ids.current));
+  };
+  const release = (id: string) => {
+    ids.current.delete(id);
+    setBusy(new Set(ids.current));
+    return ids.current.size === 0;
+  };
+  return { busy, lock, release };
 }

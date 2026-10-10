@@ -141,6 +141,78 @@ describe('DealMilestonesPanel', () => {
     MILESTONES.splice(0, 1, PENDING);
   });
 
+  it('[TXW-033] locks and rolls back each row on its own while several are in flight', async () => {
+    const second = {
+      ...PENDING,
+      id: 'm2',
+      title: 'Registration booked',
+      position: 1,
+      target_date: null,
+    };
+    const server = [PENDING, second];
+    const settle: Record<string, (ok: boolean) => void> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) =>
+        init?.method === 'PATCH'
+          ? new Promise<{ ok: boolean; json: () => Promise<unknown> }>(
+              (resolve) => {
+                const id = String(url).split('/').pop() as string;
+                settle[id] = (ok) => {
+                  if (ok) {
+                    const at = server.findIndex((row) => row.id === id);
+                    server[at] = { ...server[at], status: 'completed' };
+                  }
+                  resolve({
+                    ok,
+                    json: () =>
+                      Promise.resolve(ok ? { data: {} } : { error: 'Closed' }),
+                  });
+                };
+              }
+            )
+          : Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({ data: [...server] }),
+            })
+      )
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <DealMilestonesPanel dealId="deal-1" canEdit />
+      </QueryClientProvider>
+    );
+    const ticks = await screen.findAllByRole('button', {
+      name: 'Mark completed',
+    });
+    fireEvent.click(ticks[0]);
+    fireEvent.click(ticks[1]);
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'Reopen' })).toHaveLength(2)
+    );
+    expect(screen.getByText('2 / 2 done')).toBeTruthy();
+
+    settle.m1!(false);
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Mark completed' })
+      ).toBeTruthy()
+    );
+    const stillSaving = screen.getByRole('button', { name: 'Reopen' });
+    expect(stillSaving.hasAttribute('disabled')).toBe(true);
+    expect(screen.getByText('1 / 2 done')).toBeTruthy();
+
+    settle.m2!(true);
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Reopen' }).hasAttribute('disabled')
+      ).toBe(false)
+    );
+  });
+
   it('[TXW-033] puts the row back when the save fails', async () => {
     let failPatch: (() => void) | null = null;
     renderPanel(

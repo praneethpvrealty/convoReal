@@ -3321,7 +3321,7 @@
         },
         {
           "id": "TXW-033",
-          "rule": "Ticking or reopening a milestone shows on the spot, before the server answers, with the row locked against a second tap while its request is in flight; a failed request puts the row back as it was and says so. The flipped row carries the same status and completed_at the server will return, and the list is refetched afterwards so the server's row replaces the local one. Web and mobile apply the same rule on the Milestones tab, the status options and the Overview's Next up tick, and the milestones route runs its rate-limit, deal, milestone and actor lookups together rather than one after another.",
+          "rule": "Ticking or reopening a milestone shows on the spot, before the server answers, with that row alone locked against a second tap while its request is in flight (every row in flight stays locked until its own request settles); a failed request puts that one row back as it was, leaving other rows' flips in place, and says so. The flipped row carries the same status and completed_at the server will return, and the list is refetched afterwards so the server's row replaces the local one. Web and mobile apply the same rule on the Milestones tab, the status options and the Overview's Next up tick, and the milestones route runs its rate-limit, deal, milestone and actor lookups together rather than one after another.",
           "tests": [
             {
               "file": "src/lib/deals/milestones.test.ts",

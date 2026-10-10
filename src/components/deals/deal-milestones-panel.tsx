@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import {
@@ -20,6 +20,7 @@ import {
   DEAL_MILESTONE_STATUS_LABELS,
   applyMilestonePatch,
   milestoneProgress,
+  withMilestoneRow,
   type DealMilestone,
   type DealMilestoneStatus,
   type MilestonePatch,
@@ -60,7 +61,7 @@ export function DealMilestonesPanel({
   canEdit,
 }: DealMilestonesPanelProps) {
   const queryClient = useQueryClient();
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const { busy, lock, release } = useBusyIds();
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState('');
   const [optionsFor, setOptionsFor] = useState<string | null>(null);
@@ -96,7 +97,7 @@ export function DealMilestonesPanel({
   }
 
   async function addStandard() {
-    setBusyId('standard');
+    lock('standard');
     try {
       await call(
         `/api/deals/${dealId}/milestones`,
@@ -113,14 +114,14 @@ export function DealMilestonesPanel({
         err instanceof Error ? err.message : 'Could not add milestones'
       );
     } finally {
-      setBusyId(null);
+      release('standard');
     }
   }
 
   async function addCustom() {
     const title = newTitle.trim();
     if (!title) return;
-    setBusyId('custom');
+    lock('custom');
     try {
       await call(
         `/api/deals/${dealId}/milestones`,
@@ -142,21 +143,21 @@ export function DealMilestonesPanel({
         err instanceof Error ? err.message : 'Could not add the milestone'
       );
     } finally {
-      setBusyId(null);
+      release('custom');
     }
   }
 
   async function patch(m: DealMilestone, body: MilestonePatch) {
     const key = ['deal-milestones', dealId];
-    setBusyId(m.id);
+    lock(m.id);
     await queryClient.cancelQueries({ queryKey: key });
-    const previous = queryClient.getQueryData<DealMilestone[]>(key);
-    if (previous) {
-      queryClient.setQueryData<DealMilestone[]>(
-        key,
-        applyMilestonePatch(previous, m.id, body)
-      );
-    }
+    const previousRow = queryClient
+      .getQueryData<DealMilestone[]>(key)
+      ?.find((row) => row.id === m.id);
+    queryClient.setQueryData<DealMilestone[]>(
+      key,
+      (rows) => rows && applyMilestonePatch(rows, m.id, body)
+    );
     try {
       await call(
         `/api/deals/${dealId}/milestones/${m.id}`,
@@ -164,19 +165,23 @@ export function DealMilestonesPanel({
         'Could not update the milestone'
       );
     } catch (err) {
-      if (previous) queryClient.setQueryData(key, previous);
+      if (previousRow) {
+        queryClient.setQueryData<DealMilestone[]>(
+          key,
+          (rows) => rows && withMilestoneRow(rows, previousRow)
+        );
+      }
       toast.error(
         err instanceof Error ? err.message : 'Could not update the milestone'
       );
     } finally {
-      setBusyId(null);
-      void refresh();
+      if (release(m.id)) void refresh();
     }
   }
 
   async function remove(m: DealMilestone) {
     if (!window.confirm(`Remove "${m.title}"?`)) return;
-    setBusyId(m.id);
+    lock(m.id);
     try {
       await call(
         `/api/deals/${dealId}/milestones/${m.id}`,
@@ -189,7 +194,7 @@ export function DealMilestonesPanel({
         err instanceof Error ? err.message : 'Could not remove the milestone'
       );
     } finally {
-      setBusyId(null);
+      release(m.id);
     }
   }
 
@@ -227,9 +232,9 @@ export function DealMilestonesPanel({
             <Button
               className="mt-4"
               onClick={addStandard}
-              disabled={busyId === 'standard'}
+              disabled={busy.has('standard')}
             >
-              {busyId === 'standard' ? (
+              {busy.has('standard') ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <ListChecks className="h-4 w-4" />
@@ -255,7 +260,7 @@ export function DealMilestonesPanel({
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    disabled={!canEdit || busyId === m.id}
+                    disabled={!canEdit || busy.has(m.id)}
                     onClick={() =>
                       patch(m, {
                         status:
@@ -306,7 +311,7 @@ export function DealMilestonesPanel({
                       <select
                         className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
                         value={m.status}
-                        disabled={busyId === m.id}
+                        disabled={busy.has(m.id)}
                         onChange={(e) =>
                           patch(m, {
                             status: e.target.value as DealMilestoneStatus,
@@ -325,7 +330,7 @@ export function DealMilestonesPanel({
                       <select
                         className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
                         value={m.visibility ?? 'internal'}
-                        disabled={busyId === m.id}
+                        disabled={busy.has(m.id)}
                         onChange={(e) =>
                           patch(m, {
                             visibility: e.target.value as DealVisibility,
@@ -345,7 +350,7 @@ export function DealMilestonesPanel({
                         type="date"
                         className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
                         value={m.target_date ?? ''}
-                        disabled={busyId === m.id}
+                        disabled={busy.has(m.id)}
                         onChange={(e) =>
                           patch(m, { target_date: e.target.value || null })
                         }
@@ -356,7 +361,7 @@ export function DealMilestonesPanel({
                         size="sm"
                         variant="ghost"
                         onClick={() => remove(m)}
-                        disabled={busyId === m.id}
+                        disabled={busy.has(m.id)}
                         className="text-slate-400 hover:text-rose-300"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -389,9 +394,9 @@ export function DealMilestonesPanel({
           />
           <Button
             onClick={addCustom}
-            disabled={!newTitle.trim() || busyId === 'custom'}
+            disabled={!newTitle.trim() || busy.has('custom')}
           >
-            {busyId === 'custom' ? (
+            {busy.has('custom') ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Plus className="h-4 w-4" />
@@ -401,7 +406,7 @@ export function DealMilestonesPanel({
           <Button
             variant="outline"
             onClick={addStandard}
-            disabled={busyId === 'standard'}
+            disabled={busy.has('standard')}
           >
             <ListChecks className="h-4 w-4" />
             Add missing standard
@@ -410,4 +415,19 @@ export function DealMilestonesPanel({
       )}
     </div>
   );
+}
+
+function useBusyIds() {
+  const ids = useRef(new Set<string>());
+  const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
+  const lock = (id: string) => {
+    ids.current.add(id);
+    setBusy(new Set(ids.current));
+  };
+  const release = (id: string) => {
+    ids.current.delete(id);
+    setBusy(new Set(ids.current));
+    return ids.current.size === 0;
+  };
+  return { busy, lock, release };
 }
