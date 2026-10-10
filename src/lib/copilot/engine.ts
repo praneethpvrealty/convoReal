@@ -41,6 +41,11 @@ import {
   parseContactSearchQuery,
   type ContactSearchExecutor,
 } from './contact-search';
+import {
+  buildPropertyInterestAnswer,
+  parsePropertyInterestQuestion,
+  type PropertyInterestExecutor,
+} from './property-interest';
 import { DEFAULT_LANGUAGE, type LanguageCode } from '@/lib/languages';
 import { hasGeminiKey } from '@/lib/ai/gemini-keys';
 import { extractContactPreferences } from '@/lib/ai/preference-extraction';
@@ -91,6 +96,10 @@ export interface AnswerRequest {
    *  for X?" questions. Supplied by the staff route only; the answer
    *  is built from live rows and never enters the shared cache. */
   contactSearch?: ContactSearchExecutor;
+  /** Account-scoped lookup of who showed interest in a listing, or
+   *  which listings a contact showed interest in. Staff route only;
+   *  built from live rows and never cached. */
+  propertyInterest?: PropertyInterestExecutor;
 }
 
 export interface AnswerResult {
@@ -145,6 +154,33 @@ const CONTACT_SEARCH_CRITERIA_REPLY =
   'Tell me what to look for — an area, a property type, a BHK or a budget. For example: "buyers looking for 3 BHK in HSR Layout under 2 Cr".';
 const CONTACT_SEARCH_FAILED_REPLY =
   'I could not search your contacts just now. Open Contacts and use the Area and type filters to find them.';
+const PROPERTY_INTEREST_FAILED_REPLY =
+  'I could not look that up just now. Open the property and use Share → Listing audience to see who enquired or viewed it.';
+
+async function answerPropertyInterest(
+  query: NonNullable<ReturnType<typeof parsePropertyInterestQuestion>>,
+  search: PropertyInterestExecutor,
+  mobile: boolean
+): Promise<AnswerResult> {
+  const coverage = mobile ? { coverage: 'full' as const } : {};
+  try {
+    const { reply, links } = buildPropertyInterestAnswer(
+      query,
+      await search(query)
+    );
+    return { reply, links, ...coverage };
+  } catch (err) {
+    console.warn(
+      '[Copilot] property interest lookup failed:',
+      err instanceof Error ? err.message : err
+    );
+    return {
+      reply: PROPERTY_INTEREST_FAILED_REPLY,
+      links: [{ label: 'Open Inventory', navigateTo: '/inventory' }],
+      ...coverage,
+    };
+  }
+}
 
 async function answerContactSearch(
   message: string,
@@ -274,6 +310,12 @@ export async function answerQuestion(
         action,
         ...(mobile ? { coverage: 'full' as const } : {}),
       };
+    }
+    const interest = req.propertyInterest
+      ? parsePropertyInterestQuestion(message, req.entities ?? [])
+      : null;
+    if (interest && req.propertyInterest) {
+      return answerPropertyInterest(interest, req.propertyInterest, mobile);
     }
     if (req.contactSearch && isContactSearchQuestion(message)) {
       return answerContactSearch(message, req.contactSearch, mobile);
