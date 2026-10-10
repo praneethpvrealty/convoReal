@@ -107,7 +107,7 @@ describe('[DOC-003] a decision records when it was made and what went out', () =
       decision: 'approve',
       actorUserId: 'user-1',
     });
-    expect(result.delivered).toBe(true);
+    expect(result.delivered).toBe(false);
     expect(updates[0].patch.status).toBe('approved');
     expect(typeof updates[0].patch.decided_at).toBe('string');
     expect(updates.some((u) => 'share_sent_at' in u.patch)).toBe(false);

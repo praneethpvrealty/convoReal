@@ -150,7 +150,7 @@ export async function decideDocumentRequest(args: {
       .eq('id', args.request.id)
       .eq('account_id', args.request.account_id);
   }
-  return { shareLink, delivered: sent.success };
+  return { shareLink, delivered: sent.success && hasDocuments };
 }
 
 export async function notifyDocumentRequestOwner(
