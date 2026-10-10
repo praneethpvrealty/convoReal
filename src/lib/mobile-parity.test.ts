@@ -509,13 +509,28 @@ describe('Overview approvals read the same on web and mobile', () => {
     expect(mobilePanel).toContain('Recently approved ({approved.length})');
   });
 
-  it('labels the document approval action Approve & send on both surfaces', () => {
-    expect(
-      webSource('components/dashboard/document-approvals-panel.tsx')
-    ).toContain('Approve &amp; send');
-    expect(mobileSource('components/document-approvals.tsx')).toContain(
-      'Approve & send'
+  it('[DOC-001] reads the document approval stage, wording and grouping from one shared rule on both surfaces', () => {
+    const shared = webSource('lib/dashboard/document-approvals.ts');
+    const webPanel = webSource(
+      'components/dashboard/document-approvals-panel.tsx'
     );
+    const mobilePanel = mobileSource('components/document-approvals.tsx');
+    expect(shared).toContain('Approve & send ${row.document_count}');
+    expect(shared).toContain("'Approve without documents'");
+    expect(shared).toContain("'Send anyway'");
+    expect(shared).toContain("'Dismiss'");
+    expect(webPanel).toContain("from '@/lib/dashboard/document-approvals'");
+    expect(mobilePanel).toContain(
+      "from '@shared/lib/dashboard/document-approvals'"
+    );
+    for (const panel of [webPanel, mobilePanel]) {
+      expect(panel).toContain('documentApprovalCopy(row, now)');
+      expect(panel).toContain('documentRequestWaitLabel(row, now)');
+      expect(panel).toContain('groupDocumentApprovals(rows, now)');
+      expect(panel).toContain('Recently decided ({decided.length})');
+      expect(panel).not.toContain('Approve & send');
+      expect(panel).not.toContain('Approve &amp; send');
+    }
   });
 });
 
@@ -2629,6 +2644,35 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     expect(mobileScreen).not.toContain(
       '<OverviewFigure label="Deal value" value={formatInr('
     );
+  });
+
+  it('[TXW-033] a milestone tick flips on the spot on both surfaces through the one shared rule', () => {
+    expect(mobileScreen).toContain(
+      "import {\n  applyMilestonePatch,\n  withMilestoneRow,\n} from '@shared/lib/deals/milestones';"
+    );
+    expect(mobileScreen).toContain(
+      '(rows) => rows && applyMilestonePatch(rows, milestoneId, { status })'
+    );
+    expect(mobileScreen).toContain(
+      '(rows) => rows && withMilestoneRow(rows, previousRow)'
+    );
+    expect(mobileScreen.match(/void tickMilestone\(/g)).toHaveLength(3);
+    expect(mobileScreen).not.toContain('updateDealMilestone(dealId, m.id, {');
+    expect(mobileScreen.match(/= useBusyIds\(\);/g)).toHaveLength(2);
+    expect(mobileScreen).toContain('?.some((row) => remaining.has(row.id));');
+    for (const panel of [
+      'components/deals/deal-milestones-panel.tsx',
+      'components/deals/deal-overview-panel.tsx',
+    ]) {
+      const source = webSource(panel);
+      expect(source).toContain('applyMilestonePatch(rows, m.id,');
+      expect(source).toContain(
+        '(rows) => rows && withMilestoneRow(rows, previousRow)'
+      );
+      expect(source).toContain('= useBusyIds();');
+      expect(source).toContain('?.some((row) => remaining.has(row.id));');
+      expect(source).not.toContain('busyId');
+    }
   });
 
   it('[TXW-009] prints a stakeholder number with exactly one plus sign on both surfaces', () => {

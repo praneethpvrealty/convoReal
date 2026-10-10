@@ -1,5 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as Clipboard from 'expo-clipboard';
@@ -172,6 +176,10 @@ import { supabase } from '@/lib/supabase';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { PipelineStage } from '@/lib/types';
+import {
+  applyMilestonePatch,
+  withMilestoneRow,
+} from '@shared/lib/deals/milestones';
 import { CLOSING_RECORD_LABEL } from '@shared/lib/deals/routes';
 import { dealFee, formatDealAmount } from '@shared/lib/pipelines/deal-money';
 
@@ -1031,7 +1039,7 @@ function OverviewTab({
   const { colors } = useTheme();
   const queryClient = useQueryClient();
   const dialog = useAppDialog();
-  const [busy, setBusy] = useState<string | null>(null);
+  const { busy, lock, release } = useBusyIds();
   const enabled = Boolean(dealId);
 
   const milestonesQuery = useQuery({
@@ -1070,7 +1078,7 @@ function OverviewTab({
     action: () => Promise<unknown>,
     queryKeys: readonly (readonly unknown[])[]
   ) {
-    setBusy(key);
+    lock(key);
     try {
       await action();
       await Promise.all(
@@ -1083,7 +1091,7 @@ function OverviewTab({
         message: friendlyError(errorText(err)),
       });
     } finally {
-      setBusy(null);
+      release(key);
     }
   }
 
@@ -1149,18 +1157,22 @@ function OverviewTab({
             {nextMilestone ? (
               <View style={styles.row}>
                 <Pressable
-                  disabled={!canEdit || busy === nextMilestone.id}
+                  disabled={!canEdit || busy.has(nextMilestone.id)}
                   onPress={() =>
-                    void run(
+                    void tickMilestone(
+                      queryClient,
+                      dealId,
                       nextMilestone.id,
-                      () =>
-                        updateDealMilestone(dealId, nextMilestone.id, {
-                          status: 'completed',
-                        }),
-                      [
-                        ['deal-milestones', dealId],
-                        ['deal-events', dealId],
-                      ]
+                      'completed',
+                      {
+                        lock,
+                        release,
+                        onError: (err) =>
+                          dialog.show({
+                            title: 'That did not work',
+                            message: friendlyError(errorText(err)),
+                          }),
+                      }
                     )
                   }
                   hitSlop={10}
@@ -1212,7 +1224,7 @@ function OverviewTab({
             {openTasks.slice(0, 3).map((task) => (
               <View key={task.id} style={styles.row}>
                 <Pressable
-                  disabled={!canEdit || busy === task.id}
+                  disabled={!canEdit || busy.has(task.id)}
                   onPress={() =>
                     void run(
                       task.id,
@@ -2430,6 +2442,68 @@ function TimelineTab({
   );
 }
 
+function useBusyIds() {
+  const ids = useRef(new Set<string>());
+  const [busy, setBusy] = useState<ReadonlySet<string>>(() => new Set());
+  const lock = (id: string) => {
+    ids.current.add(id);
+    setBusy(new Set(ids.current));
+  };
+  const release = (id: string) => {
+    ids.current.delete(id);
+    const remaining: ReadonlySet<string> = new Set(ids.current);
+    setBusy(remaining);
+    return remaining;
+  };
+  return { busy, lock, release };
+}
+
+async function tickMilestone(
+  queryClient: QueryClient,
+  dealId: string,
+  milestoneId: string,
+  status: DealMilestoneStatus,
+  handlers: {
+    lock: (id: string) => void;
+    release: (id: string) => ReadonlySet<string>;
+    onError: (err: unknown) => void;
+  }
+) {
+  const key = ['deal-milestones', dealId];
+  handlers.lock(milestoneId);
+  await queryClient.cancelQueries({ queryKey: key });
+  const previousRow = queryClient
+    .getQueryData<DealMilestoneRow[]>(key)
+    ?.find((row) => row.id === milestoneId);
+  queryClient.setQueryData<DealMilestoneRow[]>(
+    key,
+    (rows) => rows && applyMilestonePatch(rows, milestoneId, { status })
+  );
+  try {
+    await updateDealMilestone(dealId, milestoneId, { status });
+    void haptic.success();
+  } catch (err) {
+    if (previousRow) {
+      queryClient.setQueryData<DealMilestoneRow[]>(
+        key,
+        (rows) => rows && withMilestoneRow(rows, previousRow)
+      );
+    }
+    handlers.onError(err);
+  } finally {
+    const remaining = handlers.release(milestoneId);
+    const stillSaving = queryClient
+      .getQueryData<DealMilestoneRow[]>(key)
+      ?.some((row) => remaining.has(row.id));
+    if (!stillSaving) {
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: key }),
+        queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+      ]);
+    }
+  }
+}
+
 function MilestonesTab({
   dealId,
   canEdit,
@@ -2440,7 +2514,7 @@ function MilestonesTab({
   const { colors } = useTheme();
   const queryClient = useQueryClient();
   const dialog = useAppDialog();
-  const [busy, setBusy] = useState<string | null>(null);
+  const { busy, lock, release } = useBusyIds();
   const [title, setTitle] = useState('');
 
   const { data: milestones = [], isLoading } = useQuery({
@@ -2456,7 +2530,7 @@ function MilestonesTab({
     ]);
 
   async function run(key: string, action: () => Promise<unknown>) {
-    setBusy(key);
+    lock(key);
     try {
       await action();
       await refresh();
@@ -2467,7 +2541,7 @@ function MilestonesTab({
         message: friendlyError(errorText(err)),
       });
     } finally {
-      setBusy(null);
+      release(key);
     }
   }
 
@@ -2508,9 +2582,15 @@ function MilestonesTab({
             label: DEAL_MILESTONE_STATUS_LABELS[s],
             onPress: () => {
               dialog.close();
-              void run(m.id, () =>
-                updateDealMilestone(dealId, m.id, { status: s })
-              );
+              void tickMilestone(queryClient, dealId, m.id, s, {
+                lock,
+                release,
+                onError: (err) =>
+                  dialog.show({
+                    title: 'That did not work',
+                    message: friendlyError(errorText(err)),
+                  }),
+              });
             },
           })),
         { label: 'Cancel', variant: 'muted' as const, onPress: dialog.close },
@@ -2539,7 +2619,7 @@ function MilestonesTab({
           {canEdit ? (
             <PrimaryButton
               label="Add the standard checklist"
-              busy={busy === 'standard'}
+              busy={busy.has('standard')}
               onPress={() =>
                 void run('standard', () => addStandardMilestones(dealId))
               }
@@ -2580,19 +2660,29 @@ function MilestonesTab({
                 ]}
               >
                 <Pressable
-                  disabled={!canEdit || busy === m.id}
+                  disabled={!canEdit || busy.has(m.id)}
                   onPress={() =>
-                    void run(m.id, () =>
-                      updateDealMilestone(dealId, m.id, {
-                        status: checked ? 'pending' : 'completed',
-                      })
+                    void tickMilestone(
+                      queryClient,
+                      dealId,
+                      m.id,
+                      checked ? 'pending' : 'completed',
+                      {
+                        lock,
+                        release,
+                        onError: (err) =>
+                          dialog.show({
+                            title: 'That did not work',
+                            message: friendlyError(errorText(err)),
+                          }),
+                      }
                     )
                   }
                   hitSlop={10}
                   accessibilityRole="checkbox"
                   accessibilityState={{
                     checked,
-                    disabled: !canEdit || busy === m.id,
+                    disabled: !canEdit || busy.has(m.id),
                   }}
                   accessibilityLabel={
                     checked ? `Reopen ${m.title}` : `Mark ${m.title} completed`
@@ -2612,7 +2702,7 @@ function MilestonesTab({
                 </Pressable>
                 <Pressable
                   style={{ flex: 1 }}
-                  disabled={!canEdit || busy === m.id}
+                  disabled={!canEdit || busy.has(m.id)}
                   onPress={() => chooseStatus(m)}
                   accessibilityRole="button"
                   accessibilityLabel={`More options for ${m.title}`}
@@ -2648,7 +2738,7 @@ function MilestonesTab({
               />
               <PrimaryButton
                 label="Add milestone"
-                busy={busy === 'custom'}
+                busy={busy.has('custom')}
                 disabled={!title.trim()}
                 onPress={() =>
                   void run('custom', async () => {

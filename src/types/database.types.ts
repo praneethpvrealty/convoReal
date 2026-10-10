@@ -9909,6 +9909,7 @@ export type Database = {
           access_password: string | null;
           account_id: string;
           created_at: string;
+          decided_at: string | null;
           id: string;
           last_viewed_at: string | null;
           property_id: string;
@@ -9927,6 +9928,7 @@ export type Database = {
           access_password?: string | null;
           account_id: string;
           created_at?: string;
+          decided_at?: string | null;
           id?: string;
           last_viewed_at?: string | null;
           property_id: string;
@@ -9945,6 +9947,7 @@ export type Database = {
           access_password?: string | null;
           account_id?: string;
           created_at?: string;
+          decided_at?: string | null;
           id?: string;
           last_viewed_at?: string | null;
           property_id?: string;

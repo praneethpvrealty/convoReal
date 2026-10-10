@@ -24,17 +24,6 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     const ctx = await requireWriteRole('agent');
     const { id: dealId, milestoneId } = await params;
 
-    const limit = await checkRateLimit(
-      `agent:dealMilestone:${ctx.userId}`,
-      RATE_LIMITS.adminAction
-    );
-    if (!limit.success) return rateLimitResponse(limit);
-
-    const deal = await loadDealHead(ctx, dealId);
-    if (!deal) {
-      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
-    }
-
     const body = (await request.json().catch(() => null)) as Record<
       string,
       unknown
@@ -44,13 +33,25 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
-    const { data: before } = await ctx.supabase
-      .from('deal_milestones')
-      .select('id, title, status')
-      .eq('id', milestoneId)
-      .eq('deal_id', dealId)
-      .eq('account_id', ctx.accountId)
-      .maybeSingle();
+    const [limit, deal, { data: before }, actor] = await Promise.all([
+      checkRateLimit(
+        `agent:dealMilestone:${ctx.userId}`,
+        RATE_LIMITS.adminAction
+      ),
+      loadDealHead(ctx, dealId),
+      ctx.supabase
+        .from('deal_milestones')
+        .select('id, title, status')
+        .eq('id', milestoneId)
+        .eq('deal_id', dealId)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle(),
+      actorName(ctx.supabase, ctx.accountId, ctx.userId),
+    ]);
+    if (!limit.success) return rateLimitResponse(limit);
+    if (!deal) {
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+    }
     if (!before) {
       return NextResponse.json(
         { error: 'Milestone not found' },
@@ -83,7 +84,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       eventType: 'milestone_updated',
       title,
       actorId: ctx.userId,
-      actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
+      actorName: actor,
       source: parseEventSource(body?.source),
       metadata: {
         milestone_id: milestoneId,
