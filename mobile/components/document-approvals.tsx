@@ -289,7 +289,6 @@ export function DocumentApprovals() {
   function renderGroup(group: DocumentApprovalGroup<DocumentApprovalRow>) {
     const busy = group.rows.some((row) => processing.has(row.id));
     const multi = group.rows.length > 1;
-    const sendable = group.rows.filter((row) => row.document_count > 0);
     return (
       <View
         key={group.key}
@@ -360,9 +359,9 @@ export function DocumentApprovals() {
             <Pressable
               onPress={() => {
                 haptic.tap();
-                void act(sendable, 'approve');
+                void act(group.rows, 'approve');
               }}
-              disabled={busy || sendable.length === 0}
+              disabled={busy}
               accessibilityRole="button"
               accessibilityLabel={`Approve all document requests from ${group.requester_name}`}
               style={({ pressed }) => [
@@ -371,8 +370,7 @@ export function DocumentApprovals() {
                   ? { borderWidth: 1, borderColor: colors.primary }
                   : { backgroundColor: colors.primary },
                 {
-                  opacity:
-                    busy || sendable.length === 0 ? 0.5 : pressed ? 0.8 : 1,
+                  opacity: busy ? 0.5 : pressed ? 0.8 : 1,
                 },
               ]}
             >
@@ -385,9 +383,7 @@ export function DocumentApprovals() {
                   },
                 ]}
               >
-                {sendable.length === group.rows.length
-                  ? `Approve all ${group.rows.length}`
-                  : `Approve ${sendable.length} with documents`}
+                Approve all {group.rows.length}
               </Text>
             </Pressable>
           </View>
@@ -428,7 +424,7 @@ export function DocumentApprovals() {
             {row.property_code ? ` · ${row.property_code}` : ''}
           </Text>
           <Text style={{ fontSize: 11, color: colors.textFaint }}>
-            {chatListTime(row.updated_at)}
+            {chatListTime(row.decided_at ?? row.created_at)}
           </Text>
         </View>
         <Text

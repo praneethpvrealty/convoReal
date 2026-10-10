@@ -34,9 +34,14 @@ than a written entry. Newest first.
   right instead of a full-width bar, the listing title opens the listing, and
   the last fourteen days of decisions sit under a collapsed "Recently
   decided" disclosure with "Link sent", "Approved · follow up" or
-  "Rejected". The stage, the wording and the document count come from one
-  shared rule that web and mobile both read, and `GET /api/document-requests`
-  now returns the document count and the recent decisions.
+  "Rejected". An approval that only sent a "being prepared" note no longer
+  counts as a sent link. The stage, the wording and the document count come
+  from one shared rule that web and mobile both read, and
+  `GET /api/document-requests` now returns the document count and the recent
+  decisions. **Migration required:**
+  `supabase/migrations/20261010153000_document_request_decided_at.sql` adds
+  `property_document_requests.decided_at`, the decision time the list is
+  built from, since `updated_at` moves every time the shared link is opened.
 
 - **The Helper now answers "which buyers showed interest in Adithi's
   property?" from the listing's own interest.** Asked that, it used to read

@@ -15,7 +15,7 @@ export interface DocumentApprovalRow {
   status: string;
   share_sent_at: string | null;
   created_at: string;
-  updated_at: string;
+  decided_at: string | null;
 }
 
 export type DocumentApprovalStage =
@@ -140,6 +140,8 @@ export function groupDocumentApprovals<T extends DocumentApprovalRow>(
   );
   const decided = rows
     .filter((row) => row.status !== 'pending')
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    .sort((a, b) =>
+      (b.decided_at ?? b.created_at).localeCompare(a.decided_at ?? a.created_at)
+    );
   return { open, decided };
 }

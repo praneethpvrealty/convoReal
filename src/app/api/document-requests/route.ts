@@ -11,7 +11,7 @@ const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
 const DECIDED_LIMIT = 20;
 const SELECT =
-  'id, property_id, requester_name, requester_phone, requester_email, status, share_sent_at, share_token_expires_at, created_at, updated_at, property:properties(id, title, property_code, documents)';
+  'id, property_id, requester_name, requester_phone, requester_email, status, share_sent_at, share_token_expires_at, created_at, decided_at, property:properties(id, title, property_code, documents)';
 
 interface RequestRow {
   id: string;
@@ -23,7 +23,7 @@ interface RequestRow {
   share_sent_at: string | null;
   share_token_expires_at: string | null;
   created_at: string;
-  updated_at: string;
+  decided_at: string | null;
   property:
     | {
         id: string;
@@ -57,7 +57,7 @@ function toApprovalRow(
     share_sent_at: row.share_sent_at,
     share_token_expires_at: row.share_token_expires_at,
     created_at: row.created_at,
-    updated_at: row.updated_at,
+    decided_at: row.decided_at,
   };
 }
 
@@ -88,8 +88,8 @@ export async function GET(request: Request) {
         .select(SELECT)
         .eq('account_id', ctx.accountId)
         .in('status', ['approved', 'rejected'])
-        .gte('updated_at', decidedSince)
-        .order('updated_at', { ascending: false })
+        .gte('decided_at', decidedSince)
+        .order('decided_at', { ascending: false })
         .limit(Math.min(limit, DECIDED_LIMIT)),
     ]);
     const error = pending.error || decided.error;

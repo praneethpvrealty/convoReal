@@ -4826,7 +4826,7 @@
         },
         {
           "id": "DOC-003",
-          "rule": "One requester is one card: pending requests are grouped by requester phone, every property keeps its own decision, a requester with several requests also gets approve-all and reject-all, and requests decided in the last fourteen days sit under a collapsed Recently decided disclosure with their outcome (link sent, approved but undelivered, rejected) rather than disappearing.",
+          "rule": "One requester is one card: pending requests are grouped by requester phone, every property keeps its own decision, a requester with several requests also gets approve-all and reject-all, and requests decided in the last fourteen days, by the moment of the decision (decided_at) and not by a later edit or view of the row, sit under a collapsed Recently decided disclosure with their outcome rather than disappearing. Link sent means a document link went out: an approval that only sent a being-prepared note reads Approved · follow up.",
           "tests": [
             {
               "file": "src/lib/dashboard/document-approvals.test.ts",
@@ -4834,6 +4834,10 @@
             },
             {
               "file": "src/components/dashboard/document-approvals-panel.test.tsx",
+              "case": "[DOC-003]"
+            },
+            {
+              "file": "src/lib/inventory/document-requests.decide.test.ts",
               "case": "[DOC-003]"
             }
           ]

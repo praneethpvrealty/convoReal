@@ -222,7 +222,6 @@ export function DocumentApprovalsPanel() {
   function renderGroup(group: DocumentApprovalGroup<DocumentApprovalRow>) {
     const busy = group.rows.some((row) => processing.has(row.id));
     const multi = group.rows.length > 1;
-    const sendable = group.rows.filter((row) => row.document_count > 0);
     return (
       <div
         key={group.key}
@@ -266,12 +265,10 @@ export function DocumentApprovalsPanel() {
               size="sm"
               variant={group.stale ? 'outline' : 'default'}
               className="h-7 px-3 text-[11px]"
-              disabled={busy || sendable.length === 0}
-              onClick={() => void act(sendable, 'approve')}
+              disabled={busy}
+              onClick={() => void act(group.rows, 'approve')}
             >
-              {sendable.length === group.rows.length
-                ? `Approve all ${group.rows.length}`
-                : `Approve ${sendable.length} with documents`}
+              Approve all {group.rows.length}
             </Button>
           </div>
         )}
@@ -304,7 +301,7 @@ export function DocumentApprovalsPanel() {
             {row.requester_name} · {row.requester_phone}
           </p>
           <p className="text-[10px] text-slate-600">
-            Decided {formatDateTime(row.updated_at, now)}
+            Decided {formatDateTime(row.decided_at ?? row.created_at, now)}
           </p>
         </div>
         <span

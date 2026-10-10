@@ -85,7 +85,7 @@ export async function decideDocumentRequest(args: {
   if (args.decision === 'reject') {
     const { data, error } = await args.admin
       .from('property_document_requests')
-      .update({ status: 'rejected' })
+      .update({ status: 'rejected', decided_at: new Date().toISOString() })
       .eq('id', args.request.id)
       .eq('account_id', args.request.account_id)
       .eq('property_id', args.request.property_id)
@@ -111,6 +111,7 @@ export async function decideDocumentRequest(args: {
     .from('property_document_requests')
     .update({
       status: 'approved',
+      decided_at: new Date().toISOString(),
       share_token: shareToken,
       share_token_expires_at: expiresAt,
       access_password: args.accessPassword || null,
@@ -142,7 +143,7 @@ export async function decideDocumentRequest(args: {
     senderType: 'agent',
     text,
   });
-  if (sent.success) {
+  if (sent.success && hasDocuments) {
     await args.admin
       .from('property_document_requests')
       .update({ share_sent_at: new Date().toISOString() })

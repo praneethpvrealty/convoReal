@@ -1,7 +1,14 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { DocumentApprovalsPanel } from './document-approvals-panel';
@@ -15,7 +22,7 @@ function row(
   overrides: Partial<{
     status: string;
     created_at: string;
-    updated_at: string;
+    decided_at: string | null;
     document_count: number;
     requester_name: string;
     requester_phone: string;
@@ -36,7 +43,7 @@ function row(
     status: 'pending',
     share_sent_at: null,
     created_at: '2026-10-10T09:00:00Z',
-    updated_at: '2026-10-10T09:00:00Z',
+    decided_at: null,
     ...overrides,
   };
 }
@@ -128,12 +135,12 @@ describe('DocumentApprovalsPanel', () => {
       row('sent', {
         status: 'approved',
         share_sent_at: '2026-10-09T10:00:00Z',
-        updated_at: '2026-10-09T10:00:00Z',
+        decided_at: '2026-10-09T10:00:00Z',
         property_title: 'Sent Villa',
       }),
       row('no', {
         status: 'rejected',
-        updated_at: '2026-10-08T10:00:00Z',
+        decided_at: '2026-10-08T10:00:00Z',
         property_title: 'Rejected Flat',
       }),
     ]);
@@ -147,6 +154,51 @@ describe('DocumentApprovalsPanel', () => {
     expect(within(details).getByText('Rejected')).toBeTruthy();
     expect(within(details).queryByRole('button')).toBeNull();
     expect(screen.getByText('1')).toBeTruthy();
+  });
+
+  it('[DOC-003] approve-all decides every listing in the card, documents or not', async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') {
+        return { ok: true, json: async () => ({ delivered: true }) };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          data: [
+            row('docs', { document_count: 2 }),
+            row('none', { document_count: 0 }),
+          ],
+        }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <DocumentApprovalsPanel />
+      </QueryClientProvider>
+    );
+
+    const approveAll = await screen.findByRole('button', {
+      name: 'Approve all 2',
+    });
+    expect((approveAll as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(approveAll);
+
+    await waitFor(() => {
+      const patches = fetchMock.mock.calls.filter(
+        ([, init]) => init?.method === 'PATCH'
+      );
+      expect(patches.map(([url]) => url)).toEqual([
+        '/api/properties/prop-docs/document-requests',
+        '/api/properties/prop-none/document-requests',
+      ]);
+      expect(
+        patches.map(([, init]) => JSON.parse(String(init?.body)).action)
+      ).toEqual(['approve', 'approve']);
+    });
   });
 
   it('renders nothing when there are no requests at all', async () => {
