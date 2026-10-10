@@ -42,6 +42,35 @@ mobile) plus `budget_min` / `budget_max`, which the mobile tab seeds into its
 budget filters because its search box does not parse prices. The result is built from live rows for one
 account, so it returns before the shared cache and is never stored there.
 
+## Property interest
+
+"Which buyers showed interest in Adithi's property?" is a different
+question from the contact search above: it asks who already engaged with
+one listing, not who would fit it. `property-interest.ts` recognises it
+first — ahead of the contact search, which used to read "Adithi's
+property" as a locality — and names the listing from a `#` reference, a
+`PROP-…` code, its owner (a possessive, "property where X is the owner",
+"owned by X", an `@` contact), a quoted or `called …` title, a described
+one ("the Banashankari commercial plot"), or nothing but a time window
+("who enquired today" reads every listing since IST midnight). The verb
+narrows the signal (enquired, viewed, shortlisted, site visit, liked) and
+"this week" / "last 7 days" the window. The reverse form — "what has
+Ramesh enquired about?", "which listings did @Ramesh view?" — lists the
+listings one contact engaged with. `property-interest-query.ts` resolves
+the owner, listing or contact under the caller's RLS (bounded `ilike`
+lookups on `copilot_search_text`, as the entity picker does) and then
+calls `copilot_property_interest` (migration
+`20261010114941_copilot_property_interest`), a `SECURITY DEFINER`
+function guarded by `is_account_member()` that unions
+`contact_property_inquiries`, identified `showcase_events` views, `deals`,
+site-visit `appointments`, `journey_items` (with stage and drop state) and
+`property_likes` per (listing, contact), latest first, never the listing's
+own owner. The answer carries one `links[]` entry per contact (or per
+listing in the reverse form), the listing itself, and the listing-audience
+picker when more engaged than it can show — no phone numbers, no model
+call, and nothing enters the shared cache. A question that names no
+listing ("who viewed my property") asks for one rather than guessing.
+
 ## Confirmed actions
 
 Staff with agent-or-higher access can ask to mark one selected `&` calendar

@@ -17,6 +17,24 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 10 October 2026
+
+- **The Helper now answers "which buyers showed interest in Adithi's
+  property?" from the listing's own interest.** Asked that, it used to read
+  "Adithi's property" as a locality and reply that no contact was looking for
+  property there. A property-interest intent now runs ahead of the
+  preference search: the listing is named by `#`, a PROP code, its owner
+  ("Adithi's property", "property where Adithi is the owner", `@Adithi`), a
+  quoted or described title, or a window alone ("who enquired today"), and
+  the answer lists, latest first, who enquired, viewed the showcase, was
+  shortlisted, had a site visit, liked it or sits on the journey — each a
+  link to the contact card, plus the listing and its audience picker. The
+  reverse question works too: "what has Ramesh enquired about?" lists the
+  listings with a link to each. "Who viewed", "who shortlisted", "this week"
+  and "last 7 days" narrow it. No phone numbers, no model call, never
+  cached. **Migration required:** `20261010114941_copilot_property_interest.sql`
+  (additive; applied to the project).
+
 #### 9 October 2026
 
 - **A second question after two cards is still answered for both, and a

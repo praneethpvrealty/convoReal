@@ -4229,6 +4229,28 @@
           "guards": [
             "supabase/migrations/20261004125900_copilot_find_contacts.sql"
           ]
+        },
+        {
+          "id": "CPL-004",
+          "rule": "A staff question asking who showed interest in a listing — named by a # reference, a PROP code, its owner (\"Adithi's property\", \"property where Adithi is the owner\", an @ contact), a quoted or described title, or a time window alone — or which listings one contact engaged with, is answered from the account's own enquiries, identified showcase views, deals, site visits, journey items and likes, ahead of the preference-based contact search and without a model call: a bounded, latest-first list of contact-card or listing links on web and mobile, with the matching listing or contact links, no phone numbers, and never stored in the shared answer cache.",
+          "tests": [
+            {
+              "file": "src/lib/copilot/property-interest.test.ts",
+              "case": "[CPL-004]"
+            },
+            {
+              "file": "src/lib/copilot/engine.property-interest.test.ts",
+              "case": "[CPL-004]"
+            },
+            {
+              "file": "src/lib/copilot/property-interest-query.test.ts",
+              "case": "[CPL-004]"
+            },
+            { "file": "mobile/lib/copilot.test.ts", "case": "[CPL-004]" }
+          ],
+          "guards": [
+            "supabase/migrations/20261010114941_copilot_property_interest.sql"
+          ]
         }
       ]
     },

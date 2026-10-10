@@ -36,6 +36,19 @@ describe('mobile Copilot actions', () => {
     );
   });
 
+  it('[CPL-004] maps a listing link and its audience picker to native screens', () => {
+    expect(
+      appHrefForWebRoute(
+        '/inventory?propertyId=22222222-2222-4222-8222-222222222222'
+      )
+    ).toBe('/(app)/property/22222222-2222-4222-8222-222222222222');
+    expect(
+      appHrefForWebRoute(
+        '/inventory?sharePropertyId=22222222-2222-4222-8222-222222222222&shareAudience=1'
+      )
+    ).toBe('/(app)/property/22222222-2222-4222-8222-222222222222?audience=1');
+  });
+
   it('[CPL-003] maps a contact-card link and a contacts search to native screens', () => {
     expect(
       appHrefForWebRoute(

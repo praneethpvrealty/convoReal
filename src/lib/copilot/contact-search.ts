@@ -384,17 +384,19 @@ export function parseContactSearchQuery(message: string): ContactSearchQuery {
   };
 }
 
-export function isContactSearchQuestion(message: string): boolean {
-  const text = message.trim();
-  if (!text || text.length > 500) return false;
-  if (INSTRUCTIONAL.test(text) || ADD_INTENT.test(text)) return false;
-  if (
+export function looksLikeNonSearchRequest(text: string): boolean {
+  if (INSTRUCTIONAL.test(text) || ADD_INTENT.test(text)) return true;
+  return (
     OUTBOUND_VERB.test(text) &&
     OUTBOUND_OBJECT.test(text) &&
     !RETRIEVAL_FORM.test(text)
-  ) {
-    return false;
-  }
+  );
+}
+
+export function isContactSearchQuestion(message: string): boolean {
+  const text = message.trim();
+  if (!text || text.length > 500) return false;
+  if (looksLikeNonSearchRequest(text)) return false;
   if (INVENTORY_OBJECT.test(text)) return false;
   if (/[#@&]\S/.test(text)) return false;
   const subjectThenNeed = new RegExp(
