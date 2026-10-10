@@ -435,6 +435,17 @@ function signalVerb(signal: InterestSignal): string {
   }
 }
 
+function perfectSignalVerb(signal: InterestSignal): string {
+  switch (signal) {
+    case 'any':
+      return 'enquired about, viewed, shortlisted or visited';
+    case 'shortlisted':
+      return 'been shortlisted for';
+    default:
+      return signalVerb(signal);
+  }
+}
+
 function singularSignalVerb(signal: InterestSignal): string {
   switch (signal) {
     case 'shortlisted':
@@ -525,14 +536,8 @@ function contactsAnswer(
       navigateTo: entityHref('property', property.id),
     }));
   if (result.total === 0 || !result.matches.length) {
-    const nothing =
-      query.signal === 'any'
-        ? 'No contact has enquired about, viewed, shortlisted or visited'
-        : `No contact has ${signalVerb(query.signal)
-            .replace(/^were /, '')
-            .replace(/^had /, 'had ')}`;
     return {
-      reply: `${nothing} ${target}${when} yet.${query.signal === 'any' ? '' : ' Ask without the filter to see every kind of interest.'}`,
+      reply: `No contact has ${perfectSignalVerb(query.signal)} ${target}${when} yet.${query.signal === 'any' ? '' : ' Ask without the filter to see every kind of interest.'}`,
       links: propertyLinks,
     };
   }
@@ -604,13 +609,7 @@ function propertiesAnswer(
     }));
   if (result.total === 0 || !result.matches.length) {
     return {
-      reply: `${who} has not ${
-        query.signal === 'any'
-          ? 'enquired about, viewed, shortlisted or visited'
-          : signalVerb(query.signal)
-              .replace(/^were /, 'been ')
-              .replace(/^had /, 'had ')
-      } any listing${when} yet.`,
+      reply: `${who} has not ${perfectSignalVerb(query.signal)} any listing${when} yet.`,
       links: contactLinks,
     };
   }
