@@ -1,9 +1,65 @@
 import { NextResponse } from 'next/server';
 
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  countPropertyDocuments,
+  DOCUMENT_DECIDED_WINDOW_DAYS,
+  type DocumentApprovalRow,
+} from '@/lib/dashboard/document-approvals';
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
+const DECIDED_LIMIT = 20;
+const SELECT =
+  'id, property_id, requester_name, requester_phone, requester_email, status, share_sent_at, share_token_expires_at, created_at, updated_at, property:properties(id, title, property_code, documents)';
+
+interface RequestRow {
+  id: string;
+  property_id: string;
+  requester_name: string;
+  requester_phone: string;
+  requester_email: string | null;
+  status: string;
+  share_sent_at: string | null;
+  share_token_expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  property:
+    | {
+        id: string;
+        title: string | null;
+        property_code: string | null;
+        documents: unknown;
+      }
+    | {
+        id: string;
+        title: string | null;
+        property_code: string | null;
+        documents: unknown;
+      }[]
+    | null;
+}
+
+function toApprovalRow(
+  row: RequestRow
+): DocumentApprovalRow & { share_token_expires_at: string | null } {
+  const property = Array.isArray(row.property) ? row.property[0] : row.property;
+  return {
+    id: row.id,
+    property_id: row.property_id,
+    property_title: property?.title || 'Property',
+    property_code: property?.property_code || null,
+    document_count: countPropertyDocuments(property?.documents),
+    requester_name: row.requester_name,
+    requester_phone: row.requester_phone,
+    requester_email: row.requester_email,
+    status: row.status,
+    share_sent_at: row.share_sent_at,
+    share_token_expires_at: row.share_token_expires_at,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
 
 export async function GET(request: Request) {
   try {
@@ -16,15 +72,27 @@ export async function GET(request: Request) {
         Number.parseInt(searchParams.get('limit') || String(DEFAULT_LIMIT), 10)
       )
     );
-    const { data, error } = await ctx.supabase
-      .from('property_document_requests')
-      .select(
-        'id, property_id, requester_name, requester_phone, requester_email, status, share_sent_at, share_token_expires_at, created_at, updated_at, property:properties(id, title, property_code)'
-      )
-      .eq('account_id', ctx.accountId)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const decidedSince = new Date(
+      Date.now() - DOCUMENT_DECIDED_WINDOW_DAYS * 24 * 60 * 60 * 1000
+    ).toISOString();
+    const [pending, decided] = await Promise.all([
+      ctx.supabase
+        .from('property_document_requests')
+        .select(SELECT)
+        .eq('account_id', ctx.accountId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(limit),
+      ctx.supabase
+        .from('property_document_requests')
+        .select(SELECT)
+        .eq('account_id', ctx.accountId)
+        .in('status', ['approved', 'rejected'])
+        .gte('updated_at', decidedSince)
+        .order('updated_at', { ascending: false })
+        .limit(Math.min(limit, DECIDED_LIMIT)),
+    ]);
+    const error = pending.error || decided.error;
     if (error) {
       console.error('[GET /api/document-requests]', error);
       return NextResponse.json(
@@ -32,25 +100,10 @@ export async function GET(request: Request) {
         { status: 500 }
       );
     }
-    const rows = (data ?? []).map((row) => {
-      const property = Array.isArray(row.property)
-        ? row.property[0]
-        : row.property;
-      return {
-        id: row.id,
-        property_id: row.property_id,
-        property_title: property?.title || 'Property',
-        property_code: property?.property_code || null,
-        requester_name: row.requester_name,
-        requester_phone: row.requester_phone,
-        requester_email: row.requester_email,
-        status: row.status,
-        share_sent_at: row.share_sent_at,
-        share_token_expires_at: row.share_token_expires_at,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      };
-    });
+    const rows = [
+      ...((pending.data ?? []) as unknown as RequestRow[]),
+      ...((decided.data ?? []) as unknown as RequestRow[]),
+    ].map(toApprovalRow);
     return NextResponse.json({ data: rows });
   } catch (error) {
     return toErrorResponse(error);
