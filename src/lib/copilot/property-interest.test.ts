@@ -135,6 +135,9 @@ describe('parsePropertyInterestQuestion', () => {
 
   it.each([
     ['what properties did Ramesh enquire about', 'Ramesh', 'enquired'],
+    ['what has Ramesh enquired about?', 'Ramesh', 'enquired'],
+    ['What is Ramesh Kumar interested in', 'Ramesh Kumar', 'any'],
+    ['which has Ramesh viewed this week', 'Ramesh', 'viewed'],
     [
       'which listings has Ramesh Kumar viewed this month',
       'Ramesh Kumar',

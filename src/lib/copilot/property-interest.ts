@@ -125,6 +125,10 @@ const NAVIGATION_COMMAND =
   /^\s*(?:please\s+)?(?:open|show|view|take\s+me\s+to|go\s+to)\s+(?:me\s+)?(?:the\s+)?[#@&]/i;
 const CONTACT_SUBJECT_FORMS: RegExp[] = [
   new RegExp(
+    String.raw`\b(?:what|which)\s+(?:all\s+)?(?:has|have|had|did|does|do|is|was|are|were)\s+${NAME}\s+(?:been\s+)?(?:enquired|enquiring|enquire|inquired|inquiring|inquire|viewed|viewing|view|visited|visiting|visit|shortlisted|shortlisting|shortlist|liked|like|seen|see|saw|asked|asking|ask|responded|engaged|showed|shown|show|expressed|looked|looking|opened|open|checked|check|interested)\b`,
+    'iu'
+  ),
+  new RegExp(
     String.raw`\b(?:what|which)\s+(?:all\s+)?(?:${PROPERTY_NOUN.slice(3, -1)})\s+(?:did|has|have|was|were|is|does|do)\s+${NAME}\s+(?:enquire|inquire|view|visit|shortlist|like|see|ask|respond|engage|show|express|look|open|check|interested)`,
     'iu'
   ),
