@@ -14,7 +14,11 @@ import {
   timelineSourceLabel,
   type DealEvent,
 } from '@/lib/deals/events';
-import { milestoneProgress, type DealMilestone } from '@/lib/deals/milestones';
+import {
+  applyMilestonePatch,
+  milestoneProgress,
+  type DealMilestone,
+} from '@/lib/deals/milestones';
 import {
   STAKEHOLDER_ROLE_LABELS,
   STAKEHOLDER_SIDE_LABELS,
@@ -152,7 +156,16 @@ export function DealOverviewPanel({
   });
 
   async function completeMilestone(m: DealMilestone) {
+    const key = ['deal-milestones', dealId];
     setBusyId(m.id);
+    await queryClient.cancelQueries({ queryKey: key });
+    const previous = queryClient.getQueryData<DealMilestone[]>(key);
+    if (previous) {
+      queryClient.setQueryData<DealMilestone[]>(
+        key,
+        applyMilestonePatch(previous, m.id, { status: 'completed' })
+      );
+    }
     try {
       await call(
         `/api/deals/${dealId}/milestones/${m.id}`,
@@ -162,21 +175,20 @@ export function DealOverviewPanel({
         },
         'Could not update the milestone'
       );
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ['deal-milestones', dealId],
-        }),
-        queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
-        queryClient.invalidateQueries({
-          queryKey: ['transaction-workspace-index'],
-        }),
-      ]);
     } catch (err) {
+      if (previous) queryClient.setQueryData(key, previous);
       toast.error(
         err instanceof Error ? err.message : 'Could not update the milestone'
       );
     } finally {
       setBusyId(null);
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: key }),
+        queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+        queryClient.invalidateQueries({
+          queryKey: ['transaction-workspace-index'],
+        }),
+      ]);
     }
   }
 

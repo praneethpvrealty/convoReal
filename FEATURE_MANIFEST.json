@@ -3321,7 +3321,7 @@
         },
         {
           "id": "TXW-033",
-          "rule": "Ticking or reopening a milestone shows on the spot, before the server answers, with the row locked against a second tap while its request is in flight; a failed request puts the row back as it was and says so. The flipped row carries the same status and completed_at the server will return, and the list is refetched afterwards so the server's row replaces the local one. Web and mobile apply the same rule.",
+          "rule": "Ticking or reopening a milestone shows on the spot, before the server answers, with the row locked against a second tap while its request is in flight; a failed request puts the row back as it was and says so. The flipped row carries the same status and completed_at the server will return, and the list is refetched afterwards so the server's row replaces the local one. Web and mobile apply the same rule on the Milestones tab, the status options and the Overview's Next up tick, and the milestones route runs its rate-limit, deal, milestone and actor lookups together rather than one after another.",
           "tests": [
             {
               "file": "src/lib/deals/milestones.test.ts",
@@ -3330,10 +3330,20 @@
             {
               "file": "src/components/deals/deal-milestones-panel.test.tsx",
               "case": "[TXW-033]"
+            },
+            {
+              "file": "src/components/deals/deal-overview-panel.test.tsx",
+              "case": "[TXW-033]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[TXW-033]"
             }
           ],
           "guards": [
+            "src/app/api/deals/[id]/milestones/[milestoneId]/route.ts",
             "src/components/deals/deal-milestones-panel.tsx",
+            "src/components/deals/deal-overview-panel.tsx",
             "mobile/app/(app)/deal/[id].tsx"
           ]
         }

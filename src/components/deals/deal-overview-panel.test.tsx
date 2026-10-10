@@ -151,6 +151,25 @@ describe('DealOverviewPanel', () => {
     expect(document.body.textContent).not.toContain('Rs.');
   });
 
+  it('[TXW-033] the Next up tick moves on before the route answers', async () => {
+    const fetchMock = mockApi();
+    fetchMock.mockImplementation((input: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return new Promise(() => {});
+      const url = String(input);
+      if (url.endsWith('/milestones')) return json({ data: MILESTONES });
+      if (url.startsWith('/api/todos')) return json([]);
+      return json({ data: [] });
+    });
+    renderPanel();
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Mark Sale agreement signed completed',
+      })
+    );
+    expect(await screen.findByText('Registration')).toBeTruthy();
+    expect(screen.getByText('2 / 3 done')).toBeTruthy();
+  });
+
   it('[TXW-030] ticking the next milestone completes it through the milestone route', async () => {
     const fetchMock = mockApi();
     renderPanel();
