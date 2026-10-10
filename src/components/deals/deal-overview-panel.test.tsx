@@ -170,6 +170,42 @@ describe('DealOverviewPanel', () => {
     expect(screen.getByText('2 / 3 done')).toBeTruthy();
   });
 
+  it('[TXW-033] a settled milestone refetches even while a task is still saving', async () => {
+    const fetchMock = mockApi();
+    fetchMock.mockImplementation((input: string, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === 'PUT') return new Promise(() => {});
+      if (init?.method === 'PATCH') return json({ data: {} });
+      if (url.endsWith('/milestones')) return json({ data: MILESTONES });
+      if (url.startsWith('/api/todos'))
+        return json([
+          {
+            id: 't1',
+            title: 'Call the bank',
+            due_date: null,
+            completed: false,
+          },
+        ]);
+      return json({ data: [] });
+    });
+    renderPanel();
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Complete Call the bank' })
+    );
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Mark Sale agreement signed completed',
+      })
+    );
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(
+          ([url, init]) => String(url).endsWith('/milestones') && !init?.method
+        ).length
+      ).toBeGreaterThan(1)
+    );
+  });
+
   it('[TXW-030] ticking the next milestone completes it through the milestone route', async () => {
     const fetchMock = mockApi();
     renderPanel();

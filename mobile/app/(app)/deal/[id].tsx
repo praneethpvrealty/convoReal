@@ -2451,8 +2451,9 @@ function useBusyIds() {
   };
   const release = (id: string) => {
     ids.current.delete(id);
-    setBusy(new Set(ids.current));
-    return ids.current.size === 0;
+    const remaining: ReadonlySet<string> = new Set(ids.current);
+    setBusy(remaining);
+    return remaining;
   };
   return { busy, lock, release };
 }
@@ -2464,7 +2465,7 @@ async function tickMilestone(
   status: DealMilestoneStatus,
   handlers: {
     lock: (id: string) => void;
-    release: (id: string) => boolean;
+    release: (id: string) => ReadonlySet<string>;
     onError: (err: unknown) => void;
   }
 ) {
@@ -2490,7 +2491,11 @@ async function tickMilestone(
     }
     handlers.onError(err);
   } finally {
-    if (handlers.release(milestoneId)) {
+    const remaining = handlers.release(milestoneId);
+    const stillSaving = queryClient
+      .getQueryData<DealMilestoneRow[]>(key)
+      ?.some((row) => remaining.has(row.id));
+    if (!stillSaving) {
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: key }),
         queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),

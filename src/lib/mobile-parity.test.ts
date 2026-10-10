@@ -2659,6 +2659,7 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     expect(mobileScreen.match(/void tickMilestone\(/g)).toHaveLength(3);
     expect(mobileScreen).not.toContain('updateDealMilestone(dealId, m.id, {');
     expect(mobileScreen.match(/= useBusyIds\(\);/g)).toHaveLength(2);
+    expect(mobileScreen).toContain('?.some((row) => remaining.has(row.id));');
     for (const panel of [
       'components/deals/deal-milestones-panel.tsx',
       'components/deals/deal-overview-panel.tsx',
@@ -2669,6 +2670,7 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
         '(rows) => rows && withMilestoneRow(rows, previousRow)'
       );
       expect(source).toContain('= useBusyIds();');
+      expect(source).toContain('?.some((row) => remaining.has(row.id));');
       expect(source).not.toContain('busyId');
     }
   });

@@ -175,7 +175,11 @@ export function DealMilestonesPanel({
         err instanceof Error ? err.message : 'Could not update the milestone'
       );
     } finally {
-      if (release(m.id)) void refresh();
+      const remaining = release(m.id);
+      const stillSaving = queryClient
+        .getQueryData<DealMilestone[]>(key)
+        ?.some((row) => remaining.has(row.id));
+      if (!stillSaving) void refresh();
     }
   }
 
@@ -426,8 +430,9 @@ function useBusyIds() {
   };
   const release = (id: string) => {
     ids.current.delete(id);
-    setBusy(new Set(ids.current));
-    return ids.current.size === 0;
+    const remaining: ReadonlySet<string> = new Set(ids.current);
+    setBusy(remaining);
+    return remaining;
   };
   return { busy, lock, release };
 }
