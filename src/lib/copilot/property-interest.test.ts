@@ -99,6 +99,20 @@ describe('parsePropertyInterestQuestion', () => {
     expect(parsed?.ownerName).toBeNull();
   });
 
+  it.each([
+    'view #Prime Corner',
+    'open #Prime Corner',
+    'show #Prime Corner enquiries',
+  ])('[CPL-004] leaves "%s" to entity navigation', (message) => {
+    expect(
+      parsePropertyInterestQuestion(
+        message,
+        [{ kind: 'property', id: PROPERTY_ID, label: 'Prime Corner' }],
+        NOW
+      )
+    ).toBeNull();
+  });
+
   it('[CPL-004] prefers a selected # property over any name in the text', () => {
     const parsed = parsePropertyInterestQuestion(
       "who enquired about #Prime Corner, Adithi's property",
@@ -235,6 +249,10 @@ describe('readInterestWindow', () => {
     expect(readInterestWindow('last 3 days', NOW).since).toBe(
       '2026-10-06T18:30:00.000Z'
     );
+    expect(readInterestWindow('who viewed in the last 24 hours', NOW)).toEqual({
+      since: '2026-10-09T06:00:00.000Z',
+      sinceLabel: 'in the last 24 hours',
+    });
     expect(readInterestWindow('who enquired', NOW)).toEqual({
       since: null,
       sinceLabel: null,

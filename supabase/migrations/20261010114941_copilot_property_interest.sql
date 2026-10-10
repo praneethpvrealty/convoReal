@@ -8,8 +8,13 @@
 -- listing audience already count is unioned per (property, contact):
 -- an enquiry (contact_property_inquiries), an identified showcase view
 -- (showcase_events.contact_id), a deal on the property (the buyer was
--- shortlisted), a site visit (appointments), a journey item with its
--- stage and whether it dropped, and an identified showcase like.
+-- shortlisted), a site visit that has taken place (appointments, every
+-- attendee, dated by start_time), a journey item the agent placed on
+-- the map with its stage and whether it dropped, and an identified
+-- showcase like. A journey row still hidden in the Captured tray is a
+-- share the agent sent, not interest the contact showed, so it is left
+-- out (migration 138); "shortlisted" means a deal or a journey stage
+-- named for it, never the bare existence of a journey row.
 --
 -- Aggregated in SQL per §2.6 of AGENTS.md. SECURITY DEFINER with the
 -- is_account_member() guard mirrors property_audience (migration
@@ -17,6 +22,10 @@
 -- per-user policy from migration 062, which would hide a teammate's
 -- enquiries, and its account_id is nullable (migration 259), so tenancy
 -- comes from the join onto contacts and properties of p_account_id.
+-- Rows collapse to one per contact when the caller names listings and
+-- to one per listing when it names contacts, keeping the latest pair
+-- for each, so a buyer engaged with two of an owner's listings is one
+-- contact in the answer and total counts what the answer lists.
 -- The caller passes bounded id arrays it resolved under RLS; a listing
 -- outside the account never matches the properties join. With no ids
 -- at all the window is the bound: "who enquired today" reads every
@@ -85,13 +94,20 @@ AS $$
     WHERE d.account_id = p_account_id
       AND d.property_id IS NOT NULL
     UNION ALL
-    SELECT a.property_id, a.contact_id, 'visited', NULL, NULL, a.created_at
+    SELECT a.property_id, att.contact_id, 'visited', NULL, NULL, a.start_time
     FROM appointments a
+    CROSS JOIN LATERAL UNNEST(
+      CASE WHEN CARDINALITY(COALESCE(a.contact_ids, '{}'::UUID[])) > 0
+           THEN a.contact_ids
+           ELSE ARRAY[a.contact_id]
+      END
+    ) AS att(contact_id)
     WHERE a.account_id = p_account_id
       AND a.event_type = 'site_visit'
       AND a.property_id IS NOT NULL
-      AND a.contact_id IS NOT NULL
+      AND att.contact_id IS NOT NULL
       AND COALESCE(a.status, '') <> 'cancelled'
+      AND (a.status = 'completed' OR a.start_time <= NOW())
     UNION ALL
     SELECT
       j.property_id,
@@ -103,6 +119,7 @@ AS $$
     FROM journey_items j
     LEFT JOIN journey_stages s ON s.id = j.stage_id
     WHERE j.account_id = p_account_id
+      AND COALESCE(j.hidden, FALSE) = FALSE
     UNION ALL
     SELECT l.property_id, l.contact_id, 'liked', NULL, NULL, l.created_at
     FROM property_likes l
@@ -166,36 +183,50 @@ AS $$
         sc.signal = 'any'
         OR (sc.signal = 'enquired' AND pr.enquired)
         OR (sc.signal = 'viewed' AND pr.views_count > 0)
-        OR (sc.signal = 'shortlisted' AND (pr.shortlisted OR pr.journey_stage IS NOT NULL))
+        OR (sc.signal = 'shortlisted' AND (pr.shortlisted OR pr.journey_stage ILIKE '%shortlist%'))
         OR (sc.signal = 'visited' AND pr.visited)
         OR (sc.signal = 'liked' AND pr.liked)
       )
+  ),
+  keyed AS (
+    SELECT
+      v.*,
+      CASE WHEN CARDINALITY((SELECT contact_ids FROM scope)) > 0
+           THEN v.property_id
+           ELSE v.contact_id
+      END AS group_key
+    FROM visible v
+  ),
+  collapsed AS (
+    SELECT DISTINCT ON (k.group_key) k.*
+    FROM keyed k
+    ORDER BY k.group_key, k.last_at DESC NULLS LAST, k.property_id, k.contact_id
   )
   SELECT
-    v.property_id,
-    v.property_title,
-    v.property_code,
-    v.contact_id,
-    v.name,
-    v.second_name,
-    v.company,
-    v.classification,
-    v.enquired,
-    v.views_count,
-    v.shortlisted,
-    v.visited,
-    v.liked,
-    v.journey_stage,
-    v.journey_status,
-    v.last_at,
+    c.property_id,
+    c.property_title,
+    c.property_code,
+    c.contact_id,
+    c.name,
+    c.second_name,
+    c.company,
+    c.classification,
+    c.enquired,
+    c.views_count,
+    c.shortlisted,
+    c.visited,
+    c.liked,
+    c.journey_stage,
+    c.journey_status,
+    c.last_at,
     COUNT(*) OVER ()::BIGINT AS total
-  FROM visible v
-  ORDER BY v.last_at DESC NULLS LAST, v.contact_id, v.property_id
+  FROM collapsed c
+  ORDER BY c.last_at DESC NULLS LAST, c.contact_id, c.property_id
   LIMIT LEAST(GREATEST(COALESCE(p_limit, 6), 1), 10);
 $$;
 
 COMMENT ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) IS
-  'Helper: contacts who showed interest in given listings, or listings a given contact showed interest in — enquiries, identified showcase views, deals, site visits, journey items and likes, one row per (property, contact).';
+  'Helper: contacts who showed interest in given listings (one row per contact), or listings a given contact showed interest in (one row per listing) — enquiries, identified showcase views, deals, elapsed site visits, visible journey items and likes.';
 
 REVOKE ALL ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) TO authenticated;

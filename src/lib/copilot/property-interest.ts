@@ -120,7 +120,9 @@ const UNNAMED_PROPERTY = new RegExp(
 const OWNER_QUESTION =
   /\b(?:who(?:['’]s|\s+is|\s+are)\s+the\s+(?:owner|seller|landlord)s?|owner\s+(?:details|contact|phone|number|name)|owner\s+of\s+(?:this|that|the|prop))\b/i;
 const SUBJECT_WORDS =
-  /\b(?:who|whom|which|what|list|show|find|get|give|any|how\s+many|contacts?|buyers?|leads?|clients?|customers?|people|tenants?|investors?|enquir(?:y|ies)|inquir(?:y|ies)|views?|visits?|kaun|kon|koi)\b/i;
+  /\b(?:who|whom|which|what|list|find|any|how\s+many|contacts?|buyers?|leads?|clients?|customers?|people|tenants?|investors?|enquir(?:y|ies)|inquir(?:y|ies)|interests?|shortlist|propert(?:y|ies)|listings?|kaun|kon|koi|kisne|jisne)\b/i;
+const NAVIGATION_COMMAND =
+  /^\s*(?:please\s+)?(?:open|show|view|take\s+me\s+to|go\s+to)\s+(?:me\s+)?(?:the\s+)?[#@&]/i;
 const CONTACT_SUBJECT_FORMS: RegExp[] = [
   new RegExp(
     String.raw`\b(?:what|which)\s+(?:all\s+)?(?:${PROPERTY_NOUN.slice(3, -1)})\s+(?:did|has|have|was|were|is|does|do)\s+${NAME}\s+(?:enquire|inquire|view|visit|shortlist|like|see|ask|respond|engage|show|express|look|open|check|interested)`,
@@ -137,7 +139,8 @@ const CONTACT_SUBJECT_FORMS: RegExp[] = [
 ];
 const SINCE_FORMS: Array<{
   pattern: RegExp;
-  days: number | ((match: RegExpExecArray) => number);
+  days?: number | ((match: RegExpExecArray) => number);
+  hours?: (match: RegExpExecArray) => number;
   label: string | ((match: RegExpExecArray) => string);
 }> = [
   { pattern: /\btoday\b|\baaj\b/i, days: 0, label: 'today' },
@@ -158,9 +161,9 @@ const SINCE_FORMS: Array<{
     label: (match) => `in the last ${match[1]} days`,
   },
   {
-    pattern: /\b(?:last|past)\s+24\s+hours\b/i,
-    days: 1,
-    label: 'in the last 24 hours',
+    pattern: /\b(?:last|past)\s+(\d{1,3})\s+hours\b/i,
+    hours: (match) => Number(match[1]),
+    label: (match) => `in the last ${match[1]} hours`,
   },
   { pattern: /\brecently\b|\blately\b/i, days: 14, label: 'recently' },
 ];
@@ -208,10 +211,19 @@ export function readInterestWindow(
   for (const form of SINCE_FORMS) {
     const match = form.pattern.exec(text);
     if (!match) continue;
-    const days = typeof form.days === 'function' ? form.days(match) : form.days;
-    if (!Number.isFinite(days) || days < 0 || days > 365) continue;
     const label =
       typeof form.label === 'function' ? form.label(match) : form.label;
+    if (form.hours) {
+      const hours = form.hours(match);
+      if (!Number.isFinite(hours) || hours <= 0 || hours > 24 * 365) continue;
+      return {
+        since: new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString(),
+        sinceLabel: label,
+      };
+    }
+    const days =
+      typeof form.days === 'function' ? form.days(match) : (form.days ?? 0);
+    if (!Number.isFinite(days) || days < 0 || days > 365) continue;
     return { since: istStartOfDay(now, days).toISOString(), sinceLabel: label };
   }
   return { since: null, sinceLabel: null };
@@ -269,6 +281,7 @@ export function parsePropertyInterestQuestion(
   const text = message.trim();
   if (!text || text.length > 500) return null;
   if (looksLikeNonSearchRequest(text)) return null;
+  if (!SUBJECT_WORDS.test(text) || NAVIGATION_COMMAND.test(text)) return null;
   const engaged = ENGAGEMENT.test(text);
   if (OWNER_QUESTION.test(text)) return null;
   if (!engaged && !(SUBJECT_WORDS.test(text) && readOwnerName(text))) {
