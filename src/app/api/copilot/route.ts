@@ -10,6 +10,7 @@ import { logCopilotEvent } from '@/lib/copilot/events';
 import { readChatRequest } from '@/lib/copilot/request';
 import { resolveMessageEntityReferences } from '@/lib/copilot/entity-search';
 import { findCopilotContacts } from '@/lib/copilot/contact-search-query';
+import { findCopilotPropertyInterest } from '@/lib/copilot/property-interest-query';
 import { hasMinOrgRole } from '@/lib/auth/roles';
 
 /**
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
       canExecuteActions:
         !ctx.isReadOnly && hasMinOrgRole(ctx.orgRole, 'org_agent'),
       contactSearch: (query) => findCopilotContacts(ctx, query),
+      propertyInterest: (query) => findCopilotPropertyInterest(ctx, query),
     });
     logCopilotEvent({
       accountId: ctx.accountId,
