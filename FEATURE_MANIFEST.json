@@ -2090,6 +2090,10 @@
             {
               "file": "src/app/api/properties/[id]/approve/route.test.ts",
               "case": "[PRP-044]"
+            },
+            {
+              "file": "mobile/lib/catalog-product-share.test.ts",
+              "case": "[PRP-044]"
             }
           ],
           "guards": ["src/lib/inventory/catalog-product-share.ts"]

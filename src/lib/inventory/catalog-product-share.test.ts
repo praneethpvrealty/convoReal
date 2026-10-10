@@ -127,17 +127,4 @@ describe('[PRP-044] WhatsApp catalog product card share', () => {
       expect(source).toContain('catalogProductCaption(');
     }
   });
-
-  it('never captions a mobile card in INR because the currency read failed', () => {
-    const mobileLib = readFileSync(
-      join(process.cwd(), 'mobile/lib/catalog-product-share.ts'),
-      'utf8'
-    );
-    const thrown = mobileLib.indexOf(
-      'if (showcase.error) throw showcase.error;'
-    );
-    const fallback = mobileLib.indexOf("showcase.data?.currency || 'INR'");
-    expect(thrown).toBeGreaterThan(-1);
-    expect(fallback).toBeGreaterThan(thrown);
-  });
 });
