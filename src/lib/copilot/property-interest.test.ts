@@ -136,6 +136,9 @@ describe('parsePropertyInterestQuestion', () => {
   it.each([
     ['what properties did Ramesh enquire about', 'Ramesh', 'enquired'],
     ['what has Ramesh enquired about?', 'Ramesh', 'enquired'],
+    ['what did Ramesh visit?', 'Ramesh', 'visited'],
+    ['what did Ramesh shortlist?', 'Ramesh', 'shortlisted'],
+    ['what has Ramesh been viewing?', 'Ramesh', 'viewed'],
     ['What is Ramesh Kumar interested in', 'Ramesh Kumar', 'any'],
     ['which has Ramesh viewed this week', 'Ramesh', 'viewed'],
     [
@@ -191,6 +194,7 @@ describe('parsePropertyInterestQuestion', () => {
     'who enquired today',
     "today's enquiries",
     'which buyers viewed listings this week',
+    'what has been viewed this week?',
   ])('[CPL-004] reads "%s" as every listing inside the window', (message) => {
     const parsed = parsePropertyInterestQuestion(message, [], NOW);
     expect(parsed?.direction).toBe('contacts');
