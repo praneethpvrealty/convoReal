@@ -5,10 +5,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEAL_MILESTONE_TEMPLATES,
+  applyMilestonePatch,
   milestoneProgress,
   milestoneUpdateData,
   parseMilestonePatch,
   standardMilestoneRows,
+  withMilestoneRow,
 } from './milestones';
 
 describe('standardMilestoneRows', () => {
@@ -93,6 +95,53 @@ describe('parseMilestonePatch', () => {
       ok: true,
       value: { target_date: null, owner_id: null },
     });
+  });
+});
+
+describe('applyMilestonePatch', () => {
+  it('[TXW-033] flips one row exactly as the server will, leaving the rest alone', () => {
+    const now = new Date('2026-10-10T14:00:00Z');
+    const list = [
+      { id: 'a', status: 'completed' as const, completed_at: '2026-10-09' },
+      { id: 'b', status: 'pending' as const, completed_at: null },
+    ];
+    expect(
+      applyMilestonePatch(list, 'b', { status: 'completed' }, now)
+    ).toEqual([
+      list[0],
+      { id: 'b', status: 'completed', completed_at: now.toISOString() },
+    ]);
+    expect(applyMilestonePatch(list, 'a', { status: 'pending' }, now)).toEqual([
+      { id: 'a', status: 'pending', completed_at: null },
+      list[1],
+    ]);
+    expect(
+      applyMilestonePatch(list, 'zzz', { status: 'skipped' }, now)
+    ).toEqual(list);
+  });
+});
+
+describe('withMilestoneRow', () => {
+  it('[TXW-033] puts one row back without touching the others', () => {
+    const now = new Date('2026-10-10T14:00:00Z');
+    const list = [
+      { id: 'a', status: 'pending' as const, completed_at: null },
+      { id: 'b', status: 'pending' as const, completed_at: null },
+    ];
+    const flipped = applyMilestonePatch(
+      applyMilestonePatch(list, 'a', { status: 'completed' }, now),
+      'b',
+      { status: 'completed' },
+      now
+    );
+    expect(withMilestoneRow(flipped, list[0])).toEqual([list[0], flipped[1]]);
+    expect(
+      withMilestoneRow(list, {
+        id: 'zzz',
+        status: 'skipped',
+        completed_at: null,
+      })
+    ).toEqual(list);
   });
 });
 

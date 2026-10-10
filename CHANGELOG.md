@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 10 October 2026
 
+- **A milestone tick shows at once.** Ticking or reopening a milestone on
+  the closing checklist used to wait for the server and two refetches
+  before the circle changed — up to seven seconds on a cold function, with
+  nothing on screen to say the tap had landed, so a second tap would undo
+  the first. On web and mobile the tick now flips the moment it is tapped,
+  the row stays locked until the save settles, and a failed save puts the
+  row back and says why; the list is refetched in the background so the
+  server's row replaces the local one. The milestone route also runs its
+  deal, milestone, rate-limit and actor lookups together instead of one
+  after another. Skipping a step that does not apply is unchanged: choose
+  **Skipped** from the row's options. TXW-033.
 - **Document access approvals no longer present a two-month-old request as
   a live decision, and say what approving will actually send.** The dashboard
   card and the mobile Home widget showed every pending request with the same
@@ -42,7 +53,6 @@ than a written entry. Newest first.
   `supabase/migrations/20261010153000_document_request_decided_at.sql` adds
   `property_document_requests.decided_at`, the decision time the list is
   built from, since `updated_at` moves every time the shared link is opened.
-
 - **The Helper now answers "which buyers showed interest in Adithi's
   property?" from the listing's own interest.** Asked that, it used to read
   "Adithi's property" as a locality and reply that no contact was looking for

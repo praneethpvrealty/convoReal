@@ -2646,6 +2646,33 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     );
   });
 
+  it('[TXW-033] a milestone tick flips on the spot on both surfaces through the one shared rule', () => {
+    expect(mobileScreen).toContain(
+      "import {\n  applyMilestonePatch,\n  withMilestoneRow,\n} from '@shared/lib/deals/milestones';"
+    );
+    expect(mobileScreen).toContain(
+      '(rows) => rows && applyMilestonePatch(rows, milestoneId, { status })'
+    );
+    expect(mobileScreen).toContain(
+      '(rows) => rows && withMilestoneRow(rows, previousRow)'
+    );
+    expect(mobileScreen.match(/void tickMilestone\(/g)).toHaveLength(3);
+    expect(mobileScreen).not.toContain('updateDealMilestone(dealId, m.id, {');
+    expect(mobileScreen.match(/= useBusyIds\(\);/g)).toHaveLength(2);
+    for (const panel of [
+      'components/deals/deal-milestones-panel.tsx',
+      'components/deals/deal-overview-panel.tsx',
+    ]) {
+      const source = webSource(panel);
+      expect(source).toContain('applyMilestonePatch(rows, m.id,');
+      expect(source).toContain(
+        '(rows) => rows && withMilestoneRow(rows, previousRow)'
+      );
+      expect(source).toContain('= useBusyIds();');
+      expect(source).not.toContain('busyId');
+    }
+  });
+
   it('[TXW-009] prints a stakeholder number with exactly one plus sign on both surfaces', () => {
     const body = (source: string) =>
       source.match(

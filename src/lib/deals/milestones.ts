@@ -205,6 +205,27 @@ export function parseMilestonePatch(raw: unknown): ParseResult<MilestonePatch> {
   return { ok: true, value: patch };
 }
 
+export function applyMilestonePatch<
+  T extends Pick<DealMilestone, 'id' | 'status' | 'completed_at'>,
+>(
+  milestones: readonly T[],
+  milestoneId: string,
+  patch: MilestonePatch,
+  now: Date = new Date()
+): T[] {
+  const data = milestoneUpdateData(patch, now);
+  return milestones.map((m) =>
+    m.id === milestoneId ? ({ ...m, ...data } as T) : m
+  );
+}
+
+export function withMilestoneRow<T extends Pick<DealMilestone, 'id'>>(
+  milestones: readonly T[],
+  row: T
+): T[] {
+  return milestones.map((m) => (m.id === row.id ? row : m));
+}
+
 /** What the row update carries: `completed_at` follows the status so
  *  the timeline can say when, and clears when a milestone reopens. */
 export function milestoneUpdateData(
