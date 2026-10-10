@@ -4790,6 +4790,65 @@
           ]
         }
       ]
+    },
+    {
+      "id": "document-approvals",
+      "name": "Document access approvals",
+      "surfaces": ["web", "mobile", "whatsapp"],
+      "invariants": [
+        {
+          "id": "DOC-001",
+          "rule": "A pending document request older than seven days is shown as timed out with how long the requester has waited, never as a live decision: its approve action reads Send anyway, its reject action reads Dismiss, and it sorts after fresh requests. Web and mobile read the stage and the wording from the same shared rule.",
+          "tests": [
+            {
+              "file": "src/lib/dashboard/document-approvals.test.ts",
+              "case": "[DOC-001]"
+            },
+            {
+              "file": "src/components/dashboard/document-approvals-panel.test.tsx",
+              "case": "[DOC-001]"
+            }
+          ]
+        },
+        {
+          "id": "DOC-002",
+          "rule": "The approvals list carries each listing's document count, counted the same way the approval message decides whether a link or a being-prepared note goes out. A listing with no documents is named as such on the card, the approve action says it approves without documents, and the card links to the listing to upload them before approving.",
+          "tests": [
+            {
+              "file": "src/lib/dashboard/document-approvals.test.ts",
+              "case": "[DOC-002]"
+            },
+            {
+              "file": "src/components/dashboard/document-approvals-panel.test.tsx",
+              "case": "[DOC-002]"
+            }
+          ]
+        },
+        {
+          "id": "DOC-003",
+          "rule": "One requester is one card: pending requests are grouped by requester phone, every property keeps its own decision, a requester with several requests also gets approve-all and reject-all, and requests decided in the last fourteen days, by the moment of the decision (decided_at) and not by a later edit or view of the row, sit under a collapsed Recently decided disclosure with their outcome rather than disappearing. Link sent means a document link went out: an approval that only sent a being-prepared note reads Approved · follow up.",
+          "tests": [
+            {
+              "file": "src/lib/dashboard/document-approvals.test.ts",
+              "case": "[DOC-003]"
+            },
+            {
+              "file": "src/components/dashboard/document-approvals-panel.test.tsx",
+              "case": "[DOC-003]"
+            },
+            {
+              "file": "src/lib/inventory/document-requests.decide.test.ts",
+              "case": "[DOC-003]"
+            }
+          ]
+        }
+      ],
+      "files": [
+        "src/lib/dashboard/document-approvals.ts",
+        "src/app/api/document-requests/route.ts",
+        "src/components/dashboard/document-approvals-panel.tsx",
+        "mobile/components/document-approvals.tsx"
+      ]
     }
   ]
 }

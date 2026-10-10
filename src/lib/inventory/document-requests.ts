@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { countPropertyDocuments } from '@/lib/dashboard/document-approvals';
 import { createNotification } from '@/lib/notifications/create';
 import { resolveChannels } from '@/lib/notifications/preferences';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
@@ -84,7 +85,7 @@ export async function decideDocumentRequest(args: {
   if (args.decision === 'reject') {
     const { data, error } = await args.admin
       .from('property_document_requests')
-      .update({ status: 'rejected' })
+      .update({ status: 'rejected', decided_at: new Date().toISOString() })
       .eq('id', args.request.id)
       .eq('account_id', args.request.account_id)
       .eq('property_id', args.request.property_id)
@@ -110,6 +111,7 @@ export async function decideDocumentRequest(args: {
     .from('property_document_requests')
     .update({
       status: 'approved',
+      decided_at: new Date().toISOString(),
       share_token: shareToken,
       share_token_expires_at: expiresAt,
       access_password: args.accessPassword || null,
@@ -126,13 +128,7 @@ export async function decideDocumentRequest(args: {
   const phone = normalizePhoneWithCountryCode(args.request.requester_phone);
   if (!phone) return { shareLink, delivered: false };
 
-  const hasDocuments =
-    Array.isArray(property.documents) &&
-    property.documents.some((document) => {
-      if (typeof document === 'string') return document.trim().length > 0;
-      if (!document || typeof document !== 'object') return false;
-      return Boolean((document as { url?: string }).url?.trim());
-    });
+  const hasDocuments = countPropertyDocuments(property.documents) > 0;
   const text = hasDocuments
     ? args.accessPassword
       ? `Hi ${args.request.requester_name},\n\nYour request for the documents of *${property.title}* has been approved. Use password *${args.accessPassword}* to open them.\n\n📂 ${shareLink}\n\n_This link expires in 48 hours._`
@@ -147,7 +143,7 @@ export async function decideDocumentRequest(args: {
     senderType: 'agent',
     text,
   });
-  if (sent.success) {
+  if (sent.success && hasDocuments) {
     await args.admin
       .from('property_document_requests')
       .update({ share_sent_at: new Date().toISOString() })
