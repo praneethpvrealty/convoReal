@@ -46,6 +46,7 @@ on:
       - 'src/lib/conversations/inbox-search.ts'
       - 'src/lib/conversations/text-format.ts'
       - 'src/lib/dashboard/approval-order.ts'
+      - 'src/lib/dashboard/document-approvals.ts'
       - 'src/lib/deals/co-broking.ts'
       - 'src/lib/deals/deadline-rules.ts'
       - 'src/lib/deals/financials.ts'

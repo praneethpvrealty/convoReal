@@ -509,13 +509,28 @@ describe('Overview approvals read the same on web and mobile', () => {
     expect(mobilePanel).toContain('Recently approved ({approved.length})');
   });
 
-  it('labels the document approval action Approve & send on both surfaces', () => {
-    expect(
-      webSource('components/dashboard/document-approvals-panel.tsx')
-    ).toContain('Approve &amp; send');
-    expect(mobileSource('components/document-approvals.tsx')).toContain(
-      'Approve & send'
+  it('[DOC-001] reads the document approval stage, wording and grouping from one shared rule on both surfaces', () => {
+    const shared = webSource('lib/dashboard/document-approvals.ts');
+    const webPanel = webSource(
+      'components/dashboard/document-approvals-panel.tsx'
     );
+    const mobilePanel = mobileSource('components/document-approvals.tsx');
+    expect(shared).toContain('Approve & send ${row.document_count}');
+    expect(shared).toContain("'Approve without documents'");
+    expect(shared).toContain("'Send anyway'");
+    expect(shared).toContain("'Dismiss'");
+    expect(webPanel).toContain("from '@/lib/dashboard/document-approvals'");
+    expect(mobilePanel).toContain(
+      "from '@shared/lib/dashboard/document-approvals'"
+    );
+    for (const panel of [webPanel, mobilePanel]) {
+      expect(panel).toContain('documentApprovalCopy(row, now)');
+      expect(panel).toContain('documentRequestWaitLabel(row, now)');
+      expect(panel).toContain('groupDocumentApprovals(rows, now)');
+      expect(panel).toContain('Recently decided ({decided.length})');
+      expect(panel).not.toContain('Approve & send');
+      expect(panel).not.toContain('Approve &amp; send');
+    }
   });
 });
 

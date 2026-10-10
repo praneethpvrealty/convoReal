@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { countPropertyDocuments } from '@/lib/dashboard/document-approvals';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
@@ -178,6 +179,7 @@ export async function POST(
         requester_phone,
         requester_email: requester_email || null,
         status: 'approved',
+        decided_at: new Date().toISOString(),
         share_token: shareToken,
         share_token_expires_at: expiresAt,
         access_password: access_password || null,
@@ -206,9 +208,7 @@ export async function POST(
         const normalizedPhone = normalizePhoneWithCountryCode(requester_phone);
         if (!normalizedPhone) return;
 
-        const hasDocuments =
-          Array.isArray(property.documents) &&
-          property.documents.filter((d: string) => d?.trim()).length > 0;
+        const hasDocuments = countPropertyDocuments(property.documents) > 0;
 
         const waText = hasDocuments
           ? access_password
@@ -230,7 +230,7 @@ export async function POST(
           text: waText,
         });
 
-        // Mark share_sent_at
+        if (!hasDocuments) return;
         await admin
           .from('property_document_requests')
           .update({ share_sent_at: new Date().toISOString() })

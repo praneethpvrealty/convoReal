@@ -30,6 +30,29 @@ than a written entry. Newest first.
   deal, milestone, rate-limit and actor lookups together instead of one
   after another. Skipping a step that does not apply is unchanged: choose
   **Skipped** from the row's options. TXW-033.
+- **Document access approvals no longer present a two-month-old request as
+  a live decision, and say what approving will actually send.** The dashboard
+  card and the mobile Home widget showed every pending request with the same
+  "Your decision" chip, however old, and "Approve & send" on a listing with
+  no documents sent the requester a "still being prepared" note without
+  saying so. A request older than seven days now reads "Timed out · N days"
+  with "Send anyway" and "Dismiss" instead of approve and reject, and sorts
+  after fresh ones; every card shows the listing's document count, and a
+  listing with none says so, relabels the action "Approve without documents"
+  and links to the listing to upload them. One requester is one card: their
+  requests for several listings sit together with "Approve all" and "Reject
+  all" alongside the per-listing decisions, the actions sit compact at the
+  right instead of a full-width bar, the listing title opens the listing, and
+  the last fourteen days of decisions sit under a collapsed "Recently
+  decided" disclosure with "Link sent", "Approved · follow up" or
+  "Rejected". An approval that only sent a "being prepared" note no longer
+  counts as a sent link. The stage, the wording and the document count come
+  from one shared rule that web and mobile both read, and
+  `GET /api/document-requests` now returns the document count and the recent
+  decisions. **Migration required:**
+  `supabase/migrations/20261010153000_document_request_decided_at.sql` adds
+  `property_document_requests.decided_at`, the decision time the list is
+  built from, since `updated_at` moves every time the shared link is opened.
 - **The Helper now answers "which buyers showed interest in Adithi's
   property?" from the listing's own interest.** Asked that, it used to read
   "Adithi's property" as a locality and reply that no contact was looking for
