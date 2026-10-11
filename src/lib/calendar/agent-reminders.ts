@@ -337,16 +337,23 @@ export async function sendDailyScheduleDigests(
     console.error('[Daily Digest] fetch failed:', error);
     return;
   }
-  if (!appointments || appointments.length === 0) return;
 
   const { data: todos } = await admin
     .from('todos')
     // Dated only, unlike the on-demand "today" reply: this one is pushed
     // every morning, so an undated backlog would repeat in full daily.
+    // No lower bound: a still-open todo overdue from an earlier day
+    // belongs on today's agenda too, not just the ones due today.
     .select('account_id, user_id, assigned_to, title, priority, due_date')
     .eq('completed', false)
-    .gte('due_date', startIso)
+    .not('due_date', 'is', null)
     .lt('due_date', endIso);
+
+  if (
+    (!appointments || appointments.length === 0) &&
+    (!todos || todos.length === 0)
+  )
+    return;
 
   type DigestEvent = (typeof appointments)[number];
   type DigestTodo = NonNullable<typeof todos>[number];
