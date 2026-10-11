@@ -337,7 +337,6 @@ export async function sendDailyScheduleDigests(
     console.error('[Daily Digest] fetch failed:', error);
     return;
   }
-  if (!appointments || appointments.length === 0) return;
 
   const { data: todos } = await admin
     .from('todos')
@@ -347,6 +346,12 @@ export async function sendDailyScheduleDigests(
     .eq('completed', false)
     .gte('due_date', startIso)
     .lt('due_date', endIso);
+
+  if (
+    (!appointments || appointments.length === 0) &&
+    (!todos || todos.length === 0)
+  )
+    return;
 
   type DigestEvent = (typeof appointments)[number];
   type DigestTodo = NonNullable<typeof todos>[number];
