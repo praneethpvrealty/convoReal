@@ -43,6 +43,10 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, PropertiesResponse, Property } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 import { getShowcaseUrl } from '@/lib/welcome-message';
+import {
+  withheldFromCoBrokers,
+  withheldShareNotice,
+} from '@shared/lib/inventory/showcase-audience';
 import { previewSegments } from '@shared/lib/showcase/message-preview';
 
 interface EngineTemplate {
@@ -231,6 +235,7 @@ export function ShowcaseShareSheet({
       trimmedSearch,
       scopeIds,
       link,
+      audience,
     ],
     // Fetched for both modes: the Engine send needs the template's body
     // params even when the agent is looking at the short pitch.
@@ -245,6 +250,7 @@ export function ShowcaseShareSheet({
           search: trimmedSearch,
           ids: scopeIds,
           portal_url: link,
+          audience,
         }).toString()}`
       ).then((response) => response.data),
   });
@@ -327,10 +333,24 @@ export function ShowcaseShareSheet({
           ? 'your whole showcase'
           : `${category} listings`;
 
+  // Decided before anything is composed: the share ledger only hears
+  // about a send after WhatsApp has opened, so it cannot be the guard.
+  const withheldPicks = useMemo(
+    () =>
+      scope === 'pick'
+        ? withheldFromCoBrokers(picked, {
+            coBrokerAudience: audience === 'agent',
+            recipients: portfolioContact ? [portfolioContact] : [],
+          })
+        : [],
+    [scope, picked, audience, portfolioContact]
+  );
+
   const ready =
     link.length > 0 &&
     (scope !== 'pick' || picked.length > 0) &&
-    searchScopeReady;
+    searchScopeReady &&
+    withheldPicks.length === 0;
 
   /** The template's URL button appends this to the app origin, so the
    *  suffix must carry the scope as well as the contact. */
@@ -373,6 +393,7 @@ export function ShowcaseShareSheet({
         search: trimmedSearch,
         ids: scopeIds,
         portal_url: link,
+        audience,
         contact_ids: contactIds.join(','),
       }).toString()}`
     ).then((response) => response.data);
@@ -652,6 +673,22 @@ export function ShowcaseShareSheet({
   function chooseChannel(contacts: Contact[]) {
     setRecipients(false);
     if (contacts.length === 0) return;
+    const withheld =
+      scope === 'pick'
+        ? withheldFromCoBrokers(picked, {
+            coBrokerAudience: audience === 'agent',
+            recipients: contacts,
+          })
+        : [];
+    if (withheld.length > 0) {
+      haptic.warn();
+      show({
+        title: 'Buyers only',
+        message: withheldShareNotice(withheld.length),
+        actions: [{ label: 'OK', variant: 'primary', onPress: close }],
+      });
+      return;
+    }
     show({
       title: `Send to ${contacts.length} ${contacts.length === 1 ? 'contact' : 'contacts'}`,
       message: templateApproved
@@ -980,6 +1017,24 @@ export function ShowcaseShareSheet({
               ? `A WhatsApp-ready digest of the ${digest.data?.count ?? 0} listings this link opens, grouped by category.`
               : `{portalUrl} is replaced with the recipient's own tracked link, so their opens show by name in Pulse.`}
         </Text>
+
+        {withheldPicks.length > 0 ? (
+          <View
+            accessibilityRole="alert"
+            style={[
+              styles.notice,
+              {
+                borderColor: colors.warning,
+                backgroundColor: colors.warningSoft,
+              },
+            ]}
+          >
+            <Ionicons name="eye-off-outline" size={16} color={colors.warning} />
+            <Text style={{ flex: 1, fontSize: 12.5, color: colors.text }}>
+              {withheldShareNotice(withheldPicks.length)}
+            </Text>
+          </View>
+        ) : null}
 
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Pressable

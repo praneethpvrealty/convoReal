@@ -3935,6 +3935,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     id: contactId,
                     name: contact.name || null,
                     phone: contact.phone,
+                    classification: contact.classification ?? null,
                   }}
                 />
               )}

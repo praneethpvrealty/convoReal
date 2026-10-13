@@ -319,6 +319,15 @@ describe('showcase audience', () => {
     expect(slug).toContain(
       'if (agentView && isBuyersOnly(property)) notFound();'
     );
+    expect(slug.indexOf('isBuyersOnly(property)) notFound()')).toBeLessThan(
+      slug.indexOf('permanentRedirect(')
+    );
+    expect(slug).toContain("if (isAgentMode) carried.set('mode', 'view');");
+    expect(slug).toContain(
+      'await agentViewFor(resolvedParams, property.account_id)'
+    );
+    expect(slug).toContain('agentAudience={agentView}');
+    expect(root).toContain('agentAudience={agentView}');
     expect(read('src/lib/showcase/public-data.ts')).toContain(
       '.or(AGENT_VIEW_AUDIENCE_FILTER)'
     );
@@ -329,7 +338,7 @@ describe('showcase audience', () => {
       expect(read(route)).toContain('.or(AGENT_VIEW_AUDIENCE_FILTER)');
     }
     expect(read('src/components/showcase/showcase-view.tsx')).toContain(
-      "if (isAgentMode) params.set('mode', 'view');"
+      "if (agentLookups) params.set('mode', 'view');"
     );
     expect(read('src/components/showcase/similar-properties.tsx')).toContain(
       "if (agentMode) params.set('mode', 'view');"

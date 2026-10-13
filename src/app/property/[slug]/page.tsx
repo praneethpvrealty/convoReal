@@ -55,12 +55,37 @@ async function resolveProperty(
   return cachedResolvePropertyById(lookupKey, accountId);
 }
 
+// The co-broker view is mode=view; the same contact opening the plain
+// link is caught by the visitor id the link carries.
+async function agentViewFor(
+  params: { v?: string; mode?: string },
+  accountId: string
+): Promise<boolean> {
+  if (isAgentViewMode(params.mode)) return true;
+  return params.v ? cachedResolveVisitorIsAgent(accountId, params.v) : false;
+}
+
 export async function generateMetadata({
   params,
+  searchParams,
 }: PageProps): Promise<Metadata> {
-  const property = await resolveProperty(params);
+  const [property, resolvedParams] = await Promise.all([
+    resolveProperty(params),
+    searchParams,
+  ]);
   if (!property) return { title: `Properties | ${BRANDING.name}` };
   if (!opensByDirectLink(property, false)) {
+    return {
+      title: `Properties | ${BRANDING.name}`,
+      robots: { index: false, follow: false },
+    };
+  }
+  // The page 404s for the co-broker view; its unfurl must not name the
+  // listing either.
+  if (
+    isBuyersOnly(property) &&
+    (await agentViewFor(resolvedParams, property.account_id))
+  ) {
     return {
       title: `Properties | ${BRANDING.name}`,
       robots: { index: false, follow: false },
@@ -151,28 +176,27 @@ export default async function PropertyPage({
     : null;
   if (!opensByDirectLink(property, shareGrant !== null)) notFound();
 
+  // A buyers-only listing does not exist for the co-broker view, nor
+  // for a visitor the link names as an Agent contact. Decided before
+  // the canonical redirect so a stale slug cannot route around it.
+  const isAgentMode = isAgentViewMode(resolvedParams.mode);
+  const agentView = await agentViewFor(resolvedParams, property.account_id);
+  if (agentView && isBuyersOnly(property)) notFound();
+
   // Stale slugs (title edits, bare uuid/code links) 308 to the canonical
   // form so crawlers converge on one URL per listing.
   const canonicalSlug = propertySlug(property);
   if (decodeURIComponent(slug) !== canonicalSlug) {
     // The grant rides the redirect too — dropping ?g= here would send a
-    // recipient with a live key to the masked page instead.
+    // recipient with a live key to the masked page instead. So does the
+    // co-broker mode, or the canonical page would render the buyer view.
     const carried = new URLSearchParams();
     if (resolvedParams.v) carried.set('v', resolvedParams.v);
     if (resolvedParams.g) carried.set('g', resolvedParams.g);
+    if (isAgentMode) carried.set('mode', 'view');
     const suffix = carried.size > 0 ? `?${carried}` : '';
     permanentRedirect(`/property/${canonicalSlug}${suffix}`);
   }
-
-  const isAgentMode = isAgentViewMode(resolvedParams.mode);
-  // A buyers-only listing does not exist for the co-broker view, nor
-  // for a visitor the link names as an Agent contact.
-  const visitorIsAgent =
-    !isAgentMode && resolvedParams.v
-      ? await cachedResolveVisitorIsAgent(property.account_id, resolvedParams.v)
-      : false;
-  const agentView = isAgentMode || visitorIsAgent;
-  if (agentView && isBuyersOnly(property)) notFound();
   const { settings, accountName, properties, underContract, agents, profiles } =
     await cachedFetchShowcaseData(property.account_id, isAgentMode);
 
@@ -267,6 +291,7 @@ export default async function PropertyPage({
         siteName={accountName}
         initialPropertyId={property.id}
         initialAgentMode={isAgentMode}
+        agentAudience={agentView}
         visitorRef={resolvedParams.v}
         shareGrantToken={shareGrant?.token}
       />

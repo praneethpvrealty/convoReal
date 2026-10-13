@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { forShowcaseViewer } from '@/lib/inventory/showcase-audience';
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 import {
   buildInventorySummary,
@@ -69,6 +70,7 @@ export async function GET(request: Request) {
       .map((value) => value.trim())
       .filter(Boolean);
     const portalUrl = params.get('portal_url') || '';
+    const coBrokerAudience = params.get('audience') === 'agent';
     const contactIds = [
       ...new Set(
         (params.get('contact_ids') || '')
@@ -81,7 +83,7 @@ export async function GET(request: Request) {
     const { data, error } = await ctx.supabase
       .from('properties')
       .select(
-        'id, title, type, listing_type, price, price_per_sqft, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, location, sublocality, city, project, property_code, listing_source, latitude, longitude, tags, is_starred, images, video_url, description, features, nearby_highlights, google_map_link, created_at, updated_at'
+        'id, title, type, listing_type, price, price_per_sqft, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, location, sublocality, city, project, property_code, listing_source, latitude, longitude, tags, is_starred, images, video_url, description, features, nearby_highlights, google_map_link, showcase_audience, created_at, updated_at'
       )
       .eq('account_id', ctx.accountId)
       .eq('is_published', true)
@@ -96,7 +98,12 @@ export async function GET(request: Request) {
       );
     }
 
-    const published = (data ?? []) as unknown as Property[];
+    // The co-broker digest never names a buyers-only listing, whatever
+    // scope it was built for.
+    const published = forShowcaseViewer(
+      (data ?? []) as unknown as Property[],
+      coBrokerAudience
+    );
     const scoped =
       scope === 'search'
         ? ids.length > 0

@@ -644,6 +644,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         }
         initialCategory={resolvedParams.category}
         initialAgentMode={isAgentMode}
+        agentAudience={agentView}
         initialOnboardOffer={resolvedParams.onboard === '1'}
         visitorRef={resolvedParams.v}
         shareId={resolvedParams.s}

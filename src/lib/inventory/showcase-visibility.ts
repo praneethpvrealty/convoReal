@@ -49,45 +49,18 @@ export function isTeaserGated(p: VisibilityFields): boolean {
   return effectiveShowcaseVisibility(p) === 'teaser';
 }
 
-// ── Showcase audience (migration 20261013041500) ──────────────────
-// The gate above answers how much of a listing a stranger gets. The
-// audience answers who gets it at all: a buyers-only listing is
-// withheld from the co-broker view (mode=view) and from a visitor the
-// link names as an Agent contact. Rows are dropped where the catalogue
-// is read, never hidden in the UI, for the same view-source reason.
-
-export type ShowcaseAudience = 'all' | 'buyers_only';
-
-type AudienceFields = {
-  showcase_audience?: string | null;
-};
-
-/** NULL derives to 'all': withholding a listing from co-brokers is a
- *  deliberate per-listing decision. */
-export function effectiveShowcaseAudience(p: AudienceFields): ShowcaseAudience {
-  return p.showcase_audience === 'buyers_only' ? 'buyers_only' : 'all';
-}
-
-export function isBuyersOnly(p: AudienceFields): boolean {
-  return effectiveShowcaseAudience(p) === 'buyers_only';
-}
-
-/** PostgREST `.or()` filter for every row the co-broker view may list. */
-export const AGENT_VIEW_AUDIENCE_FILTER =
-  'showcase_audience.is.null,showcase_audience.neq.buyers_only';
-
-export function isAgentViewMode(mode: string | null | undefined): boolean {
-  return mode === 'view' || mode === 'agent';
-}
-
-/** The rows a viewer may see: every row for a buyer, the non-buyers-only
- *  rows for the co-broker view. */
-export function forShowcaseViewer<T extends AudienceFields>(
-  rows: T[],
-  agentView: boolean
-): T[] {
-  return agentView ? rows.filter((row) => !isBuyersOnly(row)) : rows;
-}
+// ── Showcase audience ─────────────────────────────────────────────
+// Lives in showcase-audience.ts, import-free so the mobile share sheet
+// can run the same pre-send rule; re-exported here for the web callers
+// that already reach the gate through this module.
+export {
+  AGENT_VIEW_AUDIENCE_FILTER,
+  effectiveShowcaseAudience,
+  forShowcaseViewer,
+  isAgentViewMode,
+  isBuyersOnly,
+  type ShowcaseAudience,
+} from '@/lib/inventory/showcase-audience';
 
 export function opensByDirectLink(
   p: { is_published?: boolean | null },

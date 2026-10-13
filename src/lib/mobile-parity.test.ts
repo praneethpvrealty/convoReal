@@ -616,6 +616,28 @@ describe('the portal link invite is one server draft on both surfaces', () => {
     }
   });
 
+  it('[PRP-046] refuses a buyers-only pick for an agent before composing the message, on both surfaces', () => {
+    const mobileSheet = mobileSource('components/showcase-share-sheet.tsx');
+    const webDialog = webSource(
+      'components/inventory/showcase-share-dialog.tsx'
+    );
+    expect(mobileSheet).toContain(
+      "from '@shared/lib/inventory/showcase-audience'"
+    );
+    expect(mobileSheet).toContain('withheldPicks.length === 0');
+    expect(mobileSheet).toContain('recipients: contacts,');
+    expect(mobileSheet).toContain('audience,');
+    expect(webDialog).toContain(
+      'const shareBlocked = withheldPicks.length > 0;'
+    );
+    expect(webDialog).toContain('if (!generatedLink || shareBlocked) return;');
+    expect(webDialog).toContain("'id, name, phone, name_tag, classification'");
+    expect(webDialog).toContain('audience,');
+    expect(webSource('components/contacts/contact-detail-view.tsx')).toContain(
+      'classification: contact.classification ?? null,'
+    );
+  });
+
   it('[CTM-002] offers the agent-view invite to co-brokers on both surfaces', () => {
     const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
     const mobileSheet = mobileSource('components/portal-invite-sheet.tsx');

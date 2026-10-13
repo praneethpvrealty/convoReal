@@ -149,6 +149,7 @@ async function render(params: Record<string, string>) {
       properties: Array<{ id: string }>;
       initialPropertyId?: string;
       initialAgentMode?: boolean;
+      agentAudience?: boolean;
     },
   };
 }
@@ -162,12 +163,14 @@ describe('showcase audience', () => {
     const { props } = await render({ ref: 'acct-1' });
     expect(props.properties.map((p) => p.id)).toEqual(['open', 'quiet', 'all']);
     expect(props.initialAgentMode).toBe(false);
+    expect(props.agentAudience).toBe(false);
   });
 
   it('[PRP-046] the co-broker view never receives a buyers-only row', async () => {
     const { props, tree } = await render({ ref: 'acct-1', mode: 'view' });
     expect(props.properties.map((p) => p.id)).toEqual(['open', 'all']);
     expect(props.initialAgentMode).toBe(true);
+    expect(props.agentAudience).toBe(true);
     expect(JSON.stringify(tree)).not.toContain('quiet');
   });
 
@@ -178,6 +181,7 @@ describe('showcase audience', () => {
     });
     expect(props.properties.map((p) => p.id)).toEqual(['open', 'all']);
     expect(props.initialAgentMode).toBe(false);
+    expect(props.agentAudience).toBe(true);
     expect(JSON.stringify(tree)).not.toContain('quiet');
   });
 

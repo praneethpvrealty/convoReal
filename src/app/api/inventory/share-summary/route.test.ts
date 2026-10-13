@@ -90,6 +90,33 @@ describe('/api/inventory/share-summary', () => {
     expect(body.data.summary).toContain('https://acme.test/');
   });
 
+  it('[PRP-046] the co-broker digest never names a buyers-only listing', async () => {
+    const ctx = accountWith([
+      ...rows,
+      {
+        id: 'p3',
+        property_code: 'CR-3',
+        title: 'Quiet villa on 5th Cross',
+        type: 'Residential House',
+        listing_type: 'Sale',
+        price: 70000000,
+        sublocality: 'Whitefield',
+        showcase_audience: 'buyers_only',
+      },
+    ]);
+    getCurrentAccount.mockResolvedValue(ctx);
+
+    const broker = await callGet(
+      '?scope=all&audience=agent&portal_url=https://acme.test/'
+    );
+    expect(broker.data.count).toBe(2);
+    expect(broker.data.summary).not.toContain('Quiet villa');
+
+    const buyer = await callGet('?scope=all&portal_url=https://acme.test/');
+    expect(buyer.data.count).toBe(3);
+    expect(buyer.data.summary).toContain('Quiet villa');
+  });
+
   it('keeps only the named category', async () => {
     getCurrentAccount.mockResolvedValue(accountWith(rows));
     const body = await callGet('?scope=all&category=Commercial');
