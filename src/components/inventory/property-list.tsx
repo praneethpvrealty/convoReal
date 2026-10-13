@@ -604,6 +604,14 @@ export function PropertyList({
                       <ShieldCheck className="size-2.5" /> Confidential
                     </span>
                   )}
+                  {property.showcase_audience === 'buyers_only' && (
+                    <span
+                      className="shrink-0 rounded-full border border-sky-500/25 bg-sky-500/10 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-sky-300 uppercase"
+                      title="Buyers only — hidden from the portal's agent view and from agent contacts"
+                    >
+                      Buyers only
+                    </span>
+                  )}
                   {property.location_tier === 'exact' && (
                     <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-emerald-400 uppercase">
                       In area

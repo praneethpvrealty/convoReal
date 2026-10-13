@@ -17,7 +17,19 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
-#### 10 October 2026
+#### 13 October 2026
+
+- **A listing can be kept from co-brokers on the portal.** A new
+  **Buyers only** switch beside Confidential listing, in the web and
+  mobile editors, withholds the listing from the portal's agent view
+  (`mode=view`, the clean view an Agent-classified contact is sent) and
+  from that contact opening the plain portal link; a deep link or
+  listing page for it opens the grid without it, its link preview shows
+  the agency instead, nearby and similar lookups skip it in agent view,
+  and sharing it from a contact's record to an Agent contact is refused.
+  Buyers, strangers and search engines see it as before. The inventory
+  list badges it on both surfaces. PRP-046. **Migration required:**
+  `supabase/migrations/20261013041500_showcase_audience.sql` (additive).
 
 - **A milestone tick shows at once.** Ticking or reopening a milestone on
   the closing checklist used to wait for the server and two refetches

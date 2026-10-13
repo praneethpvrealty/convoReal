@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { cachedFetchShowcaseData, splitShowcaseListings } from './public-data';
+import {
+  cachedFetchShowcaseData,
+  splitShowcaseListings,
+  toPublicProperties,
+} from './public-data';
+import type { Property } from '@/types';
 
 const state = {
   propertyCount: 1,
@@ -10,6 +15,7 @@ const state = {
   images: ['old.jpg'],
   catalogueFetches: 0,
   catalogueError: null as Error | null,
+  orFilters: [] as string[],
 };
 
 vi.mock('@/lib/supabase/admin', () => {
@@ -23,6 +29,10 @@ vi.mock('@/lib/supabase/admin', () => {
       },
       eq: () => self,
       in: () => self,
+      or: (filter: string) => {
+        state.orFilters.push(filter);
+        return self;
+      },
       order: () => self,
       limit: () =>
         Promise.resolve({
@@ -153,6 +163,38 @@ describe('cachedFetchShowcaseData', () => {
       expect.objectContaining({ accountId: 'acc-transient-failure' })
     );
     consoleError.mockRestore();
+  });
+});
+
+describe('showcase audience', () => {
+  beforeEach(() => {
+    state.orFilters = [];
+  });
+
+  it('[PRP-046] the co-broker catalogue read withholds buyers-only rows in SQL', async () => {
+    await cachedFetchShowcaseData('acc-audience-agent', true);
+    expect(state.orFilters).toEqual([
+      'showcase_audience.is.null,showcase_audience.neq.buyers_only',
+    ]);
+  });
+
+  it('[PRP-046] the buyer catalogue read is unfiltered', async () => {
+    await cachedFetchShowcaseData('acc-audience-buyer', false);
+    expect(state.orFilters).toEqual([]);
+  });
+
+  it('[PRP-046] the public reducer drops a buyers-only row for the co-broker view before it can be serialized', () => {
+    const rows = [
+      { id: 'quiet', type: 'Apartment', showcase_audience: 'buyers_only' },
+      { id: 'open', type: 'Apartment' },
+    ] as unknown as Property[];
+    expect(toPublicProperties(rows, [], [], true).map((p) => p.id)).toEqual([
+      'open',
+    ]);
+    expect(toPublicProperties(rows, [], [], false).map((p) => p.id)).toEqual([
+      'quiet',
+      'open',
+    ]);
   });
 });
 

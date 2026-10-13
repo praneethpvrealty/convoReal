@@ -1232,6 +1232,16 @@ describe('mobile property editor field parity', () => {
     );
     expect(source).toContain('label="Road width"');
   });
+
+  it('[PRP-046] offers the buyers-only switch and saves it as the web form does', () => {
+    expect(source).toContain('showcase_visibility, showcase_audience,');
+    expect(source).toContain(
+      "showcase_audience: buyersOnly ? 'buyers_only' : null"
+    );
+    expect(source).toContain('Buyers only');
+    const list = mobileSource('app/(app)/(tabs)/properties.tsx');
+    expect(list).toContain("property.showcase_audience === 'buyers_only'");
+  });
 });
 
 describe('mobile/lib/consent.ts mirrors the alerts-consent wording', () => {

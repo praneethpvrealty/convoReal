@@ -4,6 +4,7 @@ import { ShowcaseView } from '@/components/showcase/showcase-view';
 import {
   cachedFetchShowcaseData,
   cachedResolvePropertyById,
+  cachedResolveVisitorIsAgent,
   toPublicProperties,
 } from '@/lib/showcase/public-data';
 import {
@@ -23,6 +24,9 @@ import {
   localityLabel,
 } from '@/lib/inventory/location-guard';
 import {
+  forShowcaseViewer,
+  isAgentViewMode,
+  isBuyersOnly,
   isTeaserGated,
   opensByDirectLink,
   priceBand,
@@ -160,17 +164,27 @@ export default async function PropertyPage({
     permanentRedirect(`/property/${canonicalSlug}${suffix}`);
   }
 
-  const isAgentMode =
-    resolvedParams.mode === 'view' || resolvedParams.mode === 'agent';
+  const isAgentMode = isAgentViewMode(resolvedParams.mode);
+  // A buyers-only listing does not exist for the co-broker view, nor
+  // for a visitor the link names as an Agent contact.
+  const visitorIsAgent =
+    !isAgentMode && resolvedParams.v
+      ? await cachedResolveVisitorIsAgent(property.account_id, resolvedParams.v)
+      : false;
+  const agentView = isAgentMode || visitorIsAgent;
+  if (agentView && isBuyersOnly(property)) notFound();
   const { settings, accountName, properties, underContract, agents, profiles } =
     await cachedFetchShowcaseData(property.account_id, isAgentMode);
 
-  const catalogue = properties.some((p) => p.id === property.id)
-    ? properties
-    : [property, ...properties];
+  const listed = forShowcaseViewer(properties, agentView);
+  const catalogue = listed.some((p) => p.id === property.id)
+    ? listed
+    : [property, ...listed];
   const propertiesList = [
     ...catalogue,
-    ...underContract.filter((p) => p.id !== property.id),
+    ...forShowcaseViewer(underContract, agentView).filter(
+      (p) => p.id !== property.id
+    ),
   ];
   if (shareGrant) {
     await trackGrantView(supabaseAdmin(), shareGrant);

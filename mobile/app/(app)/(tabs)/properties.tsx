@@ -1036,6 +1036,7 @@ function PropertyCard({
 }) {
   const { colors } = useTheme();
   const gated = property.showcase_visibility === 'teaser';
+  const buyersOnly = property.showcase_audience === 'buyers_only';
   const gateLine = gateSummary(gateStats?.[property.id]);
   // Mounted only while open: the inventory renders dozens of cards, and
   // a sheet is a Modal each.
@@ -1263,6 +1264,31 @@ function PropertyCard({
               color={colors.textMuted}
             />
           </Pressable>
+        ) : null}
+        {buyersOnly ? (
+          <View
+            style={styles.gateRow}
+            accessibilityLabel={`${property.title} is buyers only, hidden from the portal's agent view`}
+          >
+            <View
+              style={[
+                styles.gateChip,
+                {
+                  backgroundColor: colors.primary + '1A',
+                  borderColor: colors.primary + '40',
+                },
+              ]}
+            >
+              <Ionicons
+                name="people-outline"
+                size={11}
+                color={colors.primary}
+              />
+              <Text style={[styles.gateChipText, { color: colors.primary }]}>
+                Buyers only
+              </Text>
+            </View>
+          </View>
         ) : null}
         {importCount > 0 ? (
           <Pressable

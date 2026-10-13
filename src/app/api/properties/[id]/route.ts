@@ -156,6 +156,7 @@ export async function PUT(
       google_map_link,
       location_privacy,
       showcase_visibility,
+      showcase_audience,
       rental_income,
       floor_tenancies,
       floor_plans,
@@ -547,6 +548,12 @@ export async function PUT(
           ? showcase_visibility
           : null;
     }
+    if (showcase_audience !== undefined) {
+      updateData.showcase_audience =
+        showcase_audience === 'buyers_only' || showcase_audience === 'all'
+          ? showcase_audience
+          : null;
+    }
 
     if (rental_income !== undefined) {
       updateData.rental_income =
@@ -709,6 +716,7 @@ export async function PUT(
       // Same reasoning for the page gate: a viewer who cannot see this
       // listing's location must not be able to un-gate its public page.
       delete updateData.showcase_visibility;
+      delete updateData.showcase_audience;
     }
 
     // Flipping the confidential switch moves the photos, it does not

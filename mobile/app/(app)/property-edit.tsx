@@ -133,7 +133,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
         'bedrooms, bathrooms, area_sqft, area_unit, total_floors, is_published, type, images, ' +
         'video_url, video_status, video_generated_at, youtube_video_id, youtube_status, youtube_error, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
-        'dimensions, road_width, road_width_unit, facing_direction, google_map_link, showcase_visibility, features, nearby_highlights, tags, ' +
+        'dimensions, road_width, road_width_unit, facing_direction, google_map_link, showcase_visibility, showcase_audience, features, nearby_highlights, tags, ' +
         'latitude, longitude, khata_epid, khata_form, year_built, ' +
         'floor_tenancies, floor_plans, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
     )
@@ -258,6 +258,9 @@ function EditForm({ property }: { property: Property }) {
   const [mapLink, setMapLink] = useState(property.google_map_link ?? '');
   const [confidential, setConfidential] = useState(
     property.showcase_visibility === 'teaser'
+  );
+  const [buyersOnly, setBuyersOnly] = useState(
+    property.showcase_audience === 'buyers_only'
   );
   const [features, setFeatures] = useState<string[]>(property.features ?? []);
   const [nearby, setNearby] = useState<string[]>(
@@ -479,6 +482,7 @@ function EditForm({ property }: { property: Property }) {
       state: stateVal.trim() || null,
       google_map_link: mapLink.trim() || null,
       showcase_visibility: confidential ? 'teaser' : null,
+      showcase_audience: buyersOnly ? 'buyers_only' : null,
       features,
       nearby_highlights: nearby,
       tags,
@@ -1248,6 +1252,26 @@ function EditForm({ property }: { property: Property }) {
           <Switch
             value={confidential}
             onValueChange={setConfidential}
+            trackColor={{ true: colors.primary, false: colors.border }}
+            thumbColor="#fff"
+          />
+        </View>
+
+        <View style={styles.publishRow}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text
+              style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}
+            >
+              Buyers only
+            </Text>
+            <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+              Hidden from the portal’s agent view and from agent contacts you
+              share the portal with. Buyers see it as usual.
+            </Text>
+          </View>
+          <Switch
+            value={buyersOnly}
+            onValueChange={setBuyersOnly}
             trackColor={{ true: colors.primary, false: colors.border }}
             thumbColor="#fff"
           />

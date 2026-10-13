@@ -1471,6 +1471,7 @@ export function ShowcaseView({
     setNearbyError(null);
     try {
       const params = new URLSearchParams({ account_id: accountId, q: query });
+      if (isAgentMode) params.set('mode', 'view');
       const res = await fetch(
         `/api/public/properties/near?${params.toString()}`
       );
@@ -4182,6 +4183,7 @@ export function ShowcaseView({
                         accountId={accountId}
                         currentProperty={selectedProperty}
                         onSelect={openPropertyModal}
+                        agentMode={isAgentMode}
                       />
                     )}
 

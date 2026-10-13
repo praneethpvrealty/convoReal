@@ -13,6 +13,7 @@ import {
   cachedResolvePropertyById,
   cachedResolveSellerPage,
   cachedResolveShowcaseRef,
+  cachedResolveVisitorIsAgent,
   resolveSubdomainFromHost,
   toPublicProperties,
 } from '@/lib/showcase/public-data';
@@ -22,6 +23,9 @@ import {
   trackGrantView,
 } from '@/lib/inventory/share-grants';
 import {
+  forShowcaseViewer,
+  isAgentViewMode,
+  isBuyersOnly,
   isTeaserGated,
   opensByDirectLink,
   priceBand,
@@ -180,6 +184,12 @@ export async function generateMetadata({
   const accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
   const property = await cachedResolvePropertyById(propertyId, accountId);
   if (!property || !opensByDirectLink(property, false)) return DEFAULT_METADATA;
+
+  // A buyers-only listing does not exist for the co-broker view, so a
+  // mode=view link to it unfurls as the agency, not the listing.
+  if (isAgentViewMode(resolvedParams.mode) && isBuyersOnly(property)) {
+    return DEFAULT_METADATA;
+  }
 
   // Gated without consulting ?g=: this is the unfurl a forwarded link
   // produces, and an unfurl carries no grant.
@@ -381,7 +391,7 @@ export default async function RootPage({ searchParams }: PageProps) {
           resolvedTarget.account_id
         )
       : null;
-  const targetProperty =
+  let targetProperty =
     resolvedTarget &&
     opensByDirectLink(resolvedTarget, draftGrant !== null) &&
     (!sellerPage ||
@@ -446,18 +456,35 @@ export default async function RootPage({ searchParams }: PageProps) {
     );
   }
 
+  // ── Audience: who is looking ─────────────────────────────────
+  // The co-broker view is mode=view; the same contact opening the
+  // plain link is caught by the visitor id the link carries. A
+  // buyers-only listing never reaches either, deep-linked or not.
+  const visitorIsAgent =
+    !isAgentMode && !sellerPage && resolvedParams.v
+      ? await cachedResolveVisitorIsAgent(accountId, resolvedParams.v)
+      : false;
+  const agentView = isAgentMode || visitorIsAgent;
+  const targetHiddenFromViewer =
+    targetProperty !== null && agentView && isBuyersOnly(targetProperty);
+  if (targetHiddenFromViewer) targetProperty = null;
+
   // ── Phase 2: Fetch showcase data (cached) ────────────────────
   const {
     settings,
     accountName,
     engineWhatsAppPhone,
-    properties: publishedProperties,
-    underContract,
+    properties: catalogueProperties,
+    underContract: catalogueUnderContract,
     agents: agentContacts,
     profiles,
     services,
     articles,
   } = await cachedFetchShowcaseData(accountId, isAgentMode);
+  // Reduced once, here: every consumer below (the grid, the business
+  // profile, the authority links) serializes rows into the page.
+  const publishedProperties = forShowcaseViewer(catalogueProperties, agentView);
+  const underContract = forShowcaseViewer(catalogueUnderContract, agentView);
 
   let filteredProperties = [...publishedProperties, ...underContract];
 
@@ -612,7 +639,8 @@ export default async function RootPage({ searchParams }: PageProps) {
         referrerPhone={referrerPhone || undefined}
         engineWhatsAppPhone={engineWhatsAppPhone}
         initialPropertyId={
-          targetProperty?.id ?? (sellerPage ? undefined : initialPropertyId)
+          targetProperty?.id ??
+          (sellerPage || targetHiddenFromViewer ? undefined : initialPropertyId)
         }
         initialCategory={resolvedParams.category}
         initialAgentMode={isAgentMode}

@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  AGENT_VIEW_AUDIENCE_FILTER,
+  effectiveShowcaseAudience,
   effectiveShowcaseVisibility,
+  forShowcaseViewer,
+  isAgentViewMode,
+  isBuyersOnly,
   isTeaserGated,
   opensByDirectLink,
   priceBand,
@@ -261,6 +266,73 @@ describe('opensByDirectLink', () => {
     ).toBeLessThan(slug.indexOf('permanentRedirect('));
     expect(read('src/app/api/properties/[id]/og-image/route.ts')).toContain(
       '!opensByDirectLink(raw, false)'
+    );
+  });
+});
+
+describe('showcase audience', () => {
+  it('[PRP-046] NULL derives to every viewer; only an explicit buyers_only withholds', () => {
+    expect(effectiveShowcaseAudience({})).toBe('all');
+    expect(effectiveShowcaseAudience({ showcase_audience: null })).toBe('all');
+    expect(effectiveShowcaseAudience({ showcase_audience: 'all' })).toBe('all');
+    expect(
+      effectiveShowcaseAudience({ showcase_audience: 'buyers_only' })
+    ).toBe('buyers_only');
+    expect(isBuyersOnly({ showcase_audience: 'buyers_only' })).toBe(true);
+    expect(isBuyersOnly({ showcase_audience: 'open' })).toBe(false);
+  });
+
+  it('[PRP-046] drops buyers-only rows for the co-broker view and nobody else', () => {
+    const rows = [
+      { id: 'a' },
+      { id: 'b', showcase_audience: 'buyers_only' },
+      { id: 'c', showcase_audience: 'all' },
+    ];
+    expect(forShowcaseViewer(rows, true).map((r) => r.id)).toEqual(['a', 'c']);
+    expect(forShowcaseViewer(rows, false)).toBe(rows);
+  });
+
+  it('[PRP-046] recognises both spellings of the co-broker view and the SQL filter matches NULL', () => {
+    expect(isAgentViewMode('view')).toBe(true);
+    expect(isAgentViewMode('agent')).toBe(true);
+    expect(isAgentViewMode('buyer')).toBe(false);
+    expect(isAgentViewMode(null)).toBe(false);
+    expect(AGENT_VIEW_AUDIENCE_FILTER).toBe(
+      'showcase_audience.is.null,showcase_audience.neq.buyers_only'
+    );
+  });
+
+  it('[PRP-046] every co-broker entry point applies the audience', () => {
+    const read = (path: string) =>
+      readFileSync(join(process.cwd(), path), 'utf8');
+    const root = read('src/app/(showcase)/page.tsx');
+    expect(root).toContain(
+      'cachedResolveVisitorIsAgent(accountId, resolvedParams.v)'
+    );
+    expect(root).toContain(
+      'if (targetHiddenFromViewer) targetProperty = null;'
+    );
+    expect(root).toContain(
+      'isAgentViewMode(resolvedParams.mode) && isBuyersOnly(property)'
+    );
+    const slug = read('src/app/property/[slug]/page.tsx');
+    expect(slug).toContain(
+      'if (agentView && isBuyersOnly(property)) notFound();'
+    );
+    expect(read('src/lib/showcase/public-data.ts')).toContain(
+      '.or(AGENT_VIEW_AUDIENCE_FILTER)'
+    );
+    for (const route of [
+      'src/app/api/public/properties/near/route.ts',
+      'src/app/api/public/properties/similar/route.ts',
+    ]) {
+      expect(read(route)).toContain('.or(AGENT_VIEW_AUDIENCE_FILTER)');
+    }
+    expect(read('src/components/showcase/showcase-view.tsx')).toContain(
+      "if (isAgentMode) params.set('mode', 'view');"
+    );
+    expect(read('src/components/showcase/similar-properties.tsx')).toContain(
+      "if (agentMode) params.set('mode', 'view');"
     );
   });
 });

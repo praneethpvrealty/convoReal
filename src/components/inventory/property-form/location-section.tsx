@@ -85,6 +85,7 @@ export function LocationSection({
     idealFor,
     googleMapLink,
     showcaseVisibility,
+    showcaseAudience,
     notes,
     tags,
     rentalIncome,
@@ -369,6 +370,28 @@ export function LocationSection({
             checked={showcaseVisibility === 'teaser'}
             onCheckedChange={(checked) =>
               set('showcaseVisibility', checked ? 'teaser' : '')
+            }
+          />
+        </div>
+
+        <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+          <div className="space-y-0.5">
+            <Label
+              htmlFor="prop-showcase-audience"
+              className="cursor-pointer text-sm text-slate-300"
+            >
+              Buyers only
+            </Label>
+            <p className="text-xs leading-normal text-slate-400">
+              Hidden from the portal’s agent view and from agent contacts you
+              share the portal with. Buyers see it as usual.
+            </p>
+          </div>
+          <Switch
+            id="prop-showcase-audience"
+            checked={showcaseAudience === 'buyers_only'}
+            onCheckedChange={(checked) =>
+              set('showcaseAudience', checked ? 'buyers_only' : '')
             }
           />
         </div>

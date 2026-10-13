@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
+  AGENT_VIEW_AUDIENCE_FILTER,
+  isAgentViewMode,
+} from '@/lib/inventory/showcase-visibility';
+import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
@@ -85,6 +89,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const accountId = searchParams.get('account_id')?.trim() || '';
   const query = searchParams.get('q')?.trim().replace(/\s+/g, ' ') || '';
+  const agentView = isAgentViewMode(searchParams.get('mode'));
 
   if (!UUID.test(accountId)) {
     return NextResponse.json(
@@ -111,7 +116,7 @@ export async function GET(request: Request) {
   );
   if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
-  const { data, error } = await supabaseAdmin()
+  let listingQuery = supabaseAdmin()
     .from('properties')
     .select(
       'id, latitude, longitude, city, locality_canonical, sublocality, location, project, title'
@@ -119,6 +124,8 @@ export async function GET(request: Request) {
     .eq('account_id', accountId)
     .eq('is_published', true)
     .eq('status', 'Available');
+  if (agentView) listingQuery = listingQuery.or(AGENT_VIEW_AUDIENCE_FILTER);
+  const { data, error } = await listingQuery;
 
   if (error) {
     console.error('[GET /api/public/properties/near] select error:', error);

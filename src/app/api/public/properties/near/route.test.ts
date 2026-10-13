@@ -25,6 +25,10 @@ vi.mock('@/lib/supabase/admin', () => ({
           selectCalls.push([column, value]);
           return builder;
         },
+        or(filter: string) {
+          selectCalls.push(['or', filter]);
+          return builder;
+        },
         then(resolve: (value: unknown) => void) {
           resolve({ data: rows.data, error: null });
         },
@@ -61,11 +65,15 @@ const { RATE_LIMITS, __resetRateLimitForTests } =
 const ACCOUNT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 let ip = 0;
 
-function req(q: string, opts: { account?: string; ip?: string } = {}) {
+function req(
+  q: string,
+  opts: { account?: string; ip?: string; mode?: string } = {}
+) {
   const params = new URLSearchParams({
     account_id: opts.account ?? ACCOUNT,
     q,
   });
+  if (opts.mode) params.set('mode', opts.mode);
   return new Request(`http://localhost/api/public/properties/near?${params}`, {
     headers: { 'x-forwarded-for': opts.ip ?? `10.1.0.${++ip}` },
   });
@@ -97,6 +105,19 @@ beforeEach(() => {
 });
 
 describe('GET /api/public/properties/near', () => {
+  it('[PRP-046] withholds buyers-only listings from the co-broker view only', async () => {
+    placesAutocomplete.mockResolvedValue([]);
+    await GET(req('jayanagar', { mode: 'view' }));
+    expect(selectCalls).toContainEqual([
+      'or',
+      'showcase_audience.is.null,showcase_audience.neq.buyers_only',
+    ]);
+
+    selectCalls.length = 0;
+    await GET(req('jayanagar'));
+    expect(selectCalls.some(([column]) => column === 'or')).toBe(false);
+  });
+
   it('[PRP-013] resolves a partial area name in the inventory city and returns nearby listings without coordinates', async () => {
     placesAutocomplete.mockResolvedValue([
       {
