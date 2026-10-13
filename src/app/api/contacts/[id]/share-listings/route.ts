@@ -14,6 +14,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
+import { isBuyersOnly } from '@/lib/inventory/showcase-visibility';
 
 // GET  /api/contacts/[id]/share-listings → whether this contact already
 //      has a Portfolio account, the Portfolio sign-in link, and the nudge
@@ -121,16 +122,35 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const { data: properties, error: propertiesError } = await ctx.supabase
       .from('properties')
-      .select('id')
+      .select('id, showcase_audience')
       .eq('account_id', ctx.accountId)
       .in('id', propertyIds);
     if (propertiesError) throw propertiesError;
-    const ownedIds = (properties ?? []).map((row) => row.id as string);
+    const owned = (properties ?? []) as Array<{
+      id: string;
+      showcase_audience?: string | null;
+    }>;
+    const ownedIds = owned.map((row) => row.id);
     if (ownedIds.length === 0) {
       return NextResponse.json(
         { error: 'None of those properties belong to this account' },
         { status: 404 }
       );
+    }
+    if (contact.classification === 'Agent') {
+      const withheld = owned.filter(isBuyersOnly).length;
+      if (withheld > 0) {
+        return NextResponse.json(
+          {
+            error:
+              withheld === 1
+                ? 'One of these listings is buyers only and cannot be shared with an agent'
+                : `${withheld} of these listings are buyers only and cannot be shared with an agent`,
+            code: 'BUYERS_ONLY',
+          },
+          { status: 400 }
+        );
+      }
     }
 
     for (const propertyId of ownedIds) {

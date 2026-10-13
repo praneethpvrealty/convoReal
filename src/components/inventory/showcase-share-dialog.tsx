@@ -43,6 +43,10 @@ import {
 import { filterPropertiesBySearch } from '@/lib/inventory/search-filter';
 import { buildShowcaseShareLink } from '@/lib/inventory/showcase-share-link';
 import { formatShareAmount } from '@/lib/share-message-builder';
+import {
+  withheldFromCoBrokers,
+  withheldShareNotice,
+} from '@/lib/inventory/showcase-audience';
 import { previewSegments } from '@/lib/showcase/message-preview';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
@@ -55,6 +59,7 @@ interface PickerContact {
   name: string | null;
   phone: string | null;
   name_tag?: string | null;
+  classification?: string | null;
 }
 
 interface PersonalizedShareSummary {
@@ -90,6 +95,7 @@ interface ShowcaseShareDialogProps {
     id: string;
     name: string | null;
     phone: string | null;
+    classification?: string | null;
   } | null;
 }
 
@@ -221,7 +227,7 @@ Best regards`;
       const db = createClient();
       void db
         .from('contacts')
-        .select('id, name, phone, name_tag')
+        .select('id, name, phone, name_tag, classification')
         .eq('account_id', accountId)
         .eq('status', 'active')
         .order('name')
@@ -500,6 +506,22 @@ Best regards`;
   );
   const sendableContacts = selectedContacts.filter((c) => c.phone);
 
+  // Decided before anything is composed: the share ledger only hears
+  // about a send after WhatsApp has opened, so it cannot be the guard.
+  const withheldPicks = useMemo(
+    () =>
+      scope === 'pick'
+        ? withheldFromCoBrokers(scopeProperties ?? [], {
+            coBrokerAudience: audience === 'agent',
+            recipients: portfolioContact
+              ? [...selectedContacts, portfolioContact]
+              : selectedContacts,
+          })
+        : [],
+    [scope, scopeProperties, audience, selectedContacts, portfolioContact]
+  );
+  const shareBlocked = withheldPicks.length > 0;
+
   function toggleContact(id: string) {
     setSelectedContactIds((current) =>
       current.includes(id)
@@ -540,6 +562,7 @@ Best regards`;
         .map((property) => property.property_code || property.id)
         .join(','),
       portal_url: generatedLink,
+      audience,
     });
     if (contactIds.length > 0) query.set('contact_ids', contactIds.join(','));
     const response = await fetch(`/api/inventory/share-summary?${query}`);
@@ -643,7 +666,7 @@ Best regards`;
   };
 
   const handleCopyLink = async () => {
-    if (!generatedLink) return;
+    if (!generatedLink || shareBlocked) return;
     try {
       await navigator.clipboard.writeText(generatedLink);
       setCopied(true);
@@ -656,7 +679,7 @@ Best regards`;
   };
 
   const handleCopyMessage = async () => {
-    if (!generatedLink) return;
+    if (!generatedLink || shareBlocked) return;
     try {
       const contact =
         selectedContacts.length === 1 ? selectedContacts[0] : null;
@@ -693,7 +716,7 @@ Best regards`;
   };
 
   const handleShareMessage = async () => {
-    if (!generatedLink) return;
+    if (!generatedLink || shareBlocked) return;
     try {
       if (navigator.share) {
         await navigator.share({
@@ -713,7 +736,7 @@ Best regards`;
   };
 
   const handleWhatsApp = async () => {
-    if (!generatedLink) return;
+    if (!generatedLink || shareBlocked) return;
     if (sendableContacts.length === 0) {
       toast.info(
         'Choose a contact so WhatsApp receives their tracked Showcase link.'
@@ -1058,6 +1081,15 @@ Best regards`;
           <div className="space-y-3">
             {stepLabel(3, 'How it goes out')}
 
+            {shareBlocked && (
+              <p
+                role="alert"
+                className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-normal text-amber-200"
+              >
+                {withheldShareNotice(withheldPicks.length)}
+              </p>
+            )}
+
             <div className="flex gap-2">
               <Input
                 readOnly
@@ -1066,7 +1098,7 @@ Best regards`;
               />
               <Button
                 onClick={() => void handleCopyLink()}
-                disabled={!generatedLink}
+                disabled={!generatedLink || shareBlocked}
                 variant="outline"
                 className="text-slate-350 flex h-9 shrink-0 items-center gap-1 border-slate-800 px-3 text-xs font-semibold hover:bg-slate-800"
               >
@@ -1080,7 +1112,7 @@ Best regards`;
               <Button
                 variant="outline"
                 onClick={() => window.open(generatedLink, '_blank')}
-                disabled={!generatedLink}
+                disabled={!generatedLink || shareBlocked}
                 className="text-slate-350 flex h-9 shrink-0 items-center gap-1 border-slate-800 px-3 text-xs hover:bg-slate-800"
               >
                 <ExternalLink className="size-3.5" />
@@ -1201,7 +1233,7 @@ Best regards`;
               <div className="flex gap-2">
                 <Button
                   onClick={() => void handleCopyMessage()}
-                  disabled={!generatedLink}
+                  disabled={!generatedLink || shareBlocked}
                   className="flex flex-1 items-center justify-center gap-2 bg-emerald-600 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500"
                 >
                   {copiedMessage ? (
@@ -1218,7 +1250,7 @@ Best regards`;
                 </Button>
                 <Button
                   onClick={() => void handleShareMessage()}
-                  disabled={!generatedLink}
+                  disabled={!generatedLink || shareBlocked}
                   variant="outline"
                   className="flex items-center justify-center gap-2 border-emerald-600 px-4 py-2.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-600/20"
                 >

@@ -1,7 +1,11 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { toPublicListingView } from '@/lib/inventory/showcase-visibility';
+import {
+  AGENT_VIEW_AUDIENCE_FILTER,
+  forShowcaseViewer,
+  toPublicListingView,
+} from '@/lib/inventory/showcase-visibility';
 import type { GrantedReveals } from '@/lib/inventory/share-grants';
 import type {
   Project,
@@ -198,6 +202,31 @@ export const cachedResolveShowcaseRef = unstable_cache(
   { revalidate: 3600 }
 );
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Whether the visitor a share link names (?v=) is one of the account's
+// Agent-classified contacts. A co-broker's link already carries
+// mode=view; this catches the same contact opening the plain link, so a
+// buyers-only listing stays withheld from them either way. Cached like
+// the other per-visit lookups: a reclassified contact sees the new
+// audience within the window, and nothing on this path may add a
+// per-request query.
+export const cachedResolveVisitorIsAgent = unstable_cache(
+  async (accountId: string, contactId: string): Promise<boolean> => {
+    if (!UUID_RE.test(contactId)) return false;
+    const { data } = await supabaseAdmin()
+      .from('contacts')
+      .select('classification')
+      .eq('id', contactId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    return data?.classification === 'Agent';
+  },
+  ['showcase-visitor-agent'],
+  { revalidate: 300 }
+);
+
 export const cachedResolveSellerPage = cache((slug: string) =>
   resolveSellerPage(supabaseAdmin(), slug)
 );
@@ -336,6 +365,7 @@ const fetchShowcaseData = async (
         .eq('account_id', accountId)
         .eq('is_published', true)
         .in('status', SHOWCASE_LISTED_STATUSES)
+        .or(AGENT_VIEW_AUDIENCE_FILTER)
         .order('created_at', { ascending: false }),
       admin
         .from('agency_services')
@@ -512,7 +542,7 @@ export function toPublicProperties(
     }
   });
 
-  return properties.map((prop) => {
+  return forShowcaseViewer(properties, isAgentMode).map((prop) => {
     const agent = prop.user_id ? userIdToAgentMap[prop.user_id] : null;
     const granted =
       grant && grant.propertyId === prop.id ? grant.reveals : undefined;

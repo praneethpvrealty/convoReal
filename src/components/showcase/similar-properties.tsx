@@ -11,6 +11,8 @@ interface SimilarPropertiesProps {
   /** Switches the showcase modal to the clicked property (mirrors the
    *  main grid's card click behaviour). */
   onSelect: (property: Property) => void;
+  /** The co-broker view (mode=view): buyers-only listings are withheld. */
+  agentMode?: boolean;
 }
 
 interface ScoredProperty extends Property {
@@ -74,6 +76,7 @@ export function SimilarProperties({
   accountId,
   currentProperty,
   onSelect,
+  agentMode = false,
 }: SimilarPropertiesProps) {
   const [properties, setProperties] = useState<ScoredProperty[] | null>(null);
 
@@ -97,6 +100,7 @@ export function SimilarProperties({
         lat: String(currentProperty.latitude || 0),
         lon: String(currentProperty.longitude || 0),
       });
+      if (agentMode) params.set('mode', 'view');
 
       try {
         const res = await fetch(
@@ -116,6 +120,7 @@ export function SimilarProperties({
     };
   }, [
     accountId,
+    agentMode,
     currentProperty.id,
     currentProperty.type,
     currentProperty.listing_type,

@@ -2068,6 +2068,56 @@
           ]
         },
         {
+          "id": "PRP-046",
+          "rule": "A listing marked Buyers only (showcase_audience = buyers_only; NULL means everyone) is withheld from the portal's co-broker view: the catalogue read for mode=view excludes it in SQL and the public reducer drops it again, so the row never reaches the client; a visitor the link names as an Agent-classified contact (?v=) is treated the same without the mode; a mode=view deep link or /property/ page for it opens the grid without it or 404s, and its link preview unfurls as the agency, not the listing; the nearby and similar public lookups exclude it when the client says it is in agent view; a hand-picked share is refused before any message is composed, on web and mobile, when it goes out as the co-broker link or to an Agent-classified recipient, the co-broker digest never names it, and the share ledger route refuses it for an Agent-classified contact with BUYERS_ONLY; a stale-slug redirect carries mode=view, and the listing page's own link preview is gated the same way; buyers, strangers and search engines see it exactly as before. The switch sits beside Confidential listing in the web and mobile editors, the inventory list badges it on both, and the create and update routes accept only all or buyers_only.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/showcase-visibility.test.ts",
+              "case": "[PRP-046]"
+            },
+            {
+              "file": "src/lib/inventory/showcase-audience.test.ts",
+              "case": "[PRP-046]"
+            },
+            {
+              "file": "src/lib/showcase/public-data.test.ts",
+              "case": "[PRP-046]"
+            },
+            {
+              "file": "src/app/api/inventory/share-summary/route.test.ts",
+              "case": "[PRP-046]"
+            },
+            {
+              "file": "src/app/(showcase)/page.audience.test.tsx",
+              "case": "[PRP-046]"
+            },
+            {
+              "file": "src/app/api/public/properties/near/route.test.ts",
+              "case": "[PRP-046]"
+            },
+            {
+              "file": "src/app/api/public/properties/similar/route.test.ts",
+              "case": "[PRP-046]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/share-listings/route.test.ts",
+              "case": "[PRP-046]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-046]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261013041500_showcase_audience.sql",
+            "src/lib/inventory/showcase-audience.ts",
+            "src/lib/inventory/showcase-visibility.ts",
+            "src/lib/showcase/public-data.ts",
+            "src/app/(showcase)/page.tsx",
+            "src/app/property/[slug]/page.tsx"
+          ]
+        },
+        {
           "id": "PRP-044",
           "rule": "A listing can be shared as a WhatsApp catalog product card from the web share dialog and the mobile share sheet whenever the account has a Meta catalog: both show the same sync status (not synced, sync failed, indexing for 90 seconds after a sync, synced), both offer Sync now, both refuse to send until indexing has finished, and both send through the same product broadcast with the same retailer id (property code, else id) and caption, whose location never carries a guarded listing's street address. Only recipients the broadcast reports as sent are recorded on the share ledger. A sync counts as synced only once Meta's batch has finished without errors and the product is found in the catalog under that retailer id; otherwise the listing shows Sync failed with Meta's reason, so a send never reaches Meta for a product the catalog does not hold; the catalog item is priced in the account's showcase currency (INR when none is set) and its price is sent in that currency's minor units (paise for INR), as Meta's catalog batch API expects, so the card shows the listing's real price, a sync fails rather than guessing when that currency cannot be read, and changing the account currency clears every synced item so none is offered at the old price currency; an automatic resync after an edit or approval clears the previous sync in the same write as the save, so the card is not offered while the new one is unconfirmed; the mobile sheet refuses to guess the price currency when the account's showcase settings cannot be read.",
           "tests": [

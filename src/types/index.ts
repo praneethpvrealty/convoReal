@@ -1270,6 +1270,9 @@ export interface Property {
   /** Showcase gating (migration 254). NULL = derived ('open'). 'teaser'
    *  reduces the public page to a stub behind a request-access gate. */
   showcase_visibility?: 'open' | 'teaser' | null;
+  /** Showcase audience (migration 20261013041500). NULL = derived ('all').
+   *  'buyers_only' withholds the listing from the co-broker view. */
+  showcase_audience?: 'all' | 'buyers_only' | null;
   /** Set by the showcase serializer, never stored: this row was reduced
    *  to its teaser for the current viewer. */
   teaser_gated?: boolean;

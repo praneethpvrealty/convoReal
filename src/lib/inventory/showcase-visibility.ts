@@ -49,6 +49,19 @@ export function isTeaserGated(p: VisibilityFields): boolean {
   return effectiveShowcaseVisibility(p) === 'teaser';
 }
 
+// ── Showcase audience ─────────────────────────────────────────────
+// Lives in showcase-audience.ts, import-free so the mobile share sheet
+// can run the same pre-send rule; re-exported here for the web callers
+// that already reach the gate through this module.
+export {
+  AGENT_VIEW_AUDIENCE_FILTER,
+  effectiveShowcaseAudience,
+  forShowcaseViewer,
+  isAgentViewMode,
+  isBuyersOnly,
+  type ShowcaseAudience,
+} from '@/lib/inventory/showcase-audience';
+
 export function opensByDirectLink(
   p: { is_published?: boolean | null },
   hasGrant: boolean

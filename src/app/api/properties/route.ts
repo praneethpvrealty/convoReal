@@ -660,6 +660,7 @@ export async function POST(request: Request) {
       google_map_link,
       location_privacy,
       showcase_visibility,
+      showcase_audience,
       rental_income,
       floor_tenancies,
       floor_plans,
@@ -832,6 +833,10 @@ export async function POST(request: Request) {
       showcase_visibility:
         showcase_visibility === 'teaser' || showcase_visibility === 'open'
           ? showcase_visibility
+          : null,
+      showcase_audience:
+        showcase_audience === 'buyers_only' || showcase_audience === 'all'
+          ? showcase_audience
           : null,
       rental_income: typeof rental_income === 'number' ? rental_income : null,
       // Derived here rather than trusted: a rental's price is its

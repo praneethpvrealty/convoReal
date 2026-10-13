@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { storagePublicUrl } from '@/lib/storage/url';
-import { toPublicListingView } from '@/lib/inventory/showcase-visibility';
+import {
+  AGENT_VIEW_AUDIENCE_FILTER,
+  isAgentViewMode,
+  toPublicListingView,
+} from '@/lib/inventory/showcase-visibility';
 import type { Property } from '@/types';
 
 /**
@@ -109,6 +113,7 @@ export async function GET(request: Request) {
 
     const accountId = searchParams.get('account_id');
     const propertyId = searchParams.get('property_id');
+    const agentView = isAgentViewMode(searchParams.get('mode'));
 
     if (!accountId || !propertyId) {
       return NextResponse.json(
@@ -143,13 +148,16 @@ export async function GET(request: Request) {
     const client = supabaseAdmin();
 
     // Fetch a broad candidate pool — same account, published, available, excluding current property
-    const { data: rawCandidates, error } = await client
+    let candidateQuery = client
       .from('properties')
       .select(CANDIDATE_COLUMNS)
       .eq('account_id', accountId)
       .eq('is_published', true)
       .eq('status', 'Available')
-      .neq('id', propertyId)
+      .neq('id', propertyId);
+    if (agentView)
+      candidateQuery = candidateQuery.or(AGENT_VIEW_AUDIENCE_FILTER);
+    const { data: rawCandidates, error } = await candidateQuery
       .order('created_at', { ascending: false })
       .limit(CANDIDATE_LIMIT);
 

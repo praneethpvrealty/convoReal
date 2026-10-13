@@ -217,4 +217,37 @@ describe('POST /api/contacts/[id]/share-listings', () => {
     const res = await POST(post({ property_ids: ['p-1'] }), { params });
     expect(res.status).toBe(404);
   });
+
+  it('[PRP-046] refuses to share a buyers-only listing with an Agent contact', async () => {
+    const agent = { ...contact, classification: 'Agent' };
+    queues['contacts'] = [{ data: agent }];
+    queues['properties'] = [
+      {
+        data: [
+          { id: 'p-1', showcase_audience: null },
+          { id: 'p-2', showcase_audience: 'buyers_only' },
+        ],
+      },
+    ];
+
+    const res = await POST(post({ property_ids: ['p-1', 'p-2'] }), { params });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe('BUYERS_ONLY');
+    expect(body.error).toContain('buyers only');
+    expect(upserts).toEqual([]);
+  });
+
+  it('[PRP-046] shares the same listing with a buyer as before', async () => {
+    queues['contacts'] = [{ data: contact }, { data: contact }];
+    queues['properties'] = [
+      { data: [{ id: 'p-2', showcase_audience: 'buyers_only' }] },
+    ];
+    queues['property_shares'] = [{ data: null }];
+    adminQueues['buyer_contact_links'] = [{ data: [] }];
+
+    const res = await POST(post({ property_ids: ['p-2'] }), { params });
+    expect(res.status).toBe(200);
+    expect(upserts.some((u) => u.table === 'property_shares')).toBe(true);
+  });
 });

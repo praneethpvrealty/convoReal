@@ -136,6 +136,7 @@ export interface PropertyFormValues {
   googleMapLink: string;
   locationPrivacy: '' | 'exact' | 'locality';
   showcaseVisibility: '' | 'teaser';
+  showcaseAudience: '' | 'buyers_only';
   notes: string;
   tags: string[];
   rentalIncome: string;
@@ -237,6 +238,7 @@ export function emptyPropertyFormValues(
     googleMapLink: '',
     locationPrivacy: '',
     showcaseVisibility: '',
+    showcaseAudience: '',
     notes: '',
     tags: [],
     geoPick: null,
@@ -521,6 +523,8 @@ export function propertyToFormValues(
         : '',
     showcaseVisibility:
       property.showcase_visibility === 'teaser' ? 'teaser' : '',
+    showcaseAudience:
+      property.showcase_audience === 'buyers_only' ? 'buyers_only' : '',
     notes: property.notes ?? '',
     tags: property.tags || [],
     // Preserve saved coordinates unless the agent re-touches the location
@@ -775,6 +779,7 @@ export function buildPropertyPayload(
     googleMapLink,
     locationPrivacy,
     showcaseVisibility,
+    showcaseAudience,
     notes,
     tags,
     rentalIncome,
@@ -976,6 +981,7 @@ export function buildPropertyPayload(
     google_map_link: googleMapLink.trim() || null,
     location_privacy: locationPrivacy || null,
     showcase_visibility: showcaseVisibility || null,
+    showcase_audience: showcaseAudience || null,
     rental_income:
       hasCommercialBuildingFields && rentalIncome.trim() !== ''
         ? Number(rentalIncome)

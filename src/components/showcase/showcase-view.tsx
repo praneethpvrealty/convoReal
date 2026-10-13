@@ -150,6 +150,10 @@ interface ShowcaseViewProps {
   initialCategory?: string;
   /** ?mode=view (legacy: agent) resolved on the server so the first paint is already the clean listing view. */
   initialAgentMode?: boolean;
+  /** The server withheld buyers-only listings from this viewer (agent
+   *  view, or a visitor the link names as an Agent contact); the nearby
+   *  and similar lookups must withhold them too. */
+  agentAudience?: boolean;
   /** Sender opted to offer account onboarding and an attributed inventory copy. */
   initialOnboardOffer?: boolean;
   /** Contact id from per-contact share links (?v=…) — Showcase Pulse
@@ -220,6 +224,7 @@ export function ShowcaseView({
   initialPropertyId,
   initialCategory,
   initialAgentMode = false,
+  agentAudience = false,
   initialOnboardOffer = false,
   visitorRef,
   shareId,
@@ -430,6 +435,7 @@ export function ShowcaseView({
 
   // ?mode=view (legacy: agent): clean listing detail view (no forms, buttons, or document requests)
   const [isAgentMode, setIsAgentMode] = useState(initialAgentMode);
+  const agentLookups = isAgentMode || agentAudience;
 
   // Start fetching the share target's hero image from the document head,
   // before hydration and ahead of the grid's card images.
@@ -1471,6 +1477,7 @@ export function ShowcaseView({
     setNearbyError(null);
     try {
       const params = new URLSearchParams({ account_id: accountId, q: query });
+      if (agentLookups) params.set('mode', 'view');
       const res = await fetch(
         `/api/public/properties/near?${params.toString()}`
       );
@@ -4182,6 +4189,7 @@ export function ShowcaseView({
                         accountId={accountId}
                         currentProperty={selectedProperty}
                         onSelect={openPropertyModal}
+                        agentMode={agentLookups}
                       />
                     )}
 

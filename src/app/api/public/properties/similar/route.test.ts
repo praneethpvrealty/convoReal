@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { GET } from './route';
 import type { Property } from '@/types';
 
+const { orFilters } = vi.hoisted(() => ({ orFilters: [] as string[] }));
+
 // Mock DB candidate pool
 const mockCandidates: Partial<Property>[] = [
   {
@@ -65,6 +67,10 @@ vi.mock('@/lib/supabase/admin', () => {
         select: vi.fn().mockImplementation(() => builder),
         eq: vi.fn().mockImplementation(() => builder),
         neq: vi.fn().mockImplementation(() => builder),
+        or: vi.fn().mockImplementation((filter: string) => {
+          orFilters.push(filter);
+          return builder;
+        }),
         order: vi.fn().mockImplementation(() => builder),
         limit: vi.fn().mockImplementation(() => {
           return Promise.resolve({ data: mockCandidates, error: null });
@@ -79,6 +85,28 @@ vi.mock('@/lib/supabase/admin', () => {
 });
 
 describe('GET /api/public/properties/similar', () => {
+  it('[PRP-046] withholds buyers-only candidates from the co-broker view only', async () => {
+    const base = new URLSearchParams({
+      account_id: 'acc-123',
+      property_id: 'seed-prop',
+    });
+    orFilters.length = 0;
+    await GET(
+      new Request(
+        `http://localhost/api/public/properties/similar?${base}&mode=view`
+      )
+    );
+    expect(orFilters).toEqual([
+      'showcase_audience.is.null,showcase_audience.neq.buyers_only',
+    ]);
+
+    orFilters.length = 0;
+    await GET(
+      new Request(`http://localhost/api/public/properties/similar?${base}`)
+    );
+    expect(orFilters).toEqual([]);
+  });
+
   it('should return 400 if required query params are missing', async () => {
     const req = new Request('http://localhost/api/public/properties/similar');
     const res = await GET(req);
