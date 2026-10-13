@@ -27,6 +27,14 @@ than a written entry. Newest first.
   said "Not recorded" without making a single request. The ledger is now
   posted first and on its own, the profile is fetched on demand with
   retries, and the timeline note follows once it arrives. JRN-021.
+- **A product card sent moments after a catalog sync no longer fails with
+  Meta's "product not found".** Meta confirms a catalog item in its product
+  list before the WhatsApp product store that messages read has caught up,
+  so a send inside that gap came back as "Sent to 0 of 1" with error 131009.
+  The product broadcast now reads that refusal as the listing still being
+  listed, stops after the first recipient, says so in plain words on web and
+  mobile, and restarts the 90-second indexing countdown so the card is not
+  offered again at once. PRP-044.
 - **Every mobile dialog follows the app's theme.** The last eighteen
   prompts that still used the operating system's alert — the unrecorded
   share notice, deleting the account, clearing done tasks, the to-do

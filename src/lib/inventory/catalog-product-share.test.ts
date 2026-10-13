@@ -7,7 +7,9 @@ import {
   CATALOG_INDEXING_SECONDS,
   catalogProductCaption,
   catalogProductRetailerId,
+  catalogProductPendingNotice,
   catalogShareState,
+  isCatalogProductPending,
   matchCatalogSendResults,
 } from './catalog-product-share';
 
@@ -35,6 +37,24 @@ describe('[PRP-044] WhatsApp catalog product card share', () => {
         syncedMs + CATALOG_INDEXING_SECONDS * 1000
       )
     ).toEqual({ status: 'ready', secondsLeft: 0 });
+  });
+
+  it('reads a 131009 "product not found" refusal as Meta still listing the item', () => {
+    expect(
+      isCatalogProductPending(
+        '[Error 131009] (#131009) Parameter value is not valid (Details: product not found for product_retailer_id, PROP-2200, in catalog_id, 1547752690053122)'
+      )
+    ).toBe(true);
+    expect(
+      isCatalogProductPending('[Error 131009] Parameter value is not valid')
+    ).toBe(false);
+    expect(
+      isCatalogProductPending('[Error 131026] Message undeliverable')
+    ).toBe(false);
+    expect(isCatalogProductPending(null)).toBe(false);
+    expect(catalogProductPendingNotice('PROP-2200')).toBe(
+      'Meta has not finished listing PROP-2200 in the WhatsApp catalog yet. Give it a few minutes and send again.'
+    );
   });
 
   it('addresses the catalog item by property code, else id', () => {

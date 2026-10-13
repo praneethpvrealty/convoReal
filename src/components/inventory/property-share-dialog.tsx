@@ -91,6 +91,7 @@ import {
 } from '@/lib/whatsapp/property-share-template';
 import {
   catalogProductCaption,
+  catalogProductPendingNotice,
   catalogProductRetailerId,
   catalogShareState,
   matchCatalogSendResults,
@@ -1678,6 +1679,21 @@ export function PropertyShareDialog({
           .filter((_, i) => resultsMap[i].status === 'sent')
           .map((c) => c.id)
       );
+
+      const pendingNotice = catalogProductPendingNotice(
+        catalogProductRetailerId(property)
+      );
+      if (
+        resultsMap.length > 0 &&
+        resultsMap.every((r) => r.error === pendingNotice)
+      ) {
+        // The route restarted the indexing window; count it down here too
+        // instead of offering the card again at once.
+        setMetaCatalogSyncedAt(new Date().toISOString());
+        toast.warning(pendingNotice);
+        setBroadcastStep('matches');
+        return;
+      }
 
       setBroadcastResults(resultsMap);
       setBroadcastStep('results');
