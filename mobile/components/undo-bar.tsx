@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import {
@@ -32,6 +33,7 @@ export function useUndoBar(options?: { bottomOffset?: number }): UndoBarHandle {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const [entries, setEntries] = useState<UndoEntry[]>([]);
+  const { show: showDialog, dialogProps } = useAppDialog();
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const seq = useRef(0);
 
@@ -84,7 +86,10 @@ export function useUndoBar(options?: { bottomOffset?: number }): UndoBarHandle {
       await onUndo();
     } catch {
       haptic.warn();
-      Alert.alert('Could not undo', 'Check your connection and try again.');
+      showDialog({
+        title: 'Could not undo',
+        message: 'Check your connection and try again.',
+      });
     }
   }
 
@@ -93,37 +98,50 @@ export function useUndoBar(options?: { bottomOffset?: number }): UndoBarHandle {
     options?.bottomOffset ?? 0
   );
 
-  const element = entry ? (
-    <View
-      key={entry.key}
-      accessibilityRole="alert"
-      accessibilityLiveRegion="polite"
-      style={[
-        styles.bar,
-        {
-          bottom,
-          backgroundColor: colors.surfaceWell,
-          borderColor: colors.border,
-        },
-      ]}
-    >
-      <Text
-        numberOfLines={2}
-        style={[styles.message, { color: colors.text, fontFamily: f.medium }]}
-      >
-        {undoBarLabel(entry.message, entries.length)}
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Undo"
-        hitSlop={8}
-        onPress={() => void undo()}
-        style={({ pressed }) => [styles.undo, { opacity: pressed ? 0.6 : 1 }]}
-      >
-        <Text style={{ color: colors.primary, fontFamily: f.bold }}>Undo</Text>
-      </Pressable>
-    </View>
-  ) : null;
+  const element = (
+    <>
+      {entry ? (
+        <View
+          key={entry.key}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+          style={[
+            styles.bar,
+            {
+              bottom,
+              backgroundColor: colors.surfaceWell,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <Text
+            numberOfLines={2}
+            style={[
+              styles.message,
+              { color: colors.text, fontFamily: f.medium },
+            ]}
+          >
+            {undoBarLabel(entry.message, entries.length)}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Undo"
+            hitSlop={8}
+            onPress={() => void undo()}
+            style={({ pressed }) => [
+              styles.undo,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+          >
+            <Text style={{ color: colors.primary, fontFamily: f.bold }}>
+              Undo
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
+      <AppDialog {...dialogProps} />
+    </>
+  );
 
   return { show, element };
 }

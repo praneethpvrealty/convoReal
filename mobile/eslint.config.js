@@ -19,6 +19,23 @@ module.exports = defineConfig([
   },
   {
     rules: {
+      // The OS alert ignores the app's theme and fonts; every dialog goes
+      // through AppDialog (components/app-dialog) — useAppDialog() inside a
+      // screen or sheet, showAppDialog() from code with no tree of its own.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react-native',
+              importNames: ['Alert'],
+              message:
+                'Use AppDialog / useAppDialog / showAppDialog from components/app-dialog instead of the OS alert.',
+            },
+          ],
+        },
+      ],
+
       // A web rule that does not apply here: React Native's <Text> renders
       // HTML entities literally, so "&apos;" would ship as those six
       // characters. The rule's own suggested fix breaks the UI.

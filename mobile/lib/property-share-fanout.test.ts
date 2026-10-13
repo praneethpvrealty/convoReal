@@ -16,7 +16,10 @@ vi.mock('./api', () => ({
   isTimeout: () => false,
   isRateLimited: (e: unknown) => (e as { status?: number })?.status === 429,
 }));
-vi.mock('./auth-store', () => ({ useAuthStore: { getState: () => ({}) } }));
+vi.mock('./auth-store', () => ({
+  ensureProfile: async () => null,
+  currentUserId: async () => null,
+}));
 vi.mock('./supabase', () => ({ supabase: {} }));
 
 const { apiFetch } = await import('./api');

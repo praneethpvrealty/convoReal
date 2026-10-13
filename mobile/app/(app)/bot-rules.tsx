@@ -3,7 +3,6 @@ import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -66,6 +66,7 @@ export default function BotRulesScreen() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { show, dialogProps } = useAppDialog();
   const [directive, setDirective] = useState('');
   const [influence, setInfluence] = useState<Influence>('tone');
   const [contact, setContact] = useState('');
@@ -80,10 +81,10 @@ export default function BotRulesScreen() {
       })
       .catch((error: unknown) => {
         if (!cancelled) {
-          Alert.alert(
-            'Could not load bot rules',
-            error instanceof Error ? error.message : 'Try again.'
-          );
+          show({
+            title: 'Could not load bot rules',
+            message: error instanceof Error ? error.message : 'Try again.',
+          });
         }
       })
       .finally(() => {
@@ -92,7 +93,7 @@ export default function BotRulesScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [show]);
 
   async function addRule() {
     if (!directive.trim() || saving) return;
@@ -111,10 +112,10 @@ export default function BotRulesScreen() {
       setRules((current) => [result.data, ...current]);
       setDirective('');
     } catch (error) {
-      Alert.alert(
-        'Could not save bot rule',
-        error instanceof Error ? error.message : 'Try again.'
-      );
+      show({
+        title: 'Could not save bot rule',
+        message: error instanceof Error ? error.message : 'Try again.',
+      });
     } finally {
       setSaving(false);
     }
@@ -134,10 +135,10 @@ export default function BotRulesScreen() {
       setRules((current) =>
         current.map((item) => (item.id === rule.id ? rule : item))
       );
-      Alert.alert(
-        'Could not update bot rule',
-        error instanceof Error ? error.message : 'Try again.'
-      );
+      show({
+        title: 'Could not update bot rule',
+        message: error instanceof Error ? error.message : 'Try again.',
+      });
     }
   }
 
@@ -300,6 +301,7 @@ export default function BotRulesScreen() {
           </View>
         )}
       </ScrollView>
+      <AppDialog {...dialogProps} />
     </>
   );
 }

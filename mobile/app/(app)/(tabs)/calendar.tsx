@@ -12,7 +12,6 @@ import {
 } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   AppState,
   Pressable,
   RefreshControl,
@@ -25,6 +24,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import {
+  AppDialog,
+  showAppDialog,
+  useAppDialog,
+} from '@/components/app-dialog';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
@@ -223,6 +227,7 @@ export default function CalendarScreen() {
 function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
+  const { show: showDialog, dialogProps: screenDialogProps } = useAppDialog();
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const [today, setToday] = useState(() => new Date());
   const params = useLocalSearchParams<{ eventId?: string | string[] }>();
@@ -336,7 +341,7 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
         .eq('user_id', userId)
         .select('id');
       if (error || !data?.length) {
-        Alert.alert('Could not save the archived setting');
+        showDialog({ title: 'Could not save the archived setting' });
       }
       if (write === archivedViewLatest.current) {
         await queryClient.invalidateQueries({ queryKey: key });
@@ -461,12 +466,13 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
     } catch (err) {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       haptic.warn();
-      Alert.alert(
-        'Could not archive',
-        err instanceof ApiError
-          ? err.message
-          : 'Check your connection and try again.'
-      );
+      showDialog({
+        title: 'Could not archive',
+        message:
+          err instanceof ApiError
+            ? err.message
+            : 'Check your connection and try again.',
+      });
     } finally {
       setArchiving(false);
     }
@@ -917,6 +923,7 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
         }}
       />
       {undoBar}
+      <AppDialog {...screenDialogProps} />
     </View>
   );
 }
@@ -1114,6 +1121,7 @@ function DoneTodosGroup({
   const [doneOpen, setDoneOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { show, close, dialogProps } = useAppDialog();
 
   async function clearCompleted() {
     setClearing(true);
@@ -1135,14 +1143,21 @@ function DoneTodosGroup({
 
   function confirmClear() {
     haptic.tap();
-    Alert.alert('Clear completed', clearCompletedPrompt(todos.length), [
-      { text: 'Keep', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => void clearCompleted(),
-      },
-    ]);
+    show({
+      title: 'Clear completed',
+      message: clearCompletedPrompt(todos.length),
+      actions: [
+        { label: 'Keep', variant: 'muted', onPress: close },
+        {
+          label: 'Delete',
+          variant: 'destructive',
+          onPress: () => {
+            close();
+            void clearCompleted();
+          },
+        },
+      ],
+    });
   }
 
   return (
@@ -1194,6 +1209,7 @@ function DoneTodosGroup({
       {doneOpen
         ? todos.map((todo) => <TodoRow key={todo.id} todo={todo} now={now} />)
         : null}
+      <AppDialog {...dialogProps} />
     </View>
   );
 }
@@ -2063,14 +2079,15 @@ function AppointmentDetail({
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       const delivery = result.notifications;
-      Alert.alert(
-        'Event updated',
-        delivery?.failed
+      // The sheet closes on the next line, so this cannot live in it.
+      showAppDialog({
+        title: 'Event updated',
+        message: delivery?.failed
           ? `${delivery.sent} message${delivery.sent === 1 ? '' : 's'} sent. ${delivery.failed} could not be delivered.`
           : delivery?.sent
             ? `${delivery.sent} participant${delivery.sent === 1 ? '' : 's'} notified on WhatsApp.`
-            : 'Your changes have been saved.'
-      );
+            : 'Your changes have been saved.',
+      });
       onClose();
     } catch (err) {
       haptic.warn();

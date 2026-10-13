@@ -1,5 +1,4 @@
-import { Alert } from 'react-native';
-
+import { showAppDialog } from '@/lib/app-dialog-store';
 import { chunkIds } from '@/lib/calendar-tasks';
 import { openContactChat } from '@/lib/open-chat';
 import { loadEveryPage } from '@/lib/calendar-upcoming';
@@ -86,32 +85,30 @@ async function resolveCompletionIntent(
   const participant = contact.name || contact.phone || 'the participant';
 
   return new Promise((resolve) => {
-    Alert.alert(
-      'Open → Completed',
-      `Before closing this task, do you want to check with ${participant} about the ${draft.label}?`,
-      [
+    showAppDialog({
+      title: 'Open → Completed',
+      message: `Before closing this task, do you want to check with ${participant} about the ${draft.label}?`,
+      actions: [
         {
-          text: 'Keep open',
-          style: 'cancel',
+          label: 'Keep open',
+          variant: 'muted',
           onPress: () => resolve(false),
         },
         {
-          text: 'Check in first',
+          label: 'Check in first',
           onPress: () => {
             void openContactChat(contact, { draftText: draft.message });
             resolve(false);
           },
         },
         {
-          text: 'Complete now',
+          label: 'Complete now',
+          variant: 'primary',
           onPress: () => resolve(true),
         },
       ],
-      {
-        cancelable: true,
-        onDismiss: () => resolve(false),
-      }
-    );
+      onDismiss: () => resolve(false),
+    });
   });
 }
 

@@ -9,20 +9,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import {
+  type DialogAction,
+  type DialogSpec,
+  dismissAppDialog,
+  useAppDialogStore,
+} from '@/lib/app-dialog-store';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
-export interface DialogAction {
-  label: string;
-  onPress: () => void;
-  variant?: 'primary' | 'default' | 'muted' | 'destructive';
-}
-
-export interface DialogSpec {
-  title: string;
-  message?: string;
-  /** Omit for a single primary "OK" that dismisses. */
-  actions?: DialogAction[];
-}
+export type { DialogAction, DialogSpec } from '@/lib/app-dialog-store';
+export { showAppDialog } from '@/lib/app-dialog-store';
 
 /**
  * Local dialog state for one screen or sheet. The dialog renders where
@@ -46,6 +42,31 @@ export function useAppDialog() {
       actions: spec?.actions,
     },
   };
+}
+
+/**
+ * Mount once at the root. Shows the dialogs `showAppDialog()` queues from
+ * code that has no tree of its own — one at a time, each action or
+ * dismissal moving on to the next.
+ */
+export function AppDialogHost() {
+  const current: DialogSpec | undefined = useAppDialogStore((s) => s.queue[0]);
+  const settle = (run?: () => void) => {
+    dismissAppDialog();
+    run?.();
+  };
+  return (
+    <AppDialog
+      visible={current !== undefined}
+      onClose={() => settle(current?.onDismiss)}
+      title={current?.title ?? ''}
+      message={current?.message}
+      actions={current?.actions?.map((a) => ({
+        ...a,
+        onPress: () => settle(a.onPress),
+      }))}
+    />
+  );
 }
 
 /**

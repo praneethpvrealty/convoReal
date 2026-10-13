@@ -773,14 +773,17 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
 
   it('[JRN-021] tells the agent when a share stays unrecorded, in the same words on all six surfaces', () => {
     const actions = mobileSource('lib/property-share-actions.ts');
-    expect(actions).toContain(
-      "return ledger.status === 'fulfilled' && ledger.value.complete;"
+    const logShare = actions.slice(
+      actions.indexOf('export async function logExternalShare'),
+      actions.indexOf('const SHARE_TIMEOUT_MS')
     );
-    expect(actions).toContain(
-      'if (!profile?.account_id || !session?.user.id) return false;'
+    expect(logShare).toContain('return outcome.complete;');
+    expect(logShare.indexOf('postShareLog(')).toBeLessThan(
+      logShare.indexOf('ensureProfile()')
     );
+    expect(logShare).not.toContain('return false;');
     expect(mobileSource('components/property-share-sheet.tsx')).toContain(
-      "if (!recorded) Alert.alert('Not recorded', SHARE_UNRECORDED_NOTICE);"
+      "showAppDialog({\n          title: 'Not recorded',\n          message: SHARE_UNRECORDED_NOTICE,\n        });"
     );
     for (const file of [
       'components/inventory/property-matches-tab.tsx',
@@ -4096,7 +4099,7 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
     );
     expect(webCalendar).toContain('confirm(clearCompletedPrompt(ids.length))');
     expect(mobileCalendar).toContain(
-      "Alert.alert('Clear completed', clearCompletedPrompt(todos.length), ["
+      "title: 'Clear completed',\n      message: clearCompletedPrompt(todos.length),"
     );
     expect(webCalendar).toContain('completedTodoIds(doneTodos)');
     expect(mobileCalendar).toContain(
