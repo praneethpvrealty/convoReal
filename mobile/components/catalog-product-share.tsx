@@ -164,13 +164,16 @@ export function CatalogProductShare({
       const pendingNotice = catalogProductPendingNotice(
         catalogProductRetailerId(property)
       );
-      if (sent.length === 0 && failed.every((f) => f.error === pendingNotice)) {
+      const pending = failed.filter((f) => f.error === pendingNotice);
+      if (pending.length > 0) {
         // The route restarted the indexing window; count it down here too
         // instead of offering the card again at once.
         queryClient.setQueryData<CatalogShareContext>(queryKey, (prev) =>
           prev ? { ...prev, syncedAt: new Date().toISOString() } : prev
         );
         setNow(Date.now());
+      }
+      if (sent.length === 0 && pending.length === failed.length) {
         notify('Not listed on WhatsApp yet', pendingNotice);
         return;
       }

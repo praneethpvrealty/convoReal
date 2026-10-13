@@ -1683,16 +1683,15 @@ export function PropertyShareDialog({
       const pendingNotice = catalogProductPendingNotice(
         catalogProductRetailerId(property)
       );
-      if (
-        resultsMap.length > 0 &&
-        resultsMap.every((r) => r.error === pendingNotice)
-      ) {
+      if (resultsMap.some((r) => r.error === pendingNotice)) {
         // The route restarted the indexing window; count it down here too
         // instead of offering the card again at once.
         setMetaCatalogSyncedAt(new Date().toISOString());
         toast.warning(pendingNotice);
-        setBroadcastStep('matches');
-        return;
+        if (resultsMap.every((r) => r.error === pendingNotice)) {
+          setBroadcastStep('matches');
+          return;
+        }
       }
 
       setBroadcastResults(resultsMap);
