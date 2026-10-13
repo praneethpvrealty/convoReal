@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 
-import { useAuthStore } from '@/lib/auth-store';
+import { currentUserId, ensureProfile } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -33,13 +33,16 @@ export async function openContactChat(
     router.push(`/(app)/conversation/${existing}${draftParam}`);
     return { ok: true };
   }
-  const { profile, session } = useAuthStore.getState();
+  const [profile, userId] = await Promise.all([
+    ensureProfile(),
+    currentUserId(),
+  ]);
   if (!profile?.account_id) return { ok: false };
   const { data: conv, error } = await supabase
     .from('conversations')
     .insert({
       account_id: profile.account_id,
-      user_id: session?.user.id,
+      user_id: userId,
       contact_id: contact.id,
     })
     .select('id')

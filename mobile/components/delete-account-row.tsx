@@ -1,13 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ApiError } from '@/lib/api';
 import { signOut } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
@@ -35,6 +30,7 @@ export function DeleteAccountRow({
 }: DeleteAccountRowProps) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
+  const { show, close, dialogProps } = useAppDialog();
 
   async function run() {
     setBusy(true);
@@ -43,12 +39,12 @@ export function DeleteAccountRow({
       await signOut();
       onDeleted?.();
     } catch (e) {
-      Alert.alert(
-        'Could not delete your account',
-        friendlyError(
+      show({
+        title: 'Could not delete your account',
+        message: friendlyError(
           e instanceof ApiError ? e.message : 'Try again in a moment.'
-        )
-      );
+        ),
+      });
     } finally {
       setBusy(false);
     }
@@ -56,46 +52,61 @@ export function DeleteAccountRow({
 
   function confirm() {
     haptic.warn();
-    Alert.alert('Delete account?', consequence, [
-      { text: 'Keep my account', style: 'cancel' },
-      {
-        text: 'Continue',
-        style: 'destructive',
-        onPress: () =>
-          Alert.alert(
-            'This cannot be undone',
-            'Your account and its data are deleted permanently. There is no way to restore them.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Delete forever', style: 'destructive', onPress: run },
-            ]
-          ),
-      },
-    ]);
+    show({
+      title: 'Delete account?',
+      message: consequence,
+      actions: [
+        { label: 'Keep my account', variant: 'muted', onPress: close },
+        {
+          label: 'Continue',
+          variant: 'destructive',
+          onPress: () =>
+            show({
+              title: 'This cannot be undone',
+              message:
+                'Your account and its data are deleted permanently. There is no way to restore them.',
+              actions: [
+                { label: 'Cancel', variant: 'muted', onPress: close },
+                {
+                  label: 'Delete forever',
+                  variant: 'destructive',
+                  onPress: () => {
+                    close();
+                    void run();
+                  },
+                },
+              ],
+            }),
+        },
+      ],
+    });
   }
 
   return (
-    <Pressable
-      onPress={confirm}
-      disabled={busy}
-      accessibilityRole="button"
-      accessibilityLabel="Delete my account"
-      style={({ pressed }) => [
-        styles.row,
-        { borderColor: colors.danger, opacity: pressed || busy ? 0.6 : 1 },
-      ]}
-    >
-      {busy ? (
-        <ActivityIndicator size="small" color={colors.danger} />
-      ) : (
-        <Ionicons name="trash-outline" size={18} color={colors.danger} />
-      )}
-      <Text
-        style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}
+    <>
+      <Pressable
+        onPress={confirm}
+        disabled={busy}
+        accessibilityRole="button"
+        accessibilityLabel="Delete my account"
+        style={({ pressed }) => [
+          styles.row,
+          { borderColor: colors.danger, opacity: pressed || busy ? 0.6 : 1 },
+        ]}
       >
-        Delete my account
-      </Text>
-    </Pressable>
+        {busy ? (
+          <ActivityIndicator size="small" color={colors.danger} />
+        ) : (
+          <Ionicons name="trash-outline" size={18} color={colors.danger} />
+        )}
+        <Text
+          style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}
+        >
+          Delete my account
+        </Text>
+      </Pressable>
+      <AppDialog {...dialogProps} />
+    </>
   );
 }
 

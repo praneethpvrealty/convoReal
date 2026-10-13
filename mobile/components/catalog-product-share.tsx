@@ -9,7 +9,11 @@ import {
   View,
 } from 'react-native';
 
-import { catalogShareState } from '@shared/lib/inventory/catalog-product-share';
+import {
+  catalogProductPendingNotice,
+  catalogProductRetailerId,
+  catalogShareState,
+} from '@shared/lib/inventory/catalog-product-share';
 import { SHARE_UNRECORDED_NOTICE } from '@shared/lib/inventory/share-log-request';
 
 import { AppDialog, type DialogAction } from '@/components/app-dialog';
@@ -157,6 +161,22 @@ export function CatalogProductShare({
         return;
       }
       haptic.warn();
+      const pendingNotice = catalogProductPendingNotice(
+        catalogProductRetailerId(property)
+      );
+      const pending = failed.filter((f) => f.error === pendingNotice);
+      if (pending.length > 0) {
+        // The route restarted the indexing window; count it down here too
+        // instead of offering the card again at once.
+        queryClient.setQueryData<CatalogShareContext>(queryKey, (prev) =>
+          prev ? { ...prev, syncedAt: new Date().toISOString() } : prev
+        );
+        setNow(Date.now());
+      }
+      if (sent.length === 0 && pending.length === failed.length) {
+        notify('Not listed on WhatsApp yet', pendingNotice);
+        return;
+      }
       notify(
         `Sent to ${sent.length} of ${contacts.length}`,
         failed

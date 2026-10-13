@@ -33,6 +33,27 @@ export function catalogShareState(
   return { status: 'ready', secondsLeft: 0 };
 }
 
+/**
+ * Meta lists a catalog item in two places: the catalog's product list,
+ * which the sync confirms, and the WhatsApp product store the messages
+ * endpoint reads, which lags behind it by an unannounced interval. A
+ * send inside that gap is refused with 131009 "product not found" even
+ * though the sync was confirmed, so it is a wait, not a failed listing.
+ */
+export function isCatalogProductPending(
+  error: string | null | undefined
+): boolean {
+  return (
+    typeof error === 'string' &&
+    error.includes('131009') &&
+    /product not found/i.test(error)
+  );
+}
+
+export function catalogProductPendingNotice(retailerId: string): string {
+  return `Meta has not finished listing ${retailerId} in the WhatsApp catalog yet. Give it a few minutes and send again.`;
+}
+
 export function catalogProductRetailerId(p: {
   id: string;
   property_code?: string | null;

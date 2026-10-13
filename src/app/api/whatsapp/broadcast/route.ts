@@ -12,6 +12,10 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import {
+  catalogProductPendingNotice,
+  isCatalogProductPending,
+} from '@/lib/inventory/catalog-product-share';
 import type { MessageTemplate } from '@/types';
 import {
   accountPropertyShowcaseUrl,
@@ -32,7 +36,7 @@ function isRateLimitError(errorMsg: string): boolean {
 
 interface BroadcastResult {
   phone: string;
-  status: 'sent' | 'failed' | 'rate_limited';
+  status: 'sent' | 'failed' | 'rate_limited' | 'catalog_pending';
   whatsapp_message_id?: string;
   error?: string;
   isRateLimited?: boolean;
@@ -297,8 +301,20 @@ export async function POST(request: Request) {
     const results: BroadcastResult[] = [];
     let sentCount = 0;
     let failedCount = 0;
+    let catalogPending: string | null = null;
 
     for (const recipient of recipients) {
+      // Every later recipient would be refused the same way, so the
+      // rest wait with the first rather than each costing a Meta call.
+      if (catalogPending) {
+        results.push({
+          phone: recipient.phone,
+          status: 'catalog_pending',
+          error: catalogPending,
+        });
+        failedCount++;
+        continue;
+      }
       let recipientContact: { id: string; name: string | null } | null = null;
       if (propertyRow) {
         const normalized = recipient.phone.replace(/\D/g, '');
@@ -494,6 +510,30 @@ export async function POST(request: Request) {
           whatsapp_message_id: result.whatsappMessageId,
         });
         sentCount++;
+      } else if (
+        broadcast_type === 'product' &&
+        isCatalogProductPending(result.error)
+      ) {
+        catalogPending = catalogProductPendingNotice(product_retailer_id);
+        console.error(
+          '[broadcast] catalog product not yet listed for WhatsApp; fan-out stopped'
+        );
+        if (propertyRow) {
+          // Restart the indexing window both share surfaces count down,
+          // so the card is not offered again until Meta has had time.
+          await supabase
+            .from('properties')
+            // eslint-disable-next-line convoreal/supabase-write-guard
+            .update({ meta_catalog_synced_at: new Date().toISOString() })
+            .eq('id', propertyRow.id)
+            .eq('account_id', accountId);
+        }
+        results.push({
+          phone: recipient.phone,
+          status: 'catalog_pending',
+          error: catalogPending,
+        });
+        failedCount++;
       } else {
         const errMsg = result.error || 'Unknown error';
         const rateLimited = isRateLimitError(errMsg);

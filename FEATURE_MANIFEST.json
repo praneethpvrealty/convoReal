@@ -2119,7 +2119,7 @@
         },
         {
           "id": "PRP-044",
-          "rule": "A listing can be shared as a WhatsApp catalog product card from the web share dialog and the mobile share sheet whenever the account has a Meta catalog: both show the same sync status (not synced, sync failed, indexing for 90 seconds after a sync, synced), both offer Sync now, both refuse to send until indexing has finished, and both send through the same product broadcast with the same retailer id (property code, else id) and caption, whose location never carries a guarded listing's street address. Only recipients the broadcast reports as sent are recorded on the share ledger. A sync counts as synced only once Meta's batch has finished without errors and the product is found in the catalog under that retailer id; otherwise the listing shows Sync failed with Meta's reason, so a send never reaches Meta for a product the catalog does not hold; the catalog item is priced in the account's showcase currency (INR when none is set) and its price is sent in that currency's minor units (paise for INR), as Meta's catalog batch API expects, so the card shows the listing's real price, a sync fails rather than guessing when that currency cannot be read, and changing the account currency clears every synced item so none is offered at the old price currency; an automatic resync after an edit or approval clears the previous sync in the same write as the save, so the card is not offered while the new one is unconfirmed; the mobile sheet refuses to guess the price currency when the account's showcase settings cannot be read.",
+          "rule": "A listing can be shared as a WhatsApp catalog product card from the web share dialog and the mobile share sheet whenever the account has a Meta catalog: both show the same sync status (not synced, sync failed, indexing for 90 seconds after a sync, synced), both offer Sync now, both refuse to send until indexing has finished, and both send through the same product broadcast with the same retailer id (property code, else id) and caption, whose location never carries a guarded listing's street address. Only recipients the broadcast reports as sent are recorded on the share ledger. A sync counts as synced only once Meta's batch has finished without errors and the product is found in the catalog under that retailer id; otherwise the listing shows Sync failed with Meta's reason, so a send never reaches Meta for a product the catalog does not hold; the catalog item is priced in the account's showcase currency (INR when none is set) and its price is sent in that currency's minor units (paise for INR), as Meta's catalog batch API expects, so the card shows the listing's real price, a sync fails rather than guessing when that currency cannot be read, and changing the account currency clears every synced item so none is offered at the old price currency; an automatic resync after an edit or approval clears the previous sync in the same write as the save, so the card is not offered while the new one is unconfirmed; the mobile sheet refuses to guess the price currency when the account's showcase settings cannot be read. A confirmed sync can still be refused by Meta's messages endpoint with 131009 \"product not found\" while the WhatsApp product store catches up with the catalog: the product broadcast reads that refusal as the item still being listed, not as a failed send, stops the fan-out after the first recipient so no further Meta call is made, answers every recipient with one plain notice naming the listing, and restarts the indexing window on the listing so both surfaces count it down again before offering the card.",
           "tests": [
             {
               "file": "src/lib/inventory/catalog-product-share.test.ts",
@@ -2146,7 +2146,10 @@
               "case": "[PRP-044]"
             }
           ],
-          "guards": ["src/lib/inventory/catalog-product-share.ts"]
+          "guards": [
+            "src/lib/inventory/catalog-product-share.ts",
+            "src/app/api/whatsapp/broadcast/route.ts"
+          ]
         }
       ]
     },
@@ -2614,7 +2617,7 @@
         },
         {
           "id": "JRN-021",
-          "rule": "A share the ledger could not record is never reported as recorded. The server ledger writer never throws and never turns a delivered message into a send error, but it reports whether both the ledger row and the journey capture landed. POST /api/properties/share-log answers 200 with `recorded` counting only the recipients whose writes both landed and `failed` listing every other requested contact id. Every client that logs a share through it, on web and mobile (the share sheet, a logged personal-WhatsApp or email share, the mobile product-card send), reads the answer through one shared reader that retries the failed recipients, up to three attempts, retries a transport failure the same way, stops at once on a refusal, and treats a recorded count short of the recipients sent as unrecorded. Every one of those surfaces then tells the agent the share went out but was not recorded: the web share dialog, the web Matching Contacts broadcast, the web email share, a personal-WhatsApp share logged from the web contact page or the mobile share sheet, and the mobile product card, all six in the same words.",
+          "rule": "A share the ledger could not record is never reported as recorded. The server ledger writer never throws and never turns a delivered message into a send error, but it reports whether both the ledger row and the journey capture landed. POST /api/properties/share-log answers 200 with `recorded` counting only the recipients whose writes both landed and `failed` listing every other requested contact id. Every client that logs a share through it, on web and mobile (the share sheet, a logged personal-WhatsApp or email share, the mobile product-card send), reads the answer through one shared reader that retries the failed recipients, up to three attempts, retries a transport failure the same way, stops at once on a refusal, and treats a recorded count short of the recipients sent as unrecorded. Every one of those surfaces then tells the agent the share went out but was not recorded: the web share dialog, the web Matching Contacts broadcast, the web email share, a personal-WhatsApp share logged from the web contact page or the mobile share sheet, and the mobile product card, all six in the same words. The mobile personal-WhatsApp share posts the ledger before anything the device holds is consulted: a profile the app has not loaded yet delays only the timeline note, which is written once the profile is fetched on demand, and never leaves the share unrecorded.",
           "tests": [
             {
               "file": "src/lib/whatsapp/share-property-send.test.ts",
@@ -2635,6 +2638,10 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[JRN-021]"
+            },
+            {
+              "file": "mobile/lib/property-share-log.test.ts",
+              "case": "[JRN-021]"
             }
           ],
           "guards": [
@@ -2644,6 +2651,7 @@
             "src/lib/inventory/share-log.ts",
             "mobile/lib/catalog-product-share.ts",
             "mobile/lib/property-share-actions.ts",
+            "mobile/lib/auth-store.ts",
             "mobile/components/property-share-sheet.tsx",
             "src/components/inventory/property-matches-tab.tsx",
             "src/components/contacts/log-external-share-dialog.tsx"

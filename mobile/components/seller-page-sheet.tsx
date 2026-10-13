@@ -5,13 +5,13 @@ import * as Linking from 'expo-linking';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { BottomSheet } from '@/components/sheet';
 import { Banner, PrimaryButton } from '@/components/ui';
 import { friendlyError } from '@/lib/errors';
@@ -38,6 +38,7 @@ export function SellerPageSheet({
   const [pending, setPending] = useState<SellerPageAction | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const { show, close, dialogProps } = useAppDialog();
   const queryKey = ['seller-page', contact.id];
   const status = useQuery({
     queryKey,
@@ -89,14 +90,21 @@ export function SellerPageSheet({
   }
 
   function confirmRotate() {
-    Alert.alert(
-      'Create a new link?',
-      'The current link stops working immediately.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'New link', onPress: () => void run('rotate') },
-      ]
-    );
+    show({
+      title: 'Create a new link?',
+      message: 'The current link stops working immediately.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'New link',
+          variant: 'primary',
+          onPress: () => {
+            close();
+            void run('rotate');
+          },
+        },
+      ],
+    });
   }
 
   async function copyLink() {
@@ -257,6 +265,7 @@ export function SellerPageSheet({
           />
         )}
       </View>
+      <AppDialog {...dialogProps} />
     </BottomSheet>
   );
 }

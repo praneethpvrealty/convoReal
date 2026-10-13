@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { Banner, PrimaryButton } from '@/components/ui';
@@ -99,6 +99,7 @@ export function PortalExpirySheet({
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { show, close, dialogProps } = useAppDialog();
   const queryKey = ['portal-listings', accountId, propertyId];
   const listings = useQuery({
     queryKey,
@@ -146,18 +147,22 @@ export function PortalExpirySheet({
 
   function confirmRemoved(row: PortalListingRow) {
     haptic.tap();
-    Alert.alert(
-      `Mark ${PORTAL_LABELS[row.portal]} ad removed?`,
-      'Use this once the ad is taken down on the portal. ConvoReal stops tracking its expiry.',
-      [
-        { text: 'Cancel', style: 'cancel' },
+    show({
+      title: `Mark ${PORTAL_LABELS[row.portal]} ad removed?`,
+      message:
+        'Use this once the ad is taken down on the portal. ConvoReal stops tracking its expiry.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
         {
-          text: 'Mark removed',
-          style: 'destructive',
-          onPress: () => void markRemoved(row),
+          label: 'Mark removed',
+          variant: 'destructive',
+          onPress: () => {
+            close();
+            void markRemoved(row);
+          },
         },
-      ]
-    );
+      ],
+    });
   }
 
   async function markRemoved(row: PortalListingRow) {
@@ -421,6 +426,7 @@ export function PortalExpirySheet({
           </View>
         )}
       </ScrollView>
+      <AppDialog {...dialogProps} />
     </BottomSheet>
   );
 }

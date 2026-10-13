@@ -4,7 +4,6 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -342,6 +341,14 @@ function ContactCard({ contact }: { contact: Contact }) {
   } = useAppDialog();
   const { startCall, callLogProps } = useCallLog();
   const name = contact.name || contactHandle(contact);
+  async function makePrimary(phone: string) {
+    const failure = await promoteContactPhone(contact, phone);
+    if (failure)
+      showDialog({
+        title: 'Could not change the primary number',
+        message: failure,
+      });
+  }
   // Mirrors the contacts_delete RLS policy (migration 205): a manager may
   // delete anything in the account, everyone else only what they saved.
   const accountId = useAuthStore((s) => s.profile?.account_id);
@@ -675,23 +682,29 @@ function ContactCard({ contact }: { contact: Contact }) {
                   }
                   // Asked once: the pick becomes the primary and is
                   // remembered, so the next tap goes straight through.
-                  Alert.alert(
-                    'WhatsApp which number?',
-                    'Your pick becomes the primary number and is remembered.',
-                    [
+                  showDialog({
+                    title: 'WhatsApp which number?',
+                    message:
+                      'Your pick becomes the primary number and is remembered.',
+                    actions: [
                       ...contactPhoneNumbers(contact).map((phone) => ({
-                        text:
+                        label:
                           phone === contact.phone
                             ? `${phone} · primary`
                             : phone,
                         onPress: async () => {
-                          await promoteContactPhone(contact, phone);
+                          closeDialog();
+                          await makePrimary(phone);
                           openWelcomeWhatsApp(contact, phone);
                         },
                       })),
-                      { text: 'Cancel', style: 'cancel' as const },
-                    ]
-                  );
+                      {
+                        label: 'Cancel',
+                        variant: 'muted' as const,
+                        onPress: closeDialog,
+                      },
+                    ],
+                  });
                 }}
               />
               <ActionButton
@@ -779,21 +792,33 @@ function ContactCard({ contact }: { contact: Contact }) {
             <OtherPhonesRow
               phones={contact.secondary_phones}
               onPress={(phone) =>
-                Alert.alert(phone, undefined, [
-                  {
-                    text: 'WhatsApp',
-                    onPress: () => openWelcomeWhatsApp(contact, phone),
-                  },
-                  {
-                    text: 'Call',
-                    onPress: () => startCall({ ...contact, phone }),
-                  },
-                  {
-                    text: 'Make primary',
-                    onPress: () => promoteContactPhone(contact, phone),
-                  },
-                  { text: 'Cancel', style: 'cancel' },
-                ])
+                showDialog({
+                  title: phone,
+                  actions: [
+                    {
+                      label: 'WhatsApp',
+                      onPress: () => {
+                        closeDialog();
+                        openWelcomeWhatsApp(contact, phone);
+                      },
+                    },
+                    {
+                      label: 'Call',
+                      onPress: () => {
+                        closeDialog();
+                        startCall({ ...contact, phone });
+                      },
+                    },
+                    {
+                      label: 'Make primary',
+                      onPress: () => {
+                        closeDialog();
+                        void makePrimary(phone);
+                      },
+                    },
+                    { label: 'Cancel', variant: 'muted', onPress: closeDialog },
+                  ],
+                })
               }
             />
           ) : null}
@@ -2687,7 +2712,10 @@ function BuysWithRow({ contactId }: { contactId: string }) {
 /** Make one of the numbers the primary — the number every WhatsApp path
  *  addresses — swapping the old primary into its slot, and record the
  *  choice so the WhatsApp action stops asking. */
-async function promoteContactPhone(contact: Contact, phone: string) {
+async function promoteContactPhone(
+  contact: Contact,
+  phone: string
+): Promise<string | null> {
   const { data, error } = await supabase
     .from('contacts')
     .update(chooseWhatsAppPhone(contact, phone))
@@ -2695,17 +2723,14 @@ async function promoteContactPhone(contact: Contact, phone: string) {
     .select('id');
   if (error || !data?.length) {
     haptic.warn();
-    Alert.alert(
-      'Could not change the primary number',
-      error
-        ? friendlyError(error.message)
-        : 'You do not have permission to edit this contact.'
-    );
-    return;
+    return error
+      ? friendlyError(error.message)
+      : 'You do not have permission to edit this contact.';
   }
   haptic.success();
   queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
   queryClient.invalidateQueries({ queryKey: ['contacts'] });
+  return null;
 }
 
 function OtherPhonesRow({

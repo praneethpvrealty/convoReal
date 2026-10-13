@@ -48,6 +48,7 @@ export function useAuthListener() {
       if (cancelled) return;
       setSession(session);
       if (!session) setProfile(null);
+      else if (!useAuthStore.getState().profile) void ensureProfile();
     };
 
     void syncSession();
@@ -77,22 +78,70 @@ export function useAuthListener() {
 
   const userId = useAuthStore((s) => s.session?.user.id);
   useEffect(() => {
-    if (!userId) return;
-    let cancelled = false;
-    supabase
+    if (userId) void ensureProfile();
+  }, [userId]);
+}
+
+const PROFILE_COLUMNS =
+  'account_id, account_role, org_role, full_name, active_ui_language, is_read_only';
+const PROFILE_LOAD_ATTEMPTS = 3;
+const PROFILE_RETRY_DELAY_MS = 1500;
+
+let profileLoad: Promise<Profile | null> | null = null;
+
+/**
+ * The signed-in user's profile — the store's copy, or one loaded now.
+ * The store only fills in after the launch-time fetch succeeds, and a
+ * fetch that failed on a cold start used to leave it empty for the whole
+ * session: every helper that read `profile.account_id` off the store
+ * then gave up silently, so a personal-WhatsApp share went out and was
+ * reported as not recorded without a single request being made. Loading
+ * on demand, with retries, means one bad request at launch no longer
+ * decides the rest of the session.
+ */
+export async function ensureProfile(): Promise<Profile | null> {
+  const { profile, session } = useAuthStore.getState();
+  if (profile) return profile;
+  const userId = session?.user.id ?? (await currentUserId());
+  if (!userId) return null;
+  if (!profileLoad) {
+    profileLoad = loadProfile(userId).finally(() => {
+      profileLoad = null;
+    });
+  }
+  return profileLoad;
+}
+
+/** The signed-in user's id, from the store or the persisted session. */
+export async function currentUserId(): Promise<string | null> {
+  const stored = useAuthStore.getState().session?.user.id;
+  if (stored) return stored;
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session?.user.id ?? null;
+}
+
+async function loadProfile(userId: string): Promise<Profile | null> {
+  for (let attempt = 1; attempt <= PROFILE_LOAD_ATTEMPTS; attempt++) {
+    const { data, error } = await supabase
       .from('profiles')
-      .select(
-        'account_id, account_role, org_role, full_name, active_ui_language, is_read_only'
-      )
+      .select(PROFILE_COLUMNS)
       .eq('user_id', userId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled && data) setProfile(data as Profile);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId, setProfile]);
+      .maybeSingle();
+    if (data) {
+      const profile = data as Profile;
+      if (useAuthStore.getState().session?.user.id === userId) {
+        useAuthStore.setState({ profile });
+      }
+      return profile;
+    }
+    if (!error || attempt === PROFILE_LOAD_ATTEMPTS) return null;
+    await new Promise((resolve) =>
+      setTimeout(resolve, PROFILE_RETRY_DELAY_MS * attempt)
+    );
+  }
+  return null;
 }
 
 /**

@@ -5,7 +5,7 @@
 //     "guest via the link shared <when>" without knowing the recipient
 
 import { apiFetch } from '@/lib/api';
-import { useAuthStore } from '@/lib/auth-store';
+import { currentUserId, ensureProfile } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
 import { getShowcaseUrl } from '@/lib/welcome-message';
 import type { Contact } from '@/lib/types';
@@ -72,8 +72,11 @@ export async function anonymousShowcaseShareUrl(): Promise<string> {
  *  cousin of logExternalShare. Best-effort: failures never block the
  *  OS share the caller is about to open. */
 export async function logShowcaseShare(contact: Contact): Promise<void> {
-  const { profile, session } = useAuthStore.getState();
-  if (!profile?.account_id || !session?.user.id) return;
+  const [profile, userId] = await Promise.all([
+    ensureProfile(),
+    currentUserId(),
+  ]);
+  if (!profile?.account_id || !userId) return;
   await Promise.allSettled([
     supabase
       .from('contacts')
@@ -84,7 +87,7 @@ export async function logShowcaseShare(contact: Contact): Promise<void> {
       .eq('id', contact.id),
     supabase.from('contact_notes').insert({
       contact_id: contact.id,
-      user_id: session.user.id,
+      user_id: userId,
       account_id: profile.account_id,
       note_text: '🔗 Shared the showcase catalog via personal WhatsApp',
     }),

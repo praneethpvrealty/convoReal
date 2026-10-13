@@ -19,6 +19,30 @@ than a written entry. Newest first.
 
 #### 13 October 2026
 
+- **A personal-WhatsApp share from the mobile app is recorded even when
+  the app has not loaded the agent's profile.** The share sheet's hand-off
+  to WhatsApp waited on a profile held in memory before it would touch the
+  share ledger, and a session whose launch-time profile fetch had failed
+  kept none for the rest of the session: the listing went out and the app
+  said "Not recorded" without making a single request. The ledger is now
+  posted first and on its own, the profile is fetched on demand with
+  retries, and the timeline note follows once it arrives. JRN-021.
+- **A product card sent moments after a catalog sync no longer fails with
+  Meta's "product not found".** Meta confirms a catalog item in its product
+  list before the WhatsApp product store that messages read has caught up,
+  so a send inside that gap came back as "Sent to 0 of 1" with error 131009.
+  The product broadcast now reads that refusal as the listing still being
+  listed, stops after the first recipient, says so in plain words on web and
+  mobile, and restarts the 90-second indexing countdown so the card is not
+  offered again at once. PRP-044.
+- **Every mobile dialog follows the app's theme.** The last eighteen
+  prompts that still used the operating system's alert — the unrecorded
+  share notice, deleting the account, clearing done tasks, the to-do
+  check-in, choosing a WhatsApp number, the seller-page and portal-expiry
+  confirmations, bot rule and calendar errors, a failed undo — now use the
+  same glass dialog as the rest of the app, and a lint rule keeps the OS
+  alert out.
+
 - **A listing can be kept from co-brokers on the portal.** A new
   **Buyers only** switch beside Confidential listing, in the web and
   mobile editors, withholds the listing from the portal's agent view

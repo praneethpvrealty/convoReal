@@ -10,7 +10,7 @@
 import { postShareLog } from '@shared/lib/inventory/share-log-request';
 
 import { apiFetch, ApiError, isRateLimited, isTimeout } from '@/lib/api';
-import { useAuthStore } from '@/lib/auth-store';
+import { currentUserId, ensureProfile } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
 import type { Contact, Property } from '@/lib/types';
 
@@ -30,45 +30,55 @@ export async function logExternalShare(
   contact: Contact,
   property: Property
 ): Promise<boolean> {
-  const { profile, session } = useAuthStore.getState();
-  if (!profile?.account_id || !session?.user.id) return false;
+  // The ledger needs nothing from the device: the route resolves the
+  // account and the user from the session it is called with. It must
+  // not wait on the profile below, which is what left a share unrecorded
+  // whenever the store had not loaded one.
+  const ledger = postShareLog(
+    (body) =>
+      apiFetch('/api/properties/share-log', {
+        method: 'POST',
+        body,
+      }),
+    {
+      property_id: property.id,
+      recipients: [
+        {
+          contact_id: contact.id,
+          classification: contact.classification ?? null,
+        },
+      ],
+      channel: 'whatsapp',
+    }
+  );
+  const [profile, userId] = await Promise.all([
+    ensureProfile(),
+    currentUserId(),
+  ]);
   const now = new Date().toISOString();
   const label = property.property_code
     ? `[${property.property_code}] ${property.title}`
     : property.title;
-  const [, , ledger] = await Promise.allSettled([
-    supabase
-      .from('contacts')
-      // Touch settled alongside the note insert below; the note is the
-      // record that matters and the caller reports on it.
-      // eslint-disable-next-line convoreal/supabase-write-guard
-      .update({ last_contacted_at: now })
-      .eq('id', contact.id),
-    supabase.from('contact_notes').insert({
-      contact_id: contact.id,
-      user_id: session.user.id,
-      account_id: profile.account_id,
-      note_text: `📱 Shared via personal WhatsApp\n🏠 Property: ${label}`,
-    }),
-    postShareLog(
-      (body) =>
-        apiFetch('/api/properties/share-log', {
-          method: 'POST',
-          body,
-        }),
-      {
-        property_id: property.id,
-        recipients: [
-          {
+  const timeline =
+    profile?.account_id && userId
+      ? Promise.allSettled([
+          supabase
+            .from('contacts')
+            // Touch settled alongside the note insert below; the note is
+            // the record that matters and the caller reports on it.
+            // eslint-disable-next-line convoreal/supabase-write-guard
+            .update({ last_contacted_at: now })
+            .eq('id', contact.id),
+          supabase.from('contact_notes').insert({
             contact_id: contact.id,
-            classification: contact.classification ?? null,
-          },
-        ],
-        channel: 'whatsapp',
-      }
-    ),
-  ]);
-  return ledger.status === 'fulfilled' && ledger.value.complete;
+            user_id: userId,
+            account_id: profile.account_id,
+            note_text: `📱 Shared via personal WhatsApp\n🏠 Property: ${label}`,
+          }),
+        ])
+      : Promise.resolve();
+  const [outcome] = await Promise.all([ledger, timeline]);
+  return outcome.complete;
 }
 
 /**
@@ -185,7 +195,7 @@ async function recentlyConfirmedShares(
   contactIds: string[],
   sinceIso: string
 ): Promise<Set<string>> {
-  const accountId = useAuthStore.getState().profile?.account_id;
+  const accountId = (await ensureProfile())?.account_id;
   if (!accountId || contactIds.length === 0) return new Set();
   const { data, error } = await supabase
     .from('property_shares')

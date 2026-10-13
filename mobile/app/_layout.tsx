@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { AppDialogHost } from '@/components/app-dialog';
 import { AuroraBackground } from '@/components/aurora-background';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { ConvoRealLoader } from '@/components/loader';
@@ -94,6 +95,7 @@ function RootLayout() {
           </Stack>
         </View>
         <StatusBar style={dark ? 'light' : 'dark'} />
+        <AppDialogHost />
       </PersistQueryClientProvider>
     </GestureHandlerRootView>
   );
