@@ -516,8 +516,7 @@ export async function POST(request: Request) {
       ) {
         catalogPending = catalogProductPendingNotice(product_retailer_id);
         console.error(
-          `Catalog product ${product_retailer_id} not yet listed for WhatsApp:`,
-          result.error
+          '[broadcast] catalog product not yet listed for WhatsApp; fan-out stopped'
         );
         if (propertyRow) {
           // Restart the indexing window both share surfaces count down,
