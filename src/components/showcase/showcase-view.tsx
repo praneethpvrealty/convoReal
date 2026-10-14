@@ -1867,7 +1867,7 @@ export function ShowcaseView({
       data-showcase-style={showcaseStyle}
       data-showcase-3d={motionEnabled ? 'true' : 'false'}
       data-showcase-design={agencyDesign ? showcaseStyle : undefined}
-      className={`showcase-surface selection:bg-primary relative flex min-h-screen flex-col overflow-hidden bg-slate-950 font-sans text-slate-100 selection:text-white ${shortlist.selected.length && !isAgentMode ? 'pb-24' : ''} ${dealFloor && designFontClassName ? designFontClassName : ''}`}
+      className={`showcase-surface selection:bg-primary relative flex min-h-screen flex-col overflow-hidden bg-slate-950 font-sans text-slate-100 selection:text-white ${shortlist.selected.length ? 'pb-24' : ''} ${dealFloor && designFontClassName ? designFontClassName : ''}`}
     >
       {/* Decorative Radial Background Lights */}
       <div className="bg-primary/8 pointer-events-none absolute top-0 left-1/4 h-[600px] w-[600px] rounded-full blur-[130px]" />
@@ -2722,7 +2722,6 @@ export function ShowcaseView({
                         )}
 
                         {agencyDesign &&
-                          !isAgentMode &&
                           !listingAvailabilityNotice(property.status) && (
                             <Button
                               type="button"
@@ -2894,8 +2893,7 @@ export function ShowcaseView({
                         </div>
 
                         <div>
-                          {!isAgentMode &&
-                            !agencyDesign &&
+                          {!agencyDesign &&
                             !listingAvailabilityNotice(property.status) && (
                               <Button
                                 type="button"
@@ -3107,7 +3105,7 @@ export function ShowcaseView({
           </div>
         </div>
       </footer>
-      {!isAgentMode && !selectedProperty && !requirementsModalOpen && (
+      {!selectedProperty && !requirementsModalOpen && (
         <ShowcaseShortlist
           showcaseStyle={showcaseStyle}
           properties={shortlist.selected}
@@ -4091,6 +4089,26 @@ export function ShowcaseView({
                   </div>
                 ) : null}
 
+                {!selectedAvailabilityNotice && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-label={`Shortlist ${selectedProperty.title}`}
+                    aria-pressed={shortlist.ids.includes(selectedProperty.id)}
+                    onClick={() => shortlist.toggle(selectedProperty.id)}
+                    className="mt-6 min-h-11 w-full gap-2"
+                  >
+                    {shortlist.ids.includes(selectedProperty.id) ? (
+                      <BookmarkCheck className="size-4" />
+                    ) : (
+                      <Bookmark className="size-4" />
+                    )}
+                    {shortlist.ids.includes(selectedProperty.id)
+                      ? 'Shortlisted'
+                      : 'Shortlist this property'}
+                  </Button>
+                )}
+
                 {/* Inquiry Form Block — hidden in agent mode */}
                 {!isAgentMode && (
                   <div className="border-slate-850 mt-6 space-y-4 border-t pt-6">
@@ -4193,28 +4211,6 @@ export function ShowcaseView({
                       />
                     )}
 
-                    {/* Interest rating bar inside Modal — hidden in agent mode */}
-                    {!isAgentMode && !selectedAvailabilityNotice && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        aria-label={`Shortlist ${selectedProperty.title}`}
-                        aria-pressed={shortlist.ids.includes(
-                          selectedProperty.id
-                        )}
-                        onClick={() => shortlist.toggle(selectedProperty.id)}
-                        className="min-h-11 w-full gap-2"
-                      >
-                        {shortlist.ids.includes(selectedProperty.id) ? (
-                          <BookmarkCheck className="size-4" />
-                        ) : (
-                          <Bookmark className="size-4" />
-                        )}
-                        {shortlist.ids.includes(selectedProperty.id)
-                          ? 'Shortlisted'
-                          : 'Shortlist this property'}
-                      </Button>
-                    )}
                     {!isAgentMode && (
                       <PropertyRatingBar
                         value={ratings[selectedProperty.id]?.rating ?? null}
