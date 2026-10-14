@@ -132,7 +132,10 @@ describe('[CNV-005] transcript rules', () => {
   it('flags welcoming back a lead who wrote for the first time this week', () => {
     const thread = [
       customer('hi'),
-      bot("Great to hear from you 👍 You're back on our radar. https://x"),
+      {
+        ...bot("Great to hear from you 👍 You're back on our radar. https://x"),
+        at: '2026-10-08T09:00:00Z',
+      },
     ];
     expect(rules(thread, TWO_DAYS_AGO)).toContain(
       'returning-copy-for-new-lead'

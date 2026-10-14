@@ -26,7 +26,7 @@ const ACCOUNT = 'acc-1';
 const USER = 'user-1';
 const CONTACT = 'c-shirish';
 const CONVERSATION = 'conv-1';
-const NOW = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+const NOW = new Date().toISOString();
 
 interface Outbound {
   kind: string;

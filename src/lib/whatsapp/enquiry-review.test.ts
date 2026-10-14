@@ -309,6 +309,113 @@ describe('closePropertyEnquiry', () => {
     expect(calls.some((c) => c.table === 'contacts')).toBe(false);
   });
 
+  it('[CNV-007] moves a last-enquired pointer on the closed listing to the next open enquiry', async () => {
+    const { db, calls } = stubDb({
+      journey_items: [{ id: 'item-1', stage_id: 'stage-a' }, null, openRows],
+    });
+
+    await closePropertyEnquiry({
+      db,
+      accountId: 'acct-1',
+      contact: { id: 'c1', name: 'Afrana' },
+      property: { id: P1, title: 'BTM Layout Plot', property_code: null },
+    });
+
+    const update = calls.find(
+      (c) => c.table === 'contacts' && c.method === 'update'
+    );
+    expect(update?.args[0]).toMatchObject({ last_inquired_property_id: P2 });
+    expect(update?.args[0]).not.toHaveProperty('lead_temp');
+    const eqs = calls
+      .filter((c) => c.table === 'contacts' && c.method === 'eq')
+      .map((c) => c.args);
+    expect(eqs).toEqual([
+      ['id', 'c1'],
+      ['account_id', 'acct-1'],
+      ['last_inquired_property_id', P1],
+    ]);
+  });
+
+  it('[CNV-007] leaves the pointer alone when the close itself failed', async () => {
+    const { db, calls } = stubDb({
+      journey_items: [{ id: 'item-1', stage_id: 'stage-a' }, null, openRows],
+    });
+    const from = (db as { from: (t: string) => Record<string, unknown> }).from;
+    (db as { from: unknown }).from = (table: string) => {
+      const chain = from(table);
+      if (table === 'listing_feedback') {
+        chain.then = (resolve: (v: unknown) => unknown) =>
+          Promise.resolve(
+            resolve({ data: null, error: { message: 'timeout' } })
+          );
+      }
+      return chain;
+    };
+
+    const closed = await closePropertyEnquiry({
+      db,
+      accountId: 'acct-1',
+      contact: { id: 'c1' },
+      property: { id: P1, title: 'Plot' },
+    });
+
+    expect(closed).toBe(false);
+    expect(calls.some((c) => c.table === 'contacts')).toBe(false);
+  });
+
+  it('[CNV-007] reports the close as failed when the next open enquiry cannot be read', async () => {
+    const { db } = stubDb({
+      journey_items: [{ id: 'item-1', stage_id: 'stage-a' }, null],
+    });
+    const from = (db as { from: (t: string) => Record<string, unknown> }).from;
+    let reads = 0;
+    (db as { from: unknown }).from = (table: string) => {
+      const chain = from(table);
+      if (table === 'journey_items' && ++reads === 3) {
+        chain.then = (resolve: (v: unknown) => unknown) =>
+          Promise.resolve(
+            resolve({ data: null, error: { message: 'timeout' } })
+          );
+      }
+      return chain;
+    };
+
+    const closed = await closePropertyEnquiry({
+      db,
+      accountId: 'acct-1',
+      contact: { id: 'c1' },
+      property: { id: P1, title: 'Plot' },
+    });
+
+    expect(closed).toBe(false);
+  });
+
+  it('[CNV-007] reports the close as failed when the pointer cannot be moved', async () => {
+    const { db } = stubDb({
+      journey_items: [{ id: 'item-1', stage_id: 'stage-a' }, null, openRows],
+    });
+    const from = (db as { from: (t: string) => Record<string, unknown> }).from;
+    (db as { from: unknown }).from = (table: string) => {
+      const chain = from(table);
+      if (table === 'contacts') {
+        chain.then = (resolve: (v: unknown) => unknown) =>
+          Promise.resolve(
+            resolve({ data: null, error: { message: 'timeout' } })
+          );
+      }
+      return chain;
+    };
+
+    const closed = await closePropertyEnquiry({
+      db,
+      accountId: 'acct-1',
+      contact: { id: 'c1' },
+      property: { id: P1, title: 'Plot' },
+    });
+
+    expect(closed).toBe(false);
+  });
+
   it.each(['listing_feedback', 'journey_items'])(
     '[INB-021] reports a close as failed when the %s write fails',
     async (failing) => {
@@ -476,8 +583,9 @@ describe('handleEnquiryReviewReply', () => {
         { id: 'item-2', stage_id: 'stage-a' },
         null,
         [openRows[1]],
+        [openRows[1]],
       ],
-      contacts: [{ assigned_agent_id: 'agent-7' }],
+      contacts: [null, { assigned_agent_id: 'agent-7' }],
     });
 
     const handled = await handleEnquiryReviewReply(

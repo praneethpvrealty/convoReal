@@ -385,6 +385,9 @@ describe('gatherFollowUpLeads', () => {
     journey_items?: Record<string, unknown>[];
     contact_parties?: Record<string, unknown>[];
     contact_party_members?: Record<string, unknown>[];
+    closed_listing?: Record<string, unknown>[];
+    unanswered?: Record<string, unknown>[];
+    rpcError?: string;
   };
 
   /** Filters are pass-through except the fields exercised by these
@@ -392,7 +395,7 @@ describe('gatherFollowUpLeads', () => {
    *  the reminder audience. */
   function db(tables: Tables) {
     return {
-      from: (table: keyof Tables) => {
+      from: (table: Exclude<keyof Tables, 'rpcError'>) => {
         let rows = tables[table] ?? [];
         const chain: Record<string, unknown> = {
           select: () => chain,
@@ -419,6 +422,14 @@ describe('gatherFollowUpLeads', () => {
         ) => resolve({ data: rows });
         return chain;
       },
+      rpc: async (name: string) =>
+        tables.rpcError === name
+          ? { data: null, error: { message: 'statement timeout' } }
+          : name === 'followup_unanswered_checkins'
+            ? { data: tables.unanswered ?? [], error: null }
+            : name === 'followup_closed_listing_contacts'
+              ? { data: tables.closed_listing ?? [], error: null }
+              : { data: null, error: null },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
   }
@@ -450,6 +461,60 @@ describe('gatherFollowUpLeads', () => {
     expect(leads[0].propertyTitle).toBe('JP Nagar Plot');
     expect(leads[0].propertyId).toBe('p-1');
   });
+
+  it('[CNV-007] never cards a lead on a listing they closed themselves', async () => {
+    const leads = await gatherFollowUpLeads(
+      db({
+        contacts: [
+          contact('1', { last_inquired_property_id: 'p-1' }),
+          contact('2', { last_inquired_property_id: 'p-2' }),
+        ],
+        follow_up_nudges: [],
+        properties: [
+          { id: 'p-1', title: 'BTM Layout Plot' },
+          { id: 'p-2', title: 'JP Nagar Plot' },
+        ],
+        closed_listing: [{ contact_id: '1' }],
+      }),
+      'acct-1',
+      NOW
+    );
+    expect(leads.map((l) => l.contactId)).toEqual(['2']);
+  });
+
+  it('[CNV-007] stops carding a lead once three check-ins went unanswered', async () => {
+    const leads = await gatherFollowUpLeads(
+      db({
+        contacts: [contact('1'), contact('2'), contact('3')],
+        follow_up_nudges: [],
+        properties: [],
+        unanswered: [
+          { contact_id: '1', unanswered: 3 },
+          { contact_id: '2', unanswered: 2 },
+        ],
+      }),
+      'acct-1',
+      NOW
+    );
+    expect(leads.map((l) => l.contactId)).toEqual(['2', '3']);
+  });
+
+  it.each(['followup_closed_listing_contacts', 'followup_unanswered_checkins'])(
+    '[CNV-007] cards nobody when %s cannot be read, rather than skipping the check',
+    async (rpcError) => {
+      const leads = await gatherFollowUpLeads(
+        db({
+          contacts: [contact('1')],
+          follow_up_nudges: [],
+          properties: [],
+          rpcError,
+        }),
+        'acct-1',
+        NOW
+      );
+      expect(leads).toEqual([]);
+    }
+  );
 
   it('holds back snoozed and recently-nudged leads', async () => {
     const leads = await gatherFollowUpLeads(
