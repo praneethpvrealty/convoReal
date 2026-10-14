@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { syncProductToCatalog } from '@/lib/whatsapp/meta-api';
+import {
+  deleteProductFromCatalog,
+  syncProductToCatalog,
+} from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
+import { isListingLive } from '@/lib/inventory/listing-status';
 
 export async function catalogSyncPendingFields(
   supabase: SupabaseClient,
@@ -109,6 +113,34 @@ export async function autoSyncPropertyCatalogIfNeeded(
           meta_catalog_error: `Token decryption failed: ${errMsg}`,
         })
         .eq('id', propertyId);
+      return;
+    }
+
+    // A listing that has left the market, or was unpublished, is taken
+    // out of the catalog rather than offered as in stock: the catalog is
+    // a storefront buyers browse unprompted.
+    if (!isListingLive(property)) {
+      try {
+        await deleteProductFromCatalog({
+          catalogId: config.catalog_id,
+          accessToken,
+          retailerId: property.property_code || property.id,
+        });
+        console.log(
+          `[Auto-Sync] Removed property ${propertyId} (${property.status}) from Meta Catalog ${config.catalog_id}.`
+        );
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[Auto-Sync] Could not remove property ${propertyId} from the catalog:`,
+          errorMsg
+        );
+        await supabase
+          .from('properties')
+          // eslint-disable-next-line convoreal/supabase-write-guard
+          .update({ meta_catalog_error: `Catalog removal failed: ${errorMsg}` })
+          .eq('id', propertyId);
+      }
       return;
     }
 

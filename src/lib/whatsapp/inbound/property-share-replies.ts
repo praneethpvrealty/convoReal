@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { buildSoldPriceReply } from '@/lib/whatsapp/sold-notification';
 import { buildPropertyInterestQuestion } from '@/lib/whatsapp/property-interest';
 import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
+import { replyListingUnavailableOnce } from '@/lib/whatsapp/inbound/unavailable-listing-reply';
 import { formatCurrency, formatInrCompact } from '@/lib/format/currency';
 import type { PropertyRow } from '@/lib/whatsapp/webhook-handler';
 
@@ -17,7 +18,7 @@ export async function handlePropertyShareYesReply(
   conversationId: string,
   toPhone: string,
   options: { followUp?: 'feedback' | 'questions' | 'none' } = {}
-): Promise<boolean> {
+): Promise<boolean | 'unavailable'> {
   try {
     const { data: property, error } = await supabaseAdmin()
       .from('properties')
@@ -36,6 +37,20 @@ export async function handlePropertyShareYesReply(
       );
       return false;
     }
+
+    // A listing that has left the market is never detailed on request:
+    // the lead hears it is not available and is pointed to the showcase.
+    const unavailable = await replyListingUnavailableOnce({
+      db: supabaseAdmin(),
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+      toPhone,
+      property: { title: typedProperty.title, status: typedProperty.status },
+    });
+    if (unavailable === 'failed') return false;
+    if (unavailable) return 'unavailable';
 
     let currency = 'INR';
     const { data: settings } = await supabaseAdmin()
@@ -257,6 +272,7 @@ export async function handleBrowseAllProperties(
       .select('*')
       .eq('account_id', accountId)
       .eq('is_published', true)
+      .eq('status', 'Available')
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -424,6 +440,7 @@ export async function handleShowMoreProperties(
       .select('*')
       .eq('account_id', accountId)
       .eq('is_published', true)
+      .eq('status', 'Available')
       .neq('id', currentPropertyId) // Exclude current property
       .or(
         `type.eq.${currentProperty.type},and(price.gte.${minPrice},price.lte.${maxPrice})`

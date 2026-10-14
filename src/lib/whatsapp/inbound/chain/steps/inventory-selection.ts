@@ -61,6 +61,7 @@ export async function inventorySelection(
     }
 
     const sentPropertyIds: string[] = [];
+    const unavailablePropertyIds: string[] = [];
     for (const propertyId of propertyIds) {
       const sent = await handlePropertyShareYesReply(
         propertyId,
@@ -71,29 +72,39 @@ export async function inventorySelection(
         senderPhone,
         { followUp: 'none' }
       );
-      if (sent) sentPropertyIds.push(propertyId);
+      if (sent === 'unavailable') unavailablePropertyIds.push(propertyId);
+      else if (sent) sentPropertyIds.push(propertyId);
     }
 
-    const allSent = sentPropertyIds.length === propertyIds.length;
+    // A pick that has left the market was answered with the regret
+    // already; the completion line covers only the listings still live.
+    const livePropertyIds = propertyIds.filter(
+      (id) => !unavailablePropertyIds.includes(id)
+    );
+    const allSent = sentPropertyIds.length === livePropertyIds.length;
     const completionText = allSent
       ? sentPropertyIds.length === 1
         ? 'I’ve shared the complete property details and showcase link. Reply with any questions or tell me if you would like to visit.'
         : `I’ve shared complete details and individual showcase links for all ${sentPropertyIds.length} properties. Reply with any questions or tell me which one you would like to visit.`
       : sentPropertyIds.length > 0
-        ? `I shared ${sentPropertyIds.length} of the ${propertyIds.length} requested properties. I’ve asked the team to send the remaining details here.`
+        ? `I shared ${sentPropertyIds.length} of the ${livePropertyIds.length} requested properties. I’ve asked the team to send the remaining details here.`
         : 'I found those listings, but could not send their details automatically. I’ve asked the team to follow up here.';
 
     const completionTasks: PromiseLike<unknown>[] = [
-      sendWhatsAppMessageAndPersist({
-        accountId,
-        userId: configOwnerUserId,
-        contactId: contactRecord.id,
-        conversationId: conversation.id,
-        toPhone: senderPhone,
-        kind: 'text',
-        senderType: 'bot',
-        text: completionText,
-      }),
+      ...(livePropertyIds.length > 0
+        ? [
+            sendWhatsAppMessageAndPersist({
+              accountId,
+              userId: configOwnerUserId,
+              contactId: contactRecord.id,
+              conversationId: conversation.id,
+              toPhone: senderPhone,
+              kind: 'text',
+              senderType: 'bot',
+              text: completionText,
+            }),
+          ]
+        : []),
       admin
         .from('conversations')
         .update({ status: 'pending', updated_at: new Date().toISOString() })
@@ -104,9 +115,12 @@ export async function inventorySelection(
         userId: assignedAgentUserId,
         type: 'listing_interest',
         title: `${contactRecord.name || senderPhone} selected ${inventorySelection.category} properties`,
-        body: allSent
-          ? `Complete details sent for ${inventorySelection.ordinals.join(', ')} from the latest ${inventorySelection.category} list.`
-          : `Requested ${inventorySelection.ordinals.join(', ')} from the latest ${inventorySelection.category} list; ${propertyIds.length - sentPropertyIds.length} details send failed.`,
+        body:
+          livePropertyIds.length === 0
+            ? `Picked ${inventorySelection.ordinals.join(', ')} from the latest ${inventorySelection.category} list; none is available any more, and the lead was told so.`
+            : allSent
+              ? `Complete details sent for ${inventorySelection.ordinals.join(', ')} from the latest ${inventorySelection.category} list.${unavailablePropertyIds.length ? ` ${unavailablePropertyIds.length} pick is no longer available, and the lead was told so.` : ''}`
+              : `Requested ${inventorySelection.ordinals.join(', ')} from the latest ${inventorySelection.category} list; ${livePropertyIds.length - sentPropertyIds.length} details send failed.`,
         entityType: 'conversation',
         entityId: conversation.id,
         link: `/inbox?conversation=${conversation.id}`,

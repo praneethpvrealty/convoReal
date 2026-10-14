@@ -19,6 +19,35 @@ than a written entry. Newest first.
 
 #### 14 October 2026
 
+- **Approving a lead whose enquired listing has left the market sends the
+  regret, not the listing's details.** The Approve action on a pending-review
+  contact sent the listing's photos and price whatever its status, so a lead
+  the bot had told "no longer available" at import got the full details of a
+  plot under contract a few hours later. Approving now tells them it is not
+  available and points them to the showcase — free-form with their showcase
+  link inside the 24-hour window, the approved status notice template outside
+  it — and says it once: a lead who already holds the reply, or the notice for
+  that listing while their window is still closed, is approved with nothing
+  sent again. The web contact sheet approves through the same route as the
+  mobile app, so both surfaces behave alike and the agent is told which
+  happened. CNV-008.
+- **No bot path details a listing that has left the market.** A lead who
+  tapped "Send more details" on the photos template, picked the listing from
+  a shortlist, or asked for its photos was sent the full details, the
+  showcase image and a "does this one work for you?" check of a plot under
+  contract. Every one of those paths now sends the same regret — status,
+  a request for requirements and budget, the showcase link — once per
+  thread, a photo request covering a live and a sold listing photographs
+  only the live one, and the Browse and Show more lists offer only
+  available listings. CNV-009.
+- **A listing that has left the market is never volunteered.** The Match
+  Radar raised a card for a listing whatever its status and sent its alert
+  even once the listing had gone under contract, and the WhatsApp catalog
+  sync kept such a listing on the storefront as in stock. A radar event is
+  now generated only for a published, available listing, the send refuses
+  one that has since left the market (web and mobile show the refusal from
+  the shared mapping), and the catalog sync removes the product instead.
+  RDR-002, PRP-044.
 - **Closing a deal now closes its follow-up tasks, and the counterpart
   hears about it.** The morning task digest kept listing follow-ups for
   transactions that had already fallen through, because a to-do knew its
@@ -41,6 +70,8 @@ than a written entry. Newest first.
   two. **Migration required**: `20261014023548_…` (already on production),
   `20261014081351_deal_status_notice_sweep.sql` (additive),
   `20261014093259_deal_status_notifications_updated_at.sql` (additive),
+  `20261014123016_deal_status_notice_dedupe_null_property.sql` (additive:
+  a counterpart on a deal with no listing is deduplicated too),
   `20261014102450_deal_closed_insert_trigger.sql` (additive: a deal
   created straight into a won or lost stage is handled like one marked
   so later),

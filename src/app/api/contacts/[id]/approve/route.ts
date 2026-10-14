@@ -13,6 +13,7 @@ import {
 } from '@/lib/share-message-builder';
 import { fallbackSiteUrl } from '@/lib/showcase/site-url';
 import { sendPropertyToContact } from '@/lib/whatsapp/share-property-send';
+import { tellApprovedLeadListingUnavailable } from '@/lib/contacts/approve-unavailable-listing';
 import type { Property } from '@/types';
 
 // POST /api/contacts/[id]/approve
@@ -100,6 +101,55 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     }
     const typedProperty = property as Property;
 
+    // The lead is being handled now — clear the chatbot's "Talk to an
+    // Agent" handoff so the thread stops reading as pending. Fire and
+    // forget: it is bookkeeping, and failing it must not fail an
+    // approval whose message already went out.
+    const reopenHandoff = async (conversationId: string | null) => {
+      if (!conversationId) return;
+      await supabaseAdmin()
+        .from('conversations')
+        .update({ status: 'open', updated_at: new Date().toISOString() })
+        .eq('id', conversationId)
+        .eq('account_id', ctx.accountId)
+        .eq('status', 'pending');
+    };
+
+    // A listing that has left the market gets the regret, never its
+    // details: the lead hears it is not available and is pointed to
+    // the showcase instead of being sent the photos of a sold plot.
+    const unavailable = await tellApprovedLeadListingUnavailable({
+      db: supabaseAdmin(),
+      accountId: ctx.accountId,
+      userId: ctx.userId,
+      contactId,
+      contactName: (contact.name as string | null) ?? null,
+      property: typedProperty,
+    });
+    if (unavailable) {
+      await reopenHandoff(unavailable.conversationId);
+      const sent =
+        unavailable.notice === 'freeform' || unavailable.notice === 'template';
+      return NextResponse.json({
+        data: {
+          approved: true,
+          sent,
+          ...(sent ? { channel: unavailable.notice } : {}),
+          property: typedProperty,
+          details_message: unavailable.message,
+          conversation_id: unavailable.conversationId,
+          unavailable: {
+            status: unavailable.status,
+            label: unavailable.label,
+            notice: unavailable.notice,
+          },
+          ...(unavailable.notice === 'failed'
+            ? { send_error: 'The listing status notice could not be sent' }
+            : {}),
+        },
+      });
+    }
+
     const base = showcaseBaseUrl(
       fallbackSiteUrl(),
       (settings?.subdomain as string | null) ?? null,
@@ -120,18 +170,7 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       message: detailsMessage,
     });
 
-    // The lead is being handled now — clear the chatbot's "Talk to an
-    // Agent" handoff so the thread stops reading as pending. Fire and
-    // forget: it is bookkeeping, and failing it must not fail an
-    // approval whose message already went out.
-    if (outcome.conversationId) {
-      await supabaseAdmin()
-        .from('conversations')
-        .update({ status: 'open', updated_at: new Date().toISOString() })
-        .eq('id', outcome.conversationId)
-        .eq('account_id', ctx.accountId)
-        .eq('status', 'pending');
-    }
+    await reopenHandoff(outcome.conversationId);
 
     return NextResponse.json({
       data: {

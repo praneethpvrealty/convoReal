@@ -18,6 +18,13 @@ vi.mock('@/lib/showcase/account-showcase-url', () => ({
     accountPropertyShowcaseUrl(...args),
 }));
 
+const replyListingUnavailableOnce = vi.fn();
+
+vi.mock('@/lib/whatsapp/inbound/unavailable-listing-reply', () => ({
+  replyListingUnavailableOnce: (...args: unknown[]) =>
+    replyListingUnavailableOnce(...args),
+}));
+
 const {
   requestsPropertyPhotos,
   photoHandoverText,
@@ -126,6 +133,7 @@ describe('sendSubjectPhotos', () => {
   const property = (overrides: Record<string, unknown> = {}) => ({
     id: 'p1',
     title: 'Bilekahalli Plot',
+    status: 'Available',
     images: ['https://img/1.jpg', 'https://img/2.jpg'],
     property_code: 'PC-1',
     video_url: null,
@@ -162,7 +170,50 @@ describe('sendSubjectPhotos', () => {
     accountPropertyShowcaseUrl.mockResolvedValue(
       'https://acme/?property_id=PC-1'
     );
+    replyListingUnavailableOnce.mockResolvedValue('sent');
     rows = [property()];
+  });
+
+  it('[CNV-009] sends the regret instead of the photos of a listing that left the market', async () => {
+    rows = [property({ status: 'Sold' })];
+    const sent = await run(['p1']);
+    expect(sent).toBe(true);
+    expect(replyListingUnavailableOnce).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactId: 'c1',
+        conversationId: 'conv-1',
+        property: expect.objectContaining({ id: 'p1', status: 'Sold' }),
+      })
+    );
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('[CNV-009] photographs the live listing and regrets the sold one in a mixed ask', async () => {
+    rows = [
+      property({ id: 'p1', status: 'Sold' }),
+      property({ id: 'p2', title: 'Hoodi Plot', status: 'Available' }),
+    ];
+    const sent = await run(['p1', 'p2'], 'pics of 1 and 2');
+    expect(sent).toBe(true);
+    expect(replyListingUnavailableOnce).toHaveBeenCalledTimes(1);
+    const calls = sendWhatsAppMessageAndPersist.mock.calls.map((c) => c[0]);
+    expect(calls.filter((c) => c.kind === 'media')).toHaveLength(2);
+    expect(calls.at(-1).text).toContain('*Hoodi Plot*');
+    expect(calls.at(-1).text).not.toContain('Bilekahalli');
+  });
+
+  it('[CNV-009] hands over, and still sends no photos, when the regret failed', async () => {
+    replyListingUnavailableOnce.mockResolvedValue('failed');
+    rows = [property({ status: 'Sold' })];
+    expect(await run(['p1'])).toBe(false);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('[CNV-009] still answers when the lead already held the regret', async () => {
+    replyListingUnavailableOnce.mockResolvedValue('already_told');
+    rows = [property({ status: 'Off Market' })];
+    expect(await run(['p1'])).toBe(true);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 
   it('sends the photos, captions only the first, and closes with the link', async () => {

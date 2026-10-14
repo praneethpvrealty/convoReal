@@ -2,12 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const events: string[] = [];
 const updates: Record<string, unknown>[] = [];
+const deletions: Record<string, unknown>[] = [];
 let listingType = 'Sale';
 let autoSync = true;
+let status = 'Available';
+let isPublished = true;
 
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   syncProductToCatalog: vi.fn(async () => {
     events.push('sync');
+  }),
+  deleteProductFromCatalog: vi.fn(async (args: Record<string, unknown>) => {
+    deletions.push(args);
+    events.push('delete');
   }),
 }));
 
@@ -41,7 +48,13 @@ function db() {
                     catalog_id: 'c1',
                     auto_sync_catalog: autoSync,
                   }
-                : { id: 'p1', listing_type: listingType },
+                : {
+                    id: 'p1',
+                    property_code: 'PROP-1',
+                    listing_type: listingType,
+                    status,
+                    is_published: isPublished,
+                  },
             error: null,
           }),
         then: (resolve: unknown) =>
@@ -57,8 +70,11 @@ function db() {
 beforeEach(() => {
   events.length = 0;
   updates.length = 0;
+  deletions.length = 0;
   listingType = 'Sale';
   autoSync = true;
+  status = 'Available';
+  isPublished = true;
 });
 
 describe('[PRP-044] autoSyncPropertyCatalogIfNeeded', () => {
@@ -70,6 +86,27 @@ describe('[PRP-044] autoSyncPropertyCatalogIfNeeded', () => {
       meta_catalog_error: null,
     });
     expect(updates[1]?.meta_catalog_synced_at).toEqual(expect.any(String));
+  });
+
+  it('[PRP-044] removes a listing that has left the market from the catalog instead of offering it', async () => {
+    for (const gone of ['Under Contract', 'Sold', 'Off Market']) {
+      events.length = 0;
+      deletions.length = 0;
+      status = gone;
+      await autoSyncPropertyCatalogIfNeeded(db() as never, 'p1', 'acc-1');
+      expect(events, gone).toEqual(['update', 'delete']);
+      expect(deletions[0], gone).toMatchObject({
+        catalogId: 'c1',
+        accessToken: 'token',
+        retailerId: 'PROP-1',
+      });
+    }
+  });
+
+  it('[PRP-044] removes an unpublished listing from the catalog', async () => {
+    isPublished = false;
+    await autoSyncPropertyCatalogIfNeeded(db() as never, 'p1', 'acc-1');
+    expect(events).toEqual(['update', 'delete']);
   });
 
   it('clears the previous sync of a listing that can no longer be synced', async () => {
