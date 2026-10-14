@@ -4998,8 +4998,8 @@
           ],
           "guards": [
             "supabase/migrations/20261014023548_sync_todos_with_deal_status_and_queue_counterpart_notices.sql",
-            "supabase/migrations/20261014060000_deal_status_notice_sweep.sql",
-            "supabase/migrations/20261014060100_deal_status_notice_policies_and_brand.sql"
+            "supabase/migrations/20261014081351_deal_status_notice_sweep.sql",
+            "supabase/migrations/20261014081400_deal_status_notice_policies_and_brand.sql"
           ]
         }
       ]

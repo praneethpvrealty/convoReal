@@ -37,8 +37,8 @@ than a written entry. Newest first.
   buyer-side stakeholder waits up to 48 hours for a session instead. A
   drop and the lost deal it becomes now produce one notice rather than
   two. **Migration required**: `20261014023548_…` (already on production),
-  `20261014060000_deal_status_notice_sweep.sql` (additive) and, after
-  the merge, `20261014060100_deal_status_notice_policies_and_brand.sql`,
+  `20261014081351_deal_status_notice_sweep.sql` (additive) and, after
+  the merge, `20261014081400_deal_status_notice_policies_and_brand.sql`,
   which repoints the queue's policies at the account helpers and signs
   the won notice with the account's own name.
 

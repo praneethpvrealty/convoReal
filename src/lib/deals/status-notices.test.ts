@@ -35,11 +35,11 @@ const triggers = readFileSync(
   'utf8'
 );
 const sweep = readFileSync(
-  join(MIGRATIONS, '20261014060000_deal_status_notice_sweep.sql'),
+  join(MIGRATIONS, '20261014081351_deal_status_notice_sweep.sql'),
   'utf8'
 );
 const hardening = readFileSync(
-  join(MIGRATIONS, '20261014060100_deal_status_notice_policies_and_brand.sql'),
+  join(MIGRATIONS, '20261014081400_deal_status_notice_policies_and_brand.sql'),
   'utf8'
 );
 
