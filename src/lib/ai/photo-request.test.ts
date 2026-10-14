@@ -174,7 +174,7 @@ describe('sendSubjectPhotos', () => {
     rows = [property()];
   });
 
-  it('[CNV-008] sends the regret instead of the photos of a listing that left the market', async () => {
+  it('[CNV-009] sends the regret instead of the photos of a listing that left the market', async () => {
     rows = [property({ status: 'Sold' })];
     const sent = await run(['p1']);
     expect(sent).toBe(true);
@@ -188,7 +188,7 @@ describe('sendSubjectPhotos', () => {
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 
-  it('[CNV-008] photographs the live listing and regrets the sold one in a mixed ask', async () => {
+  it('[CNV-009] photographs the live listing and regrets the sold one in a mixed ask', async () => {
     rows = [
       property({ id: 'p1', status: 'Sold' }),
       property({ id: 'p2', title: 'Hoodi Plot', status: 'Available' }),
@@ -202,7 +202,7 @@ describe('sendSubjectPhotos', () => {
     expect(calls.at(-1).text).not.toContain('Bilekahalli');
   });
 
-  it('[CNV-008] still answers when the lead already held the regret', async () => {
+  it('[CNV-009] still answers when the lead already held the regret', async () => {
     replyListingUnavailableOnce.mockResolvedValue('already_told');
     rows = [property({ status: 'Off Market' })];
     expect(await run(['p1'])).toBe(true);

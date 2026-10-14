@@ -105,7 +105,7 @@ beforeEach(() => {
 });
 
 describe('handlePropertyShareYesReply', () => {
-  it('[CNV-008] answers a details request for a listing that left the market with the regret, never its details', async () => {
+  it('[CNV-009] answers a details request for a listing that left the market with the regret, never its details', async () => {
     expect(await send()).toBe('unavailable');
     expect(state.regrets).toEqual([
       expect.objectContaining({
@@ -121,7 +121,7 @@ describe('handlePropertyShareYesReply', () => {
     expect(state.shares).toEqual([]);
   });
 
-  it('[CNV-008] still sends nothing else when the lead already held the regret', async () => {
+  it('[CNV-009] still sends nothing else when the lead already held the regret', async () => {
     state.regret = 'already_told';
     expect(await send()).toBe('unavailable');
     expect(state.sends).toEqual([]);
@@ -140,7 +140,7 @@ describe('handlePropertyShareYesReply', () => {
 });
 
 describe('handleBrowseAllProperties', () => {
-  it('[CNV-008] offers only listings that are still available', async () => {
+  it('[CNV-009] offers only listings that are still available', async () => {
     state.listed = [
       { id: 'p-1', title: 'Prime Commercial Site', price: 96000000 },
     ];

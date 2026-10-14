@@ -119,7 +119,7 @@ describe('POST /api/contacts/[id]/approve', () => {
     expect(state.conversationUpdates[0]).toMatchObject({ status: 'open' });
   });
 
-  it('[CNV-007] sends the regret instead of the details when the listing has left the market', async () => {
+  it('[CNV-008] sends the regret instead of the details when the listing has left the market', async () => {
     state.unavailable = {
       status: 'Under Contract',
       label: 'Under contract',
@@ -149,7 +149,7 @@ describe('POST /api/contacts/[id]/approve', () => {
     expect(state.conversationUpdates[0]).toMatchObject({ status: 'open' });
   });
 
-  it('[CNV-007] reports a lead who already holds the regret as approved with nothing sent', async () => {
+  it('[CNV-008] reports a lead who already holds the regret as approved with nothing sent', async () => {
     state.unavailable = {
       status: 'Sold',
       label: 'Sold',
@@ -168,7 +168,7 @@ describe('POST /api/contacts/[id]/approve', () => {
     expect(body.data.send_error).toBeUndefined();
   });
 
-  it('[CNV-007] carries a failed regret as a send error beside the approval, never as a 5xx', async () => {
+  it('[CNV-008] carries a failed regret as a send error beside the approval, never as a 5xx', async () => {
     state.unavailable = {
       status: 'Off Market',
       label: 'Off market',

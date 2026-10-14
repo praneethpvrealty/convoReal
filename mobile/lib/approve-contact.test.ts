@@ -100,7 +100,7 @@ describe('approveAndSendDetails', () => {
     expect(result.reengageConversationId).toBeUndefined();
   });
 
-  it('[CNV-007] reports a listing that left the market as the regret sent, not the details', async () => {
+  it('[CNV-008] reports a listing that left the market as the regret sent, not the details', async () => {
     response = {
       data: {
         approved: true,
@@ -129,7 +129,7 @@ describe('approveAndSendDetails', () => {
     expect(result.reengageConversationId).toBeUndefined();
   });
 
-  it('[CNV-007] offers no re-engage for a lead who already holds the regret', async () => {
+  it('[CNV-008] offers no re-engage for a lead who already holds the regret', async () => {
     response = {
       data: {
         approved: true,
@@ -152,7 +152,7 @@ describe('approveAndSendDetails', () => {
     expect(result.error).toBeUndefined();
   });
 
-  it('[CNV-007] hands the regret to the wa.me hand-off when the window is closed and no notice is approved', async () => {
+  it('[CNV-008] hands the regret to the wa.me hand-off when the window is closed and no notice is approved', async () => {
     response = {
       data: {
         approved: true,

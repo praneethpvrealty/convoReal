@@ -133,6 +133,87 @@ export function digestPeriod(
   };
 }
 
+export function periodAfterCoverage(
+  period: DigestPeriod,
+  coveredUntil: string | null | undefined
+): DigestPeriod {
+  if (!coveredUntil) return period;
+  const covered = new Date(coveredUntil).getTime();
+  const start = new Date(period.startIso).getTime();
+  const end = new Date(period.endIso).getTime();
+  if (!Number.isFinite(covered) || covered <= start) return period;
+  return {
+    ...period,
+    startIso: new Date(Math.min(covered, end)).toISOString(),
+  };
+}
+
+export async function digestCoverageByRecipient(
+  db: SupabaseClient,
+  log:
+    | { table: 'owner_digest_log'; recipient: 'owner_contact_id' }
+    | { table: 'agent_inventory_digest_log'; recipient: 'agent_contact_id' },
+  accountId: string,
+  period: DigestPeriod
+): Promise<Map<string, string>> {
+  const { data, error } = await db
+    .from(log.table)
+    .select(`${log.recipient}, period_end`)
+    .eq('account_id', accountId)
+    .in('channel', ['freeform', 'template'])
+    .gt('period_end', period.startIso)
+    .lt('digest_date', period.digestDate);
+  if (error) throw new Error(error.message);
+  const coverage = new Map<string, string>();
+  for (const row of (data ?? []) as unknown as Record<string, string>[]) {
+    const recipient = row[log.recipient];
+    const end = row.period_end;
+    if (!recipient || !end) continue;
+    const current = coverage.get(recipient);
+    if (!current || new Date(end).getTime() > new Date(current).getTime()) {
+      coverage.set(recipient, end);
+    }
+  }
+  return coverage;
+}
+
+export async function narrowToCoverage<T extends { contactId: string }>(
+  digests: T[],
+  coverage: Map<string, string>,
+  period: DigestPeriod,
+  regather: (period: DigestPeriod, contactIds: string[]) => Promise<T[]>
+): Promise<T[]> {
+  const uncovered: T[] = [];
+  const byBoundary = new Map<string, string[]>();
+  for (const digest of digests) {
+    const covered = coverage.get(digest.contactId);
+    if (!covered) {
+      uncovered.push(digest);
+      continue;
+    }
+    const startIso = periodAfterCoverage(period, covered).startIso;
+    byBoundary.set(startIso, [
+      ...(byBoundary.get(startIso) ?? []),
+      digest.contactId,
+    ]);
+  }
+  const regathered = await Promise.all(
+    [...byBoundary].map(([startIso, contactIds]) =>
+      regather({ ...period, startIso }, contactIds)
+    )
+  );
+  const narrowed = new Map(
+    regathered.flat().map((digest) => [digest.contactId, digest])
+  );
+  return digests.flatMap((digest) =>
+    coverage.has(digest.contactId)
+      ? narrowed.has(digest.contactId)
+        ? [narrowed.get(digest.contactId)!]
+        : []
+      : [digest]
+  );
+}
+
 export function hasUpdates(digest: OwnerDigest): boolean {
   return digest.properties.some(
     (p) =>
@@ -345,6 +426,32 @@ export function parseOwnerDigestCommand(
   if (/^(stop|pause)\s+(property\s+)?updates?$/.test(cleaned)) return 'stop';
   if (/^(start|resume)\s+(property\s+)?updates?$/.test(cleaned)) return 'start';
   return null;
+}
+
+export function isBareOptOut(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const cleaned = text
+    .trim()
+    .toLowerCase()
+    .replace(/[.!\s]+$/, '');
+  return /^(stop|unsubscribe|stop all|stop messages|stop sending|stop it)$/.test(
+    cleaned
+  );
+}
+
+export async function receivesUpdateDigest(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('properties')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('owner_contact_id', contactId)
+    .not('status', 'in', CLOSED_LISTING_STATUS_FILTER)
+    .limit(1);
+  return !!error || (data ?? []).length > 0;
 }
 
 // ── Engine ────────────────────────────────────────────────────────
@@ -755,7 +862,17 @@ export async function sendOwnerStatusDigests(options?: {
 
     try {
       const period = digestPeriod(frequency, now);
-      const digests = await gatherOwnerDigests(db, accountId, period);
+      const digests = await narrowToCoverage(
+        await gatherOwnerDigests(db, accountId, period),
+        await digestCoverageByRecipient(
+          db,
+          { table: 'owner_digest_log', recipient: 'owner_contact_id' },
+          accountId,
+          period
+        ),
+        period,
+        (own, contactIds) => gatherOwnerDigests(db, accountId, own, contactIds)
+      );
       summary.owners = digests.length;
       if (digests.length === 0) continue;
 

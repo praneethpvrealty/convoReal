@@ -382,7 +382,7 @@ describe('sendUnavailableListingReply', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it('[CNV-007] ends on a closed window without the notice when the caller withholds the template', async () => {
+  it('[CNV-008] ends on a closed window without the notice when the caller withholds the template', async () => {
     send.mockResolvedValueOnce({
       success: false,
       error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,

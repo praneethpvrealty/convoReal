@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   isDigestDueToday,
   digestPeriod,
@@ -8,6 +8,10 @@ import {
   buildConsentRequestMessage,
   gatherOwnerDigests,
   parseOwnerDigestCommand,
+  isBareOptOut,
+  periodAfterCoverage,
+  digestCoverageByRecipient,
+  narrowToCoverage,
   CONSENT_BUTTONS,
   istHour,
   resolveOwnerActivityAudience,
@@ -425,5 +429,157 @@ describe('gatherOwnerDigests', () => {
     expect(owner.properties[0].drop_feedback[0].reason).toBe(
       'the prospect preferred another locality'
     );
+  });
+});
+
+describe('[CNV-007] isBareOptOut', () => {
+  it('reads a one-word opt-out as one', () => {
+    for (const text of ['STOP', 'stop', 'Stop.', 'Unsubscribe', 'stop all']) {
+      expect(isBareOptOut(text), text).toBe(true);
+    }
+  });
+
+  it('never reads a sentence as an opt-out', () => {
+    for (const text of [
+      'stop calling me',
+      'please stop',
+      'bus stop near the plot?',
+      '',
+      null,
+    ]) {
+      expect(isBareOptOut(text), String(text)).toBe(false);
+    }
+  });
+});
+
+describe('[CNV-007] periodAfterCoverage', () => {
+  const NOW = new Date('2026-10-14T04:45:26.302Z');
+  const period = digestPeriod('daily', NOW);
+
+  it('starts where the last digest that went out stopped, so nothing is counted twice', () => {
+    const narrowed = periodAfterCoverage(period, '2026-10-13 06:57:41.829+00');
+    expect(narrowed.startIso).toBe('2026-10-13T06:57:41.829Z');
+    expect(narrowed.endIso).toBe(period.endIso);
+    expect(narrowed.label).toBe(period.label);
+  });
+
+  it('keeps the full period when the last digest ended before it', () => {
+    expect(periodAfterCoverage(period, '2026-10-12T04:45:00Z')).toEqual(period);
+    expect(periodAfterCoverage(period, null)).toEqual(period);
+  });
+
+  it('never starts after the period ends', () => {
+    const narrowed = periodAfterCoverage(period, '2026-10-15T00:00:00Z');
+    expect(narrowed.startIso).toBe(period.endIso);
+  });
+});
+
+describe('[CNV-007] per-recipient digest coverage', () => {
+  const NOW = new Date('2026-10-14T04:45:26.302Z');
+  const period = digestPeriod('daily', NOW);
+
+  it("narrows only a recipient whose own last digest overlaps today's window", async () => {
+    const regather = vi.fn(async (own: { startIso: string }, ids: string[]) =>
+      ids.map((id) => ({ contactId: id, startIso: own.startIso }))
+    );
+    const out = await narrowToCoverage(
+      [
+        { contactId: 'raghavendra', startIso: period.startIso },
+        { contactId: 'beyond-cap', startIso: period.startIso },
+      ],
+      new Map([['raghavendra', '2026-10-13 06:57:41.829+00']]),
+      period,
+      regather
+    );
+    expect(regather).toHaveBeenCalledTimes(1);
+    expect(out).toEqual([
+      { contactId: 'raghavendra', startIso: '2026-10-13T06:57:41.829Z' },
+      { contactId: 'beyond-cap', startIso: period.startIso },
+    ]);
+  });
+
+  it('re-gathers everyone a late run covered in one pass, in their original order', async () => {
+    const lateRunEnd = '2026-10-13 06:57:41.829+00';
+    const regather = vi.fn(async (own: { startIso: string }, ids: string[]) =>
+      ids.map((id) => ({ contactId: id, startIso: own.startIso }))
+    );
+    const out = await narrowToCoverage(
+      [
+        { contactId: 'a1', startIso: period.startIso },
+        { contactId: 'a2', startIso: period.startIso },
+        { contactId: 'a3', startIso: period.startIso },
+      ],
+      new Map([
+        ['a1', lateRunEnd],
+        ['a3', lateRunEnd],
+      ]),
+      period,
+      regather
+    );
+    expect(regather).toHaveBeenCalledTimes(1);
+    expect(regather.mock.calls[0][1]).toEqual(['a1', 'a3']);
+    expect(out.map((d) => d.contactId)).toEqual(['a1', 'a2', 'a3']);
+  });
+
+  it('drops a recipient with nothing left after their own coverage', async () => {
+    const out = await narrowToCoverage(
+      [{ contactId: 'c1' }],
+      new Map([['c1', '2026-10-13T06:57:41Z']]),
+      period,
+      async () => []
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("reads each recipient's latest delivered digest from earlier days only", async () => {
+    const calls: [string, unknown[]][] = [];
+    const chain: Record<string, unknown> = {};
+    for (const m of ['select', 'eq', 'in', 'gt', 'lt']) {
+      chain[m] = (...args: unknown[]) => {
+        calls.push([m, args]);
+        return chain;
+      };
+    }
+    (chain as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
+      resolve({
+        data: [
+          { agent_contact_id: 'a1', period_end: '2026-10-13T05:00:00Z' },
+          { agent_contact_id: 'a1', period_end: '2026-10-13T06:57:41Z' },
+          { agent_contact_id: 'a2', period_end: '2026-10-13T04:50:00Z' },
+        ],
+      });
+    const db = { from: () => chain } as never;
+
+    const coverage = await digestCoverageByRecipient(
+      db,
+      { table: 'agent_inventory_digest_log', recipient: 'agent_contact_id' },
+      'acc-1',
+      period
+    );
+
+    expect(Object.fromEntries(coverage)).toEqual({
+      a1: '2026-10-13T06:57:41Z',
+      a2: '2026-10-13T04:50:00Z',
+    });
+    expect(calls).toContainEqual(['in', ['channel', ['freeform', 'template']]]);
+    expect(calls).toContainEqual(['gt', ['period_end', period.startIso]]);
+    expect(calls).toContainEqual(['lt', ['digest_date', period.digestDate]]);
+  });
+
+  it("aborts rather than send the full window when coverage can't be read", async () => {
+    const chain: Record<string, unknown> = {};
+    for (const m of ['select', 'eq', 'in', 'gt', 'lt']) chain[m] = () => chain;
+    (chain as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
+      resolve({ data: null, error: { message: 'statement timeout' } });
+    const db = { from: () => chain } as never;
+
+    await expect(
+      digestCoverageByRecipient(
+        db,
+        { table: 'owner_digest_log', recipient: 'owner_contact_id' },
+        'acc-1',
+        period
+      )
+    ).rejects.toThrow('statement timeout');
   });
 });

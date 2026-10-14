@@ -93,7 +93,7 @@ beforeEach(() => {
 });
 
 describe('tellApprovedLeadListingUnavailable', () => {
-  it('[CNV-007] stays out of the way of an available or unverified listing', async () => {
+  it('[CNV-008] stays out of the way of an available or unverified listing', async () => {
     for (const status of ['Available', 'Pending Review', null]) {
       expect(
         await tellApprovedLeadListingUnavailable({
@@ -106,7 +106,7 @@ describe('tellApprovedLeadListingUnavailable', () => {
     expect(state.sends).toEqual([]);
   });
 
-  it('[CNV-007] sends the regret with the showcase link instead of the details', async () => {
+  it('[CNV-008] sends the regret with the showcase link instead of the details', async () => {
     const outcome = await tellApprovedLeadListingUnavailable({
       db: fakeDb(),
       ...args,
@@ -136,7 +136,7 @@ describe('tellApprovedLeadListingUnavailable', () => {
     ]);
   });
 
-  it('[CNV-007] sends nothing again to a lead who already holds that exact reply', async () => {
+  it('[CNV-008] sends nothing again to a lead who already holds that exact reply', async () => {
     state.sameReply = true;
     const outcome = await tellApprovedLeadListingUnavailable({
       db: fakeDb(),
@@ -147,7 +147,7 @@ describe('tellApprovedLeadListingUnavailable', () => {
     expect(state.sends).toEqual([]);
   });
 
-  it('[CNV-007] withholds the status notice template from a lead who already holds it for this listing', async () => {
+  it('[CNV-008] withholds the status notice template from a lead who already holds it for this listing', async () => {
     state.noticeTexts = [
       'Hi Ali, this is a status update on your property enquiry with Aryavarta Ventures:\n\nProperty: #20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase, Bangalore',
     ];
@@ -161,7 +161,7 @@ describe('tellApprovedLeadListingUnavailable', () => {
     expect(outcome?.notice).toBe('already_told');
   });
 
-  it('[CNV-007] still sends the notice when the one they hold names another listing', async () => {
+  it('[CNV-008] still sends the notice when the one they hold names another listing', async () => {
     state.noticeTexts = [
       'Hi Ali, this is a status update on your property enquiry with Aryavarta Ventures:\n\nProperty: 3 BHK at Prestige Lakeside Habitat, Whitefield',
     ];
@@ -175,7 +175,7 @@ describe('tellApprovedLeadListingUnavailable', () => {
     expect(outcome?.notice).toBe('template');
   });
 
-  it('[CNV-007] reports a closed window with no approved notice, and a failed send, apart', async () => {
+  it('[CNV-008] reports a closed window with no approved notice, and a failed send, apart', async () => {
     state.outcome = 'no_template';
     expect(
       (
@@ -198,7 +198,7 @@ describe('tellApprovedLeadListingUnavailable', () => {
     ).toBe('failed');
   });
 
-  it('[CNV-007] hands back the conversation the first message opened for a lead with no thread yet', async () => {
+  it('[CNV-008] hands back the conversation the first message opened for a lead with no thread yet', async () => {
     state.conversationsInOrder = [null, { id: 'conv-new' }];
     const outcome = await tellApprovedLeadListingUnavailable({
       db: fakeDb(),

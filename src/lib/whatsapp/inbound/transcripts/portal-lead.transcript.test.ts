@@ -26,9 +26,7 @@ const ACCOUNT = 'acc-1';
 const USER = 'user-1';
 const CONTACT = 'c-shirish';
 const CONVERSATION = 'conv-1';
-// The lead arrived an hour ago, by the clock: a date pinned to the day
-// the test was written would make them a re-engaged lead a week later.
-const NOW = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+const NOW = new Date().toISOString();
 
 interface Outbound {
   kind: string;

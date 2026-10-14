@@ -61,7 +61,7 @@ beforeEach(() => {
 });
 
 describe('replyListingUnavailableOnce', () => {
-  it('[CNV-008] says nothing about a live or unverified listing', async () => {
+  it('[CNV-009] says nothing about a live or unverified listing', async () => {
     for (const status of ['Available', 'Pending Review', null]) {
       expect(
         await replyListingUnavailableOnce({
@@ -75,7 +75,7 @@ describe('replyListingUnavailableOnce', () => {
     expect(state.contactLookups).toBe(0);
   });
 
-  it('[CNV-008] sends the regret with the showcase link, as the bot, to the lead', async () => {
+  it('[CNV-009] sends the regret with the showcase link, as the bot, to the lead', async () => {
     const outcome = await replyListingUnavailableOnce({
       db: fakeDb(),
       ...args,
@@ -102,7 +102,7 @@ describe('replyListingUnavailableOnce', () => {
     );
   });
 
-  it('[CNV-008] looks the lead up only when no name was given', async () => {
+  it('[CNV-009] looks the lead up only when no name was given', async () => {
     await replyListingUnavailableOnce({
       db: fakeDb(),
       ...args,
@@ -120,7 +120,7 @@ describe('replyListingUnavailableOnce', () => {
     expect(state.sends[1].text).toMatch(/^Hi Ali,/);
   });
 
-  it('[CNV-008] sends nothing again to a lead who already holds the reply', async () => {
+  it('[CNV-009] sends nothing again to a lead who already holds the reply', async () => {
     state.alreadyTold = true;
     expect(
       await replyListingUnavailableOnce({
