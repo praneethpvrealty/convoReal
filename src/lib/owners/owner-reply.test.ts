@@ -7,6 +7,7 @@ import {
   replyUsesExpectedScript,
   resolveOwnerReplyLanguage,
   type OwnedListing,
+  claimsSubscriptionChange,
 } from './owner-reply';
 import type { OwnerDigest } from './owner-digest';
 
@@ -174,5 +175,25 @@ describe('buildOwnerReplyPrompt', () => {
       'any update?'
     );
     expect(prompt).toContain('No fresh tracked activity this week.');
+  });
+});
+
+describe('[CNV-007] claimsSubscriptionChange', () => {
+  it('catches a reply that says a subscription was changed', () => {
+    for (const reply of [
+      'We have successfully processed your request. You have been unsubscribed from our updates.',
+      'Done — you are now subscribed to weekly reports.',
+      'Your preference has been updated.',
+    ]) {
+      expect(claimsSubscriptionChange(reply), reply).toBe(true);
+    }
+  });
+
+  it('lets an ordinary reply through', () => {
+    expect(
+      claimsSubscriptionChange(
+        'Your listing is live on our showcase. Reply STOP UPDATES to pause these updates.'
+      )
+    ).toBe(false);
   });
 });

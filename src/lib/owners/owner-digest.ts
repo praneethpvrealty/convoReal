@@ -133,6 +133,37 @@ export function digestPeriod(
   };
 }
 
+export function periodAfterCoverage(
+  period: DigestPeriod,
+  coveredUntil: string | null | undefined
+): DigestPeriod {
+  if (!coveredUntil) return period;
+  const covered = new Date(coveredUntil).getTime();
+  const start = new Date(period.startIso).getTime();
+  const end = new Date(period.endIso).getTime();
+  if (!Number.isFinite(covered) || covered <= start) return period;
+  return {
+    ...period,
+    startIso: new Date(Math.min(covered, end)).toISOString(),
+  };
+}
+
+export async function latestDigestCoverage(
+  db: SupabaseClient,
+  table: 'owner_digest_log' | 'agent_inventory_digest_log',
+  accountId: string
+): Promise<string | null> {
+  const { data } = await db
+    .from(table)
+    .select('period_end')
+    .eq('account_id', accountId)
+    .in('channel', ['freeform', 'template'])
+    .order('period_end', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as { period_end?: string | null } | null)?.period_end ?? null;
+}
+
 export function hasUpdates(digest: OwnerDigest): boolean {
   return digest.properties.some(
     (p) =>
@@ -345,6 +376,32 @@ export function parseOwnerDigestCommand(
   if (/^(stop|pause)\s+(property\s+)?updates?$/.test(cleaned)) return 'stop';
   if (/^(start|resume)\s+(property\s+)?updates?$/.test(cleaned)) return 'start';
   return null;
+}
+
+export function isBareOptOut(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const cleaned = text
+    .trim()
+    .toLowerCase()
+    .replace(/[.!\s]+$/, '');
+  return /^(stop|unsubscribe|stop all|stop messages|stop sending|stop it)$/.test(
+    cleaned
+  );
+}
+
+export async function receivesUpdateDigest(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('properties')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('owner_contact_id', contactId)
+    .not('status', 'in', CLOSED_LISTING_STATUS_FILTER)
+    .limit(1);
+  return !error && (data ?? []).length > 0;
 }
 
 // ── Engine ────────────────────────────────────────────────────────
@@ -754,7 +811,10 @@ export async function sendOwnerStatusDigests(options?: {
     summaries.push(summary);
 
     try {
-      const period = digestPeriod(frequency, now);
+      const period = periodAfterCoverage(
+        digestPeriod(frequency, now),
+        await latestDigestCoverage(db, 'owner_digest_log', accountId)
+      );
       const digests = await gatherOwnerDigests(db, accountId, period);
       summary.owners = digests.length;
       if (digests.length === 0) continue;

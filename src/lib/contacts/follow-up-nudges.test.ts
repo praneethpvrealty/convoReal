@@ -385,6 +385,8 @@ describe('gatherFollowUpLeads', () => {
     journey_items?: Record<string, unknown>[];
     contact_parties?: Record<string, unknown>[];
     contact_party_members?: Record<string, unknown>[];
+    listing_feedback?: Record<string, unknown>[];
+    unanswered?: Record<string, unknown>[];
   };
 
   /** Filters are pass-through except the fields exercised by these
@@ -419,6 +421,10 @@ describe('gatherFollowUpLeads', () => {
         ) => resolve({ data: rows });
         return chain;
       },
+      rpc: async (name: string) =>
+        name === 'followup_unanswered_checkins'
+          ? { data: tables.unanswered ?? [] }
+          : { data: null },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
   }
@@ -449,6 +455,46 @@ describe('gatherFollowUpLeads', () => {
     expect(leads[0].daysSilent).toBe(6);
     expect(leads[0].propertyTitle).toBe('JP Nagar Plot');
     expect(leads[0].propertyId).toBe('p-1');
+  });
+
+  it('[CNV-007] never cards a lead on a listing they closed themselves', async () => {
+    const leads = await gatherFollowUpLeads(
+      db({
+        contacts: [
+          contact('1', { last_inquired_property_id: 'p-1' }),
+          contact('2', { last_inquired_property_id: 'p-2' }),
+        ],
+        follow_up_nudges: [],
+        properties: [
+          { id: 'p-1', title: 'BTM Layout Plot' },
+          { id: 'p-2', title: 'JP Nagar Plot' },
+        ],
+        listing_feedback: [
+          { contact_id: '1', property_id: 'p-1', verdict: 'rejected' },
+          { contact_id: '2', property_id: 'p-9', verdict: 'rejected' },
+        ],
+      }),
+      'acct-1',
+      NOW
+    );
+    expect(leads.map((l) => l.contactId)).toEqual(['2']);
+  });
+
+  it('[CNV-007] stops carding a lead once three check-ins went unanswered', async () => {
+    const leads = await gatherFollowUpLeads(
+      db({
+        contacts: [contact('1'), contact('2'), contact('3')],
+        follow_up_nudges: [],
+        properties: [],
+        unanswered: [
+          { contact_id: '1', unanswered: 3 },
+          { contact_id: '2', unanswered: 2 },
+        ],
+      }),
+      'acct-1',
+      NOW
+    );
+    expect(leads.map((l) => l.contactId)).toEqual(['2', '3']);
   });
 
   it('holds back snoozed and recently-nudged leads', async () => {

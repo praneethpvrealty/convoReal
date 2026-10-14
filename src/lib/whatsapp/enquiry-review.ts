@@ -87,8 +87,9 @@ export async function loadOpenEnquiries(
 /**
  * Files one property-scoped close: the listing is rejected for this
  * contact, the journey branch is dropped, and the timeline says so.
- * The contact itself is untouched — closing a listing is not closing
- * the lead.
+ * Closing a listing is not closing the lead: its temperature is
+ * untouched, and only a last-enquired pointer still naming the closed
+ * listing moves to the next open enquiry.
  */
 export async function closePropertyEnquiry(args: {
   db: SupabaseClient;
@@ -174,6 +175,21 @@ export async function closePropertyEnquiry(args: {
         );
       }
     }
+  }
+
+  const nextOpen = await loadOpenEnquiries(db, accountId, contact.id, {
+    excludePropertyId: property.id,
+  });
+  if (nextOpen.length > 0) {
+    await db
+      .from('contacts')
+      .update({
+        last_inquired_property_id: nextOpen[0].property.id,
+        updated_at: now,
+      })
+      .eq('id', contact.id)
+      .eq('account_id', accountId)
+      .eq('last_inquired_property_id', property.id);
   }
 
   const name = leadFirstName(contact.name) || 'The lead';

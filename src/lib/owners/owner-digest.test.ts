@@ -8,6 +8,8 @@ import {
   buildConsentRequestMessage,
   gatherOwnerDigests,
   parseOwnerDigestCommand,
+  isBareOptOut,
+  periodAfterCoverage,
   CONSENT_BUTTONS,
   istHour,
   resolveOwnerActivityAudience,
@@ -425,5 +427,47 @@ describe('gatherOwnerDigests', () => {
     expect(owner.properties[0].drop_feedback[0].reason).toBe(
       'the prospect preferred another locality'
     );
+  });
+});
+
+describe('[CNV-007] isBareOptOut', () => {
+  it('reads a one-word opt-out as one', () => {
+    for (const text of ['STOP', 'stop', 'Stop.', 'Unsubscribe', 'stop all']) {
+      expect(isBareOptOut(text), text).toBe(true);
+    }
+  });
+
+  it('never reads a sentence as an opt-out', () => {
+    for (const text of [
+      'stop calling me',
+      'please stop',
+      'bus stop near the plot?',
+      '',
+      null,
+    ]) {
+      expect(isBareOptOut(text), String(text)).toBe(false);
+    }
+  });
+});
+
+describe('[CNV-007] periodAfterCoverage', () => {
+  const NOW = new Date('2026-10-14T04:45:26.302Z');
+  const period = digestPeriod('daily', NOW);
+
+  it('starts where the last digest that went out stopped, so nothing is counted twice', () => {
+    const narrowed = periodAfterCoverage(period, '2026-10-13 06:57:41.829+00');
+    expect(narrowed.startIso).toBe('2026-10-13T06:57:41.829Z');
+    expect(narrowed.endIso).toBe(period.endIso);
+    expect(narrowed.label).toBe(period.label);
+  });
+
+  it('keeps the full period when the last digest ended before it', () => {
+    expect(periodAfterCoverage(period, '2026-10-12T04:45:00Z')).toEqual(period);
+    expect(periodAfterCoverage(period, null)).toEqual(period);
+  });
+
+  it('never starts after the period ends', () => {
+    const narrowed = periodAfterCoverage(period, '2026-10-15T00:00:00Z');
+    expect(narrowed.startIso).toBe(period.endIso);
   });
 });

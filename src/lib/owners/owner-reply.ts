@@ -171,6 +171,12 @@ export function replyUsesExpectedScript(
   return OWNER_REPLY_SCRIPTS[language].test(reply);
 }
 
+export function claimsSubscriptionChange(reply: string): boolean {
+  return /\b(un)?subscribed\b|\bopted (you )?(out|in)\b|\b(request|preference) (has been|was) (successfully )?(processed|updated|recorded)\b|\bsuccessfully processed\b/i.test(
+    reply
+  );
+}
+
 function ownerReplySystem(language: LanguageCode): string {
   const languageRule =
     language === 'en'
@@ -187,6 +193,7 @@ function ownerReplySystem(language: LanguageCode): string {
     'If the owner asks which property this is about, name their listing(s).',
     'If the question needs information not in the facts (negotiations, legal, documents, specific buyers), say their agent will follow up personally.',
     'Never treat the owner as a buyer and never offer to find them a property.',
+    'You cannot change their update subscription. Never say they have been subscribed, unsubscribed or that a request was processed; if they want updates stopped or started, tell them to reply STOP UPDATES or START UPDATES.',
   ].join(' ');
 }
 
@@ -319,6 +326,9 @@ export async function handleOwnerInboundMessage(args: {
       }
       if (!reply || !replyUsesExpectedScript(reply, replyLanguage)) {
         throw new Error('AI reply used the wrong language');
+      }
+      if (claimsSubscriptionChange(reply)) {
+        throw new Error('AI reply claimed a subscription change');
       }
     } catch (err) {
       console.error('[owner-reply] AI reply failed, using fallback:', err);

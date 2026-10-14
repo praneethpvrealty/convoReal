@@ -80,6 +80,9 @@ export const FOLLOWUP_RENUDGE_DAYS = 7;
 /** Cards per account per run — past this the agent should be working
  *  the inbox, not archiving cards. */
 export const FOLLOWUP_MAX_PER_RUN = 3;
+/** Check-in templates a lead may be sent without answering before the
+ *  radar stops carding them. */
+export const FOLLOWUP_MAX_UNANSWERED_CHECKINS = 3;
 
 const FOLLOWUP_BUYER_CLASSIFICATIONS = ['Buyer', 'Owner & Buyer'];
 
@@ -379,6 +382,38 @@ export async function gatherFollowUpLeads(
     if (snoozed || recent) held.add(n.contact_id);
   }
 
+  const quietIds = quiet.map((c) => c.id);
+  const [{ data: rejectedRows }, { data: unansweredRows }] = await Promise.all([
+    db
+      .from('listing_feedback')
+      .select('contact_id, property_id')
+      .eq('account_id', accountId)
+      .eq('verdict', 'rejected')
+      .in('contact_id', quietIds),
+    db.rpc('followup_unanswered_checkins', {
+      p_account_id: accountId,
+      p_contact_ids: quietIds,
+      p_template_names: [
+        ...JOURNEY_CHECKIN_TEMPLATE_NAMES,
+        ...REQUIREMENT_REVIEW_TEMPLATE_NAMES,
+      ],
+    }),
+  ]);
+  const rejected = new Set(
+    ((rejectedRows ?? []) as { contact_id: string; property_id: string }[]).map(
+      (r) => `${r.contact_id}:${r.property_id}`
+    )
+  );
+  const exhausted = new Set(
+    ((unansweredRows ?? []) as { contact_id: string; unanswered: number }[])
+      .filter((r) => r.unanswered >= FOLLOWUP_MAX_UNANSWERED_CHECKINS)
+      .map((r) => r.contact_id)
+  );
+  const settled = (c: Row) =>
+    exhausted.has(c.id) ||
+    (!!c.last_inquired_property_id &&
+      rejected.has(`${c.id}:${c.last_inquired_property_id}`));
+
   // A hold or a closing deal on ANY member covers the whole party: one
   // agent snoozing the husband must not leave the wife's card to fire
   // tomorrow, which is the duplicate this feature exists to stop.
@@ -389,7 +424,7 @@ export async function gatherFollowUpLeads(
   };
 
   const due = collapseToParties(
-    quiet.filter((c) => !heldParty(c)),
+    quiet.filter((c) => !heldParty(c) && !settled(c)),
     (c) => c.id,
     parties
   )
