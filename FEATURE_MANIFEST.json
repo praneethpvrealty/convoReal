@@ -4908,6 +4908,24 @@
               "case": "[CNV-007]"
             }
           ]
+        },
+        {
+          "id": "CNV-008",
+          "rule": "Every bot path that details or photographs a listing on a lead's request — the Send more details template tap, the share-yes button, a shortlist pick, a photo request, an enquiry-card Approve or Photos tap — sends the regret instead for a listing that has left the market (Under Contract, Sold, Off Market, Archived, Rejected): the apology with its status, the ask for requirements and budget, and the lead's attributed showcase link, through one shared reply that is sent once per thread and never repeated to a lead who already holds it. A photo request naming a live listing and a sold one photographs the live one and regrets the other; a shortlist pick that has left the market earns no completion line claiming its details were shared; the Browse and Show more lists offer only Available listings; nothing about a live or Pending Review listing changes.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/inbound/unavailable-listing-reply.test.ts",
+              "case": "[CNV-008]"
+            },
+            {
+              "file": "src/lib/whatsapp/inbound/property-share-replies.test.ts",
+              "case": "[CNV-008]"
+            },
+            {
+              "file": "src/lib/ai/photo-request.test.ts",
+              "case": "[CNV-008]"
+            }
+          ]
         }
       ]
     },

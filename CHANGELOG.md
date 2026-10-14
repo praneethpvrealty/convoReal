@@ -31,6 +31,15 @@ than a written entry. Newest first.
   sent again. The web contact sheet approves through the same route as the
   mobile app, so both surfaces behave alike and the agent is told which
   happened. CNV-007.
+- **No bot path details a listing that has left the market.** A lead who
+  tapped "Send more details" on the photos template, picked the listing from
+  a shortlist, or asked for its photos was sent the full details, the
+  showcase image and a "does this one work for you?" check of a plot under
+  contract. Every one of those paths now sends the same regret — status,
+  a request for requirements and budget, the showcase link — once per
+  thread, a photo request covering a live and a sold listing photographs
+  only the live one, and the Browse and Show more lists offer only
+  available listings. CNV-008.
 
 #### 13 October 2026
 

@@ -5,7 +5,7 @@ import {
   parseEnquiryReply,
   resolveEnquiryTeamPhone,
 } from '@/lib/whatsapp/enquiry-card';
-import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
+import { replyListingUnavailableOnce } from '@/lib/whatsapp/inbound/unavailable-listing-reply';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { handlePropertyShareYesReply } from '@/lib/whatsapp/inbound/property-share-replies';
@@ -115,35 +115,20 @@ export async function handleEnquiryCardReply(
   });
   if (!conversation) return false;
 
-  const unavailableReply = await unavailableListingReplyWithShowcase({
+  const unavailable = await replyListingUnavailableOnce({
     db: admin,
     accountId,
+    userId: configOwnerUserId,
     contactId: action.contactId,
+    conversationId: conversation.id,
+    toPhone: lead.phone as string,
     contactName: lead.name,
-    propertyTitle: propertyRow?.title,
-    status: propertyRow?.status,
+    property: {
+      title: propertyRow?.title ?? null,
+      status: propertyRow?.status,
+    },
   });
-  if (unavailableReply) {
-    const { data: alreadyTold } = await admin
-      .from('messages')
-      .select('id')
-      .eq('conversation_id', conversation.id)
-      .eq('content_text', unavailableReply)
-      .neq('status', 'failed')
-      .limit(1)
-      .maybeSingle();
-    if (!alreadyTold) {
-      await sendWhatsAppMessageAndPersist({
-        accountId,
-        userId: configOwnerUserId,
-        contactId: action.contactId,
-        conversationId: conversation.id,
-        toPhone: lead.phone as string,
-        kind: 'text',
-        senderType: 'bot',
-        text: unavailableReply,
-      });
-    }
+  if (unavailable) {
     await confirmToAgent(
       `⚠️ Not sent — ${propertyLabel} is marked "${propertyRow?.status}". ${lead.name || lead.phone} was told it is not available and asked for their requirements and budget.`
     );
