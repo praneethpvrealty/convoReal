@@ -16,9 +16,11 @@ export async function closeEnquiryTap(
   // their enquiry stayed open and the alerts kept coming.
   //
   // The close is scoped to the listing the template named: that
-  // enquiry is filed as closed and the lead hears one acknowledgement,
-  // nothing more. The lead is marked dead only when nothing names a
-  // listing and nothing is on their journey — a search-level close.
+  // enquiry is filed as closed, the lead is told their other enquiries
+  // stay open, and only a listing that was still live earns the
+  // drop-off reason, the open-enquiry review and the requirement
+  // ladder. The lead is marked dead only when nothing names a listing
+  // and nothing is on their journey — a search-level close.
   if (matchTemplateButton(message.button?.text) === 'close_enquiry') {
     await handleEnquiryClose({
       db: supabaseAdmin(),

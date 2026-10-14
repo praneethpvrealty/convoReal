@@ -2,12 +2,15 @@
 //
 // The button sits on templates that each name one listing, so the
 // close is scoped to that listing: it is rejected for this contact,
-// its journey branch is dropped, and the lead hears one short
-// acknowledgement — nothing else. A lead who has just closed an
-// enquiry is not asked why, not pitched alerts and not walked through
-// their other enquiries: every one of those followed the close once,
-// and a buyer whose deal had just fallen through was asked "what made
-// you drop it?" and sold a listing engine in the same minute.
+// its journey branch is dropped, and the lead is told exactly that —
+// their other enquiries stay open, the requirement keeps matching, and
+// alert consent is whatever they last said. A listing the lead walked
+// away from while it was still live earns the one-tap drop-off reason;
+// one that had already left the market never does — the agency ended
+// that enquiry, and asking the lead what made them drop it, a minute
+// after telling them the deal would not proceed, is the message this
+// file exists not to send. The ack sells nothing either: one neutral
+// line names START ALERTS for a lead who has not granted alerts.
 //
 // Only when nothing names a listing and nothing is on the journey is
 // the close read as the lead ending their search. That is the one case
@@ -19,8 +22,10 @@ import { markContactDead } from '@/lib/contacts/lifecycle';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import {
   resolveDroppedProperty,
+  sendEnquiryDropoffPrompt,
   type DroppedProperty,
 } from '@/lib/whatsapp/enquiry-dropoff';
+import { isListingLive } from '@/lib/inventory/listing-status';
 import {
   closePropertyEnquiry,
   enquiryLabel,
@@ -34,6 +39,7 @@ export const START_ALERTS_LINE =
 export function buildPropertyCloseAck(args: {
   property: DroppedProperty;
   openCount: number;
+  alertsGranted: boolean;
 }): string {
   const label = enquiryLabel(args.property);
   return [
@@ -41,6 +47,7 @@ export function buildPropertyCloseAck(args: {
     ...(args.openCount > 0
       ? ['', 'Your other enquiries with us stay open.']
       : []),
+    ...(args.alertsGranted ? [] : ['', START_ALERTS_LINE]),
   ].join('\n');
 }
 
@@ -100,7 +107,23 @@ export async function handleEnquiryClose(args: {
     if (property) {
       await closePropertyEnquiry({ db, accountId, contact, property });
       const open = await loadOpenEnquiries(db, accountId, contact.id);
-      await send(buildPropertyCloseAck({ property, openCount: open.length }));
+      await send(
+        buildPropertyCloseAck({
+          property,
+          openCount: open.length,
+          alertsGranted: contact.buyer_alerts_consent === 'granted',
+        })
+      );
+      if (isListingLive(property)) {
+        await sendEnquiryDropoffPrompt({
+          db,
+          accountId,
+          userId,
+          contactId: contact.id,
+          conversationId,
+          property,
+        });
+      }
       return 'property';
     }
 
