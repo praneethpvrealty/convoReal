@@ -41,6 +41,9 @@ than a written entry. Newest first.
   two. **Migration required**: `20261014023548_…` (already on production),
   `20261014081351_deal_status_notice_sweep.sql` (additive),
   `20261014093259_deal_status_notifications_updated_at.sql` (additive),
+  `20261014095244_deal_status_notice_retire_on_change.sql` (additive:
+  a deal reopened or corrected, or a journey branch revived, before its
+  notice went out retires that notice),
   `20261014082622_deal_closed_trigger_event_type.sql` (hotfix, already
   applied: the trigger's timeline entry used an event type the
   `deal_events` check rejects, which made every won or lost status change

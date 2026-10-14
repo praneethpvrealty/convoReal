@@ -136,32 +136,50 @@ export function noticeDisposition(
 /** The primary buyer is the contact the deal or journey branch belongs
  *  to; a buyer-side stakeholder can carry the role 'buyer' too (a joint
  *  buyer), so the role alone cannot tell them apart, and a row whose
- *  source is gone is treated as a stakeholder's. */
-async function resolvePrimaryBuyer(
+ *  source is gone is treated as a stakeholder's. The same read says
+ *  whether the outcome still holds: a deal reopened or re-closed the
+ *  other way, or a journey branch revived, makes the notice stale. */
+async function resolveSource(
   db: SupabaseClient,
   accountId: string,
   row: DealStatusNoticeRow
-): Promise<{ primaryBuyer: boolean; error: string | null }> {
-  const source = row.deal_id
-    ? db
-        .from('deals')
-        .select('contact_id')
-        .eq('id', row.deal_id)
-        .eq('account_id', accountId)
-        .maybeSingle()
-    : row.journey_item_id
-      ? db
-          .from('journey_items')
-          .select('contact_id')
-          .eq('id', row.journey_item_id)
-          .eq('account_id', accountId)
-          .maybeSingle()
-      : null;
-  if (!source) return { primaryBuyer: false, error: null };
-  const { data, error } = await source;
-  if (error) return { primaryBuyer: false, error: error.message };
-  const owner = (data as { contact_id: string | null } | null)?.contact_id;
-  return { primaryBuyer: !!owner && owner === row.contact_id, error: null };
+): Promise<{ primaryBuyer: boolean; stale: boolean; error: string | null }> {
+  if (row.deal_id) {
+    const { data, error } = await db
+      .from('deals')
+      .select('contact_id, status')
+      .eq('id', row.deal_id)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    if (error)
+      return { primaryBuyer: false, stale: false, error: error.message };
+    const deal = data as { contact_id: string | null; status: string } | null;
+    if (!deal) return { primaryBuyer: false, stale: false, error: null };
+    const expected = row.event === 'won' ? 'won' : 'lost';
+    return {
+      primaryBuyer: !!deal.contact_id && deal.contact_id === row.contact_id,
+      stale: deal.status !== expected,
+      error: null,
+    };
+  }
+  if (row.journey_item_id) {
+    const { data, error } = await db
+      .from('journey_items')
+      .select('contact_id, status')
+      .eq('id', row.journey_item_id)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    if (error)
+      return { primaryBuyer: false, stale: false, error: error.message };
+    const item = data as { contact_id: string | null; status: string } | null;
+    if (!item) return { primaryBuyer: false, stale: false, error: null };
+    return {
+      primaryBuyer: !!item.contact_id && item.contact_id === row.contact_id,
+      stale: row.event !== 'won' && item.status !== 'dropped',
+      error: null,
+    };
+  }
+  return { primaryBuyer: false, stale: false, error: null };
 }
 
 /** A notice that reached WhatsApp but whose row could not be marked
@@ -411,18 +429,27 @@ export async function drainDealStatusNotices(
       continue;
     }
 
-    const { primaryBuyer, error: primaryError } = await resolvePrimaryBuyer(
-      db,
-      accountId,
-      row
-    );
-    if (primaryError) {
+    const {
+      primaryBuyer,
+      stale,
+      error: sourceError,
+    } = await resolveSource(db, accountId, row);
+    if (sourceError) {
       console.error(
         '[deal-status-notices] deal lookup failed; retrying later:',
         row.id,
-        primaryError
+        sourceError
       );
       summary.failed++;
+      continue;
+    }
+    if (stale) {
+      await skipNotice(
+        db,
+        row,
+        'Deal status changed before the notice was sent'
+      );
+      summary.skipped++;
       continue;
     }
     const sessionOpen = await isSessionOpen(db, accountId, recipient.id);

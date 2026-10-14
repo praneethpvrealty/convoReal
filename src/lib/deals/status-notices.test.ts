@@ -47,6 +47,10 @@ const timestamps = readFileSync(
   join(MIGRATIONS, '20261014093259_deal_status_notifications_updated_at.sql'),
   'utf8'
 );
+const reopen = readFileSync(
+  join(MIGRATIONS, '20261014095244_deal_status_notice_retire_on_change.sql'),
+  'utf8'
+);
 const hardening = readFileSync(
   join(MIGRATIONS, '20261014081400_deal_status_notice_policies_and_brand.sql'),
   'utf8'
@@ -218,7 +222,7 @@ describe('[DSN-001] the notice goes out through the approved enquiry status temp
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
       ],
       properties: [{ data: listing }],
-      deals: [{ data: { contact_id: 'c-1' } }],
+      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
     });
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
@@ -352,6 +356,29 @@ describe('[DSN-002] the template never carries news it was not written for', () 
     expect(calls.some((c) => c.table === 'deals')).toBe(false);
   });
 
+  it('skips a notice whose deal was reopened or re-closed the other way before it was sent', async () => {
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      deals: [{ data: { contact_id: 'c-1', status: 'open' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ skipped: 1, sent: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toMatchObject({
+      status: 'skipped',
+      last_error: 'Deal status changed before the notice was sent',
+    });
+  });
+
   it('tells a joint buyer apart from the primary buyer by the deal, not the role', async () => {
     vi.mocked(isSessionOpen).mockResolvedValue(false);
     const { db, calls } = fakeDb({
@@ -366,7 +393,7 @@ describe('[DSN-002] the template never carries news it was not written for', () 
         { data: { id: 'c-2', name: 'Joint Buyer', phone: '+917777777777' } },
       ],
       properties: [{ data: listing }],
-      deals: [{ data: { contact_id: 'c-1' } }],
+      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
     });
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
@@ -495,7 +522,10 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
       ],
       properties: [{ data: listing }, { data: listing }],
-      deals: [{ data: { contact_id: 'c-1' } }, { data: { contact_id: 'c-1' } }],
+      deals: [
+        { data: { contact_id: 'c-1', status: 'lost' } },
+        { data: { contact_id: 'c-1', status: 'lost' } },
+      ],
     });
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
@@ -540,7 +570,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
       ],
       properties: [{ data: listing }],
-      deals: [{ data: { contact_id: 'c-1' } }],
+      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
     });
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
@@ -565,7 +595,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
       ],
       properties: [{ data: listing }],
-      deals: [{ data: { contact_id: 'c-1' } }],
+      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
       conversations: [{ data: { id: 'conv-1' } }],
       messages: [{ data: { id: 'm-1' } }],
     });
@@ -750,6 +780,39 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
       /tgname = 'set_deal_status_notifications_updated_at'[\s\S]*?CREATE TRIGGER set_deal_status_notifications_updated_at\s+BEFORE UPDATE ON public\.deal_status_notifications\s+FOR EACH ROW EXECUTE FUNCTION public\.update_updated_at_column\(\);/
     );
     expect(timestamps).not.toMatch(/\bDROP\b/);
+  });
+
+  it('retires a pending notice when its deal or journey branch changes again', () => {
+    expect(reopen).toMatch(
+      /FUNCTION public\.retire_deal_status_notices_on_deal_change\(\)[\s\S]*?SET status = 'skipped'[\s\S]*?WHERE deal_id = new\.id\s+AND status = 'pending'/
+    );
+    expect(reopen).toMatch(
+      /CREATE TRIGGER deal_change_retire_notices_trigger\s+AFTER UPDATE OF status ON public\.deals\s+FOR EACH ROW WHEN \(old\.status IN \('won', 'lost'\) AND new\.status IS DISTINCT FROM old\.status\)/
+    );
+    expect(
+      'deal_change_retire_notices_trigger' < 'deal_closed_sync_trigger'
+    ).toBe(true);
+    expect(reopen).toMatch(
+      /CREATE TRIGGER journey_change_retire_notices_trigger\s+AFTER UPDATE OF status ON public\.journey_items\s+FOR EACH ROW WHEN \(old\.status = 'dropped' AND new\.status IS DISTINCT FROM 'dropped'\)/
+    );
+    expect(reopen).not.toMatch(/\bDROP\b/);
+  });
+
+  it("closes a deal's todos by the deal, and by buyer and property only when both are known", () => {
+    const closed = /FUNCTION public\.on_deal_closed\(\)[\s\S]*?\$\$;/.exec(
+      hardening
+    )?.[0];
+    expect(closed).toBeDefined();
+    expect(closed).toMatch(
+      /WHERE account_id = new\.account_id\s+AND NOT completed\s+AND deal_id = new\.id/
+    );
+    expect(closed).toMatch(
+      /IF new\.contact_id IS NOT NULL AND new\.property_id IS NOT NULL THEN\s+PERFORM auto_close_todos\(new\.account_id, new\.contact_id, new\.property_id/
+    );
+    expect(closed).toContain("'note_added', 'system'");
+    expect(hardening).toMatch(
+      /FUNCTION public\.auto_close_todos\([\s\S]*?IF p_property_id IS NULL THEN RETURN 0; END IF;/
+    );
   });
 
   it('sweeps only todos whose property, deal or sole journey branch is closed', () => {
