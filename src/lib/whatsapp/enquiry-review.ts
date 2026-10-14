@@ -177,14 +177,17 @@ export async function closePropertyEnquiry(args: {
     }
   }
 
+  const closed = !feedbackError && !itemError && dropped;
   let repointed = true;
-  const nextOpen = await loadOpenEnquiries(db, accountId, contact.id, {
-    excludePropertyId: property.id,
-    strict: true,
-  }).catch(() => {
-    repointed = false;
-    return [];
-  });
+  const nextOpen = closed
+    ? await loadOpenEnquiries(db, accountId, contact.id, {
+        excludePropertyId: property.id,
+        strict: true,
+      }).catch(() => {
+        repointed = false;
+        return [];
+      })
+    : [];
   if (nextOpen.length > 0) {
     const { error: repointError } = await db
       .from('contacts')
@@ -207,7 +210,7 @@ export async function closePropertyEnquiry(args: {
       args.note ??
       `🚪 ${name} closed their enquiry on ${enquiryLabel(property)}`,
   });
-  return !feedbackError && !itemError && dropped && repointed;
+  return closed && repointed;
 }
 
 export function buildEnquiryReviewBody(

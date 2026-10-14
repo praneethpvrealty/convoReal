@@ -181,22 +181,37 @@ export async function narrowToCoverage<T extends { contactId: string }>(
   digests: T[],
   coverage: Map<string, string>,
   period: DigestPeriod,
-  regather: (period: DigestPeriod, contactId: string) => Promise<T[]>
+  regather: (period: DigestPeriod, contactIds: string[]) => Promise<T[]>
 ): Promise<T[]> {
-  const narrowed: T[] = [];
+  const uncovered: T[] = [];
+  const byBoundary = new Map<string, string[]>();
   for (const digest of digests) {
     const covered = coverage.get(digest.contactId);
     if (!covered) {
-      narrowed.push(digest);
+      uncovered.push(digest);
       continue;
     }
-    const own = await regather(
-      periodAfterCoverage(period, covered),
-      digest.contactId
-    );
-    if (own[0]) narrowed.push(own[0]);
+    const startIso = periodAfterCoverage(period, covered).startIso;
+    byBoundary.set(startIso, [
+      ...(byBoundary.get(startIso) ?? []),
+      digest.contactId,
+    ]);
   }
-  return narrowed;
+  const regathered = await Promise.all(
+    [...byBoundary].map(([startIso, contactIds]) =>
+      regather({ ...period, startIso }, contactIds)
+    )
+  );
+  const narrowed = new Map(
+    regathered.flat().map((digest) => [digest.contactId, digest])
+  );
+  return digests.flatMap((digest) =>
+    coverage.has(digest.contactId)
+      ? narrowed.has(digest.contactId)
+        ? [narrowed.get(digest.contactId)!]
+        : []
+      : [digest]
+  );
 }
 
 export function hasUpdates(digest: OwnerDigest): boolean {
@@ -856,7 +871,7 @@ export async function sendOwnerStatusDigests(options?: {
           period
         ),
         period,
-        (own, contactId) => gatherOwnerDigests(db, accountId, own, [contactId])
+        (own, contactIds) => gatherOwnerDigests(db, accountId, own, contactIds)
       );
       summary.owners = digests.length;
       if (digests.length === 0) continue;

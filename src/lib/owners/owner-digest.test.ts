@@ -479,9 +479,9 @@ describe('[CNV-007] per-recipient digest coverage', () => {
   const period = digestPeriod('daily', NOW);
 
   it("narrows only a recipient whose own last digest overlaps today's window", async () => {
-    const regather = vi.fn(async (own: { startIso: string }, id: string) => [
-      { contactId: id, startIso: own.startIso },
-    ]);
+    const regather = vi.fn(async (own: { startIso: string }, ids: string[]) =>
+      ids.map((id) => ({ contactId: id, startIso: own.startIso }))
+    );
     const out = await narrowToCoverage(
       [
         { contactId: 'raghavendra', startIso: period.startIso },
@@ -496,6 +496,29 @@ describe('[CNV-007] per-recipient digest coverage', () => {
       { contactId: 'raghavendra', startIso: '2026-10-13T06:57:41.829Z' },
       { contactId: 'beyond-cap', startIso: period.startIso },
     ]);
+  });
+
+  it('re-gathers everyone a late run covered in one pass, in their original order', async () => {
+    const lateRunEnd = '2026-10-13 06:57:41.829+00';
+    const regather = vi.fn(async (own: { startIso: string }, ids: string[]) =>
+      ids.map((id) => ({ contactId: id, startIso: own.startIso }))
+    );
+    const out = await narrowToCoverage(
+      [
+        { contactId: 'a1', startIso: period.startIso },
+        { contactId: 'a2', startIso: period.startIso },
+        { contactId: 'a3', startIso: period.startIso },
+      ],
+      new Map([
+        ['a1', lateRunEnd],
+        ['a3', lateRunEnd],
+      ]),
+      period,
+      regather
+    );
+    expect(regather).toHaveBeenCalledTimes(1);
+    expect(regather.mock.calls[0][1]).toEqual(['a1', 'a3']);
+    expect(out.map((d) => d.contactId)).toEqual(['a1', 'a2', 'a3']);
   });
 
   it('drops a recipient with nothing left after their own coverage', async () => {

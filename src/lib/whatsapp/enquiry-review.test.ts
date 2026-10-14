@@ -336,6 +336,33 @@ describe('closePropertyEnquiry', () => {
     ]);
   });
 
+  it('[CNV-007] leaves the pointer alone when the close itself failed', async () => {
+    const { db, calls } = stubDb({
+      journey_items: [{ id: 'item-1', stage_id: 'stage-a' }, null, openRows],
+    });
+    const from = (db as { from: (t: string) => Record<string, unknown> }).from;
+    (db as { from: unknown }).from = (table: string) => {
+      const chain = from(table);
+      if (table === 'listing_feedback') {
+        chain.then = (resolve: (v: unknown) => unknown) =>
+          Promise.resolve(
+            resolve({ data: null, error: { message: 'timeout' } })
+          );
+      }
+      return chain;
+    };
+
+    const closed = await closePropertyEnquiry({
+      db,
+      accountId: 'acct-1',
+      contact: { id: 'c1' },
+      property: { id: P1, title: 'Plot' },
+    });
+
+    expect(closed).toBe(false);
+    expect(calls.some((c) => c.table === 'contacts')).toBe(false);
+  });
+
   it('[CNV-007] reports the close as failed when the next open enquiry cannot be read', async () => {
     const { db } = stubDb({
       journey_items: [{ id: 'item-1', stage_id: 'stage-a' }, null],

@@ -477,8 +477,8 @@ export async function sendAgentInventoryDigests(options?: {
           period
         ),
         period,
-        (own, contactId) =>
-          gatherAgentInventoryDigests(db, accountId, own, [contactId])
+        (own, contactIds) =>
+          gatherAgentInventoryDigests(db, accountId, own, contactIds)
       );
       summary.agents = digests.length;
       if (digests.length === 0) continue;
