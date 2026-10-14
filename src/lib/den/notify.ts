@@ -77,7 +77,13 @@ export async function approvedTemplate(
    * text, Utility over Marketing) still applies — within their
    * language. Omit and this behaves exactly as it always did.
    */
-  language?: LanguageCode
+  language?: LanguageCode,
+  /**
+   * Let an approved Utility row in another language beat a Marketing
+   * row in the recipient's own, so a caller's Utility-over-Marketing
+   * policy is not defeated by the language narrowing.
+   */
+  preferUtility?: boolean
 ): Promise<MessageTemplate | null> {
   const names = Array.isArray(templateName) ? templateName : [templateName];
   const { data: rows } = await db
@@ -87,7 +93,9 @@ export async function approvedTemplate(
     .in('name', names)
     .order('last_submitted_at', { ascending: false });
   const all = (rows || []) as MessageTemplate[];
-  const templates = language ? narrowToLanguage(all, language) : all;
+  const templates = language
+    ? narrowToLanguage(all, language, { preferUtility })
+    : all;
   if (pick) return pick(templates);
   const template = templates[0] ?? null;
   return template?.status === 'APPROVED' ? template : null;
@@ -126,6 +134,9 @@ export async function sendDenNotificationResult(
     templateName?: string | string[];
     /** Chooses among several approved candidates — see approvedTemplate. */
     pickTemplate?: (rows: MessageTemplate[]) => MessageTemplate | null;
+    /** An approved Utility row in any language reaches `pickTemplate`
+     *  when the recipient's own language holds only Marketing rows. */
+    preferUtility?: boolean;
     templateParams?: string[];
     /** Params derived from whichever template `pickTemplate` lands on.
      *  A renamed template can carry a different param count from the
@@ -181,7 +192,8 @@ export async function sendDenNotificationResult(
       args.accountId,
       args.templateName,
       args.pickTemplate,
-      language
+      language,
+      args.preferUtility
     );
     if (!template) return { sent: false, reachedMeta: false };
     if (isLanguageFallback(template, language)) {

@@ -15,7 +15,12 @@ ALTER POLICY "account members update own notices" ON public.deal_status_notifica
 -- wrong for every other account. The account's own name signs it now,
 -- and an account with no name set thanks the buyer without one. A
 -- counterpart with no phone is queued all the same: the drain records
--- the skip and its reason, so every counterpart leaves a row.
+-- the skip and its reason, so every reachable counterpart leaves a row
+-- (a stakeholder with neither a contact nor a phone is not one). Every
+-- contact and property these definer functions read is scoped to the
+-- row's own account: a deal can name a contact id from another tenant,
+-- and that tenant's name and phone must not be copied into a row this
+-- account can read.
 CREATE OR REPLACE FUNCTION public.queue_deal_status_notice(
   p_account_id uuid, p_contact_id uuid, p_name text, p_phone text, p_role text,
   p_property_id uuid, p_deal_id uuid, p_journey_item_id uuid, p_event text, p_reason text
@@ -26,7 +31,7 @@ DECLARE
   v_brand text;
   v_msg text;
 BEGIN
-  SELECT title, owner_contact_id INTO v_prop_title, v_owner FROM properties WHERE id = p_property_id;
+  SELECT title, owner_contact_id INTO v_prop_title, v_owner FROM properties WHERE id = p_property_id AND account_id = p_account_id;
   IF p_contact_id IS NOT NULL AND v_owner IS NOT NULL AND p_contact_id = v_owner THEN RETURN; END IF;
 
   SELECT NULLIF(TRIM(name), '') INTO v_brand FROM accounts WHERE id = p_account_id;
@@ -64,7 +69,7 @@ BEGIN
   PERFORM auto_close_todos(new.account_id, new.contact_id, new.property_id,
     'journey dropped' || coalesce(' — ' || new.drop_reason, ''));
 
-  SELECT id, name, phone INTO c FROM contacts WHERE id = new.contact_id;
+  SELECT id, name, phone INTO c FROM contacts WHERE id = new.contact_id AND account_id = new.account_id;
   SELECT id, status INTO d
     FROM deals
    WHERE account_id = new.account_id
@@ -79,9 +84,10 @@ BEGIN
     INSERT INTO deal_status_notifications
       (account_id, contact_id, recipient_name, recipient_phone, recipient_role, property_id, deal_id, journey_item_id, event, internal_reason, message_text)
     SELECT s.account_id, s.contact_id, s.name, s.phone, s.role, new.property_id, d.id, new.id, 'lost', new.drop_reason,
-           format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', COALESCE((SELECT title FROM properties WHERE id = new.property_id), 'the property'))
+           format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', COALESCE((SELECT title FROM properties WHERE id = new.property_id AND account_id = new.account_id), 'the property'))
       FROM deal_stakeholders s
-     WHERE s.deal_id = d.id AND s.side = 'buyer'
+     WHERE s.deal_id = d.id AND s.account_id = new.account_id AND s.side = 'buyer'
+       AND (s.contact_id IS NOT NULL OR s.phone IS NOT NULL)
        AND (s.contact_id IS NULL OR s.contact_id <> new.contact_id)
     ON CONFLICT DO NOTHING;
   END IF;
@@ -113,7 +119,7 @@ BEGIN
      AND property_id = p_property_id
      AND (p_contact_id IS NULL OR contact_id = p_contact_id)
      AND (p_contact_id IS NOT NULL OR contact_id IS NOT NULL)
-     AND (p_contact_id IS NOT NULL OR contact_id IS DISTINCT FROM (SELECT owner_contact_id FROM properties WHERE id = p_property_id));
+     AND (p_contact_id IS NOT NULL OR contact_id IS DISTINCT FROM (SELECT owner_contact_id FROM properties WHERE id = p_property_id AND account_id = p_account_id));
   GET DIAGNOSTICS v_count = ROW_COUNT;
   RETURN v_count;
 END;
@@ -260,7 +266,7 @@ BEGIN
     PERFORM auto_close_todos(new.account_id, new.contact_id, new.property_id, v_note);
   END IF;
 
-  SELECT id, name, phone INTO c FROM contacts WHERE id = new.contact_id;
+  SELECT id, name, phone INTO c FROM contacts WHERE id = new.contact_id AND account_id = new.account_id;
   IF c.id IS NOT NULL THEN
     PERFORM queue_deal_status_notice(new.account_id, c.id, c.name, c.phone, 'buyer',
       new.property_id, new.id, new.source_journey_item_id, v_event, coalesce(new.lost_reason, new.lost_note));
@@ -270,10 +276,11 @@ BEGIN
     (account_id, contact_id, recipient_name, recipient_phone, recipient_role, property_id, deal_id, event, internal_reason, message_text)
   SELECT s.account_id, s.contact_id, s.name, s.phone, s.role, new.property_id, new.id, v_event, coalesce(new.lost_reason, new.lost_note),
          CASE WHEN v_event = 'won'
-              THEN format('Update on %s: the transaction has been concluded. Thank you for your support.', COALESCE((SELECT title FROM properties WHERE id = new.property_id), 'the property'))
-              ELSE format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', COALESCE((SELECT title FROM properties WHERE id = new.property_id), 'the property')) END
+              THEN format('Update on %s: the transaction has been concluded. Thank you for your support.', COALESCE((SELECT title FROM properties WHERE id = new.property_id AND account_id = new.account_id), 'the property'))
+              ELSE format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', COALESCE((SELECT title FROM properties WHERE id = new.property_id AND account_id = new.account_id), 'the property')) END
     FROM deal_stakeholders s
-   WHERE s.deal_id = new.id AND s.side = 'buyer'
+   WHERE s.deal_id = new.id AND s.account_id = new.account_id AND s.side = 'buyer'
+     AND (s.contact_id IS NOT NULL OR s.phone IS NOT NULL)
      AND (s.contact_id IS NULL OR new.contact_id IS NULL OR s.contact_id <> new.contact_id)
   ON CONFLICT DO NOTHING;
 

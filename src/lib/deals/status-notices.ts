@@ -235,8 +235,9 @@ async function alreadyDelivered(
  *  claimed, or the send does not happen. A row found
  *  still claimed an hour later with the send mark is one whose outcome
  *  was never recorded and is retired rather than resent; one without the
- *  mark never reached a send and is simply processed again. Every
- *  recorded outcome clears claimed_at. */
+ *  mark never reached a send and is simply processed again, which is
+ *  also how a held row (quiet hours, no session yet) comes back an hour
+ *  later. Every recorded outcome clears claimed_at. */
 async function updateNotice(
   db: SupabaseClient,
   row: DealStatusNoticeRow,
@@ -304,6 +305,18 @@ async function releaseNotice(
   row: DealStatusNoticeRow
 ): Promise<void> {
   await updateNotice(db, row, { claimed_at: null });
+}
+
+/** A row waiting on a session or on quiet hours keeps this run's claim
+ *  and is looked at again an hour later, when the claim ages into the
+ *  claimable window; released at once it would sit at the head of every
+ *  batch and crowd newer rows out of it. */
+async function holdNotice(
+  db: SupabaseClient,
+  row: DealStatusNoticeRow,
+  reason: string
+): Promise<void> {
+  await updateNotice(db, row, { last_error: reason });
 }
 
 export async function sweepStaleDealTodos(
@@ -508,7 +521,7 @@ export async function drainDealStatusNotices(
 
     const quiet = await resolveQuietPeriod(accountId, 'client', now);
     if (quiet.isQuiet) {
-      await releaseNotice(db, row);
+      await holdNotice(db, row, 'Held through client quiet hours');
       summary.deferred++;
       continue;
     }
@@ -560,7 +573,7 @@ export async function drainDealStatusNotices(
       continue;
     }
     if (disposition.kind === 'wait') {
-      await releaseNotice(db, row);
+      await holdNotice(db, row, 'Waiting for an open session');
       summary.deferred++;
       continue;
     }
@@ -616,6 +629,7 @@ export async function drainDealStatusNotices(
       ...(disposition.kind === 'template'
         ? {
             templateName: DEAL_STATUS_NOTICE_TEMPLATE_NAMES,
+            preferUtility: true,
             pickTemplate: (templates: MessageTemplate[]) =>
               pickDealStatusNoticeTemplate(templates),
             buildParams: (template: MessageTemplate) =>

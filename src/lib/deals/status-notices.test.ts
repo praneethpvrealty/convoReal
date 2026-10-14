@@ -11,6 +11,7 @@ import { accountBrandName } from '@/lib/showcase/account-showcase-url';
 import {
   DEAL_STATUS_NOTICE_TEMPLATE_NAMES,
   MAX_ATTEMPTS,
+  RETRY_DELAY_MS,
   SEND_IN_PROGRESS,
   SESSION_WAIT_MS,
   dealStatusNoticeParams,
@@ -257,6 +258,7 @@ describe('[DSN-001] the notice goes out through the approved enquiry status temp
     const args = vi.mocked(sendDenNotificationResult).mock.calls[0][1];
     expect(args.text).toBe(buyerRow.message_text);
     expect(args.templateName).toEqual(DEAL_STATUS_NOTICE_TEMPLATE_NAMES);
+    expect(args.preferUtility).toBe(true);
     expect(
       args.buildParams!({ name: 'listing_status_notice' } as never)
     ).toEqual([
@@ -482,9 +484,10 @@ describe('[DSN-002] the template never carries news it was not written for', () 
 
     expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(summary).toMatchObject({ deferred: 1, sent: 0, skipped: 0 });
-    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
-      claimed_at: null,
-    });
+    expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
+      { claimed_at: NOW.toISOString() },
+      { last_error: 'Waiting for an open session' },
+    ]);
   });
 });
 
@@ -582,9 +585,41 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
 
     expect(summary).toMatchObject({ deferred: 1, sent: 0, failed: 0 });
     expect(sendDenNotificationResult).not.toHaveBeenCalled();
-    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
-      claimed_at: null,
+    expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
+      { claimed_at: NOW.toISOString() },
+      { last_error: 'Held through client quiet hours' },
+    ]);
+  });
+
+  it('a held row keeps its claim so it leaves the batch for an hour instead of heading every run', async () => {
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        {
+          data: [{ ...buyerRow, event: 'won', deal_id: 'd-1' }],
+          error: null,
+        },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      deals: [{ data: { contact_id: 'c-1', status: 'won' } }],
     });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(summary).toMatchObject({ deferred: 1, sent: 0, skipped: 0 });
+    const updates = updatesTo(calls, 'deal_status_notifications');
+    expect(
+      updates.some((u) => 'claimed_at' in u && u.claimed_at === null)
+    ).toBe(false);
+    const fetch = calls.find(
+      (c) => c.table === 'deal_status_notifications' && c.method === 'or'
+    );
+    expect(fetch?.args[0]).toContain(
+      `claimed_at.lt.${new Date(NOW.getTime() - RETRY_DELAY_MS).toISOString()}`
+    );
   });
 
   it('retries a failed send hourly and gives up after the third attempt', async () => {
@@ -1128,7 +1163,7 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
 
   it('leaves property-only and owner-linked tasks open when a property leaves the market', () => {
     expect(hardening).toMatch(
-      /FUNCTION public\.auto_close_todos\([\s\S]*?AND \(p_contact_id IS NOT NULL OR contact_id IS NOT NULL\)\s+AND \(p_contact_id IS NOT NULL OR contact_id IS DISTINCT FROM \(SELECT owner_contact_id FROM properties WHERE id = p_property_id\)\);/
+      /FUNCTION public\.auto_close_todos\([\s\S]*?AND \(p_contact_id IS NOT NULL OR contact_id IS NOT NULL\)\s+AND \(p_contact_id IS NOT NULL OR contact_id IS DISTINCT FROM \(SELECT owner_contact_id FROM properties WHERE id = p_property_id AND account_id = p_account_id\)\);/
     );
     expect(hardening).toMatch(
       /auto_close_stale_deal_todos[\s\S]*?t\.contact_id IS NOT NULL\s+AND EXISTS \(\s+SELECT 1 FROM properties p\s+WHERE p\.id = t\.property_id\s+AND p\.account_id = t\.account_id\s+AND p\.status IN \('Sold', 'Off Market', 'Archived'\)\s+AND t\.contact_id IS DISTINCT FROM p\.owner_contact_id/
@@ -1200,7 +1235,24 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
       )?.[0];
     expect(queue).toBeDefined();
     expect(queue).not.toMatch(/p_phone IS NULL/);
-    expect(hardening).not.toMatch(/s\.phone IS NOT NULL/);
+    expect(
+      hardening.match(/\(s\.contact_id IS NOT NULL OR s\.phone IS NOT NULL\)/g)
+    ).toHaveLength(2);
+    expect(hardening.match(/s\.phone IS NOT NULL/g)).toHaveLength(2);
+  });
+
+  it('scopes every contact, property and stakeholder read in the definer functions to the row account', () => {
+    const reads =
+      hardening.match(/FROM (contacts|properties) WHERE[^;)]*/g) ?? [];
+    expect(reads.length).toBeGreaterThanOrEqual(7);
+    for (const read of reads) {
+      expect(read).toMatch(/account_id = (new\.account_id|p_account_id)/);
+    }
+    expect(
+      hardening.match(
+        /FROM deal_stakeholders s\s+WHERE s\.deal_id = [a-z.]+ AND s\.account_id = new\.account_id/g
+      )
+    ).toHaveLength(2);
   });
 
   it('names the listing or falls back to "the property" in every stakeholder notice', () => {
@@ -1209,7 +1261,7 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
     );
     expect(
       hardening.match(
-        /COALESCE\(\(SELECT title FROM properties WHERE id = new\.property_id\), 'the property'\)/g
+        /COALESCE\(\(SELECT title FROM properties WHERE id = new\.property_id AND account_id = new\.account_id\), 'the property'\)/g
       )
     ).toHaveLength(3);
   });
