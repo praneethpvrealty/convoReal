@@ -4089,6 +4089,26 @@ export function ShowcaseView({
                   </div>
                 ) : null}
 
+                {!selectedAvailabilityNotice && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-label={`Shortlist ${selectedProperty.title}`}
+                    aria-pressed={shortlist.ids.includes(selectedProperty.id)}
+                    onClick={() => shortlist.toggle(selectedProperty.id)}
+                    className="mt-6 min-h-11 w-full gap-2"
+                  >
+                    {shortlist.ids.includes(selectedProperty.id) ? (
+                      <BookmarkCheck className="size-4" />
+                    ) : (
+                      <Bookmark className="size-4" />
+                    )}
+                    {shortlist.ids.includes(selectedProperty.id)
+                      ? 'Shortlisted'
+                      : 'Shortlist this property'}
+                  </Button>
+                )}
+
                 {/* Inquiry Form Block — hidden in agent mode */}
                 {!isAgentMode && (
                   <div className="border-slate-850 mt-6 space-y-4 border-t pt-6">
@@ -4191,27 +4211,6 @@ export function ShowcaseView({
                       />
                     )}
 
-                    {!selectedAvailabilityNotice && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        aria-label={`Shortlist ${selectedProperty.title}`}
-                        aria-pressed={shortlist.ids.includes(
-                          selectedProperty.id
-                        )}
-                        onClick={() => shortlist.toggle(selectedProperty.id)}
-                        className="min-h-11 w-full gap-2"
-                      >
-                        {shortlist.ids.includes(selectedProperty.id) ? (
-                          <BookmarkCheck className="size-4" />
-                        ) : (
-                          <Bookmark className="size-4" />
-                        )}
-                        {shortlist.ids.includes(selectedProperty.id)
-                          ? 'Shortlisted'
-                          : 'Shortlist this property'}
-                      </Button>
-                    )}
                     {!isAgentMode && (
                       <PropertyRatingBar
                         value={ratings[selectedProperty.id]?.rating ?? null}

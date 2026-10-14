@@ -79,13 +79,16 @@ afterEach(() => {
 describe('showcase agent view (mode=view) — shortlist', () => {
   it('[PRP-047] shortlists from the open listing without the buyer forms', () => {
     renderAgentView(property.id);
-    const button = screen.getByRole('button', {
-      name: 'Shortlist Sarjapur JV Land',
-    });
+    const button = screen
+      .getAllByRole('button', { name: 'Shortlist Sarjapur JV Land' })
+      .find((candidate) =>
+        /shortlist this property/i.test(candidate.textContent ?? '')
+      );
+    if (!button) throw new Error('open listing has no shortlist button');
     expect(button.getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(button);
     expect(button.getAttribute('aria-pressed')).toBe('true');
-    expect(button.textContent).toMatch(/shortlisted/i);
+    expect(button.textContent).toMatch(/^shortlisted$/i);
     expect(screen.queryByText(/how well does this fit/i)).toBeNull();
     expect(
       screen.queryByRole('button', { name: /submit lead form/i })
