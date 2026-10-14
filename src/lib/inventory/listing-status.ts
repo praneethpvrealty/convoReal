@@ -29,16 +29,18 @@ export function isListingClosed(status: string | null | undefined): boolean {
 }
 
 /** Whether a listing may be volunteered — offered to a buyer who did not
- *  ask for it by a match alert, a catalog card or a shortlist. Only a
- *  published listing that is still Available qualifies; a status the
- *  row never set reads as Available. */
+ *  ask for it by a match alert, a catalog card or a shortlist — or
+ *  asked about once they drop it. Only a listing explicitly published
+ *  and still Available qualifies: a status the row never set reads as
+ *  Available, but is_published must be true, since the column is
+ *  nullable with a false default and a null is an unpublished row. */
 export function isListingLive(listing: {
   status?: string | null;
   is_published?: boolean | null;
 }): boolean {
   return (
     (listing.status ?? 'Available') === 'Available' &&
-    listing.is_published !== false
+    listing.is_published === true
   );
 }
 

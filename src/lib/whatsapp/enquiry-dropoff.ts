@@ -92,6 +92,8 @@ export interface DroppedProperty {
   id: string;
   title: string | null;
   property_code?: string | null;
+  status?: string | null;
+  is_published?: boolean | null;
 }
 
 function labelFor(p: DroppedProperty): string {
@@ -123,7 +125,7 @@ export async function resolveDroppedProperty(args: {
 
   const { data: propData } = await db
     .from('properties')
-    .select('id, title, property_code')
+    .select('id, title, property_code, status, is_published')
     .eq('account_id', accountId);
   const properties = ((propData ?? []) as DroppedProperty[]).filter(
     (p): p is DroppedProperty & ScannableProperty => Boolean(p.title)

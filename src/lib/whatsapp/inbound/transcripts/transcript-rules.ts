@@ -63,7 +63,7 @@ const DEAD_END =
 const SHOWS_LISTING =
   /https?:\/\/\S+(property_id=|ids=)|here are \d+ live|here's one live|listings match what you're looking for|closest available options|here's the property you enquired about|that fit 👇/i;
 const SELF_PRAISE =
-  /intelligent matching engine|our (advanced|smart|powerful) (ai|engine|algorithm)|state-of-the-art/i;
+  /intelligent matching engine|our (listing|matching) engine|our (advanced|smart|powerful) (ai|engine|algorithm)|state-of-the-art|real steal deal/i;
 const RETURNING_COPY =
   /back on our radar|great to hear from you again|welcome back/i;
 const SHOW_PROPERTIES_TAP =

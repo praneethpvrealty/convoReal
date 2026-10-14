@@ -127,6 +127,14 @@ describe('[CNV-005] transcript rules', () => {
         bot('Our intelligent matching engine keeps watching. https://x'),
       ])
     ).toContain('self-praise');
+    expect(
+      rules([
+        customer('🔘 Button: "Close my enquiry"'),
+        bot(
+          'Our listing engine keeps matching every new property against your requirement — it sometimes catches a real steal deal. https://x'
+        ),
+      ])
+    ).toContain('self-praise');
   });
 
   it('flags welcoming back a lead who wrote for the first time this week', () => {

@@ -140,7 +140,7 @@
         },
         {
           "id": "INB-009",
-          "rule": "A lead who taps \"Close my enquiry\" on a check-in or enquiry template is asked, after the acknowledgement, why the shared property did not fit: the property is resolved from the quoted template, the last week of outbound messages or the recorded enquiry; the one-tap reason (budget, location, type, size, bought elsewhere, not buying now, other) is filed on listing feedback, the contact timeline and the active journey item, the agent is notified, both messages bypass the dead-contact gate, and the question never promises to be the last message.",
+          "rule": "A lead who taps \"Close my enquiry\" on a check-in or enquiry template is asked, after the acknowledgement, why the shared property did not fit \u2014 only when that listing is still live (published and Available). A listing that has left the market (Under Contract, Sold, Off Market, Archived, Rejected or unpublished) was ended by the agency, so the lead is never asked what made them drop it: the acknowledgement is the only message. For a live listing the property is resolved from the quoted template, the last week of outbound messages or the recorded enquiry; the one-tap reason (budget, location, type, size, bought elsewhere, not buying now, other) is filed on listing feedback, the contact timeline and the active journey item, the agent is notified, both messages bypass the dead-contact gate, and the question never promises to be the last message.",
           "tests": [
             {
               "file": "src/lib/whatsapp/enquiry-dropoff.test.ts",

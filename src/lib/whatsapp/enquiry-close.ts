@@ -4,9 +4,13 @@
 // close is scoped to that listing: it is rejected for this contact,
 // its journey branch is dropped, and the lead is told exactly that —
 // their other enquiries stay open, the requirement keeps matching, and
-// alert consent is whatever they last said. Then the tap's open window
-// does the rest: the drop-off reason for that listing, a review of the
-// enquiries still open, and the requirement ladder.
+// alert consent is whatever they last said. A listing the lead walked
+// away from while it was still live earns the one-tap drop-off reason;
+// one that had already left the market never does — the agency ended
+// that enquiry, and asking the lead what made them drop it, a minute
+// after telling them the deal would not proceed, is the message this
+// file exists not to send. The ack sells nothing either: one neutral
+// line names START ALERTS for a lead who has not granted alerts.
 //
 // Only when nothing names a listing and nothing is on the journey is
 // the close read as the lead ending their search. That is the one case
@@ -21,6 +25,7 @@ import {
   sendEnquiryDropoffPrompt,
   type DroppedProperty,
 } from '@/lib/whatsapp/enquiry-dropoff';
+import { isListingLive } from '@/lib/inventory/listing-status';
 import {
   closePropertyEnquiry,
   enquiryLabel,
@@ -28,8 +33,8 @@ import {
   sendEnquiryReview,
 } from '@/lib/whatsapp/enquiry-review';
 
-export const ALERTS_PITCH =
-  'Our listing engine keeps matching every new property against your requirement the moment it arrives — and when a seller needs a quick exit, it sometimes catches a real steal deal, priced well under market. If you would like it quietly watching for you, just reply START ALERTS.';
+export const START_ALERTS_LINE =
+  'If you would like to hear about new listings that match your requirement later, just reply START ALERTS.';
 
 export function buildPropertyCloseAck(args: {
   property: DroppedProperty;
@@ -37,16 +42,12 @@ export function buildPropertyCloseAck(args: {
   alertsGranted: boolean;
 }): string {
   const label = enquiryLabel(args.property);
-  const others =
-    args.openCount === 0
-      ? null
-      : args.openCount === 1
-        ? 'That only closes this one listing — your other enquiry with us stays open.'
-        : `That only closes this one listing — your other ${args.openCount} enquiries with us stay open.`;
   return [
     `Understood — your enquiry on *${label}* is closed, and you will not get further updates on it.`,
-    ...(others ? ['', others] : []),
-    ...(args.alertsGranted ? [] : ['', ALERTS_PITCH]),
+    ...(args.openCount > 0
+      ? ['', 'Your other enquiries with us stay open.']
+      : []),
+    ...(args.alertsGranted ? [] : ['', START_ALERTS_LINE]),
   ].join('\n');
 }
 
@@ -54,9 +55,9 @@ export function buildSearchCloseAck(): string {
   return [
     'Understood — your enquiry is closed, and this is our last update. Thank you for considering us.',
     '',
-    ALERTS_PITCH,
+    START_ALERTS_LINE,
     '',
-    'Otherwise, we wish you the very best with your search!',
+    'We wish you the very best with your search!',
   ].join('\n');
 }
 
@@ -113,14 +114,16 @@ export async function handleEnquiryClose(args: {
           alertsGranted: contact.buyer_alerts_consent === 'granted',
         })
       );
-      await sendEnquiryDropoffPrompt({
-        db,
-        accountId,
-        userId,
-        contactId: contact.id,
-        conversationId,
-        property,
-      });
+      if (isListingLive(property)) {
+        await sendEnquiryDropoffPrompt({
+          db,
+          accountId,
+          userId,
+          contactId: contact.id,
+          conversationId,
+          property,
+        });
+      }
       return 'property';
     }
 

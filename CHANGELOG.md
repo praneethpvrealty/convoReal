@@ -19,6 +19,19 @@ than a written entry. Newest first.
 
 #### 14 October 2026
 
+- **Nobody is asked why they dropped a listing that had already left the
+  market.** A lead told "this transaction will not be proceeding" who then
+  tapped "Close my enquiry" was asked, in a second bubble, what made them
+  drop the listing, after being told how many other enquiries they had
+  open and sold the listing engine ("it sometimes catches a real steal
+  deal, reply START ALERTS"). The drop-off question now goes out only for a
+  listing that is still live; one the agency ended gets the acknowledgement
+  alone. The acknowledgement no longer counts the other enquiries or
+  praises the engine: one plain line names START ALERTS for a lead who has
+  not granted alerts, and the search-level goodbye does the same. The
+  nightly transcript review flags the old pitch as self-praise. INB-009,
+  INB-010.
+
 - **Approving a lead whose enquired listing has left the market sends the
   regret, not the listing's details.** The Approve action on a pending-review
   contact sent the listing's photos and price whatever its status, so a lead
