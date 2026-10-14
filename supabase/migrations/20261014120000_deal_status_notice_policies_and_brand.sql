@@ -215,6 +215,25 @@ UPDATE public.deal_status_notifications
  WHERE event = 'property_sold'
    AND status = 'pending';
 
+-- A lost deal marked won fires, in order, deal_change_retire_notices
+-- (retires the lost row), deal_closed_sync (queues the won row with the
+-- branch's journey_item_id) and sync_journey_item_stage_from_deal, which
+-- revives the branch; the revival must retire only the rows the drop
+-- queued, or the won notice queued a moment earlier never goes out.
+CREATE OR REPLACE FUNCTION public.retire_deal_status_notices_on_journey_change() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  UPDATE deal_status_notifications
+     SET status = 'skipped',
+         claimed_at = NULL,
+         last_error = 'Journey branch revived before the notice was sent'
+   WHERE journey_item_id = new.id
+     AND status = 'pending'
+     AND event IN ('dropped', 'lost');
+  RETURN new;
+END;
+$$;
+
 -- A closed deal closes its own todos (by deal_id) and the buyer x
 -- property follow-ups only when the deal names both; a deal without a
 -- property, or one whose contact was deleted, must not widen the close

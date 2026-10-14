@@ -16,9 +16,9 @@
 // src/lib/whatsapp/sold-notification.ts already owns that update, and
 // the held migration stops the trigger queueing it), and a template to
 // a stakeholder (told apart from the primary buyer by the deal or
-// journey branch the row belongs to, never by role) or to the buyer who
-// won — the template's copy says the listing is no
-// longer available, which is not their news.
+// journey branch the row belongs to, never by role), to the buyer who
+// won, or on a deal that names no listing — the template's copy says
+// the listing is no longer available, which is not their news.
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -118,13 +118,15 @@ export function dealStatusNoticeParams(
 }
 
 export function noticeDisposition(
-  row: Pick<DealStatusNoticeRow, 'event' | 'created_at'>,
+  row: Pick<DealStatusNoticeRow, 'event' | 'property_id' | 'created_at'>,
   recipient: { primaryBuyer: boolean; sessionOpen: boolean },
   now: Date
 ): NoticeDisposition {
   if (recipient.sessionOpen) return { kind: 'text' };
   const listingGone =
-    recipient.primaryBuyer && (row.event === 'dropped' || row.event === 'lost');
+    recipient.primaryBuyer &&
+    !!row.property_id &&
+    (row.event === 'dropped' || row.event === 'lost');
   if (listingGone) return { kind: 'template' };
   const age = now.getTime() - new Date(row.created_at).getTime();
   if (age >= SESSION_WAIT_MS) {
@@ -133,7 +135,9 @@ export function noticeDisposition(
       reason:
         row.event === 'won'
           ? 'No open session within 48h; the status template does not fit a concluded transaction'
-          : 'No open session within 48h; the status template is written for the buyer',
+          : row.property_id
+            ? 'No open session within 48h; the status template is written for the buyer'
+            : 'No open session within 48h; the status template names a listing and this deal has none',
     };
   }
   return { kind: 'wait' };

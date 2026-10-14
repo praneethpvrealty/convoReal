@@ -279,14 +279,14 @@ describe('[DSN-002] the template never carries news it was not written for', () 
   it('uses free-form text whenever the session is open', () => {
     expect(
       noticeDisposition(
-        { event: 'won', created_at: NOW.toISOString() },
+        { event: 'won', property_id: 'p1', created_at: NOW.toISOString() },
         { primaryBuyer: true, sessionOpen: true },
         NOW
       )
     ).toEqual({ kind: 'text' });
     expect(
       noticeDisposition(
-        { event: 'lost', created_at: NOW.toISOString() },
+        { event: 'lost', property_id: null, created_at: NOW.toISOString() },
         { primaryBuyer: false, sessionOpen: true },
         NOW
       )
@@ -297,14 +297,14 @@ describe('[DSN-002] the template never carries news it was not written for', () 
     for (const event of ['dropped', 'lost'] as const) {
       expect(
         noticeDisposition(
-          { event, created_at: NOW.toISOString() },
+          { event, property_id: 'p1', created_at: NOW.toISOString() },
           primary,
           NOW
         )
       ).toEqual({ kind: 'template' });
       expect(
         noticeDisposition(
-          { event, created_at: NOW.toISOString() },
+          { event, property_id: 'p1', created_at: NOW.toISOString() },
           stakeholder,
           NOW
         )
@@ -312,15 +312,40 @@ describe('[DSN-002] the template never carries news it was not written for', () 
     }
   });
 
+  it('never puts a deal without a listing on the template, which says a listing is unavailable', () => {
+    const fresh = {
+      event: 'lost' as const,
+      property_id: null,
+      created_at: NOW.toISOString(),
+    };
+    expect(noticeDisposition(fresh, primary, NOW)).toEqual({ kind: 'wait' });
+    const stale = new Date(NOW.getTime() - SESSION_WAIT_MS).toISOString();
+    expect(
+      noticeDisposition({ ...fresh, created_at: stale }, primary, NOW)
+    ).toEqual({
+      kind: 'skip',
+      reason:
+        'No open session within 48h; the status template names a listing and this deal has none',
+    });
+  });
+
   it('waits for a session on a won deal or a stakeholder, then skips after 48 hours', () => {
-    const fresh = { event: 'won' as const, created_at: NOW.toISOString() };
+    const fresh = {
+      event: 'won' as const,
+      property_id: 'p1',
+      created_at: NOW.toISOString(),
+    };
     expect(noticeDisposition(fresh, primary, NOW)).toEqual({ kind: 'wait' });
     const stale = new Date(NOW.getTime() - SESSION_WAIT_MS).toISOString();
     expect(
       noticeDisposition({ ...fresh, created_at: stale }, primary, NOW)
     ).toMatchObject({ kind: 'skip' });
     expect(
-      noticeDisposition({ event: 'lost', created_at: stale }, stakeholder, NOW)
+      noticeDisposition(
+        { event: 'lost', property_id: 'p1', created_at: stale },
+        stakeholder,
+        NOW
+      )
     ).toMatchObject({ kind: 'skip' });
   });
 
@@ -1103,6 +1128,20 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
       /CREATE TRIGGER journey_change_retire_notices_trigger\s+AFTER UPDATE OF status ON public\.journey_items\s+FOR EACH ROW WHEN \(old\.status = 'dropped' AND new\.status IS DISTINCT FROM 'dropped'\)/
     );
     expect(reopen).not.toMatch(/\bDROP\b/);
+  });
+
+  it('a revived journey branch retires only the rows its drop queued, never the won notice queued just before', () => {
+    const revived =
+      /FUNCTION public\.retire_deal_status_notices_on_journey_change\(\)[\s\S]*?\$\$;/.exec(
+        hardening
+      )?.[0];
+    expect(revived).toBeDefined();
+    expect(revived).toMatch(
+      /WHERE journey_item_id = new\.id\s+AND status = 'pending'\s+AND event IN \('dropped', 'lost'\)/
+    );
+    expect(
+      'deal_closed_sync_trigger' < 'sync_journey_item_stage_from_deal_trigger'
+    ).toBe(true);
   });
 
   it("closes a deal's todos by the deal, and by buyer and property only when both are known", () => {
