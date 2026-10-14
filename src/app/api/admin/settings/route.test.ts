@@ -22,7 +22,7 @@ const tables: Record<string, unknown[]> = {
   subscriptions: [],
 };
 
-const rpc = vi.fn(async () => ({
+const rpc = vi.fn(async (): Promise<{ data: unknown; error: unknown }> => ({
   data: [{ account_id: 'acct-1', last_active_at: '2026-10-14T07:46:36Z' }],
   error: null,
 }));
@@ -62,5 +62,17 @@ describe('GET /api/admin/settings', () => {
       ['acct-1', '2026-10-14T07:46:36Z'],
       ['acct-2', null],
     ]);
+  });
+
+  it('leaves last active unset rather than reporting Never when the lookup fails', async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    for (const org of body.organizations) {
+      expect(org).not.toHaveProperty('last_active_at');
+    }
+    errorSpy.mockRestore();
   });
 });

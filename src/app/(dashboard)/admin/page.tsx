@@ -137,7 +137,7 @@ interface Organization {
   status: string;
   archived_at?: string | null;
   plan: string;
-  last_active_at: string | null;
+  last_active_at?: string | null;
 }
 
 export default function AdminDashboardPage() {
@@ -1663,7 +1663,9 @@ export default function AdminDashboardPage() {
                                   new Date(org.last_active_at),
                                   { addSuffix: true }
                                 )
-                              : 'Never'}
+                              : org.last_active_at === null
+                                ? 'Never'
+                                : '—'}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-end gap-2">

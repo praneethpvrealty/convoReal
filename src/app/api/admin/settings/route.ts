@@ -74,7 +74,12 @@ export async function GET() {
       .from('subscriptions')
       .select('account_id, plan');
 
-    const { data: lastActive } = await admin.rpc('admin_account_last_active');
+    const { data: lastActive, error: lastActiveError } = await admin.rpc(
+      'admin_account_last_active'
+    );
+    if (lastActiveError) {
+      console.error('Error fetching account last active:', lastActiveError);
+    }
     const lastActiveRows = (lastActive ?? []) as {
       account_id: string;
       last_active_at: string | null;
@@ -89,9 +94,10 @@ export async function GET() {
           owner_name: orgOwner?.full_name || 'N/A',
           owner_email: orgOwner?.email || 'N/A',
           plan: sub?.plan || 'starter',
-          last_active_at:
-            lastActiveRows.find((l) => l.account_id === acc.id)
-              ?.last_active_at ?? null,
+          last_active_at: lastActiveError
+            ? undefined
+            : (lastActiveRows.find((l) => l.account_id === acc.id)
+                ?.last_active_at ?? null),
         };
       }) || [];
 
