@@ -98,12 +98,35 @@ $$;
 -- A property leaving the market closes the follow-ups buyers had on it,
 -- not the brokerage's own property-only tasks (document collection, a
 -- photo shoot), which carry no contact, nor the tasks that name the
--- property's owner. Only the property path passes a null contact; the
--- deal and journey paths always name one.
+-- property's owner, nor those naming a contact with no buyer
+-- association to the listing (a tenant, an advocate, a seller-side
+-- broker): a buyer is a contact with a deal, a journey branch or an
+-- enquiry on that property. Only the property path passes a null
+-- contact; the deal and journey paths always name one.
 --
--- This file sorts after every other 14 Oct migration on purpose: it
--- replaces functions those files created, and a replay by timestamp
--- must land on these definitions last.
+-- This file sorts after every migration whose functions it replaces on
+-- purpose: a replay by timestamp must land on these definitions last.
+CREATE OR REPLACE FUNCTION public.is_property_buyer(
+  p_account_id uuid, p_contact_id uuid, p_property_id uuid
+) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT p_contact_id IS NOT NULL AND p_property_id IS NOT NULL AND (
+    EXISTS (
+      SELECT 1 FROM deals d
+       WHERE d.account_id = p_account_id AND d.contact_id = p_contact_id AND d.property_id = p_property_id
+    )
+    OR EXISTS (
+      SELECT 1 FROM journey_items ji
+       WHERE ji.account_id = p_account_id AND ji.contact_id = p_contact_id AND ji.property_id = p_property_id
+    )
+    OR EXISTS (
+      SELECT 1 FROM contact_property_inquiries i
+       WHERE i.account_id = p_account_id AND i.contact_id = p_contact_id AND i.property_id = p_property_id
+    )
+  );
+$$;
+REVOKE EXECUTE ON FUNCTION public.is_property_buyer(uuid, uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.is_property_buyer(uuid, uuid, uuid) TO service_role;
+
 CREATE OR REPLACE FUNCTION public.auto_close_todos(
   p_account_id uuid, p_contact_id uuid, p_property_id uuid, p_note text
 ) RETURNS int LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -119,7 +142,8 @@ BEGIN
      AND property_id = p_property_id
      AND (p_contact_id IS NULL OR contact_id = p_contact_id)
      AND (p_contact_id IS NOT NULL OR contact_id IS NOT NULL)
-     AND (p_contact_id IS NOT NULL OR contact_id IS DISTINCT FROM (SELECT owner_contact_id FROM properties WHERE id = p_property_id AND account_id = p_account_id));
+     AND (p_contact_id IS NOT NULL OR contact_id IS DISTINCT FROM (SELECT owner_contact_id FROM properties WHERE id = p_property_id AND account_id = p_account_id))
+     AND (p_contact_id IS NOT NULL OR is_property_buyer(p_account_id, contact_id, p_property_id));
   GET DIAGNOSTICS v_count = ROW_COUNT;
   RETURN v_count;
 END;
@@ -147,7 +171,8 @@ BEGIN
                        AND p.account_id = t.account_id
                        AND p.status IN ('Sold', 'Off Market', 'Archived')
                        AND t.contact_id IS DISTINCT FROM p.owner_contact_id
-                  ) THEN 'property no longer on the market'
+                  ) AND is_property_buyer(t.account_id, t.contact_id, t.property_id)
+                  THEN 'property no longer on the market'
                   WHEN EXISTS (
                     SELECT 1 FROM deals d
                      WHERE d.id = t.deal_id
@@ -170,6 +195,7 @@ BEGIN
               AND p.status IN ('Sold', 'Off Market', 'Archived')
               AND t.contact_id IS DISTINCT FROM p.owner_contact_id
          )
+         AND is_property_buyer(t.account_id, t.contact_id, t.property_id)
        )
        OR EXISTS (
          SELECT 1 FROM deals d

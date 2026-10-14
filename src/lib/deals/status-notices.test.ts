@@ -1197,7 +1197,7 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
 
   it('leaves property-only and owner-linked tasks open when a property leaves the market', () => {
     expect(hardening).toMatch(
-      /FUNCTION public\.auto_close_todos\([\s\S]*?AND \(p_contact_id IS NOT NULL OR contact_id IS NOT NULL\)\s+AND \(p_contact_id IS NOT NULL OR contact_id IS DISTINCT FROM \(SELECT owner_contact_id FROM properties WHERE id = p_property_id AND account_id = p_account_id\)\);/
+      /FUNCTION public\.auto_close_todos\([\s\S]*?AND \(p_contact_id IS NOT NULL OR contact_id IS NOT NULL\)\s+AND \(p_contact_id IS NOT NULL OR contact_id IS DISTINCT FROM \(SELECT owner_contact_id FROM properties WHERE id = p_property_id AND account_id = p_account_id\)\)\s+AND \(p_contact_id IS NOT NULL OR is_property_buyer\(p_account_id, contact_id, p_property_id\)\);/
     );
     expect(hardening).toMatch(
       /auto_close_stale_deal_todos[\s\S]*?t\.contact_id IS NOT NULL\s+AND EXISTS \(\s+SELECT 1 FROM properties p\s+WHERE p\.id = t\.property_id\s+AND p\.account_id = t\.account_id\s+AND p\.status IN \('Sold', 'Off Market', 'Archived'\)\s+AND t\.contact_id IS DISTINCT FROM p\.owner_contact_id/
@@ -1260,6 +1260,24 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
     expect(
       'deal_closed_sync_trigger' < 'sync_journey_item_stage_from_deal_trigger'
     ).toBe(true);
+  });
+
+  it('a withdrawal closes only the follow-ups of a buyer: a contact with a deal, a journey branch or an enquiry on the listing', () => {
+    expect(hardening).toMatch(
+      /FUNCTION public\.is_property_buyer\([\s\S]*?FROM deals d[\s\S]*?FROM journey_items ji[\s\S]*?FROM contact_property_inquiries i[\s\S]*?\$\$;/
+    );
+    expect(hardening).toMatch(
+      /REVOKE EXECUTE ON FUNCTION public\.is_property_buyer\(uuid, uuid, uuid\) FROM PUBLIC, anon, authenticated;/
+    );
+    expect(
+      hardening.match(
+        /is_property_buyer\(t\.account_id, t\.contact_id, t\.property_id\)/g
+      )
+    ).toHaveLength(2);
+    const buyerChecks = hardening.indexOf('FUNCTION public.is_property_buyer(');
+    expect(buyerChecks).toBeLessThan(
+      hardening.indexOf('FUNCTION public.auto_close_todos(')
+    );
   });
 
   it('queues a counterpart with no phone so the drain records the skip', () => {
