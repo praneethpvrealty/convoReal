@@ -4913,7 +4913,8 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20261014100947_followup_unanswered_checkins.sql"
+            "supabase/migrations/20261014100947_followup_unanswered_checkins.sql",
+            "supabase/migrations/20261014112400_followup_closed_listing_contacts.sql"
           ]
         }
       ]

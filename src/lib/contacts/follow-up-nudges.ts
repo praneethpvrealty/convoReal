@@ -383,13 +383,11 @@ export async function gatherFollowUpLeads(
   }
 
   const quietIds = quiet.map((c) => c.id);
-  const [{ data: rejectedRows }, { data: unansweredRows }] = await Promise.all([
-    db
-      .from('listing_feedback')
-      .select('contact_id, property_id')
-      .eq('account_id', accountId)
-      .eq('verdict', 'rejected')
-      .in('contact_id', quietIds),
+  const [closedRes, unansweredRes] = await Promise.all([
+    db.rpc('followup_closed_listing_contacts', {
+      p_account_id: accountId,
+      p_contact_ids: quietIds,
+    }),
     db.rpc('followup_unanswered_checkins', {
       p_account_id: accountId,
       p_contact_ids: quietIds,
@@ -399,20 +397,18 @@ export async function gatherFollowUpLeads(
       ],
     }),
   ]);
-  const rejected = new Set(
-    ((rejectedRows ?? []) as { contact_id: string; property_id: string }[]).map(
-      (r) => `${r.contact_id}:${r.property_id}`
+  if (closedRes.error || unansweredRes.error) return [];
+  const closedListing = new Set(
+    ((closedRes.data ?? []) as { contact_id: string }[]).map(
+      (r) => r.contact_id
     )
   );
   const exhausted = new Set(
-    ((unansweredRows ?? []) as { contact_id: string; unanswered: number }[])
+    ((unansweredRes.data ?? []) as { contact_id: string; unanswered: number }[])
       .filter((r) => r.unanswered >= FOLLOWUP_MAX_UNANSWERED_CHECKINS)
       .map((r) => r.contact_id)
   );
-  const settled = (c: Row) =>
-    exhausted.has(c.id) ||
-    (!!c.last_inquired_property_id &&
-      rejected.has(`${c.id}:${c.last_inquired_property_id}`));
+  const settled = (c: Row) => exhausted.has(c.id) || closedListing.has(c.id);
 
   // A hold or a closing deal on ANY member covers the whole party: one
   // agent snoozing the husband must not leave the wife's card to fire

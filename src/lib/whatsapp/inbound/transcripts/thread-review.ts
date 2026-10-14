@@ -314,14 +314,14 @@ export async function runBotThreadReview(
         accountId,
         Promise.resolve(
           db.from('profiles').select('phone').eq('account_id', accountId)
-        ).then(
-          ({ data }) =>
-            new Set(
-              ((data ?? []) as { phone: string | null }[])
-                .map((p) => normalizePhone(p.phone ?? '').slice(-10))
-                .filter(Boolean)
-            )
-        )
+        ).then(({ data, error }) => {
+          if (error) throw new Error(error.message);
+          return new Set(
+            ((data ?? []) as { phone: string | null }[])
+              .map((p) => normalizePhone(p.phone ?? '').slice(-10))
+              .filter(Boolean)
+          );
+        })
       );
     }
     return (await staffPhones.get(accountId)!).has(last10);
