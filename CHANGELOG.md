@@ -27,9 +27,11 @@ than a written entry. Newest first.
   branch is dropped, their deal is marked won or lost, or the property is
   marked Sold, Off Market or Archived (every buyer's to-dos, for a
   property), leave an audit note on each, record a `tasks_auto_closed`
-  event on the deal timeline, and queue one neutral notice per counterpart
-  in `deal_status_notifications`. The property owner is never queued and
-  the internal reason stays on the row. A new cron,
+  note on the deal timeline, and, for a dropped branch or a closed deal,
+  queue one neutral notice per counterpart in `deal_status_notifications`.
+  A Sold listing keeps its existing buyer update from the listing status
+  sender. The property owner and a contact who closed their enquiry are
+  never messaged, and the internal reason stays on the row. A new cron,
   `/api/cron/deal-status-notices`, runs every 15 minutes: it first sweeps
   open to-dos the triggers predate, then sends each notice as free-form
   text inside an open session or, for a buyer whose listing is gone,
@@ -38,6 +40,7 @@ than a written entry. Newest first.
   drop and the lost deal it becomes now produce one notice rather than
   two. **Migration required**: `20261014023548_…` (already on production),
   `20261014081351_deal_status_notice_sweep.sql` (additive),
+  `20261014093259_deal_status_notifications_updated_at.sql` (additive),
   `20261014082622_deal_closed_trigger_event_type.sql` (hotfix, already
   applied: the trigger's timeline entry used an event type the
   `deal_events` check rejects, which made every won or lost status change

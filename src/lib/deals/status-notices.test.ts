@@ -43,6 +43,10 @@ const hotfix = readFileSync(
   join(MIGRATIONS, '20261014082622_deal_closed_trigger_event_type.sql'),
   'utf8'
 );
+const timestamps = readFileSync(
+  join(MIGRATIONS, '20261014093259_deal_status_notifications_updated_at.sql'),
+  'utf8'
+);
 const hardening = readFileSync(
   join(MIGRATIONS, '20261014081400_deal_status_notice_policies_and_brand.sql'),
   'utf8'
@@ -266,7 +270,7 @@ describe('[DSN-002] the template never carries news it was not written for', () 
   });
 
   it('falls back to the template only for the primary buyer whose listing is gone', () => {
-    for (const event of ['dropped', 'lost', 'property_sold'] as const) {
+    for (const event of ['dropped', 'lost'] as const) {
       expect(
         noticeDisposition(
           { event, created_at: NOW.toISOString() },
@@ -294,6 +298,58 @@ describe('[DSN-002] the template never carries news it was not written for', () 
     expect(
       noticeDisposition({ event: 'lost', created_at: stale }, stakeholder, NOW)
     ).toMatchObject({ kind: 'skip' });
+  });
+
+  it('never sends a Sold row: the listing status sender owns that update', async () => {
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        {
+          data: [{ ...buyerRow, id: 'n-sold', event: 'property_sold' }],
+          error: null,
+        },
+        { data: { id: 'n-sold' }, error: null },
+      ],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(calls.some((c) => c.table === 'contacts')).toBe(false);
+    expect(summary).toMatchObject({ skipped: 1, sent: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toMatchObject({
+      status: 'skipped',
+      last_error: 'Sold updates are sent by the listing status sender',
+    });
+  });
+
+  it('treats a row whose deal and journey links are gone as a stakeholder notice', async () => {
+    vi.mocked(isSessionOpen).mockResolvedValue(false);
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        {
+          data: [
+            {
+              ...buyerRow,
+              id: 'n-orphan',
+              deal_id: null,
+              journey_item_id: null,
+            },
+          ],
+          error: null,
+        },
+        { data: { id: 'n-orphan' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ deferred: 1, sent: 0, skipped: 0 });
+    expect(calls.some((c) => c.table === 'deals')).toBe(false);
   });
 
   it('tells a joint buyer apart from the primary buyer by the deal, not the role', async () => {
@@ -360,6 +416,38 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
       'Recipient owns the property',
       'No contact record for recipient',
     ]);
+  });
+
+  it('skips a recipient who closed their enquiry on the listing', async () => {
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      listing_feedback: [{ data: { id: 'fb-1' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ skipped: 1, sent: 0 });
+    const lookup = calls.filter(
+      (c) => c.table === 'listing_feedback' && c.method === 'eq'
+    );
+    expect(lookup.map((c) => c.args)).toEqual([
+      ['account_id', 'acc-1'],
+      ['property_id', 'p-1'],
+      ['contact_id', 'c-1'],
+      ['verdict', 'rejected'],
+    ]);
+    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toMatchObject({
+      status: 'skipped',
+      last_error: 'Recipient closed their enquiry on this listing',
+    });
   });
 
   it('holds a row through client quiet hours without spending an attempt', async () => {
@@ -637,6 +725,31 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
     expect(hardening).toMatch(
       /FUNCTION public\.auto_close_stale_deal_todos\([\s\S]*?AND \([\s\S]*?t\.contact_id IS NOT NULL\s+AND EXISTS \([\s\S]*?p\.status IN \('Sold', 'Off Market', 'Archived'\)/
     );
+  });
+
+  it('stops the trigger queueing Sold notices and retires the rows it already queued', () => {
+    const withdrawn =
+      /FUNCTION public\.on_property_withdrawn\(\)[\s\S]*?\$\$;/.exec(
+        hardening
+      )?.[0];
+    expect(withdrawn).toBeDefined();
+    expect(withdrawn).not.toContain('queue_deal_status_notice');
+    expect(withdrawn).toContain(
+      'auto_close_todos(new.account_id, NULL, new.id'
+    );
+    expect(hardening).toMatch(
+      /UPDATE public\.deal_status_notifications\s+SET status = 'skipped'[\s\S]*?WHERE event = 'property_sold'\s+AND status = 'pending'/
+    );
+  });
+
+  it('gives the queue the updated_at column and trigger every operational table carries', () => {
+    expect(timestamps).toMatch(
+      /ALTER TABLE public\.deal_status_notifications\s+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW\(\);/
+    );
+    expect(timestamps).toMatch(
+      /tgname = 'set_deal_status_notifications_updated_at'[\s\S]*?CREATE TRIGGER set_deal_status_notifications_updated_at\s+BEFORE UPDATE ON public\.deal_status_notifications\s+FOR EACH ROW EXECUTE FUNCTION public\.update_updated_at_column\(\);/
+    );
+    expect(timestamps).not.toMatch(/\bDROP\b/);
   });
 
   it('sweeps only todos whose property, deal or sole journey branch is closed', () => {

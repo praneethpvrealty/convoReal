@@ -11,9 +11,13 @@
 // listing is gone, through the approved enquiry status template.
 //
 // What never goes out: the internal reason (it stays on the row), a
-// notice to the property owner, and a template to a stakeholder (told
-// apart from the primary buyer by the deal or journey branch the row
-// belongs to, never by role) or to the buyer who won — the template's copy says the listing is no
+// notice to the property owner or to a contact who closed their enquiry
+// on the listing, a 'property_sold' row (the listing status sender in
+// src/lib/whatsapp/sold-notification.ts already owns that update, and
+// the held migration stops the trigger queueing it), and a template to
+// a stakeholder (told apart from the primary buyer by the deal or
+// journey branch the row belongs to, never by role) or to the buyer who
+// won — the template's copy says the listing is no
 // longer available, which is not their news.
 // ============================================================
 
@@ -114,10 +118,7 @@ export function noticeDisposition(
 ): NoticeDisposition {
   if (recipient.sessionOpen) return { kind: 'text' };
   const listingGone =
-    recipient.primaryBuyer &&
-    (row.event === 'dropped' ||
-      row.event === 'lost' ||
-      row.event === 'property_sold');
+    recipient.primaryBuyer && (row.event === 'dropped' || row.event === 'lost');
   if (listingGone) return { kind: 'template' };
   const age = now.getTime() - new Date(row.created_at).getTime();
   if (age >= SESSION_WAIT_MS) {
@@ -134,7 +135,8 @@ export function noticeDisposition(
 
 /** The primary buyer is the contact the deal or journey branch belongs
  *  to; a buyer-side stakeholder can carry the role 'buyer' too (a joint
- *  buyer), so the role alone cannot tell them apart. */
+ *  buyer), so the role alone cannot tell them apart, and a row whose
+ *  source is gone is treated as a stakeholder's. */
 async function resolvePrimaryBuyer(
   db: SupabaseClient,
   accountId: string,
@@ -155,9 +157,7 @@ async function resolvePrimaryBuyer(
           .eq('account_id', accountId)
           .maybeSingle()
       : null;
-  if (!source) {
-    return { primaryBuyer: row.recipient_role === 'buyer', error: null };
-  }
+  if (!source) return { primaryBuyer: false, error: null };
   const { data, error } = await source;
   if (error) return { primaryBuyer: false, error: error.message };
   const owner = (data as { contact_id: string | null } | null)?.contact_id;
@@ -303,6 +303,15 @@ export async function drainDealStatusNotices(
       .maybeSingle();
     if (!claim) continue;
 
+    if (row.event === 'property_sold') {
+      await skipNotice(
+        db,
+        row,
+        'Sold updates are sent by the listing status sender'
+      );
+      summary.skipped++;
+      continue;
+    }
     if (!row.contact_id) {
       await skipNotice(db, row, 'No contact record for recipient');
       summary.skipped++;
@@ -364,6 +373,35 @@ export async function drainDealStatusNotices(
       await skipNotice(db, row, 'Recipient owns the property');
       summary.skipped++;
       continue;
+    }
+    if (row.property_id) {
+      const { data: rejected, error: rejectedError } = await db
+        .from('listing_feedback')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('property_id', row.property_id)
+        .eq('contact_id', recipient.id)
+        .eq('verdict', 'rejected')
+        .limit(1)
+        .maybeSingle();
+      if (rejectedError) {
+        console.error(
+          '[deal-status-notices] enquiry closure lookup failed; retrying later:',
+          row.id,
+          rejectedError.message
+        );
+        summary.failed++;
+        continue;
+      }
+      if (rejected) {
+        await skipNotice(
+          db,
+          row,
+          'Recipient closed their enquiry on this listing'
+        );
+        summary.skipped++;
+        continue;
+      }
     }
 
     const quiet = await resolveQuietPeriod(accountId, 'client', now);

@@ -185,3 +185,24 @@ BEGIN
   RETURN v_count;
 END;
 $$;
+
+-- The listing status sender (src/lib/whatsapp/sold-notification.ts)
+-- already tells every enquirer when a listing is Sold, minus those who
+-- closed their enquiry, and runs from the listing status sync and the
+-- property edit route. The trigger's own Sold notice duplicated it, and
+-- reached the buyer whose won deal had just moved the listing to Sold.
+-- A property leaving the market now only closes the follow-up todos.
+CREATE OR REPLACE FUNCTION public.on_property_withdrawn() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM auto_close_todos(new.account_id, NULL, new.id, 'property marked ' || new.status);
+  RETURN new;
+END;
+$$;
+
+UPDATE public.deal_status_notifications
+   SET status = 'skipped',
+       claimed_at = NULL,
+       last_error = 'Sold updates are sent by the listing status sender'
+ WHERE event = 'property_sold'
+   AND status = 'pending';
