@@ -17,9 +17,24 @@ import {
 import { getShowcaseUrl } from '@/lib/welcome-message';
 import type { Contact, Property } from '@/lib/types';
 
+export type UnavailableListingNotice =
+  'freeform' | 'template' | 'already_told' | 'none' | 'failed';
+
+export interface UnavailableListingOutcome {
+  status: string;
+  /** "Under contract", "Sold", "No longer listed" — for the copy. */
+  label: string;
+  /** How the regret reached them: free text with the showcase link,
+   *  the approved status notice, nothing because they already hold it,
+   *  nothing because the window is closed and no notice is approved,
+   *  or a failed send. */
+  notice: UnavailableListingNotice;
+}
+
 export interface ApproveOutcome {
   ok: boolean;
-  /** Property details went out over WhatsApp. */
+  /** Property details — or, for a listing that has left the market,
+   *  the regret — went out over WhatsApp. */
   sent: boolean;
   /** How they went out: the composed free text (window open) or the
    *  approved property template (window closed). */
@@ -33,6 +48,9 @@ export interface ApproveOutcome {
   /** Session >24h with no approved template — send one from this
    *  conversation instead. */
   reengageConversationId?: string;
+  /** Set when the enquired listing has left the market: the lead was
+   *  told so (or already had been) instead of being sent its details. */
+  unavailable?: UnavailableListingOutcome;
   error?: string;
 }
 
@@ -45,6 +63,7 @@ interface ApproveResponse {
     details_message?: string;
     conversation_id?: string | null;
     template_status?: string;
+    unavailable?: UnavailableListingOutcome;
     send_error?: string;
   };
 }
@@ -87,10 +106,14 @@ export async function approveAndSendDetails(
       property: d.property,
       detailsMessage: d.details_message,
       // Nothing went out and the window is shut: the celebration offers
-      // the thread's template picker for this conversation.
-      ...(!d.sent && d.conversation_id
+      // the thread's template picker for this conversation. A lead who
+      // already holds the regret needs nothing sent again.
+      ...(!d.sent &&
+      d.conversation_id &&
+      d.unavailable?.notice !== 'already_told'
         ? { reengageConversationId: d.conversation_id }
         : {}),
+      ...(d.unavailable ? { unavailable: d.unavailable } : {}),
       ...(d.send_error ? { error: d.send_error } : {}),
     };
   } catch (err) {

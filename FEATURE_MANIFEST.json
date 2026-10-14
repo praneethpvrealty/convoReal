@@ -4886,6 +4886,28 @@
             "vercel.json",
             "src/app/(dashboard)/admin/bot-replies-tab.tsx"
           ]
+        },
+        {
+          "id": "CNV-007",
+          "rule": "Approving a pending-review lead whose enquired listing has left the market (Under Contract, Sold, Off Market, Archived, Rejected) sends the regret instead of the listing's details, on web and mobile alike through POST /api/contacts/[id]/approve: free-form inside an open 24-hour window, apologising, asking for requirements and budget and ending with the lead's attributed showcase link, and the approved Utility status notice outside it. It is said once: a lead who already holds that exact reply, or the status notice template naming this listing while their window is still closed, is approved with nothing sent again and the agent told so; a closed window with no approved notice hands the agent the regret with the showcase link to send themselves; a failed send is reported beside the approval, never as a failed approval. A Pending Review or Available listing still gets its details.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/approve-unavailable-listing.test.ts",
+              "case": "[CNV-007]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/approve/route.test.ts",
+              "case": "[CNV-007]"
+            },
+            {
+              "file": "src/app/api/leads/email-webhook/unavailable-listing.test.ts",
+              "case": "[CNV-007]"
+            },
+            {
+              "file": "mobile/lib/approve-contact.test.ts",
+              "case": "[CNV-007]"
+            }
+          ]
         }
       ]
     },

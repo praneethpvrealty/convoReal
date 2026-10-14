@@ -10,9 +10,13 @@ const bot = (text: string, kind: TranscriptMessage['kind'] = 'text') =>
   ({ sender: 'bot', kind, text }) as TranscriptMessage;
 const customer = (text: string) =>
   ({ sender: 'customer', kind: 'text', text }) as TranscriptMessage;
+// A lead created this hour: the thread is read against the clock, so a
+// date pinned to the day the test was written crosses the one-week
+// re-engagement line a week later.
+const CREATED_THIS_HOUR = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 const rules = (
   transcript: TranscriptMessage[],
-  createdAt = '2026-10-07T10:14:47Z'
+  createdAt = CREATED_THIS_HOUR
 ) =>
   checkTranscript(transcript, { contactCreatedAt: createdAt }).map(
     (v) => v.rule
@@ -133,7 +137,7 @@ describe('[CNV-005] transcript rules', () => {
       customer('hi'),
       bot("Great to hear from you 👍 You're back on our radar. https://x"),
     ];
-    expect(rules(thread, '2026-10-07T10:14:47Z')).toContain(
+    expect(rules(thread, CREATED_THIS_HOUR)).toContain(
       'returning-copy-for-new-lead'
     );
     expect(rules(thread, '2026-01-01T00:00:00Z')).toEqual([]);

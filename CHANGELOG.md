@@ -17,6 +17,21 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 14 October 2026
+
+- **Approving a lead whose enquired listing has left the market sends the
+  regret, not the listing's details.** The Approve action on a pending-review
+  contact sent the listing's photos and price whatever its status, so a lead
+  the bot had told "no longer available" at import got the full details of a
+  plot under contract a few hours later. Approving now tells them it is not
+  available and points them to the showcase — free-form with their showcase
+  link inside the 24-hour window, the approved status notice template outside
+  it — and says it once: a lead who already holds the reply, or the notice for
+  that listing while their window is still closed, is approved with nothing
+  sent again. The web contact sheet approves through the same route as the
+  mobile app, so both surfaces behave alike and the agent is told which
+  happened. CNV-007.
+
 #### 13 October 2026
 
 - **A personal-WhatsApp share from the mobile app is recorded even when

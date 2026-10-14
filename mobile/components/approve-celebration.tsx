@@ -43,21 +43,36 @@ export function ApproveCelebration({
       }
     : null;
 
-  const message = reengageId
-    ? `${name} is in your active contacts. Their 24-hour Engine window has closed — send ${
-        propertyName
-          ? `the details for "${propertyName}"`
-          : 'the property details'
-      } on WhatsApp, or open the Engine thread to send a template.`
-    : outcome?.sent
-      ? `The details for ${
+  const unavailable = outcome?.unavailable;
+  const listingLine = unavailable
+    ? `${propertyName ? `"${propertyName}"` : 'the listing they enquired about'} is ${unavailable.label.toLowerCase()}`
+    : '';
+  const ListingLine =
+    listingLine.charAt(0).toUpperCase() + listingLine.slice(1);
+
+  const message = unavailable
+    ? reengageId
+      ? `${name} is in your active contacts. ${ListingLine} and their 24-hour Engine window has closed — send them the note with your showcase link on WhatsApp, or open the Engine thread to send a template.`
+      : unavailable.notice === 'already_told'
+        ? `${name} is in your active contacts. ${ListingLine} and they were already told, so nothing was sent again. Follow up with matching options in the chat inbox.`
+        : outcome?.sent
+          ? `${name} is in your active contacts. ${ListingLine} — they were told it is not available and pointed to your showcase. Follow up with matching options in the chat inbox.`
+          : `${name} is in your active contacts, but telling them ${listingLine} failed — check the WhatsApp configuration, then follow up from the chat inbox.`
+    : reengageId
+      ? `${name} is in your active contacts. Their 24-hour Engine window has closed — send ${
           propertyName
-            ? `"${propertyName}"`
-            : 'the property they inquired about'
-        } were sent to ${name} on WhatsApp. Follow up on their reply in the chat inbox.`
-      : outcome?.error
-        ? `${name} is in your active contacts, but auto-sending the property details failed — check the WhatsApp configuration, then follow up from the chat inbox.`
-        : `You can now follow up on ${name}'s response in the chat inbox, or engage them with more matching properties.`;
+            ? `the details for "${propertyName}"`
+            : 'the property details'
+        } on WhatsApp, or open the Engine thread to send a template.`
+      : outcome?.sent
+        ? `The details for ${
+            propertyName
+              ? `"${propertyName}"`
+              : 'the property they inquired about'
+          } were sent to ${name} on WhatsApp. Follow up on their reply in the chat inbox.`
+        : outcome?.error
+          ? `${name} is in your active contacts, but auto-sending the property details failed — check the WhatsApp configuration, then follow up from the chat inbox.`
+          : `You can now follow up on ${name}'s response in the chat inbox, or engage them with more matching properties.`;
 
   const actions: SuccessAction[] = reengageId
     ? [

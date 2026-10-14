@@ -382,6 +382,27 @@ describe('sendUnavailableListingReply', () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
+  it('[CNV-007] ends on a closed window without the notice when the caller withholds the template', async () => {
+    send.mockResolvedValueOnce({
+      success: false,
+      error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+    });
+    const supabase = fakeDb({
+      properties: property,
+      message_templates: [notice],
+      accounts: { name: 'Aryavarta Ventures' },
+    });
+    expect(
+      await sendUnavailableListingReply({
+        supabase,
+        ...args,
+        templateFallback: false,
+      })
+    ).toBe('window_closed');
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0].kind).toBe('text');
+  });
+
   it('reports a closed window with no approved notice instead of failing silently', async () => {
     send.mockResolvedValueOnce({
       success: false,
