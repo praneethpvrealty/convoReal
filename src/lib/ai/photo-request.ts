@@ -19,6 +19,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url';
+import { unavailableListingReply } from '@/lib/inventory/listing-status';
+import { replyListingUnavailableOnce } from '@/lib/whatsapp/inbound/unavailable-listing-reply';
 
 /** Photos per listing in one reply. WhatsApp renders each as its own
  *  bubble, so a full gallery would bury the conversation; the closing
@@ -131,6 +133,7 @@ export function buildPhotoReplyText(parts: PhotoReplyPart[]): string {
 interface PhotoSubjectRow {
   id: string;
   title: string | null;
+  status: string | null;
   images: string[] | null;
   property_code: string | null;
   video_url: string | null;
@@ -151,9 +154,10 @@ export interface SendSubjectPhotosArgs {
 
 /**
  * Sends the subjects' own photos, then one closing text with the
- * gallery link. Returns false when nothing could be sent — no subject,
- * no public images, or every send failed — so the caller falls back to
- * a handover instead of leaving the buyer unanswered.
+ * gallery link. A subject that has left the market gets the regret
+ * instead of its photos. Returns false when nothing could be sent — no
+ * subject, no public images, or every send failed — so the caller falls
+ * back to a handover instead of leaving the buyer unanswered.
  */
 export async function sendSubjectPhotos(
   args: SendSubjectPhotosArgs
@@ -164,7 +168,7 @@ export async function sendSubjectPhotos(
 
   const { data } = await db
     .from('properties')
-    .select('id, title, images, property_code, video_url, video_status')
+    .select('id, title, status, images, property_code, video_url, video_status')
     .eq('account_id', accountId)
     .in('id', propertyIds);
 
@@ -175,8 +179,25 @@ export async function sendSubjectPhotos(
 
   const wantsVideo = VIDEO_ASK.test(args.requestText);
   const parts: PhotoReplyPart[] = [];
+  let regretted = 0;
 
   for (const row of rows) {
+    // A listing that has left the market is not photographed on
+    // request: the lead hears it is not available instead, once.
+    if (unavailableListingReply(null, row.title, row.status)) {
+      const regret = await replyListingUnavailableOnce({
+        db,
+        accountId,
+        userId,
+        contactId,
+        conversationId,
+        property: row,
+      });
+      // Never its photos, whichever way the regret went; a regret that
+      // failed leaves the request unanswered, so the handover covers it.
+      if (regret && regret !== 'failed') regretted += 1;
+      continue;
+    }
     const images = (row.images ?? []).filter((u) => u && u.trim().length > 0);
     const perSubject = plannedPhotoCount(images.length, rows.length);
     let sent = 0;
@@ -220,7 +241,7 @@ export async function sendSubjectPhotos(
     }
   }
 
-  if (parts.length === 0) return false;
+  if (parts.length === 0) return regretted > 0;
 
   await sendWhatsAppMessageAndPersist({
     accountId,

@@ -1398,42 +1398,109 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
   }
 
+  // Approve-and-send goes through the route the mobile app uses, so a
+  // listing that has left the market gets the same regret on both
+  // surfaces instead of its details.
+  async function approveAndSendDetails() {
+    if (!contactId || !inquiredProperty) return;
+    const res = await fetch(`/api/contacts/${contactId}/approve`, {
+      method: 'POST',
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(payload?.error || 'Failed to approve contact');
+    }
+    const data = (payload?.data ?? {}) as {
+      sent?: boolean;
+      channel?: 'freeform' | 'template';
+      send_error?: string;
+      details_message?: string;
+      unavailable?: {
+        label: string;
+        notice: 'freeform' | 'template' | 'already_told' | 'none' | 'failed';
+      };
+    };
+    const unavailable = data.unavailable;
+    if (unavailable) {
+      const listing = `"${inquiredProperty.title}" is ${unavailable.label.toLowerCase()}`;
+      if (unavailable.notice === 'already_told') {
+        toast.success(
+          `Contact approved. ${listing} and they were already told, so nothing was sent again.`
+        );
+      } else if (data.sent) {
+        toast.success(
+          `Contact approved. ${listing} — they were told it is not available and pointed to your showcase.`
+        );
+      } else if (unavailable.notice === 'none') {
+        // The same hand-off mobile offers: the regret with the showcase
+        // link, ready to send from the agent's own WhatsApp, since the
+        // business number has no approved notice to carry it.
+        const digits = (contact?.phone ?? '').replace(/\D/g, '');
+        const regret = data.details_message;
+        toast.warning(
+          `Contact approved, but ${listing} and the chat is past the 24-hour window with no approved status notice template — send them the note from your own WhatsApp, or tell them from the inbox.`,
+          digits && regret
+            ? {
+                duration: 15000,
+                action: {
+                  label: 'Send on WhatsApp',
+                  onClick: () =>
+                    window.open(
+                      `https://wa.me/${digits}?text=${encodeURIComponent(regret)}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    ),
+                },
+              }
+            : undefined
+        );
+      } else {
+        toast.warning(
+          `Contact approved, but telling them ${listing} failed (check WhatsApp configuration).`
+        );
+      }
+      return;
+    }
+    if (data.sent) {
+      toast.success(
+        data.channel === 'template'
+          ? 'Approved — chat is past the 24-hour window, details sent as the approved property template.'
+          : 'Approved & property details sent via WhatsApp!'
+      );
+    } else if (data.send_error) {
+      toast.warning(
+        'Contact approved, but failed to send WhatsApp details (check WhatsApp configuration).'
+      );
+    } else {
+      toast.warning(
+        'Contact approved, but WhatsApp free-text failed (session >24 hrs). Redirecting to templates...'
+      );
+      setShareProperty(inquiredProperty);
+    }
+  }
+
   async function approveContact() {
     if (!contactId) return;
     setApproving(true);
     try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .update({
-          status: 'active',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', contactId)
-        .select('id');
-
-      if (error) throw error;
-      if (!data?.length) {
-        throw new Error('You do not have permission to approve this contact.');
-      }
-
       if (sendDetailsOnApprove && inquiredProperty) {
-        try {
-          await sendPropertyDetailsHelper();
-          toast.success('Approved & property details sent via WhatsApp!');
-        } catch (waErr) {
-          console.error('Failed to auto-send WhatsApp details:', waErr);
-          if (isReengagementError(waErr)) {
-            toast.warning(
-              'Contact approved, but WhatsApp free-text failed (session >24 hrs). Redirecting to templates...'
-            );
-            setShareProperty(inquiredProperty);
-          } else {
-            toast.warning(
-              'Contact approved, but failed to send WhatsApp details (check WhatsApp configuration).'
-            );
-          }
-        }
+        await approveAndSendDetails();
       } else {
+        const { data, error } = await supabase
+          .from('contacts')
+          .update({
+            status: 'active',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contactId)
+          .select('id');
+
+        if (error) throw error;
+        if (!data?.length) {
+          throw new Error(
+            'You do not have permission to approve this contact.'
+          );
+        }
         toast.success('Contact approved and added to the Engine!');
       }
 

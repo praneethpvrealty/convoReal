@@ -17,6 +17,38 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 14 October 2026
+
+- **Approving a lead whose enquired listing has left the market sends the
+  regret, not the listing's details.** The Approve action on a pending-review
+  contact sent the listing's photos and price whatever its status, so a lead
+  the bot had told "no longer available" at import got the full details of a
+  plot under contract a few hours later. Approving now tells them it is not
+  available and points them to the showcase — free-form with their showcase
+  link inside the 24-hour window, the approved status notice template outside
+  it — and says it once: a lead who already holds the reply, or the notice for
+  that listing while their window is still closed, is approved with nothing
+  sent again. The web contact sheet approves through the same route as the
+  mobile app, so both surfaces behave alike and the agent is told which
+  happened. CNV-008.
+- **No bot path details a listing that has left the market.** A lead who
+  tapped "Send more details" on the photos template, picked the listing from
+  a shortlist, or asked for its photos was sent the full details, the
+  showcase image and a "does this one work for you?" check of a plot under
+  contract. Every one of those paths now sends the same regret — status,
+  a request for requirements and budget, the showcase link — once per
+  thread, a photo request covering a live and a sold listing photographs
+  only the live one, and the Browse and Show more lists offer only
+  available listings. CNV-009.
+- **A listing that has left the market is never volunteered.** The Match
+  Radar raised a card for a listing whatever its status and sent its alert
+  even once the listing had gone under contract, and the WhatsApp catalog
+  sync kept such a listing on the storefront as in stock. A radar event is
+  now generated only for a published, available listing, the send refuses
+  one that has since left the market (web and mobile show the refusal from
+  the shared mapping), and the catalog sync removes the product instead.
+  RDR-002, PRP-044.
+
 #### 13 October 2026
 
 - **A personal-WhatsApp share from the mobile app is recorded even when

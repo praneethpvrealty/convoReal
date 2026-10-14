@@ -22,7 +22,12 @@ import { languageForMetaCode } from '@/lib/languages';
 import type { MessageTemplate, Property } from '@/types';
 
 export type UnavailableListingOutcome =
-  'available' | 'text' | 'template' | 'no_template' | 'failed';
+  | 'available'
+  | 'text'
+  | 'template'
+  | 'no_template'
+  | 'window_closed'
+  | 'failed';
 
 export function enquiryNoticeSendParams(
   templateName: string,
@@ -48,6 +53,7 @@ export async function sendUnavailableListingReply({
   conversationId,
   leadName,
   propertyId,
+  templateFallback = true,
 }: {
   supabase: SupabaseClient;
   accountId: string;
@@ -56,6 +62,9 @@ export async function sendUnavailableListingReply({
   conversationId: string | null;
   leadName: string;
   propertyId: string;
+  /** False when the lead already holds the status notice template, so a
+   *  closed window ends here instead of sending it a second time. */
+  templateFallback?: boolean;
 }): Promise<UnavailableListingOutcome> {
   const { data: property } = await supabase
     .from('properties')
@@ -104,6 +113,7 @@ export async function sendUnavailableListingReply({
     );
     return 'failed';
   }
+  if (!templateFallback) return 'window_closed';
 
   const { data: current, error: currentError } = await supabase
     .from('properties')

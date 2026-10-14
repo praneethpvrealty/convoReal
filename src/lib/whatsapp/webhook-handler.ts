@@ -1294,6 +1294,7 @@ export interface ContactRow {
 export interface PropertyRow {
   id: string;
   title: string;
+  status?: string | null;
   price: number | string | null;
   area_sqft: number | null;
   area_unit: string | null;

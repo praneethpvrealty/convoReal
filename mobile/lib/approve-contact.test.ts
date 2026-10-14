@@ -100,6 +100,85 @@ describe('approveAndSendDetails', () => {
     expect(result.reengageConversationId).toBeUndefined();
   });
 
+  it('[CNV-008] reports a listing that left the market as the regret sent, not the details', async () => {
+    response = {
+      data: {
+        approved: true,
+        sent: true,
+        channel: 'freeform',
+        property: { ...PROPERTY, status: 'Under Contract' },
+        details_message:
+          'Hi Veena, thank you for your interest … Browse every live listing any time: https://showcase.test/?v=contact-1',
+        conversation_id: 'conv-1',
+        unavailable: {
+          status: 'Under Contract',
+          label: 'Under contract',
+          notice: 'freeform',
+        },
+      },
+    };
+
+    const result = await approveAndSendDetails(CONTACT);
+
+    expect(result).toMatchObject({
+      ok: true,
+      sent: true,
+      channel: 'freeform',
+      unavailable: { label: 'Under contract', notice: 'freeform' },
+    });
+    expect(result.reengageConversationId).toBeUndefined();
+  });
+
+  it('[CNV-008] offers no re-engage for a lead who already holds the regret', async () => {
+    response = {
+      data: {
+        approved: true,
+        sent: false,
+        property: { ...PROPERTY, status: 'Sold' },
+        details_message: 'Hi Veena, …',
+        conversation_id: 'conv-1',
+        unavailable: { status: 'Sold', label: 'Sold', notice: 'already_told' },
+      },
+    };
+
+    const result = await approveAndSendDetails(CONTACT);
+
+    expect(result).toMatchObject({
+      ok: true,
+      sent: false,
+      unavailable: { notice: 'already_told' },
+    });
+    expect(result.reengageConversationId).toBeUndefined();
+    expect(result.error).toBeUndefined();
+  });
+
+  it('[CNV-008] hands the regret to the wa.me hand-off when the window is closed and no notice is approved', async () => {
+    response = {
+      data: {
+        approved: true,
+        sent: false,
+        property: { ...PROPERTY, status: 'Off Market' },
+        details_message: 'Hi Veena, … https://showcase.test/?v=contact-1',
+        conversation_id: 'conv-1',
+        unavailable: {
+          status: 'Off Market',
+          label: 'Off market',
+          notice: 'none',
+        },
+      },
+    };
+
+    const result = await approveAndSendDetails(CONTACT);
+
+    expect(result).toMatchObject({
+      ok: true,
+      sent: false,
+      reengageConversationId: 'conv-1',
+      detailsMessage: 'Hi Veena, … https://showcase.test/?v=contact-1',
+      unavailable: { notice: 'none' },
+    });
+  });
+
   it('hands back the conversation for a template when the window has closed', async () => {
     response = {
       data: {
