@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
 import {
   Shield,
   Activity,
@@ -136,6 +137,7 @@ interface Organization {
   status: string;
   archived_at?: string | null;
   plan: string;
+  last_active_at: string | null;
 }
 
 export default function AdminDashboardPage() {
@@ -1580,6 +1582,7 @@ export default function AdminDashboardPage() {
                       <th className="px-6 py-4">Status</th>
                       <th className="px-6 py-4">Plan</th>
                       <th className="px-6 py-4">Created</th>
+                      <th className="px-6 py-4">Last Active</th>
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -1646,6 +1649,21 @@ export default function AdminDashboardPage() {
                           </td>
                           <td className="px-6 py-4 text-xs text-slate-500">
                             {new Date(org.created_at).toLocaleDateString()}
+                          </td>
+                          <td
+                            className="px-6 py-4 text-xs text-slate-500"
+                            title={
+                              org.last_active_at
+                                ? new Date(org.last_active_at).toLocaleString()
+                                : undefined
+                            }
+                          >
+                            {org.last_active_at
+                              ? formatDistanceToNow(
+                                  new Date(org.last_active_at),
+                                  { addSuffix: true }
+                                )
+                              : 'Never'}
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-end gap-2">

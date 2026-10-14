@@ -74,6 +74,12 @@ export async function GET() {
       .from('subscriptions')
       .select('account_id, plan');
 
+    const { data: lastActive } = await admin.rpc('admin_account_last_active');
+    const lastActiveRows = (lastActive ?? []) as {
+      account_id: string;
+      last_active_at: string | null;
+    }[];
+
     const mappedOrgs =
       accounts?.map((acc) => {
         const orgOwner = profiles?.find((p) => p.account_id === acc.id);
@@ -83,6 +89,9 @@ export async function GET() {
           owner_name: orgOwner?.full_name || 'N/A',
           owner_email: orgOwner?.email || 'N/A',
           plan: sub?.plan || 'starter',
+          last_active_at:
+            lastActiveRows.find((l) => l.account_id === acc.id)
+              ?.last_active_at ?? null,
         };
       }) || [];
 
