@@ -41,6 +41,9 @@ than a written entry. Newest first.
   two. **Migration required**: `20261014023548_…` (already on production),
   `20261014081351_deal_status_notice_sweep.sql` (additive),
   `20261014093259_deal_status_notifications_updated_at.sql` (additive),
+  `20261014102450_deal_closed_insert_trigger.sql` (additive: a deal
+  created straight into a won or lost stage is handled like one marked
+  so later),
   `20261014095244_deal_status_notice_retire_on_change.sql` (additive:
   a deal reopened or corrected, or a journey branch revived, before its
   notice went out retires that notice),
@@ -48,7 +51,7 @@ than a written entry. Newest first.
   applied: the trigger's timeline entry used an event type the
   `deal_events` check rejects, which made every won or lost status change
   fail) and, after the merge,
-  `20261014100000_deal_status_notice_policies_and_brand.sql`,
+  `20261014120000_deal_status_notice_policies_and_brand.sql`,
   which repoints the queue's policies at the account helpers and signs
   the won notice with the account's own name.
 

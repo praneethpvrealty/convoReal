@@ -23,7 +23,10 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MessageTemplate, Property } from '@/types';
-import { isSessionOpen, sendDenNotificationResult } from '@/lib/den/notify';
+import {
+  isSessionOpenResult,
+  sendDenNotificationResult,
+} from '@/lib/den/notify';
 import { resolveQuietPeriod } from '@/lib/notifications/quiet-hours';
 import { accountBrandName } from '@/lib/showcase/account-showcase-url';
 import {
@@ -452,7 +455,17 @@ export async function drainDealStatusNotices(
       summary.skipped++;
       continue;
     }
-    const sessionOpen = await isSessionOpen(db, accountId, recipient.id);
+    const session = await isSessionOpenResult(db, accountId, recipient.id);
+    if (session.error) {
+      console.error(
+        '[deal-status-notices] session lookup failed; retrying later:',
+        row.id,
+        session.error
+      );
+      summary.failed++;
+      continue;
+    }
+    const sessionOpen = session.open;
     const disposition = noticeDisposition(
       row,
       { primaryBuyer, sessionOpen },

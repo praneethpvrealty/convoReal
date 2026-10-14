@@ -2,7 +2,10 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isSessionOpen, sendDenNotificationResult } from '@/lib/den/notify';
+import {
+  isSessionOpenResult,
+  sendDenNotificationResult,
+} from '@/lib/den/notify';
 import { resolveQuietPeriod } from '@/lib/notifications/quiet-hours';
 import { accountBrandName } from '@/lib/showcase/account-showcase-url';
 import {
@@ -17,7 +20,7 @@ import {
 } from './status-notices';
 
 vi.mock('@/lib/den/notify', () => ({
-  isSessionOpen: vi.fn(),
+  isSessionOpenResult: vi.fn(),
   sendDenNotificationResult: vi.fn(),
 }));
 vi.mock('@/lib/notifications/quiet-hours', () => ({
@@ -51,8 +54,12 @@ const reopen = readFileSync(
   join(MIGRATIONS, '20261014095244_deal_status_notice_retire_on_change.sql'),
   'utf8'
 );
+const insertTrigger = readFileSync(
+  join(MIGRATIONS, '20261014102450_deal_closed_insert_trigger.sql'),
+  'utf8'
+);
 const hardening = readFileSync(
-  join(MIGRATIONS, '20261014100000_deal_status_notice_policies_and_brand.sql'),
+  join(MIGRATIONS, '20261014120000_deal_status_notice_policies_and_brand.sql'),
   'utf8'
 );
 
@@ -143,6 +150,10 @@ const listing = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(isSessionOpenResult).mockResolvedValue({
+    open: false,
+    error: null,
+  });
   vi.mocked(resolveQuietPeriod).mockResolvedValue({
     isQuiet: false,
     deliverAt: null,
@@ -211,7 +222,10 @@ describe('[DSN-001] the notice goes out through the approved enquiry status temp
   });
 
   it('sends the queued text inside an open session and the template outside it', async () => {
-    vi.mocked(isSessionOpen).mockResolvedValue(false);
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: false,
+      error: null,
+    });
     vi.mocked(sendDenNotificationResult).mockResolvedValue({
       sent: true,
       reachedMeta: true,
@@ -330,7 +344,10 @@ describe('[DSN-002] the template never carries news it was not written for', () 
   });
 
   it('treats a row whose deal and journey links are gone as a stakeholder notice', async () => {
-    vi.mocked(isSessionOpen).mockResolvedValue(false);
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: false,
+      error: null,
+    });
     const { db, calls } = fakeDb({
       deal_status_notifications: [
         {
@@ -383,7 +400,10 @@ describe('[DSN-002] the template never carries news it was not written for', () 
   });
 
   it('tells a joint buyer apart from the primary buyer by the deal, not the role', async () => {
-    vi.mocked(isSessionOpen).mockResolvedValue(false);
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: false,
+      error: null,
+    });
     const { db, calls } = fakeDb({
       deal_status_notifications: [
         {
@@ -411,7 +431,10 @@ describe('[DSN-002] the template never carries news it was not written for', () 
 
 describe('[DSN-003] who is never messaged, and when a row waits', () => {
   it('skips the property owner and a recipient without a contact record', async () => {
-    vi.mocked(isSessionOpen).mockResolvedValue(true);
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: true,
+      error: null,
+    });
     const { db, calls } = fakeDb({
       deal_status_notifications: [
         {
@@ -506,7 +529,10 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
   });
 
   it('retries a failed send hourly and gives up after the third attempt', async () => {
-    vi.mocked(isSessionOpen).mockResolvedValue(false);
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: false,
+      error: null,
+    });
     vi.mocked(sendDenNotificationResult).mockResolvedValue({
       sent: false,
       reachedMeta: false,
@@ -561,7 +587,10 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
   });
 
   it('never retries a send Meta accepted but the dispatcher could not persist', async () => {
-    vi.mocked(isSessionOpen).mockResolvedValue(true);
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: true,
+      error: null,
+    });
     vi.mocked(sendDenNotificationResult).mockResolvedValue({
       sent: false,
       reachedMeta: true,
@@ -590,7 +619,10 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
   });
 
   it('retries the sent update once and reports a notice that stays pending', async () => {
-    vi.mocked(isSessionOpen).mockResolvedValue(true);
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: true,
+      error: null,
+    });
     vi.mocked(sendDenNotificationResult).mockResolvedValue({
       sent: true,
       reachedMeta: true,
@@ -623,7 +655,10 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
   });
 
   it('marks a notice already in the conversation as sent without resending it', async () => {
-    vi.mocked(isSessionOpen).mockResolvedValue(true);
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: true,
+      error: null,
+    });
     const { db, calls } = fakeDb({
       deal_status_notifications: [
         { data: [buyerRow], error: null },
@@ -653,6 +688,32 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toMatchObject({
       status: 'sent',
     });
+  });
+
+  it('holds a row for retry when the session lookup fails instead of sending the template', async () => {
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: false,
+      error: 'connection reset',
+    });
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ failed: 1, sent: 0, skipped: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
+      { claimed_at: NOW.toISOString() },
+    ]);
   });
 
   it('keeps a row claimed for retry when a recipient lookup fails', async () => {
@@ -867,6 +928,13 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
     expect(hardening).toMatch(
       /FUNCTION public\.auto_close_todos\([\s\S]*?IF p_property_id IS NULL THEN RETURN 0; END IF;/
     );
+  });
+
+  it('closes tasks and queues the notice for a deal created straight into a closed status', () => {
+    expect(insertTrigger).toMatch(
+      /CREATE TRIGGER deal_closed_on_insert_sync_trigger\s+AFTER INSERT ON public\.deals\s+FOR EACH ROW WHEN \(new\.status IN \('won', 'lost'\)\)\s+EXECUTE FUNCTION public\.on_deal_closed\(\);/
+    );
+    expect(insertTrigger).not.toMatch(/\bDROP\b/);
   });
 
   it('sweeps only todos whose property, deal or sole journey branch is closed', () => {

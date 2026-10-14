@@ -28,21 +28,33 @@ export async function isSessionOpen(
   accountId: string,
   contactId: string
 ): Promise<boolean> {
-  const { data: conv } = await db
+  return (await isSessionOpenResult(db, accountId, contactId)).open;
+}
+
+/** Same check, keeping a lookup failure apart from a closed session: a
+ *  caller that would send a template on `false` can hold instead. */
+export async function isSessionOpenResult(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<{ open: boolean; error: string | null }> {
+  const { data: conv, error: convError } = await db
     .from('conversations')
     .select('id')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
     .maybeSingle();
-  if (!conv) return false;
+  if (convError) return { open: false, error: convError.message };
+  if (!conv) return { open: false, error: null };
   const since = new Date(Date.now() - SESSION_WINDOW_MS).toISOString();
-  const { count } = await db
+  const { count, error } = await db
     .from('messages')
     .select('id', { count: 'exact', head: true })
     .eq('conversation_id', conv.id)
     .eq('sender_type', 'customer')
     .gte('created_at', since);
-  return (count ?? 0) > 0;
+  if (error) return { open: false, error: error.message };
+  return { open: (count ?? 0) > 0, error: null };
 }
 
 /**
