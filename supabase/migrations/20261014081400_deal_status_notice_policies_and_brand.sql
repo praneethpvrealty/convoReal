@@ -49,3 +49,41 @@ BEGIN
   ON CONFLICT DO NOTHING;
 END;
 $$;
+
+-- A contact and property pair can carry more than one deal, and only the
+-- one opened from this journey branch is the one the drop closes. Prefer
+-- the deal linked by source_journey_item_id over the pair's latest.
+CREATE OR REPLACE FUNCTION public.on_journey_item_dropped() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  c record;
+  d record;
+BEGIN
+  PERFORM auto_close_todos(new.account_id, new.contact_id, new.property_id,
+    'journey dropped' || coalesce(' — ' || new.drop_reason, ''));
+
+  SELECT id, name, phone INTO c FROM contacts WHERE id = new.contact_id;
+  SELECT id, status INTO d
+    FROM deals
+   WHERE account_id = new.account_id
+     AND (source_journey_item_id = new.id
+          OR (contact_id = new.contact_id AND property_id = new.property_id))
+   ORDER BY (source_journey_item_id = new.id) DESC NULLS LAST, updated_at DESC
+   LIMIT 1;
+
+  PERFORM queue_deal_status_notice(new.account_id, c.id, c.name, c.phone, 'buyer',
+    new.property_id, d.id, new.id, CASE WHEN d.status = 'lost' THEN 'lost' ELSE 'dropped' END, new.drop_reason);
+
+  IF d.id IS NOT NULL THEN
+    INSERT INTO deal_status_notifications
+      (account_id, contact_id, recipient_name, recipient_phone, recipient_role, property_id, deal_id, journey_item_id, event, internal_reason, message_text)
+    SELECT s.account_id, s.contact_id, s.name, s.phone, s.role, new.property_id, d.id, new.id, 'lost', new.drop_reason,
+           format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', (SELECT title FROM properties WHERE id = new.property_id))
+      FROM deal_stakeholders s
+     WHERE s.deal_id = d.id AND s.side = 'buyer' AND s.phone IS NOT NULL
+       AND (s.contact_id IS NULL OR s.contact_id <> new.contact_id)
+    ON CONFLICT DO NOTHING;
+  END IF;
+  RETURN new;
+END;
+$$;

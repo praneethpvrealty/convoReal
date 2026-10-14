@@ -11,8 +11,9 @@
 // listing is gone, through the approved enquiry status template.
 //
 // What never goes out: the internal reason (it stays on the row), a
-// notice to the property owner, and a template to a stakeholder or to
-// the buyer who won — the template's copy says the listing is no
+// notice to the property owner, and a template to a stakeholder (told
+// apart from the primary buyer by the deal or journey branch the row
+// belongs to, never by role) or to the buyer who won — the template's copy says the listing is no
 // longer available, which is not their news.
 // ============================================================
 
@@ -53,6 +54,8 @@ export interface DealStatusNoticeRow {
   recipient_name: string | null;
   recipient_role: string | null;
   property_id: string | null;
+  deal_id: string | null;
+  journey_item_id: string | null;
   event: DealStatusNoticeEvent;
   message_text: string;
   attempt_count: number;
@@ -105,13 +108,13 @@ export function dealStatusNoticeParams(
 }
 
 export function noticeDisposition(
-  row: Pick<DealStatusNoticeRow, 'event' | 'recipient_role' | 'created_at'>,
-  sessionOpen: boolean,
+  row: Pick<DealStatusNoticeRow, 'event' | 'created_at'>,
+  recipient: { primaryBuyer: boolean; sessionOpen: boolean },
   now: Date
 ): NoticeDisposition {
-  if (sessionOpen) return { kind: 'text' };
+  if (recipient.sessionOpen) return { kind: 'text' };
   const listingGone =
-    row.recipient_role === 'buyer' &&
+    recipient.primaryBuyer &&
     (row.event === 'dropped' ||
       row.event === 'lost' ||
       row.event === 'property_sold');
@@ -127,6 +130,38 @@ export function noticeDisposition(
     };
   }
   return { kind: 'wait' };
+}
+
+/** The primary buyer is the contact the deal or journey branch belongs
+ *  to; a buyer-side stakeholder can carry the role 'buyer' too (a joint
+ *  buyer), so the role alone cannot tell them apart. */
+async function resolvePrimaryBuyer(
+  db: SupabaseClient,
+  accountId: string,
+  row: DealStatusNoticeRow
+): Promise<{ primaryBuyer: boolean; error: string | null }> {
+  const source = row.deal_id
+    ? db
+        .from('deals')
+        .select('contact_id')
+        .eq('id', row.deal_id)
+        .eq('account_id', accountId)
+        .maybeSingle()
+    : row.journey_item_id
+      ? db
+          .from('journey_items')
+          .select('contact_id')
+          .eq('id', row.journey_item_id)
+          .eq('account_id', accountId)
+          .maybeSingle()
+      : null;
+  if (!source) {
+    return { primaryBuyer: row.recipient_role === 'buyer', error: null };
+  }
+  const { data, error } = await source;
+  if (error) return { primaryBuyer: false, error: error.message };
+  const owner = (data as { contact_id: string | null } | null)?.contact_id;
+  return { primaryBuyer: !!owner && owner === row.contact_id, error: null };
 }
 
 /** A terminal update is retried once: a row that stays pending after a
@@ -206,7 +241,7 @@ export async function drainDealStatusNotices(
   const { data: rows, error } = await db
     .from('deal_status_notifications')
     .select(
-      'id, account_id, contact_id, recipient_name, recipient_role, property_id, event, message_text, attempt_count, created_at'
+      'id, account_id, contact_id, recipient_name, recipient_role, property_id, deal_id, journey_item_id, event, message_text, attempt_count, created_at'
     )
     .eq('account_id', accountId)
     .eq('status', 'pending')
@@ -241,7 +276,7 @@ export async function drainDealStatusNotices(
       continue;
     }
 
-    const [{ data: contact }, { data: property }] = await Promise.all([
+    const [contactLookup, propertyLookup] = await Promise.all([
       db
         .from('contacts')
         .select('id, name, phone, is_archived, is_merged')
@@ -255,8 +290,20 @@ export async function drainDealStatusNotices(
             .eq('id', row.property_id)
             .eq('account_id', accountId)
             .maybeSingle()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: null, error: null }),
     ]);
+    const lookupError = contactLookup.error ?? propertyLookup.error;
+    if (lookupError) {
+      console.error(
+        '[deal-status-notices] recipient lookup failed; retrying later:',
+        row.id,
+        lookupError.message
+      );
+      summary.failed++;
+      continue;
+    }
+    const { data: contact } = contactLookup;
+    const { data: property } = propertyLookup;
 
     const recipient = contact as {
       id: string;
@@ -293,8 +340,26 @@ export async function drainDealStatusNotices(
       continue;
     }
 
+    const { primaryBuyer, error: primaryError } = await resolvePrimaryBuyer(
+      db,
+      accountId,
+      row
+    );
+    if (primaryError) {
+      console.error(
+        '[deal-status-notices] deal lookup failed; retrying later:',
+        row.id,
+        primaryError
+      );
+      summary.failed++;
+      continue;
+    }
     const sessionOpen = await isSessionOpen(db, accountId, recipient.id);
-    const disposition = noticeDisposition(row, sessionOpen, now);
+    const disposition = noticeDisposition(
+      row,
+      { primaryBuyer, sessionOpen },
+      now
+    );
     if (disposition.kind === 'skip') {
       await skipNotice(db, row, disposition.reason);
       summary.skipped++;

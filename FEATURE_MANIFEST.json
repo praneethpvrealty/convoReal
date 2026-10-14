@@ -4965,7 +4965,7 @@
         },
         {
           "id": "DSN-002",
-          "rule": "The status template, whose copy says the listing is no longer available, goes only to a buyer whose journey dropped, whose deal was lost or whose property sold. A won-deal buyer or a buyer-side stakeholder is told in free-form text within 48 hours of an open session or not at all, and the internal reason never leaves the row.",
+          "rule": "The status template, whose copy says the listing is no longer available, goes only to a buyer whose journey dropped, whose deal was lost or whose property sold. A won-deal buyer or a buyer-side stakeholder (told apart from the primary buyer by the deal or journey branch the notice belongs to, never by role) is told in free-form text within 48 hours of an open session or not at all, and the internal reason never leaves the row.",
           "tests": [
             {
               "file": "src/lib/deals/status-notices.test.ts",
@@ -4979,7 +4979,7 @@
         },
         {
           "id": "DSN-003",
-          "rule": "The property owner, a recipient with no contact record or WhatsApp number, and an archived contact are skipped with the reason recorded. Client quiet hours hold a row without spending an attempt; a failed send retries after an hour and is marked failed on the third attempt.",
+          "rule": "The property owner, a recipient with no contact record or WhatsApp number, and an archived contact are skipped with the reason recorded. Client quiet hours hold a row without spending an attempt; a failed recipient lookup keeps the row for retry rather than skipping it; a failed send retries after an hour and is marked failed on the third attempt.",
           "tests": [
             {
               "file": "src/lib/deals/status-notices.test.ts",
