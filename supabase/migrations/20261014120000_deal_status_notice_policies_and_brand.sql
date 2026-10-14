@@ -13,7 +13,9 @@ ALTER POLICY "account members update own notices" ON public.deal_status_notifica
 
 -- The 'won' text thanked the buyer by one brokerage's name, which is
 -- wrong for every other account. The account's own name signs it now,
--- and an account with no name set thanks the buyer without one.
+-- and an account with no name set thanks the buyer without one. A
+-- counterpart with no phone is queued all the same: the drain records
+-- the skip and its reason, so every counterpart leaves a row.
 CREATE OR REPLACE FUNCTION public.queue_deal_status_notice(
   p_account_id uuid, p_contact_id uuid, p_name text, p_phone text, p_role text,
   p_property_id uuid, p_deal_id uuid, p_journey_item_id uuid, p_event text, p_reason text
@@ -26,7 +28,6 @@ DECLARE
 BEGIN
   SELECT title, owner_contact_id INTO v_prop_title, v_owner FROM properties WHERE id = p_property_id;
   IF p_contact_id IS NOT NULL AND v_owner IS NOT NULL AND p_contact_id = v_owner THEN RETURN; END IF;
-  IF p_phone IS NULL OR p_phone = '' THEN RETURN; END IF;
 
   SELECT NULLIF(TRIM(name), '') INTO v_brand FROM accounts WHERE id = p_account_id;
 
@@ -80,7 +81,7 @@ BEGIN
     SELECT s.account_id, s.contact_id, s.name, s.phone, s.role, new.property_id, d.id, new.id, 'lost', new.drop_reason,
            format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', (SELECT title FROM properties WHERE id = new.property_id))
       FROM deal_stakeholders s
-     WHERE s.deal_id = d.id AND s.side = 'buyer' AND s.phone IS NOT NULL
+     WHERE s.deal_id = d.id AND s.side = 'buyer'
        AND (s.contact_id IS NULL OR s.contact_id <> new.contact_id)
     ON CONFLICT DO NOTHING;
   END IF;
@@ -272,7 +273,7 @@ BEGIN
               THEN format('Update on %s: the transaction has been concluded. Thank you for your support.', (SELECT title FROM properties WHERE id = new.property_id))
               ELSE format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', (SELECT title FROM properties WHERE id = new.property_id)) END
     FROM deal_stakeholders s
-   WHERE s.deal_id = new.id AND s.side = 'buyer' AND s.phone IS NOT NULL
+   WHERE s.deal_id = new.id AND s.side = 'buyer'
      AND (s.contact_id IS NULL OR new.contact_id IS NULL OR s.contact_id <> new.contact_id)
   ON CONFLICT DO NOTHING;
 

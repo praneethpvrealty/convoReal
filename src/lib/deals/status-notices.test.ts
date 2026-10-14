@@ -237,6 +237,7 @@ describe('[DSN-001] the notice goes out through the approved enquiry status temp
       deal_status_notifications: [
         { data: [buyerRow], error: null },
         { data: { id: 'n-1' }, error: null },
+        { data: { id: 'n-1' }, error: null },
       ],
       contacts: [
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
@@ -440,6 +441,7 @@ describe('[DSN-002] the template never carries news it was not written for', () 
       deal_status_notifications: [
         { data: [buyerRow], error: null },
         { data: { id: 'n-1' }, error: null },
+        { data: { id: 'n-1' }, error: null },
       ],
       contacts: [
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
@@ -604,6 +606,8 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
           error: null,
         },
         { data: { id: 'n-first' }, error: null },
+        { data: { id: 'n-first' }, error: null },
+        { data: { id: 'n-last' }, error: null },
         { data: { id: 'n-last' }, error: null },
       ],
       contacts: [
@@ -692,6 +696,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
       deal_status_notifications: [
         { data: [unsent], error: null },
         { data: { id: 'n-1' }, error: null },
+        { data: { id: 'n-1' }, error: null },
       ],
       contacts: [
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
@@ -720,8 +725,6 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
       deal_status_notifications: [
         { data: [buyerRow], error: null },
         { data: { id: 'n-1' }, error: null },
-      ],
-      'deal_status_notifications#update': [
         { data: null, error: { message: 'connection reset' } },
         { data: null, error: { message: 'connection reset' } },
       ],
@@ -739,6 +742,50 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
       claimed_at: null,
     });
+  });
+
+  it('leaves a row a trigger retired between the claim and the send mark as the trigger left it', async () => {
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: true,
+      error: null,
+    });
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+        { data: null, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ skipped: 1, sent: 0, failed: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
+      { claimed_at: NOW.toISOString() },
+      { attempt_count: 1, last_error: SEND_IN_PROGRESS },
+    ]);
+    const markIndex = calls.findIndex(
+      (c) =>
+        c.table === 'deal_status_notifications' &&
+        c.method === 'update' &&
+        (c.args[0] as Record<string, unknown>).last_error === SEND_IN_PROGRESS
+    );
+    const markFilters = calls
+      .slice(markIndex + 1)
+      .filter((c) => c.method === 'eq')
+      .map((c) => c.args);
+    expect(markFilters).toEqual(
+      expect.arrayContaining([
+        ['status', 'pending'],
+        ['claimed_at', NOW.toISOString()],
+      ])
+    );
   });
 
   it('marks a row whose unrecorded attempt did reach the conversation as sent', async () => {
@@ -777,6 +824,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
       deal_status_notifications: [
         { data: [buyerRow], error: null },
         { data: { id: 'n-1' }, error: null },
+        { data: { id: 'n-1' }, error: null },
       ],
       contacts: [
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
@@ -805,6 +853,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     const { db, calls } = fakeDb({
       deal_status_notifications: [
         { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
         { data: { id: 'n-1' }, error: null },
       ],
       contacts: [
@@ -838,9 +887,9 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
       deal_status_notifications: [
         { data: [buyerRow], error: null },
         { data: { id: 'n-1' }, error: null },
+        { data: { id: 'n-1' }, error: null },
       ],
       'deal_status_notifications#update': [
-        { data: null, error: null },
         { data: null, error: { message: 'connection reset' } },
         { data: null, error: { message: 'connection reset' } },
       ],
@@ -1142,6 +1191,16 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
     expect(
       'deal_closed_sync_trigger' < 'sync_journey_item_stage_from_deal_trigger'
     ).toBe(true);
+  });
+
+  it('queues a counterpart with no phone so the drain records the skip', () => {
+    const queue =
+      /FUNCTION public\.queue_deal_status_notice\([\s\S]*?\$\$;/.exec(
+        hardening
+      )?.[0];
+    expect(queue).toBeDefined();
+    expect(queue).not.toMatch(/p_phone IS NULL/);
+    expect(hardening).not.toMatch(/s\.phone IS NOT NULL/);
   });
 
   it("closes a deal's todos by the deal, and by buyer and property only when both are known", () => {

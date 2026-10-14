@@ -231,7 +231,8 @@ async function alreadyDelivered(
 /** A terminal update is retried once. Two durable marks bracket a send:
  *  the claim stamps claimed_at before any lookup, and the send mark
  *  (attempt counted, last_error = SEND_IN_PROGRESS) is written just
- *  before the message goes out, or the send does not happen. A row found
+ *  before the message goes out, onto the still-pending row this run
+ *  claimed, or the send does not happen. A row found
  *  still claimed an hour later with the send mark is one whose outcome
  *  was never recorded and is retired rather than resent; one without the
  *  mark never reached a send and is simply processed again. Every
@@ -255,6 +256,35 @@ async function updateNotice(
     );
   }
   return false;
+}
+
+/** The send mark lands only on the row this run claimed and that is
+ *  still pending: a trigger that retired the row between the claim and
+ *  the mark (the deal reopened, the branch revived) leaves nothing to
+ *  mark, and the row stays as the trigger left it. */
+async function markSend(
+  db: SupabaseClient,
+  row: DealStatusNoticeRow,
+  now: Date
+): Promise<{ marked: boolean; error: string | null }> {
+  let lastError: string | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { data, error } = await db
+      .from('deal_status_notifications')
+      .update({
+        attempt_count: row.attempt_count + 1,
+        last_error: SEND_IN_PROGRESS,
+      })
+      .eq('id', row.id)
+      .eq('account_id', row.account_id)
+      .eq('status', 'pending')
+      .eq('claimed_at', now.toISOString())
+      .select('id')
+      .maybeSingle();
+    if (!error) return { marked: !!data, error: null };
+    lastError = error.message;
+  }
+  return { marked: false, error: lastError };
 }
 
 async function skipNotice(
@@ -564,13 +594,19 @@ export async function drainDealStatusNotices(
     const propertyDescription = listing
       ? describeEnquiredProperty(listing)
       : 'the property you enquired about';
-    const marked = await updateNotice(db, row, {
-      attempt_count: row.attempt_count + 1,
-      last_error: SEND_IN_PROGRESS,
-    });
-    if (!marked) {
+    const mark = await markSend(db, row, now);
+    if (mark.error) {
+      console.error(
+        '[deal-status-notices] send mark failed; retrying later:',
+        row.id,
+        mark.error
+      );
       await releaseNotice(db, row);
       summary.failed++;
+      continue;
+    }
+    if (!mark.marked) {
+      summary.skipped++;
       continue;
     }
     const delivery = await sendDenNotificationResult(db, {
