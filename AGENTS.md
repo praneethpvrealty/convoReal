@@ -544,7 +544,7 @@ Plus:
 | Contacts     | `contacts`, `tags`, `contact_tags`, `custom_fields`, `contact_custom_values`, `contact_notes`, `contact_call_logs`, `contact_draft_sessions`, `contact_merge_log`                                                                                                                          |
 | Properties   | `properties`, `showcase_settings`, `rera_projects`, `property_document_requests`, `property_draft_sessions`, `property_likes`, `property_ratings`, `property_shares`, `property_portal_listings`                                                                                           |
 | WhatsApp     | `conversations`, `messages`, `message_reactions`, `message_templates`, `whatsapp_config`, `whatsapp_number_profiles`, `whatsapp_number_change_notices`, `whatsapp_retired_number_replies`, `whatsapp_meta_flows`, `whatsapp_meta_flow_sessions`, `whatsapp_reply_bridges`, `routing_rules` |
-| Pipelines    | `pipelines`, `pipeline_stages`, `deals`                                                                                                                                                                                                                                                    |
+| Pipelines    | `pipelines`, `pipeline_stages`, `deals`, `deal_status_notifications`                                                                                                                                                                                                                       |
 | Calendar     | `appointments`, `appointment_reminder_log`, `todos`                                                                                                                                                                                                                                        |
 | Automations  | `automations`, `automation_steps`, `automation_logs`, `automation_pending_executions`                                                                                                                                                                                                      |
 | Flows        | `flows`, `flow_nodes`, `flow_runs`, `flow_run_events`                                                                                                                                                                                                                                      |
@@ -788,6 +788,7 @@ Defined in `vercel.json`:
 - `/api/cron/guidance-batches` — every 15 minutes
 - `/api/cron/release-timer` — every 15 minutes (:07, :22, :37, :52); starts the release-timer GitHub workflow
 - `/api/cron/bot-thread-review` — daily 23:30 UTC (05:00 IST); reads every thread the bot wrote in during the last day through the transcript rules and the model judge into `bot_thread_reviews` (Admin → Bot replies)
+- `/api/cron/deal-status-notices` — every 15 minutes (:09, :24, :39, :54); completes open todos whose deal closed, journey branch dropped or property left the market (`auto_close_stale_deal_todos`), then sends the counterpart notices the status triggers queued in `deal_status_notifications`: free-form inside an open session, else the approved enquiry status template for a buyer whose listing is gone; the property owner is never messaged
 
 All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 

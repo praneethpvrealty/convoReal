@@ -48,6 +48,43 @@ than a written entry. Newest first.
   one that has since left the market (web and mobile show the refusal from
   the shared mapping), and the catalog sync removes the product instead.
   RDR-002, PRP-044.
+- **Closing a deal now closes its follow-up tasks, and the counterpart
+  hears about it.** The morning task digest kept listing follow-ups for
+  transactions that had already fallen through, because a to-do knew its
+  contact and property but nothing watched the deal. Database triggers now
+  complete every open to-do for a buyer and property when their journey
+  branch is dropped, their deal is marked won or lost, or the property is
+  marked Sold, Off Market or Archived (every buyer's to-dos, for a
+  property), leave an audit note on each, record a `tasks_auto_closed`
+  note on the deal timeline, and, for a dropped branch or a closed deal,
+  queue one neutral notice per counterpart in `deal_status_notifications`.
+  A Sold listing keeps its existing buyer update from the listing status
+  sender. The property owner and a contact who closed their enquiry are
+  never messaged, and the internal reason stays on the row. A new cron,
+  `/api/cron/deal-status-notices`, runs every 15 minutes: it first sweeps
+  open to-dos the triggers predate, then sends each notice as free-form
+  text inside an open session or, for a buyer whose listing is gone,
+  through the approved enquiry status template; a won-deal buyer or a
+  buyer-side stakeholder waits up to 48 hours for a session instead. A
+  drop and the lost deal it becomes now produce one notice rather than
+  two. **Migration required**: `20261014023548_…` (already on production),
+  `20261014081351_deal_status_notice_sweep.sql` (additive),
+  `20261014093259_deal_status_notifications_updated_at.sql` (additive),
+  `20261014123016_deal_status_notice_dedupe_null_property.sql` (additive:
+  a counterpart on a deal with no listing is deduplicated too),
+  `20261014102450_deal_closed_insert_trigger.sql` (additive: a deal
+  created straight into a won or lost stage is handled like one marked
+  so later),
+  `20261014095244_deal_status_notice_retire_on_change.sql` (additive:
+  a deal reopened or corrected, or a journey branch revived, before its
+  notice went out retires that notice),
+  `20261014082622_deal_closed_trigger_event_type.sql` (hotfix, already
+  applied: the trigger's timeline entry used an event type the
+  `deal_events` check rejects, which made every won or lost status change
+  fail) and, after the merge,
+  `20261014120000_deal_status_notice_policies_and_brand.sql`,
+  which repoints the queue's policies at the account helpers and signs
+  the won notice with the account's own name.
 
 #### 13 October 2026
 

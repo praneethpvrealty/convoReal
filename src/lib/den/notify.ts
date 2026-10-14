@@ -28,21 +28,33 @@ export async function isSessionOpen(
   accountId: string,
   contactId: string
 ): Promise<boolean> {
-  const { data: conv } = await db
+  return (await isSessionOpenResult(db, accountId, contactId)).open;
+}
+
+/** Same check, keeping a lookup failure apart from a closed session: a
+ *  caller that would send a template on `false` can hold instead. */
+export async function isSessionOpenResult(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<{ open: boolean; error: string | null }> {
+  const { data: conv, error: convError } = await db
     .from('conversations')
     .select('id')
     .eq('account_id', accountId)
     .eq('contact_id', contactId)
     .maybeSingle();
-  if (!conv) return false;
+  if (convError) return { open: false, error: convError.message };
+  if (!conv) return { open: false, error: null };
   const since = new Date(Date.now() - SESSION_WINDOW_MS).toISOString();
-  const { count } = await db
+  const { count, error } = await db
     .from('messages')
     .select('id', { count: 'exact', head: true })
     .eq('conversation_id', conv.id)
     .eq('sender_type', 'customer')
     .gte('created_at', since);
-  return (count ?? 0) > 0;
+  if (error) return { open: false, error: error.message };
+  return { open: (count ?? 0) > 0, error: null };
 }
 
 /**
@@ -65,7 +77,13 @@ export async function approvedTemplate(
    * text, Utility over Marketing) still applies — within their
    * language. Omit and this behaves exactly as it always did.
    */
-  language?: LanguageCode
+  language?: LanguageCode,
+  /**
+   * Let an approved Utility row in another language beat a Marketing
+   * row in the recipient's own, so a caller's Utility-over-Marketing
+   * policy is not defeated by the language narrowing.
+   */
+  preferUtility?: boolean
 ): Promise<MessageTemplate | null> {
   const names = Array.isArray(templateName) ? templateName : [templateName];
   const { data: rows } = await db
@@ -75,7 +93,9 @@ export async function approvedTemplate(
     .in('name', names)
     .order('last_submitted_at', { ascending: false });
   const all = (rows || []) as MessageTemplate[];
-  const templates = language ? narrowToLanguage(all, language) : all;
+  const templates = language
+    ? narrowToLanguage(all, language, { preferUtility })
+    : all;
   if (pick) return pick(templates);
   const template = templates[0] ?? null;
   return template?.status === 'APPROVED' ? template : null;
@@ -85,7 +105,31 @@ export async function approvedTemplate(
  * Session-first, template-fallback send. Returns true when a message
  * actually went out. Never throws.
  */
+export interface DenNotificationResult {
+  /** The message went out and its row was persisted. */
+  sent: boolean;
+  /** Meta accepted the message even when `sent` is false: the dispatcher
+   *  could not persist its row. A caller that retries on `sent` alone
+   *  would deliver it twice. */
+  reachedMeta: boolean;
+  /** Nothing was sent because the session lookup failed, so the helper
+   *  could not tell text from template. A caller holding the message
+   *  for retry should treat this apart from a closed channel. */
+  lookupFailed?: boolean;
+  /** Meta's Marketing pause for this contact refused the template before
+   *  any send (INB-008); the message can be tried again after this
+   *  instant, or sooner inside a session the contact's reply opens. */
+  retryAfter?: string;
+}
+
 export async function sendDenNotification(
+  db: SupabaseClient,
+  args: Parameters<typeof sendDenNotificationResult>[1]
+): Promise<boolean> {
+  return (await sendDenNotificationResult(db, args)).sent;
+}
+
+export async function sendDenNotificationResult(
   db: SupabaseClient,
   args: {
     accountId: string;
@@ -94,6 +138,13 @@ export async function sendDenNotification(
     templateName?: string | string[];
     /** Chooses among several approved candidates — see approvedTemplate. */
     pickTemplate?: (rows: MessageTemplate[]) => MessageTemplate | null;
+    /** An approved Utility row in any language reaches `pickTemplate`
+     *  when the recipient's own language holds only Marketing rows. */
+    preferUtility?: boolean;
+    /** The caller's own answer to the session question. Given, no
+     *  lookup runs here, so a caller that has already recorded a
+     *  durable pre-send mark has nothing left to fail before the send. */
+    sessionOpen?: boolean;
     templateParams?: string[];
     /** Params derived from whichever template `pickTemplate` lands on.
      *  A renamed template can carry a different param count from the
@@ -112,10 +163,17 @@ export async function sendDenNotification(
      *  a template with a text header, so callers can pass it blind. */
     headerMediaUrl?: string | null;
   }
-): Promise<boolean> {
+): Promise<DenNotificationResult> {
   try {
-    const open = await isSessionOpen(db, args.accountId, args.contactId);
-    if (open) {
+    const session =
+      args.sessionOpen === undefined
+        ? await isSessionOpenResult(db, args.accountId, args.contactId)
+        : { open: args.sessionOpen, error: null };
+    if (session.error) {
+      console.error('[den-notify] session lookup failed:', session.error);
+      return { sent: false, reachedMeta: false, lookupFailed: true };
+    }
+    if (session.open) {
       const res = await sendWhatsAppMessageAndPersist({
         accountId: args.accountId,
         contactId: args.contactId,
@@ -123,11 +181,11 @@ export async function sendDenNotification(
         senderType: 'bot',
         text: args.text,
       });
-      return res.success;
+      return { sent: res.success, reachedMeta: res.reachedMeta === true };
     }
 
     if (!args.templateName || !(args.templateParams || args.buildParams)) {
-      return false;
+      return { sent: false, reachedMeta: false };
     }
     // Den notifications go to a property OWNER, who is a contact like
     // any other — their preferred_language decides the variant.
@@ -141,9 +199,10 @@ export async function sendDenNotification(
       args.accountId,
       args.templateName,
       args.pickTemplate,
-      language
+      language,
+      args.preferUtility
     );
-    if (!template) return false;
+    if (!template) return { sent: false, reachedMeta: false };
     if (isLanguageFallback(template, language)) {
       warnLanguageFallback('den-notify', args.accountId, language, template);
     }
@@ -170,9 +229,13 @@ export async function sendDenNotification(
       templateRow: template,
       text: args.text,
     });
-    return res.success;
+    return {
+      sent: res.success,
+      reachedMeta: res.reachedMeta === true,
+      ...(res.retryAfter ? { retryAfter: res.retryAfter } : {}),
+    };
   } catch (err) {
     console.error('[den-notify] send failed (non-fatal):', err);
-    return false;
+    return { sent: false, reachedMeta: false };
   }
 }
