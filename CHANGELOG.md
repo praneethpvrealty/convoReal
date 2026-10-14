@@ -19,6 +19,18 @@ than a written entry. Newest first.
 
 #### 14 October 2026
 
+- **"Close my enquiry" gets one acknowledgement and nothing else.** A lead
+  who closed an enquiry was then told how many other enquiries they had
+  open, sold the listing engine ("it sometimes catches a real steal deal,
+  reply START ALERTS") and asked in a second bubble what made them drop the
+  listing, a minute after being told their own deal would not proceed. The
+  close now sends one short acknowledgement naming the listing, with a
+  single line that the others stay open when any are. The drop-off survey
+  is no longer sent (a reason tapped on one already in a thread is still
+  filed), and the search-level goodbye names START ALERTS once without the
+  pitch. The nightly transcript review now flags that pitch as self-praise.
+  INB-009, INB-010.
+
 - **Approving a lead whose enquired listing has left the market sends the
   regret, not the listing's details.** The Approve action on a pending-review
   contact sent the listing's photos and price whatever its status, so a lead

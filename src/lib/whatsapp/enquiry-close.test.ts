@@ -36,11 +36,11 @@ const { buildPropertyCloseAck, handleEnquiryClose } =
 
 /**
  * [INB-010] "Close my enquiry" closes the listing the template named,
- * not the lead. The contact stays live and matching, is told their
- * other enquiries stay open, and the tap's window runs the drop-off
- * reason. Only a close that names nothing, on a journey with nothing
- * open, is read as ending the search — and its goodbye's START ALERTS
- * revives the contact.
+ * not the lead. The contact stays live and matching, and hears one
+ * short acknowledgement: no drop-off survey, no alerts pitch, no walk
+ * through their other enquiries. Only a close that names nothing, on a
+ * journey with nothing open, is read as ending the search — and its
+ * goodbye's START ALERTS revives the contact.
  */
 
 const P1 = '11111111-1111-4111-8111-111111111111';
@@ -73,29 +73,23 @@ beforeEach(() => {
 });
 
 describe('buildPropertyCloseAck', () => {
-  it('[INB-010] names the listing, says the rest stays open, and pitches alerts only when not yet granted', () => {
-    const pending = buildPropertyCloseAck({
-      property: villa,
-      openCount: 2,
-      alertsGranted: false,
-    });
-    expect(pending).toContain('*Renovated 4BHK Villa (PROP-1559)* is closed');
-    expect(pending).toContain('your other 2 enquiries with us stay open');
-    expect(pending).toContain('START ALERTS');
-    expect(pending).not.toContain('last update');
+  it('[INB-010] names the listing, says the rest stays open, and sells nothing', () => {
+    const withOthers = buildPropertyCloseAck({ property: villa, openCount: 2 });
+    expect(withOthers).toContain(
+      '*Renovated 4BHK Villa (PROP-1559)* is closed'
+    );
+    expect(withOthers).toContain('Your other enquiries with us stay open.');
+    expect(withOthers).not.toMatch(/START ALERTS|engine|steal|last update/);
+    expect(withOthers.split('\n').filter(Boolean)).toHaveLength(2);
 
-    const granted = buildPropertyCloseAck({
-      property: villa,
-      openCount: 0,
-      alertsGranted: true,
-    });
-    expect(granted).not.toContain('stay open');
-    expect(granted).not.toContain('START ALERTS');
+    const alone = buildPropertyCloseAck({ property: villa, openCount: 0 });
+    expect(alone).not.toContain('stay open');
+    expect(alone.split('\n').filter(Boolean)).toHaveLength(1);
   });
 });
 
 describe('handleEnquiryClose', () => {
-  it('[INB-010] a close on a named listing files that listing, keeps the contact live and asks why', async () => {
+  it('[INB-010] a close on a named listing files that listing, keeps the contact live and sends one acknowledgement only', async () => {
     resolveDroppedProperty.mockResolvedValue(villa);
     loadOpenEnquiries.mockResolvedValue(open);
 
@@ -110,16 +104,15 @@ describe('handleEnquiryClose', () => {
       })
     );
     expect(markContactDead).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'text',
         allowDeadContact: true,
-        text: expect.stringContaining('your other enquiry with us stays open'),
+        text: expect.stringContaining('Your other enquiries with us stay open'),
       })
     );
-    expect(sendEnquiryDropoffPrompt).toHaveBeenCalledWith(
-      expect.objectContaining({ contactId: 'c1', property: villa })
-    );
+    expect(sendEnquiryDropoffPrompt).not.toHaveBeenCalled();
     expect(sendEnquiryReview).not.toHaveBeenCalled();
   });
 
@@ -156,11 +149,11 @@ describe('handleEnquiryClose', () => {
       sendWhatsAppMessageAndPersist.mock.calls[0][0] as { text: string }
     ).text;
     expect(text.indexOf('your enquiry is closed')).toBeGreaterThanOrEqual(0);
-    expect(text.indexOf('listing engine')).toBeGreaterThan(
+    expect(text.indexOf('START ALERTS')).toBeGreaterThan(
       text.indexOf('your enquiry is closed')
     );
-    expect(text).toContain('START ALERTS');
     expect(text).toContain('last update');
+    expect(text).not.toMatch(/engine|steal/);
   });
 
   it('never throws — the lead asked for an acknowledgement', async () => {

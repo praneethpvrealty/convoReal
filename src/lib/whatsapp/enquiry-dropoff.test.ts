@@ -24,11 +24,9 @@ vi.mock('@/lib/contacts/lifecycle', () => ({
 }));
 
 const {
-  buildEnquiryDropoffSections,
   handleEnquiryDropoffReason,
   parseEnquiryDropoffReply,
   resolveDroppedProperty,
-  sendEnquiryDropoffPrompt,
 } = await import('./enquiry-dropoff');
 
 /**
@@ -177,63 +175,6 @@ describe('resolveDroppedProperty', () => {
       messages: [[]],
     });
     expect(await resolveDroppedProperty(baseArgs(emptyDb, null))).toBeNull();
-  });
-});
-
-describe('sendEnquiryDropoffPrompt', () => {
-  it('[INB-009] asks why with rows the dead-contact gate lets through, without promising silence', async () => {
-    const { db, calls } = stubDb({});
-
-    const sent = await sendEnquiryDropoffPrompt({
-      db,
-      accountId: 'acct-1',
-      userId: 'owner-1',
-      contactId: 'c1',
-      conversationId: 'conv-1',
-      property: properties[0],
-    });
-
-    expect(sent).toBe(true);
-    // The close itself files the rejection; the question only asks.
-    expect(
-      calls.some((c) => c.table === 'listing_feedback' && c.method === 'upsert')
-    ).toBe(false);
-    const message = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
-      allowDeadContact: boolean;
-      interactiveBody: string;
-      interactiveSections: { rows: { id: string; title: string }[] }[];
-    };
-    expect(message.allowDeadContact).toBe(true);
-    expect(message.interactiveBody).toContain(
-      'Commercial Plot for Sale in Jayanagar 7th Block'
-    );
-    // The review and the ladder follow the answer, so the question
-    // must not claim to be the last message.
-    expect(message.interactiveBody).not.toMatch(/nothing further/i);
-    const rows = message.interactiveSections[0].rows;
-    expect(rows.map((r) => r.id)).toEqual(
-      buildEnquiryDropoffSections(P1)[0].rows.map((r) => r.id)
-    );
-    expect(rows.map((r) => r.id)).toContain(`lfbd_bought_elsewhere_${P1}`);
-    expect(rows.map((r) => r.id)).toContain(`lfbd_not_now_${P1}`);
-    for (const row of rows) {
-      expect(row.title.length).toBeLessThanOrEqual(24);
-    }
-  });
-
-  it('never throws when the send fails — the goodbye already landed', async () => {
-    sendWhatsAppMessageAndPersist.mockRejectedValueOnce(new Error('blocked'));
-    const { db } = stubDb({});
-    await expect(
-      sendEnquiryDropoffPrompt({
-        db,
-        accountId: 'acct-1',
-        userId: 'owner-1',
-        contactId: 'c1',
-        conversationId: 'conv-1',
-        property: properties[0],
-      })
-    ).resolves.toBe(false);
   });
 });
 

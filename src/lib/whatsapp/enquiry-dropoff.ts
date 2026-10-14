@@ -1,13 +1,13 @@
 // Drop-off feedback on a shared property.
 //
-// "Close my enquiry" on the check-in and enquiry templates closes the
-// enquiry on the listing the template named — and until now learned
-// nothing about *why* that listing lost them. The tap opened a 24-hour
-// window, so the acknowledgement is followed by one tap-to-answer list
-// naming the property; the answer lands on listing_feedback (which
-// rankings and the share summary read), the contact's timeline, and
-// the journey item for that contact×property pair, so web and mobile
-// both show it without a surface of their own.
+// The one-tap "what made you drop it?" list used to follow every
+// "Close my enquiry" acknowledgement. It no longer goes out: a lead
+// who has just closed an enquiry is not surveyed. The reason handler
+// stays for the lists already sitting in threads, and for the
+// bookkeeping it does when one is tapped: the answer lands on
+// listing_feedback (which rankings and the share summary read), the
+// contact's timeline, and the journey item for that contact×property
+// pair, so web and mobile both show it without a surface of their own.
 //
 // Closing one listing is not closing the search, so the thank-you
 // hands over to the enquiry review (the lead's other open enquiries,
@@ -18,7 +18,6 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
-import type { InteractiveListSection } from '@/lib/whatsapp/meta-api';
 import {
   scanMessagesForProperties,
   type ScannableMessage,
@@ -166,58 +165,6 @@ export async function resolveDroppedProperty(args: {
     );
   }
   return null;
-}
-
-export function buildEnquiryDropoffBody(property: DroppedProperty): string {
-  return `Quick one — what made you drop *${labelFor(property)}*? One tap tells us what did not fit.`;
-}
-
-export function buildEnquiryDropoffSections(
-  propertyId: string
-): InteractiveListSection[] {
-  return [
-    {
-      rows: DROPOFF_REASON_ROWS.map((r) => ({
-        id: `${ENQUIRY_DROPOFF_ID_PREFIX}${r.reason}_${propertyId}`,
-        title: r.title,
-      })),
-    },
-  ];
-}
-
-/**
- * Asks why the closed listing did not fit. Never throws — the
- * acknowledgement already landed, and this must not undo that.
- */
-export async function sendEnquiryDropoffPrompt(args: {
-  db: SupabaseClient;
-  accountId: string;
-  userId: string;
-  contactId: string;
-  conversationId: string;
-  property: DroppedProperty;
-}): Promise<boolean> {
-  const { db, accountId, userId, contactId, conversationId, property } = args;
-  try {
-    const result = await sendWhatsAppMessageAndPersist({
-      accountId,
-      userId,
-      contactId,
-      conversationId,
-      kind: 'interactive',
-      senderType: 'bot',
-      interactiveType: 'list',
-      interactiveBody: buildEnquiryDropoffBody(property),
-      interactiveButtonLabel: 'Tell us why',
-      interactiveSections: buildEnquiryDropoffSections(property.id),
-      allowDeadContact: true,
-      customDbClient: db,
-    });
-    return result.success;
-  } catch (err) {
-    console.error('[enquiry-dropoff] prompt send failed:', err);
-    return false;
-  }
 }
 
 /** Ids arrive from the webhook, so nothing embedded is trusted. */
