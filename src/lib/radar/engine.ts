@@ -7,6 +7,7 @@ import {
   type MatchDetails,
 } from '@/lib/matching';
 import { contactHandle } from '@/lib/contacts/reachability';
+import { isListingLive } from '@/lib/inventory/listing-status';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { loadContactParties, partyDisplayName } from '@/lib/contacts/parties';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
@@ -150,6 +151,9 @@ export async function generateMatchEventForProperty(
       ]);
 
     if (!property || !contacts || contacts.length === 0) return;
+    // A listing that is not live is never volunteered: no event, so no
+    // alert can be sent for it.
+    if (!isListingLive(property as Property)) return;
 
     // One target per deal: a husband and wife on one requirement are
     // one buyer to chase, and listing them twice both inflates the

@@ -93,6 +93,8 @@ beforeEach(() => {
         id: 'property-1',
         account_id: 'account-1',
         title: 'Lake View Plot',
+        status: 'Available',
+        is_published: true,
         price: 5_000_000,
         images: [],
       },
@@ -189,6 +191,26 @@ describe('POST /api/radar/send manual recipients', () => {
       { ids: ['extra-1'], limit: 1 }
     );
   });
+});
+
+describe('[RDR-002] POST /api/radar/send on a listing that is not live', () => {
+  it.each([
+    ['under contract', { status: 'Under Contract' }],
+    ['sold', { status: 'Sold' }],
+    ['unpublished', { is_published: false }],
+  ])(
+    'refuses to alert anyone about a listing that is %s',
+    async (_label, patch) => {
+      Object.assign(tables.properties[0] as Record<string, unknown>, patch);
+      const res = await POST(
+        request({ eventId: 'event-1', targetIds: ['matched-1', 'matched-2'] })
+      );
+      expect(res.status).toBe(409);
+      expect((await res.json()).code).toBe('LISTING_UNAVAILABLE');
+      expect(recipients()).toEqual([]);
+      expect(eventRow.sent_count).toBe(0);
+    }
+  );
 });
 
 describe('POST /api/radar/send claim', () => {

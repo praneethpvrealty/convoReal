@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { memorySupabase } from '@/test/memory-supabase';
 import {
+  generateMatchEventForProperty,
   isRadarContactClassification,
   rankProperties,
   rankPropertiesForContact,
@@ -142,5 +143,70 @@ describe('[CNV-002] rankPropertiesForContact strictArea', () => {
       strictArea: false,
     });
     expect(matches.map((m) => m.property.id)).toEqual(['p-2nd']);
+  });
+});
+
+describe('[RDR-002] generateMatchEventForProperty', () => {
+  const plot = {
+    id: 'p-2nd',
+    account_id: 'acc-1',
+    title: 'Prime Commercial Site for Sale',
+    type: 'Commercial Plot',
+    listing_type: 'Sale',
+    status: 'Available',
+    is_published: true,
+    sublocality: 'JP Nagar 2nd Phase',
+    location: 'JP Nagar 2nd Phase, Bangalore',
+    city: 'Bangalore',
+    price: 96000000,
+    latitude: 12.9119,
+    longitude: 77.5951,
+  };
+  const buyer = {
+    id: 'c-1',
+    account_id: 'acc-1',
+    name: 'Shirish',
+    status: 'active',
+    classification: 'Buyer',
+    property_interests: ['Commercial'],
+    pref_areas: ['JP Nagar 2nd Phase'],
+    pref_listing_types: ['Sale'],
+    pref_budget_max: 100000000,
+    pref_extracted_at: new Date().toISOString(),
+  };
+  const db = (property: Record<string, unknown>) => {
+    const tables = {
+      contacts: [{ ...buyer }],
+      properties: [property],
+      listing_feedback: [],
+      property_shares: [],
+      match_events: [] as Record<string, unknown>[],
+      contact_parties: [],
+      contact_party_members: [],
+    };
+    return {
+      client: {
+        ...memorySupabase(tables),
+        rpc: async () => ({ data: [], error: null }),
+      } as never,
+      tables,
+    };
+  };
+
+  it('records an event for a live listing', async () => {
+    const { client, tables } = db({ ...plot });
+    await generateMatchEventForProperty(client, 'acc-1', 'p-2nd');
+    expect(tables.match_events).toHaveLength(1);
+  });
+
+  it.each([
+    ['under contract', { status: 'Under Contract' }],
+    ['sold', { status: 'Sold' }],
+    ['off the market', { status: 'Off Market' }],
+    ['unpublished', { is_published: false }],
+  ])('records no event for a listing that is %s', async (_label, patch) => {
+    const { client, tables } = db({ ...plot, ...patch });
+    await generateMatchEventForProperty(client, 'acc-1', 'p-2nd');
+    expect(tables.match_events).toEqual([]);
   });
 });

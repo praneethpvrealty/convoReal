@@ -28,6 +28,20 @@ export function isListingClosed(status: string | null | undefined): boolean {
   return !!status && CLOSED_LISTING_STATUSES.includes(status);
 }
 
+/** Whether a listing may be volunteered — offered to a buyer who did not
+ *  ask for it by a match alert, a catalog card or a shortlist. Only a
+ *  published listing that is still Available qualifies; a status the
+ *  row never set reads as Available. */
+export function isListingLive(listing: {
+  status?: string | null;
+  is_published?: boolean | null;
+}): boolean {
+  return (
+    (listing.status ?? 'Available') === 'Available' &&
+    listing.is_published !== false
+  );
+}
+
 export interface ListingAvailabilityNotice {
   status: string;
   label: string;

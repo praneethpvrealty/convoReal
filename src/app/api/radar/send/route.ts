@@ -31,6 +31,7 @@ import {
   recordRadarSendProgress,
 } from '@/lib/radar/send-claim';
 import { RADAR_SEND_REFUSAL_MESSAGES } from '@/lib/radar/send-refusal';
+import { isListingLive } from '@/lib/inventory/listing-status';
 import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
 import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
 import type { MatchEvent, MessageTemplate, Property } from '@/types';
@@ -476,6 +477,15 @@ export async function POST(request: NextRequest) {
           );
         }
         const typedProperty = property as Property;
+        if (!isListingLive(typedProperty)) {
+          return NextResponse.json(
+            {
+              error: RADAR_SEND_REFUSAL_MESSAGES.LISTING_UNAVAILABLE,
+              code: 'LISTING_UNAVAILABLE',
+            },
+            { status: 409 }
+          );
+        }
 
         // Contact names feed the template's {{1}} — one query for all targets.
         const { data: contactRows } = await db

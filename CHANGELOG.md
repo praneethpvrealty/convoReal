@@ -40,6 +40,14 @@ than a written entry. Newest first.
   thread, a photo request covering a live and a sold listing photographs
   only the live one, and the Browse and Show more lists offer only
   available listings. CNV-009.
+- **A listing that has left the market is never volunteered.** The Match
+  Radar raised a card for a listing whatever its status and sent its alert
+  even once the listing had gone under contract, and the WhatsApp catalog
+  sync kept such a listing on the storefront as in stock. A radar event is
+  now generated only for a published, available listing, the send refuses
+  one that has since left the market (web and mobile show the refusal from
+  the shared mapping), and the catalog sync removes the product instead.
+  RDR-002, PRP-044.
 
 #### 13 October 2026
 
