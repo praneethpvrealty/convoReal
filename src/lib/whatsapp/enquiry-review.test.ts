@@ -336,6 +336,33 @@ describe('closePropertyEnquiry', () => {
     ]);
   });
 
+  it('[CNV-007] reports the close as failed when the next open enquiry cannot be read', async () => {
+    const { db } = stubDb({
+      journey_items: [{ id: 'item-1', stage_id: 'stage-a' }, null],
+    });
+    const from = (db as { from: (t: string) => Record<string, unknown> }).from;
+    let reads = 0;
+    (db as { from: unknown }).from = (table: string) => {
+      const chain = from(table);
+      if (table === 'journey_items' && ++reads === 3) {
+        chain.then = (resolve: (v: unknown) => unknown) =>
+          Promise.resolve(
+            resolve({ data: null, error: { message: 'timeout' } })
+          );
+      }
+      return chain;
+    };
+
+    const closed = await closePropertyEnquiry({
+      db,
+      accountId: 'acct-1',
+      contact: { id: 'c1' },
+      property: { id: P1, title: 'Plot' },
+    });
+
+    expect(closed).toBe(false);
+  });
+
   it('[CNV-007] reports the close as failed when the pointer cannot be moved', async () => {
     const { db } = stubDb({
       journey_items: [{ id: 'item-1', stage_id: 'stage-a' }, null, openRows],

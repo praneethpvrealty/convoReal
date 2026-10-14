@@ -177,10 +177,14 @@ export async function closePropertyEnquiry(args: {
     }
   }
 
+  let repointed = true;
   const nextOpen = await loadOpenEnquiries(db, accountId, contact.id, {
     excludePropertyId: property.id,
+    strict: true,
+  }).catch(() => {
+    repointed = false;
+    return [];
   });
-  let repointed = true;
   if (nextOpen.length > 0) {
     const { error: repointError } = await db
       .from('contacts')
