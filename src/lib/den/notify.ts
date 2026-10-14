@@ -137,6 +137,10 @@ export async function sendDenNotificationResult(
     /** An approved Utility row in any language reaches `pickTemplate`
      *  when the recipient's own language holds only Marketing rows. */
     preferUtility?: boolean;
+    /** The caller's own answer to the session question. Given, no
+     *  lookup runs here, so a caller that has already recorded a
+     *  durable pre-send mark has nothing left to fail before the send. */
+    sessionOpen?: boolean;
     templateParams?: string[];
     /** Params derived from whichever template `pickTemplate` lands on.
      *  A renamed template can carry a different param count from the
@@ -157,11 +161,10 @@ export async function sendDenNotificationResult(
   }
 ): Promise<DenNotificationResult> {
   try {
-    const session = await isSessionOpenResult(
-      db,
-      args.accountId,
-      args.contactId
-    );
+    const session =
+      args.sessionOpen === undefined
+        ? await isSessionOpenResult(db, args.accountId, args.contactId)
+        : { open: args.sessionOpen, error: null };
     if (session.error) {
       console.error('[den-notify] session lookup failed:', session.error);
       return { sent: false, reachedMeta: false, lookupFailed: true };

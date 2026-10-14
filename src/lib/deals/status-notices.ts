@@ -237,7 +237,9 @@ async function alreadyDelivered(
  *  was never recorded and is retired rather than resent; one without the
  *  mark never reached a send and is simply processed again, which is
  *  also how a held row (quiet hours, no session yet) comes back an hour
- *  later. Every recorded outcome clears claimed_at. */
+ *  later. The sender is handed the session answer the drain already
+ *  has, so nothing it reads between the mark and the send can fail.
+ *  Every recorded outcome clears claimed_at. */
 async function updateNotice(
   db: SupabaseClient,
   row: DealStatusNoticeRow,
@@ -625,6 +627,7 @@ export async function drainDealStatusNotices(
     const delivery = await sendDenNotificationResult(db, {
       accountId,
       contactId: recipient.id,
+      sessionOpen,
       text: row.message_text,
       ...(disposition.kind === 'template'
         ? {
@@ -659,16 +662,6 @@ export async function drainDealStatusNotices(
         continue;
       }
       summary.sent++;
-      continue;
-    }
-
-    if (delivery.lookupFailed) {
-      console.error(
-        '[deal-status-notices] session lookup failed in the sender; retrying later:',
-        row.id
-      );
-      await releaseNotice(db, row);
-      summary.failed++;
       continue;
     }
 

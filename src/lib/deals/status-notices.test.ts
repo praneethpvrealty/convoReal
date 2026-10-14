@@ -257,6 +257,7 @@ describe('[DSN-001] the notice goes out through the approved enquiry status temp
     });
     const args = vi.mocked(sendDenNotificationResult).mock.calls[0][1];
     expect(args.text).toBe(buyerRow.message_text);
+    expect(args.sessionOpen).toBe(false);
     expect(args.templateName).toEqual(DEAL_STATUS_NOTICE_TEMPLATE_NAMES);
     expect(args.preferUtility).toBe(true);
     expect(
@@ -849,13 +850,16 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     });
   });
 
-  it('holds a row for retry when the sender could not read the session', async () => {
-    vi.mocked(sendDenNotificationResult).mockResolvedValue({
-      sent: false,
-      reachedMeta: false,
-      lookupFailed: true,
+  it('hands the sender its own session answer so no lookup runs between the send mark and the send', async () => {
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: true,
+      error: null,
     });
-    const { db, calls } = fakeDb({
+    vi.mocked(sendDenNotificationResult).mockResolvedValue({
+      sent: true,
+      reachedMeta: true,
+    });
+    const { db } = fakeDb({
       deal_status_notifications: [
         { data: [buyerRow], error: null },
         { data: { id: 'n-1' }, error: null },
@@ -868,12 +872,12 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
       journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
     });
 
-    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+    await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
-    expect(summary).toMatchObject({ failed: 1, sent: 0, skipped: 0 });
-    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
-      claimed_at: null,
-    });
+    expect(vi.mocked(sendDenNotificationResult).mock.calls[0][1]).toMatchObject(
+      { sessionOpen: true }
+    );
+    expect(isSessionOpenResult).toHaveBeenCalledTimes(1);
   });
 
   it('never retries a send Meta accepted but the dispatcher could not persist', async () => {
@@ -1156,9 +1160,39 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
       f.includes('deal_status_notice_policies_and_brand')
     );
     expect(held).toBeDefined();
+    const replaced = [
+      ...hardening.matchAll(/CREATE OR REPLACE FUNCTION public\.(\w+)\(/g),
+    ].map((m) => m[1]);
+    expect(replaced.length).toBeGreaterThan(0);
+    let predecessors = 0;
     for (const file of files) {
-      if (file !== held) expect(file < held!).toBe(true);
+      if (file === held) continue;
+      const sql = readFileSync(join(MIGRATIONS, file), 'utf8');
+      if (
+        replaced.some((fn) =>
+          new RegExp(`FUNCTION public\\.${fn}\\(`).test(sql)
+        )
+      ) {
+        predecessors++;
+        expect(file < held!).toBe(true);
+      }
     }
+    expect(predecessors).toBeGreaterThanOrEqual(4);
+  });
+
+  it('dedupes a counterpart on a deal with no listing: the second index treats a null property as one value', () => {
+    const [file] = readdirSync(MIGRATIONS).filter((f) =>
+      f.includes('deal_status_notice_dedupe_null_property')
+    );
+    expect(file).toBeDefined();
+    const sql = readFileSync(join(MIGRATIONS, file), 'utf8');
+    expect(sql).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS deal_status_notifications_pending_counterpart_dedupe[\s\S]*?COALESCE\(contact_id::text, recipient_phone\),\s+COALESCE\(property_id::text, ''\),[\s\S]*?CASE WHEN event IN \('dropped', 'lost'\) THEN 'closed' ELSE event END[\s\S]*?WHERE status = 'pending'/
+    );
+    expect(sql).toMatch(
+      /earlier\.property_id IS NOT DISTINCT FROM later\.property_id/
+    );
+    expect(sql).not.toMatch(/\bDROP\b/);
   });
 
   it('leaves property-only and owner-linked tasks open when a property leaves the market', () => {
