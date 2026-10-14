@@ -79,7 +79,7 @@ BEGIN
     INSERT INTO deal_status_notifications
       (account_id, contact_id, recipient_name, recipient_phone, recipient_role, property_id, deal_id, journey_item_id, event, internal_reason, message_text)
     SELECT s.account_id, s.contact_id, s.name, s.phone, s.role, new.property_id, d.id, new.id, 'lost', new.drop_reason,
-           format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', (SELECT title FROM properties WHERE id = new.property_id))
+           format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', COALESCE((SELECT title FROM properties WHERE id = new.property_id), 'the property'))
       FROM deal_stakeholders s
      WHERE s.deal_id = d.id AND s.side = 'buyer'
        AND (s.contact_id IS NULL OR s.contact_id <> new.contact_id)
@@ -270,8 +270,8 @@ BEGIN
     (account_id, contact_id, recipient_name, recipient_phone, recipient_role, property_id, deal_id, event, internal_reason, message_text)
   SELECT s.account_id, s.contact_id, s.name, s.phone, s.role, new.property_id, new.id, v_event, coalesce(new.lost_reason, new.lost_note),
          CASE WHEN v_event = 'won'
-              THEN format('Update on %s: the transaction has been concluded. Thank you for your support.', (SELECT title FROM properties WHERE id = new.property_id))
-              ELSE format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', (SELECT title FROM properties WHERE id = new.property_id)) END
+              THEN format('Update on %s: the transaction has been concluded. Thank you for your support.', COALESCE((SELECT title FROM properties WHERE id = new.property_id), 'the property'))
+              ELSE format('Update on %s: this transaction will not be proceeding further. Thank you for your support.', COALESCE((SELECT title FROM properties WHERE id = new.property_id), 'the property')) END
     FROM deal_stakeholders s
    WHERE s.deal_id = new.id AND s.side = 'buyer'
      AND (s.contact_id IS NULL OR new.contact_id IS NULL OR s.contact_id <> new.contact_id)

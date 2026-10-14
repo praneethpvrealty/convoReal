@@ -1203,6 +1203,17 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
     expect(hardening).not.toMatch(/s\.phone IS NOT NULL/);
   });
 
+  it('names the listing or falls back to "the property" in every stakeholder notice', () => {
+    expect(hardening).not.toMatch(
+      /format\('Update on %s[^']*', \(SELECT title FROM properties/
+    );
+    expect(
+      hardening.match(
+        /COALESCE\(\(SELECT title FROM properties WHERE id = new\.property_id\), 'the property'\)/g
+      )
+    ).toHaveLength(3);
+  });
+
   it("closes a deal's todos by the deal, and by buyer and property only when both are known", () => {
     const closed = /FUNCTION public\.on_deal_closed\(\)[\s\S]*?\$\$;/.exec(
       hardening
