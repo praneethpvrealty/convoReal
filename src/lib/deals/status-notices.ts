@@ -66,6 +66,7 @@ export interface DealStatusNoticeRow {
   event: DealStatusNoticeEvent;
   message_text: string;
   attempt_count: number;
+  claimed_at: string | null;
   created_at: string;
 }
 
@@ -141,13 +142,16 @@ export function noticeDisposition(
  *  buyer), so the role alone cannot tell them apart, and a row whose
  *  source is gone is treated as a stakeholder's. The same read says
  *  whether the outcome still holds: a deal reopened or re-closed the
- *  other way, or a journey branch revived, makes the notice stale. */
+ *  other way, or a journey branch revived, makes the notice stale. A
+ *  dropped row answers to its journey branch, never to a deal the
+ *  trigger may have attached by contact and property. */
 async function resolveSource(
   db: SupabaseClient,
   accountId: string,
   row: DealStatusNoticeRow
 ): Promise<{ primaryBuyer: boolean; stale: boolean; error: string | null }> {
-  if (row.deal_id) {
+  const journeyFirst = row.event === 'dropped' && !!row.journey_item_id;
+  if (row.deal_id && !journeyFirst) {
     const { data, error } = await db
       .from('deals')
       .select('contact_id, status')
@@ -218,8 +222,11 @@ async function alreadyDelivered(
   return { delivered: !!message, error: null };
 }
 
-/** A terminal update is retried once: a row that stays pending after a
- *  send that reached WhatsApp would go out again an hour later. */
+/** A terminal update is retried once. The claim before the send is the
+ *  durable record of the attempt: it counts the attempt and stamps
+ *  claimed_at, so a row found still claimed an hour later is one whose
+ *  outcome was never recorded, and it is retired rather than resent. A
+ *  recorded outcome always clears claimed_at. */
 async function updateNotice(
   db: SupabaseClient,
   row: DealStatusNoticeRow,
@@ -257,7 +264,10 @@ async function releaseNotice(
   db: SupabaseClient,
   row: DealStatusNoticeRow
 ): Promise<void> {
-  await updateNotice(db, row, { claimed_at: null });
+  await updateNotice(db, row, {
+    claimed_at: null,
+    attempt_count: row.attempt_count,
+  });
 }
 
 export async function sweepStaleDealTodos(
@@ -291,11 +301,11 @@ export async function drainDealStatusNotices(
   };
 
   const retryBefore = new Date(now.getTime() - RETRY_DELAY_MS).toISOString();
-  const claimable = `claimed_at.is.null,claimed_at.lt.${retryBefore}`;
+  const claimable = `and(claimed_at.is.null,attempt_count.eq.0),and(claimed_at.is.null,updated_at.lt.${retryBefore}),claimed_at.lt.${retryBefore}`;
   const { data: rows, error } = await db
     .from('deal_status_notifications')
     .select(
-      'id, account_id, contact_id, recipient_name, recipient_role, property_id, deal_id, journey_item_id, event, message_text, attempt_count, created_at'
+      'id, account_id, contact_id, recipient_name, recipient_role, property_id, deal_id, journey_item_id, event, message_text, attempt_count, claimed_at, created_at'
     )
     .eq('account_id', accountId)
     .eq('status', 'pending')
@@ -315,7 +325,10 @@ export async function drainDealStatusNotices(
     const row = raw as DealStatusNoticeRow;
     const { data: claim } = await db
       .from('deal_status_notifications')
-      .update({ claimed_at: now.toISOString() })
+      .update({
+        claimed_at: now.toISOString(),
+        attempt_count: row.attempt_count + 1,
+      })
       .eq('id', row.id)
       .eq('account_id', accountId)
       .eq('status', 'pending')
@@ -323,6 +336,39 @@ export async function drainDealStatusNotices(
       .select('id')
       .maybeSingle();
     if (!claim) continue;
+
+    if (row.claimed_at) {
+      const prior = row.contact_id
+        ? await alreadyDelivered(db, accountId, row, row.contact_id)
+        : { delivered: false, error: null };
+      if (prior.error) {
+        console.error(
+          '[deal-status-notices] delivery lookup failed; retrying later:',
+          row.id,
+          prior.error
+        );
+        summary.failed++;
+        continue;
+      }
+      if (prior.delivered) {
+        const recorded = await updateNotice(db, row, {
+          status: 'sent',
+          claimed_at: null,
+          sent_at: new Date().toISOString(),
+          last_error: null,
+        });
+        if (recorded) summary.sent++;
+        else summary.failed++;
+        continue;
+      }
+      await updateNotice(db, row, {
+        status: 'failed',
+        claimed_at: null,
+        last_error: 'Previous attempt did not record its outcome; not resent',
+      });
+      summary.failed++;
+      continue;
+    }
 
     if (row.event === 'property_sold') {
       await skipNotice(
@@ -362,6 +408,7 @@ export async function drainDealStatusNotices(
         row.id,
         lookupError.message
       );
+      await releaseNotice(db, row);
       summary.failed++;
       continue;
     }
@@ -411,6 +458,7 @@ export async function drainDealStatusNotices(
           row.id,
           rejectedError.message
         );
+        await releaseNotice(db, row);
         summary.failed++;
         continue;
       }
@@ -443,6 +491,7 @@ export async function drainDealStatusNotices(
         row.id,
         sourceError
       );
+      await releaseNotice(db, row);
       summary.failed++;
       continue;
     }
@@ -462,6 +511,7 @@ export async function drainDealStatusNotices(
         row.id,
         session.error
       );
+      await releaseNotice(db, row);
       summary.failed++;
       continue;
     }
@@ -489,6 +539,7 @@ export async function drainDealStatusNotices(
         row.id,
         prior.error
       );
+      await releaseNotice(db, row);
       summary.failed++;
       continue;
     }
@@ -549,10 +600,20 @@ export async function drainDealStatusNotices(
       continue;
     }
 
+    if (delivery.lookupFailed) {
+      console.error(
+        '[deal-status-notices] session lookup failed in the sender; retrying later:',
+        row.id
+      );
+      await releaseNotice(db, row);
+      summary.failed++;
+      continue;
+    }
+
     if (delivery.reachedMeta) {
       await updateNotice(db, row, {
         status: 'failed',
-        attempt_count: row.attempt_count + 1,
+        claimed_at: null,
         last_error:
           'Meta accepted the message but its row was not persisted; not retried',
       });
@@ -563,7 +624,7 @@ export async function drainDealStatusNotices(
     const attemptCount = row.attempt_count + 1;
     await updateNotice(db, row, {
       status: attemptCount >= MAX_ATTEMPTS ? 'failed' : 'pending',
-      attempt_count: attemptCount,
+      claimed_at: null,
       last_error: 'WhatsApp channel unavailable',
     });
     summary.failed++;

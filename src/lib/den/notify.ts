@@ -104,6 +104,10 @@ export interface DenNotificationResult {
    *  could not persist its row. A caller that retries on `sent` alone
    *  would deliver it twice. */
   reachedMeta: boolean;
+  /** Nothing was sent because the session lookup failed, so the helper
+   *  could not tell text from template. A caller holding the message
+   *  for retry should treat this apart from a closed channel. */
+  lookupFailed?: boolean;
 }
 
 export async function sendDenNotification(
@@ -142,8 +146,16 @@ export async function sendDenNotificationResult(
   }
 ): Promise<DenNotificationResult> {
   try {
-    const open = await isSessionOpen(db, args.accountId, args.contactId);
-    if (open) {
+    const session = await isSessionOpenResult(
+      db,
+      args.accountId,
+      args.contactId
+    );
+    if (session.error) {
+      console.error('[den-notify] session lookup failed:', session.error);
+      return { sent: false, reachedMeta: false, lookupFailed: true };
+    }
+    if (session.open) {
       const res = await sendWhatsAppMessageAndPersist({
         accountId: args.accountId,
         contactId: args.contactId,

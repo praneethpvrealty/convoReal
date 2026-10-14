@@ -137,6 +137,7 @@ const buyerRow = {
   message_text:
     'Update on #19 JP Nagar: this transaction will not be proceeding further.',
   attempt_count: 0,
+  claimed_at: null,
   created_at: '2026-10-14T08:00:00.000Z',
 };
 
@@ -239,7 +240,7 @@ describe('[DSN-001] the notice goes out through the approved enquiry status temp
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
       ],
       properties: [{ data: listing }],
-      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
     });
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
@@ -379,7 +380,7 @@ describe('[DSN-002] the template never carries news it was not written for', () 
   it('skips a notice whose deal was reopened or re-closed the other way before it was sent', async () => {
     const { db, calls } = fakeDb({
       deal_status_notifications: [
-        { data: [buyerRow], error: null },
+        { data: [{ ...buyerRow, event: 'lost' }], error: null },
         { data: { id: 'n-1' }, error: null },
       ],
       contacts: [
@@ -399,6 +400,35 @@ describe('[DSN-002] the template never carries news it was not written for', () 
     });
   });
 
+  it('validates a dropped notice against its journey branch, not a deal attached by pair', async () => {
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: true,
+      error: null,
+    });
+    vi.mocked(sendDenNotificationResult).mockResolvedValue({
+      sent: true,
+      reachedMeta: true,
+    });
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
+      deals: [{ data: { contact_id: 'c-1', status: 'open' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(summary).toMatchObject({ sent: 1, skipped: 0 });
+    expect(calls.some((c) => c.table === 'journey_items')).toBe(true);
+    expect(calls.some((c) => c.table === 'deals')).toBe(false);
+  });
+
   it('tells a joint buyer apart from the primary buyer by the deal, not the role', async () => {
     vi.mocked(isSessionOpenResult).mockResolvedValue({
       open: false,
@@ -416,7 +446,7 @@ describe('[DSN-002] the template never carries news it was not written for', () 
         { data: { id: 'c-2', name: 'Joint Buyer', phone: '+917777777777' } },
       ],
       properties: [{ data: listing }],
-      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
     });
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
@@ -425,6 +455,7 @@ describe('[DSN-002] the template never carries news it was not written for', () 
     expect(summary).toMatchObject({ deferred: 1, sent: 0, skipped: 0 });
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
       claimed_at: null,
+      attempt_count: 0,
     });
   });
 });
@@ -525,6 +556,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
       claimed_at: null,
+      attempt_count: 0,
     });
   });
 
@@ -554,9 +586,9 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
       ],
       properties: [{ data: listing }, { data: listing }],
-      deals: [
-        { data: { contact_id: 'c-1', status: 'lost' } },
-        { data: { contact_id: 'c-1', status: 'lost' } },
+      journey_items: [
+        { data: { contact_id: 'c-1', status: 'dropped' } },
+        { data: { contact_id: 'c-1', status: 'dropped' } },
       ],
     });
 
@@ -567,23 +599,107 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
       (c) => c.table === 'deal_status_notifications' && c.method === 'or'
     );
     expect(fetches[0].args[0]).toBe(
-      'claimed_at.is.null,claimed_at.lt.2026-10-14T08:00:00.000Z'
+      'and(claimed_at.is.null,attempt_count.eq.0),and(claimed_at.is.null,updated_at.lt.2026-10-14T08:00:00.000Z),claimed_at.lt.2026-10-14T08:00:00.000Z'
     );
-    const outcomes = updatesTo(calls, 'deal_status_notifications').filter(
-      (u) => 'attempt_count' in u
-    );
-    expect(outcomes).toEqual([
+    const updates = updatesTo(calls, 'deal_status_notifications');
+    expect(updates.filter((u) => 'status' in u)).toEqual([
       {
         status: 'pending',
-        attempt_count: 1,
+        claimed_at: null,
         last_error: 'WhatsApp channel unavailable',
       },
       {
         status: 'failed',
-        attempt_count: MAX_ATTEMPTS,
+        claimed_at: null,
         last_error: 'WhatsApp channel unavailable',
       },
     ]);
+    expect(updates.filter((u) => !('status' in u))).toEqual([
+      { claimed_at: NOW.toISOString(), attempt_count: 1 },
+      { claimed_at: NOW.toISOString(), attempt_count: MAX_ATTEMPTS },
+    ]);
+  });
+
+  it('retires a row whose previous claim never recorded an outcome instead of resending it', async () => {
+    const stale = {
+      ...buyerRow,
+      attempt_count: 1,
+      claimed_at: '2026-10-14T06:00:00.000Z',
+    };
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [stale], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      conversations: [{ data: { id: 'conv-1' } }],
+      messages: [{ data: null }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
+    expect(calls.some((c) => c.table === 'contacts')).toBe(false);
+    expect(summary).toMatchObject({ failed: 1, sent: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
+      { claimed_at: NOW.toISOString(), attempt_count: 2 },
+      {
+        status: 'failed',
+        claimed_at: null,
+        last_error: 'Previous attempt did not record its outcome; not resent',
+      },
+    ]);
+  });
+
+  it('marks a row whose unrecorded attempt did reach the conversation as sent', async () => {
+    const stale = {
+      ...buyerRow,
+      attempt_count: 1,
+      claimed_at: '2026-10-14T06:00:00.000Z',
+    };
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [stale], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      conversations: [{ data: { id: 'conv-1' } }],
+      messages: [{ data: { id: 'm-1' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ sent: 1, failed: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toMatchObject({
+      status: 'sent',
+      claimed_at: null,
+    });
+  });
+
+  it('holds a row for retry when the sender could not read the session', async () => {
+    vi.mocked(sendDenNotificationResult).mockResolvedValue({
+      sent: false,
+      reachedMeta: false,
+      lookupFailed: true,
+    });
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(summary).toMatchObject({ failed: 1, sent: 0, skipped: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
+      claimed_at: null,
+      attempt_count: 0,
+    });
   });
 
   it('never retries a send Meta accepted but the dispatcher could not persist', async () => {
@@ -604,7 +720,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
       ],
       properties: [{ data: listing }],
-      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
     });
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
@@ -612,7 +728,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(summary).toMatchObject({ failed: 1, sent: 0 });
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
       status: 'failed',
-      attempt_count: 1,
+      claimed_at: null,
       last_error:
         'Meta accepted the message but its row was not persisted; not retried',
     });
@@ -640,7 +756,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
       ],
       properties: [{ data: listing }],
-      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
     });
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
@@ -668,7 +784,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
       ],
       properties: [{ data: listing }],
-      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
       conversations: [{ data: { id: 'conv-1' } }],
       messages: [{ data: { id: 'm-1' } }],
     });
@@ -704,7 +820,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
         { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
       ],
       properties: [{ data: listing }],
-      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
     });
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
@@ -712,7 +828,8 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(summary).toMatchObject({ failed: 1, sent: 0, skipped: 0 });
     expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
-      { claimed_at: NOW.toISOString() },
+      { claimed_at: NOW.toISOString(), attempt_count: 1 },
+      { claimed_at: null, attempt_count: 0 },
     ]);
   });
 
@@ -731,7 +848,8 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(summary).toMatchObject({ failed: 1, skipped: 0, sent: 0 });
     expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
-      { claimed_at: NOW.toISOString() },
+      { claimed_at: NOW.toISOString(), attempt_count: 1 },
+      { claimed_at: null, attempt_count: 0 },
     ]);
   });
 
@@ -808,8 +926,15 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
     expect(hardening).toContain(
       "SELECT NULLIF(TRIM(name), '') INTO v_brand FROM accounts WHERE id = p_account_id;"
     );
-    expect(hardening).toMatch(
-      /FUNCTION public\.on_journey_item_dropped\(\)[\s\S]*?ORDER BY \(source_journey_item_id = new\.id\) DESC NULLS LAST, updated_at DESC/
+    const dropped =
+      /FUNCTION public\.on_journey_item_dropped\(\)[\s\S]*?\$\$;/.exec(
+        hardening
+      )?.[0];
+    expect(dropped).toMatch(
+      /WHERE account_id = new\.account_id\s+AND source_journey_item_id = new\.id/
+    );
+    expect(dropped).not.toMatch(
+      /contact_id = new\.contact_id AND property_id = new\.property_id/
     );
     expect(hardening).not.toContain('Aryavarta');
   });

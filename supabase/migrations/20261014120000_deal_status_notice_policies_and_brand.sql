@@ -51,8 +51,9 @@ END;
 $$;
 
 -- A contact and property pair can carry more than one deal, and only the
--- one opened from this journey branch is the one the drop closes. Prefer
--- the deal linked by source_journey_item_id over the pair's latest.
+-- one opened from this journey branch is the one the drop closes. A deal
+-- the pair merely shares is left alone: attaching it would make the
+-- drain judge the notice by that deal's status instead of the branch.
 CREATE OR REPLACE FUNCTION public.on_journey_item_dropped() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
@@ -66,9 +67,8 @@ BEGIN
   SELECT id, status INTO d
     FROM deals
    WHERE account_id = new.account_id
-     AND (source_journey_item_id = new.id
-          OR (contact_id = new.contact_id AND property_id = new.property_id))
-   ORDER BY (source_journey_item_id = new.id) DESC NULLS LAST, updated_at DESC
+     AND source_journey_item_id = new.id
+   ORDER BY updated_at DESC
    LIMIT 1;
 
   PERFORM queue_deal_status_notice(new.account_id, c.id, c.name, c.phone, 'buyer',
