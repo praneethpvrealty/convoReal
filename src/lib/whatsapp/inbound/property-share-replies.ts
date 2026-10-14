@@ -49,6 +49,7 @@ export async function handlePropertyShareYesReply(
       toPhone,
       property: { title: typedProperty.title, status: typedProperty.status },
     });
+    if (unavailable === 'failed') return false;
     if (unavailable) return 'unavailable';
 
     let currency = 'INR';

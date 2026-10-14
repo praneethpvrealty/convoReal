@@ -1414,6 +1414,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       sent?: boolean;
       channel?: 'freeform' | 'template';
       send_error?: string;
+      details_message?: string;
       unavailable?: {
         label: string;
         notice: 'freeform' | 'template' | 'already_told' | 'none' | 'failed';
@@ -1431,8 +1432,27 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           `Contact approved. ${listing} — they were told it is not available and pointed to your showcase.`
         );
       } else if (unavailable.notice === 'none') {
+        // The same hand-off mobile offers: the regret with the showcase
+        // link, ready to send from the agent's own WhatsApp, since the
+        // business number has no approved notice to carry it.
+        const digits = (contact?.phone ?? '').replace(/\D/g, '');
+        const regret = data.details_message;
         toast.warning(
-          `Contact approved, but ${listing} and the chat is past the 24-hour window with no approved status notice template — tell them from the inbox.`
+          `Contact approved, but ${listing} and the chat is past the 24-hour window with no approved status notice template — send them the note from your own WhatsApp, or tell them from the inbox.`,
+          digits && regret
+            ? {
+                duration: 15000,
+                action: {
+                  label: 'Send on WhatsApp',
+                  onClick: () =>
+                    window.open(
+                      `https://wa.me/${digits}?text=${encodeURIComponent(regret)}`,
+                      '_blank',
+                      'noopener,noreferrer'
+                    ),
+                },
+              }
+            : undefined
         );
       } else {
         toast.warning(

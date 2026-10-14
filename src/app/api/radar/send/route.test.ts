@@ -213,6 +213,50 @@ describe('[RDR-002] POST /api/radar/send on a listing that is not live', () => {
   );
 });
 
+describe('[RDR-002] POST /api/radar/send for a buyer update', () => {
+  beforeEach(() => {
+    Object.assign(eventRow, {
+      kind: 'buyer_updated',
+      property_id: null,
+      contact_id: 'matched-1',
+      matches: [
+        { id: 'property-1', name: 'Lake View Plot', score: 90, chips: [] },
+        { id: 'property-2', name: 'Sold Plot', score: 85, chips: [] },
+      ],
+    });
+    tables.properties.push({
+      id: 'property-2',
+      account_id: 'account-1',
+      title: 'Sold Plot',
+      status: 'Sold',
+      is_published: true,
+      price: 7_000_000,
+      images: [],
+    });
+  });
+
+  it('sends only the listings that are still live', async () => {
+    const res = await POST(
+      request({ eventId: 'event-1', targetIds: ['property-1', 'property-2'] })
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.results.map((r: { id: string }) => r.id)).toEqual([
+      'property-1',
+    ]);
+    expect(recipients()).toEqual(['matched-1']);
+  });
+
+  it('refuses when every selected listing has left the market', async () => {
+    const res = await POST(
+      request({ eventId: 'event-1', targetIds: ['property-2'] })
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('LISTING_UNAVAILABLE');
+    expect(recipients()).toEqual([]);
+  });
+});
+
 describe('POST /api/radar/send claim', () => {
   it('[RDR-001] claims the event, sends, then marks it sent and releases the claim', async () => {
     const response = await POST(

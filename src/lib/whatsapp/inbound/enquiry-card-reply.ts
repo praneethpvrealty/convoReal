@@ -128,6 +128,12 @@ export async function handleEnquiryCardReply(
       status: propertyRow?.status,
     },
   });
+  if (unavailable === 'failed') {
+    await confirmToAgent(
+      `⚠️ Not sent — ${propertyLabel} is marked "${propertyRow?.status}", and telling ${lead.name || lead.phone} so failed. Let them know from the inbox.`
+    );
+    return true;
+  }
   if (unavailable) {
     await confirmToAgent(
       `⚠️ Not sent — ${propertyLabel} is marked "${propertyRow?.status}". ${lead.name || lead.phone} was told it is not available and asked for their requirements and budget.`

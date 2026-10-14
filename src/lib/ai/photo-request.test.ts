@@ -202,6 +202,13 @@ describe('sendSubjectPhotos', () => {
     expect(calls.at(-1).text).not.toContain('Bilekahalli');
   });
 
+  it('[CNV-009] hands over, and still sends no photos, when the regret failed', async () => {
+    replyListingUnavailableOnce.mockResolvedValue('failed');
+    rows = [property({ status: 'Sold' })];
+    expect(await run(['p1'])).toBe(false);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
   it('[CNV-009] still answers when the lead already held the regret', async () => {
     replyListingUnavailableOnce.mockResolvedValue('already_told');
     rows = [property({ status: 'Off Market' })];

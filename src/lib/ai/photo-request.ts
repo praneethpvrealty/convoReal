@@ -193,10 +193,10 @@ export async function sendSubjectPhotos(
         conversationId,
         property: row,
       });
-      if (regret) {
-        regretted += 1;
-        continue;
-      }
+      // Never its photos, whichever way the regret went; a regret that
+      // failed leaves the request unanswered, so the handover covers it.
+      if (regret && regret !== 'failed') regretted += 1;
+      continue;
     }
     const images = (row.images ?? []).filter((u) => u && u.trim().length > 0);
     const perSubject = plannedPhotoCount(images.length, rows.length);

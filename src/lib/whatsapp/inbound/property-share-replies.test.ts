@@ -127,6 +127,13 @@ describe('handlePropertyShareYesReply', () => {
     expect(state.sends).toEqual([]);
   });
 
+  it('[CNV-009] reports a regret that never reached the lead as a failed send', async () => {
+    state.regret = 'failed';
+    expect(await send()).toBe(false);
+    expect(state.sends).toEqual([]);
+    expect(state.shares).toEqual([]);
+  });
+
   it('sends the photo, the details and the feedback prompt for a live listing', async () => {
     state.regret = null;
     expect(await send()).toBe(true);

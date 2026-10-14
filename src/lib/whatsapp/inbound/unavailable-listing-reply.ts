@@ -9,7 +9,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 // photo request, an enquiry-card approval. Said once: the lead who
 // already holds this exact reply in the thread hears nothing again.
 
-export type UnavailableListingReplyOutcome = 'sent' | 'already_told';
+export type UnavailableListingReplyOutcome = 'sent' | 'already_told' | 'failed';
 
 export async function replyListingUnavailableOnce(args: {
   db: SupabaseClient;
@@ -58,7 +58,7 @@ export async function replyListingUnavailableOnce(args: {
     .maybeSingle();
   if (alreadyTold) return 'already_told';
 
-  await sendWhatsAppMessageAndPersist({
+  const result = await sendWhatsAppMessageAndPersist({
     accountId,
     userId,
     contactId,
@@ -68,5 +68,12 @@ export async function replyListingUnavailableOnce(args: {
     senderType: 'bot',
     text: reply,
   });
-  return 'sent';
+  // A send Meta accepted is a message the lead has, whatever failed
+  // after it; anything else left them with nothing, and the caller
+  // must not claim otherwise.
+  if (result.success || result.reachedMeta) return 'sent';
+  console.error(
+    `[unavailable-listing-reply] regret to contact ${contactId} failed: ${result.error}`
+  );
+  return 'failed';
 }

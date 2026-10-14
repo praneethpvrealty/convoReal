@@ -5,13 +5,14 @@ const state = vi.hoisted(() => ({
   alreadyTold: false,
   contactName: 'Ali Yousuff' as string | null,
   sends: [] as Record<string, unknown>[],
+  sendResult: { success: true } as Record<string, unknown>,
   contactLookups: 0,
 }));
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: async (args: Record<string, unknown>) => {
     state.sends.push(args);
-    return { success: true };
+    return state.sendResult;
   },
 }));
 
@@ -57,6 +58,7 @@ beforeEach(() => {
   state.alreadyTold = false;
   state.contactName = 'Ali Yousuff';
   state.sends = [];
+  state.sendResult = { success: true };
   state.contactLookups = 0;
 });
 
@@ -118,6 +120,25 @@ describe('replyListingUnavailableOnce', () => {
     });
     expect(state.contactLookups).toBe(1);
     expect(state.sends[1].text).toMatch(/^Hi Ali,/);
+  });
+
+  it('[CNV-009] reports a regret the lead never received as failed, and one Meta accepted as sent', async () => {
+    state.sendResult = { success: false, error: 'boom' };
+    expect(
+      await replyListingUnavailableOnce({
+        db: fakeDb(),
+        ...args,
+        property: { title: 'Plot', status: 'Sold' },
+      })
+    ).toBe('failed');
+    state.sendResult = { success: false, reachedMeta: true, error: 'ledger' };
+    expect(
+      await replyListingUnavailableOnce({
+        db: fakeDb(),
+        ...args,
+        property: { title: 'Plot', status: 'Sold' },
+      })
+    ).toBe('sent');
   });
 
   it('[CNV-009] sends nothing again to a lead who already holds the reply', async () => {
