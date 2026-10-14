@@ -3,6 +3,7 @@ import {
   CLOSED_LISTING_STATUSES,
   CLOSED_LISTING_STATUS_FILTER,
   isListingClosed,
+  isListingLive,
   listingAvailabilityNotice,
   listingStatusInquiryLine,
   appendListingStatusNote,
@@ -38,6 +39,25 @@ describe('isListingClosed', () => {
   it('closes the ones that have left the market', () => {
     expect(isListingClosed('Sold')).toBe(true);
     expect(isListingClosed('Off Market')).toBe(true);
+  });
+});
+
+describe('isListingLive', () => {
+  it('[INB-009] counts only a listing explicitly published and still Available', () => {
+    expect(isListingLive({ status: 'Available', is_published: true })).toBe(
+      true
+    );
+    expect(isListingLive({ status: null, is_published: true })).toBe(true);
+    expect(isListingLive({ status: 'Available', is_published: null })).toBe(
+      false
+    );
+    expect(isListingLive({ status: 'Available' })).toBe(false);
+    expect(isListingLive({ status: 'Available', is_published: false })).toBe(
+      false
+    );
+    for (const status of ['Under Contract', 'Sold', 'Off Market', 'Archived']) {
+      expect(isListingLive({ status, is_published: true }), status).toBe(false);
+    }
   });
 });
 
