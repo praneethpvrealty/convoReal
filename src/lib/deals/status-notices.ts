@@ -5,8 +5,9 @@
 // follow-up todos when their journey branch drops, their deal is won or
 // lost, or the property leaves the market, and queue one neutral notice
 // per counterpart. Postgres cannot send WhatsApp, so this module is the
-// half that does: it sweeps stale todos the triggers predate, then
-// sends each pending notice session-first and, for a buyer whose
+// half that does: it sweeps stale todos the triggers predate on every
+// account, then for each account with a connected sender sends each
+// pending notice session-first and, for a buyer whose
 // listing is gone, through the approved enquiry status template.
 //
 // What never goes out: the internal reason (it stays on the row), a
@@ -128,18 +129,27 @@ export function noticeDisposition(
   return { kind: 'wait' };
 }
 
+/** A terminal update is retried once: a row that stays pending after a
+ *  send that reached WhatsApp would go out again an hour later. */
 async function updateNotice(
   db: SupabaseClient,
   row: DealStatusNoticeRow,
   update: Record<string, unknown>
-): Promise<void> {
-  const { error } = await db
-    .from('deal_status_notifications')
-    .update(update)
-    .eq('id', row.id)
-    .eq('account_id', row.account_id);
-  if (error)
-    console.error('[deal-status-notices] queue update failed:', error.message);
+): Promise<boolean> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { error } = await db
+      .from('deal_status_notifications')
+      .update(update)
+      .eq('id', row.id)
+      .eq('account_id', row.account_id);
+    if (!error) return true;
+    console.error(
+      '[deal-status-notices] queue update failed:',
+      row.id,
+      error.message
+    );
+  }
+  return false;
 }
 
 async function skipNotice(
@@ -190,8 +200,6 @@ export async function drainDealStatusNotices(
     skipped: 0,
     failed: 0,
   };
-
-  summary.closedTodos = await sweepStaleDealTodos(db, accountId);
 
   const retryBefore = new Date(now.getTime() - RETRY_DELAY_MS).toISOString();
   const claimable = `claimed_at.is.null,claimed_at.lt.${retryBefore}`;
@@ -325,12 +333,20 @@ export async function drainDealStatusNotices(
     });
 
     if (delivered) {
-      await updateNotice(db, row, {
+      const recorded = await updateNotice(db, row, {
         status: 'sent',
         claimed_at: null,
         sent_at: new Date().toISOString(),
         last_error: null,
       });
+      if (!recorded) {
+        console.error(
+          '[deal-status-notices] notice sent but still pending; mark it sent by hand:',
+          row.id
+        );
+        summary.failed++;
+        continue;
+      }
       summary.sent++;
       continue;
     }
@@ -359,15 +375,26 @@ export async function drainDealStatusNoticesForConnectedAccounts(
     skipped: 0,
     failed: 0,
   };
+  const { data: accounts, error: accountsError } = await db
+    .from('accounts')
+    .select('id');
+  if (accountsError) {
+    console.error(
+      '[deal-status-notices] account lookup failed:',
+      accountsError.message
+    );
+    return total;
+  }
+  for (const account of accounts ?? []) {
+    total.closedTodos += await sweepStaleDealTodos(db, account.id as string);
+  }
+
   const { data: configs, error } = await db
     .from('whatsapp_config')
     .select('account_id')
     .eq('status', 'connected');
   if (error) {
-    console.error(
-      '[deal-status-notices] account lookup failed:',
-      error.message
-    );
+    console.error('[deal-status-notices] sender lookup failed:', error.message);
     return total;
   }
 
@@ -377,7 +404,6 @@ export async function drainDealStatusNoticesForConnectedAccounts(
   for (const accountId of accountIds) {
     try {
       const result = await drainDealStatusNotices(db, accountId, { now });
-      total.closedTodos += result.closedTodos;
       total.queued += result.queued;
       total.sent += result.sent;
       total.deferred += result.deferred;

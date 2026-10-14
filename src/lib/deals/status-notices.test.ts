@@ -11,6 +11,7 @@ import {
   SESSION_WAIT_MS,
   dealStatusNoticeParams,
   drainDealStatusNotices,
+  drainDealStatusNoticesForConnectedAccounts,
   noticeDisposition,
   pickDealStatusNoticeTemplate,
 } from './status-notices';
@@ -36,6 +37,10 @@ const triggers = readFileSync(
 );
 const sweep = readFileSync(
   join(MIGRATIONS, '20261014081351_deal_status_notice_sweep.sql'),
+  'utf8'
+);
+const hotfix = readFileSync(
+  join(MIGRATIONS, '20261014082622_deal_closed_trigger_event_type.sql'),
   'utf8'
 );
 const hardening = readFileSync(
@@ -83,11 +88,8 @@ function fakeDb(responses: Record<string, unknown[]>, rpc: unknown = 0) {
       reject: (error: unknown) => unknown
     ) => {
       const bareUpdate = used.has('update') && !used.has('maybeSingle');
-      const queue = responses[table] ?? [];
-      const next =
-        !bareUpdate && queue.length
-          ? queue.shift()
-          : { data: null, error: null };
+      const queue = responses[bareUpdate ? `${table}#update` : table] ?? [];
+      const next = queue.length ? queue.shift() : { data: null, error: null };
       return Promise.resolve(next).then(resolve, reject);
     };
     return chain;
@@ -408,15 +410,49 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     ]);
   });
 
-  it('runs the stale-todo sweep for the account before draining', async () => {
-    const { db } = fakeDb(
-      { deal_status_notifications: [{ data: [], error: null }] },
-      4
-    );
-    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
-    expect(db.rpc).toHaveBeenCalledWith('auto_close_stale_deal_todos', {
-      p_account_id: 'acc-1',
+  it('retries the sent update once and reports a notice that stays pending', async () => {
+    vi.mocked(isSessionOpen).mockResolvedValue(true);
+    vi.mocked(sendDenNotification).mockResolvedValue(true);
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      'deal_status_notifications#update': [
+        { data: null, error: { message: 'connection reset' } },
+        { data: null, error: { message: 'connection reset' } },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
     });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotification).toHaveBeenCalledTimes(1);
+    expect(
+      updatesTo(calls, 'deal_status_notifications').filter(
+        (u) => u.status === 'sent'
+      )
+    ).toHaveLength(2);
+    expect(summary).toMatchObject({ sent: 0, failed: 1 });
+  });
+
+  it('sweeps stale todos on every account, then drains only connected senders', async () => {
+    const { db } = fakeDb(
+      {
+        accounts: [{ data: [{ id: 'acc-1' }, { id: 'acc-2' }], error: null }],
+        whatsapp_config: [{ data: [{ account_id: 'acc-1' }], error: null }],
+        deal_status_notifications: [{ data: [], error: null }],
+      },
+      2
+    );
+    const summary = await drainDealStatusNoticesForConnectedAccounts(db, NOW);
+    expect(vi.mocked(db.rpc).mock.calls.map((c) => c[1])).toEqual([
+      { p_account_id: 'acc-1' },
+      { p_account_id: 'acc-2' },
+    ]);
     expect(summary).toMatchObject({ closedTodos: 4, queued: 0 });
   });
 });
@@ -433,7 +469,25 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
       /create trigger property_withdrawn_sync_trigger\s+after update of status on public\.properties[\s\S]*?new\.status in \('Sold','Off Market','Archived'\)/
     );
     expect(triggers).toContain('set completed = true');
-    expect(triggers).toContain("'tasks_auto_closed'");
+    expect(triggers).toMatch(
+      /if new\.status = 'Sold' then[\s\S]*?'property_sold'/
+    );
+  });
+
+  it('records the auto-close on the deal timeline as a system note the event-type check allows', () => {
+    expect(hotfix).toMatch(
+      /INSERT INTO deal_events[\s\S]*?'note_added', 'system'[\s\S]*?'kind', 'tasks_auto_closed'[\s\S]*?'note', 'Follow-up tasks auto-closed; counterpart notices queued'/
+    );
+    expect(hotfix).not.toMatch(/'tasks_auto_closed', 'system'/);
+    const allowed = readFileSync(
+      join(
+        MIGRATIONS,
+        '20260918050100_transaction_workspace_update_events.sql'
+      ),
+      'utf8'
+    );
+    expect(allowed).toContain("'note_added'");
+    expect(allowed).not.toContain("'tasks_auto_closed'");
   });
 
   it('never queues the property owner and keeps the internal reason off the message', () => {
