@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isSessionOpen, sendDenNotification } from '@/lib/den/notify';
+import { isSessionOpen, sendDenNotificationResult } from '@/lib/den/notify';
 import { resolveQuietPeriod } from '@/lib/notifications/quiet-hours';
 import { accountBrandName } from '@/lib/showcase/account-showcase-url';
 import {
@@ -18,7 +18,7 @@ import {
 
 vi.mock('@/lib/den/notify', () => ({
   isSessionOpen: vi.fn(),
-  sendDenNotification: vi.fn(),
+  sendDenNotificationResult: vi.fn(),
 }));
 vi.mock('@/lib/notifications/quiet-hours', () => ({
   resolveQuietPeriod: vi.fn(),
@@ -52,7 +52,7 @@ const reopen = readFileSync(
   'utf8'
 );
 const hardening = readFileSync(
-  join(MIGRATIONS, '20261014081400_deal_status_notice_policies_and_brand.sql'),
+  join(MIGRATIONS, '20261014100000_deal_status_notice_policies_and_brand.sql'),
   'utf8'
 );
 
@@ -212,7 +212,10 @@ describe('[DSN-001] the notice goes out through the approved enquiry status temp
 
   it('sends the queued text inside an open session and the template outside it', async () => {
     vi.mocked(isSessionOpen).mockResolvedValue(false);
-    vi.mocked(sendDenNotification).mockResolvedValue(true);
+    vi.mocked(sendDenNotificationResult).mockResolvedValue({
+      sent: true,
+      reachedMeta: true,
+    });
     const { db, calls } = fakeDb({
       deal_status_notifications: [
         { data: [buyerRow], error: null },
@@ -233,7 +236,7 @@ describe('[DSN-001] the notice goes out through the approved enquiry status temp
       skipped: 0,
       failed: 0,
     });
-    const args = vi.mocked(sendDenNotification).mock.calls[0][1];
+    const args = vi.mocked(sendDenNotificationResult).mock.calls[0][1];
     expect(args.text).toBe(buyerRow.message_text);
     expect(args.templateName).toEqual(DEAL_STATUS_NOTICE_TEMPLATE_NAMES);
     expect(
@@ -317,7 +320,7 @@ describe('[DSN-002] the template never carries news it was not written for', () 
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
-    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(calls.some((c) => c.table === 'contacts')).toBe(false);
     expect(summary).toMatchObject({ skipped: 1, sent: 0 });
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toMatchObject({
@@ -351,7 +354,7 @@ describe('[DSN-002] the template never carries news it was not written for', () 
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
-    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(summary).toMatchObject({ deferred: 1, sent: 0, skipped: 0 });
     expect(calls.some((c) => c.table === 'deals')).toBe(false);
   });
@@ -371,7 +374,7 @@ describe('[DSN-002] the template never carries news it was not written for', () 
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
-    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(summary).toMatchObject({ skipped: 1, sent: 0 });
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toMatchObject({
       status: 'skipped',
@@ -398,7 +401,7 @@ describe('[DSN-002] the template never carries news it was not written for', () 
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
-    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(summary).toMatchObject({ deferred: 1, sent: 0, skipped: 0 });
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
       claimed_at: null,
@@ -435,7 +438,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
     expect(summary).toMatchObject({ queued: 2, sent: 0, skipped: 2 });
-    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
     const updates = updatesTo(calls, 'deal_status_notifications').filter(
       (u) => u.status === 'skipped'
     );
@@ -460,7 +463,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
-    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(summary).toMatchObject({ skipped: 1, sent: 0 });
     const lookup = calls.filter(
       (c) => c.table === 'listing_feedback' && c.method === 'eq'
@@ -496,7 +499,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
     expect(summary).toMatchObject({ deferred: 1, sent: 0, failed: 0 });
-    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
       claimed_at: null,
     });
@@ -504,7 +507,10 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
 
   it('retries a failed send hourly and gives up after the third attempt', async () => {
     vi.mocked(isSessionOpen).mockResolvedValue(false);
-    vi.mocked(sendDenNotification).mockResolvedValue(false);
+    vi.mocked(sendDenNotificationResult).mockResolvedValue({
+      sent: false,
+      reachedMeta: false,
+    });
     const { db, calls } = fakeDb({
       deal_status_notifications: [
         {
@@ -554,9 +560,41 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     ]);
   });
 
+  it('never retries a send Meta accepted but the dispatcher could not persist', async () => {
+    vi.mocked(isSessionOpen).mockResolvedValue(true);
+    vi.mocked(sendDenNotificationResult).mockResolvedValue({
+      sent: false,
+      reachedMeta: true,
+    });
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      deals: [{ data: { contact_id: 'c-1', status: 'lost' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(summary).toMatchObject({ failed: 1, sent: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
+      status: 'failed',
+      attempt_count: 1,
+      last_error:
+        'Meta accepted the message but its row was not persisted; not retried',
+    });
+  });
+
   it('retries the sent update once and reports a notice that stays pending', async () => {
     vi.mocked(isSessionOpen).mockResolvedValue(true);
-    vi.mocked(sendDenNotification).mockResolvedValue(true);
+    vi.mocked(sendDenNotificationResult).mockResolvedValue({
+      sent: true,
+      reachedMeta: true,
+    });
     const { db, calls } = fakeDb({
       deal_status_notifications: [
         { data: [buyerRow], error: null },
@@ -575,7 +613,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
-    expect(sendDenNotification).toHaveBeenCalledTimes(1);
+    expect(sendDenNotificationResult).toHaveBeenCalledTimes(1);
     expect(
       updatesTo(calls, 'deal_status_notifications').filter(
         (u) => u.status === 'sent'
@@ -602,7 +640,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
 
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
-    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(summary).toMatchObject({ sent: 1, failed: 0 });
     const lookup = calls.filter(
       (c) => c.table === 'messages' && c.method === 'eq'
@@ -630,7 +668,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
 
     expect(summary).toMatchObject({ failed: 1, skipped: 0, sent: 0 });
-    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
       { claimed_at: NOW.toISOString() },
     ]);
@@ -748,9 +786,25 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
     );
   });
 
-  it('leaves property-only operational tasks open when a property leaves the market', () => {
+  it('sorts the held migration after every migration it replaces a function from', () => {
+    const files = readdirSync(MIGRATIONS).filter((f) =>
+      f.startsWith('20261014')
+    );
+    const held = files.find((f) =>
+      f.includes('deal_status_notice_policies_and_brand')
+    );
+    expect(held).toBeDefined();
+    for (const file of files) {
+      if (file !== held) expect(file < held!).toBe(true);
+    }
+  });
+
+  it('leaves property-only and owner-linked tasks open when a property leaves the market', () => {
     expect(hardening).toMatch(
-      /FUNCTION public\.auto_close_todos\([\s\S]*?AND \(p_contact_id IS NOT NULL OR contact_id IS NOT NULL\);/
+      /FUNCTION public\.auto_close_todos\([\s\S]*?AND \(p_contact_id IS NOT NULL OR contact_id IS NOT NULL\)\s+AND \(p_contact_id IS NOT NULL OR contact_id IS DISTINCT FROM \(SELECT owner_contact_id FROM properties WHERE id = p_property_id\)\);/
+    );
+    expect(hardening).toMatch(
+      /auto_close_stale_deal_todos[\s\S]*?t\.contact_id IS NOT NULL\s+AND EXISTS \(\s+SELECT 1 FROM properties p\s+WHERE p\.id = t\.property_id\s+AND p\.account_id = t\.account_id\s+AND p\.status IN \('Sold', 'Off Market', 'Archived'\)\s+AND t\.contact_id IS DISTINCT FROM p\.owner_contact_id/
     );
     expect(hardening).toMatch(
       /FUNCTION public\.auto_close_stale_deal_todos\([\s\S]*?AND \([\s\S]*?t\.contact_id IS NOT NULL\s+AND EXISTS \([\s\S]*?p\.status IN \('Sold', 'Off Market', 'Archived'\)/

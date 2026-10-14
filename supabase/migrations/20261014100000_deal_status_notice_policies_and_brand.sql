@@ -90,8 +90,13 @@ $$;
 
 -- A property leaving the market closes the follow-ups buyers had on it,
 -- not the brokerage's own property-only tasks (document collection, a
--- photo shoot), which carry no contact. Only the property path passes a
--- null contact; the deal and journey paths always name one.
+-- photo shoot), which carry no contact, nor the tasks that name the
+-- property's owner. Only the property path passes a null contact; the
+-- deal and journey paths always name one.
+--
+-- This file sorts after every other 14 Oct migration on purpose: it
+-- replaces functions those files created, and a replay by timestamp
+-- must land on these definitions last.
 CREATE OR REPLACE FUNCTION public.auto_close_todos(
   p_account_id uuid, p_contact_id uuid, p_property_id uuid, p_note text
 ) RETURNS int LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -106,7 +111,8 @@ BEGIN
      AND NOT completed
      AND property_id = p_property_id
      AND (p_contact_id IS NULL OR contact_id = p_contact_id)
-     AND (p_contact_id IS NOT NULL OR contact_id IS NOT NULL);
+     AND (p_contact_id IS NOT NULL OR contact_id IS NOT NULL)
+     AND (p_contact_id IS NOT NULL OR contact_id IS DISTINCT FROM (SELECT owner_contact_id FROM properties WHERE id = p_property_id));
   GET DIAGNOSTICS v_count = ROW_COUNT;
   RETURN v_count;
 END;
@@ -133,6 +139,7 @@ BEGIN
                      WHERE p.id = t.property_id
                        AND p.account_id = t.account_id
                        AND p.status IN ('Sold', 'Off Market', 'Archived')
+                       AND t.contact_id IS DISTINCT FROM p.owner_contact_id
                   ) THEN 'property no longer on the market'
                   WHEN EXISTS (
                     SELECT 1 FROM deals d
@@ -154,6 +161,7 @@ BEGIN
             WHERE p.id = t.property_id
               AND p.account_id = t.account_id
               AND p.status IN ('Sold', 'Off Market', 'Archived')
+              AND t.contact_id IS DISTINCT FROM p.owner_contact_id
          )
        )
        OR EXISTS (

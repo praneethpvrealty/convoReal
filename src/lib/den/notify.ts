@@ -85,7 +85,23 @@ export async function approvedTemplate(
  * Session-first, template-fallback send. Returns true when a message
  * actually went out. Never throws.
  */
+export interface DenNotificationResult {
+  /** The message went out and its row was persisted. */
+  sent: boolean;
+  /** Meta accepted the message even when `sent` is false: the dispatcher
+   *  could not persist its row. A caller that retries on `sent` alone
+   *  would deliver it twice. */
+  reachedMeta: boolean;
+}
+
 export async function sendDenNotification(
+  db: SupabaseClient,
+  args: Parameters<typeof sendDenNotificationResult>[1]
+): Promise<boolean> {
+  return (await sendDenNotificationResult(db, args)).sent;
+}
+
+export async function sendDenNotificationResult(
   db: SupabaseClient,
   args: {
     accountId: string;
@@ -112,7 +128,7 @@ export async function sendDenNotification(
      *  a template with a text header, so callers can pass it blind. */
     headerMediaUrl?: string | null;
   }
-): Promise<boolean> {
+): Promise<DenNotificationResult> {
   try {
     const open = await isSessionOpen(db, args.accountId, args.contactId);
     if (open) {
@@ -123,11 +139,11 @@ export async function sendDenNotification(
         senderType: 'bot',
         text: args.text,
       });
-      return res.success;
+      return { sent: res.success, reachedMeta: res.reachedMeta === true };
     }
 
     if (!args.templateName || !(args.templateParams || args.buildParams)) {
-      return false;
+      return { sent: false, reachedMeta: false };
     }
     // Den notifications go to a property OWNER, who is a contact like
     // any other — their preferred_language decides the variant.
@@ -143,7 +159,7 @@ export async function sendDenNotification(
       args.pickTemplate,
       language
     );
-    if (!template) return false;
+    if (!template) return { sent: false, reachedMeta: false };
     if (isLanguageFallback(template, language)) {
       warnLanguageFallback('den-notify', args.accountId, language, template);
     }
@@ -170,9 +186,9 @@ export async function sendDenNotification(
       templateRow: template,
       text: args.text,
     });
-    return res.success;
+    return { sent: res.success, reachedMeta: res.reachedMeta === true };
   } catch (err) {
     console.error('[den-notify] send failed (non-fatal):', err);
-    return false;
+    return { sent: false, reachedMeta: false };
   }
 }

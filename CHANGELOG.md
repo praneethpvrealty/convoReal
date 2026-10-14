@@ -48,7 +48,7 @@ than a written entry. Newest first.
   applied: the trigger's timeline entry used an event type the
   `deal_events` check rejects, which made every won or lost status change
   fail) and, after the merge,
-  `20261014081400_deal_status_notice_policies_and_brand.sql`,
+  `20261014100000_deal_status_notice_policies_and_brand.sql`,
   which repoints the queue's policies at the account helpers and signs
   the won notice with the account's own name.
 

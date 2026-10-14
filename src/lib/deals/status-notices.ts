@@ -23,7 +23,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MessageTemplate, Property } from '@/types';
-import { isSessionOpen, sendDenNotification } from '@/lib/den/notify';
+import { isSessionOpen, sendDenNotificationResult } from '@/lib/den/notify';
 import { resolveQuietPeriod } from '@/lib/notifications/quiet-hours';
 import { accountBrandName } from '@/lib/showcase/account-showcase-url';
 import {
@@ -497,7 +497,7 @@ export async function drainDealStatusNotices(
     const propertyDescription = listing
       ? describeEnquiredProperty(listing)
       : 'the property you enquired about';
-    const delivered = await sendDenNotification(db, {
+    const delivery = await sendDenNotificationResult(db, {
       accountId,
       contactId: recipient.id,
       text: row.message_text,
@@ -517,7 +517,7 @@ export async function drainDealStatusNotices(
         : {}),
     });
 
-    if (delivered) {
+    if (delivery.sent) {
       const recorded = await updateNotice(db, row, {
         status: 'sent',
         claimed_at: null,
@@ -533,6 +533,17 @@ export async function drainDealStatusNotices(
         continue;
       }
       summary.sent++;
+      continue;
+    }
+
+    if (delivery.reachedMeta) {
+      await updateNotice(db, row, {
+        status: 'failed',
+        attempt_count: row.attempt_count + 1,
+        last_error:
+          'Meta accepted the message but its row was not persisted; not retried',
+      });
+      summary.failed++;
       continue;
     }
 
