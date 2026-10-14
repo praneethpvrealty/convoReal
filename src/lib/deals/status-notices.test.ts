@@ -11,6 +11,7 @@ import { accountBrandName } from '@/lib/showcase/account-showcase-url';
 import {
   DEAL_STATUS_NOTICE_TEMPLATE_NAMES,
   MAX_ATTEMPTS,
+  SEND_IN_PROGRESS,
   SESSION_WAIT_MS,
   dealStatusNoticeParams,
   drainDealStatusNotices,
@@ -138,6 +139,7 @@ const buyerRow = {
     'Update on #19 JP Nagar: this transaction will not be proceeding further.',
   attempt_count: 0,
   claimed_at: null,
+  last_error: null,
   created_at: '2026-10-14T08:00:00.000Z',
 };
 
@@ -455,7 +457,6 @@ describe('[DSN-002] the template never carries news it was not written for', () 
     expect(summary).toMatchObject({ deferred: 1, sent: 0, skipped: 0 });
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
       claimed_at: null,
-      attempt_count: 0,
     });
   });
 });
@@ -556,7 +557,6 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
       claimed_at: null,
-      attempt_count: 0,
     });
   });
 
@@ -615,8 +615,10 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
       },
     ]);
     expect(updates.filter((u) => !('status' in u))).toEqual([
-      { claimed_at: NOW.toISOString(), attempt_count: 1 },
-      { claimed_at: NOW.toISOString(), attempt_count: MAX_ATTEMPTS },
+      { claimed_at: NOW.toISOString() },
+      { attempt_count: 1, last_error: SEND_IN_PROGRESS },
+      { claimed_at: NOW.toISOString() },
+      { attempt_count: MAX_ATTEMPTS, last_error: SEND_IN_PROGRESS },
     ]);
   });
 
@@ -625,6 +627,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
       ...buyerRow,
       attempt_count: 1,
       claimed_at: '2026-10-14T06:00:00.000Z',
+      last_error: SEND_IN_PROGRESS,
     };
     const { db, calls } = fakeDb({
       deal_status_notifications: [
@@ -641,7 +644,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(calls.some((c) => c.table === 'contacts')).toBe(false);
     expect(summary).toMatchObject({ failed: 1, sent: 0 });
     expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
-      { claimed_at: NOW.toISOString(), attempt_count: 2 },
+      { claimed_at: NOW.toISOString() },
       {
         status: 'failed',
         claimed_at: null,
@@ -650,11 +653,75 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     ]);
   });
 
+  it('processes a row whose claim never reached a send as a fresh one', async () => {
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: true,
+      error: null,
+    });
+    vi.mocked(sendDenNotificationResult).mockResolvedValue({
+      sent: true,
+      reachedMeta: true,
+    });
+    const unsent = { ...buyerRow, claimed_at: '2026-10-14T06:00:00.000Z' };
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [unsent], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotificationResult).toHaveBeenCalledTimes(1);
+    expect(summary).toMatchObject({ sent: 1, failed: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
+      { claimed_at: NOW.toISOString() },
+      { attempt_count: 1, last_error: SEND_IN_PROGRESS },
+      expect.objectContaining({ status: 'sent', claimed_at: null }),
+    ]);
+  });
+
+  it('does not send when the send mark itself could not be written', async () => {
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: true,
+      error: null,
+    });
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      'deal_status_notifications#update': [
+        { data: null, error: { message: 'connection reset' } },
+        { data: null, error: { message: 'connection reset' } },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotificationResult).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ failed: 1, sent: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
+      claimed_at: null,
+    });
+  });
+
   it('marks a row whose unrecorded attempt did reach the conversation as sent', async () => {
     const stale = {
       ...buyerRow,
       attempt_count: 1,
       claimed_at: '2026-10-14T06:00:00.000Z',
+      last_error: SEND_IN_PROGRESS,
     };
     const { db, calls } = fakeDb({
       deal_status_notifications: [
@@ -698,7 +765,6 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(summary).toMatchObject({ failed: 1, sent: 0, skipped: 0 });
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toEqual({
       claimed_at: null,
-      attempt_count: 0,
     });
   });
 
@@ -749,6 +815,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
         { data: { id: 'n-1' }, error: null },
       ],
       'deal_status_notifications#update': [
+        { data: null, error: null },
         { data: null, error: { message: 'connection reset' } },
         { data: null, error: { message: 'connection reset' } },
       ],
@@ -828,8 +895,8 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(summary).toMatchObject({ failed: 1, sent: 0, skipped: 0 });
     expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
-      { claimed_at: NOW.toISOString(), attempt_count: 1 },
-      { claimed_at: null, attempt_count: 0 },
+      { claimed_at: NOW.toISOString() },
+      { claimed_at: null },
     ]);
   });
 
@@ -848,8 +915,8 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(summary).toMatchObject({ failed: 1, skipped: 0, sent: 0 });
     expect(sendDenNotificationResult).not.toHaveBeenCalled();
     expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
-      { claimed_at: NOW.toISOString(), attempt_count: 1 },
-      { claimed_at: null, attempt_count: 0 },
+      { claimed_at: NOW.toISOString() },
+      { claimed_at: null },
     ]);
   });
 

@@ -48,6 +48,7 @@ export const DEAL_STATUS_NOTICE_TEMPLATE_NAMES = [
 ];
 
 export const MAX_ATTEMPTS = 3;
+export const SEND_IN_PROGRESS = 'Send in progress';
 export const RETRY_DELAY_MS = 60 * 60 * 1000;
 export const SESSION_WAIT_MS = 48 * 60 * 60 * 1000;
 
@@ -67,6 +68,7 @@ export interface DealStatusNoticeRow {
   message_text: string;
   attempt_count: number;
   claimed_at: string | null;
+  last_error: string | null;
   created_at: string;
 }
 
@@ -222,11 +224,14 @@ async function alreadyDelivered(
   return { delivered: !!message, error: null };
 }
 
-/** A terminal update is retried once. The claim before the send is the
- *  durable record of the attempt: it counts the attempt and stamps
- *  claimed_at, so a row found still claimed an hour later is one whose
- *  outcome was never recorded, and it is retired rather than resent. A
- *  recorded outcome always clears claimed_at. */
+/** A terminal update is retried once. Two durable marks bracket a send:
+ *  the claim stamps claimed_at before any lookup, and the send mark
+ *  (attempt counted, last_error = SEND_IN_PROGRESS) is written just
+ *  before the message goes out, or the send does not happen. A row found
+ *  still claimed an hour later with the send mark is one whose outcome
+ *  was never recorded and is retired rather than resent; one without the
+ *  mark never reached a send and is simply processed again. Every
+ *  recorded outcome clears claimed_at. */
 async function updateNotice(
   db: SupabaseClient,
   row: DealStatusNoticeRow,
@@ -264,10 +269,7 @@ async function releaseNotice(
   db: SupabaseClient,
   row: DealStatusNoticeRow
 ): Promise<void> {
-  await updateNotice(db, row, {
-    claimed_at: null,
-    attempt_count: row.attempt_count,
-  });
+  await updateNotice(db, row, { claimed_at: null });
 }
 
 export async function sweepStaleDealTodos(
@@ -305,7 +307,7 @@ export async function drainDealStatusNotices(
   const { data: rows, error } = await db
     .from('deal_status_notifications')
     .select(
-      'id, account_id, contact_id, recipient_name, recipient_role, property_id, deal_id, journey_item_id, event, message_text, attempt_count, claimed_at, created_at'
+      'id, account_id, contact_id, recipient_name, recipient_role, property_id, deal_id, journey_item_id, event, message_text, attempt_count, claimed_at, last_error, created_at'
     )
     .eq('account_id', accountId)
     .eq('status', 'pending')
@@ -325,10 +327,7 @@ export async function drainDealStatusNotices(
     const row = raw as DealStatusNoticeRow;
     const { data: claim } = await db
       .from('deal_status_notifications')
-      .update({
-        claimed_at: now.toISOString(),
-        attempt_count: row.attempt_count + 1,
-      })
+      .update({ claimed_at: now.toISOString() })
       .eq('id', row.id)
       .eq('account_id', accountId)
       .eq('status', 'pending')
@@ -337,7 +336,7 @@ export async function drainDealStatusNotices(
       .maybeSingle();
     if (!claim) continue;
 
-    if (row.claimed_at) {
+    if (row.claimed_at && row.last_error === SEND_IN_PROGRESS) {
       const prior = row.contact_id
         ? await alreadyDelivered(db, accountId, row, row.contact_id)
         : { delivered: false, error: null };
@@ -561,6 +560,15 @@ export async function drainDealStatusNotices(
     const propertyDescription = listing
       ? describeEnquiredProperty(listing)
       : 'the property you enquired about';
+    const marked = await updateNotice(db, row, {
+      attempt_count: row.attempt_count + 1,
+      last_error: SEND_IN_PROGRESS,
+    });
+    if (!marked) {
+      await releaseNotice(db, row);
+      summary.failed++;
+      continue;
+    }
     const delivery = await sendDenNotificationResult(db, {
       accountId,
       contactId: recipient.id,
