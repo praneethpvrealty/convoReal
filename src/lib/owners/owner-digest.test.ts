@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   isDigestDueToday,
   digestPeriod,
@@ -10,6 +10,8 @@ import {
   parseOwnerDigestCommand,
   isBareOptOut,
   periodAfterCoverage,
+  digestCoverageByRecipient,
+  narrowToCoverage,
   CONSENT_BUTTONS,
   istHour,
   resolveOwnerActivityAudience,
@@ -469,5 +471,75 @@ describe('[CNV-007] periodAfterCoverage', () => {
   it('never starts after the period ends', () => {
     const narrowed = periodAfterCoverage(period, '2026-10-15T00:00:00Z');
     expect(narrowed.startIso).toBe(period.endIso);
+  });
+});
+
+describe('[CNV-007] per-recipient digest coverage', () => {
+  const NOW = new Date('2026-10-14T04:45:26.302Z');
+  const period = digestPeriod('daily', NOW);
+
+  it("narrows only a recipient whose own last digest overlaps today's window", async () => {
+    const regather = vi.fn(async (own: { startIso: string }, id: string) => [
+      { contactId: id, startIso: own.startIso },
+    ]);
+    const out = await narrowToCoverage(
+      [
+        { contactId: 'raghavendra', startIso: period.startIso },
+        { contactId: 'beyond-cap', startIso: period.startIso },
+      ],
+      new Map([['raghavendra', '2026-10-13 06:57:41.829+00']]),
+      period,
+      regather
+    );
+    expect(regather).toHaveBeenCalledTimes(1);
+    expect(out).toEqual([
+      { contactId: 'raghavendra', startIso: '2026-10-13T06:57:41.829Z' },
+      { contactId: 'beyond-cap', startIso: period.startIso },
+    ]);
+  });
+
+  it('drops a recipient with nothing left after their own coverage', async () => {
+    const out = await narrowToCoverage(
+      [{ contactId: 'c1' }],
+      new Map([['c1', '2026-10-13T06:57:41Z']]),
+      period,
+      async () => []
+    );
+    expect(out).toEqual([]);
+  });
+
+  it("reads each recipient's latest delivered digest from earlier days only", async () => {
+    const calls: [string, unknown[]][] = [];
+    const chain: Record<string, unknown> = {};
+    for (const m of ['select', 'eq', 'in', 'gt', 'lt']) {
+      chain[m] = (...args: unknown[]) => {
+        calls.push([m, args]);
+        return chain;
+      };
+    }
+    (chain as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
+      resolve({
+        data: [
+          { agent_contact_id: 'a1', period_end: '2026-10-13T05:00:00Z' },
+          { agent_contact_id: 'a1', period_end: '2026-10-13T06:57:41Z' },
+          { agent_contact_id: 'a2', period_end: '2026-10-13T04:50:00Z' },
+        ],
+      });
+    const db = { from: () => chain } as never;
+
+    const coverage = await digestCoverageByRecipient(
+      db,
+      { table: 'agent_inventory_digest_log', recipient: 'agent_contact_id' },
+      'acc-1',
+      period
+    );
+
+    expect(Object.fromEntries(coverage)).toEqual({
+      a1: '2026-10-13T06:57:41Z',
+      a2: '2026-10-13T04:50:00Z',
+    });
+    expect(calls).toContainEqual(['in', ['channel', ['freeform', 'template']]]);
+    expect(calls).toContainEqual(['gt', ['period_end', period.startIso]]);
+    expect(calls).toContainEqual(['lt', ['digest_date', period.digestDate]]);
   });
 });

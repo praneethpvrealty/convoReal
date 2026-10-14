@@ -172,9 +172,15 @@ export function replyUsesExpectedScript(
 }
 
 export function claimsSubscriptionChange(reply: string): boolean {
-  return /\b(un)?subscribed\b|\bopted (you )?(out|in)\b|\b(request|preference) (has been|was) (successfully )?(processed|updated|recorded)\b|\bsuccessfully processed\b/i.test(
-    reply
-  );
+  return [
+    /\b(un)?subscribed\b/i,
+    /\bopted (you )?(out|in)\b/i,
+    /\b(request|preference|setting)s? (has|have) been (successfully )?(processed|updated|recorded|changed|saved)\b/i,
+    /\bsuccessfully processed\b/i,
+    /\bupdates? (has|have) been (stopped|paused|turned off|disabled|started|resumed|turned on|enabled)\b/i,
+    /\b(i|we)('ve| have) (stopped|paused|turned off|disabled|started|resumed|turned on|enabled)\b/i,
+    /\byou (will|'ll) no longer (receive|get)\b/i,
+  ].some((pattern) => pattern.test(reply));
 }
 
 function ownerReplySystem(language: LanguageCode): string {

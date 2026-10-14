@@ -184,6 +184,9 @@ describe('[CNV-007] claimsSubscriptionChange', () => {
       'We have successfully processed your request. You have been unsubscribed from our updates.',
       'Done — you are now subscribed to weekly reports.',
       'Your preference has been updated.',
+      'Your updates have been stopped.',
+      "I've paused the activity updates for you.",
+      'You will no longer receive these messages.',
     ]) {
       expect(claimsSubscriptionChange(reply), reply).toBe(true);
     }
