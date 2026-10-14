@@ -17,6 +17,31 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 14 October 2026
+
+- **Closing a deal now closes its follow-up tasks, and the counterpart
+  hears about it.** The morning task digest kept listing follow-ups for
+  transactions that had already fallen through, because a to-do knew its
+  contact and property but nothing watched the deal. Database triggers now
+  complete every open to-do for a buyer and property when their journey
+  branch is dropped, their deal is marked won or lost, or the property is
+  marked Sold, Off Market or Archived (every buyer's to-dos, for a
+  property), leave an audit note on each, record a `tasks_auto_closed`
+  event on the deal timeline, and queue one neutral notice per counterpart
+  in `deal_status_notifications`. The property owner is never queued and
+  the internal reason stays on the row. A new cron,
+  `/api/cron/deal-status-notices`, runs every 15 minutes: it first sweeps
+  open to-dos the triggers predate, then sends each notice as free-form
+  text inside an open session or, for a buyer whose listing is gone,
+  through the approved enquiry status template; a won-deal buyer or a
+  buyer-side stakeholder waits up to 48 hours for a session instead. A
+  drop and the lost deal it becomes now produce one notice rather than
+  two. **Migration required**: `20261014023548_…` (already on production),
+  `20261014060000_deal_status_notice_sweep.sql` (additive) and, after
+  the merge, `20261014060100_deal_status_notice_policies_and_brand.sql`,
+  which repoints the queue's policies at the account helpers and signs
+  the won notice with the account's own name.
+
 #### 13 October 2026
 
 - **A personal-WhatsApp share from the mobile app is recorded even when

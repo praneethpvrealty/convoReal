@@ -112,6 +112,10 @@
     {
       "path": "/api/cron/bot-thread-review",
       "schedule": "30 23 * * *"
+    },
+    {
+      "path": "/api/cron/deal-status-notices",
+      "schedule": "9,24,39,54 * * * *"
     }
   ]
 }

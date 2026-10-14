@@ -4947,6 +4947,62 @@
         "src/components/dashboard/document-approvals-panel.tsx",
         "mobile/components/document-approvals.tsx"
       ]
+    },
+    {
+      "id": "deal-status-sync",
+      "name": "Deal status sync — closing a deal closes its follow-up tasks and tells the counterpart",
+      "surfaces": ["web", "mobile", "whatsapp"],
+      "invariants": [
+        {
+          "id": "DSN-001",
+          "rule": "A pending counterpart notice is sent as the queued text when the recipient's 24-hour session is open, and otherwise through the approved enquiry status template (listing_status_notice first, then enquiry_status_notice, an approved Utility row beating a newer Marketing one) with exactly the body params that name was approved with.",
+          "tests": [
+            {
+              "file": "src/lib/deals/status-notices.test.ts",
+              "case": "[DSN-001]"
+            }
+          ]
+        },
+        {
+          "id": "DSN-002",
+          "rule": "The status template, whose copy says the listing is no longer available, goes only to a buyer whose journey dropped, whose deal was lost or whose property sold. A won-deal buyer or a buyer-side stakeholder is told in free-form text within 48 hours of an open session or not at all, and the internal reason never leaves the row.",
+          "tests": [
+            {
+              "file": "src/lib/deals/status-notices.test.ts",
+              "case": "[DSN-002]"
+            },
+            {
+              "file": "src/lib/deals/status-notices.test.ts",
+              "case": "[DSN-004]"
+            }
+          ]
+        },
+        {
+          "id": "DSN-003",
+          "rule": "The property owner, a recipient with no contact record or WhatsApp number, and an archived contact are skipped with the reason recorded. Client quiet hours hold a row without spending an attempt; a failed send retries after an hour and is marked failed on the third attempt.",
+          "tests": [
+            {
+              "file": "src/lib/deals/status-notices.test.ts",
+              "case": "[DSN-003]"
+            }
+          ]
+        },
+        {
+          "id": "DSN-004",
+          "rule": "Dropping a journey branch, marking a deal won or lost, or marking a property Sold, Off Market or Archived completes every open todo for that buyer and property (every buyer's, for a property) with an audit note, records a tasks_auto_closed deal event, and queues one notice per counterpart; a drop and the lost deal it becomes produce one notice, not two. The cron sweep closes the todos the triggers predate.",
+          "tests": [
+            {
+              "file": "src/lib/deals/status-notices.test.ts",
+              "case": "[DSN-004]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261014023548_sync_todos_with_deal_status_and_queue_counterpart_notices.sql",
+            "supabase/migrations/20261014060000_deal_status_notice_sweep.sql",
+            "supabase/migrations/20261014060100_deal_status_notice_policies_and_brand.sql"
+          ]
+        }
+      ]
     }
   ]
 }
