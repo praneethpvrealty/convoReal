@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { generateJson } from '@/lib/ai/gemini';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { normalizePhone } from '@/lib/whatsapp/phone-utils';
 import {
   checkTranscript,
   transcriptFromMessages,
@@ -304,6 +305,27 @@ export async function runBotThreadReview(
   };
 
   const handled = new Set<string>();
+  const staffPhones = new Map<string, Promise<Set<string>>>();
+  const isStaffPhone = async (accountId: string, phone: string | null) => {
+    const last10 = normalizePhone(phone ?? '').slice(-10);
+    if (!last10) return false;
+    if (!staffPhones.has(accountId)) {
+      staffPhones.set(
+        accountId,
+        Promise.resolve(
+          db.from('profiles').select('phone').eq('account_id', accountId)
+        ).then(({ data, error }) => {
+          if (error) throw new Error(error.message);
+          return new Set(
+            ((data ?? []) as { phone: string | null }[])
+              .map((p) => normalizePhone(p.phone ?? '').slice(-10))
+              .filter(Boolean)
+          );
+        })
+      );
+    }
+    return (await staffPhones.get(accountId)!).has(last10);
+  };
   for (;;) {
     if (Date.now() - startedAt >= budgetMs) {
       result.budgetExhausted = true;
@@ -375,7 +397,7 @@ export async function runBotThreadReview(
           contactId
             ? db
                 .from('contacts')
-                .select('id, created_at')
+                .select('id, created_at, phone')
                 .eq('id', contactId)
                 .maybeSingle()
             : Promise.resolve({ data: null, error: null }),
@@ -404,6 +426,16 @@ export async function runBotThreadReview(
           .sort()
           .at(-1);
         if (!windowEnd) {
+          result.skipped += 1;
+          handled.add(thread.conversationId);
+          continue;
+        }
+        if (
+          await isStaffPhone(
+            accountId,
+            (contact as { phone?: string | null } | null)?.phone ?? null
+          )
+        ) {
           result.skipped += 1;
           handled.add(thread.conversationId);
           continue;

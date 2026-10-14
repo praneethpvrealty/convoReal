@@ -18,6 +18,8 @@ import {
 } from '@/lib/whatsapp/agent-inventory-digest-template';
 import {
   digestPeriod,
+  digestCoverageByRecipient,
+  narrowToCoverage,
   isDigestDueToday,
   istHour,
   type DigestFrequency,
@@ -463,7 +465,21 @@ export async function sendAgentInventoryDigests(options?: {
 
     try {
       const period = digestPeriod(frequency, now);
-      const digests = await gatherAgentInventoryDigests(db, accountId, period);
+      const digests = await narrowToCoverage(
+        await gatherAgentInventoryDigests(db, accountId, period),
+        await digestCoverageByRecipient(
+          db,
+          {
+            table: 'agent_inventory_digest_log',
+            recipient: 'agent_contact_id',
+          },
+          accountId,
+          period
+        ),
+        period,
+        (own, contactIds) =>
+          gatherAgentInventoryDigests(db, accountId, own, contactIds)
+      );
       summary.agents = digests.length;
       if (digests.length === 0) continue;
 

@@ -219,6 +219,63 @@ describe('[CNV-006] runBotThreadReview', () => {
     expect(tables.bot_thread_reviews[0].judged_at).toBeTruthy();
   });
 
+  it("[CNV-006] leaves out a thread with one of the account's own team members", async () => {
+    tables.contacts[0].phone = '+91 99002 77111';
+    tables.profiles = [
+      { id: 'u-1', account_id: 'acc-2', phone: '9988776655' },
+      { id: 'u-2', account_id: 'acc-1', phone: '919900277111' },
+    ];
+    const judge = vi.fn(async () => '{"score": 90, "issues": []}');
+
+    const result = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge,
+    });
+
+    expect(result.reviewed).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(judge).not.toHaveBeenCalled();
+    expect(tables.bot_thread_reviews).toHaveLength(0);
+
+    tables.profiles = [{ id: 'u-1', account_id: 'acc-2', phone: '9900277111' }];
+    const other = await runBotThreadReview({
+      db: db as never,
+      now: new Date(NOW.getTime() + 60_000),
+      judge,
+    });
+    expect(other.reviewed).toBe(1);
+  });
+
+  it("[CNV-006] keeps a thread due when the account's team cannot be read, rather than judging it", async () => {
+    tables.contacts[0].phone = '+91 99002 77111';
+    const from = db.from.bind(db);
+    (db as unknown as { from: unknown }).from = (table: string) => {
+      const builder = from(table);
+      if (table !== 'profiles') return builder;
+      const failing = builder as unknown as Record<string, unknown>;
+      failing.then = (resolve: (v: unknown) => unknown) =>
+        Promise.resolve(
+          resolve({ data: null, error: { message: 'statement timeout' } })
+        );
+      return builder;
+    };
+    const judge = vi.fn(async () => '{"score": 90, "issues": []}');
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await runBotThreadReview({
+      db: db as never,
+      now: NOW,
+      judge,
+    });
+
+    expect(result.failed).toBe(1);
+    expect(result.reviewed).toBe(0);
+    expect(judge).not.toHaveBeenCalled();
+    expect(tables.bot_thread_reviews).toHaveLength(0);
+    spy.mockRestore();
+  });
+
   it('releases the claim when the judge throws, so the thread is retried, and records unscored only when the judge answered without a score', async () => {
     const failing = vi.fn(async () => {
       throw new Error('model down');

@@ -171,6 +171,18 @@ export function replyUsesExpectedScript(
   return OWNER_REPLY_SCRIPTS[language].test(reply);
 }
 
+export function claimsSubscriptionChange(reply: string): boolean {
+  return [
+    /\b(un)?subscribed\b/i,
+    /\bopted (you )?(out|in)\b/i,
+    /\b(request|preference|setting)s? (has|have) been (successfully )?(processed|updated|recorded|changed|saved)\b/i,
+    /\bsuccessfully processed\b/i,
+    /\bupdates? (has|have) been (stopped|paused|turned off|disabled|started|resumed|turned on|enabled)\b/i,
+    /\b(i|we)('ve| have) (stopped|paused|turned off|disabled|started|resumed|turned on|enabled)\b/i,
+    /\byou (will|'ll) no longer (receive|get)\b/i,
+  ].some((pattern) => pattern.test(reply));
+}
+
 function ownerReplySystem(language: LanguageCode): string {
   const languageRule =
     language === 'en'
@@ -187,6 +199,7 @@ function ownerReplySystem(language: LanguageCode): string {
     'If the owner asks which property this is about, name their listing(s).',
     'If the question needs information not in the facts (negotiations, legal, documents, specific buyers), say their agent will follow up personally.',
     'Never treat the owner as a buyer and never offer to find them a property.',
+    'You cannot change their update subscription. Never say they have been subscribed, unsubscribed or that a request was processed; if they want updates stopped or started, tell them to reply STOP UPDATES or START UPDATES.',
   ].join(' ');
 }
 
@@ -319,6 +332,9 @@ export async function handleOwnerInboundMessage(args: {
       }
       if (!reply || !replyUsesExpectedScript(reply, replyLanguage)) {
         throw new Error('AI reply used the wrong language');
+      }
+      if (claimsSubscriptionChange(reply)) {
+        throw new Error('AI reply claimed a subscription change');
       }
     } catch (err) {
       console.error('[owner-reply] AI reply failed, using fallback:', err);
