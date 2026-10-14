@@ -116,6 +116,10 @@ export interface DenNotificationResult {
    *  could not tell text from template. A caller holding the message
    *  for retry should treat this apart from a closed channel. */
   lookupFailed?: boolean;
+  /** Meta's Marketing pause for this contact refused the template before
+   *  any send (INB-008); the message can be tried again after this
+   *  instant, or sooner inside a session the contact's reply opens. */
+  retryAfter?: string;
 }
 
 export async function sendDenNotification(
@@ -225,7 +229,11 @@ export async function sendDenNotificationResult(
       templateRow: template,
       text: args.text,
     });
-    return { sent: res.success, reachedMeta: res.reachedMeta === true };
+    return {
+      sent: res.success,
+      reachedMeta: res.reachedMeta === true,
+      ...(res.retryAfter ? { retryAfter: res.retryAfter } : {}),
+    };
   } catch (err) {
     console.error('[den-notify] send failed (non-fatal):', err);
     return { sent: false, reachedMeta: false };

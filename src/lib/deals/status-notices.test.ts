@@ -880,6 +880,43 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(isSessionOpenResult).toHaveBeenCalledTimes(1);
   });
 
+  it('holds a send the Marketing pause refused without spending the attempt', async () => {
+    vi.mocked(isSessionOpenResult).mockResolvedValue({
+      open: false,
+      error: null,
+    });
+    vi.mocked(sendDenNotificationResult).mockResolvedValue({
+      sent: false,
+      reachedMeta: false,
+      retryAfter: '2026-10-15T09:00:00.000Z',
+    });
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      journey_items: [{ data: { contact_id: 'c-1', status: 'dropped' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(summary).toMatchObject({ deferred: 1, failed: 0, sent: 0 });
+    expect(updatesTo(calls, 'deal_status_notifications')).toEqual([
+      { claimed_at: NOW.toISOString() },
+      { attempt_count: 1, last_error: SEND_IN_PROGRESS },
+      {
+        attempt_count: 0,
+        last_error:
+          'Marketing paused for this contact until 2026-10-15T09:00:00.000Z',
+      },
+    ]);
+  });
+
   it('never retries a send Meta accepted but the dispatcher could not persist', async () => {
     vi.mocked(isSessionOpenResult).mockResolvedValue({
       open: true,

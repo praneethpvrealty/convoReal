@@ -238,8 +238,11 @@ async function alreadyDelivered(
  *  mark never reached a send and is simply processed again, which is
  *  also how a held row (quiet hours, no session yet) comes back an hour
  *  later. The sender is handed the session answer the drain already
- *  has, so nothing it reads between the mark and the send can fail.
- *  Every recorded outcome clears claimed_at. */
+ *  has, so nothing it reads between the mark and the send can fail. A
+ *  template the contact's Marketing pause refused never reached Meta:
+ *  the attempt is handed back and the row held under its claim, so the
+ *  hourly look sends it as text once a reply opens a session. Every
+ *  recorded outcome clears claimed_at. */
 async function updateNotice(
   db: SupabaseClient,
   row: DealStatusNoticeRow,
@@ -673,6 +676,15 @@ export async function drainDealStatusNotices(
           'Meta accepted the message but its row was not persisted; not retried',
       });
       summary.failed++;
+      continue;
+    }
+
+    if (delivery.retryAfter) {
+      await updateNotice(db, row, {
+        attempt_count: row.attempt_count,
+        last_error: `Marketing paused for this contact until ${delivery.retryAfter}`,
+      });
+      summary.deferred++;
       continue;
     }
 
