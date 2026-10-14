@@ -67,6 +67,8 @@ function fakeDb(responses: Record<string, unknown[]>, rpc: unknown = 0) {
       'or',
       'order',
       'limit',
+      'neq',
+      'gte',
       'maybeSingle',
     ];
     for (const method of methods) {
@@ -464,6 +466,39 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
     expect(summary).toMatchObject({ sent: 0, failed: 1 });
   });
 
+  it('marks a notice already in the conversation as sent without resending it', async () => {
+    vi.mocked(isSessionOpen).mockResolvedValue(true);
+    const { db, calls } = fakeDb({
+      deal_status_notifications: [
+        { data: [buyerRow], error: null },
+        { data: { id: 'n-1' }, error: null },
+      ],
+      contacts: [
+        { data: { id: 'c-1', name: 'Adithi Rao', phone: '+919999999999' } },
+      ],
+      properties: [{ data: listing }],
+      deals: [{ data: { contact_id: 'c-1' } }],
+      conversations: [{ data: { id: 'conv-1' } }],
+      messages: [{ data: { id: 'm-1' } }],
+    });
+
+    const summary = await drainDealStatusNotices(db, 'acc-1', { now: NOW });
+
+    expect(sendDenNotification).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ sent: 1, failed: 0 });
+    const lookup = calls.filter(
+      (c) => c.table === 'messages' && c.method === 'eq'
+    );
+    expect(lookup.map((c) => c.args)).toEqual([
+      ['conversation_id', 'conv-1'],
+      ['sender_type', 'bot'],
+      ['content_text', buyerRow.message_text],
+    ]);
+    expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toMatchObject({
+      status: 'sent',
+    });
+  });
+
   it('keeps a row claimed for retry when a recipient lookup fails', async () => {
     const { db, calls } = fakeDb({
       deal_status_notifications: [
@@ -579,6 +614,29 @@ describe('[DSN-004] the database closes the tasks and queues the notices', () =>
       /ALTER POLICY "account members update own notices" ON public\.deal_status_notifications\s+USING \(is_account_writer\(account_id, 'agent'\)\)/
     );
     expect(sweep + hardening).not.toMatch(/\bDROP\b/);
+  });
+
+  it('marks the later of two pending duplicates skipped before the dedupe index exists', () => {
+    const update = sweep.indexOf(
+      'UPDATE public.deal_status_notifications later'
+    );
+    const index = sweep.indexOf(
+      'CREATE UNIQUE INDEX IF NOT EXISTS deal_status_notifications_pending_outcome_dedupe'
+    );
+    expect(update).toBeGreaterThan(-1);
+    expect(update).toBeLessThan(index);
+    expect(sweep).toMatch(
+      /SET status = 'skipped'[\s\S]*?\(earlier\.created_at, earlier\.id\) < \(later\.created_at, later\.id\)/
+    );
+  });
+
+  it('leaves property-only operational tasks open when a property leaves the market', () => {
+    expect(hardening).toMatch(
+      /FUNCTION public\.auto_close_todos\([\s\S]*?AND \(p_contact_id IS NOT NULL OR contact_id IS NOT NULL\);/
+    );
+    expect(hardening).toMatch(
+      /FUNCTION public\.auto_close_stale_deal_todos\([\s\S]*?AND \([\s\S]*?t\.contact_id IS NOT NULL\s+AND EXISTS \([\s\S]*?p\.status IN \('Sold', 'Off Market', 'Archived'\)/
+    );
   });
 
   it('sweeps only todos whose property, deal or sole journey branch is closed', () => {

@@ -164,6 +164,39 @@ async function resolvePrimaryBuyer(
   return { primaryBuyer: !!owner && owner === row.contact_id, error: null };
 }
 
+/** A notice that reached WhatsApp but whose row could not be marked
+ *  sent would go out again an hour later; the conversation keeps the
+ *  message, so it is the record of truth before any resend. */
+async function alreadyDelivered(
+  db: SupabaseClient,
+  accountId: string,
+  row: DealStatusNoticeRow,
+  contactId: string
+): Promise<{ delivered: boolean; error: string | null }> {
+  const { data: conversation, error: conversationError } = await db
+    .from('conversations')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .maybeSingle();
+  if (conversationError) {
+    return { delivered: false, error: conversationError.message };
+  }
+  if (!conversation) return { delivered: false, error: null };
+  const { data: message, error } = await db
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversation.id)
+    .eq('sender_type', 'bot')
+    .eq('content_text', row.message_text)
+    .neq('status', 'failed')
+    .gte('created_at', row.created_at)
+    .limit(1)
+    .maybeSingle();
+  if (error) return { delivered: false, error: error.message };
+  return { delivered: !!message, error: null };
+}
+
 /** A terminal update is retried once: a row that stays pending after a
  *  send that reached WhatsApp would go out again an hour later. */
 async function updateNotice(
@@ -371,6 +404,28 @@ export async function drainDealStatusNotices(
       continue;
     }
 
+    const prior = await alreadyDelivered(db, accountId, row, recipient.id);
+    if (prior.error) {
+      console.error(
+        '[deal-status-notices] delivery lookup failed; retrying later:',
+        row.id,
+        prior.error
+      );
+      summary.failed++;
+      continue;
+    }
+    if (prior.delivered) {
+      const recorded = await updateNotice(db, row, {
+        status: 'sent',
+        claimed_at: null,
+        sent_at: new Date().toISOString(),
+        last_error: null,
+      });
+      if (recorded) summary.sent++;
+      else summary.failed++;
+      continue;
+    }
+
     if (disposition.kind === 'template' && brandName === undefined) {
       brandName = await accountBrandName(db, accountId);
     }
@@ -406,7 +461,7 @@ export async function drainDealStatusNotices(
       });
       if (!recorded) {
         console.error(
-          '[deal-status-notices] notice sent but still pending; mark it sent by hand:',
+          '[deal-status-notices] notice sent but still pending; the conversation record stops a resend:',
           row.id
         );
         summary.failed++;

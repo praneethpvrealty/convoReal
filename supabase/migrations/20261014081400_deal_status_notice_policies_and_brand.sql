@@ -87,3 +87,101 @@ BEGIN
   RETURN new;
 END;
 $$;
+
+-- A property leaving the market closes the follow-ups buyers had on it,
+-- not the brokerage's own property-only tasks (document collection, a
+-- photo shoot), which carry no contact. Only the property path passes a
+-- null contact; the deal and journey paths always name one.
+CREATE OR REPLACE FUNCTION public.auto_close_todos(
+  p_account_id uuid, p_contact_id uuid, p_property_id uuid, p_note text
+) RETURNS int LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_count int;
+BEGIN
+  UPDATE todos
+     SET completed = true,
+         description = concat_ws(E'\n', NULLIF(description, ''), '[Auto-closed ' || to_char(now() AT TIME ZONE 'Asia/Kolkata', 'DD Mon YYYY') || ': ' || p_note || ']')
+   WHERE account_id = p_account_id
+     AND NOT completed
+     AND (p_property_id IS NULL OR property_id = p_property_id)
+     AND (p_contact_id IS NULL OR contact_id = p_contact_id)
+     AND (p_property_id IS NOT NULL OR p_contact_id IS NOT NULL)
+     AND (p_contact_id IS NOT NULL OR contact_id IS NOT NULL);
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.auto_close_stale_deal_todos(p_account_id UUID)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  UPDATE todos t
+     SET completed = true,
+         description = concat_ws(
+           E'\n',
+           NULLIF(t.description, ''),
+           '[Auto-closed ' || to_char(now() AT TIME ZONE 'Asia/Kolkata', 'DD Mon YYYY') || ': '
+             || CASE
+                  WHEN t.contact_id IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM properties p
+                     WHERE p.id = t.property_id
+                       AND p.account_id = t.account_id
+                       AND p.status IN ('Sold', 'Off Market', 'Archived')
+                  ) THEN 'property no longer on the market'
+                  WHEN EXISTS (
+                    SELECT 1 FROM deals d
+                     WHERE d.id = t.deal_id
+                       AND d.account_id = t.account_id
+                       AND d.status IN ('won', 'lost')
+                  ) THEN 'deal closed'
+                  ELSE 'journey dropped'
+                END
+             || ']'
+         )
+   WHERE t.account_id = p_account_id
+     AND NOT t.completed
+     AND (
+       (
+         t.contact_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM properties p
+            WHERE p.id = t.property_id
+              AND p.account_id = t.account_id
+              AND p.status IN ('Sold', 'Off Market', 'Archived')
+         )
+       )
+       OR EXISTS (
+         SELECT 1 FROM deals d
+          WHERE d.id = t.deal_id
+            AND d.account_id = t.account_id
+            AND d.status IN ('won', 'lost')
+       )
+       OR (
+         t.contact_id IS NOT NULL
+         AND t.property_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM journey_items ji
+            WHERE ji.account_id = t.account_id
+              AND ji.contact_id = t.contact_id
+              AND ji.property_id = t.property_id
+              AND ji.status = 'dropped'
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM journey_items ji
+            WHERE ji.account_id = t.account_id
+              AND ji.contact_id = t.contact_id
+              AND ji.property_id = t.property_id
+              AND ji.status <> 'dropped'
+         )
+       )
+     );
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;

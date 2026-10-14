@@ -7,6 +7,24 @@
 -- is null for a stakeholder, so neither duplicate was caught. This index
 -- treats dropped and lost as one outcome and keys phone-only recipients
 -- by phone.
+-- Production carried no such pair when this was applied (checked first);
+-- a database that does keeps the earliest pending row of each outcome and
+-- marks the rest skipped so the index below can be created.
+UPDATE public.deal_status_notifications later
+   SET status = 'skipped',
+       claimed_at = NULL,
+       last_error = 'Duplicate of an earlier pending notice for the same outcome'
+  FROM public.deal_status_notifications earlier
+ WHERE later.status = 'pending'
+   AND earlier.status = 'pending'
+   AND earlier.account_id = later.account_id
+   AND COALESCE(earlier.contact_id::text, earlier.recipient_phone)
+       = COALESCE(later.contact_id::text, later.recipient_phone)
+   AND earlier.property_id IS NOT DISTINCT FROM later.property_id
+   AND (CASE WHEN earlier.event IN ('dropped', 'lost') THEN 'closed' ELSE earlier.event END)
+       = (CASE WHEN later.event IN ('dropped', 'lost') THEN 'closed' ELSE later.event END)
+   AND (earlier.created_at, earlier.id) < (later.created_at, later.id);
+
 CREATE UNIQUE INDEX IF NOT EXISTS deal_status_notifications_pending_outcome_dedupe
   ON public.deal_status_notifications (
     account_id,
