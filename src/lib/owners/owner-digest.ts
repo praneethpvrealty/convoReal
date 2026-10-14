@@ -156,13 +156,14 @@ export async function digestCoverageByRecipient(
   accountId: string,
   period: DigestPeriod
 ): Promise<Map<string, string>> {
-  const { data } = await db
+  const { data, error } = await db
     .from(log.table)
     .select(`${log.recipient}, period_end`)
     .eq('account_id', accountId)
     .in('channel', ['freeform', 'template'])
     .gt('period_end', period.startIso)
     .lt('digest_date', period.digestDate);
+  if (error) throw new Error(error.message);
   const coverage = new Map<string, string>();
   for (const row of (data ?? []) as unknown as Record<string, string>[]) {
     const recipient = row[log.recipient];
@@ -435,7 +436,7 @@ export async function receivesUpdateDigest(
     .eq('owner_contact_id', contactId)
     .not('status', 'in', CLOSED_LISTING_STATUS_FILTER)
     .limit(1);
-  return !error && (data ?? []).length > 0;
+  return !!error || (data ?? []).length > 0;
 }
 
 // ── Engine ────────────────────────────────────────────────────────

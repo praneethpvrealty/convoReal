@@ -542,4 +542,21 @@ describe('[CNV-007] per-recipient digest coverage', () => {
     expect(calls).toContainEqual(['gt', ['period_end', period.startIso]]);
     expect(calls).toContainEqual(['lt', ['digest_date', period.digestDate]]);
   });
+
+  it("aborts rather than send the full window when coverage can't be read", async () => {
+    const chain: Record<string, unknown> = {};
+    for (const m of ['select', 'eq', 'in', 'gt', 'lt']) chain[m] = () => chain;
+    (chain as { then: unknown }).then = (resolve: (v: unknown) => unknown) =>
+      resolve({ data: null, error: { message: 'statement timeout' } });
+    const db = { from: () => chain } as never;
+
+    await expect(
+      digestCoverageByRecipient(
+        db,
+        { table: 'owner_digest_log', recipient: 'owner_contact_id' },
+        'acc-1',
+        period
+      )
+    ).rejects.toThrow('statement timeout');
+  });
 });

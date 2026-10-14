@@ -13,6 +13,7 @@ import type { InboundChainContext } from './context';
 import { ownerDigestCommand } from './steps/owner-digest-command';
 
 let ownedListings: { id: string }[] = [];
+let listingsError: { message: string } | null = null;
 const contactUpdates: unknown[] = [];
 
 function fakeAdmin() {
@@ -22,7 +23,10 @@ function fakeAdmin() {
       for (const method of ['select', 'eq', 'not', 'neq']) {
         chain[method] = vi.fn(() => chain);
       }
-      chain.limit = vi.fn(async () => ({ data: ownedListings, error: null }));
+      chain.limit = vi.fn(async () => ({
+        data: listingsError ? null : ownedListings,
+        error: listingsError,
+      }));
       chain.update = vi.fn((row: unknown) => {
         if (table === 'contacts') contactUpdates.push(row);
         return chain;
@@ -63,6 +67,7 @@ beforeEach(() => {
   );
   contactUpdates.length = 0;
   ownedListings = [{ id: 'p-1' }];
+  listingsError = null;
 });
 
 describe('[CNV-007] a bare STOP from a digest recipient', () => {
@@ -85,6 +90,14 @@ describe('[CNV-007] a bare STOP from a digest recipient', () => {
     expect(await ownerDigestCommand(ctx('stop'))).toBe('continue');
     expect(contactUpdates).toEqual([]);
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('honours the stop when the listing lookup fails, rather than ignoring it', async () => {
+    listingsError = { message: 'statement timeout' };
+    expect(await ownerDigestCommand(ctx('STOP'))).toBe('handled');
+    expect(contactUpdates).toEqual([
+      expect.objectContaining({ owner_digest_consent: 'declined' }),
+    ]);
   });
 
   it('does not answer again for an owner who already declined', async () => {
