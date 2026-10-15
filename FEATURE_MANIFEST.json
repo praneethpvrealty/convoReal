@@ -4707,7 +4707,7 @@
           ],
           "guards": [
             "src/lib/format/ledger-label.ts",
-            "src/components/settings/CreditLedger.tsx",
+            "src/components/settings/credit-ledger.tsx",
             "mobile/app/(app)/credits.tsx"
           ]
         },

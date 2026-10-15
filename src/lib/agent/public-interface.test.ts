@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Property } from '@/types';
 import { buildPublicBusinessProfile } from '@/lib/seo/business-profile';
-import { buildLlmsText, buildPublicAgentOpenApi } from './publicInterface';
+import { buildLlmsText, buildPublicAgentOpenApi } from './public-interface';
 
 const accountId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const property = {

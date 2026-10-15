@@ -7,7 +7,7 @@
 // copy (avoids duplicate /api/billing/credits/packages fetches).
 //
 // The actual modal content (package grid, Razorpay/Stripe checkout)
-// is rendered by CreditTopup.tsx — this context only tracks
+// is rendered by credit-topup.tsx — this context only tracks
 // open/closed state so components across the layout can trigger it.
 // ============================================================
 

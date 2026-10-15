@@ -1,12 +1,12 @@
 'use client';
 
 import { Coins } from 'lucide-react';
-import { CreditBreakdown } from './CreditBreakdown';
-import { CreditFeatureChart } from './CreditFeatureChart';
-import { CreditLedger } from './CreditLedger';
-import { ReferralHub } from './ReferralHub';
+import { CreditBreakdown } from './credit-breakdown';
+import { CreditFeatureChart } from './credit-feature-chart';
+import { CreditLedger } from './credit-ledger';
+import { ReferralHub } from './referral-hub';
 import { useTopupModal } from '@/components/layout/topup-modal-context';
-import { VerifyPaymentsButton } from './VerifyPaymentsButton';
+import { VerifyPaymentsButton } from './verify-payments-button';
 
 export function CreditsTab() {
   const { openTopupModal } = useTopupModal();

@@ -10,7 +10,7 @@ import { storagePublicUrl } from '@/lib/storage/url';
 import { toPublicListingView } from '@/lib/inventory/showcase-visibility';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 import { propertySlug } from '@/lib/showcase/property-slug';
-import { publicRequestOrigin } from '@/lib/agent/publicInterface';
+import { publicRequestOrigin } from '@/lib/agent/public-interface';
 import type { Property } from '@/types';
 
 const MAX_LIMIT = 50;
