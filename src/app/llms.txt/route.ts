@@ -1,7 +1,7 @@
 import {
   buildLlmsText,
   loadPublicAgentContext,
-} from '@/lib/agent/publicInterface';
+} from '@/lib/agent/public-interface';
 
 export async function GET(request: Request) {
   const context = await loadPublicAgentContext(request);

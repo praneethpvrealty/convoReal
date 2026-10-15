@@ -11,7 +11,7 @@ import { useT } from '@/hooks/useLocale';
 import type { MessageKey } from '@/lib/i18n/messages';
 import { COPILOT_ENABLED } from '@/lib/copilot/config';
 import { useCopilot } from '@/components/copilot/copilot-context';
-import { SidebarCreditWidget } from '@/components/layout/SidebarCreditWidget';
+import { SidebarCreditWidget } from '@/components/layout/sidebar-credit-widget';
 import { FavoritesCard } from '@/components/layout/favorites-card';
 import { ConvoRealMark } from '@/components/brand/mark';
 import {

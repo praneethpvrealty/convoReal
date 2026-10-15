@@ -11,7 +11,7 @@ import { OnboardingWizard } from '@/components/onboarding/onboarding-wizard';
 import { SetupChecklist } from '@/components/onboarding/setup-checklist';
 import { TeamMemberWelcome } from '@/components/onboarding/team-member-welcome';
 import { TopupModalProvider } from '@/components/layout/topup-modal-context';
-import { CreditTopup } from '@/components/settings/CreditTopup';
+import { CreditTopup } from '@/components/settings/credit-topup';
 import { BugReportSheet } from '@/components/support/bug-report-sheet';
 import { CopilotProvider } from '@/components/copilot/copilot-context';
 import { CopilotWidget } from '@/components/copilot/copilot-widget';

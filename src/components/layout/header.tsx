@@ -29,7 +29,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { createClient } from '@/lib/supabase/client';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { formatCurrency } from '@/lib/currency-utils';
-import { CreditMeter } from '@/components/layout/CreditMeter';
+import { CreditMeter } from '@/components/layout/credit-meter';
 import { NotificationBell } from '@/components/layout/notification-bell';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 

@@ -252,7 +252,7 @@ Every dead-end state ends in a **waitlist capture**, not a wall. An invite-only 
 
 ### 5.4 Post-signup: the invite hub
 
-Once in, the account owner sees **Settings → Invites**: 5 seat cards, each either empty (with a **Generate link** button), pending (link + copy + WhatsApp share + revoke), or claimed (who claimed it, when). Modelled on the existing `src/components/settings/invite-member-dialog.tsx` and `ReferralHub.tsx` so it needs no new UI vocabulary.
+Once in, the account owner sees **Settings → Invites**: 5 seat cards, each either empty (with a **Generate link** button), pending (link + copy + WhatsApp share + revoke), or claimed (who claimed it, when). Modelled on the existing `src/components/settings/invite-member-dialog.tsx` and `referral-hub.tsx` so it needs no new UI vocabulary.
 
 ---
 

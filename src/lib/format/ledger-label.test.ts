@@ -91,7 +91,7 @@ describe('ledgerLabel [CRD-001]', () => {
 
   it('is the one label web and mobile both render', () => {
     const web = readFileSync(
-      join(process.cwd(), 'src/components/settings/CreditLedger.tsx'),
+      join(process.cwd(), 'src/components/settings/credit-ledger.tsx'),
       'utf8'
     );
     const mobile = readFileSync(
