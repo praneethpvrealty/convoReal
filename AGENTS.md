@@ -123,7 +123,7 @@ Two canonical rules the subsections below do not otherwise restate:
 ### 2.4 File and naming conventions
 
 - Directories: kebab-case (e.g., `src/components/flow-builder`).
-- Files: camelCase for utilities/hooks, PascalCase for React components (e.g., `useAuth.tsx`, `property-card.tsx`).
+- Files: kebab-case for components, utilities and everything else under `src/` (e.g., `property-card.tsx`, `rate-limit.ts`); hooks are the one exception and take their camelCase hook name (e.g., `useAuth.tsx`). The few PascalCase component files and `src/lib/agent/publicInterface.ts` are legacy; do not copy them.
 - Path alias: `@/` maps to `./src/*` in `tsconfig.json`.
 - Imports: prefer `@/lib/...`, `@/components/...`, etc.
 - Components: define props interfaces inline at the top of the file.
