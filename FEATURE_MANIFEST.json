@@ -2164,6 +2164,29 @@
             "src/lib/inventory/catalog-product-share.ts",
             "src/app/api/whatsapp/broadcast/route.ts"
           ]
+        },
+        {
+          "id": "PRP-048",
+          "rule": "Sharing a listing by hand from the web share dialog or the mobile share sheet while it is not Available (Under Contract, Sold, Off Market, Archived, Rejected or Pending Review) first asks the agent whether to share it at all, showing the exact availability note the buyer would receive, and offers the share with that note appended to the composed message or without it; no share, copy or send path is reachable until one is chosen, Don't share closes the dialog, the choice can be switched while composing, and the composer says that approved templates and catalog cards cannot carry the note. A listing that is Available composes straight away.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/listing-status.test.ts",
+              "case": "[PRP-048]"
+            },
+            {
+              "file": "src/components/inventory/property-share-dialog.test.tsx",
+              "case": "[PRP-048]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-048]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/listing-availability.ts",
+            "src/components/inventory/property-share-dialog.tsx",
+            "mobile/components/property-share-sheet.tsx"
+          ]
         }
       ]
     },

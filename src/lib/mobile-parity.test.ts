@@ -1421,6 +1421,32 @@ describe('mobile/lib/reply-state.ts mirrors reply-state', () => {
   });
 });
 
+describe('[PRP-048] the mobile share sheet asks before an off-market listing is shared', () => {
+  // The web dialog and the sheet put the same question, from the same
+  // shared helper, and the choice is the same pair: with the availability
+  // note appended to the message, or without it.
+  const sheet = mobileSource('components/property-share-sheet.tsx');
+  const dialog = webSource('components/inventory/property-share-dialog.tsx');
+
+  it('reads the prompt from the shared availability module', () => {
+    expect(sheet).toContain(
+      "from '@shared/lib/inventory/listing-availability'"
+    );
+    expect(sheet).toContain('unavailableListingSharePrompt(property.status)');
+    expect(dialog).toContain('unavailableListingSharePrompt(property.status)');
+  });
+
+  it('offers both choices and hides the composer until one is made', () => {
+    expect(sheet).toContain("onChoose('with_note')");
+    expect(sheet).toContain("onChoose('without_note')");
+    expect(sheet).toContain('sharePrompt && unavailableShare === null');
+    expect(sheet).toContain(
+      "unavailableShare === 'with_note' && sharePromptNote"
+    );
+    expect(dialog).toContain("unavailableShare === 'with_note'");
+  });
+});
+
 describe('mobile/lib/message-actions.ts mirrors delivery-failure', () => {
   // The marker is what a resend or forward cuts the failure note off at.
   // If the webhook's wording changes and the mobile copy doesn't, the

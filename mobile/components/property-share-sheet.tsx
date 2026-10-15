@@ -15,6 +15,11 @@ import {
   View,
 } from 'react-native';
 
+import {
+  unavailableListingSharePrompt,
+  type UnavailableShareChoice,
+  type UnavailableSharePrompt,
+} from '@shared/lib/inventory/listing-availability';
 import { SHARE_UNRECORDED_NOTICE } from '@shared/lib/inventory/share-log-request';
 
 import {
@@ -25,7 +30,7 @@ import {
 import { CatalogProductShare } from '@/components/catalog-product-share';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
-import { FilterChip, SectionLabel } from '@/components/ui';
+import { FilterChip, PrimaryButton, SectionLabel } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { ENV } from '@/lib/env';
@@ -114,6 +119,18 @@ export function PropertyShareSheet({
   const [offerInventoryOnboarding, setOfferInventoryOnboarding] =
     useState(false);
   const [message, setMessage] = useState('');
+  // A listing that has left the market is shared only once the agent has
+  // said so, and said whether the message carries the availability note
+  // (web parity: property-share-dialog).
+  const [unavailableShare, setUnavailableShare] =
+    useState<UnavailableShareChoice | null>(null);
+  const sharePrompt = unavailableListingSharePrompt(property.status);
+  const sharePromptNote = sharePrompt?.note ?? null;
+  const [askedFor, setAskedFor] = useState({ visible, id: property.id });
+  if (askedFor.visible !== visible || askedFor.id !== property.id) {
+    setAskedFor({ visible, id: property.id });
+    setUnavailableShare(null);
+  }
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
   const [picker, setPicker] = useState<
     'external' | 'engine' | 'inventory' | null
@@ -179,9 +196,13 @@ export function PropertyShareSheet({
       agentName,
       agentPhone,
     });
+    const noted =
+      unavailableShare === 'with_note' && sharePromptNote
+        ? `${base}\n\n${sharePromptNote}`
+        : base;
     return offerInventoryOnboarding && audience === 'agent'
-      ? `${base}\n\n♻️ Want to share this with your own name or agency? Open the property and tap “Request ConvoReal invite”. Once onboarded, it will be added to your inventory for review.`
-      : base;
+      ? `${noted}\n\n♻️ Want to share this with your own name or agency? Open the property and tap “Request ConvoReal invite”. Once onboarded, it will be added to your inventory for review.`
+      : noted;
   }, [
     property,
     url,
@@ -191,6 +212,8 @@ export function PropertyShareSheet({
     agentName,
     agentPhone,
     offerInventoryOnboarding,
+    unavailableShare,
+    sharePromptNote,
   ]);
 
   // Picker changes re-draft (discarding edits, same as the web dialog).
@@ -571,8 +594,18 @@ export function PropertyShareSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Share property">
+      {sharePrompt && unavailableShare === null ? (
+        <UnavailableShareGate
+          prompt={sharePrompt}
+          onChoose={setUnavailableShare}
+          onCancel={onClose}
+        />
+      ) : null}
       <ScrollView
-        style={sheetScrollArea}
+        style={[
+          sheetScrollArea,
+          sharePrompt && unavailableShare === null ? { display: 'none' } : null,
+        ]}
         contentContainerStyle={{
           paddingHorizontal: spacing.lg,
           gap: spacing.md,
@@ -581,6 +614,56 @@ export function PropertyShareSheet({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
+        {sharePrompt && unavailableShare ? (
+          <View
+            testID="share-unavailable-choice"
+            style={[
+              styles.notice,
+              {
+                alignItems: 'center',
+                borderColor: colors.warning,
+                backgroundColor: colors.warningSoft,
+              },
+            ]}
+          >
+            <Ionicons name="warning-outline" size={18} color={colors.warning} />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  fontFamily: f.bold,
+                  color: colors.text,
+                }}
+              >
+                {sharePrompt.label} · availability note{' '}
+                {unavailableShare === 'with_note' ? 'included' : 'left out'}
+              </Text>
+              <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+                A template sent outside the 24-hour window cannot carry it.
+              </Text>
+            </View>
+            <Pressable
+              onPress={() =>
+                setUnavailableShare((prev) =>
+                  prev === 'with_note' ? 'without_note' : 'with_note'
+                )
+              }
+              accessibilityRole="button"
+              hitSlop={8}
+            >
+              <Text
+                style={{
+                  fontSize: 12.5,
+                  fontFamily: f.semibold,
+                  color: colors.warning,
+                }}
+              >
+                {unavailableShare === 'with_note' ? 'Leave out' : 'Include'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <AudienceCard
             title="To Client"
@@ -934,6 +1017,114 @@ export function PropertyShareSheet({
         actions={dialog?.actions ?? []}
       />
     </BottomSheet>
+  );
+}
+
+function UnavailableShareGate({
+  prompt,
+  onChoose,
+  onCancel,
+}: {
+  prompt: UnavailableSharePrompt;
+  onChoose: (choice: UnavailableShareChoice) => void;
+  onCancel: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <ScrollView
+      testID="share-unavailable-gate"
+      style={sheetScrollArea}
+      contentContainerStyle={{
+        paddingHorizontal: spacing.lg,
+        paddingBottom: spacing.lg,
+        gap: spacing.md,
+      }}
+    >
+      <View
+        style={[
+          styles.notice,
+          { borderColor: colors.warning, backgroundColor: colors.warningSoft },
+        ]}
+      >
+        <Ionicons name="warning-outline" size={20} color={colors.warning} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text
+            style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }}
+          >
+            {prompt.title}
+          </Text>
+          <Text
+            style={{ fontSize: 12.5, lineHeight: 18, color: colors.textMuted }}
+          >
+            {prompt.message}
+          </Text>
+        </View>
+      </View>
+      <View
+        style={[
+          styles.draft,
+          {
+            minHeight: 0,
+            backgroundColor: colors.surfaceRaised,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <Text
+          style={{
+            fontSize: 11.5,
+            fontFamily: f.semibold,
+            color: colors.textMuted,
+            marginBottom: 4,
+          }}
+        >
+          The availability note, if you include it
+        </Text>
+        <Text style={{ fontSize: 13, lineHeight: 19, color: colors.text }}>
+          {prompt.note}
+        </Text>
+      </View>
+      <PrimaryButton
+        label="Share with the note"
+        onPress={() => onChoose('with_note')}
+        testID="share-with-note"
+      />
+      <Pressable
+        onPress={() => onChoose('without_note')}
+        accessibilityRole="button"
+        accessibilityLabel="Share without the note"
+        style={[
+          styles.notice,
+          {
+            justifyContent: 'center',
+            borderColor: colors.border,
+            backgroundColor: colors.surfaceSunken,
+          },
+        ]}
+      >
+        <Text
+          style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}
+        >
+          Share without the note
+        </Text>
+      </Pressable>
+      <Pressable
+        onPress={onCancel}
+        accessibilityRole="button"
+        accessibilityLabel="Don’t share"
+        style={{ alignItems: 'center', paddingVertical: spacing.sm }}
+      >
+        <Text
+          style={{
+            fontSize: 14,
+            fontFamily: f.semibold,
+            color: colors.textMuted,
+          }}
+        >
+          Don’t share
+        </Text>
+      </Pressable>
+    </ScrollView>
   );
 }
 

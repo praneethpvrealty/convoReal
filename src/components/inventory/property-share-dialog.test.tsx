@@ -101,15 +101,28 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderDialog(onPromote?: (p: Property) => void) {
+function renderDialog(
+  onPromote?: (p: Property) => void,
+  overrides: Partial<Property> = {},
+  onOpenChange: (open: boolean) => void = () => {}
+) {
   return render(
     <PropertyShareDialog
       open
-      onOpenChange={() => {}}
-      property={property}
+      onOpenChange={onOpenChange}
+      property={{ ...property, ...overrides }}
       onPromote={onPromote}
     />
   );
+}
+
+const NOTE =
+  'Please note: this property is currently under contract with another buyer, but the deal is not closed yet. Our team will check the latest status with the owner and update you here.';
+
+function draft(): string {
+  const area = document.querySelector('textarea');
+  expect(area).not.toBeNull();
+  return (area as HTMLTextAreaElement).value;
 }
 
 describe('[PRP-045] PropertyShareDialog', () => {
@@ -162,5 +175,68 @@ describe('[PRP-045] PropertyShareDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: /Send from Engine/ }));
     fireEvent.click(screen.getByRole('button', { name: /Set up the ad/ }));
     expect(onPromote).toHaveBeenCalledWith(property);
+  });
+});
+
+describe('[PRP-048] sharing a listing that has left the market', () => {
+  it('composes a live listing straight away', () => {
+    renderDialog();
+    expect(screen.queryByTestId('share-unavailable-gate')).toBeNull();
+    expect(screen.getByTestId('share-send-bar')).toBeTruthy();
+  });
+
+  it('asks before an under-contract listing is shared and keeps every send path behind the question', () => {
+    const onOpenChange = vi.fn();
+    renderDialog(undefined, { status: 'Under Contract' }, onOpenChange);
+    expect(screen.getByTestId('share-unavailable-gate')).toBeTruthy();
+    expect(
+      screen.getByText('This listing is under contract — share it anyway?')
+    ).toBeTruthy();
+    expect(screen.getByText(NOTE)).toBeTruthy();
+    expect(screen.queryByTestId('share-send-bar')).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: /Send from Engine/ })
+    ).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Don’t share' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('shares with the availability note when asked to, and can leave it out again', () => {
+    renderDialog(undefined, { status: 'Under Contract' });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Share with the note' })
+    );
+    expect(screen.queryByTestId('share-unavailable-gate')).toBeNull();
+    expect(screen.getByTestId('share-send-bar')).toBeTruthy();
+    expect(draft().endsWith(`\n\n${NOTE}`)).toBe(true);
+    expect(
+      screen.getByTestId('share-unavailable-choice').textContent
+    ).toContain('Under contract · availability note included');
+    fireEvent.click(screen.getByRole('button', { name: 'Leave the note out' }));
+    expect(draft()).not.toContain('Please note:');
+    expect(
+      screen.getByTestId('share-unavailable-choice').textContent
+    ).toContain('availability note left out');
+  });
+
+  it('shares without the note when asked to, and says templates cannot carry it', () => {
+    renderDialog(undefined, { status: 'Off Market' });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Share without the note' })
+    );
+    expect(draft()).not.toContain('Please note:');
+    fireEvent.click(screen.getByRole('button', { name: 'Include the note' }));
+    expect(draft()).toContain(
+      'Please note: this property is off the market for now.'
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Send from Engine/ }));
+    expect(
+      screen.getByTestId('share-unavailable-choice').textContent
+    ).toContain(
+      'approved templates and catalog cards cannot carry the availability note'
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Leave the note out' })
+    ).toBeNull();
   });
 });

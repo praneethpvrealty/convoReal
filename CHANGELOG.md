@@ -17,6 +17,21 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 15 October 2026
+
+- **The share dialog asks before an off-market listing goes out by hand.**
+  Every bot path already refuses to detail a listing that has left the
+  market, but an agent could still share one from the web share dialog or
+  the mobile share sheet without a word about its status. Both now open on
+  a question for a listing that is Under Contract, Sold, Off Market,
+  Archived, Rejected or Pending Review: share it with the availability
+  note the buyer would otherwise get from the bot, share it without the
+  note, or don't share. The note is shown in full before choosing, the
+  choice can be switched while composing, and the composer says that an
+  approved template or catalog card cannot carry it. The wording moved to
+  `src/lib/inventory/listing-availability.ts`, an import-free module the
+  mobile app bundles through `@shared/`.
+
 #### 14 October 2026
 
 - **Nobody is asked why they dropped a listing that had already left the
