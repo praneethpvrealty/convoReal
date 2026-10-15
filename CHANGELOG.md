@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 15 October 2026
 
+- **The broadcast composer asks again before an off-market listing goes
+  out from the business number.** The share dialog's Engine steps
+  (template, greeting, catalog card) and the mobile sheet's ConvoReal
+  WhatsApp send, to one buyer or many, open on the same question as the
+  dialog itself. With the note, a template or product broadcast is
+  followed by the availability note as free text for every recipient who
+  has written in the last 24 hours, and the results say for whom the
+  window was closed and the template went alone; a greeting's details
+  message always carries it. The mobile send puts the note in the
+  message, which the template fallback outside the window cannot carry.
+
 - **The share dialog asks before an off-market listing goes out by hand.**
   Every bot path already refuses to detail a listing that has left the
   market, but an agent could still share one from the web share dialog or
