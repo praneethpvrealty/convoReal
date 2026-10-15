@@ -45,7 +45,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 
 import { GET } from './route';
 
-describe('GET /api/admin/settings', () => {
+describe('[ORG-001] GET /api/admin/settings', () => {
   it('reports each organization’s last active time, null when never seen', async () => {
     const res = await GET();
     expect(res.status).toBe(200);

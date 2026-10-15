@@ -19,8 +19,16 @@ import {
   RefreshCw,
   ShieldCheck,
   ArrowLeft,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import {
+  nextLastActiveSort,
+  sortByLastActive,
+  type LastActiveSort,
+} from '@/lib/admin/sort-by-last-active';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import {
@@ -181,6 +189,8 @@ export default function AdminDashboardPage() {
   // DB Data State
   const [whatsappConfigs, setWhatsappConfigs] = useState<WhatsappConfig[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [lastActiveSort, setLastActiveSort] = useState<LastActiveSort>(null);
+  const sortedOrganizations = sortByLastActive(organizations, lastActiveSort);
   const [metrics, setMetrics] = useState({ usersCount: 0, orgsCount: 0 });
   const [fallbackConfigAccountId, setFallbackConfigAccountId] = useState<
     string | null
@@ -1582,12 +1592,49 @@ export default function AdminDashboardPage() {
                       <th className="px-6 py-4">Status</th>
                       <th className="px-6 py-4">Plan</th>
                       <th className="px-6 py-4">Created</th>
-                      <th className="px-6 py-4">Last Active</th>
+                      <th
+                        className="px-6 py-4"
+                        aria-sort={
+                          lastActiveSort === 'desc'
+                            ? 'descending'
+                            : lastActiveSort === 'asc'
+                              ? 'ascending'
+                              : 'none'
+                        }
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLastActiveSort(
+                              nextLastActiveSort(lastActiveSort)
+                            )
+                          }
+                          title={
+                            lastActiveSort === 'desc'
+                              ? 'Most recently active first'
+                              : lastActiveSort === 'asc'
+                                ? 'Least recently active first'
+                                : 'Sort by last active'
+                          }
+                          className={`inline-flex items-center gap-1 font-bold tracking-wider uppercase transition-colors hover:text-white ${
+                            lastActiveSort ? 'text-white' : ''
+                          }`}
+                        >
+                          Last Active
+                          {lastActiveSort === 'desc' ? (
+                            <ArrowDown className="text-primary size-3" />
+                          ) : lastActiveSort === 'asc' ? (
+                            <ArrowUp className="text-primary size-3" />
+                          ) : (
+                            <ArrowUpDown className="size-3 text-slate-600" />
+                          )}
+                        </button>
+                      </th>
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {organizations.map((org) => {
+                    {sortedOrganizations.map((org) => {
                       const isActioning = orgActionId === org.id;
                       const isArchived = org.status === 'archived';
                       return (
