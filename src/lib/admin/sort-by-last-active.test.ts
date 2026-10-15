@@ -10,7 +10,7 @@ const rows = [
 
 const ids = (list: { id: string }[]) => list.map((r) => r.id);
 
-describe('sortByLastActive', () => {
+describe('[ORG-002] sortByLastActive', () => {
   it('keeps the server order when unsorted', () => {
     expect(ids(sortByLastActive(rows, null))).toEqual([
       'old',
@@ -44,7 +44,7 @@ describe('sortByLastActive', () => {
   });
 });
 
-describe('nextLastActiveSort', () => {
+describe('[ORG-002] nextLastActiveSort', () => {
   it('cycles newest first, oldest first, then off', () => {
     expect(nextLastActiveSort(null)).toBe('desc');
     expect(nextLastActiveSort('desc')).toBe('asc');

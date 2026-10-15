@@ -5105,6 +5105,33 @@
           ]
         }
       ]
+    },
+    {
+      "id": "admin-organizations",
+      "name": "Admin organizations — platform admin view of every workspace",
+      "surfaces": ["web"],
+      "invariants": [
+        {
+          "id": "ORG-001",
+          "rule": "Each organization shows when anyone in it was last active: the latest sign-in or session refresh of any member, read through the service-role-only admin_account_last_active() function. A workspace no member has signed in to reads Never; when the lookup fails the value is left unset and shows as unavailable, never as Never, so a failed lookup cannot make an active workspace look abandoned. Admin tooling — no mobile counterpart.",
+          "tests": [
+            {
+              "file": "src/app/api/admin/settings/route.test.ts",
+              "case": "[ORG-001]"
+            }
+          ]
+        },
+        {
+          "id": "ORG-002",
+          "rule": "The Last Active header sorts the organizations client-side, cycling most recently active first, least recently active first, then the server's default order (newest created first). A never-active workspace counts as the stalest, first when sorting least recent and after every dated row when sorting most recent; an unavailable value always sorts last, and sorting never reorders the list it was given.",
+          "tests": [
+            {
+              "file": "src/lib/admin/sort-by-last-active.test.ts",
+              "case": "[ORG-002]"
+            }
+          ]
+        }
+      ]
     }
   ]
 }
