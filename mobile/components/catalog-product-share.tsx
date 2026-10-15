@@ -14,6 +14,7 @@ import {
   catalogProductRetailerId,
   catalogShareState,
 } from '@shared/lib/inventory/catalog-product-share';
+import type { UnavailableSharePrompt } from '@shared/lib/inventory/listing-availability';
 import { SHARE_UNRECORDED_NOTICE } from '@shared/lib/inventory/share-log-request';
 
 import { AppDialog, type DialogAction } from '@/components/app-dialog';
@@ -40,12 +41,17 @@ export function CatalogProductShare({
   recipients,
   onShared,
   onDone,
+  unavailablePrompt = null,
 }: {
   property: Property;
   visible: boolean;
   recipients: Contact[];
   onShared?: (contactIds: string[]) => void;
   onDone: () => void;
+  /** Set for a listing that is not Available: the card is sent only
+   *  once the agent has said so, with or without the availability note
+   *  following it (web parity: property-share-dialog's product flow). */
+  unavailablePrompt?: UnavailableSharePrompt | null;
 }) {
   const { colors, fonts: f } = useTheme();
   const queryClient = useQueryClient();
@@ -125,8 +131,39 @@ export function CatalogProductShare({
     }
   }
 
-  async function send(contacts: Contact[]) {
+  async function send(contacts: Contact[], availabilityNote?: boolean) {
     if (contacts.length === 0 || sending) return;
+    if (unavailablePrompt && availabilityNote === undefined) {
+      const many = contacts.length > 1;
+      setPicking(false);
+      setDialog({
+        title: `${many ? 'Broadcast' : 'Send'} a listing that is ${unavailablePrompt.label.toLowerCase()}?`,
+        message: `${unavailablePrompt.message}\n\nA product card cannot carry the note. With the note, it follows as a second message for ${many ? 'every buyer' : 'this buyer'} who has written in the last 24 hours; otherwise the card goes alone.`,
+        actions: [
+          {
+            label: many ? 'Don’t broadcast' : 'Don’t send',
+            variant: 'muted',
+            onPress: () => setDialog(null),
+          },
+          {
+            label: 'Without the note',
+            onPress: () => {
+              setDialog(null);
+              void send(contacts, false);
+            },
+          },
+          {
+            label: 'With the note',
+            variant: 'primary',
+            onPress: () => {
+              setDialog(null);
+              void send(contacts, true);
+            },
+          },
+        ],
+      });
+      return;
+    }
     setSending(true);
     haptic.send();
     try {
@@ -134,7 +171,8 @@ export function CatalogProductShare({
         catalogId,
         currency,
         property,
-        contacts
+        contacts,
+        availabilityNote === true
       );
       setPicking(false);
       if (sent.length > 0) onShared?.(sent.map((c) => c.id));

@@ -963,6 +963,7 @@ export function PropertyShareSheet({
           recipients={recipients}
           onShared={onShared}
           onDone={onClose}
+          unavailablePrompt={sharePrompt}
         />
 
         <SectionLabel text="Send via" />

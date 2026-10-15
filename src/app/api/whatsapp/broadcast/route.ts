@@ -68,13 +68,16 @@ async function sendAvailabilityNote(
   });
   if (!conversation) return 'window_closed';
   const since = new Date(Date.now() - CUSTOMER_WINDOW_MS).toISOString();
-  const { count } = await db
+  const { data: recentReply, error } = await db
     .from('messages')
-    .select('id', { count: 'exact', head: true })
+    .select('id')
     .eq('conversation_id', conversation.id)
     .eq('sender_type', 'customer')
-    .gte('created_at', since);
-  if ((count ?? 0) === 0) return 'window_closed';
+    .gte('created_at', since)
+    .limit(1)
+    .maybeSingle();
+  if (error) return 'failed';
+  if (!recentReply) return 'window_closed';
   const res = await sendWhatsAppMessageAndPersist({
     accountId,
     userId,

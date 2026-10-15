@@ -110,7 +110,11 @@ function property(status: string) {
   };
 }
 
-function queue(opts: { status: string; windowOpen: boolean }) {
+function queue(opts: {
+  status: string;
+  windowOpen: boolean;
+  lookupError?: boolean;
+}) {
   queues = {
     profiles: [{ data: { full_name: 'Praneeth' } }],
     whatsapp_config: [{ data: { id: 'cfg-1', catalog_id: null } }],
@@ -118,7 +122,11 @@ function queue(opts: { status: string; windowOpen: boolean }) {
     message_templates: [{ data: [template] }],
     contacts: [{ data: { id: 'c-1', name: 'Yusuf' } }],
     conversations: [{ data: { id: 'conv-1' } }],
-    messages: [{ count: opts.windowOpen ? 2 : 0 }],
+    messages: [
+      opts.lookupError
+        ? { data: null, error: { message: 'refused' } }
+        : { data: opts.windowOpen ? { id: 'm-1' } : null },
+    ],
   };
 }
 
@@ -170,6 +178,13 @@ describe('[PRP-048] availability note on a property broadcast', () => {
       status: 'sent',
       note: 'window_closed',
     });
+    expect(dispatcherCalls.map((c) => c.kind)).toEqual(['template']);
+  });
+
+  it('reports a failed note, not a closed window, when the reply lookup errors', async () => {
+    queue({ status: 'Under Contract', windowOpen: true, lookupError: true });
+    const { body } = await broadcast(true);
+    expect(body.results[0]).toMatchObject({ status: 'sent', note: 'failed' });
     expect(dispatcherCalls.map((c) => c.kind)).toEqual(['template']);
   });
 
