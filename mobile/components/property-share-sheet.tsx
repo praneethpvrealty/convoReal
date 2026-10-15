@@ -273,10 +273,10 @@ export function PropertyShareSheet({
   // composer's own sends do, and the request finishes behind them. Only
   // a first-ever message has to wait here, since the thread it will
   // land in does not exist until the server creates it.
-  async function sendViaConvoReal(contact: Contact) {
+  async function sendViaConvoReal(contact: Contact, draft = message) {
     setEngineSending(true);
     haptic.send();
-    const text = addRecipientGreeting(message, contact.name);
+    const text = addRecipientGreeting(draft, contact.name);
     const threadId = await findContactThread(contact.id).catch(() => null);
     if (threadId) {
       const shareId = stagePendingShare(
@@ -363,12 +363,52 @@ export function PropertyShareSheet({
   // their own 24-hour-window verdict, so sends are reported per person
   // rather than as one pass/fail — a closed window for one recipient must
   // not read as a failure for the rest.
-  async function sendViaConvoRealMany(contacts: Contact[]) {
+  async function sendViaConvoRealMany(contacts: Contact[], draft?: string) {
     if (contacts.length === 0) return;
+    // A listing that has left the market is confirmed again here, where
+    // the send reaches buyers from the business number: inside their
+    // 24-hour window the note rides in the message, outside it the
+    // approved template goes alone (web parity: property-share-dialog).
+    if (sharePrompt && sharePromptNote && draft === undefined) {
+      const base = message.split(`\n\n${sharePromptNote}`).join('');
+      const many = contacts.length > 1;
+      setPicker(null);
+      setDialog({
+        title: `${many ? 'Broadcast' : 'Send'} a listing that is ${sharePrompt.label.toLowerCase()}?`,
+        message: `${sharePrompt.message}\n\nWith the note, it is added to the message for ${many ? `these ${contacts.length} buyers` : 'this buyer'}; a template sent outside the 24-hour window cannot carry it.`,
+        actions: [
+          {
+            label: many ? 'Don’t broadcast' : 'Don’t send',
+            variant: 'muted',
+            onPress: () => setDialog(null),
+          },
+          {
+            label: 'Without the note',
+            onPress: () => {
+              setDialog(null);
+              void sendViaConvoRealMany(contacts, base);
+            },
+          },
+          {
+            label: 'With the note',
+            variant: 'primary',
+            onPress: () => {
+              setDialog(null);
+              void sendViaConvoRealMany(
+                contacts,
+                `${base}\n\n${sharePromptNote}`
+              );
+            },
+          },
+        ],
+      });
+      return;
+    }
+    const text = draft ?? message;
     // One recipient keeps the richer single-send path, which lands the
     // agent in the conversation thread afterwards.
     if (contacts.length === 1) {
-      await sendViaConvoReal(contacts[0]);
+      await sendViaConvoReal(contacts[0], text);
       return;
     }
     setEngineSending(true);
@@ -377,7 +417,7 @@ export function PropertyShareSheet({
     const outcomes = await sendPropertyViaEngineMany(
       contacts,
       property,
-      (c) => addRecipientGreeting(message, c.name),
+      (c) => addRecipientGreeting(text, c.name),
       (done, total) => setEngineProgress({ done, total }),
       leadImage
     );
@@ -923,6 +963,7 @@ export function PropertyShareSheet({
           recipients={recipients}
           onShared={onShared}
           onDone={onClose}
+          unavailablePrompt={sharePrompt}
         />
 
         <SectionLabel text="Send via" />

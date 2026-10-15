@@ -1445,6 +1445,18 @@ describe('[PRP-048] the mobile share sheet asks before an off-market listing is 
     );
     expect(dialog).toContain("unavailableShare === 'with_note'");
   });
+
+  it('gates the catalog product card the same way and sends the note flag', () => {
+    const card = mobileSource('components/catalog-product-share.tsx');
+    const lib = mobileSource('lib/catalog-product-share.ts');
+    expect(sheet).toContain('unavailablePrompt={sharePrompt}');
+    expect(card).toContain(
+      'unavailablePrompt && availabilityNote === undefined'
+    );
+    expect(card).toContain("label: 'With the note'");
+    expect(card).toContain('availabilityNote === true');
+    expect(lib).toContain('availability_note: availabilityNote');
+  });
 });
 
 describe('mobile/lib/message-actions.ts mirrors delivery-failure', () => {

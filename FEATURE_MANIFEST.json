@@ -2167,7 +2167,7 @@
         },
         {
           "id": "PRP-048",
-          "rule": "Sharing a listing by hand from the web share dialog or the mobile share sheet while it is not Available (Under Contract, Sold, Off Market, Archived, Rejected or Pending Review) first asks the agent whether to share it at all, showing the exact availability note the buyer would receive, and offers the share with that note appended to the composed message or without it; no share, copy or send path is reachable until one is chosen, Don't share closes the dialog, the choice can be switched while composing, and the composer says that approved templates and catalog cards cannot carry the note. A listing that is Available composes straight away.",
+          "rule": "Sharing a listing by hand from the web share dialog or the mobile share sheet while it is not Available (Under Contract, Sold, Off Market, Archived, Rejected or Pending Review) first asks the agent whether to share it at all, showing the exact availability note the buyer would receive, and offers the share with that note appended to the composed message or without it; no share, copy or send path is reachable until one is chosen, Don't share closes the dialog, and the choice can be switched while composing. A listing that is Available composes straight away. The broadcast composer asks once more before such a listing goes out from the business number: the web Engine steps (template, greeting and catalog) open on the same question with the note shown, and the mobile sheet asks before any send through ConvoReal WhatsApp, to one buyer or many. With the note, a template or product broadcast is followed by the note as free text for every recipient who has written in the last 24 hours and the results name the recipients whose window was closed; a greeting's details message always carries it; the mobile send puts the note in the message, which the template fallback outside the window cannot carry.",
           "tests": [
             {
               "file": "src/lib/inventory/listing-status.test.ts",
@@ -2180,12 +2180,23 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[PRP-048]"
+            },
+            {
+              "file": "src/app/api/whatsapp/broadcast/route.test.ts",
+              "case": "[PRP-048]"
+            },
+            {
+              "file": "mobile/lib/catalog-product-share.test.ts",
+              "case": "[PRP-048]"
             }
           ],
           "guards": [
             "src/lib/inventory/listing-availability.ts",
             "src/components/inventory/property-share-dialog.tsx",
-            "mobile/components/property-share-sheet.tsx"
+            "src/app/api/whatsapp/broadcast/route.ts",
+            "mobile/components/property-share-sheet.tsx",
+            "mobile/components/catalog-product-share.tsx",
+            "mobile/lib/catalog-product-share.ts"
           ]
         }
       ]

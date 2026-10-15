@@ -70,7 +70,8 @@ export async function sendCatalogProduct(
   catalogId: string,
   currency: string,
   property: Property,
-  contacts: Contact[]
+  contacts: Contact[],
+  availabilityNote = false
 ): Promise<{
   sent: Contact[];
   failed: { contact: Contact; error: string }[];
@@ -109,6 +110,7 @@ export async function sendCatalogProduct(
         product_retailer_id: catalogProductRetailerId(property),
         content_text: catalogProductCaption(property, currency),
         property_id: property.id,
+        availability_note: availabilityNote,
       }),
     }
   );

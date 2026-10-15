@@ -219,6 +219,69 @@ describe('[PRP-048] sharing a listing that has left the market', () => {
     ).toContain('availability note left out');
   });
 
+  it('asks again before the listing is broadcast from the Engine and reports how the note travelled', async () => {
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (String(url).includes('/share-grants') && !init?.method) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ data: [grant] }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    });
+    renderDialog(undefined, { status: 'Under Contract' });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Share with the note' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Send from Engine/ }));
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: /Select Contacts & Share on WhatsApp/,
+      })
+    );
+    const gate = screen.getByTestId('broadcast-unavailable-gate');
+    expect(gate.textContent).toContain(
+      'Broadcast a listing that is under contract?'
+    );
+    expect(gate.textContent).toContain(
+      'follows as a second message for every buyer who has written in the last 24 hours'
+    );
+    expect(gate.textContent).toContain(NOTE);
+    expect(screen.queryByPlaceholderText(/Search contacts/)).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Broadcast without the note' })
+    );
+    expect(screen.queryByTestId('broadcast-unavailable-gate')).toBeNull();
+    expect(screen.getByPlaceholderText(/Search contacts/)).toBeTruthy();
+    expect(
+      screen.getByTestId('share-unavailable-choice').textContent
+    ).toContain('availability note left out');
+    fireEvent.click(screen.getByRole('button', { name: 'Include the note' }));
+    expect(
+      screen.getByTestId('share-unavailable-choice').textContent
+    ).toContain('follows the template inside the 24-hour window');
+  });
+
+  it('backs out of the broadcast without sharing when asked not to', () => {
+    renderDialog(undefined, { status: 'Sold' });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Share without the note' })
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Send from Engine/ }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Select Contacts & Send Greeting/ })
+    );
+    expect(
+      screen.getByTestId('broadcast-unavailable-gate').textContent
+    ).toContain('The greeting itself cannot carry the note');
+    fireEvent.click(screen.getByRole('button', { name: 'Don’t broadcast' }));
+    expect(screen.queryByTestId('broadcast-unavailable-gate')).toBeNull();
+    expect(
+      screen.getByRole('button', { name: /Send from Engine/ })
+    ).toBeTruthy();
+    expect(screen.queryByPlaceholderText(/Search contacts/)).toBeNull();
+  });
+
   it('shares without the note when asked to, and says templates cannot carry it', () => {
     renderDialog(undefined, { status: 'Off Market' });
     fireEvent.click(
@@ -232,11 +295,10 @@ describe('[PRP-048] sharing a listing that has left the market', () => {
     fireEvent.click(screen.getByRole('button', { name: /Send from Engine/ }));
     expect(
       screen.getByTestId('share-unavailable-choice').textContent
-    ).toContain(
-      'approved templates and catalog cards cannot carry the availability note'
-    );
+    ).toContain('follows the template inside the 24-hour window');
+    fireEvent.click(screen.getByRole('button', { name: 'Leave the note out' }));
     expect(
-      screen.queryByRole('button', { name: 'Leave the note out' })
-    ).toBeNull();
+      screen.getByTestId('share-unavailable-choice').textContent
+    ).toContain('availability note left out');
   });
 });

@@ -13,6 +13,12 @@ import {
 } from '@/lib/rate-limit';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import {
+  CUSTOMER_WINDOW_MS,
+  isReengagementError,
+} from '@/lib/whatsapp/customer-window';
+import { findConversation } from '@/lib/conversations/resolve';
+import { listingStatusNote } from '@/lib/inventory/listing-availability';
+import {
   catalogProductPendingNotice,
   isCatalogProductPending,
 } from '@/lib/inventory/catalog-product-share';
@@ -40,6 +46,50 @@ interface BroadcastResult {
   whatsapp_message_id?: string;
   error?: string;
   isRateLimited?: boolean;
+  /** The availability note the agent asked to follow a template or
+   *  product card for a listing that is not Available. */
+  note?: 'sent' | 'window_closed' | 'failed';
+}
+
+/** A template or product card cannot carry the availability note, so
+ *  it follows as free text where the recipient's 24-hour window is
+ *  open; outside it the card goes alone and the result says so. */
+async function sendAvailabilityNote(
+  db: Awaited<ReturnType<typeof requireRole>>['supabase'],
+  accountId: string,
+  userId: string,
+  contactId: string,
+  note: string
+): Promise<NonNullable<BroadcastResult['note']>> {
+  const conversation = await findConversation<{ id: string }>(db, {
+    accountId,
+    contactId,
+    columns: 'id',
+  });
+  if (!conversation) return 'window_closed';
+  const since = new Date(Date.now() - CUSTOMER_WINDOW_MS).toISOString();
+  const { data: recentReply, error } = await db
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversation.id)
+    .eq('sender_type', 'customer')
+    .gte('created_at', since)
+    .limit(1)
+    .maybeSingle();
+  if (error) return 'failed';
+  if (!recentReply) return 'window_closed';
+  const res = await sendWhatsAppMessageAndPersist({
+    accountId,
+    userId,
+    contactId,
+    conversationId: conversation.id,
+    kind: 'text',
+    text: note,
+    senderType: 'agent',
+    customDbClient: db,
+  });
+  if (res.success) return 'sent';
+  return isReengagementError(res.error) ? 'window_closed' : 'failed';
 }
 
 /**
@@ -129,6 +179,7 @@ export async function POST(request: Request) {
       product_retailer_id,
       content_text,
       property_id,
+      availability_note,
     } = body;
 
     // Normalize to a list of {phone, params, messageParams} regardless of shape.
@@ -197,11 +248,12 @@ export async function POST(request: Request) {
       id: string;
       title: string;
       property_code: string | null;
+      status: string | null;
     } | null = null;
     if (property_id) {
       const { data: prop, error: propErr } = await supabase
         .from('properties')
-        .select('id, title, property_code')
+        .select('id, title, property_code, status')
         .eq('id', property_id)
         .eq('account_id', accountId)
         .maybeSingle();
@@ -297,6 +349,11 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const availabilityNote =
+      propertyRow && availability_note === true
+        ? listingStatusNote(propertyRow.status)
+        : null;
 
     const results: BroadcastResult[] = [];
     let sentCount = 0;
@@ -504,10 +561,23 @@ export async function POST(request: Request) {
       }
 
       if (result.success && result.whatsappMessageId) {
+        const note =
+          availabilityNote &&
+          recipientContact &&
+          (broadcast_type === 'template' || broadcast_type === 'product')
+            ? await sendAvailabilityNote(
+                supabase,
+                accountId,
+                userId,
+                recipientContact.id,
+                availabilityNote
+              )
+            : undefined;
         results.push({
           phone: recipient.phone,
           status: 'sent',
           whatsapp_message_id: result.whatsappMessageId,
+          ...(note ? { note } : {}),
         });
         sentCount++;
       } else if (

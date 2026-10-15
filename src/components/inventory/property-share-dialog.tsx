@@ -138,6 +138,17 @@ interface ActiveGrant {
   contact: { id: string; name: string | null; phone: string } | null;
 }
 
+type BroadcastNoteOutcome = 'sent' | 'window_closed' | 'failed' | undefined;
+
+const BROADCAST_NOTE_OUTCOME: Record<
+  NonNullable<BroadcastNoteOutcome>,
+  string
+> = {
+  sent: 'Availability note followed',
+  window_closed: 'Availability note skipped: no reply in the last 24 hours',
+  failed: 'Availability note could not be sent',
+};
+
 const SHARE_TONE_CHOICES: { value: ShareTone; label: string }[] = [
   { value: 'professional', label: 'Professional' },
   { value: 'casual', label: 'Casual' },
@@ -222,6 +233,7 @@ export function PropertyShareDialog({
       phone: string;
       status: 'sent' | 'failed';
       error?: string;
+      note?: BroadcastNoteOutcome;
     }>
   >([]);
 
@@ -266,11 +278,18 @@ export function PropertyShareDialog({
   // said so, and said whether the message carries the availability note.
   const [unavailableShare, setUnavailableShare] =
     useState<UnavailableShareChoice | null>(null);
+  // The broadcast composer asks again: it reaches many buyers at once,
+  // and there the note can only follow the template as free text.
+  const [broadcastAcknowledged, setBroadcastAcknowledged] = useState(false);
   const sharePrompt = property
     ? unavailableListingSharePrompt(property.status)
     : null;
   const step =
-    sharePrompt && unavailableShare === null ? 'confirm' : broadcastStep;
+    sharePrompt && unavailableShare === null
+      ? 'confirm'
+      : sharePrompt && broadcastStep === 'matches' && !broadcastAcknowledged
+        ? 'confirm_broadcast'
+        : broadcastStep;
 
   // ── Unmask this share (migration 198) ───────────────────────────
   // Off by default: the masked link is what turns a viewer into a
@@ -336,7 +355,9 @@ export function PropertyShareDialog({
 
   const propertyId = property?.id ?? null;
   useEffect(() => {
-    if (open) setUnavailableShare(null);
+    if (!open) return;
+    setUnavailableShare(null);
+    setBroadcastAcknowledged(false);
   }, [open, propertyId]);
 
   const propertyDocumentCount = useMemo(
@@ -1594,6 +1615,7 @@ export function PropertyShareDialog({
           template_name: selectedTemplate.name,
           template_language: selectedTemplate.language || 'en_US',
           property_id: property.id,
+          availability_note: unavailableShare === 'with_note',
         }),
       });
 
@@ -1610,6 +1632,7 @@ export function PropertyShareDialog({
             phone: string;
             status?: 'sent' | 'failed' | null;
             error?: string | null;
+            note?: BroadcastNoteOutcome;
           }) =>
             c.phone !== null &&
             (r.phone === c.phone ||
@@ -1623,6 +1646,7 @@ export function PropertyShareDialog({
           error:
             matchResult?.error ||
             (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
+          note: matchResult?.note,
         };
       });
 
@@ -1678,6 +1702,7 @@ export function PropertyShareDialog({
           product_retailer_id: catalogProductRetailerId(property),
           content_text: catalogProductCaption(property, currency),
           property_id: property.id,
+          availability_note: unavailableShare === 'with_note',
         }),
       });
 
@@ -1688,6 +1713,11 @@ export function PropertyShareDialog({
 
       const resData = await response.json();
 
+      const noteFor = (phone: string | null): BroadcastNoteOutcome =>
+        (
+          resData.results as
+            { phone: string; note?: BroadcastNoteOutcome }[] | undefined
+        )?.find((r) => phone !== null && r.phone === phone)?.note;
       const resultsMap = matchCatalogSendResults(
         selectedContacts,
         resData.results
@@ -1696,6 +1726,7 @@ export function PropertyShareDialog({
         phone: contact.phone ?? '',
         status: (sent ? 'sent' : 'failed') as 'sent' | 'failed',
         error,
+        note: sent ? noteFor(contact.phone) : undefined,
       }));
 
       captureSharesToJourney(
@@ -1757,6 +1788,7 @@ export function PropertyShareDialog({
           recipients: recipientsPayload,
           broadcast_type: 'greeting',
           property_id: property.id,
+          availability_note: unavailableShare === 'with_note',
         }),
       });
 
@@ -1773,6 +1805,7 @@ export function PropertyShareDialog({
             phone: string;
             status?: 'sent' | 'failed' | null;
             error?: string | null;
+            note?: BroadcastNoteOutcome;
           }) =>
             c.phone !== null &&
             (r.phone === c.phone ||
@@ -1786,6 +1819,7 @@ export function PropertyShareDialog({
           error:
             matchResult?.error ||
             (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
+          note: matchResult?.note,
         };
       });
 
@@ -1813,6 +1847,38 @@ export function PropertyShareDialog({
   const listingName =
     (property.title || 'this listing').trim().replace(/[.\s]+$/, '') ||
     'this listing';
+
+  const unavailableChoiceRow = (engine: boolean) =>
+    sharePrompt && unavailableShare ? (
+      <div
+        data-testid="share-unavailable-choice"
+        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs"
+      >
+        <span className="flex items-center gap-1.5 text-amber-300">
+          <AlertTriangle className="size-3.5 shrink-0" />
+          {`${sharePrompt.label} · availability note ${
+            unavailableShare !== 'with_note'
+              ? 'left out'
+              : engine
+                ? 'follows the template inside the 24-hour window'
+                : 'included'
+          }`}
+        </span>
+        <button
+          type="button"
+          onClick={() =>
+            setUnavailableShare((prev) =>
+              prev === 'with_note' ? 'without_note' : 'with_note'
+            )
+          }
+          className="font-semibold text-amber-200 hover:text-white"
+        >
+          {unavailableShare === 'with_note'
+            ? 'Leave the note out'
+            : 'Include the note'}
+        </button>
+      </div>
+    ) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1881,41 +1947,69 @@ export function PropertyShareDialog({
           </div>
         )}
 
+        {step === 'confirm_broadcast' && sharePrompt && (
+          <div
+            data-testid="broadcast-unavailable-gate"
+            className="space-y-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-400" />
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-white">
+                  {`Broadcast a listing that is ${sharePrompt.label.toLowerCase()}?`}
+                </h3>
+                <p className="text-xs text-slate-300">{sharePrompt.message}</p>
+                <p className="text-xs text-slate-400">
+                  {shareMode === 'greeting'
+                    ? 'The greeting itself cannot carry the note; the full details sent after the buyer taps “Sure, please send” always do.'
+                    : 'An approved template or catalog card cannot carry the note. With the note, it follows as a second message for every buyer who has written in the last 24 hours; the others get the template alone and the results say so.'}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-1 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+              <p className="text-xs font-semibold text-slate-400">
+                The availability note
+              </p>
+              <p className="text-xs text-slate-200">{sharePrompt.note}</p>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setBroadcastStep('link')}
+                className="hover:bg-slate-850 h-9 border-slate-800 text-xs text-slate-300"
+              >
+                Don’t broadcast
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setUnavailableShare('without_note');
+                  setBroadcastAcknowledged(true);
+                }}
+                className="hover:bg-slate-850 h-9 border-slate-800 text-xs text-slate-300"
+              >
+                Broadcast without the note
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setUnavailableShare('with_note');
+                  setBroadcastAcknowledged(true);
+                }}
+                className="h-9 text-xs"
+              >
+                Broadcast with the note
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* STEP 0: compose & share externally, or hand off to Engine flows */}
         {step === 'link' && (
           <div className="flex min-h-0 flex-1 flex-col space-y-4">
-            {sharePrompt && unavailableShare && (
-              <div
-                data-testid="share-unavailable-choice"
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs"
-              >
-                <span className="flex items-center gap-1.5 text-amber-300">
-                  <AlertTriangle className="size-3.5 shrink-0" />
-                  {audienceTab === 'engine'
-                    ? `${sharePrompt.label} · approved templates and catalog cards cannot carry the availability note`
-                    : `${sharePrompt.label} · availability note ${
-                        unavailableShare === 'with_note'
-                          ? 'included'
-                          : 'left out'
-                      }`}
-                </span>
-                {audienceTab !== 'engine' && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setUnavailableShare((prev) =>
-                        prev === 'with_note' ? 'without_note' : 'with_note'
-                      )
-                    }
-                    className="font-semibold text-amber-200 hover:text-white"
-                  >
-                    {unavailableShare === 'with_note'
-                      ? 'Leave the note out'
-                      : 'Include the note'}
-                  </button>
-                )}
-              </div>
-            )}
+            {unavailableChoiceRow(audienceTab === 'engine')}
             {/* Audience tabs — the first decision is WHO this goes to */}
             <div className="grid grid-cols-3 gap-1 rounded-xl border border-slate-800 bg-slate-950 p-1">
               {(
@@ -3039,6 +3133,7 @@ export function PropertyShareDialog({
         {/* STEP 1: Audience & Matches */}
         {step === 'matches' && (
           <div className="animate-fade-in flex min-h-0 flex-1 flex-col space-y-4">
+            {unavailableChoiceRow(true)}
             {/* Search Input */}
             <div className="relative">
               <Input
@@ -3450,6 +3545,7 @@ export function PropertyShareDialog({
         {/* STEP 2: Configure Broadcast Message */}
         {step === 'configure' && (
           <div className="space-y-4">
+            {unavailableChoiceRow(true)}
             <div className="mb-2 flex items-center gap-2 border-b border-slate-800 pb-2.5">
               <Button
                 type="button"
@@ -3834,9 +3930,22 @@ export function PropertyShareDialog({
                   </div>
                   <div className="flex items-center gap-2">
                     {res.status === 'sent' ? (
-                      <Badge className="border border-green-500/20 bg-green-500/10 text-xs font-bold text-green-400">
-                        Success
-                      </Badge>
+                      <div className="flex flex-col items-end">
+                        <Badge className="border border-green-500/20 bg-green-500/10 text-xs font-bold text-green-400">
+                          Success
+                        </Badge>
+                        {res.note && (
+                          <span
+                            className={`mt-0.5 text-xs ${
+                              res.note === 'sent'
+                                ? 'text-slate-400'
+                                : 'text-amber-400'
+                            }`}
+                          >
+                            {BROADCAST_NOTE_OUTCOME[res.note]}
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <div className="flex flex-col items-end">
                         <Badge className="border border-red-500/20 bg-red-500/10 text-xs font-bold text-red-400">
