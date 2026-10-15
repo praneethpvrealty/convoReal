@@ -1031,9 +1031,10 @@ function UnavailableShareGate({
 }) {
   const { colors, fonts: f } = useTheme();
   return (
-    <View
+    <ScrollView
       testID="share-unavailable-gate"
-      style={{
+      style={sheetScrollArea}
+      contentContainerStyle={{
         paddingHorizontal: spacing.lg,
         paddingBottom: spacing.lg,
         gap: spacing.md,
@@ -1123,7 +1124,7 @@ function UnavailableShareGate({
           Don’t share
         </Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
