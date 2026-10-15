@@ -105,6 +105,12 @@ import {
   type ShareTone,
 } from '@/lib/share-message-builder';
 import {
+  appendListingStatusNote,
+  unavailableListingSharePrompt,
+  type UnavailableShareChoice,
+} from '@/lib/inventory/listing-availability';
+import {
+  AlertTriangle,
   MessageCircle,
   Mail,
   RotateCcw,
@@ -256,6 +262,15 @@ export function PropertyShareDialog({
   // User edits to the composed message; null = follow the auto-generated
   // text. Reset whenever any composer input changes.
   const [messageDraft, setMessageDraft] = useState<string | null>(null);
+  // A listing that has left the market is shared only once the agent has
+  // said so, and said whether the message carries the availability note.
+  const [unavailableShare, setUnavailableShare] =
+    useState<UnavailableShareChoice | null>(null);
+  const sharePrompt = property
+    ? unavailableListingSharePrompt(property.status)
+    : null;
+  const step =
+    sharePrompt && unavailableShare === null ? 'confirm' : broadcastStep;
 
   // ── Unmask this share (migration 198) ───────────────────────────
   // Off by default: the masked link is what turns a viewer into a
@@ -320,6 +335,9 @@ export function PropertyShareDialog({
   }, [open, accountId, supabase]);
 
   const propertyId = property?.id ?? null;
+  useEffect(() => {
+    if (open) setUnavailableShare(null);
+  }, [open, propertyId]);
 
   const propertyDocumentCount = useMemo(
     () => (property?.documents ?? []).filter((d) => d?.trim()).length,
@@ -447,9 +465,13 @@ export function PropertyShareDialog({
       agentName: profile?.full_name || undefined,
       agentPhone: profile?.phone || undefined,
     });
+    const noted =
+      unavailableShare === 'with_note'
+        ? appendListingStatusNote(message, property.status)
+        : message;
     return offerInventoryOnboarding && audienceTab === 'agent'
-      ? `${message}\n\n♻️ Want to share this with your own name or agency? Open the property and tap “Request ConvoReal invite”. Once onboarded, it will be added to your inventory for review.`
-      : message;
+      ? `${noted}\n\n♻️ Want to share this with your own name or agency? Open the property and tap “Request ConvoReal invite”. Once onboarded, it will be added to your inventory for review.`
+      : noted;
   }, [
     property,
     audienceTab,
@@ -459,6 +481,7 @@ export function PropertyShareDialog({
     profile,
     showcaseSubdomain,
     offerInventoryOnboarding,
+    unavailableShare,
   ]);
 
   // Any composer input change discards manual edits back to auto text.
@@ -470,6 +493,7 @@ export function PropertyShareDialog({
     messageStyle,
     property?.id,
     offerInventoryOnboarding,
+    unavailableShare,
   ]);
 
   const currentMessage = messageDraft ?? autoMessage;
@@ -1809,9 +1833,89 @@ export function PropertyShareDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {step === 'confirm' && sharePrompt && (
+          <div
+            data-testid="share-unavailable-gate"
+            className="space-y-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-400" />
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-white">
+                  {sharePrompt.title}
+                </h3>
+                <p className="text-xs text-slate-300">{sharePrompt.message}</p>
+              </div>
+            </div>
+            <div className="space-y-1 rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+              <p className="text-xs font-semibold text-slate-400">
+                The availability note, if you include it
+              </p>
+              <p className="text-xs text-slate-200">{sharePrompt.note}</p>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="hover:bg-slate-850 h-9 border-slate-800 text-xs text-slate-300"
+              >
+                Don’t share
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setUnavailableShare('without_note')}
+                className="hover:bg-slate-850 h-9 border-slate-800 text-xs text-slate-300"
+              >
+                Share without the note
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setUnavailableShare('with_note')}
+                className="h-9 text-xs"
+              >
+                Share with the note
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* STEP 0: compose & share externally, or hand off to Engine flows */}
-        {broadcastStep === 'link' && (
+        {step === 'link' && (
           <div className="flex min-h-0 flex-1 flex-col space-y-4">
+            {sharePrompt && unavailableShare && (
+              <div
+                data-testid="share-unavailable-choice"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs"
+              >
+                <span className="flex items-center gap-1.5 text-amber-300">
+                  <AlertTriangle className="size-3.5 shrink-0" />
+                  {audienceTab === 'engine'
+                    ? `${sharePrompt.label} · approved templates and catalog cards cannot carry the availability note`
+                    : `${sharePrompt.label} · availability note ${
+                        unavailableShare === 'with_note'
+                          ? 'included'
+                          : 'left out'
+                      }`}
+                </span>
+                {audienceTab !== 'engine' && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setUnavailableShare((prev) =>
+                        prev === 'with_note' ? 'without_note' : 'with_note'
+                      )
+                    }
+                    className="font-semibold text-amber-200 hover:text-white"
+                  >
+                    {unavailableShare === 'with_note'
+                      ? 'Leave the note out'
+                      : 'Include the note'}
+                  </button>
+                )}
+              </div>
+            )}
             {/* Audience tabs — the first decision is WHO this goes to */}
             <div className="grid grid-cols-3 gap-1 rounded-xl border border-slate-800 bg-slate-950 p-1">
               {(
@@ -2933,7 +3037,7 @@ export function PropertyShareDialog({
         )}
 
         {/* STEP 1: Audience & Matches */}
-        {broadcastStep === 'matches' && (
+        {step === 'matches' && (
           <div className="animate-fade-in flex min-h-0 flex-1 flex-col space-y-4">
             {/* Search Input */}
             <div className="relative">
@@ -3344,7 +3448,7 @@ export function PropertyShareDialog({
         )}
 
         {/* STEP 2: Configure Broadcast Message */}
-        {broadcastStep === 'configure' && (
+        {step === 'configure' && (
           <div className="space-y-4">
             <div className="mb-2 flex items-center gap-2 border-b border-slate-800 pb-2.5">
               <Button
@@ -3687,7 +3791,7 @@ export function PropertyShareDialog({
         )}
 
         {/* STEP 3: Sending State */}
-        {broadcastStep === 'sending' && (
+        {step === 'sending' && (
           <div className="flex flex-col items-center justify-center space-y-4 py-16">
             <Loader2 className="text-primary size-10 animate-spin" />
             <div className="text-center">
@@ -3703,7 +3807,7 @@ export function PropertyShareDialog({
         )}
 
         {/* STEP 4: Results Log View */}
-        {broadcastStep === 'results' && (
+        {step === 'results' && (
           <div className="space-y-4">
             <div className="mb-2 flex items-center justify-between border-b border-slate-800 pb-3">
               <h4 className="text-sm font-semibold text-white">

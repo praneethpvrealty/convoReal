@@ -7,6 +7,8 @@ import {
   listingAvailabilityNotice,
   listingStatusInquiryLine,
   appendListingStatusNote,
+  listingStatusNote,
+  unavailableListingSharePrompt,
   listingStatusAgentLine,
   unavailableListingReply,
   listingAvailabilityAnswer,
@@ -111,6 +113,38 @@ describe('appendListingStatusNote', () => {
     expect(text.startsWith('Thanks!\n\nPlease note:')).toBe(true);
     expect(text).toMatch(/under contract/);
     expect(text).toMatch(/latest status with the owner/);
+  });
+});
+
+describe('unavailableListingSharePrompt', () => {
+  it('[PRP-048] asks nothing for a listing that is still available', () => {
+    expect(unavailableListingSharePrompt('Available')).toBeNull();
+    expect(unavailableListingSharePrompt(null)).toBeNull();
+    expect(listingStatusNote('Available')).toBeNull();
+  });
+
+  it('[PRP-048] asks before an under-contract listing is shared and shows the note the buyer would get', () => {
+    const prompt = unavailableListingSharePrompt('Under Contract');
+    expect(prompt?.label).toBe('Under contract');
+    expect(prompt?.title).toBe(
+      'This listing is under contract — share it anyway?'
+    );
+    expect(prompt?.message).toMatch(/under contract with another buyer/);
+    expect(prompt?.note).toBe(listingStatusNote('Under Contract'));
+    expect(appendListingStatusNote('Hi!', 'Under Contract')).toBe(
+      `Hi!\n\n${prompt?.note}`
+    );
+  });
+
+  it('[PRP-048] asks for every status the editor can set other than Available', () => {
+    for (const status of PROPERTY_STATUSES) {
+      const prompt = unavailableListingSharePrompt(status);
+      if (status === 'Available') expect(prompt).toBeNull();
+      else
+        expect(prompt?.note.startsWith('Please note: this property is')).toBe(
+          true
+        );
+    }
   });
 });
 
