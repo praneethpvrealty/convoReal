@@ -159,7 +159,7 @@ export const CHUNKS: KnowledgeChunk[] = [
     route: '/broadcasts',
     title: 'Broadcasts',
     kind: 'page',
-    body: 'Send one approved WhatsApp template message to many contacts at once — pick a template, choose the audience (all or by tag), personalise, and send. Delivery and read counts are tracked per broadcast.',
+    body: 'Send one WhatsApp message to many contacts at once — write the message, choose the audience (all, by tag or a pasted list), and send. ConvoReal carries it on its approved template, so there is no template to pick. Delivery and read counts are tracked per broadcast.',
     keywords: ['bulk message', 'campaign', 'mass send', 'sabko bhejo'],
   },
   {

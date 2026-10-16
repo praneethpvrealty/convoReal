@@ -52,7 +52,7 @@ export const MOBILE_TOURS: MobileTour[] = [
         screen: '/(app)/broadcast-new',
         target: 'broadcast-compose',
         title: 'Just follow the steps',
-        body: 'Pick a template, choose people, personalise, and send. WhatsApp only allows approved templates for broadcasts.',
+        body: 'Write your message, choose people, and send. ConvoReal picks the approved WhatsApp template for you, so there is nothing to choose.',
         advanceOn: 'next',
       },
     ],

@@ -19,6 +19,21 @@ than a written entry. Newest first.
 
 #### 16 October 2026
 
+- **A broadcast no longer asks which WhatsApp template to use.** The
+  New broadcast screen on web and mobile opened on a list of every
+  approved template, including the ones the Engine sends on its own
+  (digests, appointment reminders, number-change notices), and asked the
+  agent to pick one and map its `{{1}}`, `{{2}}` placeholders by hand.
+  Now the agent writes the message and chooses who gets it. ConvoReal
+  carries it on one shared `agency_update_notice` template, greets each
+  recipient by name, signs it with the agency, and previews exactly what
+  the recipient will read. The template is submitted to Meta once per
+  account the first time the composer opens; until it is approved, both
+  surfaces say why sends are held (WhatsApp still reviewing, Meta's
+  rejection reason, or WhatsApp not connected) and unlock the moment it
+  is approved. The web wizard is three steps (Message, Audience, Send)
+  instead of four.
+
 - **A numbered pick from the inventory list survives a trailing comma.**
   The inventory update asks the buyer to reply with the category and
   numbers, and phone keyboards often leave a comma or semicolon after the

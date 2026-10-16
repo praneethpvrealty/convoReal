@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageTemplate } from '@/types';
+import { singleLineMessage } from '@/lib/broadcasts/carrier-template';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -26,8 +26,11 @@ function contactsLabel(count: number): string {
 interface Step4Props {
   name: string;
   onNameChange: (name: string) => void;
-  template: MessageTemplate;
+  message: string;
   audience: AudienceConfig;
+  optedInOnly: boolean;
+  onOptedInOnlyChange: (next: boolean) => void;
+  optedInCount: number | null;
   onSend: () => void;
   onSaveDraft?: () => void;
   onBack: () => void;
@@ -38,8 +41,11 @@ interface Step4Props {
 export function Step4ScheduleSend({
   name,
   onNameChange,
-  template,
+  message,
   audience,
+  optedInOnly,
+  onOptedInOnlyChange,
+  optedInCount,
   onSend,
   onSaveDraft,
   onBack,
@@ -47,7 +53,7 @@ export function Step4ScheduleSend({
   progress,
 }: Step4Props) {
   const [showConfirm, setShowConfirm] = useState(false);
-  const countQuery = useAudienceCount(audience);
+  const countQuery = useAudienceCount(audience, { optedInOnly });
   const reach = countQuery.data;
   const confirmedReach =
     reach !== undefined &&
@@ -90,13 +96,38 @@ export function Step4ScheduleSend({
         />
       </div>
 
+      <div className="space-y-1">
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <input
+            type="checkbox"
+            checked={optedInOnly}
+            onChange={(e) => onOptedInOnlyChange(e.target.checked)}
+            className="accent-primary h-4 w-4"
+          />
+          Only clients who explicitly opted in
+          {typeof optedInCount === 'number' && (
+            <span className="text-xs text-slate-500">
+              ({optedInCount} opted in)
+            </span>
+          )}
+        </label>
+        <p className="text-xs text-slate-500">
+          Clients are asked to opt in the first time they message you on
+          WhatsApp, and portal enquiry forms record consent too. Without this,
+          the broadcast goes to everyone except contacts who replied STOP
+          ALERTS.
+        </p>
+      </div>
+
       {/* Summary Card */}
       <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
         <p className="text-sm font-medium text-white">Summary</p>
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <p className="text-xs text-slate-400">Template</p>
-            <p className="text-white">{template.name}</p>
+          <div className="col-span-2">
+            <p className="text-xs text-slate-400">Message</p>
+            <p className="line-clamp-3 text-white">
+              {singleLineMessage(message)}
+            </p>
           </div>
           <div>
             <p className="text-xs text-slate-400">Audience</p>
@@ -131,10 +162,6 @@ export function Step4ScheduleSend({
                 </>
               )}
             </div>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400">Language</p>
-            <p className="text-white">{template.language ?? 'en_US'}</p>
           </div>
         </div>
       </div>
@@ -220,12 +247,8 @@ export function Step4ScheduleSend({
                     {confirmedReach !== null
                       ? contactsLabel(confirmedReach)
                       : '…'}
-                  </span>{' '}
-                  using the{' '}
-                  <span className="font-medium text-white">
-                    {template.name}
-                  </span>{' '}
-                  template. This action cannot be undone.
+                  </span>
+                  . This action cannot be undone.
                 </DialogDescription>
                 {countQuery.isError && !countQuery.isFetching && (
                   <p role="alert" className="text-sm text-red-400">

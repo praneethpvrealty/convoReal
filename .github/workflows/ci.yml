@@ -120,6 +120,7 @@ jobs:
               - 'src/lib/today/insights.ts'
               - 'src/lib/broadcasts/recount.ts'
               - 'src/lib/broadcasts/csv-audience.ts'
+              - 'src/lib/broadcasts/carrier-template.ts'
               - 'src/lib/format/phone.ts'
               - 'src/lib/voice/campaign-settings.ts'
               - '.github/workflows/ci.yml'

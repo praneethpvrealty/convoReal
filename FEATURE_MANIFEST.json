@@ -5176,6 +5176,53 @@
           ]
         }
       ]
+    },
+    {
+      "id": "broadcast-campaigns",
+      "name": "Broadcast campaigns — one message to many contacts",
+      "surfaces": ["web", "mobile", "whatsapp"],
+      "invariants": [
+        {
+          "id": "BRC-001",
+          "rule": "The broadcast composer on web and mobile never asks the agent to choose a WhatsApp template. The agent writes the message and picks who gets it; both surfaces preview exactly what a recipient will read through one shared renderer, and POST /api/broadcasts carries the message on the account's shared agency_update_notice template with the greeting name resolved per recipient, the agency name and the message flattened to one line. A blank message is refused before the template or the audience is touched. Because the carrier is a Marketing template, contacts who replied STOP ALERTS are always excluded and both composers offer the same switch the occasion greeting has, narrowing the count and the send to contacts who explicitly opted in, with the opted-in count shown beside it. The template + variables request shape stays accepted for app builds that predate the composer.",
+          "tests": [
+            {
+              "file": "src/lib/broadcasts/carrier-template.test.ts",
+              "case": "[BRC-001]"
+            },
+            {
+              "file": "src/app/api/broadcasts/route.test.ts",
+              "case": "[BRC-001]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[BRC-001]"
+            },
+            {
+              "file": "mobile/lib/broadcast-compose.test.ts",
+              "case": "[BRC-001]"
+            }
+          ]
+        },
+        {
+          "id": "BRC-002",
+          "rule": "The agency_update_notice template is a Marketing text template with the recipient name, the agency and the message as its three body variables and the STOP ALERTS opt-out in its footer. ConvoReal submits it to Meta once per account on its own the first time the composer opens, never resubmits a pending, rejected or draft row, and while it is not approved both composers and the send route refuse with the same reason: WhatsApp still reviewing, Meta's rejection reason with where to resubmit, WhatsApp not connected, or a submission that failed and will be retried on the next open.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/broadcast-update-template.test.ts",
+              "case": "[BRC-002]"
+            },
+            {
+              "file": "src/lib/broadcasts/carrier-template.test.ts",
+              "case": "[BRC-002]"
+            },
+            {
+              "file": "src/app/api/broadcasts/route.test.ts",
+              "case": "[BRC-002]"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -2,24 +2,28 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { MessageTemplate } from '@/types';
-import { Step1ChooseTemplate } from '@/components/broadcasts/step1-choose-template';
+import { Step1ComposeMessage } from '@/components/broadcasts/step1-compose-message';
 import { Step2SelectAudience } from '@/components/broadcasts/step2-select-audience';
-import { Step3Personalize } from '@/components/broadcasts/step3-personalize';
 import { Step4ScheduleSend } from '@/components/broadcasts/step4-schedule-send';
 import {
   useBroadcastSending,
+  useBroadcastTemplate,
   type AudienceConfig,
 } from '@/hooks/useBroadcastSending';
+import {
+  BROADCAST_UPDATE_TEMPLATE_NAME,
+  broadcastMessageProblem,
+  buildBroadcastUpdateVariables,
+} from '@/lib/broadcasts/carrier-template';
 import { Check } from 'lucide-react';
 
 const steps = [
-  { label: 'Template', key: 'template' },
+  { label: 'Message', key: 'message' },
   { label: 'Audience', key: 'audience' },
-  { label: 'Personalize', key: 'personalize' },
   { label: 'Send', key: 'send' },
 ] as const;
 
@@ -27,23 +31,38 @@ export default function NewBroadcastPage() {
   const router = useRouter();
   const { createAndSendBroadcast, isProcessing, progress } =
     useBroadcastSending();
-  const { user, accountId } = useAuth();
+  const { user, accountId, account } = useAuth();
+  const templateQuery = useBroadcastTemplate();
 
   const [currentStep, setCurrentStep] = useState(0);
-  const [template, setTemplate] = useState<MessageTemplate | null>(null);
+  const [message, setMessage] = useState('');
   const [audience, setAudience] = useState<AudienceConfig | null>(null);
-  const [variables, setVariables] = useState<
-    Record<string, { type: 'static' | 'field' | 'custom_field'; value: string }>
-  >({});
+  const [optedInOnly, setOptedInOnly] = useState(false);
   const [name, setName] = useState('');
 
+  // Counted in SQL (migration 284), not with a client-side
+  // count: 'exact' over the account's contacts — see AGENTS.md §2.6.
+  const optedInCountQuery = useQuery({
+    queryKey: ['contacts', 'consent-counts'],
+    queryFn: async () => {
+      const res = await fetch('/api/contacts/consent-counts');
+      const body = (await res.json().catch(() => ({}))) as {
+        data?: { granted?: number };
+      };
+      return typeof body.data?.granted === 'number' ? body.data.granted : null;
+    },
+    enabled: currentStep === 2,
+    staleTime: 60_000,
+  });
+
   async function handleSend() {
-    if (!template || !audience) return;
+    if (broadcastMessageProblem(message) || !audience) return;
 
     try {
       const broadcastId = await createAndSendBroadcast({
         name,
-        template,
+        message,
+        optedInOnly,
         audience: {
           type: audience.type,
           tagIds: audience.tagIds,
@@ -51,7 +70,6 @@ export default function NewBroadcastPage() {
           csvContacts: audience.csvContacts,
           excludeTagIds: audience.excludeTagIds,
         },
-        variables,
       });
       router.push(`/broadcasts/${broadcastId}`);
     } catch (err) {
@@ -73,7 +91,7 @@ export default function NewBroadcastPage() {
    * A full resume-draft UX is a future polish.
    */
   async function handleSaveDraft() {
-    if (!template || !audience || !name.trim()) {
+    if (broadcastMessageProblem(message) || !audience || !name.trim()) {
       toast.error('Give the broadcast a name before saving a draft.');
       return;
     }
@@ -87,9 +105,12 @@ export default function NewBroadcastPage() {
       user_id: user.id,
       account_id: accountId,
       name: name.trim(),
-      template_name: template.name,
-      template_language: template.language ?? 'en_US',
-      template_variables: variables,
+      template_name: BROADCAST_UPDATE_TEMPLATE_NAME,
+      template_language: 'en_US',
+      template_variables: buildBroadcastUpdateVariables(
+        message,
+        account?.name ?? ''
+      ),
       audience_filter: {
         type: audience.type,
         tagIds: audience.tagIds,
@@ -117,7 +138,8 @@ export default function NewBroadcastPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">New Broadcast</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Create and send a broadcast message to your contacts.
+          Write a message, choose who gets it, and send. ConvoReal handles the
+          WhatsApp template for you.
         </p>
       </div>
 
@@ -178,9 +200,19 @@ export default function NewBroadcastPage() {
           }}
         >
           {currentStep === 0 && (
-            <Step1ChooseTemplate
-              selectedTemplate={template}
-              onSelect={setTemplate}
+            <Step1ComposeMessage
+              message={message}
+              onChange={setMessage}
+              template={templateQuery.data}
+              templateLoading={templateQuery.isLoading}
+              templateError={
+                templateQuery.isError
+                  ? templateQuery.error instanceof Error
+                    ? templateQuery.error.message
+                    : 'Could not check broadcast setup'
+                  : null
+              }
+              onRetryTemplate={() => void templateQuery.refetch()}
               onNext={() => setCurrentStep(1)}
               onBack={() => router.push('/broadcasts')}
             />
@@ -193,24 +225,18 @@ export default function NewBroadcastPage() {
               onBack={() => setCurrentStep(0)}
             />
           )}
-          {currentStep === 2 && template && (
-            <Step3Personalize
-              template={template}
-              variables={variables}
-              onUpdate={setVariables}
-              onNext={() => setCurrentStep(3)}
-              onBack={() => setCurrentStep(1)}
-            />
-          )}
-          {currentStep === 3 && template && audience && (
+          {currentStep === 2 && audience && (
             <Step4ScheduleSend
               name={name}
               onNameChange={setName}
-              template={template}
+              message={message}
               audience={audience}
+              optedInOnly={optedInOnly}
+              onOptedInOnlyChange={setOptedInOnly}
+              optedInCount={optedInCountQuery.data ?? null}
               onSend={handleSend}
               onSaveDraft={handleSaveDraft}
-              onBack={() => setCurrentStep(2)}
+              onBack={() => setCurrentStep(1)}
               isProcessing={isProcessing}
               progress={progress}
             />

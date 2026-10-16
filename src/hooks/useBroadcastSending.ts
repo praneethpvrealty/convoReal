@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
-import { MessageTemplate } from '@/types';
+import type { BroadcastTemplateState } from '@/lib/broadcasts/carrier-template';
 
 export type CustomFieldOperator = 'is' | 'is_not' | 'contains';
 
@@ -24,22 +24,16 @@ export interface AudienceConfig {
 }
 
 /**
- * Variable mapping — each template placeholder (by key, usually "1",
- * "2", …) is resolved at send time. `field` maps to a built-in contact
- * field (name/phone/email/company); `custom_field` maps to a
- * contact_custom_values.value row keyed by the custom_fields.id stored
- * in `value`.
+ * What the composer sends. There is no template in it: the route
+ * carries the message on the account's shared broadcast template and
+ * fills the greeting name, the agency and the message itself.
  */
-export type VariableMapping =
-  | { type: 'static'; value: string }
-  | { type: 'field'; value: string }
-  | { type: 'custom_field'; value: string };
-
 interface BroadcastPayload {
   name: string;
-  template: MessageTemplate;
+  message: string;
   audience: AudienceConfig;
-  variables: Record<string, VariableMapping>;
+  /** Narrow a Marketing send to contacts who explicitly opted in. */
+  optedInOnly: boolean;
 }
 
 interface UseBroadcastSendingReturn {
@@ -88,6 +82,40 @@ export function useBroadcastSending(): UseBroadcastSendingReturn {
   }
 
   return { createAndSendBroadcast, isProcessing, progress };
+}
+
+/**
+ * The state of the template every hand-written broadcast rides on. An
+ * account with no row yet gets one submitted to Meta here, on its own —
+ * the agent never sees a template, only whether sends are unlocked —
+ * and a pending row is re-read every half minute so approval unlocks
+ * the composer without a reload.
+ */
+export function useBroadcastTemplate() {
+  return useQuery({
+    queryKey: ['broadcast-template'],
+    queryFn: async ({ signal }) => {
+      const read = async (method: 'GET' | 'POST') => {
+        const res = await fetch('/api/broadcasts/template', {
+          method,
+          signal,
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          data?: BroadcastTemplateState;
+          error?: string;
+        };
+        if (!res.ok || !body.data) {
+          throw new Error(body.error || 'Could not check broadcast setup');
+        }
+        return body.data;
+      };
+      const current = await read('GET');
+      return current.status === null ? read('POST') : current;
+    },
+    refetchInterval: (query) =>
+      query.state.data?.status === 'PENDING' ? 30_000 : false,
+    staleTime: 30_000,
+  });
 }
 
 export function useAudienceCount(

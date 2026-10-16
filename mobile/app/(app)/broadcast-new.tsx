@@ -16,7 +16,6 @@ import {
 
 import {
   Banner,
-  EmptyState,
   FilterChip,
   PrimaryButton,
   SectionLabel,
@@ -28,66 +27,80 @@ import { apiFetch, ApiError } from '@/lib/api';
 import {
   buildAudience,
   buildCsvAudience,
-  CONTACT_FIELDS,
-  defaultVariableMappings,
   draftChanged,
-  mappingsComplete,
-  previewBody,
   readCsvAudience,
-  templateVariableKeys,
   type BroadcastDraft,
-  type VariableMapping,
 } from '@/lib/broadcast-compose';
 import { MAX_CSV_CONTACTS } from '@shared/lib/broadcasts/csv-audience';
 import { contactsLabel, recountOutcome } from '@shared/lib/broadcasts/recount';
+import {
+  BROADCAST_MESSAGE_MAX,
+  broadcastMessageProblem,
+  broadcastTemplateBlockReason,
+  previewBroadcastUpdate,
+  type BroadcastTemplateState,
+} from '@shared/lib/broadcasts/carrier-template';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
-import type { MessageTemplate, Tag } from '@/lib/types';
+import type { Tag } from '@/lib/types';
 
 /**
  * Compose and send a broadcast from the phone.
  *
- * The server does everything that matters — POST /api/broadcasts
- * resolves the audience, writes the recipient rows, enforces the
- * per-user rate limit and sends — so this screen only assembles the
- * payload that route already accepts from the web wizard.
+ * The agent writes the message and picks who gets it; nothing here
+ * asks for a WhatsApp template. The server does everything that
+ * matters — POST /api/broadcasts carries the message on the account's
+ * shared broadcast template, resolves the audience, writes the
+ * recipient rows, enforces the per-user rate limit and sends — so this
+ * screen only assembles the payload that route already accepts from
+ * the web composer.
  *
  * Audience is All, by tag, or a pasted list of numbers; custom-field
- * filters stay on the web wizard.
+ * filters stay on the web composer.
  */
 export default function NewBroadcastScreen() {
   const { colors, fonts: f } = useTheme();
   const [name, setName] = useState('');
-  const [template, setTemplate] = useState<MessageTemplate | null>(null);
+  const [message, setMessage] = useState('');
   const [audienceType, setAudienceType] = useState<
     'all' | 'tags' | 'csv' | null
   >(null);
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [csvText, setCsvText] = useState('');
   const [excludeTagIds, setExcludeTagIds] = useState<string[]>([]);
-  const [variables, setVariables] = useState<Record<string, VariableMapping>>(
-    {}
-  );
+  const [optedInOnly, setOptedInOnly] = useState(false);
   const [sending, setSending] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialog = useAppDialog();
 
-  // Only APPROVED templates can be sent via Meta — anything else would
-  // be rejected at the API, so they are not offered here.
-  const { data: templates, isLoading: loadingTemplates } = useQuery({
-    queryKey: ['broadcast-templates'],
+  // The template every hand-written broadcast rides on. An account
+  // with no row yet gets one submitted to Meta here, on its own, and a
+  // pending row is re-read every half minute so approval unlocks the
+  // screen without reopening it.
+  const {
+    data: template,
+    isLoading: loadingTemplate,
+    isError: templateFailed,
+    refetch: recheckTemplate,
+  } = useQuery({
+    queryKey: ['broadcast-template'],
     queryFn: async () => {
-      const { data, error: err } = await supabase
-        .from('message_templates')
-        .select('id, name, language, category, body_text, footer_text, status')
-        .eq('status', 'APPROVED')
-        .order('name');
-      if (err) throw err;
-      return (data ?? []) as MessageTemplate[];
+      const read = async (method: 'GET' | 'POST') =>
+        (
+          await apiFetch<{ data: BroadcastTemplateState }>(
+            '/api/broadcasts/template',
+            { method }
+          )
+        ).data;
+      const current = await read('GET');
+      return current.status === null ? read('POST') : current;
     },
+    refetchInterval: (query) =>
+      query.state.data?.status === 'PENDING' ? 30_000 : false,
+    staleTime: 30_000,
   });
 
   const { data: tags } = useQuery({
@@ -109,11 +122,22 @@ export default function NewBroadcastScreen() {
     queryFn: async () => {
       const { data } = await supabase
         .from('contacts')
-        .select('name, phone, email, company')
+        .select('name')
+        .not('name', 'is', null)
         .limit(1)
         .maybeSingle();
-      return (data ?? {}) as Record<string, string | null>;
+      return (data ?? {}) as { name?: string | null };
     },
+  });
+
+  const { data: optedInCount } = useQuery({
+    queryKey: ['contacts', 'consent-counts'],
+    queryFn: async () =>
+      (
+        await apiFetch<{ data: { granted: number } }>(
+          '/api/contacts/consent-counts'
+        )
+      ).data.granted,
   });
 
   const csvDraft = useMemo(() => readCsvAudience(csvText), [csvText]);
@@ -133,7 +157,7 @@ export default function NewBroadcastScreen() {
     isError: countFailed,
     refetch: recount,
   } = useQuery({
-    queryKey: ['broadcast-audience-count', audience],
+    queryKey: ['broadcast-audience-count', audience, optedInOnly],
     enabled: audience !== null,
     queryFn: async () =>
       (
@@ -141,23 +165,14 @@ export default function NewBroadcastScreen() {
           '/api/broadcasts/audience-count',
           {
             method: 'POST',
-            body: JSON.stringify({ audience }),
+            body: JSON.stringify({ audience, optedInOnly }),
           }
         )
       ).data.count,
   });
 
-  const variableKeys = useMemo(
-    () => templateVariableKeys(template?.body_text),
-    [template?.body_text]
-  );
-
-  function pickTemplate(next: MessageTemplate) {
-    haptic.tap();
-    setTemplate(next);
-    setVariables(defaultVariableMappings(templateVariableKeys(next.body_text)));
-    if (!name.trim()) setName(next.name.replace(/_/g, ' '));
-  }
+  const messageProblem = broadcastMessageProblem(message);
+  const blocked = broadcastTemplateBlockReason(template ?? null);
 
   function toggle(
     list: string[],
@@ -170,30 +185,34 @@ export default function NewBroadcastScreen() {
 
   const ready =
     Boolean(template) &&
+    blocked === null &&
+    messageProblem === null &&
     name.trim().length > 0 &&
     audience !== null &&
     !counting &&
     !countFailed &&
-    mappingsComplete(variableKeys, variables) &&
     (recipientCount ?? 0) > 0;
 
   const recipientsLabel = contactsLabel(recipientCount ?? 0);
 
-  const latestDraft = useRef<BroadcastDraft<MessageTemplate> | null>(null);
+  const latestDraft = useRef<BroadcastDraft | null>(null);
   useEffect(() => {
-    latestDraft.current = template
-      ? { name: name.trim(), template, audience, variables }
-      : null;
-  }, [name, template, audience, variables]);
+    latestDraft.current = {
+      name: name.trim(),
+      message,
+      audience,
+      optedInOnly,
+    };
+  }, [name, message, audience, optedInOnly]);
 
   async function confirmSend() {
-    if (!template || !audience) return;
+    if (!ready || !audience) return;
     haptic.tap();
     const snapshot = {
       name: name.trim(),
-      template,
+      message,
       audience,
-      variables,
+      optedInOnly,
     };
     setConfirming(true);
     const outcome = recountOutcome(await recount());
@@ -241,9 +260,9 @@ export default function NewBroadcastScreen() {
 
   async function send(payload: {
     name: string;
-    template: MessageTemplate;
+    message: string;
     audience: NonNullable<typeof audience>;
-    variables: Record<string, VariableMapping>;
+    optedInOnly: boolean;
   }) {
     if (sending) return;
     setSending(true);
@@ -289,391 +308,329 @@ export default function NewBroadcastScreen() {
 
           <TourTarget id="broadcast-compose">
             <View style={{ gap: spacing.sm }}>
-              <SectionLabel
-                text="Template"
-                style={{ color: colors.textMuted }}
-              />
-              {loadingTemplates ? (
-                <ActivityIndicator color={colors.primary} />
-              ) : (templates ?? []).length === 0 ? (
-                <EmptyState
-                  icon="document-text-outline"
-                  title="No approved templates"
-                  subtitle="WhatsApp only sends broadcasts from templates Meta has approved. Submit one from the web app, then come back once it is approved."
-                />
-              ) : (
-                <View style={{ gap: spacing.sm }}>
-                  {(templates ?? []).map((t) => {
-                    const active = template?.id === t.id;
-                    return (
-                      <Pressable
-                        key={t.id}
-                        onPress={() => pickTemplate(t)}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: active }}
-                        accessibilityLabel={t.name}
-                        style={[
-                          styles.card,
-                          {
-                            backgroundColor: active
-                              ? colors.primarySoft
-                              : colors.glass,
-                            borderColor: active
-                              ? colors.primary
-                              : colors.glassBorder,
-                          },
-                        ]}
-                      >
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: spacing.sm,
-                          }}
-                        >
-                          <Ionicons
-                            name={
-                              active ? 'radio-button-on' : 'radio-button-off'
-                            }
-                            size={17}
-                            color={active ? colors.primary : colors.textFaint}
-                          />
-                          <Text
-                            style={{
-                              flex: 1,
-                              fontSize: 14,
-                              fontFamily: f.semibold,
-                              color: colors.text,
-                            }}
-                          >
-                            {t.name.replace(/_/g, ' ')}
-                          </Text>
-                          <Text
-                            style={{ fontSize: 11, color: colors.textFaint }}
-                          >
-                            {t.language}
-                          </Text>
-                        </View>
-                        <Text
-                          style={{
-                            fontSize: 12.5,
-                            lineHeight: 18,
-                            color: colors.textMuted,
-                          }}
-                        >
-                          {t.body_text}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-          </TourTarget>
-
-          {template ? (
-            <>
               <TextField
-                label="Campaign name"
-                value={name}
-                onChangeText={setName}
-                placeholder="What is this campaign called?"
+                label="Your message"
+                value={message}
+                onChangeText={(next) =>
+                  setMessage(next.slice(0, BROADCAST_MESSAGE_MAX))
+                }
+                multiline
+                placeholder="e.g. Site visits at Lakeview Residences are open this Saturday and Sunday, 10 am to 5 pm. Reply to book a slot."
               />
-
-              <View style={{ gap: spacing.sm }}>
-                <SectionLabel
-                  text="Who receives it"
-                  style={{ color: colors.textMuted }}
-                />
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    flexWrap: 'wrap',
-                    gap: spacing.sm,
-                  }}
-                >
-                  <FilterChip
-                    label="All contacts"
-                    active={audienceType === 'all'}
-                    onPress={() => {
-                      haptic.tap();
-                      setAudienceType('all');
-                    }}
-                  />
-                  <FilterChip
-                    label="By tag"
-                    active={audienceType === 'tags'}
-                    onPress={() => {
-                      haptic.tap();
-                      setAudienceType('tags');
-                    }}
-                  />
-                  <FilterChip
-                    label="CSV / pasted numbers"
-                    active={audienceType === 'csv'}
-                    onPress={() => {
-                      haptic.tap();
-                      setAudienceType('csv');
-                    }}
-                  />
-                </View>
-
-                {audienceType === 'tags' ? (
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      flexWrap: 'wrap',
-                      gap: spacing.sm,
-                    }}
-                  >
-                    {(tags ?? []).map((tag) => (
-                      <FilterChip
-                        key={tag.id}
-                        label={tag.name}
-                        active={tagIds.includes(tag.id)}
-                        onPress={() => toggle(tagIds, setTagIds, tag.id)}
-                      />
-                    ))}
-                  </View>
-                ) : null}
-
-                {audienceType === 'csv' ? (
-                  <View style={{ gap: spacing.sm }}>
-                    <TextInput
-                      value={csvText}
-                      onChangeText={setCsvText}
-                      multiline
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      accessibilityLabel="Paste phone numbers"
-                      placeholder={
-                        'One per line: phone, name (optional)\n9876543210, Asha\n+91 98765 43211'
-                      }
-                      placeholderTextColor={colors.textFaint}
-                      style={[
-                        styles.csvInput,
-                        {
-                          backgroundColor: colors.surface,
-                          borderColor: colors.border,
-                          color: colors.text,
-                          fontFamily: f.regular,
-                        },
-                      ]}
-                    />
-                    <Text
-                      accessibilityLiveRegion="polite"
-                      style={{ fontSize: 12, color: colors.textMuted }}
-                    >
-                      {`${csvDraft.contacts.length.toLocaleString('en-IN')} valid, ${csvDraft.skipped.toLocaleString('en-IN')} skipped`}
-                    </Text>
-                    {csvDraft.overCap ? (
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          fontFamily: f.semibold,
-                          color: colors.danger,
-                        }}
-                      >
-                        {`A list can hold up to ${MAX_CSV_CONTACTS.toLocaleString('en-IN')} numbers. Split it into smaller broadcasts.`}
-                      </Text>
-                    ) : null}
-                  </View>
-                ) : null}
-
-                <SectionLabel
-                  text="Skip anyone tagged"
-                  style={{ color: colors.textMuted }}
-                />
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    flexWrap: 'wrap',
-                    gap: spacing.sm,
-                  }}
-                >
-                  {(tags ?? []).map((tag) => (
-                    <FilterChip
-                      key={tag.id}
-                      label={tag.name}
-                      active={excludeTagIds.includes(tag.id)}
-                      onPress={() =>
-                        toggle(excludeTagIds, setExcludeTagIds, tag.id)
-                      }
-                    />
-                  ))}
-                </View>
-
-                <View
-                  style={[
-                    styles.count,
-                    { backgroundColor: colors.surfaceSunken },
-                  ]}
-                >
-                  <Ionicons
-                    name="people-outline"
-                    size={16}
-                    color={colors.primary}
-                  />
-                  <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>
-                    {audienceType === null
-                      ? 'Choose who receives it'
-                      : audienceType === 'tags' && tagIds.length === 0
-                        ? 'Pick at least one tag'
-                        : audienceType === 'csv' && audience === null
-                          ? csvDraft.overCap
-                            ? 'Too many numbers for one broadcast'
-                            : 'Paste at least one valid number'
-                          : counting
-                            ? 'Counting recipients…'
-                            : countFailed
-                              ? 'Couldn’t count the audience'
-                              : `${recipientCount ?? 0} recipient${(recipientCount ?? 0) === 1 ? '' : 's'}`}
-                  </Text>
-                  {countFailed && !counting ? (
-                    <Pressable
-                      onPress={() => recount()}
-                      accessibilityRole="button"
-                      accessibilityLabel="Retry counting recipients"
-                      hitSlop={8}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontFamily: f.semibold,
-                          color: colors.primary,
-                        }}
-                      >
-                        Retry
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <Text style={{ fontSize: 11, color: colors.textFaint }}>
+                  Sent as one paragraph, greeting each person by name.
+                </Text>
+                <Text style={{ fontSize: 11, color: colors.textFaint }}>
+                  {`${message.length}/${BROADCAST_MESSAGE_MAX}`}
+                </Text>
               </View>
-
-              {variableKeys.length > 0 ? (
-                <View style={{ gap: spacing.sm }}>
-                  <SectionLabel
-                    text="Fill in the blanks"
-                    style={{ color: colors.textMuted }}
-                  />
-                  {variableKeys.map((key) => {
-                    const mapping = variables[key];
-                    return (
-                      <View key={key} style={{ gap: 6 }}>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            fontFamily: f.bold,
-                            color: colors.textMuted,
-                          }}
-                        >
-                          {`{{${key}}}`}
-                        </Text>
-                        <View
-                          style={{
-                            flexDirection: 'row',
-                            flexWrap: 'wrap',
-                            gap: spacing.sm,
-                          }}
-                        >
-                          {CONTACT_FIELDS.map((field) => (
-                            <FilterChip
-                              key={field.value}
-                              label={field.label}
-                              active={
-                                mapping?.type === 'field' &&
-                                mapping.value === field.value
-                              }
-                              onPress={() => {
-                                haptic.tap();
-                                setVariables((prev) => ({
-                                  ...prev,
-                                  [key]: { type: 'field', value: field.value },
-                                }));
-                              }}
-                            />
-                          ))}
-                          <FilterChip
-                            label="Fixed text"
-                            active={mapping?.type === 'static'}
-                            onPress={() => {
-                              haptic.tap();
-                              setVariables((prev) => ({
-                                ...prev,
-                                [key]: { type: 'static', value: '' },
-                              }));
-                            }}
-                          />
-                        </View>
-                        {mapping?.type === 'static' ? (
-                          <TextField
-                            value={mapping.value}
-                            onChangeText={(next) =>
-                              setVariables((prev) => ({
-                                ...prev,
-                                [key]: { type: 'static', value: next },
-                              }))
-                            }
-                            placeholder="Text sent to everyone"
-                          />
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : null}
-
-              <View style={{ gap: spacing.sm }}>
-                <SectionLabel
-                  text="Preview"
-                  style={{ color: colors.textMuted }}
-                />
+              {loadingTemplate ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : templateFailed ? (
                 <View
                   style={[
-                    styles.preview,
-                    { backgroundColor: colors.primarySoft },
+                    styles.notice,
+                    { backgroundColor: colors.warningSoft },
                   ]}
                 >
                   <Text
-                    style={{ fontSize: 14, lineHeight: 20, color: colors.text }}
+                    style={{ flex: 1, fontSize: 12.5, color: colors.textMuted }}
                   >
-                    {previewBody(template.body_text, variables, sample ?? {})}
+                    Could not check WhatsApp setup.
                   </Text>
-                  {template.footer_text ? (
-                    <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
-                      {template.footer_text}
+                  <Pressable
+                    onPress={() => recheckTemplate()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry checking WhatsApp setup"
+                    hitSlop={8}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontFamily: f.semibold,
+                        color: colors.primary,
+                      }}
+                    >
+                      Retry
                     </Text>
-                  ) : null}
+                  </Pressable>
                 </View>
-                <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
-                  Shown with a sample contact. Each recipient gets their own
-                  values.
-                </Text>
-              </View>
+              ) : blocked ? (
+                <View
+                  accessibilityLiveRegion="polite"
+                  style={[
+                    styles.notice,
+                    { backgroundColor: colors.warningSoft },
+                  ]}
+                >
+                  <Text
+                    style={{ flex: 1, fontSize: 12.5, color: colors.textMuted }}
+                  >
+                    {blocked}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </TourTarget>
 
-              <PrimaryButton
-                label={
-                  sending
-                    ? 'Starting…'
-                    : audience === null
-                      ? 'Choose an audience'
-                      : `Send to ${recipientsLabel}`
-                }
-                onPress={() => void confirmSend()}
-                disabled={!ready || sending || confirming}
-                busy={sending || confirming}
+          <TextField
+            label="Campaign name"
+            value={name}
+            onChangeText={setName}
+            placeholder="What is this campaign called?"
+          />
+
+          <View style={{ gap: spacing.sm }}>
+            <SectionLabel
+              text="Who receives it"
+              style={{ color: colors.textMuted }}
+            />
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: spacing.sm,
+              }}
+            >
+              <FilterChip
+                label="All contacts"
+                active={audienceType === 'all'}
+                onPress={() => {
+                  haptic.tap();
+                  setAudienceType('all');
+                }}
               />
-              <Text
+              <FilterChip
+                label="By tag"
+                active={audienceType === 'tags'}
+                onPress={() => {
+                  haptic.tap();
+                  setAudienceType('tags');
+                }}
+              />
+              <FilterChip
+                label="CSV / pasted numbers"
+                active={audienceType === 'csv'}
+                onPress={() => {
+                  haptic.tap();
+                  setAudienceType('csv');
+                }}
+              />
+            </View>
+
+            {audienceType === 'tags' ? (
+              <View
                 style={{
-                  fontSize: 11.5,
-                  color: colors.textFaint,
-                  textAlign: 'center',
+                  flexDirection: 'row',
+                  flexWrap: 'wrap',
+                  gap: spacing.sm,
                 }}
               >
-                You confirm the recipient count before anything is sent.
+                {(tags ?? []).map((tag) => (
+                  <FilterChip
+                    key={tag.id}
+                    label={tag.name}
+                    active={tagIds.includes(tag.id)}
+                    onPress={() => toggle(tagIds, setTagIds, tag.id)}
+                  />
+                ))}
+              </View>
+            ) : null}
+
+            {audienceType === 'csv' ? (
+              <View style={{ gap: spacing.sm }}>
+                <TextInput
+                  value={csvText}
+                  onChangeText={setCsvText}
+                  multiline
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  accessibilityLabel="Paste phone numbers"
+                  placeholder={
+                    'One per line: phone, name (optional)\n9876543210, Asha\n+91 98765 43211'
+                  }
+                  placeholderTextColor={colors.textFaint}
+                  style={[
+                    styles.csvInput,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                      fontFamily: f.regular,
+                    },
+                  ]}
+                />
+                <Text
+                  accessibilityLiveRegion="polite"
+                  style={{ fontSize: 12, color: colors.textMuted }}
+                >
+                  {`${csvDraft.contacts.length.toLocaleString('en-IN')} valid, ${csvDraft.skipped.toLocaleString('en-IN')} skipped`}
+                </Text>
+                {csvDraft.overCap ? (
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontFamily: f.semibold,
+                      color: colors.danger,
+                    }}
+                  >
+                    {`A list can hold up to ${MAX_CSV_CONTACTS.toLocaleString('en-IN')} numbers. Split it into smaller broadcasts.`}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            <Pressable
+              onPress={() => {
+                haptic.tap();
+                setOptedInOnly((v) => !v);
+              }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: optedInOnly }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.sm,
+              }}
+            >
+              <Ionicons
+                name={optedInOnly ? 'checkbox' : 'square-outline'}
+                size={20}
+                color={optedInOnly ? colors.primary : colors.textFaint}
+              />
+              <Text style={{ fontSize: 13, color: colors.textMuted }}>
+                Only clients who explicitly opted in
+                {typeof optedInCount === 'number' ? ` (${optedInCount})` : ''}
               </Text>
-            </>
-          ) : null}
+            </Pressable>
+            <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+              Clients are asked to opt in the first time they message you on
+              WhatsApp. Without this, the broadcast goes to everyone except
+              contacts who replied STOP ALERTS.
+            </Text>
+
+            <SectionLabel
+              text="Skip anyone tagged"
+              style={{ color: colors.textMuted }}
+            />
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: spacing.sm,
+              }}
+            >
+              {(tags ?? []).map((tag) => (
+                <FilterChip
+                  key={tag.id}
+                  label={tag.name}
+                  active={excludeTagIds.includes(tag.id)}
+                  onPress={() =>
+                    toggle(excludeTagIds, setExcludeTagIds, tag.id)
+                  }
+                />
+              ))}
+            </View>
+
+            <View
+              style={[styles.count, { backgroundColor: colors.surfaceSunken }]}
+            >
+              <Ionicons
+                name="people-outline"
+                size={16}
+                color={colors.primary}
+              />
+              <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>
+                {audienceType === null
+                  ? 'Choose who receives it'
+                  : audienceType === 'tags' && tagIds.length === 0
+                    ? 'Pick at least one tag'
+                    : audienceType === 'csv' && audience === null
+                      ? csvDraft.overCap
+                        ? 'Too many numbers for one broadcast'
+                        : 'Paste at least one valid number'
+                      : counting
+                        ? 'Counting recipients…'
+                        : countFailed
+                          ? 'Couldn’t count the audience'
+                          : `${recipientCount ?? 0} recipient${(recipientCount ?? 0) === 1 ? '' : 's'}`}
+              </Text>
+              {countFailed && !counting ? (
+                <Pressable
+                  onPress={() => recount()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry counting recipients"
+                  hitSlop={8}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: f.semibold,
+                      color: colors.primary,
+                    }}
+                  >
+                    Retry
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={{ gap: spacing.sm }}>
+            <SectionLabel text="Preview" style={{ color: colors.textMuted }} />
+            <View
+              style={[styles.preview, { backgroundColor: colors.primarySoft }]}
+            >
+              <Text
+                style={{ fontSize: 14, lineHeight: 20, color: colors.text }}
+              >
+                {previewBroadcastUpdate({
+                  bodyText: template?.bodyText,
+                  message,
+                  agencyName: template?.agencyName ?? '',
+                  contactName: sample?.name,
+                })}
+              </Text>
+              {template?.footerText ? (
+                <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+                  {template.footerText}
+                </Text>
+              ) : null}
+            </View>
+            <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+              Shown with a sample contact. Each recipient gets their own values.
+            </Text>
+          </View>
+
+          <PrimaryButton
+            label={
+              sending
+                ? 'Starting…'
+                : messageProblem !== null
+                  ? 'Write your message'
+                  : audience === null
+                    ? 'Choose an audience'
+                    : `Send to ${recipientsLabel}`
+            }
+            onPress={() => void confirmSend()}
+            disabled={!ready || sending || confirming}
+            busy={sending || confirming}
+          />
+          <Text
+            style={{
+              fontSize: 11.5,
+              color: colors.textFaint,
+              textAlign: 'center',
+            }}
+          >
+            You confirm the recipient count before anything is sent.
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
       <AppDialog {...dialog.dialogProps} />
@@ -682,12 +639,12 @@ export default function NewBroadcastScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    gap: 6,
-    borderWidth: 1,
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 11,
+    padding: spacing.md,
   },
   count: {
     flexDirection: 'row',
