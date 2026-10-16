@@ -24,7 +24,7 @@ describe('parseInventorySelectionCommand', () => {
     });
   });
 
-  it('tolerates a trailing comma or semicolon left by the keyboard', () => {
+  it('[CNV-010] tolerates a trailing comma or semicolon left by the keyboard', () => {
     expect(parseInventorySelectionCommand('Commercial 1,2,')).toEqual({
       category: 'Commercial',
       ordinals: [1, 2],

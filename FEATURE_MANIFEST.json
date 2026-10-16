@@ -5018,6 +5018,16 @@
               "case": "[CNV-009]"
             }
           ]
+        },
+        {
+          "id": "CNV-010",
+          "rule": "A reply that names a category and listing numbers from the inventory update (\"commercial 3,9\") is answered with those listings' details, and the number run tolerates the comma, semicolon, full stop or exclamation mark a phone keyboard leaves after the last number (\"Commercial 1,2,\"), so the reply never falls through to the qualification bot, which would read the numbers as a crore budget. A requirement-shaped reply (\"commercial 3 BHK\", \"commercial under 9 cr\") is still not a selection.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/inventory-selection.test.ts",
+              "case": "[CNV-010]"
+            }
+          ]
         }
       ]
     },
