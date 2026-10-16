@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageTemplate } from '@/types';
+import { singleLineMessage } from '@/lib/broadcasts/carrier-template';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -26,7 +26,7 @@ function contactsLabel(count: number): string {
 interface Step4Props {
   name: string;
   onNameChange: (name: string) => void;
-  template: MessageTemplate;
+  message: string;
   audience: AudienceConfig;
   onSend: () => void;
   onSaveDraft?: () => void;
@@ -38,7 +38,7 @@ interface Step4Props {
 export function Step4ScheduleSend({
   name,
   onNameChange,
-  template,
+  message,
   audience,
   onSend,
   onSaveDraft,
@@ -94,9 +94,11 @@ export function Step4ScheduleSend({
       <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-900/50 p-4">
         <p className="text-sm font-medium text-white">Summary</p>
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <p className="text-xs text-slate-400">Template</p>
-            <p className="text-white">{template.name}</p>
+          <div className="col-span-2">
+            <p className="text-xs text-slate-400">Message</p>
+            <p className="line-clamp-3 text-white">
+              {singleLineMessage(message)}
+            </p>
           </div>
           <div>
             <p className="text-xs text-slate-400">Audience</p>
@@ -131,10 +133,6 @@ export function Step4ScheduleSend({
                 </>
               )}
             </div>
-          </div>
-          <div>
-            <p className="text-xs text-slate-400">Language</p>
-            <p className="text-white">{template.language ?? 'en_US'}</p>
           </div>
         </div>
       </div>
@@ -220,12 +218,8 @@ export function Step4ScheduleSend({
                     {confirmedReach !== null
                       ? contactsLabel(confirmedReach)
                       : '…'}
-                  </span>{' '}
-                  using the{' '}
-                  <span className="font-medium text-white">
-                    {template.name}
-                  </span>{' '}
-                  template. This action cannot be undone.
+                  </span>
+                  . This action cannot be undone.
                 </DialogDescription>
                 {countQuery.isError && !countQuery.isFetching && (
                   <p role="alert" className="text-sm text-red-400">

@@ -5057,3 +5057,57 @@ describe('[CTM-015] both contact lists select the one shared column spec', () =>
     }
   });
 });
+
+describe('broadcast composer asks for a message, never a template', () => {
+  it('[BRC-001] both composers carry the message on the shared template through the same preview and refusal wording', () => {
+    const mobile = mobileSource('app/(app)/broadcast-new.tsx');
+    const webPage = webSource('app/(dashboard)/broadcasts/new/page.tsx');
+    const webStep = webSource(
+      'components/broadcasts/step1-compose-message.tsx'
+    );
+    const webHook = webSource('hooks/useBroadcastSending.ts');
+
+    for (const composer of [mobile, webPage, webStep, webHook]) {
+      expect(composer).not.toContain("from('message_templates')");
+      expect(composer).not.toContain('step1-choose-template');
+      expect(composer).not.toContain('step3-personalize');
+    }
+    expect(
+      existsSync(
+        join(
+          process.cwd(),
+          'src/components/broadcasts/step1-choose-template.tsx'
+        )
+      )
+    ).toBe(false);
+    expect(
+      existsSync(
+        join(process.cwd(), 'src/components/broadcasts/step3-personalize.tsx')
+      )
+    ).toBe(false);
+
+    expect(mobile).toContain("from '@shared/lib/broadcasts/carrier-template'");
+    expect(webStep).toContain("from '@/lib/broadcasts/carrier-template'");
+    for (const composer of [mobile, webStep]) {
+      expect(composer).toContain('previewBroadcastUpdate({');
+      expect(composer).toContain('broadcastTemplateBlockReason(');
+      expect(composer).toContain('broadcastMessageProblem(');
+      expect(composer).toContain('BROADCAST_MESSAGE_MAX');
+    }
+    for (const client of [mobile, webHook]) {
+      expect(client).toContain("'/api/broadcasts/template'");
+      expect(client).toContain(
+        "current.status === null ? read('POST') : current"
+      );
+      expect(client).toContain(
+        "query.state.data?.status === 'PENDING' ? 30_000 : false"
+      );
+    }
+    expect(mobile).toContain('body: JSON.stringify(payload)');
+    expect(mobile).toContain('message: string;');
+    expect(webHook).toContain('message: string;');
+    expect(webPage).toContain("{ label: 'Message', key: 'message' }");
+    expect(webPage).not.toContain("key: 'template'");
+    expect(webPage).not.toContain("key: 'personalize'");
+  });
+});

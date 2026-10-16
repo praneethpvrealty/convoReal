@@ -9,14 +9,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { MessageTemplate } from '@/types';
 import { Step4ScheduleSend } from './step4-schedule-send';
-
-const TEMPLATE = {
-  id: 't1',
-  name: 'summer_offer',
-  language: 'en_US',
-} as unknown as MessageTemplate;
 
 const fetchMock = vi.fn();
 
@@ -39,7 +32,7 @@ function renderStep(onSend = vi.fn()) {
       <Step4ScheduleSend
         name="Summer"
         onNameChange={() => {}}
-        template={TEMPLATE}
+        message="Summer site visits open this weekend."
         audience={{ type: 'all' }}
         onSend={onSend}
         onBack={() => {}}

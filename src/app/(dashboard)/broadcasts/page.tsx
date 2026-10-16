@@ -68,8 +68,8 @@ export default function BroadcastsPage() {
             Broadcasts
           </h1>
           <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-400 sm:text-sm">
-            Send bulk messages using approved templates and track how each
-            template performs.
+            Write one message for many contacts and track how each campaign
+            performs. ConvoReal handles the WhatsApp templates.
           </p>
         </div>
         <FavoriteButton
