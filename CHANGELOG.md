@@ -17,6 +17,16 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 16 October 2026
+
+- **A numbered pick from the inventory list survives a trailing comma.**
+  The inventory update asks the buyer to reply with the category and
+  numbers, and phone keyboards often leave a comma or semicolon after the
+  last number. "Commercial 1,2," was refused by the pick parser and fell
+  through to the qualification bot, which read it as a ₹1–2 Cr budget
+  and asked about areas instead of sending the two listings. The parser
+  now ignores trailing punctuation after the numbers.
+
 #### 15 October 2026
 
 - **The broadcast composer asks again before an off-market listing goes

@@ -24,6 +24,17 @@ describe('parseInventorySelectionCommand', () => {
     });
   });
 
+  it('[CNV-010] tolerates a trailing comma or semicolon left by the keyboard', () => {
+    expect(parseInventorySelectionCommand('Commercial 1,2,')).toEqual({
+      category: 'Commercial',
+      ordinals: [1, 2],
+    });
+    expect(parseInventorySelectionCommand('residential 3, 5;')).toEqual({
+      category: 'Residential',
+      ordinals: [3, 5],
+    });
+  });
+
   it('does not treat property requirements as numbered selections', () => {
     expect(parseInventorySelectionCommand('commercial 3 BHK')).toBeNull();
     expect(parseInventorySelectionCommand('commercial under 9 cr')).toBeNull();
