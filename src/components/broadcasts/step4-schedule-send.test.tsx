@@ -33,6 +33,9 @@ function renderStep(onSend = vi.fn()) {
         name="Summer"
         onNameChange={() => {}}
         message="Summer site visits open this weekend."
+        optedInOnly={false}
+        onOptedInOnlyChange={() => {}}
+        optedInCount={null}
         audience={{ type: 'all' }}
         onSend={onSend}
         onBack={() => {}}

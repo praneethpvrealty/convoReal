@@ -5104,6 +5104,15 @@ describe('broadcast composer asks for a message, never a template', () => {
       );
     }
     expect(mobile).toContain('body: JSON.stringify(payload)');
+    for (const composer of [mobile, webHook, webPage]) {
+      expect(composer).toContain('optedInOnly');
+    }
+    expect(mobile).toContain("'/api/contacts/consent-counts'");
+    expect(webPage).toContain("'/api/contacts/consent-counts'");
+    expect(mobile).toContain('JSON.stringify({ audience, optedInOnly })');
+    expect(
+      webSource('components/broadcasts/step4-schedule-send.tsx')
+    ).toContain('useAudienceCount(audience, { optedInOnly })');
     expect(mobile).toContain('message: string;');
     expect(webHook).toContain('message: string;');
     expect(webPage).toContain("{ label: 'Message', key: 'message' }");

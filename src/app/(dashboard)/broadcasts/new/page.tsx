@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -36,7 +37,23 @@ export default function NewBroadcastPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [message, setMessage] = useState('');
   const [audience, setAudience] = useState<AudienceConfig | null>(null);
+  const [optedInOnly, setOptedInOnly] = useState(false);
   const [name, setName] = useState('');
+
+  // Counted in SQL (migration 284), not with a client-side
+  // count: 'exact' over the account's contacts — see AGENTS.md §2.6.
+  const optedInCountQuery = useQuery({
+    queryKey: ['contacts', 'consent-counts'],
+    queryFn: async () => {
+      const res = await fetch('/api/contacts/consent-counts');
+      const body = (await res.json().catch(() => ({}))) as {
+        data?: { granted?: number };
+      };
+      return typeof body.data?.granted === 'number' ? body.data.granted : null;
+    },
+    enabled: currentStep === 2,
+    staleTime: 60_000,
+  });
 
   async function handleSend() {
     if (broadcastMessageProblem(message) || !audience) return;
@@ -45,6 +62,7 @@ export default function NewBroadcastPage() {
       const broadcastId = await createAndSendBroadcast({
         name,
         message,
+        optedInOnly,
         audience: {
           type: audience.type,
           tagIds: audience.tagIds,
@@ -213,6 +231,9 @@ export default function NewBroadcastPage() {
               onNameChange={setName}
               message={message}
               audience={audience}
+              optedInOnly={optedInOnly}
+              onOptedInOnlyChange={setOptedInOnly}
+              optedInCount={optedInCountQuery.data ?? null}
               onSend={handleSend}
               onSaveDraft={handleSaveDraft}
               onBack={() => setCurrentStep(1)}

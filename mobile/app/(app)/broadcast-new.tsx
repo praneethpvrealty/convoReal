@@ -70,6 +70,7 @@ export default function NewBroadcastScreen() {
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [csvText, setCsvText] = useState('');
   const [excludeTagIds, setExcludeTagIds] = useState<string[]>([]);
+  const [optedInOnly, setOptedInOnly] = useState(false);
   const [sending, setSending] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +130,16 @@ export default function NewBroadcastScreen() {
     },
   });
 
+  const { data: optedInCount } = useQuery({
+    queryKey: ['contacts', 'consent-counts'],
+    queryFn: async () =>
+      (
+        await apiFetch<{ data: { granted: number } }>(
+          '/api/contacts/consent-counts'
+        )
+      ).data.granted,
+  });
+
   const csvDraft = useMemo(() => readCsvAudience(csvText), [csvText]);
 
   const audience = useMemo(() => {
@@ -146,7 +157,7 @@ export default function NewBroadcastScreen() {
     isError: countFailed,
     refetch: recount,
   } = useQuery({
-    queryKey: ['broadcast-audience-count', audience],
+    queryKey: ['broadcast-audience-count', audience, optedInOnly],
     enabled: audience !== null,
     queryFn: async () =>
       (
@@ -154,7 +165,7 @@ export default function NewBroadcastScreen() {
           '/api/broadcasts/audience-count',
           {
             method: 'POST',
-            body: JSON.stringify({ audience }),
+            body: JSON.stringify({ audience, optedInOnly }),
           }
         )
       ).data.count,
@@ -186,8 +197,13 @@ export default function NewBroadcastScreen() {
 
   const latestDraft = useRef<BroadcastDraft | null>(null);
   useEffect(() => {
-    latestDraft.current = { name: name.trim(), message, audience };
-  }, [name, message, audience]);
+    latestDraft.current = {
+      name: name.trim(),
+      message,
+      audience,
+      optedInOnly,
+    };
+  }, [name, message, audience, optedInOnly]);
 
   async function confirmSend() {
     if (!ready || !audience) return;
@@ -196,6 +212,7 @@ export default function NewBroadcastScreen() {
       name: name.trim(),
       message,
       audience,
+      optedInOnly,
     };
     setConfirming(true);
     const outcome = recountOutcome(await recount());
@@ -245,6 +262,7 @@ export default function NewBroadcastScreen() {
     name: string;
     message: string;
     audience: NonNullable<typeof audience>;
+    optedInOnly: boolean;
   }) {
     if (sending) return;
     setSending(true);
@@ -467,6 +485,35 @@ export default function NewBroadcastScreen() {
                 ) : null}
               </View>
             ) : null}
+
+            <Pressable
+              onPress={() => {
+                haptic.tap();
+                setOptedInOnly((v) => !v);
+              }}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: optedInOnly }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.sm,
+              }}
+            >
+              <Ionicons
+                name={optedInOnly ? 'checkbox' : 'square-outline'}
+                size={20}
+                color={optedInOnly ? colors.primary : colors.textFaint}
+              />
+              <Text style={{ fontSize: 13, color: colors.textMuted }}>
+                Only clients who explicitly opted in
+                {typeof optedInCount === 'number' ? ` (${optedInCount})` : ''}
+              </Text>
+            </Pressable>
+            <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+              Clients are asked to opt in the first time they message you on
+              WhatsApp. Without this, the broadcast goes to everyone except
+              contacts who replied STOP ALERTS.
+            </Text>
 
             <SectionLabel
               text="Skip anyone tagged"

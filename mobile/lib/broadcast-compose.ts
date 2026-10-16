@@ -70,6 +70,7 @@ export interface BroadcastDraft {
   name: string;
   message: string;
   audience: AudienceConfig | null;
+  optedInOnly: boolean;
 }
 
 /**
@@ -84,6 +85,7 @@ export function draftChanged(
   return (
     confirmed.name !== current.name ||
     confirmed.message !== current.message ||
-    confirmed.audience !== current.audience
+    confirmed.audience !== current.audience ||
+    confirmed.optedInOnly !== current.optedInOnly
   );
 }

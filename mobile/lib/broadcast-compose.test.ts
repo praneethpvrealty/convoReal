@@ -124,6 +124,7 @@ describe('draftChanged', () => {
     name: 'Weekend visits',
     message: 'Site visits open.',
     audience,
+    optedInOnly: false,
   };
 
   it('is false when nothing was replaced', () => {
@@ -134,6 +135,10 @@ describe('draftChanged', () => {
     expect(
       draftChanged(draft, { ...draft, message: 'Site visits open Sunday.' })
     ).toBe(true);
+  });
+
+  it('catches a flipped opt-in switch', () => {
+    expect(draftChanged(draft, { ...draft, optedInOnly: true })).toBe(true);
   });
 
   it('catches a renamed broadcast and a new audience', () => {

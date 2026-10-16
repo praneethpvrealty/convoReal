@@ -7,11 +7,16 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import {
+  findMessageTemplate,
   submitMessageTemplate,
   uploadSampleMedia,
 } from '@/lib/whatsapp/meta-api';
+import { metaTemplatePayloadFields } from '@/lib/whatsapp/meta-template-row';
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components';
-import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize';
+import {
+  normalizeCategory,
+  normalizeStatus,
+} from '@/lib/whatsapp/template-status-normalize';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import type { MessageTemplate } from '@/types';
 
@@ -71,6 +76,12 @@ export async function readSharedTemplateState(
 /**
  * Returns the account's state for the shared template, submitting the
  * canned payload to Meta when the account has no row for it at all.
+ *
+ * Meta is asked first whether it already holds the name: a row whose
+ * insert failed after Meta accepted it, or one the account deleted,
+ * would otherwise be resubmitted and refused as a duplicate on every
+ * open, with no way back short of a manual sync. Such a template is
+ * adopted as Meta holds it, exactly as a sync would record it.
  */
 export async function ensureSharedTemplate(
   accountId: string,
@@ -105,60 +116,85 @@ export async function ensureSharedTemplate(
       return { ...existing, setupError: 'submission_failed' };
     }
 
-    const payload = buildPayload(templateOrigin());
+    let payload = buildPayload(templateOrigin());
     const accessToken = decrypt(config.access_token as string);
 
-    // Meta rejects a plain URL for media headers ("Missing sample
-    // parameter") — the sample must go through the resumable upload and
-    // be referenced by handle, exactly as the submit route does.
-    if (payload.header_media_url) {
-      const sample = await fetch(payload.header_media_url);
-      if (!sample.ok) {
-        throw new Error(
-          `Could not fetch the header sample (HTTP ${sample.status})`
-        );
-      }
-      const fileType =
-        sample.headers.get('content-type')?.split(';')[0] || 'image/png';
-      payload.header_handle = await uploadSampleMedia({
-        accessToken,
-        data: await sample.arrayBuffer(),
-        fileType,
-      });
-    }
-
-    const meta = await submitMessageTemplate({
+    const held = await findMessageTemplate({
       wabaId: config.waba_id as string,
       accessToken,
-      payload: buildMetaTemplatePayload(payload),
-    });
-
-    await db.from('message_templates').insert({
-      account_id: accountId,
-      user_id: account.owner_user_id,
       name: payload.name,
-      category: payload.category,
       language: payload.language,
-      header_type: payload.header_type,
-      header_media_url: payload.header_media_url,
-      header_handle: payload.header_handle ?? null,
-      body_text: payload.body_text,
-      footer_text: payload.footer_text ?? null,
-      buttons: payload.buttons ?? null,
-      sample_values: payload.sample_values ?? null,
-      status: normalizeStatus(meta.status),
-      meta_template_id: meta.id,
-      submission_error: null,
-      last_submitted_at: new Date().toISOString(),
-    });
+    }).catch(() => null);
+
+    let metaId: string;
+    let metaStatus: string;
+    if (held) {
+      payload = { ...payload, ...metaTemplatePayloadFields(held) };
+      if (held.category) payload.category = normalizeCategory(held.category);
+      metaId = held.id;
+      metaStatus = held.status;
+    } else {
+      // Meta rejects a plain URL for media headers ("Missing sample
+      // parameter") — the sample must go through the resumable upload
+      // and be referenced by handle, exactly as the submit route does.
+      if (payload.header_media_url) {
+        const sample = await fetch(payload.header_media_url);
+        if (!sample.ok) {
+          throw new Error(
+            `Could not fetch the header sample (HTTP ${sample.status})`
+          );
+        }
+        const fileType =
+          sample.headers.get('content-type')?.split(';')[0] || 'image/png';
+        payload.header_handle = await uploadSampleMedia({
+          accessToken,
+          data: await sample.arrayBuffer(),
+          fileType,
+        });
+      }
+
+      const meta = await submitMessageTemplate({
+        wabaId: config.waba_id as string,
+        accessToken,
+        payload: buildMetaTemplatePayload(payload),
+      });
+      metaId = meta.id;
+      metaStatus = meta.status;
+    }
+
+    const status = normalizeStatus(metaStatus);
+    const { data: row, error: insertError } = await db
+      .from('message_templates')
+      .insert({
+        account_id: accountId,
+        user_id: account.owner_user_id,
+        name: payload.name,
+        category: payload.category,
+        language: payload.language,
+        header_type: payload.header_type,
+        header_media_url: payload.header_media_url,
+        header_handle: payload.header_handle ?? null,
+        body_text: payload.body_text,
+        footer_text: payload.footer_text ?? null,
+        buttons: payload.buttons ?? null,
+        sample_values: payload.sample_values ?? null,
+        status,
+        meta_template_id: metaId,
+        submission_error: null,
+        last_submitted_at: new Date().toISOString(),
+      })
+      .select('*')
+      .single();
+    if (insertError) throw new Error(insertError.message);
 
     console.log(
-      `[${logTag}] auto-submitted ${name} template for account ${accountId} (status ${meta.status})`
+      `[${logTag}] ${held ? 'adopted' : 'auto-submitted'} ${name} template for account ${accountId} (status ${metaStatus})`
     );
+    const template = row as unknown as MessageTemplate;
     return {
-      status: normalizeStatus(meta.status),
-      template: null,
-      rejectionReason: null,
+      status,
+      template: status === 'APPROVED' ? template : null,
+      rejectionReason: template.rejection_reason ?? null,
       setupError: null,
     };
   } catch (err) {

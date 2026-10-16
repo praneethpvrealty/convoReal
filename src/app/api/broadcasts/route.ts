@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, audience, message } = body;
     const composed = typeof message === 'string';
+    const optedInOnly = body.optedInOnly === true;
 
     if (
       !name ||
@@ -103,16 +104,24 @@ export async function POST(request: NextRequest) {
     const admin = supabaseAdmin();
 
     // 1. Resolve contacts server-side
+    // Declined contacts are always dropped; the carrier is a Marketing
+    // template, so the composer also offers narrowing to explicit
+    // grants, the same switch the occasion greeting has.
     const contacts = await resolveAudienceOnServer(
       ctx.supabase,
       ctx.accountId,
       ctx.userId,
-      parsedAudience.audience
+      parsedAudience.audience,
+      { optedInOnly }
     );
 
     if (contacts.length === 0) {
       return NextResponse.json(
-        { error: 'Audience is empty. No contacts matched the criteria.' },
+        {
+          error: optedInOnly
+            ? 'No contacts in this audience have explicitly opted in yet. Clients are asked to opt in automatically the first time they message you on WhatsApp, and portal enquiry forms record consent too.'
+            : 'Audience is empty. No contacts matched the criteria.',
+        },
         { status: 400 }
       );
     }

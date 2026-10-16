@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   getCurrentAccount,
-  requireRole,
+  requireWriteRole,
   toErrorResponse,
 } from '@/lib/auth/account';
 import {
@@ -36,10 +36,12 @@ export async function GET() {
 // Meta when the account has no row for it yet. The composer calls this
 // on its own the first time it opens, so no one has to know it exists.
 // The payload carries no caller-supplied content, which is why this sits
-// at the agent role rather than org_manager like free-form submission.
+// at the agent role rather than org_manager like free-form submission;
+// it still creates a template at Meta and a workspace row, so a
+// read-only member is refused before either happens.
 export async function POST() {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
 
     const limit = await checkRateLimit(
       `broadcasts:template:${ctx.userId}`,

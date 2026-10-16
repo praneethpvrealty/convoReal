@@ -69,8 +69,19 @@ vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => makeAdmin(),
 }));
 
+let audienceCalls: Array<{ optedInOnly?: boolean } | undefined>;
+
 vi.mock('@/lib/broadcasts/sender', () => ({
-  resolveAudienceOnServer: async () => [{ id: 'c-1' }, { id: 'c-2' }],
+  resolveAudienceOnServer: async (
+    _db: unknown,
+    _account: string,
+    _user: string,
+    _audience: unknown,
+    options?: { optedInOnly?: boolean }
+  ) => {
+    audienceCalls.push(options);
+    return options?.optedInOnly ? [] : [{ id: 'c-1' }, { id: 'c-2' }];
+  },
   sendBroadcastRecipients: async () => undefined,
 }));
 
@@ -98,6 +109,7 @@ const approvedCarrier = {
 
 beforeEach(() => {
   inserted = [];
+  audienceCalls = [];
   carrierState = {
     status: 'APPROVED',
     template: approvedCarrier,
@@ -119,6 +131,7 @@ describe('POST /api/broadcasts with a composed message', () => {
     const json = await res.json();
     expect(json.broadcastId).toBe('bcast-1');
     expect(json.recipientsCount).toBe(2);
+    expect(audienceCalls).toEqual([{ optedInOnly: false }]);
 
     const broadcast = inserted.find((i) => i.table === 'broadcasts')?.row;
     expect(broadcast).toMatchObject({
@@ -139,6 +152,21 @@ describe('POST /api/broadcasts with a composed message', () => {
     expect(
       inserted.filter((i) => i.table === 'broadcast_recipients')
     ).toHaveLength(2);
+  });
+
+  it('[BRC-001] narrows a Marketing send to explicit opt-ins when the composer asks', async () => {
+    const res = await POST(
+      request({
+        name: 'Opted in',
+        message: 'Hello',
+        audience: { type: 'all' },
+        optedInOnly: true,
+      })
+    );
+    expect(audienceCalls).toEqual([{ optedInOnly: true }]);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/explicitly opted in/);
+    expect(inserted).toHaveLength(0);
   });
 
   it('[BRC-001] refuses a blank message before touching the template or the audience', async () => {

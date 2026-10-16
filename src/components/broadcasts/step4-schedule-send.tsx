@@ -28,6 +28,9 @@ interface Step4Props {
   onNameChange: (name: string) => void;
   message: string;
   audience: AudienceConfig;
+  optedInOnly: boolean;
+  onOptedInOnlyChange: (next: boolean) => void;
+  optedInCount: number | null;
   onSend: () => void;
   onSaveDraft?: () => void;
   onBack: () => void;
@@ -40,6 +43,9 @@ export function Step4ScheduleSend({
   onNameChange,
   message,
   audience,
+  optedInOnly,
+  onOptedInOnlyChange,
+  optedInCount,
   onSend,
   onSaveDraft,
   onBack,
@@ -47,7 +53,7 @@ export function Step4ScheduleSend({
   progress,
 }: Step4Props) {
   const [showConfirm, setShowConfirm] = useState(false);
-  const countQuery = useAudienceCount(audience);
+  const countQuery = useAudienceCount(audience, { optedInOnly });
   const reach = countQuery.data;
   const confirmedReach =
     reach !== undefined &&
@@ -88,6 +94,29 @@ export function Step4ScheduleSend({
           placeholder="e.g. Summer Sale Announcement"
           className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
         />
+      </div>
+
+      <div className="space-y-1">
+        <label className="flex items-center gap-2 text-sm text-slate-300">
+          <input
+            type="checkbox"
+            checked={optedInOnly}
+            onChange={(e) => onOptedInOnlyChange(e.target.checked)}
+            className="accent-primary h-4 w-4"
+          />
+          Only clients who explicitly opted in
+          {typeof optedInCount === 'number' && (
+            <span className="text-xs text-slate-500">
+              ({optedInCount} opted in)
+            </span>
+          )}
+        </label>
+        <p className="text-xs text-slate-500">
+          Clients are asked to opt in the first time they message you on
+          WhatsApp, and portal enquiry forms record consent too. Without this,
+          the broadcast goes to everyone except contacts who replied STOP
+          ALERTS.
+        </p>
       </div>
 
       {/* Summary Card */}

@@ -32,6 +32,8 @@ interface BroadcastPayload {
   name: string;
   message: string;
   audience: AudienceConfig;
+  /** Narrow a Marketing send to contacts who explicitly opted in. */
+  optedInOnly: boolean;
 }
 
 interface UseBroadcastSendingReturn {

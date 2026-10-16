@@ -5184,7 +5184,7 @@
       "invariants": [
         {
           "id": "BRC-001",
-          "rule": "The broadcast composer on web and mobile never asks the agent to choose a WhatsApp template. The agent writes the message and picks who gets it; both surfaces preview exactly what a recipient will read through one shared renderer, and POST /api/broadcasts carries the message on the account's shared agency_update_notice template with the greeting name resolved per recipient, the agency name and the message flattened to one line. A blank message is refused before the template or the audience is touched. The template + variables request shape stays accepted for app builds that predate the composer.",
+          "rule": "The broadcast composer on web and mobile never asks the agent to choose a WhatsApp template. The agent writes the message and picks who gets it; both surfaces preview exactly what a recipient will read through one shared renderer, and POST /api/broadcasts carries the message on the account's shared agency_update_notice template with the greeting name resolved per recipient, the agency name and the message flattened to one line. A blank message is refused before the template or the audience is touched. Because the carrier is a Marketing template, contacts who replied STOP ALERTS are always excluded and both composers offer the same switch the occasion greeting has, narrowing the count and the send to contacts who explicitly opted in, with the opted-in count shown beside it. The template + variables request shape stays accepted for app builds that predate the composer.",
           "tests": [
             {
               "file": "src/lib/broadcasts/carrier-template.test.ts",
