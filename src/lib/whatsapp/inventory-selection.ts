@@ -29,7 +29,7 @@ const COMMAND_PREFIX =
   /^(?:(?:please|send|share|show|open|give|get|need|want|me|the|full|complete|details?|links?|showcase|for|of|from|looking)\s*)*$/i;
 const NUMBER_PREFIX =
   /^(?:(?:properties|listings|options?|items?|numbers?|nos?\.?)\s*)*/i;
-const NUMBER_RUN = /^\d{1,2}(?:\s*(?:,|&|\+|\/|and)\s*\d{1,2})*\s*[.!]?$/i;
+const NUMBER_RUN = /^\d{1,2}(?:\s*(?:,|&|\+|\/|and)\s*\d{1,2})*\s*[.,;!]*$/i;
 
 export function parseInventorySelectionCommand(
   text?: string | null
