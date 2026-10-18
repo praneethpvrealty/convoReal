@@ -284,19 +284,29 @@ const HUMAN_REQUEST =
  *  "what's your contact number", "whom should I call": a lead asking
  *  for OUR number is asking for a person as surely as "call me". Left
  *  unmatched on 17 October it was answered as a question about each of
- *  three listings, one of them by the model. A number the lead gives
- *  ("my contact number is …") is not a request. */
+ *  three listings, one of them by the model.
+ *
+ *  A bare "your number" is not a request — "thanks, I saved your
+ *  contact number" acknowledges one — so a number phrase counts only
+ *  when request language comes before it in the clause, and never when
+ *  the number is the lead's own ("my alternate contact number is …"). */
+const NUMBER_PHRASE =
+  /\b(?:(?:your|ur) (?:(?:contact|phone|mobile|cell|whatsapp|office|direct|landline) )?(?:number|no|num)|(?<!\b(?:my|our|his|her|their)(?: \w+){0,2} )(?:contact|phone|mobile|cell|telephone|landline|office|direct) (?:number|no|num))\b/g;
+
+const REQUEST_CUE =
+  /\b(?:share|send|give|provide|pass|drop|forward|tell|need|want|looking for|what(?:'s| is|s)?|which|is there|any|please|pls|plz|(?:can|could|may|would|shall|should) (?:i|we|you|u))\b/;
+
+/** "A number to call", "whom should I call": a request by its shape. */
 const NUMBER_REQUEST =
-  /\b(?:(?:your|ur) (?:(?:contact|phone|mobile|cell|whatsapp|office|direct|landline) )?(?:number|no|num)|(?<!\b(?:my|our|his|her|their) )(?:contact|phone|mobile|cell|telephone|landline|office|direct) (?:number|no|num)|(?:number|no|num) (?:to|for) (?:call|calling|discuss|talk|speak|contact|reach|connect|coordinate))\b/g;
+  /\b(?:(?:number|no|num) (?:to|for) (?:call|calling|discuss|talk|speak|contact|reach|connect|coordinate)|whom (?:should|can|do|could|shall) (?:i|we) (?:call|contact|speak|talk|reach))\b/g;
 
-/** "Whom should I call": read before OWN_CALL_OFFER strikes "I call". */
-const WHOM_TO_CALL =
-  /\bwhom (?:should|can|do|could|shall) (?:i|we) (?:call|contact|speak|talk|reach)\b/g;
-
-/** "Can I call you", "can we discuss over a call": the lead asking to
- *  ring us, which OWN_CALL_OFFER would otherwise strike out as an offer. */
+/** "Can I call you", "can we discuss over a call", "I'd like to talk
+ *  on a call": the lead asking to ring us now. OWN_CALL_OFFER would
+ *  strike "I call" out as an offer, so this reads the raw clause, and
+ *  it needs a modal or a wish so that "as discussed over a call, my
+ *  budget is 2 cr" stays a requirement. */
 const CALL_US_REQUEST =
-  /\b(?:(?:can|could|may|shall) (?:i|we) (?:call|ring|phone)(?: you| u)?|(?:discuss|talk|speak|connect|chat|explain)\w* (?:\w+ ){0,3}?(?:over|on) (?:a|an|the) (?:call|phone))\b/g;
+  /\b(?:(?:can|could|may|shall) (?:i|we) (?:call|ring|phone)(?: you| u)?|(?:(?:can|could|may|shall|would|should) (?:i|we|you|u)|(?:i|we)(?:'d| would)(?: like| prefer| love)?|(?:i|we) (?:want|need|prefer|wish)|(?:let's|lets|let us)|(?:please|pls|plz))(?: \w+){0,2}? (?:to )?(?:discuss|talk|speak|connect|chat|explain)\w*(?: \w+){0,3}? (?:over|on) (?:a|an|the) (?:call|phone))\b/g;
 
 const REFUSAL_GLUE = new Set([
   'a',
@@ -427,31 +437,39 @@ export function offersOwnCall(text?: string | null): boolean {
   );
 }
 
-function unrefusedMatch(text: string, pattern: RegExp): boolean {
+function unrefusedMatch(
+  text: string,
+  pattern: RegExp,
+  prefixMustMatch?: RegExp
+): boolean {
   for (const match of text.matchAll(pattern)) {
-    if (!refusedBefore(text.slice(0, match.index))) return true;
+    const prefix = text.slice(0, match.index);
+    if (prefixMustMatch && !prefixMustMatch.test(prefix)) continue;
+    if (!refusedBefore(prefix)) return true;
   }
   return false;
 }
 
-export function requestsHumanContact(text?: string | null): boolean {
-  return callClauses(text).some((clause) => {
-    const rest = clause.replace(OWN_CALL_OFFER, ' ');
-    return (
-      unrefusedMatch(rest, HUMAN_REQUEST) ||
-      unrefusedMatch(rest, NUMBER_REQUEST) ||
-      unrefusedMatch(clause, WHOM_TO_CALL) ||
-      unrefusedMatch(clause, CALL_US_REQUEST)
-    );
-  });
-}
-
-/** The lead asked for our number, not just for a call. */
+/** The lead asking to reach us: for our number, or to call us now.
+ *  Either one is answered with the number when the account has one. */
 export function asksForContactNumber(text?: string | null): boolean {
   return callClauses(text).some(
     (clause) =>
-      unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), NUMBER_REQUEST) ||
-      unrefusedMatch(clause, WHOM_TO_CALL)
+      unrefusedMatch(
+        clause.replace(OWN_CALL_OFFER, ' '),
+        NUMBER_PHRASE,
+        REQUEST_CUE
+      ) ||
+      unrefusedMatch(clause, NUMBER_REQUEST) ||
+      unrefusedMatch(clause, CALL_US_REQUEST)
+  );
+}
+
+export function requestsHumanContact(text?: string | null): boolean {
+  return (
+    callClauses(text).some((clause) =>
+      unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST)
+    ) || asksForContactNumber(text)
   );
 }
 

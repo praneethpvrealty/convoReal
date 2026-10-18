@@ -233,19 +233,26 @@ describe('requestsHumanContact', () => {
       'can we discuss over a call',
       'Is there a number to call for a site visit',
       "What's the owner's contact number",
+      "I'd like to discuss over a call",
+      "let's connect on a call",
+      'Could we talk about the price on a call',
     ]) {
       expect(requestsHumanContact(text), text).toBe(true);
-      expect(asksForContactNumber(text), text).toBe(
-        !/call you|over a call/.test(text)
-      );
+      expect(asksForContactNumber(text), text).toBe(true);
     }
     for (const text of [
       'my contact number is 9900277111',
+      'my alternate contact number is 9900277111',
       'please update my mobile number',
+      'can you update my alternate contact number',
       "what's the survey number",
       'what is the plot number',
       "don't share your number with anyone",
       'no need to send your number',
+      'Thanks, I saved your contact number',
+      'I already have your number',
+      'As discussed over a call, my budget is 2 cr',
+      'We spoke on the phone yesterday',
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
       expect(asksForContactNumber(text), text).toBe(false);
