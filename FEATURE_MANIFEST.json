@@ -190,7 +190,7 @@
         },
         {
           "id": "INB-011",
-          "rule": "A funnel keyword buried in a lead’s text question never restarts a flow that lead has already been through: once a listing has been sent to them, or they ask for a person, the matched flow is skipped and the question is answered from that listing instead. Asking for a person counts whether typed or tapped: a template quick reply whose label asks for a person (\"Talk to someone\", \"Call me back\") gets the same callback promise, agent notification, bridged relay and pending flag as a typed \"call me\". Any other quick-reply label is never read as a question. A tap is matched against flow keywords by its raw label, never the inbox's decorated rendering, so an exact-match flow keyed on a label opens on that tap. A flow they have never entered still opens on its own keyword, and a lead who has been sent nothing is still qualified by the funnel. Entry only — an active run still advances.",
+          "rule": "A funnel keyword buried in a lead’s text question never restarts a flow that lead has already been through: once a listing has been sent to them, or they ask for a person, the matched flow is skipped and the question is answered from that listing instead. Asking for a person counts whether typed or tapped: a template quick reply whose label asks for a person (\"Talk to someone\", \"Call me back\") gets the same callback promise, agent notification, bridged relay and pending flag as a typed \"call me\". A lead asking for our number (\"Could you share me an appropriate number to discuss over a call\", \"what is your contact number\", \"whom should I call\", \"can I call you\") is asking for a person too, whatever listings were last sent to them: the thread gets one reply, not one per listing, which gives the account's showcase contact phone when one is set (\"Of course — you can reach the team on <number>. I'll also have someone call you shortly.\") and otherwise the callback promise, never a number the bot made up; either way the agent is notified as for \"call me\", and a number the lead gives us (\"my contact number is …\") or asks us not to share is not such a request. A model answer that only defers (\"I will confirm … and get back to you shortly\") is a handover, not an answer. Any other quick-reply label is never read as a question. A tap is matched against flow keywords by its raw label, never the inbox's decorated rendering, so an exact-match flow keyed on a label opens on that tap. A flow they have never entered still opens on its own keyword, and a lead who has been sent nothing is still qualified by the funnel. Entry only — an active run still advances.",
           "tests": [
             {
               "file": "src/lib/ai/lead-question.test.ts",
@@ -203,6 +203,18 @@
             {
               "file": "src/lib/ai/lead-question.test.ts",
               "case": "[INB-011] reads a quick-reply tap asking for a person as a callback request"
+            },
+            {
+              "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[INB-011] reads a lead asking for our number as asking for a person"
+            },
+            {
+              "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[INB-011] gives a lead who asks for our number the account number, and still summons a person"
+            },
+            {
+              "file": "src/lib/whatsapp/inbound/chain/lead-question-step.test.ts",
+              "case": "[INB-011] a lead asking for our number"
             },
             {
               "file": "src/lib/flows/entry-reentry.test.ts",
@@ -605,7 +617,7 @@
         },
         {
           "id": "INB-035",
-          "rule": "The bot never answers a lead's question with a handover line (\"let me check that with the team\", the callback promise, the photo handover) while a human agent is handling the thread, meaning an agent has replied in that conversation within the last 24 hours: the lead hears nothing from the bot, and the assigned agent is still notified, the question is still relayed to their WhatsApp and the thread is still marked pending. A concrete answer the bot holds (from the listing's own fields, the seller's final price, a portal comparison or a grounded model answer) still goes out while an agent is live; when a question covers several listings (INB-034) only the handover parts are dropped and each remaining answer goes out under its listing's title. With no agent reply in the last 24 hours the handover line is sent, but only once: when the bot's latest message in the thread within the last 24 hours, with no agent reply after it, was already a handover line (any of the three, or the photo handover); a message Meta marked failed never counts as either the agent's reply or the bot's promise, the lead hears no second promise, a concrete answer still goes out, and the agent is notified again.",
+          "rule": "The bot never answers a lead's question with a handover line (\"let me check that with the team\", the callback promise, the photo handover) while a human agent is handling the thread, meaning an agent has replied in that conversation within the last 24 hours: the lead hears nothing from the bot, and the assigned agent is still notified, the question is still relayed to their WhatsApp and the thread is still marked pending. A concrete answer the bot holds (from the listing's own fields, the seller's final price, a portal comparison or a grounded model answer) still goes out while an agent is live; when a question covers several listings (INB-034) only the handover parts are dropped and each remaining answer goes out under its listing's title. With no agent reply in the last 24 hours the handover line is sent, but only once: when the bot's latest message in the thread within the last 24 hours, with no agent reply after it, was already a handover line (any of the four, including the contact-number reply, or the photo handover); a message Meta marked failed never counts as either the agent's reply or the bot's promise, the lead hears no second promise, a concrete answer still goes out, and the agent is notified again.",
           "tests": [
             {
               "file": "src/lib/whatsapp/inbound/chain/lead-question-step.test.ts",

@@ -681,11 +681,18 @@ async function replayListingAnswer(args: {
     ? ((await previousLeadQuestion(supabase, conversation.id, text)) ?? text)
     : text;
 
-  const { data: qaConfig } = await supabase
-    .from('whatsapp_config')
-    .select('share_seller_final_price')
-    .eq('account_id', accountId)
-    .maybeSingle();
+  const [{ data: qaConfig }, { data: showcaseSettings }] = await Promise.all([
+    supabase
+      .from('whatsapp_config')
+      .select('share_seller_final_price')
+      .eq('account_id', accountId)
+      .maybeSingle(),
+    supabase
+      .from('showcase_settings')
+      .select('contact_phone')
+      .eq('account_id', accountId)
+      .maybeSingle(),
+  ]);
   const answers = await Promise.all(
     (subjects.length > 0 ? subjects : [null]).map(async (subject) => {
       const [portalListings, botInstructions] = await Promise.all([
@@ -706,6 +713,7 @@ async function replayListingAnswer(args: {
         shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
         portalListings,
         botInstructions,
+        contactPhone: showcaseSettings?.contact_phone ?? null,
         chargeCredits: false,
       });
     })

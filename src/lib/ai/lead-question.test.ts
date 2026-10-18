@@ -23,6 +23,8 @@ import {
   HANDOVER_TEXT,
   CALLBACK_HANDOVER_TEXT,
   PHOTO_IDENTIFICATION_HANDOVER_TEXT,
+  asksForContactNumber,
+  contactNumberHandoverText,
   mergeLeadAnswers,
   isHandoverText,
   previousLeadQuestion,
@@ -217,6 +219,40 @@ describe('requestsHumanContact', () => {
     );
   });
 
+  it('[INB-011] reads a lead asking for our number as asking for a person', () => {
+    // The reported bug: this was answered as a question about each of
+    // the three listings last sent, one of them by the model.
+    for (const text of [
+      'Could you share me an appropriate number to discuss over an call',
+      'What is your contact number?',
+      'Can I have your number',
+      'share ur mobile no',
+      'Please send the office number',
+      'whom should I call',
+      'Can I call you?',
+      'can we discuss over a call',
+      'Is there a number to call for a site visit',
+      "What's the owner's contact number",
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(true);
+      expect(asksForContactNumber(text), text).toBe(
+        !/call you|over a call/.test(text)
+      );
+    }
+    for (const text of [
+      'my contact number is 9900277111',
+      'please update my mobile number',
+      "what's the survey number",
+      'what is the plot number',
+      "don't share your number with anyone",
+      'no need to send your number',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(false);
+      expect(asksForContactNumber(text), text).toBe(false);
+    }
+    expect(asksForContactNumber('Call me')).toBe(false);
+  });
+
   it('leaves ordinary requirement talk to the ladder', () => {
     for (const text of [
       '3 BHK in Whitefield',
@@ -362,6 +398,43 @@ describe('answerLeadQuestion', () => {
       expect(res.source).toBe('handover');
       expect(res.text).toBe(CALLBACK_HANDOVER_TEXT);
     }
+    expect(generateText).not.toHaveBeenCalled();
+    expect(burnCredits).not.toHaveBeenCalled();
+  });
+
+  it('[INB-011] gives a lead who asks for our number the account number, and still summons a person', async () => {
+    const question =
+      'Could you share me an appropriate number to discuss over an call';
+    for (const subject of [property, null]) {
+      const res = await answerLeadQuestion({
+        accountId: 'a1',
+        question,
+        property: subject,
+        contactPhone: '+91 99002 77111',
+      });
+      expect(res).toEqual({
+        text: "Of course — you can reach the team on +91 99002 77111. I'll also have someone call you shortly.",
+        source: 'handover',
+      });
+    }
+    // No number on file: the callback promise, never a made-up number.
+    for (const contactPhone of [undefined, null, '  ']) {
+      const res = await answerLeadQuestion({
+        accountId: 'a1',
+        question,
+        property,
+        contactPhone,
+      });
+      expect(res).toEqual({ text: CALLBACK_HANDOVER_TEXT, source: 'handover' });
+    }
+    // "Call me" wants a call, not a number to dial.
+    const callMe = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Call me',
+      property,
+      contactPhone: '+91 99002 77111',
+    });
+    expect(callMe.text).toBe(CALLBACK_HANDOVER_TEXT);
     expect(generateText).not.toHaveBeenCalled();
     expect(burnCredits).not.toHaveBeenCalled();
   });
@@ -695,6 +768,21 @@ describe('answerLeadQuestion — portal rung and persona', () => {
     });
     expect(res.source).toBe('handover');
   });
+
+  it('treats "I will confirm … and get back to you" as a handover too', async () => {
+    // Sent to a lead on 17 October as source "ai": "I will" is not
+    // "I'll", and "get back to you" is not "come back to you".
+    vi.mocked(generateText).mockResolvedValue(
+      'I will confirm our direct contact number and get back to you shortly. In the meantime, please feel free to ask any questions you have about this property right here.'
+    );
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'which number should I reach the office on',
+      property,
+    });
+    expect(res.source).toBe('handover');
+    expect(res.text).toBe(HANDOVER_TEXT);
+  });
 });
 
 describe('[INB-035] isHandoverText', () => {
@@ -702,6 +790,9 @@ describe('[INB-035] isHandoverText', () => {
     expect(isHandoverText(HANDOVER_TEXT)).toBe(true);
     expect(isHandoverText(CALLBACK_HANDOVER_TEXT)).toBe(true);
     expect(isHandoverText(PHOTO_IDENTIFICATION_HANDOVER_TEXT)).toBe(true);
+    expect(isHandoverText(contactNumberHandoverText('+91 99002 77111'))).toBe(
+      true
+    );
     expect(
       isHandoverText(`*Plot A*\n2,400 sq.ft.\n\n*Plot B*\n${HANDOVER_TEXT}`)
     ).toBe(true);

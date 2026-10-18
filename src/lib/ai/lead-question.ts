@@ -80,6 +80,7 @@ export function isHandoverText(text: string | null | undefined): boolean {
     HANDOVER_TEXT,
     PHOTO_IDENTIFICATION_HANDOVER_TEXT,
     CALLBACK_HANDOVER_TEXT,
+    CONTACT_NUMBER_HANDOVER_PREFIX,
   ].some((line) => t.includes(line));
 }
 
@@ -234,6 +235,17 @@ export function looksLikeQuestion(text: string | null | undefined): boolean {
 export const CALLBACK_HANDOVER_TEXT =
   "Of course — I'll have someone from the team call you shortly.";
 
+/** A lead who asked for OUR number gets it when the account has one
+ *  (showcase_settings.contact_phone), and the same callback promise
+ *  after it, so a person still hears about them. The fixed opening is
+ *  what isHandoverText keys on, since the number varies by account. */
+export const CONTACT_NUMBER_HANDOVER_PREFIX =
+  'Of course — you can reach the team on ';
+
+export function contactNumberHandoverText(phone: string): string {
+  return `${CONTACT_NUMBER_HANDOVER_PREFIX}${phone.trim()}. I'll also have someone call you shortly.`;
+}
+
 /**
  * "Call me" — a lead asking for a person rather than answering us.
  *
@@ -268,6 +280,24 @@ const OWN_CALL_OFFER =
 const HUMAN_REQUEST =
   /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/g;
 
+/** "Could you share me an appropriate number to discuss over a call",
+ *  "what's your contact number", "whom should I call": a lead asking
+ *  for OUR number is asking for a person as surely as "call me". Left
+ *  unmatched on 17 October it was answered as a question about each of
+ *  three listings, one of them by the model. A number the lead gives
+ *  ("my contact number is …") is not a request. */
+const NUMBER_REQUEST =
+  /\b(?:(?:your|ur) (?:(?:contact|phone|mobile|cell|whatsapp|office|direct|landline) )?(?:number|no|num)|(?<!\b(?:my|our|his|her|their) )(?:contact|phone|mobile|cell|telephone|landline|office|direct) (?:number|no|num)|(?:number|no|num) (?:to|for) (?:call|calling|discuss|talk|speak|contact|reach|connect|coordinate))\b/g;
+
+/** "Whom should I call": read before OWN_CALL_OFFER strikes "I call". */
+const WHOM_TO_CALL =
+  /\bwhom (?:should|can|do|could|shall) (?:i|we) (?:call|contact|speak|talk|reach)\b/g;
+
+/** "Can I call you", "can we discuss over a call": the lead asking to
+ *  ring us, which OWN_CALL_OFFER would otherwise strike out as an offer. */
+const CALL_US_REQUEST =
+  /\b(?:(?:can|could|may|shall) (?:i|we) (?:call|ring|phone)(?: you| u)?|(?:discuss|talk|speak|connect|chat|explain)\w* (?:\w+ ){0,3}?(?:over|on) (?:a|an|the) (?:call|phone))\b/g;
+
 const REFUSAL_GLUE = new Set([
   'a',
   'an',
@@ -293,6 +323,14 @@ const REFUSAL_GLUE = new Set([
   'receive',
   'anyone',
   'anybody',
+  'share',
+  'send',
+  'give',
+  'provide',
+  'your',
+  'ur',
+  'me',
+  'us',
 ]);
 
 const REFUSAL_WORDS = new Set([
@@ -389,14 +427,32 @@ export function offersOwnCall(text?: string | null): boolean {
   );
 }
 
+function unrefusedMatch(text: string, pattern: RegExp): boolean {
+  for (const match of text.matchAll(pattern)) {
+    if (!refusedBefore(text.slice(0, match.index))) return true;
+  }
+  return false;
+}
+
 export function requestsHumanContact(text?: string | null): boolean {
   return callClauses(text).some((clause) => {
     const rest = clause.replace(OWN_CALL_OFFER, ' ');
-    for (const match of rest.matchAll(HUMAN_REQUEST)) {
-      if (!refusedBefore(rest.slice(0, match.index))) return true;
-    }
-    return false;
+    return (
+      unrefusedMatch(rest, HUMAN_REQUEST) ||
+      unrefusedMatch(rest, NUMBER_REQUEST) ||
+      unrefusedMatch(clause, WHOM_TO_CALL) ||
+      unrefusedMatch(clause, CALL_US_REQUEST)
+    );
   });
+}
+
+/** The lead asked for our number, not just for a call. */
+export function asksForContactNumber(text?: string | null): boolean {
+  return callClauses(text).some(
+    (clause) =>
+      unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), NUMBER_REQUEST) ||
+      unrefusedMatch(clause, WHOM_TO_CALL)
+  );
 }
 
 /**
@@ -693,6 +749,9 @@ export async function answerLeadQuestion(args: {
    *  against MagicBricks / 99acres / Housing. */
   portalListings?: PortalListingFigures[];
   botInstructions?: BotInstructionMatch[];
+  /** showcase_settings.contact_phone: the number a lead who asks for
+   *  one is given. Unset or blank, they are promised a call instead. */
+  contactPhone?: string | null;
   /** False for a dry run — the dev simulator — so the account is not
    *  charged for a preview. Live sends leave it unset. */
   chargeCredits?: boolean;
@@ -702,7 +761,14 @@ export async function answerLeadQuestion(args: {
   // a person, not for a fact about a listing, so this must answer even
   // when no listing can be pinned to the thread.
   if (requestsHumanContact(question)) {
-    return { text: CALLBACK_HANDOVER_TEXT, source: 'handover' };
+    const phone = args.contactPhone?.trim();
+    return {
+      text:
+        phone && asksForContactNumber(question)
+          ? contactNumberHandoverText(phone)
+          : CALLBACK_HANDOVER_TEXT,
+      source: 'handover',
+    };
   }
   if (!property) return { text: HANDOVER_TEXT, source: 'handover' };
   // Before every rung and before any credit is spent: no field and no
@@ -843,7 +909,7 @@ function isNonAnswer(answer: string): boolean {
   ) {
     return true;
   }
-  return /\b(let me (confirm|check|find out|verify)|i'?ll (confirm|check|find out|verify|get back)|come (right )?back to you|check (on )?(that|this) and revert|revert (on|to) you)\b/i.test(
+  return /\b(let me (confirm|check|find out|verify)|i(?:'?ll| will) (confirm|check|find out|verify|get back)|(come|get) (right )?back to you|check (on )?(that|this) and revert|revert (on|to) you)\b/i.test(
     text
   );
 }

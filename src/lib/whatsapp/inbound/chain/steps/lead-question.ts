@@ -166,11 +166,19 @@ export async function leadQuestion(
       answers = [answer];
       answerSubjects = subjects.slice(0, 1);
     } else {
-      const { data: qaConfig } = await admin
-        .from('whatsapp_config')
-        .select('share_seller_final_price')
-        .eq('account_id', accountId)
-        .maybeSingle();
+      const [{ data: qaConfig }, { data: showcaseSettings }] =
+        await Promise.all([
+          admin
+            .from('whatsapp_config')
+            .select('share_seller_final_price')
+            .eq('account_id', accountId)
+            .maybeSingle(),
+          admin
+            .from('showcase_settings')
+            .select('contact_phone')
+            .eq('account_id', accountId)
+            .maybeSingle(),
+        ]);
       answers = await Promise.all(
         (subjects.length > 0 ? subjects : [null]).map(async (subject) => {
           const [portalListings, botInstructions] = await Promise.all([
@@ -195,6 +203,7 @@ export async function leadQuestion(
             shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
             portalListings,
             botInstructions,
+            contactPhone: showcaseSettings?.contact_phone ?? null,
           });
         })
       );
