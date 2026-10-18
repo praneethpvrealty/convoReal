@@ -29,6 +29,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 }));
 
 import {
+  contactNumberHandoverText,
   answerLeadQuestion,
   HANDOVER_TEXT,
   questionSubjectProperties,
@@ -45,6 +46,7 @@ import { leadQuestion, withoutHandovers } from './steps/lead-question';
 
 const conversationUpdates: unknown[] = [];
 let teamReplies: { sender_type: string; content_text: string }[] = [];
+let showcasePhone: string | null = null;
 
 function fakeAdmin() {
   const chain: Record<string, unknown> = {};
@@ -57,7 +59,22 @@ function fakeAdmin() {
     conversationUpdates.push(row);
     return chain;
   });
-  return { from: vi.fn(() => chain) };
+  return {
+    from: vi.fn((table: string) =>
+      table === 'showcase_settings'
+        ? {
+            ...chain,
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { contact_phone: showcasePhone },
+                }),
+              }),
+            }),
+          }
+        : chain
+    ),
+  };
 }
 
 function ctx(overrides: Partial<InboundChainContext> = {}) {
@@ -84,6 +101,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   conversationUpdates.length = 0;
   teamReplies = [];
+  showcasePhone = null;
   vi.mocked(supabaseAdmin).mockReturnValue(
     fakeAdmin() as unknown as ReturnType<typeof supabaseAdmin>
   );
@@ -329,5 +347,38 @@ describe('[INB-035] the bot promises a person once', () => {
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
       expect.objectContaining({ text: 'It is East facing.' })
     );
+  });
+});
+
+describe('[INB-011] a lead asking for our number', () => {
+  it('passes the account contact number to the answer, and sends one reply for three listings', async () => {
+    showcasePhone = '+91 99002 77111';
+    const reply = contactNumberHandoverText(showcasePhone);
+    vi.mocked(questionSubjectProperties).mockResolvedValue([
+      { id: 'p1', title: 'Commercial Building in Koramangala 5th Block' },
+      { id: 'p2', title: 'Rent yielding Commercial building' },
+      { id: 'p3', title: 'Prime Corner Commercial Plot' },
+    ] as unknown as Awaited<ReturnType<typeof questionSubjectProperties>>);
+    vi.mocked(answerLeadQuestion).mockResolvedValue({
+      text: reply,
+      source: 'handover',
+    });
+
+    await leadQuestion(
+      ctx({
+        inboundText:
+          'Could you share me an appropriate number to discuss over an call',
+      })
+    );
+
+    expect(answerLeadQuestion).toHaveBeenCalledTimes(3);
+    expect(answerLeadQuestion).toHaveBeenCalledWith(
+      expect.objectContaining({ contactPhone: '+91 99002 77111' })
+    );
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({ text: reply })
+    );
+    expect(createNotification).toHaveBeenCalledTimes(1);
   });
 });

@@ -17,6 +17,23 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 18 October 2026
+
+- **A lead who asks for a number to call is given one, once.** "Could you
+  share me an appropriate number to discuss over a call" was not read as
+  a request for a person, so the bot answered it as a question about each
+  of the three listings last sent: one listing got a model reply that
+  only promised to "confirm our direct contact number and get back to
+  you", the other two got "let me check that with the team", all in one
+  message under three titles. Asking for our number, whom to call, or
+  whether they can call us now counts as asking for a person, whatever
+  listings were sent. The thread gets one reply, which gives the
+  account's showcase contact phone when one is set ("Of course — you can
+  reach the team on +91 …. I'll also have someone call you shortly.") and
+  otherwise the usual callback promise, and the agent is notified either
+  way. A model reply that only defers ("I will confirm … and get back to
+  you") is now treated as a handover rather than sent as an answer.
+
 #### 16 October 2026
 
 - **A broadcast no longer asks which WhatsApp template to use.** The
