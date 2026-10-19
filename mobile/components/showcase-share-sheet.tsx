@@ -15,7 +15,7 @@ import {
 import { fetchPropertyPage } from '@/app/(app)/(tabs)/properties';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   EmptyState,
   FilterChip,
@@ -764,6 +764,7 @@ export function ShowcaseShareSheet({
       }
     >
       <ScrollView
+        style={sheetScrollArea}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{

@@ -662,6 +662,18 @@ describe('the portal link invite is one server draft on both surfaces', () => {
   });
 });
 
+describe('the showcase share sheet scrolls inside the sheet', () => {
+  // A scroll area in a BottomSheet grows past the sheet's height cap
+  // unless it shrinks (sheetScrollArea); the sheet then clips it and the
+  // message and share buttons below the link cannot be reached. A long
+  // link made this visible on 19 October 2026.
+  it('[PRP-005] shrinks its scroll area to the sheet', () => {
+    const sheet = mobileSource('components/showcase-share-sheet.tsx');
+    const body = sheet.slice(sheet.indexOf('<BottomSheet'));
+    expect(body).toMatch(/<ScrollView\s+style=\{sheetScrollArea\}/);
+  });
+});
+
 describe('Google locality picks run the same nearby search on both surfaces', () => {
   it('[PRP-003] makes the suggestion row geographic and keeps exact areas explicit', () => {
     const mobileScreen = mobileSource('app/(app)/(tabs)/properties.tsx');

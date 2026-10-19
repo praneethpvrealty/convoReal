@@ -27,7 +27,10 @@ than a written entry. Newest first.
   the link already carried for Showcase Pulse, and the link goes out as
   `?s=<token>`; the showcase opens exactly the same listings as before.
   A token that could not be minted falls back to the spelled-out link
-  rather than blocking the share. **Migration required:**
+  rather than blocking the share. The mobile sheet also scrolls now: its
+  body grew past the sheet's height cap and was clipped, so the message
+  and share buttons below a long link could not be reached.
+  **Migration required:**
   `supabase/migrations/20261019140000_showcase_share_link_pinned_ids.sql`
   (additive).
 
