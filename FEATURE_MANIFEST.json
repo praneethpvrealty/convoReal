@@ -1418,6 +1418,7 @@
           ],
           "guards": [
             ".github/workflows/eas-update.yml",
+            "src/lib/inventory/showcase-share-scope.ts",
             "supabase/migrations/20261019140000_showcase_share_link_pinned_ids.sql"
           ]
         },
