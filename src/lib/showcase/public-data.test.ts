@@ -19,6 +19,7 @@ const state = {
   orFilters: [] as string[],
   shareLookups: [] as Array<Record<string, unknown>>,
   sharePinnedIds: null as string[] | null,
+  shareError: null as Error | null,
 };
 
 vi.mock('@/lib/supabase/admin', () => {
@@ -54,9 +55,11 @@ vi.mock('@/lib/supabase/admin', () => {
             table === 'accounts'
               ? { name: state.accountName, updated_at: state.accountUpdatedAt }
               : table === 'showcase_share_links'
-                ? { pinned_ids: state.sharePinnedIds }
+                ? state.shareError
+                  ? null
+                  : { pinned_ids: state.sharePinnedIds }
                 : { updated_at: state.settingsUpdatedAt },
-          error: null,
+          error: table === 'showcase_share_links' ? state.shareError : null,
         }),
       then: (resolve: (value: unknown) => unknown) => {
         if (table === 'properties' && !isVersionProbe) state.catalogueFetches++;
@@ -214,6 +217,14 @@ describe('cachedResolveSharePinnedIds', () => {
   beforeEach(() => {
     state.shareLookups = [];
     state.sharePinnedIds = null;
+    state.shareError = null;
+  });
+
+  it('[PRP-005] a failed lookup fails closed instead of opening the whole catalogue', async () => {
+    state.shareError = new Error('connection reset');
+    await expect(
+      cachedResolveSharePinnedIds('acc-outage', SHARE)
+    ).rejects.toThrow('connection reset');
   });
 
   it('[PRP-005] returns the listings the share pinned, scoped to the account', async () => {

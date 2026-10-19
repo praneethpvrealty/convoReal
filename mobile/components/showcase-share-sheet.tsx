@@ -220,7 +220,8 @@ export function ShowcaseShareSheet({
   // instance, so the link carries one token instead of every property
   // code. Minted per distinct set, once the picks settle, so a link that
   // was copied keeps opening what it opened; the same token labels the
-  // share in Pulse (migration 173).
+  // share in Pulse (migration 173). Every scope waits for the mint: null
+  // is the settled failed-mint fallback, undefined is still minting.
   const settledScopeIds = useDebounced(scopeIds);
   const shareInstance = useQuery({
     queryKey: ['showcase-share-instance', settledScopeIds],
@@ -230,8 +231,7 @@ export function ShowcaseShareSheet({
     queryFn: () => mintShowcaseShare(pinnedKeys),
   });
   const shareInstancePending =
-    pinnedKeys.length > 0 &&
-    (settledScopeIds !== scopeIds || shareInstance.data === undefined);
+    settledScopeIds !== scopeIds || shareInstance.data === undefined;
 
   const pitch = audience === 'agent' ? brokerMessage : clientMessage;
   const setPitch = audience === 'agent' ? setBrokerMessage : setClientMessage;

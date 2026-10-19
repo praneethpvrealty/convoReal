@@ -230,16 +230,19 @@ export const cachedResolveVisitorIsAgent = unstable_cache(
 // The listings a share instance (?s=) pins, recorded when the share was
 // minted with search results or a hand-picked set. The row is written
 // once and never updated, so a long window is safe; the account check
-// keeps a token from another tenant from narrowing this catalogue.
+// keeps a token from another tenant from narrowing this catalogue. A
+// failed lookup throws rather than reading as a plain token: an empty
+// answer would open the whole catalogue and be cached for the hour.
 export const cachedResolveSharePinnedIds = unstable_cache(
   async (accountId: string, shareId: string): Promise<string[]> => {
     if (!UUID_RE.test(shareId)) return [];
-    const { data } = await supabaseAdmin()
+    const { data, error } = await supabaseAdmin()
       .from('showcase_share_links')
       .select('pinned_ids')
       .eq('id', shareId)
       .eq('account_id', accountId)
       .maybeSingle();
+    if (error) throw error;
     return data?.pinned_ids ?? [];
   },
   ['showcase-share-pins'],

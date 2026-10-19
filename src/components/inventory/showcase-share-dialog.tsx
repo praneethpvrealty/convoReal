@@ -371,9 +371,8 @@ Best regards`;
     },
   });
   const shareInstancePending =
-    pinnedIds.length > 0 &&
-    (settledScopeIds !== scopeIds ||
-      (shareInstance.data === undefined && !shareInstance.isError));
+    settledScopeIds !== scopeIds ||
+    (shareInstance.data === undefined && !shareInstance.isError);
 
   const generatedLink = useMemo(() => {
     if (typeof window === 'undefined') return '';
