@@ -15,7 +15,7 @@ import {
 import { fetchPropertyPage } from '@/app/(app)/(tabs)/properties';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   EmptyState,
   FilterChip,
@@ -32,9 +32,9 @@ import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { findContactThread } from '@/lib/open-chat';
 import {
-  anonymousShowcaseShareUrl,
   applyShowcaseScope,
   logShowcaseShare,
+  mintShowcaseShare,
   type ShareCategory,
   type ShareScope,
   withShowcaseVisitor,
@@ -73,6 +73,7 @@ interface ShareSummaryData {
 
 const MAX_PICKED = 25;
 const EMPTY_PICKED_PROPERTIES: Property[] = [];
+const EMPTY_KEYS: string[] = [];
 const CATEGORIES: ShareCategory[] = [
   'All',
   'Residential',
@@ -205,25 +206,56 @@ export function ShowcaseShareSheet({
       ),
     [searchResults.data]
   );
-  const scopeKeys =
-    scope === 'search' && activeSearchParams ? searchKeys : pickedKeys;
-  const scopeIds = scopeKeys.join(',');
+  const pinnedKeys =
+    scope === 'search' && activeSearchParams
+      ? searchKeys
+      : scope === 'pick'
+        ? pickedKeys
+        : EMPTY_KEYS;
+  const scopeIds = pinnedKeys.join(',');
   const searchScopeReady =
     scope !== 'search' || !activeSearchParams || searchKeys.length > 0;
+
+  // A search-results or hand-picked share pins its listings on the share
+  // instance, so the link carries one token instead of every property
+  // code. Minted per distinct set, once the picks settle, so a link that
+  // was copied keeps opening what it opened; the same token labels the
+  // share in Pulse (migration 173). Every scope waits for the mint: null
+  // is the settled failed-mint fallback, undefined is still minting.
+  const settledScopeIds = useDebounced(scopeIds);
+  const shareInstance = useQuery({
+    queryKey: ['showcase-share-instance', settledScopeIds],
+    enabled: visible && searchScopeReady && settledScopeIds === scopeIds,
+    staleTime: Infinity,
+    gcTime: 0,
+    queryFn: () => mintShowcaseShare(pinnedKeys),
+  });
+  const shareInstancePending =
+    settledScopeIds !== scopeIds || shareInstance.data === undefined;
 
   const pitch = audience === 'agent' ? brokerMessage : clientMessage;
   const setPitch = audience === 'agent' ? setBrokerMessage : setClientMessage;
 
   const link = useMemo(() => {
-    if (!baseUrl.data) return '';
+    if (!baseUrl.data || shareInstancePending) return '';
     return applyShowcaseScope(baseUrl.data, {
       scope,
       category,
       search: trimmedSearch,
-      ids: scopeKeys,
+      ids: pinnedKeys,
       audience,
+      shareId: shareInstance.data,
     });
-  }, [baseUrl.data, scope, category, trimmedSearch, scopeKeys, audience]);
+  }, [
+    baseUrl.data,
+    shareInstancePending,
+    scope,
+    category,
+    trimmedSearch,
+    pinnedKeys,
+    audience,
+    shareInstance.data,
+  ]);
 
   // The digest is a business rule, so the phone asks the server for it
   // rather than carrying a second copy of the builder (AGENTS.md §2.8).
@@ -405,16 +437,6 @@ export function ShowcaseShareSheet({
     onClose();
   }
 
-  async function anonymousScopedLink() {
-    return applyShowcaseScope(await anonymousShowcaseShareUrl(), {
-      scope,
-      category,
-      search: trimmedSearch,
-      ids: scopeKeys,
-      audience,
-    });
-  }
-
   function togglePicked(property: Property) {
     haptic.tap();
     setPicked((current) => {
@@ -435,7 +457,7 @@ export function ShowcaseShareSheet({
 
   async function copyLink() {
     haptic.tap();
-    await Clipboard.setStringAsync(await anonymousScopedLink());
+    await Clipboard.setStringAsync(link);
     show({
       title: 'Link copied',
       message: `It opens ${scopeLabel}.`,
@@ -451,7 +473,7 @@ export function ShowcaseShareSheet({
             withShowcaseVisitor(link, portfolioContact.id),
             portfolioContact.name
           )
-        : messageFor(await anonymousScopedLink())
+        : messageFor(link)
     );
     show({
       title: 'Message copied',
@@ -742,6 +764,7 @@ export function ShowcaseShareSheet({
       }
     >
       <ScrollView
+        style={sheetScrollArea}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{

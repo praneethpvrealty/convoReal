@@ -28,6 +28,9 @@ export interface ShowcaseScopeOptions {
   ids?: readonly string[];
   audience: 'client' | 'agent';
   visitorId?: string;
+  /** Share-instance token (?s=). When the share was minted with the
+   *  pinned ids, the link carries the token in their place. */
+  shareId?: string | null;
 }
 
 /** Applies one share scope to a showcase base URL from getShowcaseUrl(). */
@@ -40,20 +43,23 @@ export function applyShowcaseScope(
     ids = [],
     audience,
     visitorId,
+    shareId,
   }: ShowcaseScopeOptions
 ): string {
   let url = baseUrl;
 
   if (scope === 'search') {
-    if (ids.length > 0) url = withParam(url, 'ids', ids.join(','));
-    else if (search.trim()) url = withParam(url, 'search', search.trim());
+    if (ids.length > 0) {
+      if (!shareId) url = withParam(url, 'ids', ids.join(','));
+    } else if (search.trim()) url = withParam(url, 'search', search.trim());
   } else if (scope === 'pick') {
-    if (ids.length > 0) url = withParam(url, 'ids', ids.join(','));
+    if (ids.length > 0 && !shareId) url = withParam(url, 'ids', ids.join(','));
   } else if (category !== 'All') {
     url = withParam(url, 'category', category);
   }
 
   if (audience === 'agent') url = withParam(url, 'mode', 'view');
+  if (shareId) url = withParam(url, 's', shareId);
   if (visitorId) url = withParam(url, 'v', visitorId);
 
   return url;

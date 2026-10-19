@@ -95,6 +95,8 @@ vi.mock('@/lib/showcase/public-data', async (importOriginal) => {
         : null,
     cachedResolveVisitorIsAgent: async (_accountId: string, v: string) =>
       v === 'cobroker-contact',
+    cachedResolveSharePinnedIds: async (_accountId: string, s: string) =>
+      s === 'pinned-share' ? ['PROP-2263', 'PROP-2249'] : [],
     cachedFetchFallbackAccount: async () => 'acct-1',
     cachedFetchShowcaseData: async (
       _accountId: string,
@@ -150,12 +152,25 @@ async function render(params: Record<string, string>) {
       initialPropertyId?: string;
       initialAgentMode?: boolean;
       agentAudience?: boolean;
+      initialIds?: string[];
     },
   };
 }
 
 beforeEach(() => {
   state.targetProperty = null;
+});
+
+describe('share token pins', () => {
+  it('[PRP-005] a share token opens the listings it was minted with', async () => {
+    const { props } = await render({ ref: 'acct-1', s: 'pinned-share' });
+    expect(props.initialIds).toEqual(['PROP-2263', 'PROP-2249']);
+  });
+
+  it('[PRP-005] a plain tracking token opens the whole catalogue', async () => {
+    const { props } = await render({ ref: 'acct-1', s: 'plain-share' });
+    expect(props.initialIds).toEqual([]);
+  });
 });
 
 describe('showcase audience', () => {

@@ -44,6 +44,38 @@ describe('applyShowcaseScope', () => {
     expect(url).not.toContain('search=');
   });
 
+  it('[PRP-005] carries pinned listings on the share token instead of the URL', () => {
+    expect(
+      applyShowcaseScope(base, {
+        scope: 'search',
+        search: 'Commer',
+        ids: Array.from({ length: 60 }, (_, i) => `PROP-${2263 - i}`),
+        audience: 'client',
+        shareId: 'share-1',
+      })
+    ).toBe(`${base}&s=share-1`);
+    expect(
+      applyShowcaseScope(base, {
+        scope: 'pick',
+        ids: ['CR-101', 'CR-102'],
+        audience: 'client',
+        shareId: 'share-2',
+        visitorId: 'contact-9',
+      })
+    ).toBe(`${base}&s=share-2&v=contact-9`);
+  });
+
+  it('[PRP-005] a token minted without pins only labels the share', () => {
+    expect(
+      applyShowcaseScope(base, {
+        scope: 'all',
+        category: 'Commercial',
+        audience: 'client',
+        shareId: 'share-3',
+      })
+    ).toBe(`${base}&category=Commercial&s=share-3`);
+  });
+
   it('pins a hand-picked set with ids, and omits it when empty', () => {
     expect(
       applyShowcaseScope(base, {
