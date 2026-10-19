@@ -160,8 +160,11 @@ interface ShowcaseViewProps {
    *  attribution only, never filters the catalog. */
   visitorRef?: string;
   /** Share-instance token from generic shares (?s=…) — labels which
-   *  share a visit came from in Pulse. Never filters. */
+   *  share a visit came from in Pulse. */
   shareId?: string;
+  /** The listings the share instance pinned, resolved server-side from
+   *  ?s=; opens the catalog on exactly those, as ?ids= does. */
+  initialIds?: string[];
   /** Share-grant token (?g=…), already verified server-side. Doubles as
    *  the credential the guarded-photo proxy checks on every fetch. */
   shareGrantToken?: string;
@@ -228,6 +231,7 @@ export function ShowcaseView({
   initialOnboardOffer = false,
   visitorRef,
   shareId,
+  initialIds,
   shareGrantToken,
   sellerPageSlug,
   hero,
@@ -549,7 +553,7 @@ export function ShowcaseView({
     const urlSortBy = urlParams.get('sort');
     const urlSearchQuery = urlParams.get('search');
     const urlIds = urlParams.get('ids');
-    const curated = (urlIds || '')
+    const curated = (urlIds || initialIds?.join(',') || '')
       .split(',')
       .map((value) => value.trim().toLowerCase())
       .filter(Boolean);
@@ -670,7 +674,13 @@ export function ShowcaseView({
     }
 
     isStateLoadedRef.current = true;
-  }, [initialCategory, initialPropertyId, properties, disableSavedState]);
+  }, [
+    initialCategory,
+    initialPropertyId,
+    initialIds,
+    properties,
+    disableSavedState,
+  ]);
 
   // 2. Hook to save state to localStorage whenever filters or property details modal changes
   useEffect(() => {

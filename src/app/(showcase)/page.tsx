@@ -14,6 +14,7 @@ import {
   cachedResolveSellerPage,
   cachedResolveShowcaseRef,
   cachedResolveVisitorIsAgent,
+  cachedResolveSharePinnedIds,
   resolveSubdomainFromHost,
   toPublicProperties,
 } from '@/lib/showcase/public-data';
@@ -78,8 +79,9 @@ interface PageProps {
      *  links append v=<contact_id>). Unlike ref=, it never filters the
      *  catalog — it only attributes engagement events. */
     v?: string;
-    /** Share-instance token for generic (recipient-unknown) shares —
-     *  labels which share a visit came from in Pulse. Never filters. */
+    /** Share-instance token (migration 173) — labels which share a visit
+     *  came from in Pulse, and opens the listings the share pinned when
+     *  it was minted with search results or a hand-picked set. */
     s?: string;
     /** Share-grant token (migration 198) — unmasks the exact address,
      *  map pin and documents for the one property it was minted for.
@@ -460,10 +462,14 @@ export default async function RootPage({ searchParams }: PageProps) {
   // The co-broker view is mode=view; the same contact opening the
   // plain link is caught by the visitor id the link carries. A
   // buyers-only listing never reaches either, deep-linked or not.
-  const visitorIsAgent =
+  const [visitorIsAgent, sharePinnedIds] = await Promise.all([
     !isAgentMode && !sellerPage && resolvedParams.v
-      ? await cachedResolveVisitorIsAgent(accountId, resolvedParams.v)
-      : false;
+      ? cachedResolveVisitorIsAgent(accountId, resolvedParams.v)
+      : Promise.resolve(false),
+    !sellerPage && resolvedParams.s
+      ? cachedResolveSharePinnedIds(accountId, resolvedParams.s)
+      : Promise.resolve([]),
+  ]);
   const agentView = isAgentMode || visitorIsAgent;
   const targetHiddenFromViewer =
     targetProperty !== null && agentView && isBuyersOnly(targetProperty);
@@ -648,6 +654,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         initialOnboardOffer={resolvedParams.onboard === '1'}
         visitorRef={resolvedParams.v}
         shareId={resolvedParams.s}
+        initialIds={sharePinnedIds}
         shareGrantToken={shareGrant?.token}
         services={services}
         articles={articles}

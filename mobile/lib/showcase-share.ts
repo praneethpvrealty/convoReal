@@ -3,6 +3,8 @@
 //   - to a contact → ?v=<contact_id>, Pulse shows their opens by name
 //   - anonymous → ?s=<share token> minted per share, Pulse shows
 //     "guest via the link shared <when>" without knowing the recipient
+// A search-results or hand-picked share also records its listings on
+// the token, so the link carries ?s= instead of every property code.
 
 import { apiFetch } from '@/lib/api';
 import { currentUserId, ensureProfile } from '@/lib/auth-store';
@@ -50,21 +52,24 @@ export async function contactPropertyShareUrl(
   return withParam(withProperty, 'v', contact.id);
 }
 
-/** Generic showcase link carrying a fresh share-instance token
- *  (migration 173). Minting is best-effort: offline or failed, the
- *  plain link still works — that one share is just untracked. */
-export async function anonymousShowcaseShareUrl(): Promise<string> {
-  const base = await getShowcaseUrl();
+/** Mints a share-instance token (migration 173) that pins the given
+ *  listings. Minting is best-effort: offline or failed, the link
+ *  spells the listings out instead — that one share is just untracked. */
+export async function mintShowcaseShare(
+  pinnedIds: readonly string[]
+): Promise<string | null> {
   try {
     const res = await apiFetch<{ data: { id: string } }>(
       '/api/showcase-shares',
       {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: pinnedIds }),
       }
     );
-    return withParam(base, 's', res.data.id);
+    return res.data.id;
   } catch {
-    return base;
+    return null;
   }
 }
 

@@ -190,6 +190,7 @@ import {
 } from '@/lib/inventory/gate-stats';
 import { importCountLabel } from '@/lib/inventory/import-activity';
 import { buildShowcaseShareLink } from '@/lib/inventory/showcase-share-link';
+import { applyShowcaseScope } from '@/lib/inventory/showcase-share-scope';
 import {
   MONTHLY_PRICED_LISTING_TYPES,
   rentalYieldPercent,
@@ -659,6 +660,18 @@ describe('the portal link invite is one server draft on both surfaces', () => {
       expect(source).toContain("=== 'Agent'");
       expect(source).toContain('the full inventory in agent view');
     }
+  });
+});
+
+describe('the showcase share sheet scrolls inside the sheet', () => {
+  // A scroll area in a BottomSheet grows past the sheet's height cap
+  // unless it shrinks (sheetScrollArea); the sheet then clips it and the
+  // message and share buttons below the link cannot be reached. A long
+  // link made this visible on 19 October 2026.
+  it('[PRP-005] shrinks its scroll area to the sheet', () => {
+    const sheet = mobileSource('components/showcase-share-sheet.tsx');
+    const body = sheet.slice(sheet.indexOf('<BottomSheet'));
+    expect(body).toMatch(/<ScrollView\s+style=\{sheetScrollArea\}/);
   });
 });
 
@@ -2423,26 +2436,39 @@ describe('the contact form offers the same buy-or-rent choices on both surfaces'
   });
 });
 
-describe('mobile/lib/showcase-scope.ts mirrors the showcase share link', () => {
+describe('mobile/lib/showcase-scope.ts runs the showcase share rule from src/', () => {
   // A shared catalog link is a promise about what the recipient will
-  // open. If the phone spelled a param differently, or let a category
-  // survive alongside a search, the same three taps would open two
-  // different showcases on the two surfaces.
+  // open. The scope rule lives once in src/lib/inventory/
+  // showcase-share-scope.ts: the web dialog applies it through a URL
+  // object, the phone through string appends, and both import it rather
+  // than keeping a copy that could drift.
   const mobile = mobileSource('lib/showcase-scope.ts');
+  const webBuilder = webSource('lib/inventory/showcase-share-link.ts');
+
+  it('[PRP-005] both surfaces import the one rule', () => {
+    expect(mobile).toContain(
+      "from '@shared/lib/inventory/showcase-share-scope'"
+    );
+    expect(mobile).not.toContain("if (scope === 'search')");
+    expect(webBuilder).toContain('showcaseScopeParams(');
+  });
 
   const cases = [
     { scope: 'all' as const, category: 'Commercial' as const },
     {
       scope: 'search' as const,
       category: 'Commercial' as const,
-      search: 'hsr',
+      search: 'hsr layout',
     },
+    { scope: 'search' as const, search: 'hsr', ids: ['CR-1', 'CR-2'] },
     { scope: 'pick' as const, ids: ['CR-1', 'CR-2'] },
+    { scope: 'pick' as const, ids: ['CR-1', 'CR-2'], shareId: 'share-1' },
+    { scope: 'all' as const, audience: 'agent' as const, visitorId: 'c-9' },
   ];
 
   it('builds the same query for the same choices', () => {
     for (const c of cases) {
-      const url = new URL(
+      const web = new URL(
         buildShowcaseShareLink({
           baseUrl: 'https://acme.convoreal.com',
           includeRef: false,
@@ -2450,42 +2476,17 @@ describe('mobile/lib/showcase-scope.ts mirrors the showcase share link', () => {
           ...c,
         })
       );
-      for (const key of url.searchParams.keys()) {
-        expect(mobile, `mobile is missing the "${key}" param`).toContain(
-          `'${key}'`
-        );
-      }
+      const phone = new URL(
+        applyShowcaseScope('https://acme.convoreal.com/?ref=acc-1', {
+          audience: 'client',
+          ...c,
+        })
+      );
+      phone.searchParams.delete('ref');
+      expect([...phone.searchParams.entries()]).toEqual([
+        ...web.searchParams.entries(),
+      ]);
     }
-  });
-
-  it('keeps one scope exclusive of the others', () => {
-    // Web: search wins over pick wins over category, as one if/else.
-    const searchLink = buildShowcaseShareLink({
-      baseUrl: 'https://acme.convoreal.com',
-      includeRef: false,
-      audience: 'client',
-      scope: 'search',
-      category: 'Commercial',
-      search: 'hsr',
-    });
-    expect(searchLink).not.toContain('category=');
-    expect(mobile).toContain("if (scope === 'search')");
-    expect(mobile).toContain("} else if (scope === 'pick')");
-    expect(mobile).toContain("} else if (category !== 'All')");
-  });
-
-  it('marks a co-broker link and a named visitor the same way', () => {
-    const link = buildShowcaseShareLink({
-      baseUrl: 'https://acme.convoreal.com',
-      includeRef: false,
-      audience: 'agent',
-      scope: 'all',
-      visitorId: 'contact-9',
-    });
-    expect(link).toContain('mode=view');
-    expect(link).toContain('v=contact-9');
-    expect(mobile).toContain("withParam(url, 'mode', 'view')");
-    expect(mobile).toContain("withParam(url, 'v', visitorId)");
   });
 });
 
