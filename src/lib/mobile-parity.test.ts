@@ -2438,6 +2438,7 @@ describe('mobile/lib/showcase-scope.ts mirrors the showcase share link', () => {
       search: 'hsr',
     },
     { scope: 'pick' as const, ids: ['CR-1', 'CR-2'] },
+    { scope: 'pick' as const, ids: ['CR-1', 'CR-2'], shareId: 'share-1' },
   ];
 
   it('builds the same query for the same choices', () => {
@@ -2472,6 +2473,9 @@ describe('mobile/lib/showcase-scope.ts mirrors the showcase share link', () => {
     expect(mobile).toContain("if (scope === 'search')");
     expect(mobile).toContain("} else if (scope === 'pick')");
     expect(mobile).toContain("} else if (category !== 'All')");
+    // [PRP-005] Pinned listings ride on the share token on both surfaces.
+    expect(mobile).toContain("if (!shareId) url = withParam(url, 'ids'");
+    expect(mobile).toContain('if (ids.length > 0 && !shareId)');
   });
 
   it('marks a co-broker link and a named visitor the same way', () => {

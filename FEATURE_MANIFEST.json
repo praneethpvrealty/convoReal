@@ -1377,22 +1377,49 @@
         },
         {
           "id": "PRP-005",
-          "rule": "Search-result showcase sharing recognises text, locality, radius and inventory filters on web and mobile, resolves them to the same available published listings, and preserves per-contact Showcase Pulse attribution.",
+          "rule": "Search-result showcase sharing recognises text, locality, radius and inventory filters on web and mobile, resolves them to the same available published listings, and preserves per-contact Showcase Pulse attribution. The resolved listings (and a hand-picked set) are recorded on the share instance the link carries, so the link goes out as ?s=<token> and never spells every property code into the URL; the showcase resolves the token to the same listings for the same account only, a token minted without pins opens the whole catalogue, and a failed mint falls back to the spelled-out ?ids= link rather than blocking the share.",
           "tests": [
             {
               "file": "src/lib/inventory/showcase-share-link.test.ts",
               "case": "pins the resolved results for a structured search"
             },
             {
+              "file": "src/lib/inventory/showcase-share-link.test.ts",
+              "case": "[PRP-005]"
+            },
+            {
               "file": "src/app/api/inventory/share-summary/route.test.ts",
               "case": "uses the resolved ids for a location or filtered search"
             },
             {
+              "file": "src/app/api/showcase-shares/route.test.ts",
+              "case": "[PRP-005]"
+            },
+            {
+              "file": "src/lib/showcase/public-data.test.ts",
+              "case": "[PRP-005]"
+            },
+            {
+              "file": "src/app/(showcase)/page.audience.test.tsx",
+              "case": "[PRP-005]"
+            },
+            {
+              "file": "src/components/showcase/showcase-view.pinned-share.test.tsx",
+              "case": "pinned share"
+            },
+            {
               "file": "mobile/lib/showcase-scope.test.ts",
               "case": "pins the resolved results for a structured search"
+            },
+            {
+              "file": "mobile/lib/showcase-scope.test.ts",
+              "case": "[PRP-005]"
             }
           ],
-          "guards": [".github/workflows/eas-update.yml"]
+          "guards": [
+            ".github/workflows/eas-update.yml",
+            "supabase/migrations/20261019140000_showcase_share_link_pinned_ids.sql"
+          ]
         },
         {
           "id": "PRP-006",

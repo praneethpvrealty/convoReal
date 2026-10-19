@@ -17,6 +17,20 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 19 October 2026
+
+- **A search-results share link no longer spells out every listing.**
+  Sharing "Search results" or a hand-picked set from the Properties tab,
+  on web or mobile, used to put each matching property code into the
+  link, so a search like "Commer" went out as a sixty-code URL that
+  filled the message. The listings are now recorded on the share token
+  the link already carried for Showcase Pulse, and the link goes out as
+  `?s=<token>`; the showcase opens exactly the same listings as before.
+  A token that could not be minted falls back to the spelled-out link
+  rather than blocking the share. **Migration required:**
+  `supabase/migrations/20261019140000_showcase_share_link_pinned_ids.sql`
+  (additive).
+
 #### 18 October 2026
 
 - **A lead who asks for a number to call is given one, once.** "Could you

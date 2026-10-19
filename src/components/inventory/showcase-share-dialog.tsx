@@ -178,18 +178,6 @@ export function ShowcaseShareDialog({
     portfolioContact ? [portfolioContact.id] : []
   );
 
-  const shareInstance = useQuery({
-    queryKey: ['showcase-share-instance'],
-    enabled: open,
-    staleTime: Infinity,
-    gcTime: 0,
-    queryFn: async () => {
-      const response = await fetch('/api/showcase-shares', { method: 'POST' });
-      if (!response.ok) return null;
-      return ((await response.json()) as { data: { id: string } }).data.id;
-    },
-  });
-
   const defaultClientMessage = `Hi {name}! 👋
 
 I've curated an exclusive property showcase just for you. Browse through handpicked listings and find the one that feels right.
@@ -342,41 +330,79 @@ Best regards`;
     picked,
   ]);
 
+  // A search-results or hand-picked share pins its listings on the share
+  // instance, so the link carries one token instead of every property
+  // code. Minted per distinct set, once the picks settle, so a link that
+  // was copied keeps opening what it opened.
+  const pinnedIds = useMemo(
+    () =>
+      scope === 'all'
+        ? []
+        : (scopeProperties ?? []).map((p) => p.property_code || p.id),
+    [scope, scopeProperties]
+  );
+  const scopeIds = pinnedIds.join(',');
+  const [settledScopeIds, setSettledScopeIds] = useState(scopeIds);
+  useEffect(() => {
+    const timer = setTimeout(() => setSettledScopeIds(scopeIds), 250);
+    return () => clearTimeout(timer);
+  }, [scopeIds]);
+  const scopeUnresolved =
+    scope === 'search' &&
+    Boolean(activeSearchParams) &&
+    (!scopeProperties || scopeProperties.length === 0);
+  const shareInstance = useQuery({
+    queryKey: ['showcase-share-instance', settledScopeIds],
+    enabled:
+      open &&
+      !scopeUnresolved &&
+      settledScopeIds === scopeIds &&
+      (scope === 'all' || scopeProperties !== null),
+    staleTime: Infinity,
+    gcTime: 0,
+    queryFn: async () => {
+      const response = await fetch('/api/showcase-shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: pinnedIds }),
+      });
+      if (!response.ok) return null;
+      return ((await response.json()) as { data: { id: string } }).data.id;
+    },
+  });
+  const shareInstancePending =
+    pinnedIds.length > 0 &&
+    (settledScopeIds !== scopeIds ||
+      (shareInstance.data === undefined && !shareInstance.isError));
+
   const generatedLink = useMemo(() => {
     if (typeof window === 'undefined') return '';
-    if (
-      scope === 'search' &&
-      activeSearchParams &&
-      (!scopeProperties || scopeProperties.length === 0)
-    )
-      return '';
+    if (scopeUnresolved || shareInstancePending) return '';
 
     const subdomain = showcaseSettings?.subdomain;
     const targetDomain = subdomain
       ? `${subdomain}.${getBaseHost()}`
       : window.location.host;
 
-    const link = buildShowcaseShareLink({
+    return buildShowcaseShareLink({
       baseUrl: `${window.location.protocol}//${targetDomain}`,
       accountId,
       includeRef: !subdomain,
       scope,
       category: shareCategory,
       search: trimmedSearch,
-      ids: (scopeProperties ?? []).map((p) => p.property_code || p.id),
+      ids: pinnedIds,
       audience,
+      shareId: shareInstance.data,
     });
-    if (!shareInstance.data) return link;
-    const tracked = new URL(link);
-    tracked.searchParams.set('s', shareInstance.data);
-    return tracked.toString();
   }, [
     accountId,
     showcaseSettings,
     scope,
-    activeSearchParams,
+    scopeUnresolved,
+    shareInstancePending,
     trimmedSearch,
-    scopeProperties,
+    pinnedIds,
     shareCategory,
     audience,
     shareInstance.data,
@@ -558,9 +584,7 @@ Best regards`;
       scope,
       category: shareCategory,
       search: trimmedSearch,
-      ids: (scopeProperties ?? [])
-        .map((property) => property.property_code || property.id)
-        .join(','),
+      ids: scopeIds,
       portal_url: generatedLink,
       audience,
     });

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   cachedFetchShowcaseData,
+  cachedResolveSharePinnedIds,
   splitShowcaseListings,
   toPublicProperties,
 } from './public-data';
@@ -16,6 +17,8 @@ const state = {
   catalogueFetches: 0,
   catalogueError: null as Error | null,
   orFilters: [] as string[],
+  shareLookups: [] as Array<Record<string, unknown>>,
+  sharePinnedIds: null as string[] | null,
 };
 
 vi.mock('@/lib/supabase/admin', () => {
@@ -27,7 +30,12 @@ vi.mock('@/lib/supabase/admin', () => {
         isVersionProbe = options?.count === 'exact';
         return self;
       },
-      eq: () => self,
+      eq: (column: string, value: unknown) => {
+        if (table === 'showcase_share_links') {
+          state.shareLookups.push({ [column]: value });
+        }
+        return self;
+      },
       in: () => self,
       or: (filter: string) => {
         state.orFilters.push(filter);
@@ -45,7 +53,9 @@ vi.mock('@/lib/supabase/admin', () => {
           data:
             table === 'accounts'
               ? { name: state.accountName, updated_at: state.accountUpdatedAt }
-              : { updated_at: state.settingsUpdatedAt },
+              : table === 'showcase_share_links'
+                ? { pinned_ids: state.sharePinnedIds }
+                : { updated_at: state.settingsUpdatedAt },
           error: null,
         }),
       then: (resolve: (value: unknown) => unknown) => {
@@ -195,6 +205,39 @@ describe('showcase audience', () => {
       'quiet',
       'open',
     ]);
+  });
+});
+
+describe('cachedResolveSharePinnedIds', () => {
+  const SHARE = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  beforeEach(() => {
+    state.shareLookups = [];
+    state.sharePinnedIds = null;
+  });
+
+  it('[PRP-005] returns the listings the share pinned, scoped to the account', async () => {
+    state.sharePinnedIds = ['PROP-2263', 'PROP-2249'];
+    await expect(
+      cachedResolveSharePinnedIds('acc-pins', SHARE)
+    ).resolves.toEqual(['PROP-2263', 'PROP-2249']);
+    expect(state.shareLookups).toEqual([
+      { id: SHARE },
+      { account_id: 'acc-pins' },
+    ]);
+  });
+
+  it('[PRP-005] a plain tracking token or a token from another account pins nothing', async () => {
+    await expect(
+      cachedResolveSharePinnedIds('acc-plain', SHARE)
+    ).resolves.toEqual([]);
+  });
+
+  it('never queries for a token that is not a uuid', async () => {
+    await expect(
+      cachedResolveSharePinnedIds('acc-garbage', 'PROP-1,PROP-2')
+    ).resolves.toEqual([]);
+    expect(state.shareLookups).toEqual([]);
   });
 });
 

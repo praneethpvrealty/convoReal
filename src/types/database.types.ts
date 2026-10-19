@@ -11629,6 +11629,7 @@ export type Database = {
           account_id: string;
           created_at: string;
           id: string;
+          pinned_ids: string[] | null;
           updated_at: string | null;
           user_id: string | null;
         };
@@ -11636,6 +11637,7 @@ export type Database = {
           account_id: string;
           created_at?: string;
           id?: string;
+          pinned_ids?: string[] | null;
           updated_at?: string | null;
           user_id?: string | null;
         };
@@ -11643,6 +11645,7 @@ export type Database = {
           account_id?: string;
           created_at?: string;
           id?: string;
+          pinned_ids?: string[] | null;
           updated_at?: string | null;
           user_id?: string | null;
         };

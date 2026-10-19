@@ -40,6 +40,37 @@ describe('buildShowcaseShareLink', () => {
     expect(url).not.toContain('search=');
   });
 
+  it('[PRP-005] carries pinned listings on the share token instead of the URL', () => {
+    const url = buildShowcaseShareLink({
+      ...base,
+      scope: 'search',
+      search: 'Commer',
+      ids: Array.from({ length: 60 }, (_, i) => `PROP-${2263 - i}`),
+      shareId: 'share-1',
+    });
+    expect(url).toBe('https://acme.convoreal.com/?s=share-1');
+    expect(
+      buildShowcaseShareLink({
+        ...base,
+        scope: 'pick',
+        ids: ['CR-101', 'CR-102'],
+        shareId: 'share-2',
+        visitorId: 'contact-9',
+      })
+    ).toBe('https://acme.convoreal.com/?s=share-2&v=contact-9');
+  });
+
+  it('[PRP-005] a token minted without pins only labels the share', () => {
+    expect(
+      buildShowcaseShareLink({
+        ...base,
+        scope: 'all',
+        category: 'Commercial',
+        shareId: 'share-3',
+      })
+    ).toBe('https://acme.convoreal.com/?category=Commercial&s=share-3');
+  });
+
   it('pins a hand-picked set with ids', () => {
     const url = buildShowcaseShareLink({
       ...base,
