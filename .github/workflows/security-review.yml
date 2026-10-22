@@ -1,0 +1,76 @@
+name: Security review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+      - 'release/**'
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to review
+        required: true
+        type: number
+
+concurrency:
+  group: security-review-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Claude security review
+    # Drafts wait until they are marked ready, so the review sees the code
+    # that will merge. Fork pull requests cannot read the API key secret.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.draft == false &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Resolve the pull request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+        run: |
+          pr=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")
+          {
+            echo "number=${PR_NUMBER}"
+            echo "base_sha=$(jq -r .base.sha <<<"$pr")"
+            echo "head_sha=$(jq -r .head.sha <<<"$pr")"
+            echo "title=$(jq -r .title <<<"$pr" | tr -d '\r' | head -c 200)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install the reviewer
+        run: npm ci --prefix .github/security-review --no-audit --no-fund
+
+      - name: Test the reviewer's helpers
+        run: npm test --prefix .github/security-review
+
+      - name: Review the change
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          PR_TITLE: ${{ steps.pr.outputs.title }}
+        run: node .github/security-review/review.mjs
