@@ -36,6 +36,8 @@ test('selectFiles keeps source files, deletions included, and drops tests and ge
       'R100\tsrc/a.ts\tsrc/b.ts',
       'M\tsupabase/migrations/20261022000000_x.sql',
       'M\tgo-ingress/main.go',
+      'M\tAGENTS.md',
+      'M\tREADME.md',
     ].join('\n')
   );
   assert.deepEqual(files, [
@@ -44,6 +46,7 @@ test('selectFiles keeps source files, deletions included, and drops tests and ge
     'src/b.ts',
     'supabase/migrations/20261022000000_x.sql',
     'go-ingress/main.go',
+    'AGENTS.md',
   ]);
   assert.equal(isReviewed('mobile/lib/api.ts'), true);
   assert.equal(isReviewed('public/guides/x.pdf'), false);

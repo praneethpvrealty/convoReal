@@ -25,7 +25,7 @@ const MAX_TOOL_RESULT_CHARS = 24_000;
 const MAX_FILE_LINES = 400;
 const CHECK_NAME = 'Claude Security Review';
 
-const root = process.cwd();
+const root = path.resolve(required('REVIEW_ROOT'));
 const repo = required('GITHUB_REPOSITORY');
 const prNumber = Number(required('PR_NUMBER'));
 const githubToken = required('GITHUB_TOKEN');
@@ -276,8 +276,6 @@ async function main() {
   const headSha = required('HEAD_SHA');
   const title = process.env.PR_TITLE || '';
 
-  git('checkout', '--quiet', '--detach', headSha);
-
   const mergeBase = git('merge-base', baseSha, headSha).trim();
   const nameStatus = git('diff', '--name-status', `${mergeBase}..${headSha}`);
   const files = selectFiles(nameStatus);
@@ -304,11 +302,9 @@ async function main() {
 
   let handbook = '';
   try {
-    handbook = extractHandbookSections(
-      readFileSync(path.join(root, 'AGENTS.md'), 'utf8')
-    );
+    handbook = extractHandbookSections(git('show', `${baseSha}:AGENTS.md`));
   } catch {
-    handbook = '(AGENTS.md not available in this checkout)';
+    handbook = '(AGENTS.md not available at the base commit)';
   }
 
   const client = new Anthropic();

@@ -33,6 +33,7 @@ const SKIPPED_PATTERNS = [
 export const SEVERITIES = ['critical', 'high', 'medium', 'low'];
 
 export function isReviewed(file) {
+  if (file === 'AGENTS.md') return true;
   if (SKIPPED_PATTERNS.some((re) => re.test(file))) return false;
   return REVIEWED_EXTENSIONS.has(path.posix.extname(file));
 }
