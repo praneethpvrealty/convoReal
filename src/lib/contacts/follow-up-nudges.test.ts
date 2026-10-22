@@ -131,6 +131,9 @@ describe('buildFollowUpActionButtons', () => {
       daysSilent: 6,
       propertyTitle: 'JP Nagar Plot',
     });
+    expect(buttons[0].id).toBe(
+      `${FOLLOWUP_CHECKIN_PREFIX}${CONTACT_ID}:${FOLLOWUP_NO_LISTING}`
+    );
     expect(buttons.map((button) => button.title)).toEqual([
       '💬 Check in',
       '🤔 Still considering',
@@ -900,6 +903,30 @@ describe('[JRN-024] a Check in tap is re-checked before anything is sent', () =>
         now: NOW,
       })
     ).toBeNull();
+  });
+
+  it('carries the carded listing on the Check in button and checks in about that listing', () => {
+    const [checkin] = buildFollowUpActionButtons({
+      contactId: CONTACT_ID,
+      name: 'Hari',
+      phone: '+919945233018',
+      assignedAgentUserId: null,
+      daysSilent: 6,
+      propertyId: PROPERTY_ID,
+      propertyTitle: 'JP Nagar Plot',
+    });
+    expect(parseFollowUpReply(checkin.id)).toEqual({
+      action: 'checkin',
+      contactId: CONTACT_ID,
+      propertyId: PROPERTY_ID,
+    });
+    const source = readFileSync(
+      join(process.cwd(), 'src/lib/contacts/follow-up-nudges.ts'),
+      'utf8'
+    );
+    expect(source).toContain(
+      'action.propertyId === undefined\n      ? lead.last_inquired_property_id\n      : action.propertyId'
+    );
   });
 
   it('runs before either the free-form or the template check-in goes out', () => {

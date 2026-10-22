@@ -19,6 +19,8 @@ describe('[JRN-023] reading a typed answer to the check-in', () => {
     'This property is no longer available',
     'It got sold',
     'Your agent told me it is already booked',
+    'The plot is gone',
+    'Plot already sold',
   ])('reads %j as the listing being gone', (text) => {
     expect(reportsListingSold(text)).toBe(true);
     expect(readCheckinEnding(text)).toBe('sold');
@@ -31,6 +33,10 @@ describe('[JRN-023] reading a typed answer to the check-in', () => {
     "It hasn't been sold",
     'I already booked a site visit',
     'Already booked the slot for Saturday',
+    "I've already gone to see it",
+    "I've already gone through the documents and am still considering",
+    "I've already taken it to my lawyer",
+    "It's booked for Saturday",
     'I sold my old flat to fund this',
     'Still interested',
     'Not interested',

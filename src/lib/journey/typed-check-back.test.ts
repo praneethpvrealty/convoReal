@@ -677,6 +677,18 @@ describe('[JRN-023] a typed answer that ends, rejects or puzzles the check-in', 
     }
   );
 
+  it('reads "Plot already sold" as the listing gone, not a new requirement', async () => {
+    tables.whatsapp_config = [{ auto_qualify_leads: true }];
+    const outcome = await reply('Plot already sold');
+
+    expect(outcome).toBe('handled');
+    expect(handleSoldReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        property: expect.objectContaining({ id: 'p-1' }),
+      })
+    );
+  });
+
   it('answers "It is not already sold" as a reply, never as the listing gone', async () => {
     const outcome = await reply('It is not already sold');
     expect(outcome).not.toBe('not_checkin');

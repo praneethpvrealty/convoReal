@@ -165,7 +165,7 @@ export function buildFollowUpActionButtons(
 ): InteractiveButton[] {
   return [
     {
-      id: `${FOLLOWUP_CHECKIN_PREFIX}${lead.contactId}`,
+      id: `${FOLLOWUP_CHECKIN_PREFIX}${lead.contactId}:${lead.propertyId || FOLLOWUP_NO_LISTING}`,
       title: '💬 Check in',
     },
     {
@@ -748,14 +748,21 @@ export async function handleFollowUpReply(
   });
   if (!conversation) return false;
 
-  const property = lead.last_inquired_property_id
+  // The listing the card named, so a card tapped after the lead moved
+  // on checks in about — and is held for — the listing it showed. A
+  // card sent before cards carried it falls back to the latest enquiry.
+  const cardedPropertyId =
+    action.propertyId === undefined
+      ? lead.last_inquired_property_id
+      : action.propertyId;
+  const property = cardedPropertyId
     ? ((
         await admin
           .from('properties')
           .select(
             'id, title, property_code, bedrooms, sublocality, city, location, status'
           )
-          .eq('id', lead.last_inquired_property_id)
+          .eq('id', cardedPropertyId)
           .eq('account_id', accountId)
           .maybeSingle()
       ).data as Property | null)

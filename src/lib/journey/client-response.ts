@@ -2448,7 +2448,7 @@ export async function handleInboxCheckinReply(
 
   if (
     !fromButton &&
-    !asksToCloseEnquiry(responseText) &&
+    !readCheckinEnding(responseText) &&
     statesNewRequirement(responseText)
   ) {
     const [{ data: config }, { data: contactRow }] = await Promise.all([

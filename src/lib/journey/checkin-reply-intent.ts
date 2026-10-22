@@ -17,7 +17,7 @@ const SOLD_REPORT_PATTERNS = [
   /\bsold\s+out\b/i,
   /\b(?:been|got)\s+sold\b/i,
   /\bno\s+longer\s+available\b/i,
-  /\b(?:already|been)\s+(?:booked|taken|gone)\b(?!\s+(?:a|an|the|my|our|for)\b)/i,
+  /\b(?:it|its|this|that|the\s+(?:plot|site|property|flat|villa|house|apartment|land|listing|unit|one))\s*(?:'s|’s|\s+is|\s+was|\s+has\s+been|\s+got)?\s+(?:already\s+)?(?:booked|gone)\b(?!\s+(?:for|on|at|to|through|by)\b)/i,
 ];
 
 const CLOSE_REQUEST_PATTERNS = [
