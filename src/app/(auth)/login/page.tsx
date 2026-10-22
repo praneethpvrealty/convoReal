@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { HelpCentreLink } from '@/components/auth/help-centre-link';
 import { createClient } from '@/lib/supabase/client';
 import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
 import { Button } from '@/components/ui/button';
@@ -570,6 +571,8 @@ function LoginPageInner() {
               Create account
             </Link>
           </p>
+
+          <HelpCentreLink className="mt-3" />
 
           {/* Property owners get their own portal — the Owners Den. */}
           <Link

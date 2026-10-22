@@ -2310,6 +2310,66 @@ describe("mobile/lib/copilot-tours.ts mirrors the tour registry's mobileSteps", 
   );
 });
 
+describe('new-user onboarding exists on both surfaces', () => {
+  // The web dashboard shell mounts the setup checklist and the helper
+  // widget shows proactive nudges; the app mounts the same two on its
+  // inbox tab and helper button, driven by the same two API routes and
+  // the same shared cooldown and checklist rules.
+  const webShell = webSource('app/(dashboard)/dashboard-shell.tsx');
+  const webNudges = webSource('hooks/useCopilotNudges.ts');
+  const mobileInbox = mobileSource('app/(app)/(tabs)/index.tsx');
+  const mobileChecklist = mobileSource('components/setup-checklist.tsx');
+  const mobileOnboarding = mobileSource('lib/onboarding.ts');
+  const mobileNudges = mobileSource('lib/use-copilot-nudges.ts');
+  const mobileWidget = mobileSource('components/copilot-widget.tsx');
+
+  it('[ONB-001] shows the owner setup checklist from the same status route', () => {
+    expect(webShell).toContain('<SetupChecklist');
+    expect(mobileInbox).toContain('<SetupChecklist');
+    expect(mobileChecklist).toContain('useSetupChecklist');
+    expect(mobileOnboarding).toContain("'/api/onboarding/status'");
+    expect(mobileOnboarding).toContain("account_role === 'owner'");
+    expect(mobileOnboarding).toContain('@shared/lib/onboarding/checklist');
+  });
+
+  it('[ONB-002] shows proactive nudges under the shared cooldown rules', () => {
+    expect(webNudges).toContain("from '@/lib/copilot/nudge-pick'");
+    expect(mobileNudges).toContain('@shared/lib/copilot/nudge-pick');
+    expect(mobileNudges).toContain('/api/copilot/nudges?lang=');
+    expect(webNudges).toContain('/api/copilot/nudges?lang=');
+    expect(mobileWidget).toContain('useCopilotNudges');
+    expect(mobileWidget).toContain('testID="copilot-nudge"');
+  });
+
+  it('[CPL-005] reaches the Help Centre from the helper and the menu on both surfaces', () => {
+    expect(webSource('components/copilot/copilot-panel.tsx')).toContain(
+      'href="/help"'
+    );
+    expect(webSource('components/layout/sidebar.tsx')).toContain(
+      'href="/help"'
+    );
+    expect(mobileSource('components/copilot-sheet.tsx')).toContain(
+      'openHelpCentre'
+    );
+    expect(mobileSource('app/(app)/(tabs)/more.tsx')).toContain(
+      'openHelpCentre'
+    );
+    expect(mobileSource('lib/help-centre.ts')).toContain('/help`');
+  });
+
+  it('[CPL-007] renders tour copy through the shared translations', () => {
+    expect(webSource('components/copilot/tour-overlay.tsx')).toContain(
+      'localizeTour('
+    );
+    expect(mobileSource('components/copilot-tour.tsx')).toContain(
+      'localizeMobileTour('
+    );
+    expect(mobileSource('components/copilot-sheet.tsx')).toContain(
+      '@shared/lib/copilot/tour-copy'
+    );
+  });
+});
+
 describe('mobile/lib/contact-interest.ts mirrors the web project axis', () => {
   // Both surfaces derive the project picker from the same function; a
   // divergence would make the two lists disagree on dedupe or order.

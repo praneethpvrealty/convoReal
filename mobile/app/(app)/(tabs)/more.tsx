@@ -26,6 +26,7 @@ import { signOut, useAuthStore } from '@/lib/auth-store';
 import { useFavorites } from '@/lib/favorites-store';
 import { resolveDisplayName } from '@/lib/display-name';
 import { haptic } from '@/lib/haptics';
+import { openHelpCentre } from '@/lib/help-centre';
 import { MENU_LINKS, MENU_SECTIONS, type MenuRouteId } from '@/lib/menu';
 import {
   fonts,
@@ -36,6 +37,7 @@ import {
   type AppearanceMode,
 } from '@/lib/theme';
 import { useCredits } from '@/lib/use-credits';
+import { useT } from '@/lib/use-t';
 
 /** Deliberately web-only (canvas editors, admin surface). */
 const WEB_ONLY = [
@@ -51,6 +53,7 @@ export default function MoreScreen() {
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
   const credits = useCredits();
+  const t = useT();
   const [editOpen, setEditOpen] = useState(false);
 
   const displayName = resolveDisplayName(
@@ -197,6 +200,26 @@ export default function MoreScreen() {
             { backgroundColor: colors.glass, borderColor: colors.glassBorder },
           ]}
         >
+          <Pressable
+            testID="menu-help-centre"
+            onPress={() => {
+              haptic.tap();
+              void openHelpCentre().catch(() => haptic.warn());
+            }}
+            accessibilityRole="link"
+            style={styles.navRow}
+            android_ripple={{ color: colors.border }}
+          >
+            <Ionicons
+              name="help-buoy-outline"
+              size={19}
+              color={colors.primary}
+            />
+            <Text style={[styles.navLabel, { color: colors.text }]}>
+              {t('nav.helpCentre')}
+            </Text>
+            <Ionicons name="open-outline" size={15} color={colors.textFaint} />
+          </Pressable>
           {WEB_ONLY.map((f) => (
             <View key={f.label} style={styles.navRow}>
               <Ionicons name={f.icon} size={19} color={colors.textMuted} />

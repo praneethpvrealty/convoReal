@@ -11,12 +11,14 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  CalendarCheck2,
   ArrowRight,
+  BookOpen,
+  CalendarCheck2,
   Check,
   CheckCircle2,
   Compass,
   Copy,
+  ExternalLink,
   LifeBuoy,
   Lightbulb,
   Loader2,
@@ -24,16 +26,17 @@ import {
   Send,
   Share2,
   Sparkles,
+  Square,
   ThumbsDown,
   ThumbsUp,
   TriangleAlert,
-  Square,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TOURS } from '@/lib/copilot/tours';
+import { localizeTour } from '@/lib/copilot/tour-copy';
 import { useCopilot } from './copilot-context';
-import { useT } from '@/hooks/useLocale';
+import { useLocale } from '@/hooks/useLocale';
 import {
   activeEntityQuery,
   entitySymbolForKind,
@@ -86,7 +89,7 @@ export function CopilotPanel() {
   const { panelOpen, closePanel, startTour } = useCopilot();
   const pathname = usePathname();
   const router = useRouter();
-  const t = useT();
+  const { language, t } = useLocale();
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
@@ -809,21 +812,41 @@ export function CopilotPanel() {
               <Compass className="h-3 w-3" /> {t('copilot.guides')}
             </p>
             <div className="flex flex-col gap-1.5">
-              {TOURS.map((tour) => (
-                <button
-                  key={tour.id}
-                  type="button"
-                  onClick={() => startTour(tour.id)}
-                  className="hover:border-primary/40 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5 text-left transition-colors hover:bg-slate-900"
-                >
-                  <p className="text-sm font-semibold text-white">
-                    {tour.title}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    {tour.description}
-                  </p>
-                </button>
-              ))}
+              {TOURS.map((raw) => {
+                const tour = localizeTour(raw, language);
+                return (
+                  <button
+                    key={tour.id}
+                    type="button"
+                    onClick={() => startTour(tour.id)}
+                    className="hover:border-primary/40 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5 text-left transition-colors hover:bg-slate-900"
+                  >
+                    <p className="text-sm font-semibold text-white">
+                      {tour.title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {tour.description}
+                    </p>
+                  </button>
+                );
+              })}
+              <a
+                href="/help"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:border-primary/40 flex items-center gap-3 rounded-xl border border-dashed border-slate-800 bg-slate-900/20 px-3 py-2.5 text-left transition-colors hover:bg-slate-900"
+              >
+                <BookOpen className="text-primary h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-white">
+                    {t('copilot.helpCentre')}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-slate-400">
+                    {t('copilot.helpCentreHint')}
+                  </span>
+                </span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+              </a>
             </div>
           </div>
         )}

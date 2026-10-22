@@ -44,10 +44,13 @@ import {
   type CopilotEntitySuggestion,
 } from '@/lib/copilot-entities';
 import { MOBILE_TOURS } from '@/lib/copilot-tours';
+import { openHelpCentre } from '@/lib/help-centre';
+import { normalizeUiLanguage } from '@/lib/i18n';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { localizeMobileTour } from '@shared/lib/copilot/tour-copy';
 
 type ActionState = 'pending' | 'running' | 'completed' | 'cancelled' | 'failed';
 type VoicePhase = 'idle' | 'recording' | 'transcribing';
@@ -96,6 +99,9 @@ export function CopilotSheet({
   const t = useT();
   const pathname = usePathname();
   const session = useAuthStore((s) => s.session);
+  const language = useAuthStore((s) =>
+    normalizeUiLanguage(s.profile?.active_ui_language)
+  );
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   const [turns, setTurns] = useState<SheetTurn[]>([]);
@@ -1029,44 +1035,88 @@ export function CopilotSheet({
             >
               {t('copilot.guides').toUpperCase()}
             </Text>
-            {MOBILE_TOURS.map((tour) => (
-              <Pressable
-                key={tour.id}
-                onPress={() => onStartTour(tour.id)}
-                accessibilityRole="button"
-                style={[
-                  styles.guideRow,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.glassBorder,
-                  },
-                ]}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.guideTitle,
-                      { fontFamily: f.semibold, color: colors.text },
-                    ]}
-                  >
-                    {tour.title}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.guideDesc,
-                      { fontFamily: f.regular, color: colors.textMuted },
-                    ]}
-                  >
-                    {tour.description}
-                  </Text>
-                </View>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={colors.textFaint}
-                />
-              </Pressable>
-            ))}
+            {MOBILE_TOURS.map((raw) => {
+              const tour = localizeMobileTour(raw, language);
+              return (
+                <Pressable
+                  key={tour.id}
+                  onPress={() => onStartTour(tour.id)}
+                  accessibilityRole="button"
+                  style={[
+                    styles.guideRow,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.glassBorder,
+                    },
+                  ]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.guideTitle,
+                        { fontFamily: f.semibold, color: colors.text },
+                      ]}
+                    >
+                      {tour.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.guideDesc,
+                        { fontFamily: f.regular, color: colors.textMuted },
+                      ]}
+                    >
+                      {tour.description}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={colors.textFaint}
+                  />
+                </Pressable>
+              );
+            })}
+            <Pressable
+              testID="copilot-help-centre"
+              onPress={() => {
+                haptic.tap();
+                void openHelpCentre().catch(() => haptic.warn());
+              }}
+              accessibilityRole="link"
+              style={[
+                styles.guideRow,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.glassBorder,
+                  borderStyle: 'dashed',
+                },
+              ]}
+            >
+              <Ionicons name="book-outline" size={18} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.guideTitle,
+                    { fontFamily: f.semibold, color: colors.text },
+                  ]}
+                >
+                  {t('copilot.helpCentre')}
+                </Text>
+                <Text
+                  style={[
+                    styles.guideDesc,
+                    { fontFamily: f.regular, color: colors.textMuted },
+                  ]}
+                >
+                  {t('copilot.helpCentreHint')}
+                </Text>
+              </View>
+              <Ionicons
+                name="open-outline"
+                size={16}
+                color={colors.textFaint}
+              />
+            </Pressable>
           </View>
         ) : null}
       </ScrollView>

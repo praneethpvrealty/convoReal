@@ -1440,6 +1440,7 @@ export default function CalendarPage() {
                 )}
                 <button
                   onClick={() => openNewApptModal()}
+                  data-tour="schedule-appointment"
                   className="bg-primary text-primary-foreground flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold hover:opacity-90"
                 >
                   <Plus className="h-3.5 w-3.5" />

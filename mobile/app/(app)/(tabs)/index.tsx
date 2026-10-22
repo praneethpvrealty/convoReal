@@ -22,6 +22,8 @@ import {
 } from '@/components/app-dialog';
 import { EnterRow, PressScale } from '@/components/motion';
 import { NotificationBell } from '@/components/notification-bell';
+import { SetupChecklist } from '@/components/setup-checklist';
+import { TourTarget } from '@/components/copilot-tour';
 import {
   Avatar,
   ConversationSkeleton,
@@ -273,9 +275,14 @@ export default function InboxScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <InboxHeader search={search} onSearch={setSearch} />
 
+      <SetupChecklist />
+
       <HotLeadsStrip />
 
-      <View style={[styles.filtersRow, styles.contentFrame]}>
+      <TourTarget
+        id="inbox-filters"
+        style={[styles.filtersRow, styles.contentFrame]}
+      >
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -321,7 +328,7 @@ export default function InboxScreen() {
             </Pressable>
           ) : null}
         </ScrollView>
-      </View>
+      </TourTarget>
 
       {isLoading ? (
         <View style={styles.contentFrame}>
@@ -517,12 +524,14 @@ function InboxHeader({
           </Text>
         </View>
       </View>
-      <SearchBar
-        testID="inbox-search"
-        value={search}
-        onChangeText={onSearch}
-        placeholder="Search name, phone or message"
-      />
+      <TourTarget id="inbox-search">
+        <SearchBar
+          testID="inbox-search"
+          value={search}
+          onChangeText={onSearch}
+          placeholder="Search name, phone or message"
+        />
+      </TourTarget>
     </View>
   );
 }

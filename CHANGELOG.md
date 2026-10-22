@@ -17,6 +17,26 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 22 October 2026
+
+- **New users get the same help on the phone as on the web, and can find
+  it.** The owner's setup checklist (connect WhatsApp, add a property,
+  add buyers, portal leads) now sits at the top of the mobile inbox until
+  every step is done, each open step opening where it is finished; the
+  helper's proactive tips (setup gaps, chats about to close, quiet hot
+  leads, stalled journeys, new matches, weekly views) appear above the
+  mobile helper button under the same one-a-day rule the web uses. The
+  public Help Centre, which only the landing page footer linked to, is
+  now reachable from the dashboard sidebar, the helper's guides list, the
+  mobile More menu and helper sheet, and the sign-in, sign-up, phone
+  verification and profile setup pages. Four new guided tours cover the
+  questions real users asked the helper: replying in the Inbox, tracking
+  a deal on the board, scheduling a site visit (all three run natively in
+  the app too) and inviting a teammate. Tour steps, guide titles and
+  proactive tips render in Hindi for an agent whose UI language is Hindi,
+  on web and mobile; English remains the source and other languages fall
+  back to it for now. No migration.
+
 #### 19 October 2026
 
 - **A search-results share link no longer spells out every listing.**

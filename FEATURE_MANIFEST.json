@@ -4437,6 +4437,86 @@
           "guards": [
             "supabase/migrations/20261010114941_copilot_property_interest.sql"
           ]
+        },
+        {
+          "id": "CPL-005",
+          "rule": "The public Help Centre (/help) is reachable from inside the product on both surfaces: the dashboard sidebar and the helper's guides list on web, the More menu and the helper sheet on mobile, and the sign-in, sign-up, phone-verification and profile-setup pages carry a Help Centre link. Web links open it in a new tab so the workspace stays put.",
+          "tests": [
+            {
+              "file": "src/components/auth/help-centre-link.test.tsx",
+              "case": "[CPL-005]"
+            },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[CPL-005]" }
+          ]
+        },
+        {
+          "id": "CPL-006",
+          "rule": "Daily-work questions start a deterministic tour with no model call: using the inbox and replying to a customer (use-inbox), tracking a deal on the board (track-deals), scheduling a site visit (schedule-visit) and inviting a teammate (invite-team). The first three also run natively on mobile; inviting a teammate is answered as desktop-only there because team settings are web-only.",
+          "tests": [
+            { "file": "src/lib/copilot/intent.test.ts", "case": "[CPL-006]" },
+            {
+              "file": "src/lib/copilot/tours.test.ts",
+              "case": "mobile steps are complete wherever a tour declares them"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "keeps the web copy and step data"
+            }
+          ]
+        },
+        {
+          "id": "CPL-007",
+          "rule": "Tour step copy, guide titles and proactive nudge copy render in the agent's UI language where a translation exists (Hindi today) and in English otherwise, on web and mobile alike; English in tours.ts stays the source of truth, every translated tour carries exactly as many steps as the English one, and the nudges route takes the language from the client so the server never guesses it.",
+          "tests": [
+            {
+              "file": "src/lib/copilot/tour-copy.test.ts",
+              "case": "[CPL-007]"
+            },
+            {
+              "file": "src/lib/copilot/nudge-copy.test.ts",
+              "case": "[CPL-007]"
+            },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[CPL-007]" }
+          ],
+          "guards": [
+            "src/lib/copilot/tour-copy.ts",
+            "src/lib/copilot/nudge-copy.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "onboarding",
+      "name": "New-user onboarding — setup checklist and proactive nudges",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "ONB-001",
+          "rule": "An account owner whose setup is incomplete sees the four-step setup checklist (connect WhatsApp, add a property, add buyers, portal leads) on the web dashboard and on the mobile inbox, computed from one status route and one shared rule; skipped portal leads count as done, the card disappears once every step is done, dismissal is per account on the device, and non-owners never see it. On mobile each open step takes the owner where it is done: a native tour or screen when the app has one, the desktop web page for WhatsApp connection and portal leads.",
+          "tests": [
+            {
+              "file": "src/lib/onboarding/checklist.test.ts",
+              "case": "[ONB-001]"
+            },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[ONB-001]" }
+          ],
+          "guards": ["src/lib/onboarding/checklist.ts"]
+        },
+        {
+          "id": "ONB-002",
+          "rule": "Rule-based proactive nudges (setup gaps first, then expiring chats, quiet hot leads, stalled journeys, fresh matches, weekly views) show on web and mobile as one bubble a day, never the same nudge twice in a week, fetched once per session eight seconds after load, with the cooldowns kept per account on the device under one shared rule. A nudge's button runs a native tour or opens a native screen on mobile when one exists and the desktop web page otherwise.",
+          "tests": [
+            {
+              "file": "src/lib/copilot/nudge-pick.test.ts",
+              "case": "[ONB-002]"
+            },
+            {
+              "file": "mobile/lib/copilot-nudges.test.ts",
+              "case": "[ONB-002]"
+            },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[ONB-002]" }
+          ],
+          "guards": ["src/lib/copilot/nudge-pick.ts"]
         }
       ]
     },

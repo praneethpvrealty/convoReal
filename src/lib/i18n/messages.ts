@@ -119,6 +119,18 @@ export const EN = {
   'tour.done': 'Done',
   'tour.skip': 'Skip',
   'tour.tapHighlight': 'Tap the highlight 👆',
+  'nav.helpCentre': 'Help Centre',
+  'copilot.helpCentre': 'Browse the Help Centre',
+  'copilot.helpCentreHint': 'Short illustrated guides for every feature',
+  'auth.needHelp': 'Need help?',
+  'setup.title': 'Finish setting up',
+  'setup.whatsapp': 'Connect WhatsApp',
+  'setup.property': 'Add a property',
+  'setup.contacts': 'Add buyers',
+  'setup.emailLeads': 'Portal leads',
+  'setup.resume': 'Resume',
+  'setup.dismiss': 'Hide',
+  'setup.openWeb': 'Set up on the web app',
 } as const;
 
 export type MessageKey = keyof typeof EN;
@@ -218,6 +230,18 @@ const HI: Catalogue = {
   'tour.done': 'हो गया',
   'tour.skip': 'छोड़ें',
   'tour.tapHighlight': 'हाइलाइट पर टैप करें 👆',
+  'nav.helpCentre': 'सहायता केंद्र',
+  'copilot.helpCentre': 'सहायता केंद्र देखें',
+  'copilot.helpCentreHint': 'हर फ़ीचर के लिए छोटी सचित्र गाइड',
+  'auth.needHelp': 'मदद चाहिए?',
+  'setup.title': 'सेटअप पूरा करें',
+  'setup.whatsapp': 'WhatsApp जोड़ें',
+  'setup.property': 'प्रॉपर्टी जोड़ें',
+  'setup.contacts': 'खरीदार जोड़ें',
+  'setup.emailLeads': 'पोर्टल लीड्स',
+  'setup.resume': 'जारी रखें',
+  'setup.dismiss': 'छिपाएँ',
+  'setup.openWeb': 'वेब ऐप पर सेट करें',
 };
 
 const KN: Catalogue = {
@@ -313,6 +337,19 @@ const KN: Catalogue = {
   'tour.done': 'ಮುಗಿಯಿತು',
   'tour.skip': 'ಬಿಟ್ಟುಬಿಡಿ',
   'tour.tapHighlight': 'ಹೈಲೈಟ್ ಟ್ಯಾಪ್ ಮಾಡಿ 👆',
+  'nav.helpCentre': 'ಸಹಾಯ ಕೇಂದ್ರ',
+  'copilot.helpCentre': 'ಸಹಾಯ ಕೇಂದ್ರ ನೋಡಿ',
+  'copilot.helpCentreHint':
+    'ಪ್ರತಿ ವೈಶಿಷ್ಟ್ಯಕ್ಕೂ ಚಿತ್ರಗಳೊಂದಿಗೆ ಚಿಕ್ಕ ಮಾರ್ಗದರ್ಶಿಗಳು',
+  'auth.needHelp': 'ಸಹಾಯ ಬೇಕೇ?',
+  'setup.title': 'ಸೆಟಪ್ ಪೂರ್ಣಗೊಳಿಸಿ',
+  'setup.whatsapp': 'WhatsApp ಸಂಪರ್ಕಿಸಿ',
+  'setup.property': 'ಆಸ್ತಿ ಸೇರಿಸಿ',
+  'setup.contacts': 'ಖರೀದಿದಾರರನ್ನು ಸೇರಿಸಿ',
+  'setup.emailLeads': 'ಪೋರ್ಟಲ್ ಲೀಡ್‌ಗಳು',
+  'setup.resume': 'ಮುಂದುವರಿಸಿ',
+  'setup.dismiss': 'ಮರೆಮಾಡಿ',
+  'setup.openWeb': 'ವೆಬ್ ಆ್ಯಪ್‌ನಲ್ಲಿ ಸೆಟಪ್ ಮಾಡಿ',
 };
 
 const TA: Catalogue = {
@@ -410,6 +447,19 @@ const TA: Catalogue = {
   'tour.done': 'முடிந்தது',
   'tour.skip': 'தவிர்',
   'tour.tapHighlight': 'ஹைலைட்டை தட்டவும் 👆',
+  'nav.helpCentre': 'உதவி மையம்',
+  'copilot.helpCentre': 'உதவி மையத்தைப் பார்க்கவும்',
+  'copilot.helpCentreHint':
+    'ஒவ்வொரு அம்சத்திற்கும் படங்களுடன் சிறு வழிகாட்டிகள்',
+  'auth.needHelp': 'உதவி வேண்டுமா?',
+  'setup.title': 'அமைப்பை முடிக்கவும்',
+  'setup.whatsapp': 'WhatsApp இணைக்கவும்',
+  'setup.property': 'சொத்தைச் சேர்க்கவும்',
+  'setup.contacts': 'வாங்குபவர்களைச் சேர்க்கவும்',
+  'setup.emailLeads': 'போர்ட்டல் லீட்கள்',
+  'setup.resume': 'தொடரவும்',
+  'setup.dismiss': 'மறைக்கவும்',
+  'setup.openWeb': 'வெப் ஆப்பில் அமைக்கவும்',
 };
 
 const TE: Catalogue = {
@@ -505,6 +555,18 @@ const TE: Catalogue = {
   'tour.done': 'అయిపోయింది',
   'tour.skip': 'దాటవేయి',
   'tour.tapHighlight': 'హైలైట్\u200cను నొక్కండి 👆',
+  'nav.helpCentre': 'సహాయ కేంద్రం',
+  'copilot.helpCentre': 'సహాయ కేంద్రం చూడండి',
+  'copilot.helpCentreHint': 'ప్రతి ఫీచర్‌కు చిత్రాలతో చిన్న గైడ్‌లు',
+  'auth.needHelp': 'సహాయం కావాలా?',
+  'setup.title': 'సెటప్ పూర్తి చేయండి',
+  'setup.whatsapp': 'WhatsApp కనెక్ట్ చేయండి',
+  'setup.property': 'ప్రాపర్టీ జోడించండి',
+  'setup.contacts': 'కొనుగోలుదారులను జోడించండి',
+  'setup.emailLeads': 'పోర్టల్ లీడ్స్',
+  'setup.resume': 'కొనసాగించండి',
+  'setup.dismiss': 'దాచండి',
+  'setup.openWeb': 'వెబ్ యాప్‌లో సెటప్ చేయండి',
 };
 
 const ML: Catalogue = {
@@ -600,6 +662,18 @@ const ML: Catalogue = {
   'tour.done': 'കഴിഞ്ഞു',
   'tour.skip': 'ഒഴിവാക്കുക',
   'tour.tapHighlight': 'ഹൈലൈറ്റിൽ ടാപ്പ് ചെയ്യുക 👆',
+  'nav.helpCentre': 'സഹായ കേന്ദ്രം',
+  'copilot.helpCentre': 'സഹായ കേന്ദ്രം കാണുക',
+  'copilot.helpCentreHint': 'ഓരോ ഫീച്ചറിനും ചിത്രങ്ങളോടെ ചെറിയ ഗൈഡുകൾ',
+  'auth.needHelp': 'സഹായം വേണോ?',
+  'setup.title': 'സെറ്റപ്പ് പൂർത്തിയാക്കുക',
+  'setup.whatsapp': 'WhatsApp ബന്ധിപ്പിക്കുക',
+  'setup.property': 'പ്രോപ്പർട്ടി ചേർക്കുക',
+  'setup.contacts': 'വാങ്ങുന്നവരെ ചേർക്കുക',
+  'setup.emailLeads': 'പോർട്ടൽ ലീഡുകൾ',
+  'setup.resume': 'തുടരുക',
+  'setup.dismiss': 'മറയ്ക്കുക',
+  'setup.openWeb': 'വെബ് ആപ്പിൽ സെറ്റപ്പ് ചെയ്യുക',
 };
 
 const MR: Catalogue = {
@@ -693,6 +767,18 @@ const MR: Catalogue = {
   'tour.done': 'झाले',
   'tour.skip': 'वगळा',
   'tour.tapHighlight': 'हायलाइटवर टॅप करा 👆',
+  'nav.helpCentre': 'मदत केंद्र',
+  'copilot.helpCentre': 'मदत केंद्र पाहा',
+  'copilot.helpCentreHint': 'प्रत्येक फीचरसाठी चित्रांसह छोटी मार्गदर्शिका',
+  'auth.needHelp': 'मदत हवी आहे?',
+  'setup.title': 'सेटअप पूर्ण करा',
+  'setup.whatsapp': 'WhatsApp जोडा',
+  'setup.property': 'प्रॉपर्टी जोडा',
+  'setup.contacts': 'खरेदीदार जोडा',
+  'setup.emailLeads': 'पोर्टल लीड्स',
+  'setup.resume': 'पुढे चालू ठेवा',
+  'setup.dismiss': 'लपवा',
+  'setup.openWeb': 'वेब अ‍ॅपवर सेट करा',
 };
 
 export const MESSAGES: Record<LanguageCode, Catalogue> = {

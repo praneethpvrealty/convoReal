@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { HelpCentreLink } from '@/components/auth/help-centre-link';
 import { recordSignupAttempt, signupGate } from '@/lib/auth/signup-attempt';
 import {
   fetchSignupRefusalReason,
@@ -357,6 +358,8 @@ function SignupPageInner() {
               Sign in
             </Link>
           </p>
+
+          <HelpCentreLink className="mt-4" />
 
           <p className="mt-3 text-center text-[11px] font-medium text-slate-500">
             After signup you&apos;ll verify your WhatsApp number — ConvoReal is

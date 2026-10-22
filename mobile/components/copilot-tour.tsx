@@ -16,9 +16,11 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type StyleProp,
   type ViewStyle,
 } from 'react-native';
 
+import { useAuthStore } from '@/lib/auth-store';
 import { trackCopilotTour } from '@/lib/copilot';
 import {
   getMobileTour,
@@ -26,8 +28,10 @@ import {
   type MobileTour,
 } from '@/lib/copilot-tours';
 import { haptic } from '@/lib/haptics';
+import { normalizeUiLanguage } from '@/lib/i18n';
 import { useT } from '@/lib/use-t';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { localizeMobileTour } from '@shared/lib/copilot/tour-copy';
 
 // ------------------------------------------------------------------
 // Native port of the web copilot's guided-tour engine
@@ -130,7 +134,13 @@ export function CopilotTourProvider({ children }: { children: ReactNode }) {
     setRect(null);
   }, []);
 
+  const language = useAuthStore((s) =>
+    normalizeUiLanguage(s.profile?.active_ui_language)
+  );
   const step = activeTour?.steps[stepIndex] ?? null;
+  const shownStep = activeTour
+    ? localizeMobileTour(activeTour, language).steps[stepIndex]
+    : null;
 
   // Per-step lifecycle: navigate to the step's screen once, then poll
   // for a measurable target. The poll keeps running while the step is
@@ -211,8 +221,8 @@ export function CopilotTourProvider({ children }: { children: ReactNode }) {
       {activeTour && step && rect ? (
         <TourSpotlight
           rect={rect}
-          title={step.title}
-          body={step.body}
+          title={shownStep?.title ?? step.title}
+          body={shownStep?.body ?? step.body}
           stepNumber={stepIndex + 1}
           stepCount={activeTour.steps.length}
           showNext={step.advanceOn === 'next'}
@@ -246,7 +256,7 @@ export function TourTarget({
 }: {
   id: string;
   children: ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }) {
   const { registerTarget, unregisterTarget, pressTargetId, advance } =
     useCopilotTour();

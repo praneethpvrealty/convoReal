@@ -3,24 +3,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { readStored, removeStored, writeStored } from '@/lib/safe-storage';
+import {
+  emailLeadsSkippedKey,
+  onboardingDismissedKey as dismissedKey,
+  setupAllDone,
+  type OnboardingStatus,
+} from '@/lib/onboarding/checklist';
 
-export interface OnboardingStatus {
-  hasWhatsApp: boolean;
-  hasProperties: boolean;
-  hasContacts: boolean;
-  hasEmailLeadSync: boolean;
-}
-
-function dismissedKey(accountId: string) {
-  return `onboarding_dismissed_${accountId}`;
-}
+export type { OnboardingStatus };
 
 // Email lead sync is the one step a consultant may legitimately never
 // complete (not everyone lists on portals), so "skip" is persisted
 // per-account instead of nagging on every visit.
-function emailLeadsSkippedKey(accountId: string) {
-  return `onboarding_email_leads_skipped_${accountId}`;
-}
 
 export function useOnboarding() {
   const { profile } = useAuth();
@@ -81,12 +75,7 @@ export function useOnboarding() {
     setDismissed(false);
   }
 
-  const allDone = status
-    ? status.hasWhatsApp &&
-      status.hasProperties &&
-      status.hasContacts &&
-      (status.hasEmailLeadSync || emailLeadsSkipped)
-    : false;
+  const allDone = status ? setupAllDone(status, emailLeadsSkipped) : false;
 
   // Show only for account owners who haven't dismissed and haven't completed all steps
   const shouldShow = isOwner && !loading && !dismissed && !!status && !allDone;

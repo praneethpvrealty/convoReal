@@ -13,6 +13,7 @@ import {
   type TextInput,
 } from 'react-native';
 
+import { TourTarget } from '@/components/copilot-tour';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import {
   Avatar,
@@ -214,14 +215,16 @@ export default function NewAppointmentScreen() {
         />
         {notice ? <Banner kind="info" text={notice} /> : null}
 
-        <TextField
-          placeholder="Title · e.g. Site visit — Prestige Lakeview"
-          returnKeyType="next"
-          onSubmitEditing={() => locationRef.current?.focus()}
-          blurOnSubmit={false}
-          value={title}
-          onChangeText={setTitle}
-        />
+        <TourTarget id="appointment-form">
+          <TextField
+            placeholder="Title · e.g. Site visit — Prestige Lakeview"
+            returnKeyType="next"
+            onSubmitEditing={() => locationRef.current?.focus()}
+            blurOnSubmit={false}
+            value={title}
+            onChangeText={setTitle}
+          />
+        </TourTarget>
 
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {TYPES.map((t) => {

@@ -14,12 +14,16 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useLocale } from '@/hooks/useLocale';
 import type { CopilotNudge } from '@/lib/copilot/nudges';
+import {
+  markNudgeSeen,
+  nudgeGlobalCooldownActive,
+  pickNudge,
+} from '@/lib/copilot/nudge-pick';
 import { readStored, readStoredJson, writeStored } from '@/lib/safe-storage';
 
 const FETCH_DELAY_MS = 8_000;
-const GLOBAL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
-const PER_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_FETCH_KEY = 'copilot_nudges_fetched';
 
 function readSeen(key: string): Record<string, number> {
@@ -34,6 +38,7 @@ export function useCopilotNudges(): {
   accept: () => void;
 } {
   const { profile } = useAuth();
+  const { language } = useLocale();
   const accountId = profile?.account_id as string | undefined;
   const [nudge, setNudge] = useState<CopilotNudge | null>(null);
 
@@ -43,34 +48,34 @@ export function useCopilotNudges(): {
     const seenKey = `copilot_nudge_seen_${accountId}`;
 
     const lastShown = Number(readStored(lastShownKey) ?? 0);
-    if (Date.now() - lastShown < GLOBAL_COOLDOWN_MS) return;
+    if (nudgeGlobalCooldownActive(lastShown)) return;
     if (readStored(SESSION_FETCH_KEY, 'session')) return;
 
     const timer = setTimeout(async () => {
       writeStored(SESSION_FETCH_KEY, '1', 'session');
       try {
-        const res = await fetch('/api/copilot/nudges');
+        const res = await fetch(
+          `/api/copilot/nudges?lang=${encodeURIComponent(language)}`
+        );
         if (!res.ok) return;
         const data: { nudges: CopilotNudge[] } = await res.json();
-        const seen = readSeen(seenKey);
-        const pick = data.nudges.find(
-          (n) => Date.now() - (seen[n.id] ?? 0) > PER_NUDGE_COOLDOWN_MS
-        );
+        const pick = pickNudge(data.nudges, readSeen(seenKey));
         if (pick) setNudge(pick);
       } catch {
         // Nudges are best-effort — never surface an error for them.
       }
     }, FETCH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [accountId]);
+  }, [accountId, language]);
 
   const markSeen = useCallback(() => {
     if (!accountId || !nudge) return;
     writeStored(`copilot_nudge_last_shown_${accountId}`, String(Date.now()));
     const seenKey = `copilot_nudge_seen_${accountId}`;
-    const seen = readSeen(seenKey);
-    seen[nudge.id] = Date.now();
-    writeStored(seenKey, JSON.stringify(seen));
+    writeStored(
+      seenKey,
+      JSON.stringify(markNudgeSeen(readSeen(seenKey), nudge.id))
+    );
     setNudge(null);
   }, [accountId, nudge]);
 
