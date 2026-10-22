@@ -2536,18 +2536,23 @@ export async function handleInboxCheckinReply(
     typed &&
     !asksToCloseEnquiry(responseText) &&
     (looksLikeQuestion(response) || requestsHumanContact(responseText));
-  const ending = typed && !asks ? readCheckinEnding(responseText) : null;
+  const endingRead = typed && !asks ? readCheckinEnding(responseText) : null;
+  const ambiguousEnding = Boolean(endingRead) && found.size > 1;
+  const ending = ambiguousEnding ? null : endingRead;
   const rejects =
-    typed && !asks && !ending && isPropertyDisinterest(responseText);
+    typed && !asks && !endingRead && isPropertyDisinterest(responseText);
   const named =
-    typed && !asks && !ending && !rejects ? parseCheckBackDate(response) : null;
+    typed && !asks && !endingRead && !rejects
+      ? parseCheckBackDate(response)
+      : null;
   const unclear =
-    typed &&
-    !asks &&
-    !ending &&
-    !rejects &&
-    !named &&
-    !readsAsStillConsidering(response);
+    ambiguousEnding ||
+    (typed &&
+      !asks &&
+      !endingRead &&
+      !rejects &&
+      !named &&
+      !readsAsStillConsidering(response));
 
   const { data: contactRow } = await db
     .from('contacts')

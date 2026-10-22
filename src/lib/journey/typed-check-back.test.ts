@@ -689,6 +689,30 @@ describe('[JRN-023] a typed answer that ends, rejects or puzzles the check-in', 
     );
   });
 
+  it('leaves a sold report to the agent when the check-in matches more than one listing', async () => {
+    tables.properties = [
+      ...tables.properties,
+      {
+        id: 'p-2',
+        title: PROPERTY_TITLE,
+        property_code: 'PROP-1307',
+        status: 'Available',
+        is_published: true,
+        user_id: 'lister-1',
+      },
+    ];
+    const outcome = await reply('You said its already sold');
+
+    expect(outcome).toBe('handled');
+    expect(handleSoldReport).not.toHaveBeenCalled();
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: expect.stringContaining('needs a reply'),
+      })
+    );
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
   it('answers "It is not already sold" as a reply, never as the listing gone', async () => {
     const outcome = await reply('It is not already sold');
     expect(outcome).not.toBe('not_checkin');

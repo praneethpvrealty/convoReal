@@ -848,7 +848,7 @@ describe('[JRN-024] a Check in tap is re-checked before anything is sent', () =>
   const NOW = new Date('2026-10-22T02:03:00Z');
   const dbWithLastAgent = (createdAt: string | null, failed = false) => {
     const builder: Record<string, unknown> = {};
-    for (const m of ['select', 'eq', 'order', 'limit'])
+    for (const m of ['select', 'eq', 'in', 'order', 'limit'])
       builder[m] = () => builder;
     builder.maybeSingle = async () => ({
       data: createdAt ? { created_at: createdAt } : null,
@@ -884,7 +884,7 @@ describe('[JRN-024] a Check in tap is re-checked before anything is sent', () =>
     );
     expect(hold).toEqual({ reason: 'agent_spoke', hoursAgo: 14 });
     expect(buildCheckinHoldMessage('Ramanathan', hold!)).toContain(
-      'messaged by your team 14 hours ago'
+      'messaged by your team or the bot 14 hours ago'
     );
   });
 

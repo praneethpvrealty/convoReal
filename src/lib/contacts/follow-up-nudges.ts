@@ -877,7 +877,7 @@ export async function readCheckinHold(
     .from('messages')
     .select('created_at')
     .eq('conversation_id', args.conversationId)
-    .eq('sender_type', 'agent')
+    .in('sender_type', ['agent', 'bot'])
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -903,7 +903,7 @@ export function buildCheckinHoldMessage(
     hold.hoursAgo < 1
       ? 'within the last hour'
       : `${hold.hoursAgo} hour${hold.hoursAgo === 1 ? '' : 's'} ago`;
-  return `🛑 Nothing was sent — ${who} was messaged by your team ${when}, so an automatic check-in would talk over that conversation. Reply in their thread instead.`;
+  return `🛑 Nothing was sent — ${who} was messaged by your team or the bot ${when}, so an automatic check-in would talk over that conversation. Reply in their thread instead.`;
 }
 
 export const COLD_FROM_FOLLOWUP_REASON =

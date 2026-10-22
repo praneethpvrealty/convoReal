@@ -75,6 +75,17 @@ describe('[JRN-023] reading a typed answer to the check-in', () => {
   });
 
   it.each([
+    'I bought elsewhere last year, but I am still interested in this plot',
+    'Already sold, but we are still keen on this one',
+    'Stop the updates on the others, I am interested in this one',
+  ])(
+    'never ends the enquiry on %j, which says the buyer is still interested',
+    (text) => {
+      expect(readCheckinEnding(text)).toBeNull();
+    }
+  );
+
+  it.each([
     'Yes',
     'Yes still interested',
     'Ok',

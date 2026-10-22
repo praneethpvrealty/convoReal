@@ -64,7 +64,11 @@ export function readsAsStillConsidering(text?: string | null): boolean {
 
 export type CheckinEnding = 'sold' | 'close';
 
+const STILL_INTERESTED =
+  /\b(?:still|remain|am|are|i'm|i’m|we're|we’re)\s+(?:very\s+)?(?:interested|keen|considering|looking\s+at\s+(?:it|this|that))\b/i;
+
 export function readCheckinEnding(text?: string | null): CheckinEnding | null {
+  if (STILL_INTERESTED.test(text || '')) return null;
   if (reportsListingSold(text)) return 'sold';
   if (asksToCloseEnquiry(text)) return 'close';
   return null;
