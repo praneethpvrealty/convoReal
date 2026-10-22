@@ -6,6 +6,8 @@
 // in copilot.ts, which reaches Expo, so the widget hands it in.
 // ------------------------------------------------------------------
 
+import { getTour, tourWebEntryRoute } from '@shared/lib/copilot/tours';
+
 import { getMobileTour } from './copilot-tours';
 
 export interface CopilotNudgeCta {
@@ -43,7 +45,8 @@ export function nudgeCtaTarget(
 ): NudgeCtaTarget | null {
   if (cta.tourId) {
     if (getMobileTour(cta.tourId)) return { kind: 'tour', tourId: cta.tourId };
-    return { kind: 'web', path: '/dashboard' };
+    const tour = getTour(cta.tourId);
+    return { kind: 'web', path: tour ? tourWebEntryRoute(tour) : '/dashboard' };
   }
   if (cta.href) {
     const href =

@@ -47,6 +47,7 @@ on:
       - 'src/lib/conversations/text-format.ts'
       - 'src/lib/copilot/nudge-pick.ts'
       - 'src/lib/copilot/tour-copy.ts'
+      - 'src/lib/copilot/tours.ts'
       - 'src/lib/dashboard/approval-order.ts'
       - 'src/lib/dashboard/document-approvals.ts'
       - 'src/lib/deals/co-broking.ts'

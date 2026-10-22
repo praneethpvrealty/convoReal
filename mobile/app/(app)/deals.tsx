@@ -632,16 +632,18 @@ export default function DealsScreen() {
       ) : null}
 
       {segment === 'board' && !flat && visibleStages.length > 0 ? (
-        <StageWheel
-          stages={visibleStages.map((s, index) => ({
-            id: s.id,
-            name: s.name,
-            color: s.color ?? colors.primary,
-            count: visibleStageCounts[index],
-          }))}
-          activeId={activeStage}
-          onSelect={setStageId}
-        />
+        <TourTarget id="deals-stages">
+          <StageWheel
+            stages={visibleStages.map((s, index) => ({
+              id: s.id,
+              name: s.name,
+              color: s.color ?? colors.primary,
+              count: visibleStageCounts[index],
+            }))}
+            activeId={activeStage}
+            onSelect={setStageId}
+          />
+        </TourTarget>
       ) : null}
 
       {segment === 'board' && !flat && stageDeals.length > 0 ? (

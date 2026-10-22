@@ -23,7 +23,14 @@ describe('mobile nudges [ONB-002]', () => {
     ).toEqual({ kind: 'tour', tourId: 'add-contact' });
     expect(
       nudgeCtaTarget({ label: 'x', tourId: 'connect-whatsapp' }, resolve)
-    ).toEqual({ kind: 'web', path: '/dashboard' });
+    ).toEqual({ kind: 'web', path: '/settings' });
+    expect(
+      nudgeCtaTarget({ label: 'x', tourId: 'email-lead-sync' }, resolve)
+    ).toEqual({ kind: 'web', path: '/settings' });
+    expect(nudgeCtaTarget({ label: 'x', tourId: 'nope' }, resolve)).toEqual({
+      kind: 'web',
+      path: '/dashboard',
+    });
   });
 
   it('opens a mapped web route natively and the rest on the web', () => {

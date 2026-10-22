@@ -4504,7 +4504,7 @@
         },
         {
           "id": "ONB-002",
-          "rule": "Rule-based proactive nudges (setup gaps first, then expiring chats, quiet hot leads, stalled journeys, fresh matches, weekly views) show on web and mobile as one bubble a day, never the same nudge twice in a week, fetched once per session eight seconds after load, with the cooldowns kept per account on the device under one shared rule. A nudge's button runs a native tour or opens a native screen on mobile when one exists and the desktop web page otherwise.",
+          "rule": "Rule-based proactive nudges (expiring chats first, then quiet hot leads, stalled journeys, fresh matches, weekly views, and then the setup gaps: WhatsApp, first property, first contact, portal leads, showcase branding) show on web and mobile as one bubble a day, never the same nudge twice in a week, fetched once per session eight seconds after load, with the cooldowns kept per account on the device under one shared rule. A nudge's button runs a native tour or opens a native screen on mobile when one exists and the desktop web page otherwise.",
           "tests": [
             {
               "file": "src/lib/copilot/nudge-pick.test.ts",
