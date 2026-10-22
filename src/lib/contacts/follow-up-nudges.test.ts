@@ -19,6 +19,8 @@ import {
   FOLLOWUP_COLD_PREFIX,
   FOLLOWUP_NO_LISTING,
   FOLLOWUP_MAX_PER_RUN,
+  readCheckinHold,
+  buildCheckinHoldMessage,
 } from './follow-up-nudges';
 
 // A ₹5-10 Cr lead said "we can talk whenever" and went six days
@@ -129,6 +131,9 @@ describe('buildFollowUpActionButtons', () => {
       daysSilent: 6,
       propertyTitle: 'JP Nagar Plot',
     });
+    expect(buttons[0].id).toBe(
+      `${FOLLOWUP_CHECKIN_PREFIX}${CONTACT_ID}:${FOLLOWUP_NO_LISTING}`
+    );
     expect(buttons.map((button) => button.title)).toEqual([
       '💬 Check in',
       '🤔 Still considering',
@@ -836,5 +841,118 @@ describe('the radar is wired up', () => {
     expect(
       vercel.crons.some((c) => c.path === '/api/cron/follow-up-nudges')
     ).toBe(true);
+  });
+});
+
+describe('[JRN-024] a Check in tap is re-checked before anything is sent', () => {
+  const NOW = new Date('2026-10-22T02:03:00Z');
+  const dbWithLastAgent = (createdAt: string | null, failed = false) => {
+    const builder: Record<string, unknown> = {};
+    for (const m of ['select', 'eq', 'in', 'order', 'limit'])
+      builder[m] = () => builder;
+    builder.maybeSingle = async () => ({
+      data: createdAt ? { created_at: createdAt } : null,
+      error: failed ? { message: 'timeout' } : null,
+    });
+    return { from: () => builder } as never;
+  };
+
+  it('holds the check-in when the listing is no longer Available', async () => {
+    const hold = await readCheckinHold(dbWithLastAgent(null), {
+      conversationId: 'conv-1',
+      property: { title: 'Vijaya Bank Layout plot', status: 'Sold' },
+      now: NOW,
+    });
+    expect(hold).toEqual({
+      reason: 'listing_unavailable',
+      title: 'Vijaya Bank Layout plot',
+      status: 'Sold',
+    });
+    expect(buildCheckinHoldMessage('Ramanathan', hold!)).toBe(
+      '🛑 Nothing was sent — *Vijaya Bank Layout plot* is marked Sold, so a check-in would tell Ramanathan their enquiry on it is still open. Tap Mark cold to close it instead.'
+    );
+  });
+
+  it('holds the check-in when the team messaged the lead in the last two days', async () => {
+    const hold = await readCheckinHold(
+      dbWithLastAgent('2026-10-21T11:39:00Z'),
+      {
+        conversationId: 'conv-1',
+        property: { title: 'Vijaya Bank Layout plot', status: 'Available' },
+        now: NOW,
+      }
+    );
+    expect(hold).toEqual({ reason: 'agent_spoke', hoursAgo: 14 });
+    expect(buildCheckinHoldMessage('Ramanathan', hold!)).toContain(
+      'messaged by your team or the bot 14 hours ago'
+    );
+  });
+
+  it('holds the check-in when the thread cannot be read', async () => {
+    const hold = await readCheckinHold(dbWithLastAgent(null, true), {
+      conversationId: 'conv-1',
+      property: { title: 'Vijaya Bank Layout plot', status: 'Available' },
+      now: NOW,
+    });
+    expect(hold).toEqual({ reason: 'unverified' });
+    expect(buildCheckinHoldMessage('Ramanathan', hold!)).toContain(
+      'Nothing was sent'
+    );
+  });
+
+  it('lets the check-in go when the listing is live and the team has been quiet', async () => {
+    expect(
+      await readCheckinHold(dbWithLastAgent('2026-10-19T02:00:00Z'), {
+        conversationId: 'conv-1',
+        property: { title: 'Vijaya Bank Layout plot', status: 'Available' },
+        now: NOW,
+      })
+    ).toBeNull();
+    expect(
+      await readCheckinHold(dbWithLastAgent(null), {
+        conversationId: 'conv-1',
+        property: null,
+        now: NOW,
+      })
+    ).toBeNull();
+  });
+
+  it('carries the carded listing on the Check in button and checks in about that listing', () => {
+    const [checkin] = buildFollowUpActionButtons({
+      contactId: CONTACT_ID,
+      name: 'Hari',
+      phone: '+919945233018',
+      assignedAgentUserId: null,
+      daysSilent: 6,
+      propertyId: PROPERTY_ID,
+      propertyTitle: 'JP Nagar Plot',
+    });
+    expect(parseFollowUpReply(checkin.id)).toEqual({
+      action: 'checkin',
+      contactId: CONTACT_ID,
+      propertyId: PROPERTY_ID,
+    });
+    const source = readFileSync(
+      join(process.cwd(), 'src/lib/contacts/follow-up-nudges.ts'),
+      'utf8'
+    );
+    expect(source).toContain(
+      'action.propertyId === undefined\n      ? lead.last_inquired_property_id\n      : action.propertyId'
+    );
+    expect(source).toContain('if (cardedPropertyId && !property) {');
+  });
+
+  it('runs before either the free-form or the template check-in goes out', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src/lib/contacts/follow-up-nudges.ts'),
+      'utf8'
+    );
+    const handler = source.slice(
+      source.indexOf('export async function handleFollowUpReply')
+    );
+    const hold = handler.indexOf('readCheckinHold(');
+    expect(hold).toBeGreaterThan(0);
+    expect(hold).toBeLessThan(handler.indexOf('buildFollowUpCheckinText('));
+    expect(hold).toBeLessThan(handler.indexOf('sendCheckinTemplate({'));
   });
 });

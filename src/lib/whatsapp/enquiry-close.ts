@@ -28,10 +28,13 @@ import {
 import { isListingLive } from '@/lib/inventory/listing-status';
 import {
   closePropertyEnquiry,
+  continueAfterEnquiryClose,
   enquiryLabel,
   loadOpenEnquiries,
   sendEnquiryReview,
 } from '@/lib/whatsapp/enquiry-review';
+import { leadFirstName } from '@/lib/contacts/lead-placeholder';
+import { createNotification } from '@/lib/notifications/create';
 
 export const START_ALERTS_LINE =
   'If you would like to hear about new listings that match your requirement later, just reply START ALERTS.';
@@ -80,6 +83,7 @@ export async function handleEnquiryClose(args: {
   };
   conversationId: string;
   contextMessageId: string | null;
+  property?: DroppedProperty | null;
 }): Promise<EnquiryCloseOutcome> {
   const { db, accountId, userId, contact, conversationId } = args;
   const send = (text: string) =>
@@ -96,13 +100,15 @@ export async function handleEnquiryClose(args: {
     });
 
   try {
-    const property = await resolveDroppedProperty({
-      db,
-      accountId,
-      contact,
-      conversationId,
-      contextMessageId: args.contextMessageId,
-    });
+    const property =
+      args.property ??
+      (await resolveDroppedProperty({
+        db,
+        accountId,
+        contact,
+        conversationId,
+        contextMessageId: args.contextMessageId,
+      }));
 
     if (property) {
       await closePropertyEnquiry({ db, accountId, contact, property });
@@ -154,5 +160,116 @@ export async function handleEnquiryClose(args: {
   } catch (err) {
     console.error('[enquiry-close] failed:', err);
     return 'search';
+  }
+}
+
+export const SOLD_REPORT_REASON = 'Lead reports the listing is sold';
+
+export function buildSoldReportAck(args: {
+  contactName?: string | null;
+  property: DroppedProperty;
+}): string {
+  const first = leadFirstName(args.contactName);
+  const title =
+    (args.property.title || '').trim() ||
+    (args.property.property_code || '').trim() ||
+    'this property';
+  const opening = `Sorry for the mix-up${first ? `, ${first}` : ''}.`;
+  return isListingStillOffered(args.property)
+    ? `${opening} I've closed your enquiry on *${title}*, so you won't get further updates on it, and asked the team to confirm where it stands.`
+    : `${opening} *${title}* is no longer available, so I've closed your enquiry on it and you won't get further updates on it.`;
+}
+
+function isListingStillOffered(property: DroppedProperty): boolean {
+  return (property.status ?? 'Available') === 'Available';
+}
+
+export async function handleSoldReport(args: {
+  db: SupabaseClient;
+  accountId: string;
+  userId: string;
+  contact: {
+    id: string;
+    name?: string | null;
+    assigned_agent_id?: string | null;
+  };
+  conversationId: string;
+  property: DroppedProperty & { user_id?: string | null };
+  reportText: string;
+}): Promise<void> {
+  const { db, accountId, userId, contact, conversationId, property } = args;
+  const name = (contact.name || '').trim() || 'The client';
+  const label = enquiryLabel(property);
+  try {
+    const closed = await closePropertyEnquiry({
+      db,
+      accountId,
+      contact,
+      property,
+      reason: SOLD_REPORT_REASON,
+      keepListingStatus: true,
+      note: `🏷️ ${name} says ${label} is sold: "${args.reportText}" — enquiry closed`,
+    });
+    const agentUserId = contact.assigned_agent_id ?? property.user_id ?? userId;
+
+    if (!closed) {
+      await createNotification({
+        accountId,
+        userId: agentUserId,
+        type: 'new_message',
+        title: `⚠️ ${name} says ${label} is sold — their enquiry could not be closed`,
+        body: `"${args.reportText}". Nothing was sent to ${name}. Close the enquiry on their journey and reply in the inbox.`,
+        entityType: 'contact',
+        entityId: contact.id,
+        link: `/journey?contact=${contact.id}`,
+        channels: { inApp: true, push: true, whatsapp: false },
+      });
+      return;
+    }
+
+    if (isListingStillOffered(property)) {
+      const { error: todoError } = await db.from('todos').insert({
+        account_id: accountId,
+        user_id: agentUserId,
+        assigned_to: agentUserId,
+        title: `Confirm whether ${label} is sold — ${name} says they were told it is`,
+        due_date: new Date().toISOString(),
+        priority: 'high',
+        completed: false,
+        contact_id: contact.id,
+        property_id: property.id,
+        source: 'system',
+      });
+      if (todoError)
+        console.error(
+          '[enquiry-close] sold-report todo failed:',
+          todoError.message
+        );
+      await createNotification({
+        accountId,
+        userId: agentUserId,
+        type: 'new_message',
+        title: `🏷️ ${name} says ${label} is sold`,
+        body: `It is still Available in inventory. Mark it Sold to let its other buyers know, or tell ${name} it is still on the market. Their enquiry on it is closed.`,
+        entityType: 'property',
+        entityId: property.id,
+        link: `/inventory?propertyId=${property.property_code || property.id}`,
+        channels: { inApp: true, push: true, whatsapp: false },
+      });
+    }
+
+    await continueAfterEnquiryClose({
+      db,
+      accountId,
+      userId,
+      contactId: contact.id,
+      conversationId,
+      acknowledgement: buildSoldReportAck({
+        contactName: contact.name,
+        property,
+      }),
+    });
+  } catch (err) {
+    console.error('[enquiry-close] sold report failed:', err);
   }
 }

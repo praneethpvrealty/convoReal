@@ -98,6 +98,7 @@ export async function closePropertyEnquiry(args: {
   property: OpenEnquiry['property'];
   reason?: string;
   note?: string;
+  keepListingStatus?: boolean;
 }): Promise<boolean> {
   const { db, accountId, contact, property } = args;
   const reason = args.reason ?? CLOSED_FROM_WHATSAPP_REASON;
@@ -160,7 +161,7 @@ export async function closePropertyEnquiry(args: {
         .map((deal) => deal.property_id)
         .filter((id): id is string => !!id)
     );
-    for (const propertyId of propertyIds) {
+    for (const propertyId of args.keepListingStatus ? [] : propertyIds) {
       if (
         !(await setListingStatusFromDeal(
           db,

@@ -105,9 +105,10 @@ export async function leadConversation(
 
     // A text reply to a journey check-in the agent sent from the Engine
     // inbox ("just checking in on <property>..."). Logged on the journey
-    // either way; the message is only consumed when the timeline ask
-    // went out — a reply that reads as a question still falls through
-    // so the bot answers it.
+    // either way; the message is consumed when the timeline ask went
+    // out, when it closed the enquiry (sold, or close it), or when it
+    // was left for the agent — a reply that reads as a question or
+    // rejects the listing still falls through to the steps below.
     if (message.type === 'text' && contentText) {
       const checkinOutcome = await handleInboxCheckinReply({
         db: supabaseAdmin(),
@@ -123,7 +124,8 @@ export async function leadConversation(
         accessToken,
         phoneNumberId,
       });
-      if (checkinOutcome === 'logged_and_asked') return 'handled';
+      if (checkinOutcome === 'logged_and_asked' || checkinOutcome === 'handled')
+        return 'handled';
     }
 
     // A lead rejecting a property ("not interested", "not for me", "don't like this").

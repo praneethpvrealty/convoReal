@@ -27,6 +27,14 @@ describe('buildJourneyCheckinTemplatePayload', () => {
     expect(body).toMatch(/still under consideration/i);
   });
 
+  it('[JRN-025] asks whether the listing is still on their list without implying the client failed to reply', () => {
+    const body = buildJourneyCheckinTemplatePayload(ORIGIN).body_text ?? '';
+    expect(body).toContain(
+      'Just checking whether this listing is still on your list. Your enquiry on it is still open.'
+    );
+    expect(body).not.toMatch(/no update from you/i);
+  });
+
   it('avoids the vocabulary that reads as promotional at review', () => {
     const payload = buildJourneyCheckinTemplatePayload(ORIGIN);
     const text = [

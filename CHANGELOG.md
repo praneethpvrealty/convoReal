@@ -19,6 +19,23 @@ than a written entry. Newest first.
 
 #### 22 October 2026
 
+- **The bot no longer asks when to check back on a listing the buyer
+  says is sold.** A typed answer to an enquiry check-in is now read before
+  anything is sent. "You said its already sold" closes the buyer's
+  enquiry on that listing with an apology and hands over to their other
+  enquiries or matches; if inventory still shows it Available, the agent
+  gets a high-priority to-do and an alert to confirm it. A typed "close my
+  enquiry" does what the button does, "not interested" gets the
+  what-didn't-fit question, and a reply the bot cannot read is left for
+  the agent with a "needs a reply" alert instead of an automatic answer.
+  The radar's Check in button now refuses to send when the listing is no
+  longer Available or the team messaged the lead in the last 48 hours.
+  Replies no longer quote the buyer's words back or show the internal
+  property code, and the English check-in template asks whether the
+  listing is still on the buyer's list instead of saying they sent no
+  update (accounts that already have the template are offered the new
+  wording; other languages keep their current text).
+
 - **New users get the same help on the phone as on the web, and can find
   it.** The owner's setup checklist (connect WhatsApp, add a property,
   add buyers, portal leads) now sits at the top of the mobile inbox until

@@ -7,6 +7,12 @@ const closePropertyEnquiry = vi.fn();
 const loadOpenEnquiries = vi.fn();
 const sendEnquiryReview = vi.fn();
 const markContactDead = vi.fn();
+const continueAfterEnquiryClose = vi.fn();
+const createNotification = vi.fn();
+
+vi.mock('@/lib/notifications/create', () => ({
+  createNotification: (...args: unknown[]) => createNotification(...args),
+}));
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: (...args: unknown[]) =>
@@ -25,14 +31,21 @@ vi.mock('@/lib/whatsapp/enquiry-review', async (importOriginal) => ({
   closePropertyEnquiry: (...args: unknown[]) => closePropertyEnquiry(...args),
   loadOpenEnquiries: (...args: unknown[]) => loadOpenEnquiries(...args),
   sendEnquiryReview: (...args: unknown[]) => sendEnquiryReview(...args),
+  continueAfterEnquiryClose: (...args: unknown[]) =>
+    continueAfterEnquiryClose(...args),
 }));
 
 vi.mock('@/lib/contacts/lifecycle', () => ({
   markContactDead: (...args: unknown[]) => markContactDead(...args),
 }));
 
-const { buildPropertyCloseAck, handleEnquiryClose } =
-  await import('./enquiry-close');
+const {
+  buildPropertyCloseAck,
+  buildSoldReportAck,
+  handleEnquiryClose,
+  handleSoldReport,
+  SOLD_REPORT_REASON,
+} = await import('./enquiry-close');
 
 /**
  * [INB-010] "Close my enquiry" closes the listing the template named,
@@ -69,7 +82,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
   sendEnquiryDropoffPrompt.mockResolvedValue(true);
-  closePropertyEnquiry.mockResolvedValue(undefined);
+  closePropertyEnquiry.mockResolvedValue(true);
   sendEnquiryReview.mockResolvedValue(true);
   markContactDead.mockResolvedValue(true);
 });
@@ -198,5 +211,153 @@ describe('handleEnquiryClose', () => {
   it('never throws — the lead asked for an acknowledgement', async () => {
     resolveDroppedProperty.mockRejectedValue(new Error('db down'));
     await expect(handleEnquiryClose(args())).resolves.toBe('search');
+  });
+});
+
+describe('[JRN-023] a buyer saying the listing is sold', () => {
+  const plot = {
+    id: P1,
+    title: '2450 Sqft South facing residential plot in Vijaya Bank Layout',
+    property_code: 'PROP-1306',
+    status: 'Available',
+    is_published: true,
+    user_id: 'lister-1',
+  };
+
+  function soldDb() {
+    const inserts: Array<{ table: string; row: Record<string, unknown> }> = [];
+    return {
+      inserts,
+      db: {
+        from: (table: string) => ({
+          insert: async (row: Record<string, unknown>) => {
+            inserts.push({ table, row });
+            return { error: null };
+          },
+        }),
+      } as never,
+    };
+  }
+
+  const soldArgs = (
+    db: never,
+    property: typeof plot,
+    assigned: string | null = 'agent-7'
+  ) => ({
+    db,
+    accountId: 'acct-1',
+    userId: 'owner-1',
+    contact: { id: 'c1', name: 'Ramanathan', assigned_agent_id: assigned },
+    conversationId: 'conv-1',
+    property,
+    reportText: 'You said its already sold',
+  });
+
+  it('apologises, says the enquiry is closed and never shows the property code', () => {
+    const live = buildSoldReportAck({
+      contactName: 'Ramanathan K',
+      property: plot,
+    });
+    expect(live).toBe(
+      "Sorry for the mix-up, Ramanathan. I've closed your enquiry on *2450 Sqft South facing residential plot in Vijaya Bank Layout*, so you won't get further updates on it, and asked the team to confirm where it stands."
+    );
+    const sold = buildSoldReportAck({
+      contactName: null,
+      property: { ...plot, status: 'Sold' },
+    });
+    expect(sold).toBe(
+      "Sorry for the mix-up. *2450 Sqft South facing residential plot in Vijaya Bank Layout* is no longer available, so I've closed your enquiry on it and you won't get further updates on it."
+    );
+    for (const text of [live, sold]) {
+      expect(text).not.toContain('PROP-1306');
+      expect(text).not.toMatch(/when should we check back/i);
+    }
+  });
+
+  it('closes the enquiry, flags a still-Available listing to the assigned agent and hands over to the matches', async () => {
+    const { db, inserts } = soldDb();
+    await handleSoldReport(soldArgs(db, plot));
+
+    expect(closePropertyEnquiry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        property: plot,
+        reason: SOLD_REPORT_REASON,
+        keepListingStatus: true,
+      })
+    );
+    const todo = inserts.find((i) => i.table === 'todos')?.row;
+    expect(todo).toMatchObject({
+      assigned_to: 'agent-7',
+      contact_id: 'c1',
+      property_id: P1,
+      priority: 'high',
+      completed: false,
+      source: 'system',
+    });
+    expect(String(todo?.title)).toContain('Confirm whether');
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'agent-7',
+        entityType: 'property',
+        entityId: P1,
+        title: expect.stringContaining('says'),
+        link: '/inventory?propertyId=PROP-1306',
+      })
+    );
+    expect(continueAfterEnquiryClose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactId: 'c1',
+        conversationId: 'conv-1',
+        acknowledgement: expect.stringContaining('Sorry for the mix-up'),
+      })
+    );
+    expect(sendEnquiryDropoffPrompt).not.toHaveBeenCalled();
+    expect(markContactDead).not.toHaveBeenCalled();
+  });
+
+  it('tells the agent and sends the buyer nothing when the close fails', async () => {
+    closePropertyEnquiry.mockResolvedValueOnce(false);
+    const { db, inserts } = soldDb();
+    await handleSoldReport(soldArgs(db, plot));
+
+    expect(inserts).toEqual([]);
+    expect(continueAfterEnquiryClose).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'agent-7',
+        title: expect.stringContaining('could not be closed'),
+      })
+    );
+  });
+
+  it('falls back to the listing manager when nobody is assigned', async () => {
+    const { db, inserts } = soldDb();
+    await handleSoldReport(soldArgs(db, plot, null));
+    expect(inserts.find((i) => i.table === 'todos')?.row.assigned_to).toBe(
+      'lister-1'
+    );
+  });
+
+  it('flags nothing when inventory already agrees the listing is gone', async () => {
+    const { db, inserts } = soldDb();
+    await handleSoldReport(soldArgs(db, { ...plot, status: 'Sold' }));
+    expect(inserts).toEqual([]);
+    expect(createNotification).not.toHaveBeenCalled();
+    expect(closePropertyEnquiry).toHaveBeenCalled();
+    expect(continueAfterEnquiryClose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        acknowledgement: expect.stringContaining('no longer available'),
+      })
+    );
+  });
+
+  it('closes the listing the caller already resolved without looking it up again', async () => {
+    loadOpenEnquiries.mockResolvedValue([]);
+    await handleEnquiryClose({ ...args(), property: villa });
+    expect(resolveDroppedProperty).not.toHaveBeenCalled();
+    expect(closePropertyEnquiry).toHaveBeenCalledWith(
+      expect.objectContaining({ property: villa })
+    );
   });
 });

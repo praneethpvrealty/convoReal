@@ -165,7 +165,7 @@ export function buildFollowUpActionButtons(
 ): InteractiveButton[] {
   return [
     {
-      id: `${FOLLOWUP_CHECKIN_PREFIX}${lead.contactId}`,
+      id: `${FOLLOWUP_CHECKIN_PREFIX}${lead.contactId}:${lead.propertyId || FOLLOWUP_NO_LISTING}`,
       title: '💬 Check in',
     },
     {
@@ -748,18 +748,38 @@ export async function handleFollowUpReply(
   });
   if (!conversation) return false;
 
-  const property = lead.last_inquired_property_id
+  const cardedPropertyId =
+    action.propertyId === undefined
+      ? lead.last_inquired_property_id
+      : action.propertyId;
+  const property = cardedPropertyId
     ? ((
         await admin
           .from('properties')
           .select(
-            'id, title, property_code, bedrooms, sublocality, city, location'
+            'id, title, property_code, bedrooms, sublocality, city, location, status'
           )
-          .eq('id', lead.last_inquired_property_id)
+          .eq('id', cardedPropertyId)
           .eq('account_id', accountId)
           .maybeSingle()
       ).data as Property | null)
     : null;
+
+  if (cardedPropertyId && !property) {
+    await confirmToAgent(
+      `🛑 Nothing was sent — the listing on this card could not be found, so the check-in to ${who} could not be confirmed against it. Open their thread to follow up by hand.`
+    );
+    return true;
+  }
+
+  const hold = await readCheckinHold(admin, {
+    conversationId: conversation.id,
+    property,
+  });
+  if (hold) {
+    await confirmToAgent(buildCheckinHoldMessage(who, hold));
+    return true;
+  }
 
   const { data: lastCustomer } = await admin
     .from('messages')
@@ -827,6 +847,63 @@ export async function handleFollowUpReply(
     );
   }
   return true;
+}
+
+export const FOLLOWUP_AGENT_RECENT_HOURS = FOLLOWUP_SILENCE_HOURS;
+
+export type CheckinHold =
+  | { reason: 'listing_unavailable'; title: string; status: string }
+  | { reason: 'agent_spoke'; hoursAgo: number }
+  | { reason: 'unverified' };
+
+export async function readCheckinHold(
+  db: SupabaseClient,
+  args: {
+    conversationId: string;
+    property: { title?: string | null; status?: string | null } | null;
+    now?: Date;
+  }
+): Promise<CheckinHold | null> {
+  const status = args.property?.status ?? 'Available';
+  if (args.property && status !== 'Available') {
+    return {
+      reason: 'listing_unavailable',
+      title: args.property.title || 'this listing',
+      status,
+    };
+  }
+  const now = args.now ?? new Date();
+  const { data: lastAgent, error } = await db
+    .from('messages')
+    .select('created_at')
+    .eq('conversation_id', args.conversationId)
+    .in('sender_type', ['agent', 'bot'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) return { reason: 'unverified' };
+  const at = (lastAgent as { created_at?: string } | null)?.created_at;
+  if (!at) return null;
+  const hoursAgo = (now.getTime() - new Date(at).getTime()) / HOUR_MS;
+  if (hoursAgo >= FOLLOWUP_AGENT_RECENT_HOURS) return null;
+  return { reason: 'agent_spoke', hoursAgo: Math.max(0, Math.floor(hoursAgo)) };
+}
+
+export function buildCheckinHoldMessage(
+  who: string,
+  hold: CheckinHold
+): string {
+  if (hold.reason === 'listing_unavailable') {
+    return `🛑 Nothing was sent — *${hold.title}* is marked ${hold.status}, so a check-in would tell ${who} their enquiry on it is still open. Tap Mark cold to close it instead.`;
+  }
+  if (hold.reason === 'unverified') {
+    return `🛑 Nothing was sent — the thread with ${who} could not be read to confirm your team has been quiet. Try again shortly, or reply in their thread.`;
+  }
+  const when =
+    hold.hoursAgo < 1
+      ? 'within the last hour'
+      : `${hold.hoursAgo} hour${hold.hoursAgo === 1 ? '' : 's'} ago`;
+  return `🛑 Nothing was sent — ${who} was messaged by your team or the bot ${when}, so an automatic check-in would talk over that conversation. Reply in their thread instead.`;
 }
 
 export const COLD_FROM_FOLLOWUP_REASON =

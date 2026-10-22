@@ -21,6 +21,7 @@ import {
   buildAgentReply,
   parseAgentFollowupReplyId,
   buildClientAskBody,
+  clientPropertyLabel,
   buildClientFollowupButtons,
   buildCandidateReply,
   buildClientCandidateButtons,
@@ -146,26 +147,37 @@ describe('propertyLabel', () => {
 });
 
 describe('buildClientAskBody', () => {
-  it('greets by first name, echoes the update and asks for a timeline', () => {
+  it('[JRN-025] greets by first name and asks for a timeline without quoting the client back', () => {
     const body = buildClientAskBody({
       contactName: 'Surya Bajaj',
-      propertyLabel:
-        'About 3 acres for an outright sale in Sarjapur (PROP-1138)',
-      responseSummary: 'Will speak to the chairman in person and get back',
+      propertyLabel: 'About 3 acres for an outright sale in Sarjapur',
     });
     expect(body).toBe(
-      'Hi Surya, noted your update on About 3 acres for an outright sale in Sarjapur (PROP-1138): ' +
-        '"Will speak to the chairman in person and get back"\n\nWhen should we check back with you?'
+      'Hi Surya, thanks for the update on About 3 acres for an outright sale in Sarjapur.\n\nWhen should we check back with you?'
     );
   });
 
-  it('still reads well with no name and no summary', () => {
+  it('still reads well with no name', () => {
     const body = buildClientAskBody({
       contactName: null,
       propertyLabel: 'Sunrise Villa',
     });
     expect(body).toBe(
-      'Hi, thanks for your update on Sunrise Villa.\n\nWhen should we check back with you?'
+      'Hi, thanks for the update on Sunrise Villa.\n\nWhen should we check back with you?'
+    );
+  });
+});
+
+describe('[JRN-025] clientPropertyLabel', () => {
+  it('names the listing by its title and never shows a client the property code', () => {
+    expect(
+      clientPropertyLabel({ title: 'Sunrise Villa', property_code: 'PROP-7' })
+    ).toBe('Sunrise Villa');
+    expect(clientPropertyLabel({ title: ' ', property_code: 'PROP-7' })).toBe(
+      'PROP-7'
+    );
+    expect(clientPropertyLabel({ title: null, property_code: null })).toBe(
+      'the property'
     );
   });
 });
