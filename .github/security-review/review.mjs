@@ -95,8 +95,11 @@ const TOOLS = [
       required: ['path', 'start_line', 'end_line'],
       properties: {
         path: { type: 'string', description: 'Repository-relative path' },
-        start_line: { type: 'integer', minimum: 0 },
-        end_line: { type: 'integer', minimum: 0 },
+        start_line: {
+          type: 'integer',
+          description: 'First line to read, or 0',
+        },
+        end_line: { type: 'integer', description: 'Last line to read, or 0' },
       },
     },
   },
