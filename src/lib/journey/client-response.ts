@@ -56,6 +56,15 @@ import {
 } from '@/lib/journey/client-candidates';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { createNotification } from '@/lib/notifications/create';
+import {
+  readCheckinEnding,
+  readsAsStillConsidering,
+} from '@/lib/journey/checkin-reply-intent';
+import { isPropertyDisinterest } from '@/lib/whatsapp/property-disinterest';
+import {
+  handleEnquiryClose,
+  handleSoldReport,
+} from '@/lib/whatsapp/enquiry-close';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import {
   sendInteractiveButtons,
@@ -182,6 +191,17 @@ export function propertyLabel(p: {
   return title || code || 'the property';
 }
 
+/** The listing as a client reads it: its title, never the internal
+ *  property code unless there is nothing else to call it. */
+export function clientPropertyLabel(p: {
+  title?: string | null;
+  property_code?: string | null;
+}): string {
+  return (
+    (p.title || '').trim() || (p.property_code || '').trim() || 'the property'
+  );
+}
+
 function firstName(name?: string | null): string | null {
   const first = (name || '').trim().split(/\s+/)[0];
   return first || null;
@@ -190,14 +210,10 @@ function firstName(name?: string | null): string | null {
 export function buildClientAskBody(args: {
   contactName?: string | null;
   propertyLabel: string;
-  responseSummary?: string | null;
 }): string {
   const first = firstName(args.contactName);
   const greeting = first ? `Hi ${first},` : 'Hi,';
-  const noted = args.responseSummary
-    ? ` noted your update on ${args.propertyLabel}: "${args.responseSummary}"`
-    : ` thanks for your update on ${args.propertyLabel}.`;
-  return `${greeting}${noted}\n\nWhen should we check back with you?`;
+  return `${greeting} thanks for the update on ${args.propertyLabel}.\n\nWhen should we check back with you?`;
 }
 
 /** The timeline question, found again in a stored bot message —
@@ -1810,11 +1826,10 @@ async function linkClientResponseToProperty(
       itemId: item.id,
       bodyText: buildClientAskBody({
         contactName,
-        propertyLabel: label,
-        responseSummary: summary,
+        propertyLabel: clientPropertyLabel(property),
       }),
       contactName,
-      propertyLabel: label,
+      propertyLabel: clientPropertyLabel(property),
       accessToken,
       phoneNumberId,
     });
@@ -2356,7 +2371,8 @@ export function statesNewRequirement(text: string): boolean {
   return !(CHECK_BACK_CUE.test(text) && parseCheckBackDate(text));
 }
 
-export type InboxCheckinOutcome = 'not_checkin' | 'logged' | 'logged_and_asked';
+export type InboxCheckinOutcome =
+  'not_checkin' | 'logged' | 'logged_and_asked' | 'handled';
 
 export interface InboxCheckinReplyArgs {
   db: SupabaseClient;
@@ -2383,8 +2399,13 @@ export interface InboxCheckinReplyArgs {
  * no check-back date (callers fall through to normal handling, which
  * files the requirement and matches it), 'logged'
  * when the reply was recorded but reads as a question the bot should
- * still answer, and 'logged_and_asked' when the timeline buttons went
- * out and the message is fully handled.
+ * still answer or a rejection of the listing the factor prompt takes,
+ * 'logged_and_asked' when the timeline buttons went out, and 'handled'
+ * when nothing more should answer it: the client said the listing is
+ * sold or asked to close the enquiry (both closed here), or wrote
+ * something only a person should answer (the agent is alerted, the bot
+ * stays silent). The timeline question follows only a reply that reads
+ * as still considering the listing.
  */
 export async function handleInboxCheckinReply(
   args: InboxCheckinReplyArgs
@@ -2446,11 +2467,17 @@ export async function handleInboxCheckinReply(
 
   const { data: propData } = await db
     .from('properties')
-    .select('id, title, property_code')
+    .select('id, title, property_code, status, is_published, user_id')
     .eq('account_id', accountId);
-  const properties = ((propData ?? []) as PropertyRow[]).filter(
-    (p): p is PropertyRow & { title: string } => Boolean(p.title)
-  );
+  const properties = (
+    (propData ?? []) as Array<
+      PropertyRow & {
+        status?: string | null;
+        is_published?: boolean | null;
+        user_id?: string | null;
+      }
+    >
+  ).filter((p): p is typeof p & { title: string } => Boolean(p.title));
   const found = scanMessagesForProperties(checkins, properties);
   const propertyId = found.keys().next().value as string | undefined;
   const property = properties.find((p) => p.id === propertyId);
@@ -2501,25 +2528,94 @@ export async function handleInboxCheckinReply(
     `[${format(new Date(), 'd MMM yyyy')}] Client response: ${response}`
   );
 
+  const typed = !fromButton;
+  const asks =
+    typed &&
+    (looksLikeQuestion(response) || requestsHumanContact(responseText));
+  const ending = typed && !asks ? readCheckinEnding(responseText) : null;
+  const rejects =
+    typed && !asks && !ending && isPropertyDisinterest(responseText);
+  const named =
+    typed && !asks && !ending && !rejects ? parseCheckBackDate(response) : null;
+  const unclear =
+    typed &&
+    !asks &&
+    !ending &&
+    !rejects &&
+    !named &&
+    !readsAsStillConsidering(response);
+
+  const { data: contactRow } = await db
+    .from('contacts')
+    .select(
+      'assigned_agent_id, buyer_alerts_consent, last_inquired_property_id'
+    )
+    .eq('id', contact.id)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  const contactState = (contactRow ?? {}) as {
+    assigned_agent_id?: string | null;
+    buyer_alerts_consent?: 'pending' | 'granted' | 'declined';
+    last_inquired_property_id?: string | null;
+  };
+
   await createNotification({
     accountId,
-    userId: ownerUserId,
+    userId: unclear
+      ? (contactState.assigned_agent_id ?? ownerUserId)
+      : ownerUserId,
     type: 'new_message',
-    title: `💬 ${contactName} responded on ${label}`,
-    body: response,
+    title: unclear
+      ? `🙋 ${contactName} needs a reply on ${label}`
+      : `💬 ${contactName} responded on ${label}`,
+    body: unclear
+      ? `"${response}" — the bot did not answer this one. Reply in the inbox.`
+      : response,
     entityType: 'contact',
     entityId: contact.id,
     link: `/journey?contact=${contact.id}`,
     channels: { inApp: true, push: true, whatsapp: false },
   });
 
-  if (
-    !fromButton &&
-    (looksLikeQuestion(response) || requestsHumanContact(responseText))
-  )
-    return 'logged';
+  if (asks) return 'logged';
 
-  const named = fromButton ? null : parseCheckBackDate(response);
+  if (ending === 'sold') {
+    await handleSoldReport({
+      db,
+      accountId,
+      userId: ownerUserId,
+      contact: {
+        id: contact.id,
+        name: contact.name,
+        assigned_agent_id: contactState.assigned_agent_id ?? null,
+      },
+      conversationId,
+      property,
+      reportText: response,
+    });
+    return 'handled';
+  }
+
+  if (ending === 'close') {
+    await handleEnquiryClose({
+      db,
+      accountId,
+      userId: ownerUserId,
+      contact: {
+        id: contact.id,
+        name: contact.name,
+        last_inquired_property_id: contactState.last_inquired_property_id,
+        buyer_alerts_consent: contactState.buyer_alerts_consent,
+      },
+      conversationId,
+      contextMessageId: null,
+      property,
+    });
+    return 'handled';
+  }
+
+  if (rejects) return 'logged';
+
   if (named) {
     const due = quietUntilFrom(named);
     await recordTypedCheckBack({
@@ -2545,6 +2641,8 @@ export async function handleInboxCheckinReply(
     return sent ? 'logged_and_asked' : 'logged';
   }
 
+  if (unclear) return 'handled';
+
   const askOutcome = await askClientForTimeline({
     db,
     accountId,
@@ -2557,11 +2655,10 @@ export async function handleInboxCheckinReply(
     itemId: item.id,
     bodyText: buildClientAskBody({
       contactName,
-      propertyLabel: label,
-      responseSummary: fromButton ? null : response,
+      propertyLabel: clientPropertyLabel(property),
     }),
     contactName,
-    propertyLabel: label,
+    propertyLabel: clientPropertyLabel(property),
     accessToken,
     phoneNumberId,
   });

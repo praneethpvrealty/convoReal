@@ -25,6 +25,13 @@ vi.mock('@/lib/journey/capture-server', () => ({
   ]),
 }));
 
+const handleSoldReport = vi.fn();
+const handleEnquiryClose = vi.fn();
+vi.mock('@/lib/whatsapp/enquiry-close', () => ({
+  handleSoldReport: (...args: unknown[]) => handleSoldReport(...args),
+  handleEnquiryClose: (...args: unknown[]) => handleEnquiryClose(...args),
+}));
+
 const {
   CHECKBACK_ALT_PROMPT,
   buildCheckBackConfirmBody,
@@ -113,6 +120,8 @@ beforeEach(() => {
   sendWhatsAppMessageAndPersist.mockReset();
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
   createNotification.mockReset();
+  handleSoldReport.mockReset();
+  handleEnquiryClose.mockReset();
   ensureJourneyItem.mockReset();
   ensureJourneyItem.mockResolvedValue({
     id: 'item-1',
@@ -566,5 +575,153 @@ describe('[JRN-019] a requirement typed in reply to the check-in', () => {
       contact_id: 'c-1',
       property_id: 'p-1',
     });
+  });
+});
+
+describe('[JRN-023] a typed answer that ends, rejects or puzzles the check-in', () => {
+  beforeEach(() => {
+    tables.messages = [
+      {
+        content_text: CHECKIN_TEMPLATE_TEXT,
+        created_at: new Date(NOW.getTime() - 60_000).toISOString(),
+        template_name: 'enquiry_checkin_notice',
+      },
+    ];
+    tables.contacts = [
+      {
+        assigned_agent_id: 'agent-7',
+        buyer_alerts_consent: 'pending',
+        last_inquired_property_id: 'p-1',
+      },
+    ];
+    tables.properties = [
+      {
+        id: 'p-1',
+        title: PROPERTY_TITLE,
+        property_code: 'PROP-1306',
+        status: 'Available',
+        is_published: true,
+        user_id: 'lister-1',
+      },
+    ];
+  });
+
+  const reply = (responseText: string) =>
+    handleInboxCheckinReply({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact: { ...contact, phone: '919800000000' },
+      conversationId: 'conv-1',
+      responseText,
+      accessToken: 'token',
+      phoneNumberId: 'pn-1',
+    });
+
+  const loggedOnJourney = (text: string) =>
+    writes.some((w) => w.table === 'journey_events' && w.row.reason === text);
+
+  it('closes the enquiry on "You said its already sold" instead of asking when to check back', async () => {
+    const outcome = await reply('You said its already sold');
+
+    expect(outcome).toBe('handled');
+    expect(loggedOnJourney('You said its already sold')).toBe(true);
+    expect(handleSoldReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contact: expect.objectContaining({
+          id: 'c-1',
+          assigned_agent_id: 'agent-7',
+        }),
+        conversationId: 'conv-1',
+        property: expect.objectContaining({ id: 'p-1', status: 'Available' }),
+        reportText: 'You said its already sold',
+      })
+    );
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(todoWrite()).toBeUndefined();
+  });
+
+  it('closes the checked-in listing when the client types that they want it closed', async () => {
+    const outcome = await reply('Please close my enquiry');
+
+    expect(outcome).toBe('handled');
+    expect(handleEnquiryClose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contact: expect.objectContaining({
+          id: 'c-1',
+          buyer_alerts_consent: 'pending',
+        }),
+        property: expect.objectContaining({ id: 'p-1' }),
+      })
+    );
+    expect(handleSoldReport).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('leaves a rejection of the listing to the factor prompt rather than asking for a date', async () => {
+    const outcome = await reply('Not interested in this plot');
+
+    expect(outcome).toBe('logged');
+    expect(loggedOnJourney('Not interested in this plot')).toBe(true);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(handleEnquiryClose).not.toHaveBeenCalled();
+  });
+
+  it('alerts the assigned agent and sends nothing when the bot cannot read the reply', async () => {
+    const outcome = await reply('Price is too much compared to the other one');
+
+    expect(outcome).toBe('handled');
+    expect(loggedOnJourney('Price is too much compared to the other one')).toBe(
+      true
+    );
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'agent-7',
+        title: expect.stringContaining('needs a reply'),
+      })
+    );
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(handleSoldReport).not.toHaveBeenCalled();
+    expect(handleEnquiryClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('[JRN-025] the timeline question after a still-considering reply', () => {
+  it('thanks the client without quoting them or naming the property code', async () => {
+    tables.messages = [
+      {
+        content_text: CHECKIN_TEMPLATE_TEXT,
+        created_at: new Date(NOW.getTime() - 60_000).toISOString(),
+        template_name: 'enquiry_checkin_notice',
+      },
+    ];
+    tables.properties = [
+      { id: 'p-1', title: PROPERTY_TITLE, property_code: 'PROP-1306' },
+    ];
+    const sendInteractiveButtons = vi.mocked(
+      (await import('@/lib/whatsapp/meta-api')).sendInteractiveButtons
+    );
+    sendInteractiveButtons.mockClear();
+    tables.conversations = [{ id: 'conv-1' }];
+
+    const outcome = await handleInboxCheckinReply({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact: { ...contact, phone: '919800000000' },
+      conversationId: 'conv-1',
+      responseText: 'Yes still interested',
+      accessToken: 'token',
+      phoneNumberId: 'pn-1',
+    });
+
+    expect(outcome).toBe('logged_and_asked');
+    expect(handleSoldReport).not.toHaveBeenCalled();
+    const body = sendInteractiveButtons.mock.calls[0]?.[0]?.bodyText as string;
+    expect(body).toBe(
+      `Hi Ramanathan, thanks for the update on ${PROPERTY_TITLE}.\n\nWhen should we check back with you?`
+    );
+    expect(body).not.toContain('PROP-1306');
+    expect(body).not.toContain('"');
   });
 });

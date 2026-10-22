@@ -2744,6 +2744,63 @@
             "src/components/inventory/property-matches-tab.tsx",
             "src/components/contacts/log-external-share-dialog.tsx"
           ]
+        },
+        {
+          "id": "JRN-023",
+          "rule": "A client who types an answer to an enquiry check-in (the enquiry_checkin_notice template or an inbox check-in) gets the timeline question only when the answer reads as still considering the listing (\"Yes\", \"Still interested\", \"Discussing with family\", \"Will let you know\", \"Travelling, need some time\"). A typed answer saying the listing has gone (\"You said its already sold\", \"It's sold\", \"no longer available\", \"already booked\") closes their enquiry on that listing without asking for a date or the drop-off reason: the reply apologises for the mix-up, never quotes them or shows the property code, and hands over to their other open enquiries or current matches as \"Close my enquiry\" does; when inventory still lists the listing as Available the assigned agent (else the listing's manager, else the WhatsApp owner) gets a high-priority to-do and an alert to confirm it, and marking it Sold then tells its other buyers. A typed request to close (\"Please close my enquiry\", \"No more updates\", \"Bought elsewhere\") runs the same close as the button on the checked-in listing. A typed rejection (\"Not interested in this plot\") goes to the factor prompt, not the timeline question. Any other typed answer that is not a question, a call request or a date is logged on the journey and left for a person: the assigned agent is alerted that it needs a reply and the bot sends nothing. \"It is not sold yet\", \"I already booked a site visit\" and \"We will close it soon\" are not read as the listing gone or a close.",
+          "tests": [
+            {
+              "file": "src/lib/journey/checkin-reply-intent.test.ts",
+              "case": "[JRN-023]"
+            },
+            {
+              "file": "src/lib/journey/typed-check-back.test.ts",
+              "case": "[JRN-023]"
+            },
+            {
+              "file": "src/lib/whatsapp/enquiry-close.test.ts",
+              "case": "[JRN-023]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/checkin-reply-intent.ts",
+            "src/lib/journey/client-response.ts",
+            "src/lib/whatsapp/enquiry-close.ts",
+            "src/lib/whatsapp/inbound/chain/steps/lead-conversation.ts"
+          ]
+        },
+        {
+          "id": "JRN-024",
+          "rule": "A Check in tap on a follow-up radar card is re-checked when it is tapped, before the free-form message or the enquiry check-in template goes out: when the carded listing is no longer Available nothing is sent and the agent is told it is marked with that status and to tap Mark cold instead, and when the team messaged the lead in the last 48 hours nothing is sent and the agent is told how long ago, so a check-in never contradicts the listing's status or talks over a live conversation.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/follow-up-nudges.test.ts",
+              "case": "[JRN-024]"
+            }
+          ],
+          "guards": ["src/lib/contacts/follow-up-nudges.ts"]
+        },
+        {
+          "id": "JRN-025",
+          "rule": "Messages the bot sends a client about a check-in name the listing by its title, never the internal property code unless it has no title, and never quote the client's own words back to them: the timeline question reads \"Hi <first name>, thanks for the update on <title>. When should we check back with you?\". The English enquiry check-in template asks \"Just checking whether this listing is still on your list. Your enquiry on it is still open.\" rather than telling the client they sent no update; accounts that already created the template are offered the new wording through template drift rather than having it changed for them.",
+          "tests": [
+            {
+              "file": "src/lib/journey/client-response.test.ts",
+              "case": "[JRN-025]"
+            },
+            {
+              "file": "src/lib/journey/typed-check-back.test.ts",
+              "case": "[JRN-025]"
+            },
+            {
+              "file": "src/lib/whatsapp/journey-checkin-template.test.ts",
+              "case": "[JRN-025]"
+            }
+          ],
+          "guards": [
+            "src/lib/journey/client-response.ts",
+            "src/lib/whatsapp/template-copy.ts"
+          ]
         }
       ]
     },

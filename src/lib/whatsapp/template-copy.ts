@@ -1425,7 +1425,7 @@ const TEMPLATE_COPY: Record<
         '',
         'Property: {{3}}',
         '',
-        'We have had no update from you on this listing, so your enquiry is still open against it.',
+        'Just checking whether this listing is still on your list. Your enquiry on it is still open.',
         '',
         'Reply to confirm it is still under consideration. To end the enquiry, choose "Close my enquiry" and no further updates will be sent.'
       ),
