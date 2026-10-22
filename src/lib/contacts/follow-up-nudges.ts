@@ -748,9 +748,6 @@ export async function handleFollowUpReply(
   });
   if (!conversation) return false;
 
-  // The listing the card named, so a card tapped after the lead moved
-  // on checks in about — and is held for — the listing it showed. A
-  // card sent before cards carried it falls back to the latest enquiry.
   const cardedPropertyId =
     action.propertyId === undefined
       ? lead.last_inquired_property_id
@@ -768,11 +765,6 @@ export async function handleFollowUpReply(
       ).data as Property | null)
     : null;
 
-  // The check-in tells the lead their enquiry is still open on this
-  // listing. A card can be tapped days after it was sent, so whether
-  // that is still true is read now: a listing that left the market
-  // would be contradicted, and an agent who wrote to the lead since
-  // would be talked over by the bot.
   if (cardedPropertyId && !property) {
     await confirmToAgent(
       `🛑 Nothing was sent — the listing on this card could not be found, so the check-in to ${who} could not be confirmed against it. Open their thread to follow up by hand.`
@@ -857,13 +849,12 @@ export async function handleFollowUpReply(
   return true;
 }
 
-/** An agent's own message to the lead this recently means the
- *  conversation is live, and a bot check-in would talk over it. */
 export const FOLLOWUP_AGENT_RECENT_HOURS = FOLLOWUP_SILENCE_HOURS;
 
 export type CheckinHold =
   | { reason: 'listing_unavailable'; title: string; status: string }
-  | { reason: 'agent_spoke'; hoursAgo: number };
+  | { reason: 'agent_spoke'; hoursAgo: number }
+  | { reason: 'unverified' };
 
 export async function readCheckinHold(
   db: SupabaseClient,
@@ -882,7 +873,7 @@ export async function readCheckinHold(
     };
   }
   const now = args.now ?? new Date();
-  const { data: lastAgent } = await db
+  const { data: lastAgent, error } = await db
     .from('messages')
     .select('created_at')
     .eq('conversation_id', args.conversationId)
@@ -890,6 +881,7 @@ export async function readCheckinHold(
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (error) return { reason: 'unverified' };
   const at = (lastAgent as { created_at?: string } | null)?.created_at;
   if (!at) return null;
   const hoursAgo = (now.getTime() - new Date(at).getTime()) / HOUR_MS;
@@ -903,6 +895,9 @@ export function buildCheckinHoldMessage(
 ): string {
   if (hold.reason === 'listing_unavailable') {
     return `🛑 Nothing was sent — *${hold.title}* is marked ${hold.status}, so a check-in would tell ${who} their enquiry on it is still open. Tap Mark cold to close it instead.`;
+  }
+  if (hold.reason === 'unverified') {
+    return `🛑 Nothing was sent — the thread with ${who} could not be read to confirm your team has been quiet. Try again shortly, or reply in their thread.`;
   }
   const when =
     hold.hoursAgo < 1

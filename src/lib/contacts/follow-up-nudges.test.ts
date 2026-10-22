@@ -846,13 +846,13 @@ describe('the radar is wired up', () => {
 
 describe('[JRN-024] a Check in tap is re-checked before anything is sent', () => {
   const NOW = new Date('2026-10-22T02:03:00Z');
-  const dbWithLastAgent = (createdAt: string | null) => {
+  const dbWithLastAgent = (createdAt: string | null, failed = false) => {
     const builder: Record<string, unknown> = {};
     for (const m of ['select', 'eq', 'order', 'limit'])
       builder[m] = () => builder;
     builder.maybeSingle = async () => ({
       data: createdAt ? { created_at: createdAt } : null,
-      error: null,
+      error: failed ? { message: 'timeout' } : null,
     });
     return { from: () => builder } as never;
   };
@@ -885,6 +885,18 @@ describe('[JRN-024] a Check in tap is re-checked before anything is sent', () =>
     expect(hold).toEqual({ reason: 'agent_spoke', hoursAgo: 14 });
     expect(buildCheckinHoldMessage('Ramanathan', hold!)).toContain(
       'messaged by your team 14 hours ago'
+    );
+  });
+
+  it('holds the check-in when the thread cannot be read', async () => {
+    const hold = await readCheckinHold(dbWithLastAgent(null, true), {
+      conversationId: 'conv-1',
+      property: { title: 'Vijaya Bank Layout plot', status: 'Available' },
+      now: NOW,
+    });
+    expect(hold).toEqual({ reason: 'unverified' });
+    expect(buildCheckinHoldMessage('Ramanathan', hold!)).toContain(
+      'Nothing was sent'
     );
   });
 

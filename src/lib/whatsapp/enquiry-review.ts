@@ -98,9 +98,6 @@ export async function closePropertyEnquiry(args: {
   property: OpenEnquiry['property'];
   reason?: string;
   note?: string;
-  /** Leave the listing's status alone. The deal re-sync recomputes it
-   *  from open deals, which would reopen a listing marked Sold by hand
-   *  that still has an early-stage deal on it. */
   keepListingStatus?: boolean;
 }): Promise<boolean> {
   const { db, accountId, contact, property } = args;

@@ -1,17 +1,5 @@
-// What a typed answer to an enquiry check-in means, when it is not a
-// question, a call request or a date.
-//
-// The check-in asks one thing: is this listing still under
-// consideration? Every typed answer used to be read as "yes" and sent
-// the timeline question, so a buyer who wrote "You said its already
-// sold" was asked when to be checked back on a plot they had just been
-// told was gone, with their own words quoted back at them. A typed
-// answer is now read for three things before anything is sent: the
-// listing is gone, the enquiry should close, or the buyer is still
-// considering it. Anything else is for a person to answer, not the bot.
-
 const SOLD_REPORT_PATTERNS = [
-  /^\s*(?:already|now)\s+sold\b(?!\s+(?:my|our|a|an|the|his|her|their|one|some|it|this|that)\b)/i,
+  /^\s*(?:already|now)\s+sold\s*(?:[.!,;]|\bna\b|$)/i,
   /(?<!\b(?:my|our|his|her|their|old|own|other)\s)\b(?:plot|site|property|flat|villa|house|apartment|land|listing|unit)\s+(?:is\s+|was\s+|has\s+been\s+|got\s+)?(?:already\s+)?sold\b/i,
   /\b(?:it|this|that|the\s+\w+)\s*(?:'s|’s|\s+is|\s+was|\s+has\s+been|\s+got)\s+(?:already\s+)?sold\b/i,
   /\b(?:its|it's|it’s)\s+(?:already\s+)?sold\b/i,
@@ -50,8 +38,6 @@ function normalise(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-/** The buyer says the listing has gone — sold, booked or no longer
- *  available — whether they read it somewhere or were told so. */
 export function reportsListingSold(text?: string | null): boolean {
   const value = normalise(text || '');
   if (!value) return false;
@@ -64,15 +50,12 @@ export function reportsListingSold(text?: string | null): boolean {
   return SOLD_REPORT_PATTERNS.some((pattern) => pattern.test(value));
 }
 
-/** The buyer asks, in words, for what "Close my enquiry" does. */
 export function asksToCloseEnquiry(text?: string | null): boolean {
   const value = normalise(text || '');
   if (!value) return false;
   return CLOSE_REQUEST_PATTERNS.some((pattern) => pattern.test(value));
 }
 
-/** The buyer is still weighing the listing up — the answer the
- *  timeline question ("when should we check back?") follows. */
 export function readsAsStillConsidering(text?: string | null): boolean {
   const value = normalise(text || '');
   if (!value) return false;

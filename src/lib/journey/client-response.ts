@@ -192,8 +192,6 @@ export function propertyLabel(p: {
   return title || code || 'the property';
 }
 
-/** The listing as a client reads it: its title, never the internal
- *  property code unless there is nothing else to call it. */
 export function clientPropertyLabel(p: {
   title?: string | null;
   property_code?: string | null;

@@ -83,8 +83,6 @@ export async function handleEnquiryClose(args: {
   };
   conversationId: string;
   contextMessageId: string | null;
-  /** The listing the close is about, when the caller already knows it
-   *  (a typed close in reply to a check-in that named one). */
   property?: DroppedProperty | null;
 }): Promise<EnquiryCloseOutcome> {
   const { db, accountId, userId, contact, conversationId } = args;
@@ -167,8 +165,6 @@ export async function handleEnquiryClose(args: {
 
 export const SOLD_REPORT_REASON = 'Lead reports the listing is sold';
 
-/** What the buyer sees when they say a listing is gone. Clients are
- *  never shown the internal property code. */
 export function buildSoldReportAck(args: {
   contactName?: string | null;
   property: DroppedProperty;
@@ -188,16 +184,6 @@ function isListingStillOffered(property: DroppedProperty): boolean {
   return (property.status ?? 'Available') === 'Available';
 }
 
-/**
- * A buyer answering a check-in with "it's already sold". Their enquiry
- * on that listing is closed — they have been told it is gone, whoever
- * told them — and the ack is followed by their other open enquiries or
- * their current matches, the same hand-over as "Close my enquiry". The
- * drop-off reason is never asked: the buyer did not walk away. When
- * inventory still lists it as Available the buyer and the records
- * disagree, so the agent gets a to-do and an alert to confirm it;
- * marking it Sold then tells the listing's other buyers. Never throws.
- */
 export async function handleSoldReport(args: {
   db: SupabaseClient;
   accountId: string;
