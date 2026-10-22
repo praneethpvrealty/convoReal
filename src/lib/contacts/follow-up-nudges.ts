@@ -773,6 +773,13 @@ export async function handleFollowUpReply(
   // that is still true is read now: a listing that left the market
   // would be contradicted, and an agent who wrote to the lead since
   // would be talked over by the bot.
+  if (cardedPropertyId && !property) {
+    await confirmToAgent(
+      `🛑 Nothing was sent — the listing on this card could not be found, so the check-in to ${who} could not be confirmed against it. Open their thread to follow up by hand.`
+    );
+    return true;
+  }
+
   const hold = await readCheckinHold(admin, {
     conversationId: conversation.id,
     property,

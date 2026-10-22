@@ -215,7 +215,7 @@ export async function handleSoldReport(args: {
   const name = (contact.name || '').trim() || 'The client';
   const label = enquiryLabel(property);
   try {
-    await closePropertyEnquiry({
+    const closed = await closePropertyEnquiry({
       db,
       accountId,
       contact,
@@ -224,10 +224,24 @@ export async function handleSoldReport(args: {
       keepListingStatus: true,
       note: `🏷️ ${name} says ${label} is sold: "${args.reportText}" — enquiry closed`,
     });
+    const agentUserId = contact.assigned_agent_id ?? property.user_id ?? userId;
+
+    if (!closed) {
+      await createNotification({
+        accountId,
+        userId: agentUserId,
+        type: 'new_message',
+        title: `⚠️ ${name} says ${label} is sold — their enquiry could not be closed`,
+        body: `"${args.reportText}". Nothing was sent to ${name}. Close the enquiry on their journey and reply in the inbox.`,
+        entityType: 'contact',
+        entityId: contact.id,
+        link: `/journey?contact=${contact.id}`,
+        channels: { inApp: true, push: true, whatsapp: false },
+      });
+      return;
+    }
 
     if (isListingStillOffered(property)) {
-      const agentUserId =
-        contact.assigned_agent_id ?? property.user_id ?? userId;
       const { error: todoError } = await db.from('todos').insert({
         account_id: accountId,
         user_id: agentUserId,

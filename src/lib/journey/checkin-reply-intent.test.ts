@@ -34,6 +34,8 @@ describe('[JRN-023] reading a typed answer to the check-in', () => {
     'I already booked a site visit',
     'Already booked the slot for Saturday',
     "I've already gone to see it",
+    'I already sold my old flat and am still interested in this one',
+    'My old flat is already sold, still keen on this one',
     "I've already gone through the documents and am still considering",
     "I've already taken it to my lawyer",
     "It's booked for Saturday",

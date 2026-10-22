@@ -927,6 +927,7 @@ describe('[JRN-024] a Check in tap is re-checked before anything is sent', () =>
     expect(source).toContain(
       'action.propertyId === undefined\n      ? lead.last_inquired_property_id\n      : action.propertyId'
     );
+    expect(source).toContain('if (cardedPropertyId && !property) {');
   });
 
   it('runs before either the free-form or the template check-in goes out', () => {

@@ -82,7 +82,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
   sendEnquiryDropoffPrompt.mockResolvedValue(true);
-  closePropertyEnquiry.mockResolvedValue(undefined);
+  closePropertyEnquiry.mockResolvedValue(true);
   sendEnquiryReview.mockResolvedValue(true);
   markContactDead.mockResolvedValue(true);
 });
@@ -313,6 +313,22 @@ describe('[JRN-023] a buyer saying the listing is sold', () => {
     );
     expect(sendEnquiryDropoffPrompt).not.toHaveBeenCalled();
     expect(markContactDead).not.toHaveBeenCalled();
+  });
+
+  it('tells the agent and sends the buyer nothing when the close fails', async () => {
+    closePropertyEnquiry.mockResolvedValueOnce(false);
+    const { db, inserts } = soldDb();
+    await handleSoldReport(soldArgs(db, plot));
+
+    expect(inserts).toEqual([]);
+    expect(continueAfterEnquiryClose).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'agent-7',
+        title: expect.stringContaining('could not be closed'),
+      })
+    );
   });
 
   it('falls back to the listing manager when nobody is assigned', async () => {

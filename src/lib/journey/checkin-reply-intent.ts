@@ -11,7 +11,8 @@
 // considering it. Anything else is for a person to answer, not the bot.
 
 const SOLD_REPORT_PATTERNS = [
-  /\b(?:already|now)\s+sold\b/i,
+  /^\s*(?:already|now)\s+sold\b(?!\s+(?:my|our|a|an|the|his|her|their|one|some|it|this|that)\b)/i,
+  /(?<!\b(?:my|our|his|her|their|old|own|other)\s)\b(?:plot|site|property|flat|villa|house|apartment|land|listing|unit)\s+(?:is\s+|was\s+|has\s+been\s+|got\s+)?(?:already\s+)?sold\b/i,
   /\b(?:it|this|that|the\s+\w+)\s*(?:'s|’s|\s+is|\s+was|\s+has\s+been|\s+got)\s+(?:already\s+)?sold\b/i,
   /\b(?:its|it's|it’s)\s+(?:already\s+)?sold\b/i,
   /\bsold\s+out\b/i,
