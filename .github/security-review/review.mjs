@@ -276,7 +276,6 @@ async function main() {
   const headSha = required('HEAD_SHA');
   const title = process.env.PR_TITLE || '';
 
-  git('fetch', '--quiet', 'origin', baseSha, headSha);
   git('checkout', '--quiet', '--detach', headSha);
 
   const mergeBase = git('merge-base', baseSha, headSha).trim();

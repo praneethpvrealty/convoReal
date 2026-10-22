@@ -42,9 +42,7 @@ export function selectFiles(nameStatus) {
   for (const line of nameStatus.split('\n')) {
     if (!line.trim()) continue;
     const parts = line.split('\t');
-    const status = parts[0][0];
     const file = parts[parts.length - 1];
-    if (status === 'D') continue;
     if (isReviewed(file)) files.push(file);
   }
   return files;

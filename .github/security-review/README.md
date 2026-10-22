@@ -40,7 +40,14 @@ Secrets and limits:
   a `workflow_dispatch` run refuses a fork's head for the same reason.
 - `read_file` resolves symlinks and refuses any path that lands outside the
   checkout or inside `.git` or `node_modules`, so a committed symlink cannot
-  hand the model the runner's environment or the checkout's credentials.
+  hand the model the runner's environment or the checkout's credentials. The
+  workflow also removes the credential `actions/checkout` stored in the
+  checkout once the commits under review are fetched, before the reviewer
+  runs, so the checkout holds no token at all while the model reads it.
+- Deleted source files stay in the diff: removing an authorization wrapper
+  or a webhook check is exactly the change the review exists to catch.
+  Findings on a deleted file go in the review body, since no line of it
+  remains to comment on.
 - `SECURITY_REVIEW_MODEL` (default `claude-opus-5-5`),
   `SECURITY_REVIEW_MAX_TURNS` (default 30) and
   `SECURITY_REVIEW_MAX_DIFF_CHARS` (default 160000) bound a run. Tool

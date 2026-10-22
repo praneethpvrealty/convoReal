@@ -24,7 +24,7 @@ import {
   truncateDiff,
 } from './lib.mjs';
 
-test('selectFiles keeps source files and drops deletions, tests and generated code', () => {
+test('selectFiles keeps source files, deletions included, and drops tests and generated code', () => {
   const files = selectFiles(
     [
       'M\tsrc/app/api/contacts/route.ts',
@@ -40,6 +40,7 @@ test('selectFiles keeps source files and drops deletions, tests and generated co
   );
   assert.deepEqual(files, [
     'src/app/api/contacts/route.ts',
+    'src/lib/old.ts',
     'src/b.ts',
     'supabase/migrations/20261022000000_x.sql',
     'go-ingress/main.go',

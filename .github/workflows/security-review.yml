@@ -63,6 +63,14 @@ jobs:
             echo "title=$(jq -r .title <<<"$pr" | tr -d '\r\n' | head -c 200)"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Fetch the commits under review and drop the checkout credential
+        env:
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          git fetch --quiet origin "$BASE_SHA" "$HEAD_SHA"
+          git config --unset-all http.https://github.com/.extraheader
+
       - name: Install the reviewer
         run: npm ci --prefix .github/security-review --no-audit --no-fund
 
