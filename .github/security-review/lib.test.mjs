@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   checkConclusion,
+  confinedRealPath,
   extractHandbookSections,
   findingKey,
   formatFinding,
@@ -148,6 +157,29 @@ test('safeRepoPath confines reads to the checkout', () => {
   assert.equal(safeRepoPath(root, '../etc/passwd'), null);
   assert.equal(safeRepoPath(root, '/etc/passwd'), null);
   assert.equal(safeRepoPath(root, 'node_modules/x/index.js'), null);
+  assert.equal(safeRepoPath(root, '.git/config'), null);
+});
+
+test('confinedRealPath refuses a symlink that leaves the checkout', () => {
+  const base = mkdtempSync(path.join(tmpdir(), 'security-review-'));
+  const root = path.join(base, 'repo');
+  const outside = path.join(base, 'outside.txt');
+  mkdirSync(path.join(root, 'src'), { recursive: true });
+  mkdirSync(path.join(root, '.git'));
+  writeFileSync(outside, 'secret');
+  writeFileSync(path.join(root, 'src', 'a.ts'), 'export {}');
+  writeFileSync(path.join(root, '.git', 'config'), '[core]');
+  symlinkSync(outside, path.join(root, 'src', 'escape.ts'));
+  symlinkSync(base, path.join(root, 'src', 'up'));
+  symlinkSync(path.join(root, '.git'), path.join(root, 'src', 'dotgit'));
+  assert.equal(
+    confinedRealPath(root, 'src/a.ts'),
+    path.join(realpathSync(root), 'src', 'a.ts')
+  );
+  assert.equal(confinedRealPath(root, 'src/escape.ts'), null);
+  assert.equal(confinedRealPath(root, 'src/up/outside.txt'), null);
+  assert.equal(confinedRealPath(root, 'src/dotgit/config'), null);
+  assert.equal(confinedRealPath(root, 'src/missing.ts'), null);
 });
 
 test('truncateDiff cuts on a file boundary and says so', () => {

@@ -36,7 +36,11 @@ Secrets and limits:
 - `ANTHROPIC_API_KEY` is a repository secret from the Console organisation
   linked to the plan. The script never prints it.
 - `GITHUB_TOKEN` needs `pull-requests: write` and `checks: write`. Pull
-  requests from forks are skipped because they cannot read the secret.
+  requests from forks are skipped because they cannot read the secret, and
+  a `workflow_dispatch` run refuses a fork's head for the same reason.
+- `read_file` resolves symlinks and refuses any path that lands outside the
+  checkout or inside `.git` or `node_modules`, so a committed symlink cannot
+  hand the model the runner's environment or the checkout's credentials.
 - `SECURITY_REVIEW_MODEL` (default `claude-opus-5-5`),
   `SECURITY_REVIEW_MAX_TURNS` (default 30) and
   `SECURITY_REVIEW_MAX_DIFF_CHARS` (default 160000) bound a run. Tool

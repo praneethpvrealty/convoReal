@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 
 export const REVIEWED_EXTENSIONS = new Set([
@@ -91,10 +92,24 @@ export function safeRepoPath(root, requested) {
   const resolved = path.resolve(root, requested);
   const rootWithSep = root.endsWith(path.sep) ? root : root + path.sep;
   if (resolved !== root && !resolved.startsWith(rootWithSep)) return null;
-  if (/(^|\/)node_modules(\/|$)/.test(path.relative(root, resolved))) {
+  if (/(^|\/)(node_modules|\.git)(\/|$)/.test(path.relative(root, resolved))) {
     return null;
   }
   return resolved;
+}
+
+export function confinedRealPath(root, requested) {
+  const resolved = safeRepoPath(root, requested);
+  if (!resolved) return null;
+  let realRoot;
+  let real;
+  try {
+    realRoot = realpathSync(root);
+    real = realpathSync(resolved);
+  } catch {
+    return null;
+  }
+  return safeRepoPath(realRoot, real);
 }
 
 export function extractHandbookSections(markdown) {

@@ -10,7 +10,7 @@ import {
   parseDiff,
   planComments,
   reviewBody,
-  safeRepoPath,
+  confinedRealPath,
   selectFiles,
   summaryMarkdown,
   truncateDiff,
@@ -189,7 +189,7 @@ function clip(text, max = MAX_TOOL_RESULT_CHARS) {
 
 function runTool(name, input) {
   if (name === 'read_file') {
-    const resolved = safeRepoPath(root, input.path);
+    const resolved = confinedRealPath(root, input.path);
     if (!resolved) return { error: 'path is outside the repository' };
     let fd;
     try {
