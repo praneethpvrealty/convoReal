@@ -20,7 +20,8 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useCopilot } from './copilot-context';
-import { useT } from '@/hooks/useLocale';
+import { useLocale } from '@/hooks/useLocale';
+import { localizeTour } from '@/lib/copilot/tour-copy';
 
 interface Rect {
   top: number;
@@ -32,13 +33,15 @@ interface Rect {
 const PAD = 6;
 
 export function TourOverlay() {
-  const t = useT();
+  const { language, t } = useLocale();
   const { activeTour, stepIndex, tourStatus, targetEl, advance, endTour } =
     useCopilot();
   const [rect, setRect] = useState<Rect | null>(null);
 
   const step =
-    activeTour && tourStatus === 'showing' ? activeTour.steps[stepIndex] : null;
+    activeTour && tourStatus === 'showing'
+      ? localizeTour(activeTour, language).steps[stepIndex]
+      : null;
 
   // Track the target's rect through scroll / resize / layout shifts.
   // A stale rect is harmless between steps: the component renders

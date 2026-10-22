@@ -29,6 +29,7 @@ import {
   showAppDialog,
   useAppDialog,
 } from '@/components/app-dialog';
+import { TourTarget } from '@/components/copilot-tour';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
@@ -551,15 +552,17 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
         >
           Calendar
         </Text>
-        <Link href="/(app)/appointment-new" asChild>
-          <Pressable
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="New appointment"
-          >
-            <Ionicons name="add-circle" size={30} color={colors.primary} />
-          </Pressable>
-        </Link>
+        <TourTarget id="new-appointment">
+          <Link href="/(app)/appointment-new" asChild>
+            <Pressable
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="New appointment"
+            >
+              <Ionicons name="add-circle" size={30} color={colors.primary} />
+            </Pressable>
+          </Link>
+        </TourTarget>
       </View>
 
       <ScrollView

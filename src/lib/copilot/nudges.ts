@@ -1,6 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { loadExpiringSessions, loadHotGoingQuiet } from '@/lib/today/queries';
 import { loadMatchEvents } from '@/lib/radar/queries';
+import type { LanguageCode } from '@/lib/languages';
+import { nudgeCopy, type NudgeId } from './nudge-copy';
 
 type DB = SupabaseClient;
 
@@ -13,17 +15,24 @@ type DB = SupabaseClient;
  */
 export interface CopilotNudge {
   /** Stable id used for per-nudge cooldown dedupe on the client. */
-  id: string;
+  id: NudgeId;
   /** Lower = more urgent. */
   priority: number;
   message: string;
   cta?: { label: string; href?: string; tourId?: string };
 }
 
+interface NudgeSignal {
+  id: NudgeId;
+  priority: number;
+  count: number;
+  cta?: { href?: string; tourId?: string };
+}
+
 const HOUR_MS = 60 * 60 * 1000;
 const WEEK_MS = 7 * 24 * HOUR_MS;
 
-type Rule = (db: DB, accountId: string) => Promise<CopilotNudge | null>;
+type Rule = (db: DB, accountId: string) => Promise<NudgeSignal | null>;
 
 const rules: Rule[] = [
   // 1. WhatsApp windows closing soon — the most time-critical signal.
@@ -36,11 +45,8 @@ const rules: Rule[] = [
     return {
       id: 'sessions-expiring',
       priority: 1,
-      message:
-        closing === 1
-          ? '1 customer chat will close soon — reply before the WhatsApp window ends.'
-          : `${closing} customer chats will close soon — reply before the WhatsApp window ends.`,
-      cta: { label: 'Open Inbox', href: '/inbox' },
+      count: closing,
+      cta: { href: '/inbox' },
     };
   },
   // 2. Hot leads going quiet.
@@ -50,11 +56,8 @@ const rules: Rule[] = [
     return {
       id: 'hot-leads-quiet',
       priority: 2,
-      message:
-        leads.length === 1
-          ? '1 hot lead hasn’t heard from you in 2+ days. A quick message keeps them warm!'
-          : `${leads.length} hot leads haven’t heard from you in 2+ days. A quick message keeps them warm!`,
-      cta: { label: 'See leads', href: '/dashboard?tab=focus' },
+      count: leads.length,
+      cta: { href: '/dashboard?tab=focus' },
     };
   },
   // 3. Journey branches that have not moved in a week. Head-count
@@ -73,11 +76,8 @@ const rules: Rule[] = [
     return {
       id: 'journeys-stalled',
       priority: 3,
-      message:
-        count === 1
-          ? '1 property has sat at the same journey stage for over a week. Ask the buyer if it is still in play.'
-          : `${count} properties have sat at the same journey stage for over a week. Ask the buyers if they are still in play.`,
-      cta: { label: 'Open Journey', href: '/deals?view=journey' },
+      count: count ?? 0,
+      cta: { href: '/deals?view=journey' },
     };
   },
   // 4. Fresh buyer↔property matches.
@@ -87,11 +87,8 @@ const rules: Rule[] = [
     return {
       id: 'radar-matches',
       priority: 4,
-      message:
-        matches.length === 1
-          ? 'Found 1 new buyer–property match for you. Take a look!'
-          : `Found ${matches.length} new buyer–property matches for you. Take a look!`,
-      cta: { label: 'Open Match Radar', href: '/dashboard?tab=radar' },
+      count: matches.length,
+      cta: { href: '/dashboard?tab=radar' },
     };
   },
   // 5. Property views this week (RLS scopes showcase_events; a
@@ -107,8 +104,8 @@ const rules: Rule[] = [
     return {
       id: 'pulse-weekly-views',
       priority: 5,
-      message: `Did you know? Your properties got ${count} views this week \u{1F440}`,
-      cta: { label: 'Show me', tourId: 'check-property-views' },
+      count: count ?? 0,
+      cta: { tourId: 'check-property-views' },
     };
   },
   // 6–8. Setup gaps (same head-counts as /api/onboarding/status).
@@ -122,8 +119,8 @@ const rules: Rule[] = [
     return {
       id: 'setup-whatsapp',
       priority: 6,
-      message: 'Connect WhatsApp to unlock customer chats and broadcasts.',
-      cta: { label: 'Set it up', tourId: 'connect-whatsapp' },
+      count: 0,
+      cta: { tourId: 'connect-whatsapp' },
     };
   },
   async (db, accountId) => {
@@ -136,8 +133,8 @@ const rules: Rule[] = [
     return {
       id: 'setup-property',
       priority: 7,
-      message: 'Add your first property — it takes about a minute.',
-      cta: { label: 'Show me how', tourId: 'add-property' },
+      count: 0,
+      cta: { tourId: 'add-property' },
     };
   },
   async (db, accountId) => {
@@ -150,8 +147,8 @@ const rules: Rule[] = [
     return {
       id: 'setup-contact',
       priority: 8,
-      message: 'Add your first contact — it takes about a minute.',
-      cta: { label: 'Show me how', tourId: 'add-contact' },
+      count: 0,
+      cta: { tourId: 'add-contact' },
     };
   },
   // 9. Portal email leads not wired up. Only fires once WhatsApp is
@@ -173,9 +170,8 @@ const rules: Rule[] = [
     return {
       id: 'setup-email-leads',
       priority: 9,
-      message:
-        'Getting leads on 99acres, MagicBricks or Housing? Forward them in and they become WhatsApp contacts automatically.',
-      cta: { label: 'Show me how', tourId: 'email-lead-sync' },
+      count: 0,
+      cta: { tourId: 'email-lead-sync' },
     };
   },
   // 10. Showcase still on default branding. Only fires once there are
@@ -196,28 +192,42 @@ const rules: Rule[] = [
     return {
       id: 'setup-showcase-brand',
       priority: 10,
-      message:
-        'Your property links still show default branding. Put your own name on every page you share — takes two minutes.',
-      cta: { label: 'Brand my pages', href: '/settings?tab=showcase' },
+      count: 0,
+      cta: { href: '/settings?tab=showcase' },
     };
   },
 ];
 
+function render(signal: NudgeSignal, language: LanguageCode): CopilotNudge {
+  const copy = nudgeCopy(signal.id, signal.count, language);
+  return {
+    id: signal.id,
+    priority: signal.priority,
+    message: copy.message,
+    cta: signal.cta ? { label: copy.ctaLabel, ...signal.cta } : undefined,
+  };
+}
+
 /**
  * Runs every rule; one slow or failing rule never blanks the list
- * (Promise.allSettled). Returns the top 3 by priority.
+ * (Promise.allSettled). Returns the top 3 by priority, worded in the
+ * caller's UI language (English for anything untranslated).
  */
 export async function evaluateNudges(
   db: DB,
-  accountId: string
+  accountId: string,
+  language: LanguageCode = 'en'
 ): Promise<CopilotNudge[]> {
   const results = await Promise.allSettled(rules.map((r) => r(db, accountId)));
-  const nudges: CopilotNudge[] = [];
+  const nudges: NudgeSignal[] = [];
   for (const r of results) {
     if (r.status === 'fulfilled' && r.value) nudges.push(r.value);
     else if (r.status === 'rejected') {
       console.warn('[Copilot] nudge rule failed:', r.reason);
     }
   }
-  return nudges.sort((a, b) => a.priority - b.priority).slice(0, 3);
+  return nudges
+    .sort((a, b) => a.priority - b.priority)
+    .slice(0, 3)
+    .map((signal) => render(signal, language));
 }

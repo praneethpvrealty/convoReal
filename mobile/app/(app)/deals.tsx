@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { TourTarget } from '@/components/copilot-tour';
 import { Confetti, EnterRow } from '@/components/motion';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { LostReasonSheet } from '@/components/lost-reason-sheet';
@@ -458,22 +459,28 @@ export default function DealsScreen() {
           title: 'Deals',
           headerRight: () =>
             segment === 'board' && activePipeline ? (
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: '/(app)/deal-edit',
-                    params: {
-                      pipelineId: activePipeline,
-                      ...(activeStage ? { stageId: activeStage } : {}),
-                    },
-                  })
-                }
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="New deal"
-              >
-                <Ionicons name="add-circle" size={28} color={colors.primary} />
-              </Pressable>
+              <TourTarget id="new-deal">
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/(app)/deal-edit',
+                      params: {
+                        pipelineId: activePipeline,
+                        ...(activeStage ? { stageId: activeStage } : {}),
+                      },
+                    })
+                  }
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="New deal"
+                >
+                  <Ionicons
+                    name="add-circle"
+                    size={28}
+                    color={colors.primary}
+                  />
+                </Pressable>
+              </TourTarget>
             ) : null,
         }}
       />
@@ -587,7 +594,7 @@ export default function DealsScreen() {
       ) : null}
 
       {segment === 'board' && flat && visibleStages.length > 0 ? (
-        <View style={styles.header}>
+        <TourTarget id="deals-stages" style={styles.header}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -621,20 +628,22 @@ export default function DealsScreen() {
               })}
             </View>
           </ScrollView>
-        </View>
+        </TourTarget>
       ) : null}
 
       {segment === 'board' && !flat && visibleStages.length > 0 ? (
-        <StageWheel
-          stages={visibleStages.map((s, index) => ({
-            id: s.id,
-            name: s.name,
-            color: s.color ?? colors.primary,
-            count: visibleStageCounts[index],
-          }))}
-          activeId={activeStage}
-          onSelect={setStageId}
-        />
+        <TourTarget id="deals-stages">
+          <StageWheel
+            stages={visibleStages.map((s, index) => ({
+              id: s.id,
+              name: s.name,
+              color: s.color ?? colors.primary,
+              count: visibleStageCounts[index],
+            }))}
+            activeId={activeStage}
+            onSelect={setStageId}
+          />
+        </TourTarget>
       ) : null}
 
       {segment === 'board' && !flat && stageDeals.length > 0 ? (

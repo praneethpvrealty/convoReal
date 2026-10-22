@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GlassCard } from '@/components/glass-card';
+import { HelpCentreLink } from '@/components/help-centre-link';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { cleanPhoneInput } from '@/lib/format';
@@ -125,6 +126,7 @@ export default function LoginScreen() {
               Property owner? Open your Portfolio
             </Text>
           </Pressable>
+          <HelpCentreLink />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

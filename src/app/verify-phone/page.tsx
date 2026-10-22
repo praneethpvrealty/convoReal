@@ -18,6 +18,7 @@ import { MessageSquare } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { WhatsappPhoneVerify } from '@/components/auth/whatsapp-phone-verify';
+import { HelpCentreLink } from '@/components/auth/help-centre-link';
 import {
   Card,
   CardContent,
@@ -94,6 +95,7 @@ export default function VerifyPhonePage() {
               Loading…
             </p>
           )}
+          <HelpCentreLink className="mt-4" />
         </CardContent>
       </Card>
     </div>

@@ -18,6 +18,7 @@ import {
   Crown,
   Headset,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   MessageSquare,
   Radio,
@@ -334,6 +335,18 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   </li>
                 );
               })}
+              <li>
+                <a
+                  href="/help"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-tour="nav-help"
+                  className="flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-semibold text-slate-400 transition-all duration-300 hover:bg-slate-900/40 hover:pl-4 hover:text-white lg:py-2"
+                >
+                  <LifeBuoy className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 truncate">{t('nav.helpCentre')}</span>
+                </a>
+              </li>
             </ul>
 
             {/* Quick Access section */}

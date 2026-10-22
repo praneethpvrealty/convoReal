@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
+import { HelpCentreLink } from '@/components/auth/help-centre-link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -241,6 +242,7 @@ function ProfileSetupPageInner() {
               </button>
             </div>
           </form>
+          <HelpCentreLink className="mt-4" />
         </CardContent>
       </Card>
     </div>

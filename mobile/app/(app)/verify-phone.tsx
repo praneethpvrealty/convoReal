@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { GlassCard } from '@/components/glass-card';
+import { HelpCentreLink } from '@/components/help-centre-link';
 import { OtpInput } from '@/components/otp-input';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { signOut, useAuthStore } from '@/lib/auth-store';
@@ -180,6 +181,7 @@ export default function VerifyPhoneScreen() {
               Sign out
             </Text>
           </Pressable>
+          <HelpCentreLink />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -670,6 +670,7 @@ export default function InboxPage() {
             min-width — truncate never engages and the whole list
             renders wider than the viewport. */}
         <div
+          data-tour="conversation-list"
           className={cn(
             'flex h-full min-w-0 flex-1 lg:flex-none',
             hasActiveConv ? 'hidden lg:flex' : 'flex'

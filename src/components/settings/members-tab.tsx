@@ -316,6 +316,7 @@ export function MembersTab() {
         <RequireRole min="admin">
           <Button
             onClick={() => setInviteOpen(true)}
+            data-tour="invite-member"
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="size-4" />
