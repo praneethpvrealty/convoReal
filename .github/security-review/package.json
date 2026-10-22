@@ -1,0 +1,17 @@
+{
+  "name": "convoreal-security-review",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Claude-powered security review of pull requests, run from .github/workflows/security-review.yml",
+  "scripts": {
+    "test": "node --test",
+    "review": "node review.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.1.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
