@@ -55,7 +55,7 @@ export function reportsListingSold(text?: string | null): boolean {
   const value = normalise(text || '');
   if (!value) return false;
   if (
-    /\b(?:not|never|isn'?t|wasn'?t|hasn'?t)\s+(?:been\s+|yet\s+)?sold\b/i.test(
+    /\b(?:not|never|isn'?t|wasn'?t|hasn'?t|haven'?t|ain'?t)\s+(?:\w+\s+){0,2}sold\b/i.test(
       value
     )
   )

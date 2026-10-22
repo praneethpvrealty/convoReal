@@ -57,6 +57,7 @@ import {
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { createNotification } from '@/lib/notifications/create';
 import {
+  asksToCloseEnquiry,
   readCheckinEnding,
   readsAsStillConsidering,
 } from '@/lib/journey/checkin-reply-intent';
@@ -2445,7 +2446,11 @@ export async function handleInboxCheckinReply(
   );
   if (checkins.length === 0) return 'not_checkin';
 
-  if (!fromButton && statesNewRequirement(responseText)) {
+  if (
+    !fromButton &&
+    !asksToCloseEnquiry(responseText) &&
+    statesNewRequirement(responseText)
+  ) {
     const [{ data: config }, { data: contactRow }] = await Promise.all([
       db
         .from('whatsapp_config')
@@ -2531,6 +2536,7 @@ export async function handleInboxCheckinReply(
   const typed = !fromButton;
   const asks =
     typed &&
+    !asksToCloseEnquiry(responseText) &&
     (looksLikeQuestion(response) || requestsHumanContact(responseText));
   const ending = typed && !asks ? readCheckinEnding(responseText) : null;
   const rejects =

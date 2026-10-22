@@ -26,6 +26,8 @@ describe('[JRN-023] reading a typed answer to the check-in', () => {
 
   it.each([
     'It is not sold yet, right',
+    'It is not already sold',
+    "It hasn't actually been sold",
     "It hasn't been sold",
     'I already booked a site visit',
     'Already booked the slot for Saturday',
@@ -38,6 +40,7 @@ describe('[JRN-023] reading a typed answer to the check-in', () => {
 
   it.each([
     'Please close my enquiry',
+    'Can you close my enquiry?',
     'Close the inquiry',
     'No more updates please',
     'Stop sending messages',

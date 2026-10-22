@@ -658,6 +658,32 @@ describe('[JRN-023] a typed answer that ends, rejects or puzzles the check-in', 
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 
+  it.each([
+    'Can you close my enquiry?',
+    'We already bought a flat in Whitefield',
+  ])(
+    'closes on %j rather than treating it as a question or a new requirement',
+    async (text) => {
+      tables.whatsapp_config = [{ auto_qualify_leads: true }];
+      const outcome = await reply(text);
+
+      expect(outcome).toBe('handled');
+      expect(handleEnquiryClose).toHaveBeenCalledWith(
+        expect.objectContaining({
+          property: expect.objectContaining({ id: 'p-1' }),
+        })
+      );
+      expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    }
+  );
+
+  it('answers "It is not already sold" as a reply, never as the listing gone', async () => {
+    const outcome = await reply('It is not already sold');
+    expect(outcome).not.toBe('not_checkin');
+    expect(handleSoldReport).not.toHaveBeenCalled();
+    expect(handleEnquiryClose).not.toHaveBeenCalled();
+  });
+
   it('leaves a rejection of the listing to the factor prompt rather than asking for a date', async () => {
     const outcome = await reply('Not interested in this plot');
 

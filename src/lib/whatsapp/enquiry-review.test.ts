@@ -225,6 +225,28 @@ describe('closePropertyEnquiry', () => {
     );
   });
 
+  it('[JRN-023] leaves the listing status alone when the close comes from a sold report', async () => {
+    setListingStatusFromDeal.mockClear();
+    const { db } = stubDb({
+      journey_items: [{ id: 'item-1', stage_id: 'stage-a' }],
+      deals: [[{ property_id: P1 }]],
+    });
+
+    await closePropertyEnquiry({
+      db,
+      accountId: 'acct-1',
+      contact: { id: 'c1', name: 'Ramanathan' },
+      property: {
+        id: P1,
+        title: 'Vijaya Bank Layout plot',
+        property_code: null,
+      },
+      keepListingStatus: true,
+    });
+
+    expect(setListingStatusFromDeal).not.toHaveBeenCalled();
+  });
+
   it('[PRP-014] reports a failed deal lookup on a closed branch instead of treating it as no deals', async () => {
     setListingStatusFromDeal.mockClear();
     const { db } = stubDb({

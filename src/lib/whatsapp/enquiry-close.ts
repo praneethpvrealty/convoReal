@@ -221,6 +221,7 @@ export async function handleSoldReport(args: {
       contact,
       property,
       reason: SOLD_REPORT_REASON,
+      keepListingStatus: true,
       note: `🏷️ ${name} says ${label} is sold: "${args.reportText}" — enquiry closed`,
     });
 

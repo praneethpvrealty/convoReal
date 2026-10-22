@@ -282,6 +282,7 @@ describe('[JRN-023] a buyer saying the listing is sold', () => {
       expect.objectContaining({
         property: plot,
         reason: SOLD_REPORT_REASON,
+        keepListingStatus: true,
       })
     );
     const todo = inserts.find((i) => i.table === 'todos')?.row;
