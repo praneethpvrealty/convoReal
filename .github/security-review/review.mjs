@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync, statSync } from 'node:fs';
+import { closeSync, fstatSync, openSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import {
@@ -188,15 +188,21 @@ function runTool(name, input) {
   if (name === 'read_file') {
     const resolved = safeRepoPath(root, input.path);
     if (!resolved) return { error: 'path is outside the repository' };
-    let stats;
+    let fd;
     try {
-      stats = statSync(resolved);
+      fd = openSync(resolved, 'r');
     } catch {
       return { error: `no such file: ${input.path}` };
     }
-    if (!stats.isFile()) return { error: `not a file: ${input.path}` };
-    if (stats.size > 2_000_000) return { error: 'file too large to read' };
-    const lines = readFileSync(resolved, 'utf8').split('\n');
+    let lines;
+    try {
+      const stats = fstatSync(fd);
+      if (!stats.isFile()) return { error: `not a file: ${input.path}` };
+      if (stats.size > 2_000_000) return { error: 'file too large to read' };
+      lines = readFileSync(fd, 'utf8').split('\n');
+    } finally {
+      closeSync(fd);
+    }
     const start = Math.max(1, Number(input.start_line) || 1);
     const requestedEnd = Number(input.end_line) || 0;
     const end = Math.min(
