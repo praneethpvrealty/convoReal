@@ -38,7 +38,7 @@ beforeEach(() => {
   sendRequirementReview.mockResolvedValue(true);
 });
 
-describe('[PRP-049] the brief played back after a regret', () => {
+describe('[PRP-050] the brief played back after a regret', () => {
   it('knows whether the contact has a requirement worth playing back', async () => {
     expect(await hasRequirementOnFile(dbWith(ramanathan), 'acc-1', 'c-1')).toBe(
       true

@@ -247,7 +247,7 @@ describe('sendRequirementReview', () => {
     expect(accountShowcaseBrowseUrl).not.toHaveBeenCalled();
   });
 
-  it('[PRP-049] takes a regret opening and closing in place of the no-match copy', async () => {
+  it('[PRP-050] takes a regret opening and closing in place of the no-match copy', async () => {
     await sendRequirementReview({
       db: {} as never,
       accountId: 'acct-1',
@@ -306,7 +306,7 @@ describe('handleRequirementTweakReply', () => {
     );
   });
 
-  it('[PRP-049] hands a confirmed brief to the caller when it wants the matches sent', async () => {
+  it('[PRP-050] hands a confirmed brief to the caller when it wants the matches sent', async () => {
     const onConfirm = vi.fn(async () => undefined);
     const handled = await handleRequirementTweakReply({
       ...base,

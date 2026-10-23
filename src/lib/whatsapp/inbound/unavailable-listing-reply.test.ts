@@ -159,7 +159,7 @@ describe('replyListingUnavailableOnce', () => {
     ).toBe('sent');
   });
 
-  it('[PRP-049] offers to confirm a brief on file, then plays it back to confirm', async () => {
+  it('[PRP-050] offers to confirm a brief on file, then plays it back to confirm', async () => {
     state.briefOnFile = true;
     const outcome = await replyListingUnavailableOnce({
       db: fakeDb(),
@@ -184,7 +184,7 @@ describe('replyListingUnavailableOnce', () => {
     ]);
   });
 
-  it('[PRP-049] asks for requirements and budget, and plays nothing back, with nothing on file', async () => {
+  it('[PRP-050] asks for requirements and budget, and plays nothing back, with nothing on file', async () => {
     await replyListingUnavailableOnce({
       db: fakeDb(),
       ...args,
@@ -195,7 +195,7 @@ describe('replyListingUnavailableOnce', () => {
     expect(state.confirmCards).toHaveLength(1);
   });
 
-  it('[PRP-049] counts the regret as already sent whichever nudge it carried', async () => {
+  it('[PRP-050] counts the regret as already sent whichever nudge it carried', async () => {
     state.briefOnFile = true;
     await replyListingUnavailableOnce({
       db: fakeDb(),

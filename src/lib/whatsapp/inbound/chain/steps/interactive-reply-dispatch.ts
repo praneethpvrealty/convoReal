@@ -13,8 +13,10 @@ import {
   handleBrowseAllProperties,
   handlePropertyShareNoReply,
   handlePropertyShareYesReply,
+  handleShortlistPropertyReply,
   handleShowMoreProperties,
   handleSoldPriceReply,
+  SHORTLIST_PROPERTY_PREFIX,
 } from '@/lib/whatsapp/inbound/property-share-replies';
 import type { InboundChainContext, StepResult } from '../context';
 
@@ -88,6 +90,16 @@ export async function interactiveReplyDispatch(
       const propertyId = interactiveReplyId.split(':')[1];
       await handleShowMoreProperties(
         propertyId,
+        accountId,
+        configOwnerUserId,
+        contactRecord.id,
+        conversation.id,
+        senderPhone
+      );
+      return 'handled';
+    } else if (interactiveReplyId.startsWith(SHORTLIST_PROPERTY_PREFIX)) {
+      await handleShortlistPropertyReply(
+        interactiveReplyId.slice(SHORTLIST_PROPERTY_PREFIX.length),
         accountId,
         configOwnerUserId,
         contactRecord.id,

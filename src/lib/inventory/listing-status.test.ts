@@ -226,7 +226,7 @@ describe('unavailableListingReply', () => {
   });
 });
 
-describe('[PRP-049] a buyer with a requirement on file is not asked for it again', () => {
+describe('[PRP-050] a buyer with a requirement on file is not asked for it again', () => {
   it('offers to confirm the saved brief instead of asking for requirements and budget', () => {
     const sold = unavailableListingReply(
       'Ramanathan',

@@ -26,7 +26,10 @@ export interface PropertyMatch {
 /** Ported rather than imported: `@shared/` resolves types only, so a
  *  runtime import of the web helper dies at Metro bundle time. */
 export function inquiredPropertyLabel(property: InquiredProperty): string {
-  return property.property_code || property.title || 'Untitled listing';
+  const title = property.title?.trim();
+  if (title && property.property_code)
+    return `${title} (${property.property_code})`;
+  return title || property.property_code || 'Untitled listing';
 }
 
 /**

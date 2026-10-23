@@ -634,6 +634,21 @@
             "src/lib/whatsapp/inbound/chain/steps/lead-question.ts",
             "src/lib/whatsapp/agent-takeover.ts"
           ]
+        },
+        {
+          "id": "INB-036",
+          "rule": "Each listing the bot sends after Show more properties or Find similar goes out as one WhatsApp card: the listing's first photo as the header (no header when it has none), its title, price, location, area, BHK and showcase link as the body, and two buttons under it, ⭐ Shortlist and 👍 Interested. Interested is the listing-feedback interest tap (recorded on listing_feedback, acknowledged by naming the property, agent notified). Shortlist reads the property scoped to the account and acts only on a well-formed id; a listing that has left the market gets its unavailable-status reply and is not saved; otherwise it is saved as the contact's like (property_likes, one per contact and property) and mirrored into a linked buyer's Portfolio shortlist, and the lead is told by name that it is saved, with the Portfolio link and an Interested button; when neither the like nor the Portfolio row was saved, the lead is never told it was saved and is asked to tap again. When the card cannot be sent, the photo and the details text go out as before.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/inbound/property-share-replies.test.ts",
+              "case": "[INB-036]"
+            },
+            { "file": "src/lib/whatsapp/meta-api.test.ts", "case": "[INB-036]" }
+          ],
+          "guards": [
+            "src/lib/whatsapp/inbound/property-share-replies.ts",
+            "src/lib/whatsapp/inbound/chain/steps/interactive-reply-dispatch.ts"
+          ]
         }
       ]
     },
@@ -2241,27 +2256,46 @@
         },
         {
           "id": "PRP-049",
+          "rule": "Every row in a listing's Matching Contacts list names the other listings that contact enquired about earlier, newest first, by listing name with its code beside it (the code alone when a listing has no name), on web and mobile alike; the listing being viewed is not repeated there. Several contacts can be ticked and shared together, and on web the share button and the selected count stay in view at the foot of the list however far it has been scrolled.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/inquired-properties.test.ts",
+              "case": "inquiredPropertyLabel"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-049]"
+            }
+          ],
+          "guards": [
+            "src/lib/contacts/inquired-properties.ts",
+            "src/components/inventory/property-matches-tab.tsx",
+            "mobile/lib/property-matches.ts"
+          ]
+        },
+        {
+          "id": "PRP-050",
           "rule": "A buyer told inside their window that a listing is no longer available is not asked for requirements already on file. When the contact has a saved brief (type, size, areas, budget), the regret says the requirement is on file and is followed by the brief played back with one-tap corrections (All correct, change property type, change budget, change areas, full form) and a closing that promises the closest live options on confirmation; All correct then sends the current matches at once, or says none is live yet. This holds for every bot path that sends the regret — a direct property enquiry, a shared-listing tap, a showcase view check-in, a photo request, an enquiry-card approval, a portal email lead inside its window — and for the Q&A availability answer (\"is it sold?\", \"what all are available\") about an unavailable listing. A contact with nothing on file is still asked for requirements and budget and gets no playback.",
           "tests": [
             {
               "file": "src/lib/inventory/listing-status.test.ts",
-              "case": "[PRP-049]"
+              "case": "[PRP-050]"
             },
             {
               "file": "src/lib/showcase/property-qa.test.ts",
-              "case": "[PRP-049]"
+              "case": "[PRP-050]"
             },
             {
               "file": "src/lib/whatsapp/requirement-review.test.ts",
-              "case": "[PRP-049]"
+              "case": "[PRP-050]"
             },
             {
               "file": "src/lib/whatsapp/unavailable-brief-followup.test.ts",
-              "case": "[PRP-049]"
+              "case": "[PRP-050]"
             },
             {
               "file": "src/lib/whatsapp/inbound/unavailable-listing-reply.test.ts",
-              "case": "[PRP-049]"
+              "case": "[PRP-050]"
             }
           ],
           "guards": [

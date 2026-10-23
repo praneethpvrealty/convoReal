@@ -208,7 +208,7 @@ describe('[INB-032] availability is answered from the listing status', () => {
     expect(r.answer).not.toMatch(/currently available/);
   });
 
-  it('[PRP-049] offers to confirm a brief on file instead of asking for one', () => {
+  it('[PRP-050] offers to confirm a brief on file instead of asking for one', () => {
     const r = answerFromPropertyData('is it sold?', underContract(), {
       briefOnFile: true,
     });

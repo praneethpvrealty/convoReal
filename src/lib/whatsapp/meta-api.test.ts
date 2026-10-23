@@ -145,6 +145,45 @@ describe('sendInteractiveButtons — validation', () => {
       },
     });
   });
+
+  it('rejects a text header and an image header together', async () => {
+    await expect(
+      sendInteractiveButtons({
+        ...BASE_ARGS,
+        headerText: 'Hello',
+        headerImageLink: 'https://img/house.jpg',
+        buttons: [{ id: 'yes', title: 'Yes' }],
+      })
+    ).rejects.toThrow(/not both/);
+  });
+
+  it('[INB-036] sends a photo above the body as an image header', async () => {
+    let body: unknown = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        body = JSON.parse(String(init.body));
+        return new Response(
+          JSON.stringify({ messages: [{ id: 'wamid.IMG' }] }),
+          { status: 200 }
+        );
+      })
+    );
+
+    await sendInteractiveButtons({
+      ...BASE_ARGS,
+      headerImageLink: 'https://img/house.jpg',
+      buttons: [{ id: 'shortlist', title: '⭐ Shortlist' }],
+    });
+
+    expect(body).toMatchObject({
+      interactive: {
+        type: 'button',
+        header: { type: 'image', image: { link: 'https://img/house.jpg' } },
+        body: { text: 'Body text' },
+      },
+    });
+  });
 });
 
 describe('sendInteractiveList — validation', () => {
