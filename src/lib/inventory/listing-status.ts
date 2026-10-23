@@ -113,6 +113,27 @@ export function unavailableListingReply(
   return `${greeting} for your interest in ${subject}. I'm sorry — this property is ${phrase}. If it becomes available again, we'll come back and update you right here. ${meanwhile(nudge)}${browse}`;
 }
 
+/** The regret as it reads with and without a brief on file: a thread
+ *  holding either has been told. */
+export function unavailableListingReplyVariants(
+  contactName: string | null | undefined,
+  propertyTitle: string | null | undefined,
+  status: string | null | undefined,
+  showcaseUrl?: string | null
+): string[] {
+  return [true, false]
+    .map((briefOnFile) =>
+      unavailableListingReply(
+        contactName,
+        propertyTitle,
+        status,
+        showcaseUrl,
+        briefOnFile
+      )
+    )
+    .filter((reply): reply is string => reply !== null);
+}
+
 /**
  * The one-line answer to "is this still available?", whatever surface
  * asked it. The Q&A ladder serves it before any matcher or model call

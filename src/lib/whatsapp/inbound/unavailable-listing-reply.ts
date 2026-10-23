@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { unavailableListingReply } from '@/lib/inventory/listing-status';
-import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
+import { unavailableListingReplyWithShowcaseVariants } from '@/lib/inventory/unavailable-reply';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sendRequirementConfirmAfterRegret } from '@/lib/whatsapp/unavailable-brief-followup';
 
@@ -39,7 +39,7 @@ export async function replyListingUnavailableOnce(args: {
             .maybeSingle()
         ).data?.name as string | null | undefined) ?? null);
 
-  const reply = await unavailableListingReplyWithShowcase({
+  const built = await unavailableListingReplyWithShowcaseVariants({
     db,
     accountId,
     contactId,
@@ -47,13 +47,14 @@ export async function replyListingUnavailableOnce(args: {
     propertyTitle: property.title,
     status: property.status,
   });
-  if (!reply) return null;
+  if (!built) return null;
+  const { reply, variants } = built;
 
   const { data: alreadyTold } = await db
     .from('messages')
     .select('id')
     .eq('conversation_id', conversationId)
-    .eq('content_text', reply)
+    .in('content_text', variants)
     .neq('status', 'failed')
     .limit(1)
     .maybeSingle();

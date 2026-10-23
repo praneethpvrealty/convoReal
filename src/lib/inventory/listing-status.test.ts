@@ -16,6 +16,7 @@ import {
   listingAvailabilityContext,
   BRIEF_ON_FILE_NUDGE,
   REQUIREMENTS_NUDGE,
+  unavailableListingReplyVariants,
 } from './listing-status';
 import { PROPERTY_STATUSES } from './property-options';
 
@@ -250,6 +251,34 @@ describe('[PRP-049] a buyer with a requirement on file is not asked for it again
     expect(
       unavailableListingReply('Ramanathan', 'Plot', 'Sold', null, false)
     ).toContain(REQUIREMENTS_NUDGE);
+  });
+
+  it('lists both wordings so a thread holding either counts as told', () => {
+    const variants = unavailableListingReplyVariants(
+      'Ramanathan',
+      'Plot',
+      'Sold',
+      'https://aryavarta.convoreal.com/?v=c1'
+    );
+    expect(variants).toEqual([
+      unavailableListingReply(
+        'Ramanathan',
+        'Plot',
+        'Sold',
+        'https://aryavarta.convoreal.com/?v=c1',
+        true
+      ),
+      unavailableListingReply(
+        'Ramanathan',
+        'Plot',
+        'Sold',
+        'https://aryavarta.convoreal.com/?v=c1',
+        false
+      ),
+    ]);
+    expect(
+      unavailableListingReplyVariants('Ramanathan', 'Plot', 'Available')
+    ).toEqual([]);
   });
 
   it('does the same in the availability answer', () => {

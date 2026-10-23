@@ -3,6 +3,7 @@ import { findConversation } from '@/lib/conversations/resolve';
 import {
   listingAvailabilityNotice,
   unavailableListingReply,
+  unavailableListingReplyVariants,
 } from '@/lib/inventory/listing-status';
 import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
 import {
@@ -71,6 +72,12 @@ export async function tellApprovedLeadListingUnavailable(args: {
     showcaseUrl,
     briefOnFile
   )!;
+  const toldVariants = unavailableListingReplyVariants(
+    contactName,
+    property.title,
+    property.status,
+    showcaseUrl
+  );
   const status = (property.status ?? '').trim();
   const label = listingAvailabilityNotice(status)?.label ?? status;
 
@@ -81,7 +88,7 @@ export async function tellApprovedLeadListingUnavailable(args: {
         .from('messages')
         .select('id')
         .eq('conversation_id', conversation.id)
-        .eq('content_text', message)
+        .in('content_text', toldVariants)
         .neq('status', 'failed')
         .limit(1)
         .maybeSingle(),
