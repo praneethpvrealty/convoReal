@@ -2253,6 +2253,25 @@
             "mobile/components/catalog-product-share.tsx",
             "mobile/lib/catalog-product-share.ts"
           ]
+        },
+        {
+          "id": "PRP-049",
+          "rule": "Every row in a listing's Matching Contacts list names the other listings that contact enquired about earlier, newest first, by listing name with its code beside it (the code alone when a listing has no name), on web and mobile alike; the listing being viewed is not repeated there. Several contacts can be ticked and shared together, and on web the share button and the selected count stay in view at the foot of the list however far it has been scrolled.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/inquired-properties.test.ts",
+              "case": "inquiredPropertyLabel"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-049]"
+            }
+          ],
+          "guards": [
+            "src/lib/contacts/inquired-properties.ts",
+            "src/components/inventory/property-matches-tab.tsx",
+            "mobile/lib/property-matches.ts"
+          ]
         }
       ]
     },

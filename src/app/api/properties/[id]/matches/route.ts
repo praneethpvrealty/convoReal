@@ -95,7 +95,9 @@ export async function GET(
     const inquiriesByContact = await fetchInquiredProperties(
       ctx.supabase,
       ctx.accountId,
-      results.map(({ contact }) => contact.id)
+      results.map(({ contact }) => contact.id),
+      3,
+      propertyId
     );
 
     return NextResponse.json({
