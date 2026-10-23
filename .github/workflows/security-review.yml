@@ -32,13 +32,13 @@ jobs:
     # The reviewer and its dependencies come from the base branch, never from
     # the pull request under review; the head is checked out into head/ and
     # only read. Drafts wait until they are marked ready, so the review sees
-    # the code that will merge. Fork pull requests are not reviewed, and a
-    # release PR is not: its members were reviewed one by one.
+    # the code that will merge. Fork pull requests are not reviewed. A
+    # release PR into main posts skipped checks instead of a review: its
+    # members were reviewed one by one.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.draft == false &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       !startsWith(github.event.pull_request.head.ref, 'release/'))
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -65,11 +65,16 @@ jobs:
             echo "::error::Pull request ${PR_NUMBER} comes from a fork; the reviewer only checks out branches of this repository."
             exit 1
           fi
+          skip=""
+          if [ "$(jq -r .base.ref <<<"$pr")" = "main" ] && [[ "$(jq -r .head.ref <<<"$pr")" == release/* ]]; then
+            skip="release pull request into main; its members were reviewed one by one"
+          fi
           {
             echo "number=${PR_NUMBER}"
             echo "base_sha=$(jq -r .base.sha <<<"$pr")"
             echo "head_sha=$(jq -r .head.sha <<<"$pr")"
             echo "title=$(jq -r .title <<<"$pr" | tr -d '\r\n' | head -c 200)"
+            echo "skip=${skip}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Check out the pull request head for reading only
@@ -92,6 +97,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           REVIEW_ROOT: head
           REVIEW_MODEL: ${{ inputs.model || 'auto' }}
+          REVIEW_SKIP_REASON: ${{ steps.pr.outputs.skip }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}

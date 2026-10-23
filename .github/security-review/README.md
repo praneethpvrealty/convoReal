@@ -66,7 +66,9 @@ Secrets and limits:
 - `GITHUB_TOKEN` needs `pull-requests: write` and `checks: write`. Pull
   requests from forks are skipped because they cannot read the secret, and
   a `workflow_dispatch` run refuses a fork's head for the same reason.
-  Release PRs are skipped too: their members were reviewed one by one.
+  A release PR into `main` gets both checks posted as `skipped` with the
+  reason, rather than a review: its members were reviewed one by one, and
+  the skipped checks keep the gap visible on the PR.
 - `read_file` resolves symlinks and refuses any path that lands outside the
   checkout or inside `.git` or `node_modules`, so a committed symlink cannot
   hand the model the runner's environment or the checkout's credentials.
@@ -78,8 +80,9 @@ Secrets and limits:
   remains to comment on.
 - `REVIEW_MODEL` (default `auto`), `REVIEW_MAX_TURNS` (default 40) and
   `REVIEW_MAX_DIFF_CHARS` (default 160000) bound a run. Tool output is
-  clipped, file reads are capped at 400 lines, and the system prompt is
-  cached across turns. Opus and Sonnet runs enable the server-side refusal
+  clipped, file reads are capped at 400 lines, and the system prompt and
+  the growing conversation are cached across turns, so each tool round
+  pays cache-read prices for everything it has already sent. Opus and Sonnet runs enable the server-side refusal
   fallback; Haiku has none.
 - Cap the organisation's spend from the Console with a workspace limit so a
   runaway month stops at the credit, never at a card.

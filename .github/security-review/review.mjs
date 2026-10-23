@@ -299,6 +299,18 @@ async function main() {
   const headSha = required('HEAD_SHA');
   const title = process.env.PR_TITLE || '';
 
+  const skipReason = process.env.REVIEW_SKIP_REASON;
+  if (skipReason) {
+    console.log(`Skipping the review: ${skipReason}.`);
+    await postChecks(
+      headSha,
+      'skipped',
+      'Review skipped',
+      `This pull request was not reviewed: ${skipReason}.`
+    );
+    return;
+  }
+
   const mergeBase = git('merge-base', baseSha, headSha).trim();
   const nameStatus = git('diff', '--name-status', `${mergeBase}..${headSha}`);
   const files = selectFiles(nameStatus);
@@ -361,6 +373,7 @@ async function main() {
     const response = await client.beta.messages.create({
       model: plan.model,
       max_tokens: 16000,
+      cache_control: { type: 'ephemeral' },
       ...(withFallback
         ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' }
         : {}),
