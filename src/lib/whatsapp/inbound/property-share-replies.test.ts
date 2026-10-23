@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   inserts: [] as Record<string, unknown>[],
   mirrors: [] as Record<string, unknown>[],
   linked: false,
+  likeError: null as { code: string } | null,
 }));
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
@@ -83,7 +84,7 @@ vi.mock('@/lib/supabase/admin', () => ({
         order: () => builder,
         insert: async (row: Record<string, unknown>) => {
           state.inserts.push({ table, ...row });
-          return { error: null };
+          return { error: state.likeError };
         },
         limit: async () => {
           state.filters.push({ table, ...filters });
@@ -132,6 +133,7 @@ beforeEach(() => {
   state.inserts = [];
   state.mirrors = [];
   state.linked = false;
+  state.likeError = null;
 });
 
 describe('handlePropertyShareYesReply', () => {
@@ -306,6 +308,23 @@ describe('handleShortlistPropertyReply', () => {
     expect(state.sends[0].interactiveButtons).toEqual([
       { id: `lfb_y_${PROPERTY_ID}`, title: '👍 Interested' },
     ]);
+  });
+
+  it('[INB-036] never confirms a save that failed', async () => {
+    state.regret = null;
+    state.likeError = { code: '57014' };
+    expect(await shortlist()).toBe(true);
+    expect(state.sends).toHaveLength(1);
+    expect(state.sends[0].kind).toBe('text');
+    expect(state.sends[0].text).toContain("couldn't save");
+    expect(JSON.stringify(state.sends)).not.toContain('Saved');
+  });
+
+  it('[INB-036] treats a listing already shortlisted as saved', async () => {
+    state.regret = null;
+    state.likeError = { code: '23505' };
+    expect(await shortlist()).toBe(true);
+    expect(state.sends[0].interactiveBody).toContain('to your shortlist');
   });
 
   it('[INB-036] [CNV-009] saves nothing for a listing that left the market', async () => {

@@ -658,19 +658,36 @@ export async function handleShortlistPropertyReply(
       contact_id: contactId,
       session_key: `wa:${contactId}`,
     });
-    if (likeError && likeError.code !== '23505') {
+    const likeSaved = !likeError || likeError.code === '23505';
+    if (!likeSaved) {
       console.error('[webhook] Shortlist like insert failed:', likeError);
     }
 
     let linked = false;
+    let mirrored = false;
     try {
       ({ linked } = await mirrorSharedListingsToPortfolio(db, {
         accountId,
         contactId,
         propertyIds: [propertyId],
       }));
+      mirrored = linked;
     } catch (err) {
       console.error('[webhook] Shortlist portfolio mirror failed:', err);
+    }
+
+    if (!likeSaved && !mirrored) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId,
+        conversationId,
+        toPhone,
+        kind: 'text',
+        text: `Sorry, I couldn't save *${property.title}* just now. Please tap ⭐ Shortlist again in a moment.`,
+        senderType: 'bot',
+      });
+      return true;
     }
 
     await sendWhatsAppMessageAndPersist({
