@@ -8,6 +8,8 @@ import { buildPropertyInterestQuestion } from '@/lib/whatsapp/property-interest'
 import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
 import { replyListingUnavailableOnce } from '@/lib/whatsapp/inbound/unavailable-listing-reply';
 import { formatCurrency, formatInrCompact } from '@/lib/format/currency';
+import { truncate } from '@/lib/format/text';
+import { INTERACTIVE_LIMITS } from '@/lib/whatsapp/meta-api';
 import {
   buildPortfolioNudge,
   mirrorSharedListingsToPortfolio,
@@ -546,7 +548,13 @@ export async function handleShowMoreProperties(
       if (areaStr) detailsText += `📐 *Area:* ${areaStr}\n`;
       if (typedProp.bedrooms)
         detailsText += `🛏️ *BHK:* ${typedProp.bedrooms} BHK\n`;
-      detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`;
+      const linkText = `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`;
+      const cardBody =
+        truncate(
+          detailsText,
+          INTERACTIVE_LIMITS.bodyMaxLength - linkText.length
+        ) + linkText;
+      detailsText += linkText;
 
       const card = await sendWhatsAppMessageAndPersist({
         accountId,
@@ -556,7 +564,7 @@ export async function handleShowMoreProperties(
         toPhone,
         kind: 'interactive',
         interactiveType: 'buttons',
-        interactiveBody: detailsText,
+        interactiveBody: cardBody,
         headerImageLink: firstImage ?? null,
         interactiveButtons: similarPropertyButtons(typedProp.id),
         senderType: 'bot',

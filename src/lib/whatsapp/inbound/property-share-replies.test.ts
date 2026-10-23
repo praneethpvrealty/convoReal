@@ -247,6 +247,26 @@ describe('handleShowMoreProperties', () => {
     );
   });
 
+  it('[INB-036] keeps the whole showcase link when a long listing is trimmed to fit the card', async () => {
+    state.listed = [
+      {
+        id: PROPERTY_ID,
+        title: 'Plot '.repeat(150),
+        price: 97200000,
+        images: ['https://img/house.jpg'],
+        location: 'Near the lake '.repeat(60),
+      },
+    ];
+    await showMore();
+    const body = state.sends[1].interactiveBody as string;
+    expect(body.length).toBeLessThanOrEqual(1024);
+    expect(
+      body.endsWith(
+        'https://aryavarta.convoreal.com/?property_id=PROP-1004&v=c1'
+      )
+    ).toBe(true);
+  });
+
   it('[INB-036] falls back to the photo and the details text when the card cannot be sent', async () => {
     state.failInteractive = true;
     state.listed = [
