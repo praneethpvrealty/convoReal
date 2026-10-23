@@ -65,19 +65,13 @@ export async function tellApprovedLeadListingUnavailable(args: {
     }),
     hasRequirementOnFile(db, accountId, contactId),
   ]);
-  const message = unavailableListingReply(
-    contactName,
-    property.title,
-    property.status,
-    showcaseUrl,
-    briefOnFile
-  )!;
   const toldVariants = unavailableListingReplyVariants(
     contactName,
     property.title,
     property.status,
     showcaseUrl
   );
+  const [withBrief, handoff] = toldVariants;
   const status = (property.status ?? '').trim();
   const label = listingAvailabilityNotice(status)?.label ?? status;
 
@@ -106,7 +100,7 @@ export async function tellApprovedLeadListingUnavailable(args: {
         label,
         notice: 'already_told',
         conversationId: conversation.id,
-        message,
+        message: handoff,
       };
     }
     const described = describeEnquiredProperty(property);
@@ -151,6 +145,6 @@ export async function tellApprovedLeadListingUnavailable(args: {
               ? 'none'
               : 'failed',
     conversationId,
-    message,
+    message: outcome === 'text' && briefOnFile ? withBrief : handoff,
   };
 }
