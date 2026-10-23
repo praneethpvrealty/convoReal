@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   noticeTexts: [] as string[],
   outcome: 'text' as string,
   sends: [] as Record<string, unknown>[],
+  briefOnFile: false,
 }));
 
 vi.mock('@/lib/conversations/resolve', () => ({
@@ -16,6 +17,11 @@ vi.mock('@/lib/conversations/resolve', () => ({
     state.conversationsInOrder.length
       ? state.conversationsInOrder.shift()
       : state.conversation,
+}));
+
+vi.mock('@/lib/whatsapp/unavailable-brief-followup', () => ({
+  hasRequirementOnFile: async () => state.briefOnFile,
+  sendRequirementConfirmAfterRegret: async () => false,
 }));
 
 vi.mock('@/lib/showcase/account-showcase-url', () => ({
@@ -90,9 +96,41 @@ beforeEach(() => {
   state.noticeTexts = [];
   state.outcome = 'text';
   state.sends = [];
+  state.briefOnFile = false;
 });
 
 describe('tellApprovedLeadListingUnavailable', () => {
+  it('[PRP-050] promises the brief playback only on the reply the bot sent itself', async () => {
+    state.briefOnFile = true;
+    const sent = await tellApprovedLeadListingUnavailable({
+      db: fakeDb(),
+      ...args,
+      property,
+    });
+    expect(sent?.notice).toBe('freeform');
+    expect(sent?.message).toMatch(/requirement on file — confirm it below/);
+
+    state.outcome = 'no_template';
+    const handoff = await tellApprovedLeadListingUnavailable({
+      db: fakeDb(),
+      ...args,
+      property,
+    });
+    expect(handoff?.notice).toBe('none');
+    expect(handoff?.message).not.toMatch(/requirement on file/);
+    expect(handoff?.message).toMatch(/requirements and budget/i);
+
+    state.outcome = 'text';
+    state.sameReply = true;
+    const told = await tellApprovedLeadListingUnavailable({
+      db: fakeDb(),
+      ...args,
+      property,
+    });
+    expect(told?.notice).toBe('already_told');
+    expect(told?.message).not.toMatch(/requirement on file/);
+  });
+
   it('[CNV-008] stays out of the way of an available or unverified listing', async () => {
     for (const status of ['Available', 'Pending Review', null]) {
       expect(

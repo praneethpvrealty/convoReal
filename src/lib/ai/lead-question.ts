@@ -773,6 +773,9 @@ export async function answerLeadQuestion(args: {
   /** False for a dry run — the dev simulator — so the account is not
    *  charged for a preview. Live sends leave it unset. */
   chargeCredits?: boolean;
+  /** The buyer has a saved requirement: an unavailable listing's
+   *  availability answer offers to confirm it rather than ask again. */
+  briefOnFile?: boolean;
 }): Promise<LeadAnswer> {
   const { accountId, question, property } = args;
   // Before the listing check: a lead asking to be called is asking for
@@ -838,7 +841,9 @@ export async function answerLeadQuestion(args: {
     }
   }
 
-  const structured = answerFromPropertyData(question, qaProperty);
+  const structured = answerFromPropertyData(question, qaProperty, {
+    briefOnFile: args.briefOnFile,
+  });
   if (structured.answer) {
     const text =
       guarded && structured.intent === 'location'

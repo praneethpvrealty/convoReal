@@ -5,6 +5,7 @@ import {
   buildSoldPriceReply,
   dedupeAudience,
   usableStatusUpdateTemplate,
+  pickStatusNoticeTemplate,
   shouldNotifyBuyersOfPropertyStatus,
   SOLD_PRICE_BUTTON_PREFIX,
   SOLD_SIMILAR_BUTTON_PREFIX,
@@ -246,5 +247,67 @@ describe('usableStatusUpdateTemplate', () => {
     expect(
       usableStatusUpdateTemplate({ status: 'PENDING', category: 'UTILITY' })
     ).toBeNull();
+  });
+});
+
+describe('pickStatusNoticeTemplate', () => {
+  const utilityStatus = {
+    name: 'property_sold_update',
+    status: 'APPROVED',
+    category: 'Utility',
+  };
+  const marketingStatus = { ...utilityStatus, category: 'Marketing' };
+  const utilityNotice = {
+    name: 'listing_status_notice',
+    status: 'APPROVED',
+    category: 'Utility',
+  };
+  const legacyNotice = { ...utilityNotice, name: 'property_enquiry_notice' };
+
+  it('[PRP-014] keeps the approved Utility status template when the account holds one', () => {
+    expect(
+      pickStatusNoticeTemplate([utilityStatus], [utilityNotice], 'Sold')
+    ).toEqual({ kind: 'status', template: utilityStatus });
+  });
+
+  it('[PRP-014] falls back to the approved Utility listing status notice when the status template is Marketing or missing', () => {
+    expect(
+      pickStatusNoticeTemplate(
+        [marketingStatus],
+        [legacyNotice, utilityNotice],
+        'Sold'
+      )
+    ).toEqual({ kind: 'enquiry', template: utilityNotice });
+    expect(pickStatusNoticeTemplate([], [utilityNotice], 'Off Market')).toEqual(
+      {
+        kind: 'enquiry',
+        template: utilityNotice,
+      }
+    );
+  });
+
+  it('[PRP-014] never describes an available-again listing with the status notice, and never picks a Marketing notice', () => {
+    expect(
+      pickStatusNoticeTemplate([], [utilityNotice], 'Available')
+    ).toBeNull();
+    expect(
+      pickStatusNoticeTemplate(
+        [marketingStatus],
+        [{ ...utilityNotice, category: 'Marketing' }],
+        'Sold'
+      )
+    ).toBeNull();
+  });
+
+  it('[PRP-014] sends the notice with the enquiry params and no sold-price buttons', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(
+      new URL('./sold-notification.ts', import.meta.url),
+      'utf8'
+    );
+    expect(source).toContain(
+      "choice?.kind === 'enquiry'\n        ? enquiryNoticeSendParams("
+    );
+    expect(source).toContain("...(choice?.kind === 'enquiry'\n          ? {}");
   });
 });

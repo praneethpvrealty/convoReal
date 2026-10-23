@@ -4,6 +4,10 @@ import { isReengagementError } from '@/lib/whatsapp/customer-window';
 import { unavailableListingReply } from '@/lib/inventory/listing-status';
 import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
 import {
+  hasRequirementOnFile,
+  sendRequirementConfirmAfterRegret,
+} from '@/lib/whatsapp/unavailable-brief-followup';
+import {
   buildEnquiryNoticeParams,
   enquiryNoticeParamCount,
   pickEnquiryNoticeTemplate,
@@ -82,11 +86,16 @@ export async function sendUnavailableListingReply({
     )
   )
     return 'available';
+  const [showcaseUrl, briefOnFile] = await Promise.all([
+    accountShowcaseBrowseUrl(supabase, accountId, contactId),
+    hasRequirementOnFile(supabase, accountId, contactId),
+  ]);
   const reply = unavailableListingReply(
     leadName,
     (property as Property).title,
     (property as Property).status,
-    await accountShowcaseBrowseUrl(supabase, accountId, contactId)
+    showcaseUrl,
+    briefOnFile
   );
   if (!reply) return 'available';
 
@@ -106,7 +115,18 @@ export async function sendUnavailableListingReply({
   });
   // A send Meta accepted is a message the lead has: a failure after
   // that (persistence, bookkeeping) must not earn them a second one.
-  if (textResult.success || textResult.reachedMeta) return 'text';
+  if (textResult.success || textResult.reachedMeta) {
+    if (briefOnFile) {
+      await sendRequirementConfirmAfterRegret({
+        db: supabase,
+        accountId,
+        userId,
+        contactId,
+        conversationId,
+      });
+    }
+    return 'text';
+  }
   if (!isReengagementError(textResult.error)) {
     console.error(
       `[lead-webhook] Unavailable-listing reply failed for contact ${contactId}: ${textResult.error}`

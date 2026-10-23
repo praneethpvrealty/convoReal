@@ -106,8 +106,10 @@ export async function sendRequirementReview(args: {
   accountId: string;
   userId: string;
   contactId: string;
-  conversationId: string;
+  conversationId: string | null | undefined;
   contact: Contact;
+  opening?: string;
+  closing?: string;
 }): Promise<boolean> {
   const summary = buildRequirementSummary(args.contact);
   if (!summary) return false;
@@ -140,11 +142,13 @@ export async function sendRequirementReview(args: {
       senderType: 'bot',
       interactiveType: 'list',
       interactiveBody: [
-        `Thanks ${firstName(args.contact.name)} — nothing live fits this yet, but our engine is watching. Here's what I'm matching against:`,
+        args.opening ??
+          `Thanks ${firstName(args.contact.name)} — nothing live fits this yet, but our engine is watching. Here's what I'm matching against:`,
         '',
         `📌 ${summary}`,
         '',
-        "You'll hear from us the moment a matching listing arrives. Spot something off? Tweak it below.",
+        args.closing ??
+          "You'll hear from us the moment a matching listing arrives. Spot something off? Tweak it below.",
         '',
         ...(nearMiss
           ? [nearMiss]
@@ -190,6 +194,7 @@ export async function handleRequirementTweakReply(args: {
   contactId: string;
   conversationId: string;
   replyId: string;
+  onConfirm?: () => Promise<unknown>;
 }): Promise<boolean> {
   const {
     db,
@@ -215,9 +220,11 @@ export async function handleRequirementTweakReply(args: {
   try {
     switch (replyId) {
       case 'tw_ok':
-        await send(
-          "Perfect — locked in 👍 Our engine is watching the market for you; the moment a matching listing arrives, you'll see it here first."
-        );
+        if (args.onConfirm) await args.onConfirm();
+        else
+          await send(
+            "Perfect — locked in 👍 Our engine is watching the market for you; the moment a matching listing arrives, you'll see it here first."
+          );
         return true;
       case 'tw_type':
         await sendPropertyTypePrompt({

@@ -17,6 +17,21 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 23 October 2026
+
+- **Marking a listing Sold now reaches its buyers, and a regret never asks
+  for a requirement already on file.** The sold notice went out only on a
+  template Meta had filed as Marketing, so five Vijaya Bank Layout plots
+  marked Sold notified nobody; outside the 24-hour window it now falls
+  back to the approved Utility listing status notice, with its Update my
+  preferences and Close my enquiry buttons. And when the bot tells a buyer
+  a listing is gone — on a direct enquiry, a shared-listing tap, a photo
+  request, a showcase check-in or the "is it sold?" answer — a buyer whose
+  type, size, areas and budget are already saved is no longer asked to
+  "share your requirements and budget" again: the regret says the
+  requirement is on file, plays it back with one-tap corrections, and
+  _All correct_ sends the closest live options straight away.
+
 #### 22 October 2026
 
 - **The bot no longer asks when to check back on a listing the buyer

@@ -67,6 +67,22 @@ const ENQUIRY_STATUS_PHRASES: Record<string, string> = {
 export const UNAVAILABLE_LISTING_AGENT_NOTE =
   'The buyer was told the listing is not available and asked for their requirements and budget — follow up with matching options.';
 
+export const REQUIREMENTS_NUDGE =
+  "Please share your requirements and budget, and I'll send you the best matching options.";
+
+export const BRIEF_ON_FILE_NUDGE =
+  "I already have your requirement on file — confirm it below and I'll send you the closest live options.";
+
+function unavailableNudge(briefOnFile?: boolean): string {
+  return briefOnFile ? BRIEF_ON_FILE_NUDGE : REQUIREMENTS_NUDGE;
+}
+
+function meanwhile(nudge: string): string {
+  return nudge.startsWith('Please ')
+    ? `Meanwhile, ${nudge.charAt(0).toLowerCase()}${nudge.slice(1)}`
+    : `Meanwhile, ${nudge}`;
+}
+
 /** The line every dead-end reply ends on: whatever the bot could not
  *  find, the buyer can always browse the live catalogue themselves. */
 export function showcaseBrowseLine(showcaseUrl: string): string {
@@ -77,7 +93,8 @@ export function unavailableListingReply(
   contactName: string | null | undefined,
   propertyTitle: string | null | undefined,
   status: string | null | undefined,
-  showcaseUrl?: string | null
+  showcaseUrl?: string | null,
+  briefOnFile?: boolean
 ): string | null {
   const value = (status ?? '').trim();
   if (!value || value === 'Available' || value === 'Pending Review')
@@ -86,15 +103,35 @@ export function unavailableListingReply(
   const greeting = first ? `Hi ${first}, thank you` : 'Hi, thank you';
   const title = listingTitleForMessage(propertyTitle);
   const subject = title ? `*${title}*` : 'this property';
-  const nudge =
-    "Please share your requirements and budget, and I'll send you the best matching options.";
+  const nudge = unavailableNudge(briefOnFile);
   const browse = showcaseUrl ? `\n\n${showcaseBrowseLine(showcaseUrl)}` : '';
   if (value === 'Sold') {
     return `${greeting} for your interest in ${subject}. I'm sorry — this property has already been sold. I'd be glad to find you something similar. ${nudge}${browse}`;
   }
   const phrase =
     ENQUIRY_STATUS_PHRASES[value] ?? `marked ${value.toLowerCase()} right now`;
-  return `${greeting} for your interest in ${subject}. I'm sorry — this property is ${phrase}. If it becomes available again, we'll come back and update you right here. Meanwhile, ${nudge.charAt(0).toLowerCase()}${nudge.slice(1)}${browse}`;
+  return `${greeting} for your interest in ${subject}. I'm sorry — this property is ${phrase}. If it becomes available again, we'll come back and update you right here. ${meanwhile(nudge)}${browse}`;
+}
+
+/** The regret as it reads with and without a brief on file: a thread
+ *  holding either has been told. */
+export function unavailableListingReplyVariants(
+  contactName: string | null | undefined,
+  propertyTitle: string | null | undefined,
+  status: string | null | undefined,
+  showcaseUrl?: string | null
+): string[] {
+  return [true, false]
+    .map((briefOnFile) =>
+      unavailableListingReply(
+        contactName,
+        propertyTitle,
+        status,
+        showcaseUrl,
+        briefOnFile
+      )
+    )
+    .filter((reply): reply is string => reply !== null);
 }
 
 /**
@@ -104,11 +141,11 @@ export function unavailableListingReply(
  */
 export function listingAvailabilityAnswer(
   status: string | null | undefined,
-  listingType?: string | null
+  listingType?: string | null,
+  briefOnFile?: boolean
 ): string {
   const value = (status ?? '').trim();
-  const nudge =
-    "Please share your requirements and budget, and I'll send you the best matching options.";
+  const nudge = unavailableNudge(briefOnFile);
   if (!value || value === 'Available') {
     const forWhat =
       listingType === 'Rent'
@@ -128,5 +165,5 @@ export function listingAvailabilityAnswer(
   }
   const phrase =
     ENQUIRY_STATUS_PHRASES[value] ?? `marked ${value.toLowerCase()} right now`;
-  return `I'm sorry — this property is ${phrase}. If it becomes available again, we'll update you right here. Meanwhile, ${nudge.charAt(0).toLowerCase()}${nudge.slice(1)}`;
+  return `I'm sorry — this property is ${phrase}. If it becomes available again, we'll update you right here. ${meanwhile(nudge)}`;
 }

@@ -10,6 +10,7 @@ import { BRIDGE_REPLY_HINT } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
+import { sendRequirementConfirmAfterRegret } from '@/lib/whatsapp/unavailable-brief-followup';
 import {
   buildPropertyInterestAck,
   buildUnresolvedPropertyInterestAck,
@@ -62,7 +63,7 @@ export async function specificPropertyInterest(
         propertyTitle: enquiryPropertyTitle,
         status: enquiryPropertyStatus,
       });
-      await sendWhatsAppMessageAndPersist({
+      const ack = await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
         contactId: contactRecord.id,
@@ -81,6 +82,15 @@ export async function specificPropertyInterest(
             enquiryPropertyStatus
           ),
       });
+      if (unavailableReply && ack.success) {
+        await sendRequirementConfirmAfterRegret({
+          db: admin,
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+        });
+      }
 
       const [shareSent] = await Promise.all([
         unavailableReply

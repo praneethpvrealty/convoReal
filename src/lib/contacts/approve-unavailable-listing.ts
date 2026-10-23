@@ -3,6 +3,7 @@ import { findConversation } from '@/lib/conversations/resolve';
 import {
   listingAvailabilityNotice,
   unavailableListingReply,
+  unavailableListingReplyVariants,
 } from '@/lib/inventory/listing-status';
 import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@/lib/whatsapp/enquiry-notice-template';
 import { LISTING_AVAILABILITY_TEMPLATE_NAME } from '@/lib/whatsapp/listing-availability-template';
 import { sendUnavailableListingReply } from '@/app/api/leads/email-webhook/unavailable-listing';
+import { hasRequirementOnFile } from '@/lib/whatsapp/unavailable-brief-followup';
 import type { Property } from '@/types';
 
 // Approving a lead whose enquired listing has left the market.
@@ -54,20 +56,22 @@ export async function tellApprovedLeadListingUnavailable(args: {
   if (!unavailableListingReply(contactName, property.title, property.status))
     return null;
 
-  const [showcaseUrl, conversation] = await Promise.all([
+  const [showcaseUrl, conversation, briefOnFile] = await Promise.all([
     accountShowcaseBrowseUrl(db, accountId, contactId),
     findConversation<{ id: string }>(db, {
       accountId,
       contactId,
       columns: 'id',
     }),
+    hasRequirementOnFile(db, accountId, contactId),
   ]);
-  const message = unavailableListingReply(
+  const toldVariants = unavailableListingReplyVariants(
     contactName,
     property.title,
     property.status,
     showcaseUrl
-  )!;
+  );
+  const [withBrief, handoff] = toldVariants;
   const status = (property.status ?? '').trim();
   const label = listingAvailabilityNotice(status)?.label ?? status;
 
@@ -78,7 +82,7 @@ export async function tellApprovedLeadListingUnavailable(args: {
         .from('messages')
         .select('id')
         .eq('conversation_id', conversation.id)
-        .eq('content_text', message)
+        .in('content_text', toldVariants)
         .neq('status', 'failed')
         .limit(1)
         .maybeSingle(),
@@ -96,7 +100,7 @@ export async function tellApprovedLeadListingUnavailable(args: {
         label,
         notice: 'already_told',
         conversationId: conversation.id,
-        message,
+        message: handoff,
       };
     }
     const described = describeEnquiredProperty(property);
@@ -141,6 +145,6 @@ export async function tellApprovedLeadListingUnavailable(args: {
               ? 'none'
               : 'failed',
     conversationId,
-    message,
+    message: outcome === 'text' && briefOnFile ? withBrief : handoff,
   };
 }

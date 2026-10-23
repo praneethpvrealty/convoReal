@@ -14,6 +14,9 @@ import {
   listingAvailabilityAnswer,
   listingStatusCaveat,
   listingAvailabilityContext,
+  BRIEF_ON_FILE_NUDGE,
+  REQUIREMENTS_NUDGE,
+  unavailableListingReplyVariants,
 } from './listing-status';
 import { PROPERTY_STATUSES } from './property-options';
 
@@ -219,6 +222,77 @@ describe('unavailableListingReply', () => {
   it('greets a placeholder-named portal lead without the placeholder', () => {
     expect(unavailableListingReply('99acres Lead', 'Plot', 'Sold')).toMatch(
       /^Hi, thank you/
+    );
+  });
+});
+
+describe('[PRP-050] a buyer with a requirement on file is not asked for it again', () => {
+  it('offers to confirm the saved brief instead of asking for requirements and budget', () => {
+    const sold = unavailableListingReply(
+      'Ramanathan',
+      'Plot',
+      'Sold',
+      null,
+      true
+    );
+    expect(sold).toContain(BRIEF_ON_FILE_NUDGE);
+    expect(sold).not.toContain(REQUIREMENTS_NUDGE);
+    const held = unavailableListingReply(
+      'Ramanathan',
+      'Plot',
+      'Under Contract',
+      'https://aryavarta.convoreal.com/?v=c1',
+      true
+    );
+    expect(held).toMatch(
+      /update you right here\. Meanwhile, I already have your requirement on file/
+    );
+    expect(held).toMatch(/Browse every live listing any time/);
+    expect(
+      unavailableListingReply('Ramanathan', 'Plot', 'Sold', null, false)
+    ).toContain(REQUIREMENTS_NUDGE);
+  });
+
+  it('lists both wordings so a thread holding either counts as told', () => {
+    const variants = unavailableListingReplyVariants(
+      'Ramanathan',
+      'Plot',
+      'Sold',
+      'https://aryavarta.convoreal.com/?v=c1'
+    );
+    expect(variants).toEqual([
+      unavailableListingReply(
+        'Ramanathan',
+        'Plot',
+        'Sold',
+        'https://aryavarta.convoreal.com/?v=c1',
+        true
+      ),
+      unavailableListingReply(
+        'Ramanathan',
+        'Plot',
+        'Sold',
+        'https://aryavarta.convoreal.com/?v=c1',
+        false
+      ),
+    ]);
+    expect(
+      unavailableListingReplyVariants('Ramanathan', 'Plot', 'Available')
+    ).toEqual([]);
+  });
+
+  it('does the same in the availability answer', () => {
+    expect(listingAvailabilityAnswer('Sold', 'Sale', true)).toBe(
+      `I'm sorry — this property has already been sold. I'd be glad to find you something similar. ${BRIEF_ON_FILE_NUDGE}`
+    );
+    expect(listingAvailabilityAnswer('Under Contract', 'Sale', true)).toMatch(
+      /Meanwhile, I already have your requirement on file/
+    );
+    expect(listingAvailabilityAnswer('Sold', 'Sale')).toContain(
+      REQUIREMENTS_NUDGE
+    );
+    expect(listingAvailabilityAnswer('Available', 'Sale', true)).toMatch(
+      /currently available/
     );
   });
 });

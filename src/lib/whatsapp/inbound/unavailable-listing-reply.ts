@@ -1,7 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { unavailableListingReply } from '@/lib/inventory/listing-status';
-import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
+import { unavailableListingReplyWithShowcaseVariants } from '@/lib/inventory/unavailable-reply';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { sendRequirementConfirmAfterRegret } from '@/lib/whatsapp/unavailable-brief-followup';
 
 // The one answer a lead gets, inside their window, for a listing that
 // has left the market — whichever bot path they reached it through: a
@@ -38,7 +39,7 @@ export async function replyListingUnavailableOnce(args: {
             .maybeSingle()
         ).data?.name as string | null | undefined) ?? null);
 
-  const reply = await unavailableListingReplyWithShowcase({
+  const built = await unavailableListingReplyWithShowcaseVariants({
     db,
     accountId,
     contactId,
@@ -46,13 +47,14 @@ export async function replyListingUnavailableOnce(args: {
     propertyTitle: property.title,
     status: property.status,
   });
-  if (!reply) return null;
+  if (!built) return null;
+  const { reply, variants } = built;
 
   const { data: alreadyTold } = await db
     .from('messages')
     .select('id')
     .eq('conversation_id', conversationId)
-    .eq('content_text', reply)
+    .in('content_text', variants)
     .neq('status', 'failed')
     .limit(1)
     .maybeSingle();
@@ -71,7 +73,18 @@ export async function replyListingUnavailableOnce(args: {
   // A send Meta accepted is a message the lead has, whatever failed
   // after it; anything else left them with nothing, and the caller
   // must not claim otherwise.
-  if (result.success || result.reachedMeta) return 'sent';
+  if (result.success || result.reachedMeta) {
+    if (userId) {
+      await sendRequirementConfirmAfterRegret({
+        db,
+        accountId,
+        userId,
+        contactId,
+        conversationId,
+      });
+    }
+    return 'sent';
+  }
   console.error(
     `[unavailable-listing-reply] regret to contact ${contactId} failed: ${result.error}`
   );

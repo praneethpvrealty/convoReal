@@ -247,6 +247,31 @@ describe('sendRequirementReview', () => {
     expect(accountShowcaseBrowseUrl).not.toHaveBeenCalled();
   });
 
+  it('[PRP-050] takes a regret opening and closing in place of the no-match copy', async () => {
+    await sendRequirementReview({
+      db: {} as never,
+      accountId: 'acct-1',
+      userId: 'u1',
+      contactId: 'c1',
+      conversationId: 'conv-1',
+      contact: aryan,
+      opening: "Here's the requirement I have on file for you, Aryan:",
+      closing:
+        "Tap *All correct* and I'll send you the closest live options right away.",
+    });
+    const call = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      interactiveBody: string;
+    };
+    expect(call.interactiveBody).toMatch(
+      /^Here's the requirement I have on file for you, Aryan:\n\n📌 Commercial Land/
+    );
+    expect(call.interactiveBody).toContain(
+      "Tap *All correct* and I'll send you the closest live options right away."
+    );
+    expect(call.interactiveBody).not.toContain('nothing live fits this yet');
+    expect(call.interactiveBody).not.toContain('Spot something off?');
+  });
+
   it('declines to send when there is nothing on file to review', async () => {
     const sent = await sendRequirementReview({
       db: {} as never,
@@ -279,6 +304,18 @@ describe('handleRequirementTweakReply', () => {
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
       expect.objectContaining({ text: expect.stringContaining('locked in') })
     );
+  });
+
+  it('[PRP-050] hands a confirmed brief to the caller when it wants the matches sent', async () => {
+    const onConfirm = vi.fn(async () => undefined);
+    const handled = await handleRequirementTweakReply({
+      ...base,
+      replyId: 'tw_ok',
+      onConfirm,
+    });
+    expect(handled).toBe(true);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 
   it('re-opens the type list on a type tweak', async () => {

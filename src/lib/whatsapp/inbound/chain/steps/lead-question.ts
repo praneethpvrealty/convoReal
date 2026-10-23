@@ -21,6 +21,11 @@ import {
   sendSubjectPhotos,
 } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
+import { unavailableListingReply } from '@/lib/inventory/listing-status';
+import {
+  hasRequirementOnFile,
+  sendRequirementConfirmAfterRegret,
+} from '@/lib/whatsapp/unavailable-brief-followup';
 import { createNotification } from '@/lib/notifications/create';
 import { relayLeadMessageToBridgedAgent } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
@@ -145,6 +150,13 @@ export async function leadQuestion(
       ? ((await previousLeadQuestion(admin, conversation.id, leadText)) ??
         leadText)
       : leadText;
+    const unavailableSubject = subjects.some((s) =>
+      unavailableListingReply(null, s.title, s.status)
+    );
+    const briefOnFile =
+      unavailableSubject &&
+      !photoRequest &&
+      (await hasRequirementOnFile(admin, accountId, contactRecord.id));
     let answer: LeadAnswer;
     let answers: LeadAnswer[];
     let answerSubjects: { title?: string | null }[];
@@ -204,6 +216,7 @@ export async function leadQuestion(
             portalListings,
             botInstructions,
             contactPhone: showcaseSettings?.contact_phone ?? null,
+            briefOnFile,
           });
         })
       );
@@ -220,7 +233,7 @@ export async function leadQuestion(
       : answer;
 
     if (reply) {
-      await sendWhatsAppMessageAndPersist({
+      const sent = await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
         contactId: contactRecord.id,
@@ -235,6 +248,16 @@ export async function leadQuestion(
         accountId,
         reply.appliedInstructionIds ?? []
       );
+
+      if (reply.intent === 'availability' && briefOnFile && sent.success) {
+        await sendRequirementConfirmAfterRegret({
+          db: admin,
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+        });
+      }
     }
 
     if (answer.source === 'handover') {

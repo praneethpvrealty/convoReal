@@ -8,6 +8,7 @@ import { BRIDGE_REPLY_HINT } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
+import { sendRequirementConfirmAfterRegret } from '@/lib/whatsapp/unavailable-brief-followup';
 import type { InboundChainContext, StepResult } from '../context';
 
 export async function deliberateEnquiry(
@@ -88,7 +89,15 @@ export async function deliberateEnquiry(
           }),
     });
 
-    await sendWhatsAppMessageAndPersist({
+    const unavailableReply = await unavailableListingReplyWithShowcase({
+      db: supabaseAdmin(),
+      accountId,
+      contactId: contactRecord.id,
+      contactName: contactRecord.name,
+      propertyTitle: enquiryPropertyTitle,
+      status: enquiryPropertyStatus,
+    });
+    const ack = await sendWhatsAppMessageAndPersist({
       accountId,
       userId: configOwnerUserId,
       contactId: contactRecord.id,
@@ -96,19 +105,21 @@ export async function deliberateEnquiry(
       kind: 'text',
       senderType: 'bot',
       text:
-        (await unavailableListingReplyWithShowcase({
-          db: supabaseAdmin(),
-          accountId,
-          contactId: contactRecord.id,
-          contactName: contactRecord.name,
-          propertyTitle: enquiryPropertyTitle,
-          status: enquiryPropertyStatus,
-        })) ??
+        unavailableReply ??
         appendListingStatusNote(
           buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
           enquiryPropertyStatus
         ),
     });
+    if (unavailableReply && ack.success) {
+      await sendRequirementConfirmAfterRegret({
+        db: supabaseAdmin(),
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+      });
+    }
     return 'handled';
   }
   return 'continue';
