@@ -66,9 +66,9 @@ Secrets and limits:
 - `GITHUB_TOKEN` needs `pull-requests: write` and `checks: write`. Pull
   requests from forks are skipped because they cannot read the secret, and
   a `workflow_dispatch` run refuses a fork's head for the same reason.
-  A release PR into `main` gets both checks posted as `skipped` with the
-  reason, rather than a review: its members were reviewed one by one, and
-  the skipped checks keep the gap visible on the PR.
+  A release PR is reviewed like any other, on its combined diff: that is
+  where a conflict fix or a push straight to the release branch, which no
+  member PR covered, first shows up.
 - `read_file` resolves symlinks and refuses any path that lands outside the
   checkout or inside `.git` or `node_modules`, so a committed symlink cannot
   hand the model the runner's environment or the checkout's credentials.
