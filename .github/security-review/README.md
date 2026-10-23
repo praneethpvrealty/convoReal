@@ -28,7 +28,8 @@ How a review runs:
 2. A model is picked from the diff (`planModel` in `lib.mjs`):
    - **deep** → `claude-opus-5-5` when any file matches a sensitive path
      (auth, Supabase clients, the v1 helpers, the proxy, migrations, public,
-     v1, Den, buyer routes, any webhook or cron route, WhatsApp webhook and
+     v1, Den, buyer, auth, billing, credits, admin and WhatsApp routes, any
+     webhook or cron route, WhatsApp webhook and
      crypto code, billing and credits, the Go ingress, the queue worker,
      `.github/`, deployment config), when the diff itself touches
      service-role or auth code (`supabaseAdmin(`, `SECURITY DEFINER`, the

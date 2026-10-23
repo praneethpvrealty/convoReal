@@ -317,7 +317,7 @@ export const MODELS = {
 
 const PRICES_PER_MILLION = {
   'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2 },
-  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2 },
+  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.1 },
   'claude-haiku-5-5': { input: 0.1, output: 0.5, cacheRead: 0.01 },
 };
 
@@ -340,6 +340,7 @@ export const SENSITIVE_PATTERNS = [
   /^src\/proxy\.ts$/,
   /^supabase\/migrations\//,
   /^src\/app\/api\/(public|v1|den|buyer|webhooks)\//,
+  /^src\/app\/api\/(auth|billing|credits|admin|whatsapp)\//,
   /^src\/app\/api\/.*cron/,
   /^src\/app\/api\/.*webhook/,
   /^src\/app\/api\/whatsapp\/flows\/endpoint\//,

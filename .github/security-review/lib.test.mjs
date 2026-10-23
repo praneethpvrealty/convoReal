@@ -279,6 +279,9 @@ test('planModel picks the tier from sensitive paths and diff size', () => {
     'src/lib/v1/query.ts',
     'src/app/api/appointments/cron/route.ts',
     'src/app/api/leads/email-webhook/route.ts',
+    'src/app/api/auth/sms-hook/route.ts',
+    'src/app/api/billing/credits/buy/route.ts',
+    'src/app/api/whatsapp/templates/sync/route.ts',
   ]) {
     assert.equal(
       planModel({ files: [file], diffChars: 200 }).tier,
@@ -324,6 +327,9 @@ test('estimateCost prices usage per model and reviewFooter reports it', () => {
   assert.equal(estimateCost('claude-opus-5-5', usage).toFixed(2), '0.20');
   assert.equal(estimateCost('claude-sonnet-5-5', usage).toFixed(2), '0.10');
   assert.equal(estimateCost('unknown-model', usage), null);
+  const cached = { ...usage, cacheRead: 100_000 };
+  assert.equal(estimateCost('claude-sonnet-5-5', cached).toFixed(2), '0.11');
+  assert.equal(estimateCost('claude-opus-5-5', cached).toFixed(2), '0.22');
   const footer = reviewFooter({
     model: 'claude-sonnet-5-5',
     plan: { tier: 'standard', reasons: ['12k-char diff'] },
