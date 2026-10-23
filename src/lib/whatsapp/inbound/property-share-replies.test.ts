@@ -17,12 +17,19 @@ const state = vi.hoisted(() => ({
   regrets: [] as Record<string, unknown>[],
   sends: [] as Record<string, unknown>[],
   shares: [] as unknown[],
+  failInteractive: false,
+  inserts: [] as Record<string, unknown>[],
+  mirrors: [] as Record<string, unknown>[],
+  linked: false,
+  likeError: null as { code: string } | null,
 }));
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: async (args: Record<string, unknown>) => {
     state.sends.push(args);
-    return { success: true };
+    return {
+      success: !(state.failInteractive && args.kind === 'interactive'),
+    };
   },
 }));
 
@@ -44,6 +51,19 @@ vi.mock('@/lib/whatsapp/listing-feedback', () => ({
   sendListingFeedbackPrompt: async () => true,
 }));
 
+vi.mock('@/lib/buyer/shared-listings', () => ({
+  mirrorSharedListingsToPortfolio: async (
+    _db: unknown,
+    args: Record<string, unknown>
+  ) => {
+    state.mirrors.push(args);
+    return { linked: state.linked, saved: state.linked ? 1 : 0 };
+  },
+  portfolioLoginUrl: () => 'https://www.convoreal.com/buyer/login',
+  buildPortfolioNudge: (args: { linked: boolean }) =>
+    args.linked ? 'In your Portfolio too.' : 'Sign in to your Portfolio.',
+}));
+
 vi.mock('@/lib/showcase/account-showcase-url', () => ({
   accountPropertyShowcaseUrl: async () =>
     'https://aryavarta.convoreal.com/?property_id=PROP-1004&v=c1',
@@ -60,7 +80,12 @@ vi.mock('@/lib/supabase/admin', () => ({
           return builder;
         },
         neq: () => builder,
+        or: () => builder,
         order: () => builder,
+        insert: async (row: Record<string, unknown>) => {
+          state.inserts.push({ table, ...row });
+          return { error: state.likeError };
+        },
         limit: async () => {
           state.filters.push({ table, ...filters });
           return { data: state.listed, error: null };
@@ -83,6 +108,8 @@ vi.mock('@/lib/supabase/admin', () => ({
 import {
   handleBrowseAllProperties,
   handlePropertyShareYesReply,
+  handleShortlistPropertyReply,
+  handleShowMoreProperties,
 } from './property-share-replies';
 
 const send = () =>
@@ -102,6 +129,11 @@ beforeEach(() => {
   state.shares = [];
   state.filters = [];
   state.listed = [];
+  state.failInteractive = false;
+  state.inserts = [];
+  state.mirrors = [];
+  state.linked = false;
+  state.likeError = null;
 });
 
 describe('handlePropertyShareYesReply', () => {
@@ -166,5 +198,165 @@ describe('handleBrowseAllProperties', () => {
       }),
     ]);
     expect(state.sends[0]).toMatchObject({ kind: 'interactive' });
+  });
+});
+
+const PROPERTY_ID = '0b5f6a52-2d8c-4f4e-9a51-3f6f8a1b2c3d';
+
+describe('handleShowMoreProperties', () => {
+  const showMore = () =>
+    handleShowMoreProperties(
+      'p-20',
+      'acc-1',
+      'owner-1',
+      'c1',
+      'conv-1',
+      '919900000000'
+    );
+
+  it('[INB-036] sends each similar listing as one photo card with Shortlist and Interested buttons', async () => {
+    state.listed = [
+      {
+        id: PROPERTY_ID,
+        title: 'G+2 Residential House on 60x45 Plot',
+        price: 97200000,
+        images: ['', 'https://img/house.jpg'],
+        sublocality: 'JP Nagar',
+        city: 'Bengaluru',
+      },
+    ];
+    await showMore();
+    expect(state.sends.map((s) => s.kind)).toEqual([
+      'text',
+      'interactive',
+      'interactive',
+    ]);
+    expect(state.sends[1]).toMatchObject({
+      interactiveType: 'buttons',
+      headerImageLink: 'https://img/house.jpg',
+      interactiveButtons: [
+        { id: `shortlist_property:${PROPERTY_ID}`, title: '⭐ Shortlist' },
+        { id: `lfb_y_${PROPERTY_ID}`, title: '👍 Interested' },
+      ],
+    });
+    expect(state.sends[1].interactiveBody).toContain(
+      '🏠 *G+2 Residential House on 60x45 Plot*'
+    );
+    expect(state.sends[1].interactiveBody).toContain(
+      'https://aryavarta.convoreal.com/?property_id=PROP-1004&v=c1'
+    );
+  });
+
+  it('[INB-036] keeps the whole showcase link when a long listing is trimmed to fit the card', async () => {
+    state.listed = [
+      {
+        id: PROPERTY_ID,
+        title: 'Plot '.repeat(150),
+        price: 97200000,
+        images: ['https://img/house.jpg'],
+        location: 'Near the lake '.repeat(60),
+      },
+    ];
+    await showMore();
+    const body = state.sends[1].interactiveBody as string;
+    expect(body.length).toBeLessThanOrEqual(1024);
+    expect(
+      body.endsWith(
+        'https://aryavarta.convoreal.com/?property_id=PROP-1004&v=c1'
+      )
+    ).toBe(true);
+  });
+
+  it('[INB-036] falls back to the photo and the details text when the card cannot be sent', async () => {
+    state.failInteractive = true;
+    state.listed = [
+      {
+        id: PROPERTY_ID,
+        title: 'G+2 Residential House on 60x45 Plot',
+        price: 97200000,
+        images: ['https://img/house.jpg'],
+      },
+    ];
+    await showMore();
+    expect(state.sends.map((s) => s.kind)).toEqual([
+      'text',
+      'interactive',
+      'media',
+      'text',
+      'interactive',
+    ]);
+    expect(state.sends[2]).toMatchObject({
+      mediaLink: 'https://img/house.jpg',
+      mediaCaption: 'G+2 Residential House on 60x45 Plot',
+    });
+    expect(state.sends[3].text).toContain('*Price:*');
+  });
+});
+
+describe('handleShortlistPropertyReply', () => {
+  const shortlist = (id = PROPERTY_ID) =>
+    handleShortlistPropertyReply(
+      id,
+      'acc-1',
+      'owner-1',
+      'c1',
+      'conv-1',
+      '919900000000'
+    );
+
+  it("[INB-036] saves the listing as the contact's like, mirrors it to Portfolio and confirms by name", async () => {
+    state.regret = null;
+    state.linked = true;
+    expect(await shortlist()).toBe(true);
+    expect(state.inserts).toEqual([
+      {
+        table: 'property_likes',
+        account_id: 'acc-1',
+        property_id: PROPERTY_ID,
+        contact_id: 'c1',
+        session_key: 'wa:c1',
+      },
+    ]);
+    expect(state.mirrors).toEqual([
+      { accountId: 'acc-1', contactId: 'c1', propertyIds: [PROPERTY_ID] },
+    ]);
+    expect(state.sends).toHaveLength(1);
+    expect(state.sends[0].interactiveBody).toContain(
+      `Saved *${state.property.title}* to your shortlist`
+    );
+    expect(state.sends[0].interactiveBody).toContain('In your Portfolio too.');
+    expect(state.sends[0].interactiveButtons).toEqual([
+      { id: `lfb_y_${PROPERTY_ID}`, title: '👍 Interested' },
+    ]);
+  });
+
+  it('[INB-036] never confirms a save that failed', async () => {
+    state.regret = null;
+    state.likeError = { code: '57014' };
+    expect(await shortlist()).toBe(true);
+    expect(state.sends).toHaveLength(1);
+    expect(state.sends[0].kind).toBe('text');
+    expect(state.sends[0].text).toContain("couldn't save");
+    expect(JSON.stringify(state.sends)).not.toContain('Saved');
+  });
+
+  it('[INB-036] treats a listing already shortlisted as saved', async () => {
+    state.regret = null;
+    state.likeError = { code: '23505' };
+    expect(await shortlist()).toBe(true);
+    expect(state.sends[0].interactiveBody).toContain('to your shortlist');
+  });
+
+  it('[INB-036] [CNV-009] saves nothing for a listing that left the market', async () => {
+    expect(await shortlist()).toBe(true);
+    expect(state.regrets).toHaveLength(1);
+    expect(state.inserts).toEqual([]);
+    expect(state.sends).toEqual([]);
+  });
+
+  it('[INB-036] ignores a tap whose id is not a property uuid', async () => {
+    expect(await shortlist('not-a-uuid')).toBe(false);
+    expect(state.inserts).toEqual([]);
+    expect(state.sends).toEqual([]);
   });
 });
