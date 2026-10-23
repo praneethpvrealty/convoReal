@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
+import { sendRequirementConfirmAfterRegret } from '@/lib/whatsapp/unavailable-brief-followup';
 import { createNotification } from '@/lib/notifications/create';
 import { resolveAssignedAgent } from '@/lib/voice/assigned-agent';
 import { handleListingFeedbackReply } from '@/lib/whatsapp/listing-feedback';
@@ -162,6 +163,15 @@ export async function handleViewNudgeReply(args: {
         ),
       customDbClient: db,
     }).catch(() => null);
+    if (unavailable && notice?.success) {
+      await sendRequirementConfirmAfterRegret({
+        db,
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contact.id,
+        conversationId,
+      });
+    }
     if (!notice || notice.success === false) {
       const name = contact.name?.trim() || 'A lead';
       await createNotification({

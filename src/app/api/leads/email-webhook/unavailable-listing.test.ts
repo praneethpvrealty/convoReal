@@ -5,6 +5,11 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: vi.fn(),
 }));
 
+vi.mock('@/lib/whatsapp/unavailable-brief-followup', () => ({
+  hasRequirementOnFile: async () => false,
+  sendRequirementConfirmAfterRegret: async () => false,
+}));
+
 vi.mock('@/lib/whatsapp/template-language', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('@/lib/whatsapp/template-language')

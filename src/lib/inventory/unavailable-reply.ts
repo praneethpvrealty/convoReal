@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { unavailableListingReply } from '@/lib/inventory/listing-status';
 import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
+import { hasRequirementOnFile } from '@/lib/whatsapp/unavailable-brief-followup';
 
 /**
  * The unavailable-listing reply with the lead's attributed showcase
@@ -17,10 +18,15 @@ export async function unavailableListingReplyWithShowcase(args: {
 }): Promise<string | null> {
   const { contactName, propertyTitle, status } = args;
   if (!unavailableListingReply(contactName, propertyTitle, status)) return null;
+  const [showcaseUrl, briefOnFile] = await Promise.all([
+    accountShowcaseBrowseUrl(args.db, args.accountId, args.contactId),
+    hasRequirementOnFile(args.db, args.accountId, args.contactId),
+  ]);
   return unavailableListingReply(
     contactName,
     propertyTitle,
     status,
-    await accountShowcaseBrowseUrl(args.db, args.accountId, args.contactId)
+    showcaseUrl,
+    briefOnFile
   );
 }

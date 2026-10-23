@@ -208,6 +208,15 @@ describe('[INB-032] availability is answered from the listing status', () => {
     expect(r.answer).not.toMatch(/currently available/);
   });
 
+  it('[PRP-049] offers to confirm a brief on file instead of asking for one', () => {
+    const r = answerFromPropertyData('is it sold?', underContract(), {
+      briefOnFile: true,
+    });
+    expect(r.intent).toBe('availability');
+    expect(r.answer).toMatch(/I already have your requirement on file/);
+    expect(r.answer).not.toMatch(/share your requirements and budget/);
+  });
+
   it('confirms an available sale listing, and a rental as for rent', () => {
     expect(
       answerFromPropertyData(

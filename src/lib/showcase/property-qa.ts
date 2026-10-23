@@ -161,8 +161,14 @@ function locationAnswer(p: QaProperty): string | null {
   return `It's located in ${unique.join(', ')}.`;
 }
 
-function availabilityAnswer(p: QaProperty): string {
-  return listingAvailabilityAnswer(p.status, p.listing_type);
+export interface QaAnswerOptions {
+  /** The buyer already has a saved requirement, so an unavailable
+   *  listing's answer offers to confirm it instead of asking again. */
+  briefOnFile?: boolean;
+}
+
+function availabilityAnswer(p: QaProperty, opts: QaAnswerOptions): string {
+  return listingAvailabilityAnswer(p.status, p.listing_type, opts.briefOnFile);
 }
 
 function amenitiesAnswer(p: QaProperty): string | null {
@@ -261,7 +267,7 @@ const AVAILABILITY_PATTERN =
 const MATCHERS: {
   intent: string;
   pattern: RegExp;
-  respond: (p: QaProperty) => string | null;
+  respond: (p: QaProperty, opts: QaAnswerOptions) => string | null;
 }[] = [
   {
     intent: 'availability',
@@ -345,7 +351,8 @@ const MATCHERS: {
  */
 export function answerFromPropertyData(
   question: string,
-  property: QaProperty
+  property: QaProperty,
+  opts: QaAnswerOptions = {}
 ): QaResult {
   const q = (question || '').trim();
   if (!q) return { answer: null, intent: null };
@@ -356,7 +363,7 @@ export function answerFromPropertyData(
 
   for (const m of MATCHERS) {
     if (m.pattern.test(q)) {
-      const answer = m.respond(property);
+      const answer = m.respond(property, opts);
       // A buyer told the price of an under-contract listing is also
       // told it is under contract, in the same breath.
       const caveat =

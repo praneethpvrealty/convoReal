@@ -7,6 +7,16 @@ const state = vi.hoisted(() => ({
   sends: [] as Record<string, unknown>[],
   sendResult: { success: true } as Record<string, unknown>,
   contactLookups: 0,
+  briefOnFile: false,
+  confirmCards: [] as Record<string, unknown>[],
+}));
+
+vi.mock('@/lib/whatsapp/unavailable-brief-followup', () => ({
+  hasRequirementOnFile: async () => state.briefOnFile,
+  sendRequirementConfirmAfterRegret: async (args: Record<string, unknown>) => {
+    state.confirmCards.push(args);
+    return state.briefOnFile;
+  },
 }));
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
@@ -60,6 +70,8 @@ beforeEach(() => {
   state.sends = [];
   state.sendResult = { success: true };
   state.contactLookups = 0;
+  state.briefOnFile = false;
+  state.confirmCards = [];
 });
 
 describe('replyListingUnavailableOnce', () => {
@@ -139,6 +151,42 @@ describe('replyListingUnavailableOnce', () => {
         property: { title: 'Plot', status: 'Sold' },
       })
     ).toBe('sent');
+  });
+
+  it('[PRP-049] offers to confirm a brief on file, then plays it back to confirm', async () => {
+    state.briefOnFile = true;
+    const outcome = await replyListingUnavailableOnce({
+      db: fakeDb(),
+      ...args,
+      contactName: 'Ramanathan',
+      property: { title: 'Plot', status: 'Sold' },
+    });
+    expect(outcome).toBe('sent');
+    expect(state.sends[0].text).toMatch(
+      /I already have your requirement on file/
+    );
+    expect(state.sends[0].text).not.toMatch(
+      /share your requirements and budget/
+    );
+    expect(state.confirmCards).toEqual([
+      expect.objectContaining({
+        accountId: 'acc-1',
+        userId: 'owner-1',
+        contactId: 'c1',
+        conversationId: 'conv-1',
+      }),
+    ]);
+  });
+
+  it('[PRP-049] asks for requirements and budget, and plays nothing back, with nothing on file', async () => {
+    await replyListingUnavailableOnce({
+      db: fakeDb(),
+      ...args,
+      contactName: 'Ramanathan',
+      property: { title: 'Plot', status: 'Sold' },
+    });
+    expect(state.sends[0].text).toMatch(/share your requirements and budget/);
+    expect(state.confirmCards).toHaveLength(1);
   });
 
   it('[CNV-009] sends nothing again to a lead who already holds the reply', async () => {

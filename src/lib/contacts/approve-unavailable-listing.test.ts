@@ -18,6 +18,11 @@ vi.mock('@/lib/conversations/resolve', () => ({
       : state.conversation,
 }));
 
+vi.mock('@/lib/whatsapp/unavailable-brief-followup', () => ({
+  hasRequirementOnFile: async () => false,
+  sendRequirementConfirmAfterRegret: async () => false,
+}));
+
 vi.mock('@/lib/showcase/account-showcase-url', () => ({
   accountShowcaseBrowseUrl: async () => 'https://aryavarta.convoreal.com/?v=c1',
 }));

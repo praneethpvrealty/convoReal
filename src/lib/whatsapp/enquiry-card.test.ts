@@ -412,7 +412,10 @@ describe('the webhook wires the card up', () => {
 
   it('[PRP-014] answers an enquiry on an unavailable listing with its status and a requirements nudge instead of its details', () => {
     expect(source).toMatch(
-      /\(await unavailableListingReplyWithShowcase\(\{[^}]*contactName: contactRecord\.name,\s*propertyTitle: enquiryPropertyTitle,\s*status: enquiryPropertyStatus,\s*\}\)\)\s*\?\?\s*appendListingStatusNote\(\s*buildEnquiryAckText/
+      /const unavailableReply = await unavailableListingReplyWithShowcase\(\{[^}]*contactName: contactRecord\.name,\s*propertyTitle: enquiryPropertyTitle,\s*status: enquiryPropertyStatus,\s*\}\);[\s\S]*?text:\s*unavailableReply\s*\?\?\s*appendListingStatusNote\(\s*buildEnquiryAckText/
+    );
+    expect(source).toMatch(
+      /if \(unavailableReply && ack\.success\) \{\s*await sendRequirementConfirmAfterRegret\(/
     );
     expect(source).toMatch(
       /unavailableReply\s*\?\s*Promise\.resolve\(false\)\s*:\s*handlePropertyShareYesReply\(/

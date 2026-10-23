@@ -11,6 +11,7 @@ import {
 } from '@/lib/whatsapp/enquiry-notice-template';
 import { LISTING_AVAILABILITY_TEMPLATE_NAME } from '@/lib/whatsapp/listing-availability-template';
 import { sendUnavailableListingReply } from '@/app/api/leads/email-webhook/unavailable-listing';
+import { hasRequirementOnFile } from '@/lib/whatsapp/unavailable-brief-followup';
 import type { Property } from '@/types';
 
 // Approving a lead whose enquired listing has left the market.
@@ -54,19 +55,21 @@ export async function tellApprovedLeadListingUnavailable(args: {
   if (!unavailableListingReply(contactName, property.title, property.status))
     return null;
 
-  const [showcaseUrl, conversation] = await Promise.all([
+  const [showcaseUrl, conversation, briefOnFile] = await Promise.all([
     accountShowcaseBrowseUrl(db, accountId, contactId),
     findConversation<{ id: string }>(db, {
       accountId,
       contactId,
       columns: 'id',
     }),
+    hasRequirementOnFile(db, accountId, contactId),
   ]);
   const message = unavailableListingReply(
     contactName,
     property.title,
     property.status,
-    showcaseUrl
+    showcaseUrl,
+    briefOnFile
   )!;
   const status = (property.status ?? '').trim();
   const label = listingAvailabilityNotice(status)?.label ?? status;

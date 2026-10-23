@@ -28,7 +28,12 @@ import {
   buildSoldUpdateTemplatePayload,
   buildSoldUpdateParams,
 } from '@/lib/whatsapp/sold-update-template';
-import type { MessageTemplate } from '@/types';
+import {
+  ENQUIRY_NOTICE_TEMPLATE_NAMES,
+  pickEnquiryNoticeTemplate,
+} from '@/lib/whatsapp/enquiry-notice-template';
+import { enquiryNoticeSendParams } from '@/app/api/leads/email-webhook/unavailable-listing';
+import type { MessageTemplate, Property } from '@/types';
 
 export const SOLD_PRICE_BUTTON_PREFIX = 'sold_price:';
 export const SOLD_SIMILAR_BUTTON_PREFIX = 'sold_similar:';
@@ -232,6 +237,38 @@ export function usableStatusUpdateTemplate<
     : null;
 }
 
+export type StatusNoticeChoice<T> =
+  { kind: 'status'; template: T } | { kind: 'enquiry'; template: T } | null;
+
+/**
+ * The template a closed-window status update goes out on: the approved
+ * Utility status template when the account holds one, else — for every
+ * status but Available, which the enquiry notice would misdescribe —
+ * the approved Utility listing status notice, whose "no longer
+ * available" and Close my enquiry button fit a listing that has left
+ * the market. A Marketing row of either is never picked.
+ */
+export function pickStatusNoticeTemplate<
+  T extends {
+    name: string;
+    status?: string | null;
+    category?: string | null;
+  },
+>(
+  statusRows: T[],
+  enquiryRows: T[],
+  status: BuyerVisiblePropertyStatus
+): StatusNoticeChoice<T> {
+  const statusTemplate =
+    statusRows.find((row) => usableStatusUpdateTemplate(row) !== null) ?? null;
+  if (statusTemplate) return { kind: 'status', template: statusTemplate };
+  if (status === 'Available') return null;
+  const enquiry = pickEnquiryNoticeTemplate(
+    enquiryRows.filter((row) => usableStatusUpdateTemplate(row) !== null)
+  );
+  return enquiry ? { kind: 'enquiry', template: enquiry } : null;
+}
+
 /**
  * Returns the approved template for this status, or null when it is not
  * usable yet. When the account has no row for it, auto-submits the
@@ -354,7 +391,9 @@ export async function notifyBuyersOfPropertyStatus(
 
   const { data: property } = await db
     .from('properties')
-    .select('id, title, owner_contact_id, status')
+    .select(
+      'id, title, owner_contact_id, status, bedrooms, sublocality, city, location'
+    )
     .eq('id', propertyId)
     .eq('account_id', accountId)
     .eq('status', status)
@@ -422,7 +461,30 @@ export async function notifyBuyersOfPropertyStatus(
   if (audience.length === 0)
     return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
 
-  const template = await ensureStatusUpdateTemplate(accountId, status);
+  const statusTemplate = await ensureStatusUpdateTemplate(accountId, status);
+  const { data: enquiryRows } = statusTemplate
+    ? { data: null }
+    : await db
+        .from('message_templates')
+        .select('*')
+        .eq('account_id', accountId)
+        .in('name', ENQUIRY_NOTICE_TEMPLATE_NAMES)
+        .order('last_submitted_at', { ascending: false, nullsFirst: false });
+  const choice = pickStatusNoticeTemplate(
+    statusTemplate ? [statusTemplate] : [],
+    (enquiryRows ?? []) as MessageTemplate[],
+    status
+  );
+  const template = choice?.template ?? null;
+  const { data: account } =
+    choice?.kind === 'enquiry'
+      ? await db
+          .from('accounts')
+          .select('name')
+          .eq('id', accountId)
+          .maybeSingle()
+      : { data: null };
+  const brandName = (account as { name?: string | null } | null)?.name ?? null;
 
   const { data: contactRows } = await db
     .from('contacts')
@@ -531,17 +593,25 @@ export async function notifyBuyersOfPropertyStatus(
       );
     }
 
-    const bodyParams = truncateParametersToBudget(
-      localised.body_text,
-      status === 'Sold'
-        ? buildSoldUpdateParams(nameById.get(contactId) ?? null, title)
-        : buildPropertyStatusUpdateParams(
+    const bodyParams =
+      choice?.kind === 'enquiry'
+        ? enquiryNoticeSendParams(
+            localised.name,
             nameById.get(contactId) ?? null,
-            title,
-            status,
-            STATUS_DETAILS[status]
+            property as Property,
+            brandName
           )
-    );
+        : truncateParametersToBudget(
+            localised.body_text,
+            status === 'Sold'
+              ? buildSoldUpdateParams(nameById.get(contactId) ?? null, title)
+              : buildPropertyStatusUpdateParams(
+                  nameById.get(contactId) ?? null,
+                  title,
+                  status,
+                  STATUS_DETAILS[status]
+                )
+          );
     const result = await sendWhatsAppMessageAndPersist({
       accountId,
       contactId,
@@ -553,14 +623,19 @@ export async function notifyBuyersOfPropertyStatus(
       messageParams: {
         body: bodyParams,
         // Quick-reply payloads route through the same handlers as the
-        // free-form buttons.
-        buttonParams:
-          status === 'Sold'
-            ? {
-                0: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`,
-                1: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
-              }
-            : { 0: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}` },
+        // free-form buttons. The enquiry notice's own buttons carry no
+        // payload: their taps are read from the button text.
+        ...(choice?.kind === 'enquiry'
+          ? {}
+          : {
+              buttonParams:
+                status === 'Sold'
+                  ? {
+                      0: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`,
+                      1: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
+                    }
+                  : { 0: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}` },
+            }),
       },
       templateRow: localised,
       text: resolveTemplateBodyText(localised.body_text, bodyParams),
