@@ -24,18 +24,43 @@ const ramanathan = {
   pref_land_area_max_sqft: 2400,
 };
 
+const recentCards: { content_text: string }[] = [];
+
 function dbWith(contact: Record<string, unknown> | null) {
-  const builder = {
-    select: () => builder,
-    eq: () => builder,
-    maybeSingle: async () => ({ data: contact, error: null }),
-  };
-  return { from: () => builder } as unknown as SupabaseClient;
+  return {
+    from: (table: string) => {
+      const filters: Record<string, unknown> = {};
+      const builder = {
+        select: () => builder,
+        eq: () => builder,
+        neq: () => builder,
+        gte: () => builder,
+        limit: () => builder,
+        like: (column: string, pattern: string) => {
+          filters[column] = pattern;
+          return builder;
+        },
+        maybeSingle: async () => ({
+          data:
+            table === 'contacts'
+              ? contact
+              : (recentCards.find((row) =>
+                  row.content_text.includes(
+                    String(filters.content_text).replace(/^%|%$/g, '')
+                  )
+                ) ?? null),
+          error: null,
+        }),
+      };
+      return builder;
+    },
+  } as unknown as SupabaseClient;
 }
 
 beforeEach(() => {
   sendRequirementReview.mockReset();
   sendRequirementReview.mockResolvedValue(true);
+  recentCards.length = 0;
 });
 
 describe('[PRP-050] the brief played back after a regret', () => {
@@ -101,6 +126,22 @@ describe('[PRP-050] the brief played back after a regret', () => {
     expect(buildRegretBriefOpening('99acres Lead')).toBe(
       "Here's the requirement I have on file for you:"
     );
+  });
+
+  it('plays the brief back once per thread, however many sold listings one message named', async () => {
+    recentCards.push({
+      content_text: `Here's the requirement I have on file for you, Ramanathan:\n\n📌 brief\n\n${REGRET_BRIEF_CLOSING}`,
+    });
+    expect(
+      await sendRequirementConfirmAfterRegret({
+        db: dbWith(ramanathan),
+        accountId: 'acc-1',
+        userId: 'owner-1',
+        contactId: 'c-1',
+        conversationId: 'conv-1',
+      })
+    ).toBe(false);
+    expect(sendRequirementReview).not.toHaveBeenCalled();
   });
 
   it('sends nothing when there is nothing on file', async () => {

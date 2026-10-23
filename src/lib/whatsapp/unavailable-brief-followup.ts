@@ -46,6 +46,32 @@ export async function hasRequirementOnFile(
   return (await loadRequirementOnFile(db, accountId, contactId)) !== null;
 }
 
+const PLAYBACK_REPEAT_WINDOW_MS = 10 * 60 * 1000;
+
+async function playbackJustSent(
+  db: SupabaseClient,
+  conversationId: string
+): Promise<boolean> {
+  const { data } = await db
+    .from('messages')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'bot')
+    .eq('content_type', 'interactive')
+    .like(
+      'content_text',
+      `%${REGRET_BRIEF_CLOSING.replace(/[\\%_]/g, '\\$&')}%`
+    )
+    .neq('status', 'failed')
+    .gte(
+      'created_at',
+      new Date(Date.now() - PLAYBACK_REPEAT_WINDOW_MS).toISOString()
+    )
+    .limit(1)
+    .maybeSingle();
+  return !!data;
+}
+
 export async function sendRequirementConfirmAfterRegret(args: {
   db: SupabaseClient;
   accountId: string;
@@ -56,6 +82,8 @@ export async function sendRequirementConfirmAfterRegret(args: {
   const { db, accountId, userId, contactId, conversationId } = args;
   const contact = await loadRequirementOnFile(db, accountId, contactId);
   if (!contact) return false;
+  if (conversationId && (await playbackJustSent(db, conversationId)))
+    return false;
   return sendRequirementReview({
     db,
     accountId,
