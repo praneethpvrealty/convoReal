@@ -3,6 +3,7 @@ import {
   buildRequirementSummary,
   sendRequirementReview,
 } from '@/lib/whatsapp/requirement-review';
+import { nextQualifierForContact } from '@/lib/ai/buyer-qualification';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import type { Contact } from '@/types';
 
@@ -30,7 +31,11 @@ export async function loadRequirementOnFile(
     .eq('account_id', accountId)
     .maybeSingle();
   const contact = (data ?? null) as Contact | null;
-  return contact && buildRequirementSummary(contact) ? contact : null;
+  return contact &&
+    buildRequirementSummary(contact) &&
+    nextQualifierForContact(contact, { defaultBuying: true }) === null
+    ? contact
+    : null;
 }
 
 export async function hasRequirementOnFile(

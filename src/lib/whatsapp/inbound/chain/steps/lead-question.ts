@@ -233,7 +233,7 @@ export async function leadQuestion(
       : answer;
 
     if (reply) {
-      await sendWhatsAppMessageAndPersist({
+      const sent = await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
         contactId: contactRecord.id,
@@ -249,7 +249,7 @@ export async function leadQuestion(
         reply.appliedInstructionIds ?? []
       );
 
-      if (reply.intent === 'availability' && briefOnFile) {
+      if (reply.intent === 'availability' && briefOnFile && sent.success) {
         await sendRequirementConfirmAfterRegret({
           db: admin,
           accountId,

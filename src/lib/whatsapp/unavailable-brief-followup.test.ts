@@ -55,6 +55,28 @@ describe('[PRP-049] the brief played back after a regret', () => {
     );
   });
 
+  it('does not count a half-qualified brief — a type with no budget or area still goes through the ladder', async () => {
+    expect(
+      await hasRequirementOnFile(
+        dbWith({ id: 'c-4', name: 'Partial', pref_property_types: ['villa'] }),
+        'acc-1',
+        'c-4'
+      )
+    ).toBe(false);
+    expect(
+      await hasRequirementOnFile(
+        dbWith({
+          id: 'c-5',
+          name: 'No area',
+          pref_property_types: ['villa'],
+          pref_budget_max: 20_000_000,
+        }),
+        'acc-1',
+        'c-5'
+      )
+    ).toBe(false);
+  });
+
   it('plays the brief back with a confirm-to-get-options closing, in the regret voice', async () => {
     const sent = await sendRequirementConfirmAfterRegret({
       db: dbWith(ramanathan),
