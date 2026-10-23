@@ -230,9 +230,20 @@ export function PropertyMatchesTab({
   );
 
   const inquiriesQuery = useQuery({
-    queryKey: ['property-match-inquiries', accountId, matchedContactIds],
+    queryKey: [
+      'property-match-inquiries',
+      accountId,
+      property?.id,
+      matchedContactIds,
+    ],
     queryFn: () =>
-      fetchInquiredProperties(supabase, accountId ?? '', matchedContactIds),
+      fetchInquiredProperties(
+        supabase,
+        accountId ?? '',
+        matchedContactIds,
+        3,
+        property?.id
+      ),
     enabled: open && !!accountId && matchedContactIds.length > 0,
     staleTime: 60_000,
   });
@@ -911,9 +922,7 @@ export function PropertyMatchesTab({
                         // again stays possible — this is a reminder,
                         // not a lockout.
                         const sharedAt = sharedAtByContact[c.id];
-                        const inquiries = (
-                          inquiriesQuery.data?.get(c.id) ?? []
-                        ).filter((p) => p.id !== property?.id);
+                        const inquiries = inquiriesQuery.data?.get(c.id) ?? [];
                         const displayName =
                           c.name || c.phone || 'Unnamed contact';
                         const initials = displayName

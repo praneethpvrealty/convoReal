@@ -95,7 +95,9 @@ export async function GET(
     const inquiriesByContact = await fetchInquiredProperties(
       ctx.supabase,
       ctx.accountId,
-      results.map(({ contact }) => contact.id)
+      results.map(({ contact }) => contact.id),
+      3,
+      propertyId
     );
 
     return NextResponse.json({
@@ -110,9 +112,7 @@ export async function GET(
           details,
           matchedFields,
           sharedAt: sharedAtByContact.get(contact.id) ?? null,
-          inquiries: (inquiriesByContact.get(contact.id) ?? []).filter(
-            (inquiry) => inquiry.id !== propertyId
-          ),
+          inquiries: inquiriesByContact.get(contact.id) ?? [],
         };
       }),
     });

@@ -30,14 +30,17 @@ interface InquiryRow {
 
 /**
  * The most recent enquiries per contact, newest first, keyed by contact
- * id. Best-effort: a failure yields an empty map, which renders exactly
- * as a contact with no enquiry history does.
+ * id. `excludePropertyId` drops one listing before the cap, so it never
+ * costs a contact one of their `limit` slots. Best-effort: a failure
+ * yields an empty map, which renders exactly as a contact with no
+ * enquiry history does.
  */
 export async function fetchInquiredProperties(
   db: SupabaseClient,
   accountId: string,
   contactIds: string[],
-  limit = 3
+  limit = 3,
+  excludePropertyId?: string | null
 ): Promise<Map<string, InquiredProperty[]>> {
   const byContact = new Map<string, InquiredProperty[]>();
   if (contactIds.length === 0) return byContact;
@@ -45,7 +48,7 @@ export async function fetchInquiredProperties(
   const { data, error } = await db.rpc('contacts_inquired_properties', {
     p_account_id: accountId,
     p_contact_ids: contactIds,
-    p_limit: limit,
+    p_limit: excludePropertyId ? limit + 1 : limit,
   });
   if (error) {
     console.error('[inquired-properties] lookup failed:', error.message);
@@ -53,7 +56,9 @@ export async function fetchInquiredProperties(
   }
 
   for (const row of (data ?? []) as InquiryRow[]) {
-    const properties = (row.properties ?? []).filter(Boolean);
+    const properties = (row.properties ?? [])
+      .filter((p) => p && p.id !== excludePropertyId)
+      .slice(0, limit);
     if (properties.length > 0) byContact.set(row.contact_id, properties);
   }
   return byContact;

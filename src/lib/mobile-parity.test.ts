@@ -5190,9 +5190,13 @@ describe('[PRP-049] matching contacts name what each contact enquired about earl
 
   it('shows earlier enquiries by name on both surfaces, never the open listing', () => {
     expect(webTab).toContain('fetchInquiredProperties(');
-    expect(webTab).toContain('.filter((p) => p.id !== property?.id)');
+    expect(webTab).toContain(
+      'matchedContactIds,\n        3,\n        property?.id'
+    );
     expect(webTab).toContain('.map(inquiredPropertyLabel)');
-    expect(matchesRoute).toContain('(inquiry) => inquiry.id !== propertyId');
+    expect(matchesRoute).toContain(
+      'results.map(({ contact }) => contact.id),\n      3,\n      propertyId'
+    );
     expect(mobileScreen).toContain('m.inquiries.map(inquiredPropertyLabel)');
     expect(mobileLabel).toContain(
       'return `${title} (${property.property_code})`;'

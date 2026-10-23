@@ -50,6 +50,33 @@ describe('fetchInquiredProperties', () => {
     expect(result.has('c-2')).toBe(false);
   });
 
+  it('drops the excluded listing before the cap so it never takes a slot', async () => {
+    const { db, calls } = stubDb([
+      {
+        contact_id: 'c-1',
+        properties: [
+          property({ id: 'open' }),
+          property({ id: 'a' }),
+          property({ id: 'b' }),
+          property({ id: 'c' }),
+        ],
+      },
+      { contact_id: 'c-2', properties: [property({ id: 'open' })] },
+    ]);
+
+    const result = await fetchInquiredProperties(
+      db,
+      'acc-1',
+      ['c-1', 'c-2'],
+      3,
+      'open'
+    );
+
+    expect(calls.args?.p_limit).toBe(4);
+    expect(result.get('c-1')?.map((p) => p.id)).toEqual(['a', 'b', 'c']);
+    expect(result.has('c-2')).toBe(false);
+  });
+
   it('asks for nothing when there are no contacts to ask about', async () => {
     const { db, calls } = stubDb([]);
     expect((await fetchInquiredProperties(db, 'acc-1', [])).size).toBe(0);
