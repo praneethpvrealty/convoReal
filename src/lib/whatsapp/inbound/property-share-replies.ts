@@ -8,7 +8,24 @@ import { buildPropertyInterestQuestion } from '@/lib/whatsapp/property-interest'
 import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
 import { replyListingUnavailableOnce } from '@/lib/whatsapp/inbound/unavailable-listing-reply';
 import { formatCurrency, formatInrCompact } from '@/lib/format/currency';
+import {
+  buildPortfolioNudge,
+  mirrorSharedListingsToPortfolio,
+  portfolioLoginUrl,
+} from '@/lib/buyer/shared-listings';
 import type { PropertyRow } from '@/lib/whatsapp/webhook-handler';
+
+export const SHORTLIST_PROPERTY_PREFIX = 'shortlist_property:';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function similarPropertyButtons(propertyId: string) {
+  return [
+    { id: `${SHORTLIST_PROPERTY_PREFIX}${propertyId}`, title: '⭐ Shortlist' },
+    { id: `lfb_y_${propertyId}`, title: '👍 Interested' },
+  ];
+}
 
 export async function handlePropertyShareYesReply(
   propertyId: string,
@@ -519,10 +536,33 @@ export async function handleShowMoreProperties(
         contactId
       );
 
-      // Send image first
       const firstImage = typedProp.images?.find(
         (img: string) => img.trim().length > 0
       );
+
+      let detailsText = `🏠 *${typedProp.title}*\n`;
+      if (formattedPrice) detailsText += `💰 *Price:* ${formattedPrice}\n`;
+      if (locationParts) detailsText += `📍 *Location:* ${locationParts}\n`;
+      if (areaStr) detailsText += `📐 *Area:* ${areaStr}\n`;
+      if (typedProp.bedrooms)
+        detailsText += `🛏️ *BHK:* ${typedProp.bedrooms} BHK\n`;
+      detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`;
+
+      const card = await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId,
+        conversationId,
+        toPhone,
+        kind: 'interactive',
+        interactiveType: 'buttons',
+        interactiveBody: detailsText,
+        headerImageLink: firstImage ?? null,
+        interactiveButtons: similarPropertyButtons(typedProp.id),
+        senderType: 'bot',
+      });
+      if (card.success || card.reachedMeta) continue;
+
       if (firstImage) {
         await sendWhatsAppMessageAndPersist({
           accountId,
@@ -537,15 +577,6 @@ export async function handleShowMoreProperties(
           senderType: 'bot',
         });
       }
-
-      // Send details
-      let detailsText = `🏠 *${typedProp.title}*\n`;
-      if (formattedPrice) detailsText += `💰 *Price:* ${formattedPrice}\n`;
-      if (locationParts) detailsText += `📍 *Location:* ${locationParts}\n`;
-      if (areaStr) detailsText += `📐 *Area:* ${areaStr}\n`;
-      if (typedProp.bedrooms)
-        detailsText += `🛏️ *BHK:* ${typedProp.bedrooms} BHK\n`;
-      detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`;
 
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -584,5 +615,83 @@ export async function handleShowMoreProperties(
     );
   } catch (err) {
     console.error('[webhook] Failed in handleShowMoreProperties:', err);
+  }
+}
+
+// ============================================================
+// Shortlist Tap Handler
+// ============================================================
+
+export async function handleShortlistPropertyReply(
+  propertyId: string,
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string,
+  conversationId: string,
+  toPhone: string
+): Promise<boolean> {
+  if (!UUID_RE.test(propertyId)) return false;
+  try {
+    const db = supabaseAdmin();
+    const { data: property } = await db
+      .from('properties')
+      .select('id, title, status')
+      .eq('id', propertyId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    if (!property) return false;
+
+    const unavailable = await replyListingUnavailableOnce({
+      db,
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+      toPhone,
+      property: { title: property.title, status: property.status },
+    });
+    if (unavailable) return unavailable !== 'failed';
+
+    const { error: likeError } = await db.from('property_likes').insert({
+      account_id: accountId,
+      property_id: propertyId,
+      contact_id: contactId,
+      session_key: `wa:${contactId}`,
+    });
+    if (likeError && likeError.code !== '23505') {
+      console.error('[webhook] Shortlist like insert failed:', likeError);
+    }
+
+    let linked = false;
+    try {
+      ({ linked } = await mirrorSharedListingsToPortfolio(db, {
+        accountId,
+        contactId,
+        propertyIds: [propertyId],
+      }));
+    } catch (err) {
+      console.error('[webhook] Shortlist portfolio mirror failed:', err);
+    }
+
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+      toPhone,
+      kind: 'interactive',
+      interactiveType: 'buttons',
+      interactiveBody: `⭐ Saved *${property.title}* to your shortlist.\n\n${buildPortfolioNudge(
+        { linked, url: portfolioLoginUrl(), count: 1 }
+      )}`,
+      interactiveButtons: [
+        { id: `lfb_y_${propertyId}`, title: '👍 Interested' },
+      ],
+      senderType: 'bot',
+    });
+    return true;
+  } catch (err) {
+    console.error('[webhook] Failed in handleShortlistPropertyReply:', err);
+    return false;
   }
 }

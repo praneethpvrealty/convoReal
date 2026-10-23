@@ -1184,6 +1184,8 @@ export interface SendInteractiveButtonsArgs {
   bodyText: string;
   /** Optional plain-text header (≤ 60 chars). */
   headerText?: string;
+  /** Optional public image URL shown as the header, above the body. */
+  headerImageLink?: string;
   /** Optional grey footer line under the buttons (≤ 60 chars). */
   footerText?: string;
   /** 1–3 buttons. Validated against Meta's limits before sending. */
@@ -1209,10 +1211,17 @@ export async function sendInteractiveButtons(
     to,
     bodyText: rawBodyText,
     headerText,
+    headerImageLink,
     footerText,
     buttons,
     contextMessageId,
   } = args;
+
+  if (headerText && headerImageLink) {
+    throw new Error(
+      'Interactive button message takes a text or an image header, not both.'
+    );
+  }
 
   const bodyText =
     rawBodyText && rawBodyText.length > INTERACTIVE_LIMITS.bodyMaxLength
@@ -1248,6 +1257,8 @@ export async function sendInteractiveButtons(
     },
   };
   if (headerText) interactive.header = { type: 'text', text: headerText };
+  if (headerImageLink)
+    interactive.header = { type: 'image', image: { link: headerImageLink } };
   if (footerText) interactive.footer = { text: footerText };
 
   const body: Record<string, unknown> = {

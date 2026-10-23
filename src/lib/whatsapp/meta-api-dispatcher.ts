@@ -171,6 +171,8 @@ export interface SendWhatsAppAndPersistArgs {
   flowAction?: 'navigate' | 'data_exchange' | null;
   flowActionPayload?: FlowActionPayload | null;
   headerText?: string | null;
+  /** Image shown above an interactive button message's body. */
+  headerImageLink?: string | null;
   footerText?: string | null;
   productCatalogId?: string | null;
   productRetailerId?: string | null;
@@ -776,6 +778,9 @@ export async function sendWhatsAppMessageAndPersist(
               bodyText: args.interactiveBody,
               buttons: args.interactiveButtons,
               headerText: args.headerText || undefined,
+              headerImageLink: args.headerImageLink
+                ? storagePublicUrl(args.headerImageLink)
+                : undefined,
               footerText: args.footerText || undefined,
             });
             return resultBtn.messageId;
@@ -897,7 +902,9 @@ export async function sendWhatsAppMessageAndPersist(
         media_url:
           args.kind === 'media' && args.mediaLink
             ? storagePublicUrl(args.mediaLink)
-            : null,
+            : args.kind === 'interactive' && args.headerImageLink
+              ? storagePublicUrl(args.headerImageLink)
+              : null,
         template_name,
         message_id: waMessageId,
         status: 'sent',
