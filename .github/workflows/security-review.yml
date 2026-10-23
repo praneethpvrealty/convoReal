@@ -1,4 +1,4 @@
-name: Security review
+name: Claude review
 
 on:
   pull_request_target:
@@ -12,6 +12,12 @@ on:
         description: Pull request number to review
         required: true
         type: number
+      model:
+        description: Model tier (auto picks from the diff)
+        required: false
+        default: auto
+        type: choice
+        options: [auto, opus, sonnet, haiku]
 
 concurrency:
   group: security-review-${{ github.event.pull_request.number || inputs.pr }}
@@ -22,7 +28,7 @@ permissions:
 
 jobs:
   review:
-    name: Claude security review
+    name: Claude review
     # The reviewer and its dependencies come from the base branch, never from
     # the pull request under review; the head is checked out into head/ and
     # only read. Drafts wait until they are marked ready, so the review sees
@@ -83,6 +89,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           REVIEW_ROOT: head
+          REVIEW_MODEL: ${{ inputs.model || 'auto' }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}

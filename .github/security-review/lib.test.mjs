@@ -12,6 +12,11 @@ import path from 'node:path';
 import {
   checkConclusion,
   confinedRealPath,
+  estimateCost,
+  planModel,
+  reviewBody,
+  reviewFooter,
+  splitByKind,
   extractHandbookSections,
   findingKey,
   formatFinding,
@@ -195,26 +200,171 @@ test('truncateDiff cuts on a file boundary and says so', () => {
   assert.equal(truncateDiff('short', 400).truncated, false);
 });
 
-test('extractHandbookSections pulls the security sections of AGENTS.md', () => {
+test('extractHandbookSections pulls the engineering and security rules of AGENTS.md', () => {
   const md = [
     '# Handbook',
-    '### 2.4 Files',
-    'files',
+    '## 1. What this is',
+    'intro',
+    '### 2.1 Read first',
+    'read first',
     '### 2.5 Security rules',
     'never log secrets',
     '### 2.6 Database rules',
     'rls',
     '### 2.8 Parity',
     'parity',
+    '## 3. Tech stack',
+    'stack',
     '## 10. API route patterns',
     'routes',
     '## 11. UI',
     'ui',
+    '## 12. Testing',
+    'tests',
+    '## 13. Deployment',
+    'deploy',
   ].join('\n');
   const out = extractHandbookSections(md);
-  assert.ok(out.includes('never log secrets'));
-  assert.ok(out.includes('rls'));
-  assert.ok(out.includes('routes'));
-  assert.ok(!out.includes('parity'));
-  assert.ok(!out.includes('ui'));
+  for (const kept of [
+    'read first',
+    'never log secrets',
+    'rls',
+    'parity',
+    'routes',
+    'tests',
+  ]) {
+    assert.ok(out.includes(kept), kept);
+  }
+  for (const dropped of ['intro', 'stack', 'ui', 'deploy']) {
+    assert.ok(!out.includes(dropped), dropped);
+  }
+});
+
+test('planModel picks the tier from sensitive paths and diff size', () => {
+  const small = planModel({
+    files: ['src/components/inventory/property-card.tsx'],
+    diffChars: 800,
+  });
+  assert.equal(small.tier, 'light');
+  assert.equal(small.model, 'claude-haiku-5-5');
+
+  const routine = planModel({
+    files: ['src/components/inbox/thread.tsx', 'src/lib/contacts/format.ts'],
+    diffChars: 12_000,
+  });
+  assert.equal(routine.tier, 'standard');
+  assert.equal(routine.model, 'claude-sonnet-5-5');
+
+  const route = planModel({
+    files: ['src/app/api/contacts/route.ts'],
+    diffChars: 400,
+  });
+  assert.equal(route.tier, 'standard');
+
+  const sensitive = planModel({
+    files: ['src/lib/auth/account.ts', 'src/components/x.tsx'],
+    diffChars: 500,
+  });
+  assert.equal(sensitive.tier, 'deep');
+  assert.equal(sensitive.model, 'claude-opus-5-5');
+  assert.match(sensitive.reasons[0], /sensitive path/);
+
+  const migration = planModel({
+    files: ['supabase/migrations/20261023000000_x.sql'],
+    diffChars: 200,
+  });
+  assert.equal(migration.tier, 'deep');
+
+  for (const file of [
+    'src/lib/v1/query.ts',
+    'src/app/api/appointments/cron/route.ts',
+    'src/app/api/leads/email-webhook/route.ts',
+    'src/app/api/auth/sms-hook/route.ts',
+    'src/app/api/billing/credits/buy/route.ts',
+    'src/app/api/whatsapp/templates/sync/route.ts',
+  ]) {
+    assert.equal(
+      planModel({ files: [file], diffChars: 200 }).tier,
+      'deep',
+      file
+    );
+  }
+
+  const serviceRole = planModel({
+    files: ['src/lib/deals/delete-deal.ts'],
+    diffChars: 900,
+    diffText: '+  const db = supabaseAdmin();\n',
+  });
+  assert.equal(serviceRole.tier, 'deep');
+  assert.match(serviceRole.reasons[0], /service-role/);
+
+  const large = planModel({
+    files: Array.from({ length: 20 }, (_, i) => `src/lib/x/${i}.ts`),
+    diffChars: 9_000,
+  });
+  assert.equal(large.tier, 'deep');
+
+  const forced = planModel({
+    files: ['src/a.ts'],
+    diffChars: 10,
+    override: 'opus',
+  });
+  assert.equal(forced.tier, 'forced');
+  assert.equal(forced.model, 'claude-opus-5-5');
+  assert.equal(
+    planModel({ files: ['src/a.ts'], diffChars: 10, override: 'auto' }).tier,
+    'light'
+  );
+});
+
+test('estimateCost prices usage per model and reviewFooter reports it', () => {
+  const usage = {
+    input: 30_000,
+    cacheCreation: 0,
+    cacheRead: 0,
+    output: 4_000,
+  };
+  assert.equal(estimateCost('claude-opus-5-5', usage).toFixed(2), '0.20');
+  assert.equal(estimateCost('claude-sonnet-5-5', usage).toFixed(2), '0.10');
+  assert.equal(estimateCost('unknown-model', usage), null);
+  const cached = { ...usage, cacheRead: 100_000 };
+  assert.equal(estimateCost('claude-sonnet-5-5', cached).toFixed(2), '0.11');
+  assert.equal(estimateCost('claude-opus-5-5', cached).toFixed(2), '0.22');
+  const footer = reviewFooter({
+    model: 'claude-sonnet-5-5',
+    plan: { tier: 'standard', reasons: ['12k-char diff'] },
+    usage,
+  });
+  assert.match(footer, /standard tier: 12k-char diff/);
+  assert.match(footer, /≈ \$0\.10/);
+});
+
+test('findings are split by kind and formatted with their kind', () => {
+  const findings = [
+    { kind: 'security', path: 'a.ts', line: 1, severity: 'high', title: 'A' },
+    { kind: 'code', path: 'b.ts', line: 2, severity: 'medium', title: 'B' },
+    { path: 'c.ts', line: 3, severity: 'low', title: 'C' },
+  ];
+  const { security, code } = splitByKind(findings);
+  assert.deepEqual(
+    security.map((f) => f.title),
+    ['A', 'C']
+  );
+  assert.deepEqual(
+    code.map((f) => f.title),
+    ['B']
+  );
+  assert.match(formatFinding(findings[1]), /MEDIUM · \[code\] B/);
+  assert.match(
+    reviewBody({ findings, outOfDiff: [], summary: '' }),
+    /2 security and 1 code findings/
+  );
+  assert.ok(
+    markersIn('<!-- claude-security-review:0123456789abcdef -->').has(
+      '0123456789abcdef'
+    )
+  );
+  assert.ok(
+    markersIn('<!-- claude-review:0123456789abcdef -->').has('0123456789abcdef')
+  );
 });
