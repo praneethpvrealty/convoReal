@@ -336,10 +336,12 @@ export function estimateCost(model, usage) {
 export const SENSITIVE_PATTERNS = [
   /^src\/lib\/auth\//,
   /^src\/lib\/supabase\//,
+  /^src\/lib\/v1\//,
   /^src\/proxy\.ts$/,
   /^supabase\/migrations\//,
-  /^src\/app\/api\/(public|v1|den|buyer|webhooks|cron)\//,
-  /^src\/app\/api\/.*\/webhook\//,
+  /^src\/app\/api\/(public|v1|den|buyer|webhooks)\//,
+  /^src\/app\/api\/.*cron/,
+  /^src\/app\/api\/.*webhook/,
   /^src\/app\/api\/whatsapp\/flows\/endpoint\//,
   /^src\/lib\/whatsapp\/(webhook-|encryption|flow-crypto|meta-api|template-)/,
   /^src\/lib\/(den|buyer|billing|credits|marketplace|rate-limit)/,
@@ -350,12 +352,15 @@ export const SENSITIVE_PATTERNS = [
   /^(next\.config\.ts|vercel\.json|Dockerfile.*)$/,
 ];
 
+export const SENSITIVE_DIFF_PATTERN =
+  /supabaseAdmin\(|SECURITY DEFINER|service_role|SUPABASE_SERVICE_ROLE_KEY|ENCRYPTION_KEY|META_APP_SECRET|requirePlatformAdmin|withApiKeyAuth|withDenAuth|withBuyerAuth/;
+
 const LARGE_DIFF_CHARS = 40_000;
 const LARGE_FILE_COUNT = 15;
 const SMALL_DIFF_CHARS = 3_000;
 const SMALL_FILE_COUNT = 3;
 
-export function planModel({ files, diffChars, override }) {
+export function planModel({ files, diffChars, diffText = '', override }) {
   if (override && override !== 'auto') {
     const model = MODELS[override] ?? override;
     return {
@@ -373,6 +378,9 @@ export function planModel({ files, diffChars, override }) {
     reasons.push(
       `${sensitive.length} sensitive path${sensitive.length === 1 ? '' : 's'} (${sensitive.slice(0, 3).join(', ')}${sensitive.length > 3 ? ', …' : ''})`
     );
+  }
+  if (SENSITIVE_DIFF_PATTERN.test(diffText)) {
+    reasons.push('service-role or auth code in the diff');
   }
   if (diffChars > LARGE_DIFF_CHARS)
     reasons.push(`${Math.round(diffChars / 1000)}k-char diff`);

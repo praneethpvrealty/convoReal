@@ -275,6 +275,26 @@ test('planModel picks the tier from sensitive paths and diff size', () => {
   });
   assert.equal(migration.tier, 'deep');
 
+  for (const file of [
+    'src/lib/v1/query.ts',
+    'src/app/api/appointments/cron/route.ts',
+    'src/app/api/leads/email-webhook/route.ts',
+  ]) {
+    assert.equal(
+      planModel({ files: [file], diffChars: 200 }).tier,
+      'deep',
+      file
+    );
+  }
+
+  const serviceRole = planModel({
+    files: ['src/lib/deals/delete-deal.ts'],
+    diffChars: 900,
+    diffText: '+  const db = supabaseAdmin();\n',
+  });
+  assert.equal(serviceRole.tier, 'deep');
+  assert.match(serviceRole.reasons[0], /service-role/);
+
   const large = planModel({
     files: Array.from({ length: 20 }, (_, i) => `src/lib/x/${i}.ts`),
     diffChars: 9_000,

@@ -27,11 +27,13 @@ How a review runs:
    lockfiles, docs other than `AGENTS.md` and `public/` are left out.
 2. A model is picked from the diff (`planModel` in `lib.mjs`):
    - **deep** → `claude-opus-5-5` when any file matches a sensitive path
-     (auth, Supabase clients, the proxy, migrations, public, v1, Den, buyer,
-     webhook and cron routes, WhatsApp webhook and crypto code, billing and
-     credits, the Go ingress, the queue worker, `.github/`, deployment
-     config), when the diff exceeds 40k characters, or when more than 15
-     files change;
+     (auth, Supabase clients, the v1 helpers, the proxy, migrations, public,
+     v1, Den, buyer routes, any webhook or cron route, WhatsApp webhook and
+     crypto code, billing and credits, the Go ingress, the queue worker,
+     `.github/`, deployment config), when the diff itself touches
+     service-role or auth code (`supabaseAdmin(`, `SECURITY DEFINER`, the
+     auth wrappers, the server-only secrets), when the diff exceeds 40k
+     characters, or when more than 15 files change;
    - **light** → `claude-haiku-5-5` for a diff under 3k characters across at
      most three files with no route, page, layout or sensitive path;
    - **standard** → `claude-sonnet-5-5` for everything else.

@@ -325,6 +325,7 @@ async function main() {
   const plan = planModel({
     files,
     diffChars: rawDiff.length,
+    diffText: rawDiff,
     override: MODEL_OVERRIDE,
   });
   console.log(
