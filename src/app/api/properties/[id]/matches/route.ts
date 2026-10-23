@@ -110,7 +110,9 @@ export async function GET(
           details,
           matchedFields,
           sharedAt: sharedAtByContact.get(contact.id) ?? null,
-          inquiries: inquiriesByContact.get(contact.id) ?? [],
+          inquiries: (inquiriesByContact.get(contact.id) ?? []).filter(
+            (inquiry) => inquiry.id !== propertyId
+          ),
         };
       }),
     });

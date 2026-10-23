@@ -59,7 +59,10 @@ export async function fetchInquiredProperties(
   return byContact;
 }
 
-/** Short label for one enquiry: the code when there is one, else the title. */
+/** Label for one enquiry: the listing's name, with its code when it has both. */
 export function inquiredPropertyLabel(property: InquiredProperty): string {
-  return property.property_code || property.title || 'Untitled listing';
+  const title = property.title?.trim();
+  if (title && property.property_code)
+    return `${title} (${property.property_code})`;
+  return title || property.property_code || 'Untitled listing';
 }

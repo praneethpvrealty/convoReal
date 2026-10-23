@@ -27,6 +27,7 @@ import {
   Check,
   Clock,
   Eye,
+  History,
 } from 'lucide-react';
 import {
   inMatchAudience,
@@ -48,6 +49,10 @@ import {
   buildPropertyShareMessage,
   showcaseOriginForHost,
 } from '@/lib/share-message-builder';
+import {
+  fetchInquiredProperties,
+  inquiredPropertyLabel,
+} from '@/lib/contacts/inquired-properties';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { formatCurrency } from '@/lib/currency-utils';
@@ -218,6 +223,19 @@ export function PropertyMatchesTab({
       ].some((value) => value?.toLocaleLowerCase().includes(query))
     );
   }, [displayedMatches, matchSearch]);
+
+  const matchedContactIds = useMemo(
+    () => matchedContacts.map(({ contact }) => contact.id).sort(),
+    [matchedContacts]
+  );
+
+  const inquiriesQuery = useQuery({
+    queryKey: ['property-match-inquiries', accountId, matchedContactIds],
+    queryFn: () =>
+      fetchInquiredProperties(supabase, accountId ?? '', matchedContactIds),
+    enabled: open && !!accountId && matchedContactIds.length > 0,
+    staleTime: 60_000,
+  });
 
   const buyerMatchCount = matchedContacts.filter(
     ({ contact }) => contact.classification !== 'Agent'
@@ -774,7 +792,9 @@ export function PropertyMatchesTab({
                             ? 'Searching matching profiles...'
                             : displayedMatches.length === 0
                               ? '0 matching contacts found'
-                              : `${sharedMatchCount} already shared · Select contacts to share together`}
+                              : selectedContactIds.length > 0
+                                ? `${selectedContactIds.length} selected · ${sharedMatchCount} already shared`
+                                : `${sharedMatchCount} already shared · Tick several contacts to share together`}
                         </div>
                       </div>
                     </div>
@@ -891,6 +911,9 @@ export function PropertyMatchesTab({
                         // again stays possible — this is a reminder,
                         // not a lockout.
                         const sharedAt = sharedAtByContact[c.id];
+                        const inquiries = (
+                          inquiriesQuery.data?.get(c.id) ?? []
+                        ).filter((p) => p.id !== property?.id);
                         const displayName =
                           c.name || c.phone || 'Unnamed contact';
                         const initials = displayName
@@ -979,6 +1002,20 @@ export function PropertyMatchesTab({
                                   </div>
                                 )}
 
+                                {inquiries.length > 0 && (
+                                  <div className="mt-1.5 flex min-w-0 items-start gap-1 text-[11px] text-slate-400">
+                                    <History className="mt-0.5 size-3 shrink-0 text-slate-500" />
+                                    <span className="min-w-0">
+                                      <span className="font-semibold text-slate-300">
+                                        Enquired earlier:{' '}
+                                      </span>
+                                      {inquiries
+                                        .map(inquiredPropertyLabel)
+                                        .join(' · ')}
+                                    </span>
+                                  </div>
+                                )}
+
                                 <MatchDetailChips details={details} />
                               </div>
                             </div>
@@ -1018,15 +1055,26 @@ export function PropertyMatchesTab({
                   )}
                 </div>
 
-                <div className="mt-auto flex items-center justify-between border-t border-slate-800 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => onOpenChange(false)}
-                    className="hover:bg-slate-850 border-slate-800"
-                  >
-                    Close
-                  </Button>
+                <div className="sticky bottom-0 z-10 mt-auto flex items-center justify-between gap-2 border-t border-slate-800 bg-slate-900 pt-4 pb-1">
+                  {selectedContactIds.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setSelectedContactIds([])}
+                      className="hover:bg-slate-850 border-slate-800"
+                    >
+                      Clear {selectedContactIds.length} selected
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => onOpenChange(false)}
+                      className="hover:bg-slate-850 border-slate-800"
+                    >
+                      Close
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     disabled={selectedContactIds.length === 0 || !isEdit}

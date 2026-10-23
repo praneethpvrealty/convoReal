@@ -5181,3 +5181,29 @@ describe('broadcast composer asks for a message, never a template', () => {
     expect(webPage).not.toContain("key: 'personalize'");
   });
 });
+
+describe('[PRP-049] matching contacts name what each contact enquired about earlier', () => {
+  const webTab = webSource('components/inventory/property-matches-tab.tsx');
+  const matchesRoute = webSource('app/api/properties/[id]/matches/route.ts');
+  const mobileScreen = mobileSource('app/(app)/property/[id].tsx');
+  const mobileLabel = mobileSource('lib/property-matches.ts');
+
+  it('shows earlier enquiries by name on both surfaces, never the open listing', () => {
+    expect(webTab).toContain('fetchInquiredProperties(');
+    expect(webTab).toContain('.filter((p) => p.id !== property?.id)');
+    expect(webTab).toContain('.map(inquiredPropertyLabel)');
+    expect(matchesRoute).toContain('(inquiry) => inquiry.id !== propertyId');
+    expect(mobileScreen).toContain('m.inquiries.map(inquiredPropertyLabel)');
+    expect(mobileLabel).toContain(
+      'return `${title} (${property.property_code})`;'
+    );
+  });
+
+  it('keeps the multi-select share bar in view on web', () => {
+    expect(webTab).toContain('sticky bottom-0');
+    expect(webTab).toContain(
+      'Share the Property Details ({selectedContactIds.length})'
+    );
+    expect(webTab).toContain('Clear {selectedContactIds.length} selected');
+  });
+});

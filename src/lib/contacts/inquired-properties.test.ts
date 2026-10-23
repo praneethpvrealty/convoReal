@@ -63,11 +63,12 @@ describe('fetchInquiredProperties', () => {
 });
 
 describe('inquiredPropertyLabel', () => {
-  it('prefers the code, falls back to the title, then to a placeholder', () => {
-    expect(inquiredPropertyLabel(property())).toBe('PROP-1001');
+  it('names the listing with its code, falls back to either, then to a placeholder', () => {
+    expect(inquiredPropertyLabel(property())).toBe('Green Acres (PROP-1001)');
     expect(inquiredPropertyLabel(property({ property_code: null }))).toBe(
       'Green Acres'
     );
+    expect(inquiredPropertyLabel(property({ title: '  ' }))).toBe('PROP-1001');
     expect(
       inquiredPropertyLabel(property({ property_code: null, title: null }))
     ).toBe('Untitled listing');
