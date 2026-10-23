@@ -1,9 +1,9 @@
 {
-  "name": "convoreal-security-review",
+  "name": "convoreal-claude-review",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Claude-powered security review of pull requests, run from .github/workflows/security-review.yml",
+  "description": "Claude-powered security and code review of pull requests, run from .github/workflows/security-review.yml",
   "scripts": {
     "test": "node --test",
     "review": "node review.mjs"

@@ -113,10 +113,13 @@ export function confinedRealPath(root, requested) {
 
 export function extractHandbookSections(markdown) {
   const ranges = [
-    ['### 2.5 ', '### 2.8 '],
+    ['### 2.1 ', '### 2.5 '],
+    ['### 2.5 ', '## 3. '],
+    ['### 7.1 ', '### 7.3 '],
     ['### 7.4 ', '## 8. '],
     ['### 8.3 ', '### 8.4 '],
     ['## 10. ', '## 11. '],
+    ['## 12. ', '## 13. '],
     ['## 14. ', '## 15. '],
   ];
   const out = [];
@@ -145,7 +148,7 @@ export function findingKey(finding) {
     .slice(0, 16);
 }
 
-export const MARKER_PREFIX = '<!-- claude-security-review:';
+export const MARKER_PREFIX = '<!-- claude-review:';
 
 export function marker(key) {
   return `${MARKER_PREFIX}${key} -->`;
@@ -153,10 +156,23 @@ export function marker(key) {
 
 export function markersIn(text) {
   const keys = new Set();
-  const re = /<!-- claude-security-review:([0-9a-f]{16}) -->/g;
+  const re = /<!-- claude-(?:security-)?review:([0-9a-f]{16}) -->/g;
   let m;
   while ((m = re.exec(text ?? ''))) keys.add(m[1]);
   return keys;
+}
+
+export const KINDS = ['security', 'code'];
+
+export function normalizeKind(value) {
+  const k = String(value ?? '').toLowerCase();
+  return KINDS.includes(k) ? k : 'security';
+}
+
+export function splitByKind(findings) {
+  const out = { security: [], code: [] };
+  for (const f of findings) out[normalizeKind(f.kind)].push(f);
+  return out;
 }
 
 const SEVERITY_ICON = {
@@ -169,7 +185,7 @@ const SEVERITY_ICON = {
 export function formatFinding(finding) {
   const severity = normalizeSeverity(finding.severity);
   const lines = [
-    `**${SEVERITY_ICON[severity]} ${severity.toUpperCase()} · ${finding.title}**`,
+    `**${SEVERITY_ICON[severity]} ${severity.toUpperCase()} · [${normalizeKind(finding.kind)}] ${finding.title}**`,
     '',
     finding.detail,
   ];
@@ -221,14 +237,16 @@ export function checkConclusion(findings) {
 
 export function summaryMarkdown({
   findings,
+  kind = 'security',
   summary,
   model,
+  plan,
   usage,
   alreadyPosted,
 }) {
   const lines = [];
   if (findings.length === 0) {
-    lines.push('No security findings in this change.');
+    lines.push(`No ${kind} findings in this change.`);
   } else {
     lines.push(
       `${findings.length} finding${findings.length === 1 ? '' : 's'}:`,
@@ -248,20 +266,35 @@ export function summaryMarkdown({
     );
   }
   if (summary) lines.push('', summary);
-  lines.push(
-    '',
-    `_Reviewed by ${model}${usage ? ` · ${usage.input} input / ${usage.output} output tokens` : ''}._`
-  );
+  lines.push('', reviewFooter({ model, plan, usage }));
   return lines.join('\n');
 }
 
-export function reviewBody({ findings, outOfDiff, summary }) {
-  const lines = ['## Claude security review', ''];
+export function reviewFooter({ model, plan, usage }) {
+  const parts = [`Reviewed by ${model}`];
+  if (plan) parts.push(`${plan.tier} tier: ${plan.reasons.join(', ')}`);
+  if (usage) {
+    const read = usage.cacheRead ? ` (${usage.cacheRead} from cache)` : '';
+    parts.push(
+      `${usage.input + usage.cacheRead + usage.cacheCreation} input${read} / ${usage.output} output tokens`
+    );
+    const cost = estimateCost(model, usage);
+    if (cost !== null) parts.push(`≈ $${cost.toFixed(2)}`);
+  }
+  return `_${parts.join(' · ')}._`;
+}
+
+export function reviewBody({ findings, outOfDiff, summary, footer }) {
+  const lines = ['## Claude review', ''];
+  const byKind = splitByKind(findings);
+  const counts = KINDS.filter((k) => byKind[k].length > 0).map(
+    (k) => `${byKind[k].length} ${k}`
+  );
   if (findings.length === 0) {
-    lines.push('No security findings in this change.');
+    lines.push('No findings in this change.');
   } else {
     lines.push(
-      `${findings.length} finding${findings.length === 1 ? '' : 's'}. Each one is a claim to verify: fix it, or answer the thread with the reason it does not apply, and resolve the thread before merging.`
+      `${counts.join(' and ')} finding${findings.length === 1 ? '' : 's'}. Each one is a claim to verify: fix it, or answer the thread with the reason it does not apply, and resolve the thread before merging.`
     );
   }
   if (outOfDiff.length) {
@@ -272,5 +305,104 @@ export function reviewBody({ findings, outOfDiff, summary }) {
     }
   }
   if (summary) lines.push('', summary);
+  if (footer) lines.push('', footer);
   return lines.join('\n');
+}
+
+export const MODELS = {
+  opus: 'claude-opus-5-5',
+  sonnet: 'claude-sonnet-5-5',
+  haiku: 'claude-haiku-5-5',
+};
+
+const PRICES_PER_MILLION = {
+  'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2 },
+  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2 },
+  'claude-haiku-5-5': { input: 0.1, output: 0.5, cacheRead: 0.01 },
+};
+
+export function estimateCost(model, usage) {
+  const price = PRICES_PER_MILLION[model];
+  if (!price) return null;
+  return (
+    (usage.input * price.input +
+      usage.cacheCreation * price.input * 1.25 +
+      usage.cacheRead * price.cacheRead +
+      usage.output * price.output) /
+    1_000_000
+  );
+}
+
+export const SENSITIVE_PATTERNS = [
+  /^src\/lib\/auth\//,
+  /^src\/lib\/supabase\//,
+  /^src\/proxy\.ts$/,
+  /^supabase\/migrations\//,
+  /^src\/app\/api\/(public|v1|den|buyer|webhooks|cron)\//,
+  /^src\/app\/api\/.*\/webhook\//,
+  /^src\/app\/api\/whatsapp\/flows\/endpoint\//,
+  /^src\/lib\/whatsapp\/(webhook-|encryption|flow-crypto|meta-api|template-)/,
+  /^src\/lib\/(den|buyer|billing|credits|marketplace|rate-limit)/,
+  /^src\/lib\/inbound\//,
+  /^src\/scripts\/queue-worker\.ts$/,
+  /^go-ingress\//,
+  /^\.github\//,
+  /^(next\.config\.ts|vercel\.json|Dockerfile.*)$/,
+];
+
+const LARGE_DIFF_CHARS = 40_000;
+const LARGE_FILE_COUNT = 15;
+const SMALL_DIFF_CHARS = 3_000;
+const SMALL_FILE_COUNT = 3;
+
+export function planModel({ files, diffChars, override }) {
+  if (override && override !== 'auto') {
+    const model = MODELS[override] ?? override;
+    return {
+      tier: 'forced',
+      model,
+      effort: 'high',
+      reasons: [`${override} requested`],
+    };
+  }
+  const sensitive = files.filter((f) =>
+    SENSITIVE_PATTERNS.some((re) => re.test(f))
+  );
+  const reasons = [];
+  if (sensitive.length) {
+    reasons.push(
+      `${sensitive.length} sensitive path${sensitive.length === 1 ? '' : 's'} (${sensitive.slice(0, 3).join(', ')}${sensitive.length > 3 ? ', …' : ''})`
+    );
+  }
+  if (diffChars > LARGE_DIFF_CHARS)
+    reasons.push(`${Math.round(diffChars / 1000)}k-char diff`);
+  if (files.length > LARGE_FILE_COUNT) reasons.push(`${files.length} files`);
+  if (reasons.length) {
+    return { tier: 'deep', model: MODELS.opus, effort: 'high', reasons };
+  }
+  const routes = files.filter((f) =>
+    /(^|\/)(route|page|layout|proxy)\.tsx?$/.test(f)
+  );
+  if (
+    diffChars <= SMALL_DIFF_CHARS &&
+    files.length <= SMALL_FILE_COUNT &&
+    routes.length === 0
+  ) {
+    return {
+      tier: 'light',
+      model: MODELS.haiku,
+      effort: 'high',
+      reasons: [
+        `${diffChars}-char diff across ${files.length} file${files.length === 1 ? '' : 's'}, no sensitive paths`,
+      ],
+    };
+  }
+  return {
+    tier: 'standard',
+    model: MODELS.sonnet,
+    effort: 'high',
+    reasons: [
+      `${Math.round(diffChars / 1000)}k-char diff across ${files.length} file${files.length === 1 ? '' : 's'}, no sensitive paths`,
+    ],
+  };
 }
