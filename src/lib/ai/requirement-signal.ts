@@ -85,9 +85,8 @@ const LISTING_REFERENCE =
 // in a locality the buyer never named. A dispute is settled by a
 // person, never by a new shortlist.
 //
-// "Doesn't seem", "does not match", "not the same" dispute on their
-// own. A bare "wrong" or "not right" does not: "sorry wrong number,
-// this isn't for me" names no listing fact, so it needs one beside it.
+// Every phrasing needs a listing fact beside it: "sorry wrong number,
+// this isn't for me" and "that doesn't look good" name none.
 const LISTING_DISPUTE =
   /\b(?:doesn'?t|does not|didn'?t|did not|isn'?t|is not|wasn'?t|was not|not)\s+(?:seem|look|appear|match|matching|the same)\b|\b(?:mismatch(?:ed|es)?|differs?|different from)\b/i;
 const LISTING_DISPUTE_BARE =
@@ -118,24 +117,30 @@ const LISTING_FACT = new RegExp(
   'i'
 );
 
+// "This doesn't match my budget", "it doesn't seem worth it": the
+// lead is turning the listing down, not disputing its record.
+const AFFORDABILITY =
+  /\b(?:budget|afford(?:able)?|expensive|costly|pricey|overpriced|worth)\b/i;
+
 /**
  * True when the message disputes a fact about the listing already in
- * the thread. A dispute that states a size or a budget is a correction
- * the ladder can file ("that's wrong, 30x40 corner site"), and a
- * search verb makes it a requirement; both stay with the ladder.
+ * the thread: it refers to the listing, names a fact of it (a listing
+ * field, a property-type word, the photo or the map) and says that fact
+ * is off. A dispute that states a size or a budget is a correction the
+ * ladder can file ("that's wrong, 30x40 corner site"), a search verb
+ * makes it a requirement, and budget talk is a rejection; all three
+ * stay with the ladder.
  */
 export function disputesSharedListing(text?: string | null): boolean {
   const clean = (text || '').trim();
   if (!clean) return false;
-  if (!LISTING_REFERENCE.test(clean)) return false;
-  if (
-    !LISTING_DISPUTE.test(clean) &&
-    !(LISTING_DISPUTE_BARE.test(clean) && LISTING_FACT.test(clean))
-  )
+  if (!LISTING_REFERENCE.test(clean) || !LISTING_FACT.test(clean)) return false;
+  if (!LISTING_DISPUTE.test(clean) && !LISTING_DISPUTE_BARE.test(clean))
     return false;
   return (
     !statesBudget(clean) &&
     !SIZE_SIGNAL.test(clean) &&
+    !AFFORDABILITY.test(clean) &&
     !REQUIREMENT_INTENT.test(clean)
   );
 }

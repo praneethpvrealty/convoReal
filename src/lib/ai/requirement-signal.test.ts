@@ -154,6 +154,10 @@ describe('[CNV-011] a statement disputing the shared listing is about the listin
       "Isn't it a 30x40 plot? The photo looks different",
       "Sorry wrong number, this isn't for me",
       "No that's not right, I want it east facing",
+      "This doesn't match my budget",
+      "That doesn't look good",
+      "It doesn't seem worth it",
+      "The price doesn't match my budget",
     ]) {
       expect(disputesSharedListing(text), text).toBe(false);
     }
