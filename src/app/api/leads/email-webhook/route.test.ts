@@ -1670,6 +1670,22 @@ describe('[PRP-014] a repeat portal enquiry reopens a closed one', () => {
   });
 });
 
+describe('[JRN-026] a portal enquiry lands on the Journey tab', () => {
+  it('stamps the journey for a new contact and an existing one alike, after the enquiry is saved', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('./route.ts', import.meta.url), 'utf8');
+    expect(source).toMatch(
+      /from\('listing_feedback'\)\.upsert\(\s*\{\s*account_id: accountId,\s*contact_id: newContact\.id,\s*property_id: matchedPropertyIds\[0\],\s*verdict: 'interested',/
+    );
+    expect(source).toMatch(
+      /const recordError = recorded\.find\(\(result\) => result\.error\)\?\.error;[\s\S]*?\} else \{\s*await recordJourneyLeadInterest\(supabase, \{\s*accountId,\s*userId,\s*contactId: newContact\.id,\s*propertyId: matchedPropertyIds\[0\],\s*source: 'portal_enquiry',/
+    );
+    expect(source).toMatch(
+      /return NextResponse\.json\(\s*\{ error: reopenError\.message \},\s*\{ status: 500 \}\s*\);\s*\}\s*await recordJourneyLeadInterest\(supabase, \{\s*accountId,\s*userId,\s*contactId: existingContact\.id,/
+    );
+  });
+});
+
 describe('[INB-029] an existing contact re-seeded from an enquiry', () => {
   it('records the budget and its anchor in one call, not in the enrichment update', async () => {
     const { readFileSync } = await import('node:fs');

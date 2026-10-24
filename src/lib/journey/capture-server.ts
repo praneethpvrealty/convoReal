@@ -190,20 +190,27 @@ export async function showLeadInterestCaptures(
 ): Promise<Set<string>> {
   const shown = new Set<string>();
   if (pairs.length === 0) return shown;
-  const { data: hiddenRows } = await db
+  const { data: hiddenRows, error: hiddenError } = await db
     .from('journey_items')
     .select('id, contact_id, property_id, stage_id')
     .eq('account_id', accountId)
     .eq('hidden', true)
     .in('contact_id', [...new Set(pairs.map((p) => p.contactId))])
     .in('property_id', [...new Set(pairs.map((p) => p.propertyId))]);
+  if (hiddenError) {
+    console.error(
+      '[journey/capture] hidden pair read failed:',
+      hiddenError.message
+    );
+    return shown;
+  }
   const wanted = new Set(pairs.map((p) => `${p.contactId}:${p.propertyId}`));
   const candidates = ((hiddenRows ?? []) as HiddenPairRow[]).filter((row) =>
     wanted.has(`${row.contact_id}:${row.property_id}`)
   );
   if (candidates.length === 0) return shown;
 
-  const { data: events } = await db
+  const { data: events, error: eventsError } = await db
     .from('journey_events')
     .select('item_id, event_type, reason')
     .eq('account_id', accountId)
@@ -212,6 +219,13 @@ export async function showLeadInterestCaptures(
       'item_id',
       candidates.map((row) => row.id)
     );
+  if (eventsError) {
+    console.error(
+      '[journey/capture] capture event read failed:',
+      eventsError.message
+    );
+    return shown;
+  }
   const leadOnly = new Set<string>();
   const reviewed = new Set<string>();
   for (const event of (events ?? []) as Array<{
