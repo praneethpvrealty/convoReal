@@ -1716,7 +1716,9 @@ function SortableJourneyRow({
         {journeyLeadInterestCountLabel(group.interested) && (
           <button
             type="button"
-            onClick={onToggle}
+            onClick={() => {
+              if (!open) onToggle();
+            }}
             title={
               mode === 'buyer'
                 ? 'Listings this lead said Interested or Shortlisted on'

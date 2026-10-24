@@ -2474,7 +2474,9 @@ function DraggableJourneyCard({
               ) : null}
               {journeyLeadInterestCountLabel(group.interested) ? (
                 <Pressable
-                  onPress={onToggle}
+                  onPress={() => {
+                    if (!expanded) onToggle();
+                  }}
                   hitSlop={6}
                   accessibilityRole="button"
                   accessibilityLabel={`Open ${journeyLeadInterestCountLabel(group.interested)}`}
