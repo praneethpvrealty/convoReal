@@ -3,25 +3,19 @@
  * ⭐ Shortlist tap, a typed or portal enquiry, a Book a visit / Call me
  * back answer to a showcase check-in — lands on the contact×property
  * journey item so the Journey tab is the one place that lists who said
- * yes to what. The pair is captured hidden when nothing captured it
- * before, exactly as a bot share is (JRN-005), unless the share ledger
- * holds the pair: then the share capture put it on the journey and its
- * absence means the agent removed it from the tray, which is never
- * undone (JRN-009). The stamp never un-hides, moves or reactivates the
- * branch; Interested outranks Shortlisted and is never downgraded.
+ * yes to what. The yes stamps a pair that is already on the journey and
+ * never creates one: a share, an import or a visit request captures the
+ * pair (and the journey_items insert trigger seeds the stamp from the
+ * answers already on file), and a pair the agent removed from the tray
+ * stays removed (JRN-009). The stamp never un-hides, moves or
+ * reactivates the branch and never counts as activity on it; Interested
+ * outranks Shortlisted and is never downgraded.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import {
-  ensureJourneyItem,
-  LEAD_INTEREST_CAPTURE_REASON,
-} from './capture-server';
 import { writeJourneyEvent } from './events';
 import type { JourneyLeadInterest } from './lead-interest-labels';
-import type { JourneyItemSource } from '@/types';
-
-export { LEAD_INTEREST_CAPTURE_REASON };
 
 export const LEAD_INTEREST_EVENT_REASONS = {
   whatsapp_interested: 'Tapped Interested on WhatsApp',
@@ -45,19 +39,6 @@ const KIND_OF_SOURCE: Record<LeadInterestEventSource, JourneyLeadInterest> = {
   showcase_checkin: 'interested',
 };
 
-/** How a pair the yes itself captures is labelled in the tray: a tap
- *  answers a card the bot shared, an enquiry is an enquiry. */
-const ITEM_SOURCE_OF_SOURCE: Record<
-  LeadInterestEventSource,
-  JourneyItemSource
-> = {
-  whatsapp_interested: 'whatsapp_share',
-  whatsapp_shortlist: 'whatsapp_share',
-  whatsapp_enquiry: 'inquiry_import',
-  portal_enquiry: 'inquiry_import',
-  showcase_checkin: 'whatsapp_share',
-};
-
 export interface RecordJourneyLeadInterestInput {
   accountId: string;
   userId: string | null;
@@ -78,36 +59,18 @@ export async function recordJourneyLeadInterest(
 ): Promise<{ itemId: string | null; error: string | null }> {
   const kind = KIND_OF_SOURCE[source];
   try {
-    const { data: existing } = await db
+    const { data: item, error: readError } = await db
       .from('journey_items')
       .select('id')
       .eq('account_id', accountId)
       .eq('contact_id', contactId)
       .eq('property_id', propertyId)
       .maybeSingle();
-    if (!existing) {
-      const { data: shared } = await db
-        .from('property_shares')
-        .select('id')
-        .eq('account_id', accountId)
-        .eq('contact_id', contactId)
-        .eq('property_id', propertyId)
-        .limit(1)
-        .maybeSingle();
-      if (shared) return { itemId: null, error: null };
+    if (readError) {
+      console.error('[journey/lead-interest] read failed:', readError.message);
+      return { itemId: null, error: readError.message };
     }
-    const item = await ensureJourneyItem(db, {
-      accountId,
-      userId,
-      contactId,
-      propertyId,
-      source: ITEM_SOURCE_OF_SOURCE[source],
-      hidden: true,
-      reason: LEAD_INTEREST_CAPTURE_REASON,
-    });
-    if (!item) {
-      return { itemId: null, error: 'Journey stages could not be loaded' };
-    }
+    if (!item) return { itemId: null, error: null };
 
     let update = db
       .from('journey_items')

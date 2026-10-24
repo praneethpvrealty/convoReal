@@ -62,47 +62,9 @@ export interface CaptureResult {
   /** Rows actually created — 0 with a null error means every pair
    *  was already on the journey. */
   created: number;
-  /** Pairs that only a lead's own yes had captured hidden and a visible
-   *  capture showed instead of creating (JRN-026). */
-  shown: number;
   /** Database failure, verbatim — callers surface it so a broken
    *  capture never masquerades as "nothing new". */
   error: string | null;
-}
-
-export interface LeadInterestOnlyHiddenRow {
-  id: string;
-  contact_id: string;
-  property_id: string;
-}
-
-/**
- * The hidden items only a lead's own yes captured and nobody has
- * reviewed since, for the given contacts and/or properties (either
- * side may be left open). The agent's own visible captures (Add,
- * Import inquiries, Import from chat) treat these as not yet on the
- * journey, as the server capture does. Read through a SECURITY DEFINER
- * function so the ids of a listing shared with hundreds of contacts
- * never travel in a request URL (§2.6).
- */
-export async function leadInterestOnlyHidden(
-  accountId: string,
-  scope: { contactIds?: string[]; propertyIds?: string[] }
-): Promise<LeadInterestOnlyHiddenRow[]> {
-  if (scope.contactIds?.length === 0 || scope.propertyIds?.length === 0) {
-    return [];
-  }
-  const supabase = createClient();
-  const { data, error } = await supabase.rpc(
-    'journey_lead_interest_only_hidden',
-    {
-      p_account_id: accountId,
-      p_contact_ids: scope.contactIds ?? null,
-      p_property_ids: scope.propertyIds ?? null,
-    }
-  );
-  if (error) throw new Error(error.message);
-  return (data ?? []) as LeadInterestOnlyHiddenRow[];
 }
 
 /**
@@ -117,17 +79,13 @@ export async function captureJourneyItems({
   source,
   hidden,
 }: CaptureJourneyItemsInput): Promise<CaptureResult> {
-  if (pairs.length === 0) return { created: 0, shown: 0, error: null };
+  if (pairs.length === 0) return { created: 0, error: null };
   const supabase = createClient();
 
   const stages = await ensureJourneyStages(accountId);
   const firstStage = stages[0];
   if (!firstStage) {
-    return {
-      created: 0,
-      shown: 0,
-      error: 'Journey stages could not be loaded',
-    };
+    return { created: 0, error: 'Journey stages could not be loaded' };
   }
 
   // Dedupe input pairs (a broadcast can list the same contact twice
@@ -162,7 +120,7 @@ export async function captureJourneyItems({
 
   if (error) {
     console.error('Journey capture failed:', error.message);
-    return { created: 0, shown: 0, error: error.message };
+    return { created: 0, error: error.message };
   }
 
   const created = data ?? [];
@@ -190,33 +148,5 @@ export async function captureJourneyItems({
       console.error('Journey capture event log failed:', evError.message);
     }
   }
-  let shown = 0;
-  if (!hidden && created.length < payload.length) {
-    const wanted = new Set(seen);
-    let leadOnly: LeadInterestOnlyHiddenRow[];
-    try {
-      leadOnly = (
-        await leadInterestOnlyHidden(accountId, {
-          contactIds: [...new Set(payload.map((p) => p.contact_id))],
-          propertyIds: [...new Set(payload.map((p) => p.property_id))],
-        })
-      ).filter((row) => wanted.has(`${row.contact_id}:${row.property_id}`));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error('Journey lead-interest lookup failed:', message);
-      return { created: created.length, shown, error: message };
-    }
-    if (leadOnly.length > 0) {
-      const { data: shownIds, error: showError } = await supabase.rpc(
-        'journey_show_captured',
-        { p_account_id: accountId, p_item_ids: leadOnly.map((row) => row.id) }
-      );
-      if (showError) {
-        console.error('Journey capture show failed:', showError.message);
-        return { created: created.length, shown, error: showError.message };
-      }
-      shown = ((shownIds ?? []) as unknown[]).length;
-    }
-  }
-  return { created: created.length, shown, error: null };
+  return { created: created.length, error: null };
 }

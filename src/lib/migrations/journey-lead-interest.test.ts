@@ -81,46 +81,10 @@ describe('journey lead interest columns', () => {
 });
 
 describe('journey lead interest signals', () => {
-  it('[JRN-026] backfills Interested answers and WhatsApp Shortlist taps, capturing missing pairs hidden', () => {
-    expect(signals).toContain("WHERE f.verdict = 'interested'");
-    expect(signals).toContain("AND l.session_key LIKE 'wa:%'");
-    expect(signals).toMatch(
-      /AND l\.session_key LIKE 'wa:%'\s+AND NOT EXISTS \(\s+SELECT 1 FROM listing_feedback f\s+WHERE f\.contact_id = l\.contact_id\s+AND f\.property_id = l\.property_id\s+AND f\.verdict = 'rejected'\s+AND f\.source = 'contact'\s+AND COALESCE\(f\.updated_at, f\.created_at\) > l\.created_at\s+\)/
-    );
-    expect(signals).toContain(
-      "CASE s.kind WHEN 'interested' THEN 0 ELSE 1 END, s.at DESC"
-    );
-    expect(signals).toMatch(
-      /CASE WHEN EXISTS \(\s+SELECT 1 FROM contact_property_inquiries cpi\s+WHERE cpi\.contact_id = r\.contact_id AND cpi\.property_id = r\.property_id\s+\) THEN 'inquiry_import' ELSE 'whatsapp_share' END,\s+TRUE, r\.kind, r\.at, r\.at, r\.at/
-    );
-    expect(signals).toContain(
-      'ON CONFLICT (account_id, contact_id, property_id) DO NOTHING'
-    );
-    expect(signals).toContain(
-      "SELECT account_id, id, 'added', stage_id, 'Captured from lead interest', created_at"
-    );
-    expect(signals).toContain(
-      "OR (ji.lead_interest = 'shortlisted' AND r.kind = 'interested')"
-    );
-    expect(signals).toMatch(
-      /AND NOT EXISTS \(\s+SELECT 1 FROM property_shares ps\s+WHERE ps\.account_id = r\.account_id\s+AND ps\.contact_id = r\.contact_id\s+AND ps\.property_id = r\.property_id\s+\)\s+ON CONFLICT/
-    );
-    const backfill = signals.slice(
-      0,
-      signals.indexOf(
-        'CREATE OR REPLACE FUNCTION public.journey_overview_groups('
-      )
-    );
-    expect(backfill).not.toContain('SET hidden');
-  });
-
   it('[JRN-026] a stamp-only update never counts as activity on the item, live or backfilled', () => {
-    const trigger = signals.indexOf(
+    expect(signals).toContain(
       'CREATE OR REPLACE FUNCTION public.journey_items_set_updated_at()'
     );
-    const update = signals.indexOf('UPDATE journey_items ji');
-    expect(trigger).toBeGreaterThan(-1);
-    expect(update).toBeGreaterThan(trigger);
     expect(signals).toMatch(
       /v_old\.lead_interest := NULL;\s+v_old\.lead_interest_at := NULL;\s+v_new\.lead_interest := NULL;\s+v_new\.lead_interest_at := NULL;\s+IF v_new IS NOT DISTINCT FROM v_old\s+AND \(NEW\.lead_interest, NEW\.lead_interest_at\)\s+IS DISTINCT FROM \(OLD\.lead_interest, OLD\.lead_interest_at\) THEN\s+NEW\.updated_at := OLD\.updated_at;\s+ELSE\s+NEW\.updated_at := NOW\(\);/
     );
@@ -128,7 +92,42 @@ describe('journey lead interest signals', () => {
     expect(signals).toContain(
       'CREATE OR REPLACE TRIGGER set_journey_items_updated_at\n  BEFORE UPDATE ON journey_items\n  FOR EACH ROW EXECUTE FUNCTION public.journey_items_set_updated_at();'
     );
-    expect(signals).not.toContain('DISABLE TRIGGER');
+  });
+
+  it('[JRN-026] reads the strongest yes on file: Interested over a Shortlist tap the lead did not take back', () => {
+    expect(signals).toContain(
+      'CREATE OR REPLACE FUNCTION public.journey_lead_interest_on_file('
+    );
+    expect(signals).toContain("AND f.verdict = 'interested'");
+    expect(signals).toContain("AND l.session_key LIKE 'wa:%'");
+    expect(signals).toMatch(
+      /AND l\.session_key LIKE 'wa:%'\s+AND NOT EXISTS \(\s+SELECT 1 FROM listing_feedback f\s+WHERE f\.contact_id = l\.contact_id\s+AND f\.property_id = l\.property_id\s+AND f\.verdict = 'rejected'\s+AND f\.source = 'contact'\s+AND COALESCE\(f\.updated_at, f\.created_at\) > l\.created_at\s+\)/
+    );
+    expect(signals).toContain(
+      "ORDER BY CASE s.kind WHEN 'interested' THEN 0 ELSE 1 END, s.at DESC"
+    );
+    expect(signals).toContain(
+      'REVOKE ALL ON FUNCTION public.journey_lead_interest_on_file(UUID, UUID) FROM PUBLIC, anon, authenticated;'
+    );
+  });
+
+  it('[JRN-009] [JRN-026] a yes never creates a pair: the capture seeds the stamp and the backfill stamps existing rows only', () => {
+    expect(signals).toContain(
+      'CREATE OR REPLACE TRIGGER seed_journey_items_lead_interest\n  BEFORE INSERT ON journey_items\n  FOR EACH ROW EXECUTE FUNCTION public.journey_items_seed_lead_interest();'
+    );
+    expect(signals).toMatch(
+      /IF NEW\.lead_interest IS NULL THEN\s+SELECT y\.lead_interest, y\.lead_interest_at\s+INTO NEW\.lead_interest, NEW\.lead_interest_at\s+FROM journey_lead_interest_on_file\(NEW\.contact_id, NEW\.property_id\) y;/
+    );
+    expect(signals).toMatch(
+      /UPDATE journey_items ji\s+SET lead_interest = y\.lead_interest,\s+lead_interest_at = y\.lead_interest_at\s+FROM journey_items j2\s+CROSS JOIN LATERAL journey_lead_interest_on_file\(j2\.contact_id, j2\.property_id\) y/
+    );
+    expect(signals).toContain(
+      "OR (ji.lead_interest = 'shortlisted' AND y.lead_interest = 'interested')"
+    );
+    expect(signals).not.toContain('INSERT INTO journey_items');
+    expect(signals).not.toContain('SET hidden');
+    expect(signals).not.toContain('journey_capture_from_share');
+    expect(signals).not.toMatch(/\bDROP\b/);
   });
 
   it('[CPL-004] [JRN-026] the Helper reads the lead’s own Interested answers as a signal from a new function, with nothing held', () => {
@@ -161,27 +160,6 @@ describe('journey lead interest signals', () => {
     expect(copilot).toContain(
       'GRANT EXECUTE ON FUNCTION public.copilot_property_interest_v2(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) TO authenticated;'
     );
-  });
-
-  it("[JRN-009] [JRN-026] a visible ledger row shows a pair only a lead's yes captured", () => {
-    expect(signals).toContain(
-      'CREATE OR REPLACE FUNCTION public.journey_capture_from_share()'
-    );
-    expect(signals).toContain("'whatsapp_share', NOT NEW.journey_visible");
-    expect(signals).toContain(
-      'ON CONFLICT (account_id, contact_id, property_id) DO NOTHING\n  RETURNING id INTO v_item;'
-    );
-    expect(signals).toMatch(
-      /ELSIF NEW\.journey_visible THEN\s+UPDATE journey_items ji\s+SET hidden = FALSE\s+WHERE ji\.account_id = NEW\.account_id\s+AND ji\.contact_id = NEW\.contact_id\s+AND ji\.property_id = NEW\.property_id\s+AND ji\.hidden\s+AND EXISTS \(\s+SELECT 1 FROM journey_events e\s+WHERE e\.item_id = ji\.id\s+AND e\.event_type = 'added'\s+AND e\.reason = 'Captured from lead interest'/
-    );
-    expect(signals).toMatch(
-      /AND e\.reason = 'Captured from lead interest'\s+\)\s+AND NOT EXISTS \(\s+SELECT 1 FROM journey_events e\s+WHERE e\.item_id = ji\.id\s+AND e\.event_type IN \('hidden', 'unhidden'\)\s+\)/
-    );
-    expect(signals).toContain("'unhidden', v_item_stage, v_item_stage,");
-    expect(signals).toMatch(
-      /'Shown by a visible capture', NEW\.created_by\s+\);\s+PERFORM journey_open_deal_for_item\(v_item\);/
-    );
-    expect(signals).toContain("RAISE WARNING 'journey_capture_from_share:");
   });
 
   it('[JRN-026] the overview counts the yeses per journey for both surfaces', () => {

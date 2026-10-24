@@ -27,9 +27,9 @@ than a written entry. Newest first.
   answered, and the Helper's "who showed interest in …" never read the
   Interested taps at all. Every such yes, a typed or portal enquiry about a
   listing included, now stamps the contact×property journey item (Interested
-  outranks Shortlisted; a pair nothing captured before is captured hidden, as
-  a bot share is; a later "None of these fit", "Not for me" or "Close my
-  enquiry" clears it), the Captured tray lists
+  outranks Shortlisted; a yes never creates a pair, a pair captured later
+  carries the yes from the start, and a later "None of these fit", "Not for
+  me" or "Close my enquiry" clears it), the Captured tray lists
   those items first with a "Said interested" or "Shortlisted" badge on web
   and mobile, the item carries the badge, each journey's overview row shows
   an "N interested" chip, and the Helper counts the Interested answers as
@@ -38,10 +38,10 @@ than a written entry. Newest first.
   `20261024163200_copilot_property_interest_said_interested.sql` (the Helper's
   new `copilot_property_interest_v2`) and
   `20261024163300_journey_lead_interest_only_hidden.sql` (all additive), and
-  `20261024163100_journey_lead_interest_signals.sql` (backfills the stamp from
-  the answers already on file, gives `journey_items` an updated_at trigger
-  that ignores stamp-only updates, replaces `journey_overview_groups` and the
-  share capture trigger).
+  `20261024163100_journey_lead_interest_signals.sql` (gives `journey_items` an
+  updated_at trigger that ignores stamp-only updates and an insert trigger that
+  seeds the stamp, backfills existing rows from the answers already on file,
+  replaces `journey_overview_groups`).
 - **A lead discussing their shortlisted plot is no longer pitched a different
   one.** A buyer tapped Interested on a 1,500 sq.ft Suryanagar plot, asked its
   dimensions, and replied "based on the location you've sent, it doesn't seem

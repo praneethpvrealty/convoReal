@@ -1,18 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const ensureJourneyItem = vi.fn();
 const writeJourneyEvent = vi.fn();
 
-vi.mock('./capture-server', () => ({
-  LEAD_INTEREST_CAPTURE_REASON: 'Captured from lead interest',
-  ensureJourneyItem: (...args: unknown[]) => ensureJourneyItem(...args),
-}));
 vi.mock('./events', () => ({
   writeJourneyEvent: (...args: unknown[]) => writeJourneyEvent(...args),
 }));
 
 import {
-  LEAD_INTEREST_CAPTURE_REASON,
   LEAD_INTEREST_EVENT_REASONS,
   clearJourneyLeadInterest,
   recordJourneyLeadInterest,
@@ -28,6 +22,7 @@ interface Update {
 let updates: Update[];
 let updateError: { message: string } | null;
 let reads: Record<string, unknown[]>;
+let readError: { message: string } | null;
 
 function makeDb() {
   return {
@@ -37,13 +32,10 @@ function makeDb() {
         select() {
           return builder;
         },
-        limit() {
-          return builder;
-        },
         maybeSingle() {
           return Promise.resolve({
-            data: (reads[table] ?? []).shift() ?? null,
-            error: null,
+            data: readError ? null : ((reads[table] ?? []).shift() ?? null),
+            error: readError,
           });
         },
         update(payload: Record<string, unknown>) {
@@ -89,14 +81,9 @@ const input = {
 beforeEach(() => {
   updates = [];
   updateError = null;
-  reads = {};
-  ensureJourneyItem.mockReset();
+  reads = { journey_items: [{ id: 'item-1' }] };
+  readError = null;
   writeJourneyEvent.mockReset();
-  ensureJourneyItem.mockResolvedValue({
-    id: 'item-1',
-    stage_id: 'st-1',
-    status: 'active',
-  });
   writeJourneyEvent.mockResolvedValue({
     ok: true,
     duplicate: false,
@@ -106,7 +93,7 @@ beforeEach(() => {
 });
 
 describe('recordJourneyLeadInterest', () => {
-  it('[JRN-026] captures the pair hidden when nothing captured it, then stamps Interested and logs the tap', async () => {
+  it("[JRN-026] stamps the pair's journey item Interested and logs the tap once per source", async () => {
     const db = makeDb();
     const result = await recordJourneyLeadInterest(db as never, {
       ...input,
@@ -114,18 +101,6 @@ describe('recordJourneyLeadInterest', () => {
     });
 
     expect(result).toEqual({ itemId: 'item-1', error: null });
-    expect(ensureJourneyItem).toHaveBeenCalledWith(
-      db,
-      expect.objectContaining({
-        accountId: 'acc-1',
-        userId: 'owner-1',
-        contactId: 'c1',
-        propertyId: 'p1',
-        source: 'whatsapp_share',
-        hidden: true,
-        reason: LEAD_INTEREST_CAPTURE_REASON,
-      })
-    );
     expect(updates).toHaveLength(1);
     expect(updates[0].table).toBe('journey_items');
     expect(updates[0].payload).toMatchObject({ lead_interest: 'interested' });
@@ -147,28 +122,15 @@ describe('recordJourneyLeadInterest', () => {
     );
   });
 
-  it('[JRN-009] [JRN-026] never recreates a pair the agent removed from the tray', async () => {
-    reads.journey_items = [null];
-    reads.property_shares = [{ id: 'share-1' }];
+  it('[JRN-009] [JRN-026] never creates a pair: a yes on a listing not on the journey, or removed from the tray, stamps nothing', async () => {
+    reads = { journey_items: [null] };
     const result = await recordJourneyLeadInterest(makeDb() as never, {
       ...input,
-      source: 'whatsapp_interested',
+      source: 'portal_enquiry',
     });
     expect(result).toEqual({ itemId: null, error: null });
-    expect(ensureJourneyItem).not.toHaveBeenCalled();
     expect(updates).toEqual([]);
     expect(writeJourneyEvent).not.toHaveBeenCalled();
-  });
-
-  it('[JRN-026] stamps a pair that is on the journey whatever the ledger says', async () => {
-    reads.journey_items = [{ id: 'item-1' }];
-    reads.property_shares = [{ id: 'share-1' }];
-    await recordJourneyLeadInterest(makeDb() as never, {
-      ...input,
-      source: 'whatsapp_interested',
-    });
-    expect(ensureJourneyItem).toHaveBeenCalled();
-    expect(updates).toHaveLength(1);
   });
 
   it('[JRN-026] a Shortlist tap never downgrades a branch the lead already said Interested on', async () => {
@@ -190,17 +152,18 @@ describe('recordJourneyLeadInterest', () => {
     );
   });
 
-  it('[JRN-026] a typed WhatsApp enquiry and a portal enquiry count as Interested, each with its own event', async () => {
-    for (const source of ['whatsapp_enquiry', 'portal_enquiry'] as const) {
+  it('[JRN-026] a typed WhatsApp enquiry, a portal enquiry and a showcase check-in count as Interested, each with its own event', async () => {
+    for (const source of [
+      'whatsapp_enquiry',
+      'portal_enquiry',
+      'showcase_checkin',
+    ] as const) {
       updates = [];
+      reads = { journey_items: [{ id: 'item-1' }] };
       writeJourneyEvent.mockClear();
-      ensureJourneyItem.mockClear();
       await recordJourneyLeadInterest(makeDb() as never, { ...input, source });
-      expect(ensureJourneyItem).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ source: 'inquiry_import', hidden: true })
-      );
       expect(updates[0].payload).toMatchObject({ lead_interest: 'interested' });
+      expect(updates[0].or).toEqual([]);
       expect(writeJourneyEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           reason: LEAD_INTEREST_EVENT_REASONS[source],
@@ -210,26 +173,17 @@ describe('recordJourneyLeadInterest', () => {
     }
   });
 
-  it('[JRN-026] a showcase check-in visit or call counts as Interested', async () => {
-    const db = makeDb();
-    await recordJourneyLeadInterest(db as never, {
-      ...input,
-      source: 'showcase_checkin',
-    });
-    expect(updates[0].payload).toMatchObject({ lead_interest: 'interested' });
-    expect(updates[0].or).toEqual([]);
-  });
-
-  it('[JRN-026] reports, never throws, when the stages are missing or the stamp fails', async () => {
-    ensureJourneyItem.mockResolvedValueOnce(null);
+  it('[JRN-026] reports, never throws, when the read or the stamp fails', async () => {
+    readError = { message: 'offline' };
     expect(
       await recordJourneyLeadInterest(makeDb() as never, {
         ...input,
         source: 'whatsapp_interested',
       })
-    ).toEqual({ itemId: null, error: 'Journey stages could not be loaded' });
+    ).toEqual({ itemId: null, error: 'offline' });
     expect(writeJourneyEvent).not.toHaveBeenCalled();
 
+    readError = null;
     updateError = { message: 'boom' };
     expect(
       await recordJourneyLeadInterest(makeDb() as never, {
@@ -238,15 +192,6 @@ describe('recordJourneyLeadInterest', () => {
       })
     ).toEqual({ itemId: 'item-1', error: 'boom' });
     expect(writeJourneyEvent).not.toHaveBeenCalled();
-
-    updateError = null;
-    ensureJourneyItem.mockRejectedValueOnce(new Error('offline'));
-    expect(
-      await recordJourneyLeadInterest(makeDb() as never, {
-        ...input,
-        source: 'whatsapp_interested',
-      })
-    ).toEqual({ itemId: null, error: 'offline' });
   });
 });
 

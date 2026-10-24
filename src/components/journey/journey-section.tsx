@@ -19,7 +19,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import {
   Building2,
   Import,
@@ -57,10 +56,7 @@ import type {
   JourneyStage,
   Property,
 } from '@/types';
-import {
-  captureJourneyItems,
-  leadInterestOnlyHidden,
-} from '@/lib/journey/capture';
+import { captureJourneyItems } from '@/lib/journey/capture';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { removeJourneyItems } from '@/lib/journey/remove';
 import { JourneyCanvas } from './journey-canvas';
@@ -148,49 +144,6 @@ export function JourneySection({
   const [brokerageType, setBrokerageType] =
     useState<BrokerageType>('percentage');
   const [brokerageValue, setBrokerageValue] = useState('');
-  // Hidden items only a lead's own yes captured and nobody reviewed:
-  // Add and the imports treat them as not yet on the journey (JRN-026).
-  const hiddenKey = items
-    .filter((i) => i.hidden)
-    .map((i) => i.id)
-    .join(',');
-  const leadOnlyQuery = useQuery({
-    queryKey: [
-      'journey-lead-only-hidden',
-      accountId,
-      mode,
-      subjectId,
-      hiddenKey,
-    ],
-    enabled: Boolean(accountId) && hiddenKey.length > 0,
-    queryFn: async () =>
-      new Set(
-        (
-          await leadInterestOnlyHidden(
-            accountId!,
-            mode === 'buyer'
-              ? { contactIds: [subjectId] }
-              : { propertyIds: [subjectId] }
-          )
-        ).map((row) => row.id)
-      ),
-  });
-  const leadOnlyHidden = useMemo(
-    () => (hiddenKey.length > 0 ? leadOnlyQuery.data : new Set<string>()),
-    [hiddenKey, leadOnlyQuery.data]
-  );
-  const onJourneyItems = useMemo(
-    () =>
-      items.filter((i) => !i.hidden || !(leadOnlyHidden?.has(i.id) ?? false)),
-    [items, leadOnlyHidden]
-  );
-  /** The items on the journey once the lead-only lookup has answered;
-   *  an Add or Import pressed before it has waits for it. */
-  const resolveOnJourneyItems = useCallback(async () => {
-    if (hiddenKey.length === 0 || leadOnlyHidden) return onJourneyItems;
-    const { data } = await leadOnlyQuery.refetch();
-    return items.filter((i) => !i.hidden || !(data?.has(i.id) ?? false));
-  }, [hiddenKey, items, leadOnlyHidden, leadOnlyQuery, onJourneyItems]);
 
   // ── Load subject + items ─────────────────────────────────────
   const loadJourney = useCallback(async () => {
@@ -265,7 +218,7 @@ export function JourneySection({
         .select('property_id')
         .eq('contact_id', subjectId);
       if (cancelled) return;
-      const existing = new Set(onJourneyItems.map((i) => i.property_id));
+      const existing = new Set(items.map((i) => i.property_id));
       setImportableCount(
         (data ?? []).filter((r) => !existing.has(r.property_id)).length
       );
@@ -273,7 +226,7 @@ export function JourneySection({
     return () => {
       cancelled = true;
     };
-  }, [mode, subjectId, onJourneyItems, supabase]);
+  }, [mode, subjectId, items, supabase]);
 
   // ── Contact note count (buyer mode) ──────────────────────────
   useEffect(() => {
@@ -322,7 +275,7 @@ export function JourneySection({
   const handleAddItems = useCallback(
     async (ids: string[], source: JourneyItemSource = 'manual') => {
       if (!accountId) return;
-      const { created, shown, error } = await captureJourneyItems({
+      const { created, error } = await captureJourneyItems({
         accountId,
         userId: user?.id,
         pairs: ids.map((id) => ({
@@ -332,19 +285,18 @@ export function JourneySection({
         source,
         hidden: false,
       });
-      const added = created + shown;
-      if (error && added === 0) {
+      if (error) {
         toast.error(`Failed to add: ${error}`);
         return;
       }
-      if (added === 0) {
+      if (created === 0) {
         toast.info('Already on the journey — nothing new to add.');
         await refresh();
         return;
       }
       toast.success(
-        `Added ${added} ${mode === 'buyer' ? 'propert' : 'contact'}${
-          added === 1
+        `Added ${created} ${mode === 'buyer' ? 'propert' : 'contact'}${
+          created === 1
             ? mode === 'buyer'
               ? 'y'
               : ''
@@ -353,11 +305,6 @@ export function JourneySection({
               : 's'
         }`
       );
-      if (error) {
-        toast.warning(
-          `Could not show the captured ${mode === 'buyer' ? 'properties' : 'contacts'} a lead said yes to: ${error}`
-        );
-      }
       await refresh();
     },
     [accountId, subjectId, mode, user?.id, refresh]
@@ -369,9 +316,7 @@ export function JourneySection({
       .from('contact_property_inquiries')
       .select('property_id')
       .eq('contact_id', subjectId);
-    const existing = new Set(
-      (await resolveOnJourneyItems()).map((i) => i.property_id)
-    );
+    const existing = new Set(items.map((i) => i.property_id));
     const fresh = Array.from(
       new Set(
         (data ?? [])
@@ -384,7 +329,7 @@ export function JourneySection({
       return;
     }
     await handleAddItems(fresh, 'inquiry_import');
-  }, [mode, subjectId, resolveOnJourneyItems, supabase, handleAddItems]);
+  }, [mode, subjectId, items, supabase, handleAddItems]);
 
   const handleImportFromChat = useCallback(async () => {
     if (mode !== 'buyer' || !accountId || scanningChat) return;
@@ -413,9 +358,7 @@ export function JourneySection({
           .limit(2000),
       ]);
       const found = scanMessagesForProperties(messages ?? [], props ?? []);
-      const existing = new Set(
-        (await resolveOnJourneyItems()).map((i) => i.property_id)
-      );
+      const existing = new Set(items.map((i) => i.property_id));
       const fresh = Array.from(found.keys()).filter((id) => !existing.has(id));
       if (fresh.length === 0) {
         toast.info(
@@ -435,7 +378,7 @@ export function JourneySection({
     accountId,
     scanningChat,
     supabase,
-    resolveOnJourneyItems,
+    items,
     handleAddItems,
   ]);
 
@@ -707,11 +650,9 @@ export function JourneySection({
   const existingIds = useMemo(
     () =>
       new Set(
-        onJourneyItems.map((i) =>
-          mode === 'buyer' ? i.property_id : i.contact_id
-        )
+        items.map((i) => (mode === 'buyer' ? i.property_id : i.contact_id))
       ),
-    [onJourneyItems, mode]
+    [items, mode]
   );
   const visibleItems = useMemo(() => items.filter((i) => !i.hidden), [items]);
   const capturedItems = useMemo(() => items.filter((i) => i.hidden), [items]);

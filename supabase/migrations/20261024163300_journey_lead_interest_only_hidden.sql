@@ -13,7 +13,9 @@
 -- Either array may be NULL to mean any; both NULL reads the whole
 -- account, which no caller does.
 --
--- Additive: a new function.
+-- Additive: a new function. Applied on 24 October 2026; the same pull
+-- request then stopped capturing pairs from a lead's yes, so nothing
+-- reads it any more. It stays because it is already in production.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.journey_lead_interest_only_hidden(
