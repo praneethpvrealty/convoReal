@@ -293,6 +293,17 @@ describe('repliesRatherThanOpens', () => {
     ).toBe(true);
   });
 
+  it('[CNV-011] claims a dispute about the listing already sent, so no funnel keyword restarts a flow on it', () => {
+    const dispute =
+      "Based on the location you've sent, it doesn't seem to be a 30-50 plot";
+    expect(repliesRatherThanOpens(dispute, { listingAlreadySent: true })).toBe(
+      true
+    );
+    expect(repliesRatherThanOpens(dispute, { listingAlreadySent: false })).toBe(
+      false
+    );
+  });
+
   it('[INB-011] leaves the funnel to qualify a lead sent nothing yet', () => {
     // Nothing to answer from, so the welcome menu is still the best
     // thing we have for them.

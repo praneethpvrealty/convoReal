@@ -568,7 +568,9 @@ export function repliesRatherThanOpens(
   if (requestsHumanContact(text)) return true;
   return (
     options.listingAlreadySent &&
-    (looksLikeQuestion(text) || asksListingAttribute(text))
+    (looksLikeQuestion(text) ||
+      asksListingAttribute(text) ||
+      disputesSharedListing(text))
   );
 }
 
