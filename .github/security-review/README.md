@@ -31,12 +31,15 @@ How a review runs:
      v1, Den, buyer, auth, billing, credits, admin and WhatsApp routes, any
      webhook or cron route, WhatsApp webhook and
      crypto code, billing and credits, the Go ingress, the queue worker,
-     `.github/`, deployment config), when the diff itself touches
-     service-role or auth code (`supabaseAdmin(`, `SECURITY DEFINER`, the
-     auth wrappers, the server-only secrets), when the diff exceeds 40k
-     characters, or when more than 15 files change;
+     `.github/`, deployment config), when the diff itself touches auth,
+     policy or secret code (`SECURITY DEFINER`, `service_role`, a policy
+     statement, `is_account_member`/`is_account_writer`, the auth wrappers,
+     the server-only secrets), when the diff exceeds 40k characters, or when
+     more than 15 files change;
    - **light** → `claude-haiku-5-5` for a diff under 3k characters across at
-     most three files with no route, page, layout or sensitive path;
+     most three files with no route, page, layout or sensitive path and no
+     `supabaseAdmin(` call; a service-role query holds a small diff at the
+     standard tier instead;
    - **standard** → `claude-sonnet-5-5` for everything else.
      `workflow_dispatch` takes a `model` input (`auto`, `opus`, `sonnet`,
      `haiku`) that overrides the choice, as does `REVIEW_MODEL` in the

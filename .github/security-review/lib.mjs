@@ -354,7 +354,9 @@ export const SENSITIVE_PATTERNS = [
 ];
 
 export const SENSITIVE_DIFF_PATTERN =
-  /supabaseAdmin\(|SECURITY DEFINER|service_role|SUPABASE_SERVICE_ROLE_KEY|ENCRYPTION_KEY|META_APP_SECRET|requirePlatformAdmin|withApiKeyAuth|withDenAuth|withBuyerAuth/;
+  /SECURITY DEFINER|service_role|SUPABASE_SERVICE_ROLE_KEY|ENCRYPTION_KEY|META_APP_SECRET|requirePlatformAdmin|withApiKeyAuth|withDenAuth|withBuyerAuth|is_account_(member|writer)|CREATE POLICY|ALTER POLICY/;
+
+export const SERVICE_ROLE_DIFF_PATTERN = /supabaseAdmin\(/;
 
 const LARGE_DIFF_CHARS = 40_000;
 const LARGE_FILE_COUNT = 15;
@@ -381,7 +383,7 @@ export function planModel({ files, diffChars, diffText = '', override }) {
     );
   }
   if (SENSITIVE_DIFF_PATTERN.test(diffText)) {
-    reasons.push('service-role or auth code in the diff');
+    reasons.push('auth, policy or secret code in the diff');
   }
   if (diffChars > LARGE_DIFF_CHARS)
     reasons.push(`${Math.round(diffChars / 1000)}k-char diff`);
@@ -392,10 +394,12 @@ export function planModel({ files, diffChars, diffText = '', override }) {
   const routes = files.filter((f) =>
     /(^|\/)(route|page|layout|proxy)\.tsx?$/.test(f)
   );
+  const serviceRole = SERVICE_ROLE_DIFF_PATTERN.test(diffText);
   if (
     diffChars <= SMALL_DIFF_CHARS &&
     files.length <= SMALL_FILE_COUNT &&
-    routes.length === 0
+    routes.length === 0 &&
+    !serviceRole
   ) {
     return {
       tier: 'light',
@@ -411,7 +415,7 @@ export function planModel({ files, diffChars, diffText = '', override }) {
     model: MODELS.sonnet,
     effort: 'high',
     reasons: [
-      `${Math.round(diffChars / 1000)}k-char diff across ${files.length} file${files.length === 1 ? '' : 's'}, no sensitive paths`,
+      `${Math.round(diffChars / 1000)}k-char diff across ${files.length} file${files.length === 1 ? '' : 's'}, no sensitive paths${serviceRole ? ', service-role query in the diff' : ''}`,
     ],
   };
 }

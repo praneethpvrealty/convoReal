@@ -295,8 +295,23 @@ test('planModel picks the tier from sensitive paths and diff size', () => {
     diffChars: 900,
     diffText: '+  const db = supabaseAdmin();\n',
   });
-  assert.equal(serviceRole.tier, 'deep');
-  assert.match(serviceRole.reasons[0], /service-role/);
+  assert.equal(serviceRole.tier, 'standard');
+  assert.match(serviceRole.reasons[0], /service-role query/);
+
+  for (const text of [
+    '+  SECURITY DEFINER\n',
+    '+  return requirePlatformAdmin(req);\n',
+    "+  USING (is_account_writer(account_id, 'agent'))\n",
+    '+  const key = process.env.ENCRYPTION_KEY;\n',
+  ]) {
+    const plan = planModel({
+      files: ['src/lib/deals/delete-deal.ts'],
+      diffChars: 900,
+      diffText: text,
+    });
+    assert.equal(plan.tier, 'deep', text);
+    assert.match(plan.reasons[0], /auth, policy or secret/);
+  }
 
   const large = planModel({
     files: Array.from({ length: 20 }, (_, i) => `src/lib/x/${i}.ts`),
