@@ -93,7 +93,7 @@ export async function specificPropertyInterest(
         });
       }
 
-      const [shareSent] = await Promise.all([
+      const [shareSent, , feedbackWrite] = await Promise.all([
         unavailableReply
           ? Promise.resolve(false)
           : handlePropertyShareYesReply(
@@ -128,13 +128,20 @@ export async function specificPropertyInterest(
           { onConflict: 'contact_id,property_id' }
         ),
       ]);
-      await recordJourneyLeadInterest(admin, {
-        accountId,
-        userId: configOwnerUserId,
-        contactId: contactRecord.id,
-        propertyId: enquiryPropertyId,
-        source: 'whatsapp_enquiry',
-      });
+      if (feedbackWrite.error) {
+        console.error(
+          '[specific-property-interest] interest not recorded:',
+          feedbackWrite.error.message
+        );
+      } else {
+        await recordJourneyLeadInterest(admin, {
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contactRecord.id,
+          propertyId: enquiryPropertyId,
+          source: 'whatsapp_enquiry',
+        });
+      }
 
       await admin
         .from('conversations')

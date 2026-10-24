@@ -15,7 +15,9 @@
 --
 -- Additive: a new function. Applied on 24 October 2026; the same pull
 -- request then stopped capturing pairs from a lead's yes, so nothing
--- reads it any more. It stays because it is already in production.
+-- reads it any more. It stays because it is already in production, and
+-- is callable by nobody: the grant below was revoked on 25 October 2026
+-- so a fresh database ends in the same state.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.journey_lead_interest_only_hidden(
@@ -56,5 +58,4 @@ $$;
 COMMENT ON FUNCTION public.journey_lead_interest_only_hidden(UUID, UUID[], UUID[]) IS
   'Hidden journey items of the caller''s account that only a lead''s own yes captured (added event: Captured from lead interest) and nobody has shown or hidden since, narrowed to the given contacts and/or properties.';
 
-REVOKE ALL ON FUNCTION public.journey_lead_interest_only_hidden(UUID, UUID[], UUID[]) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.journey_lead_interest_only_hidden(UUID, UUID[], UUID[]) TO authenticated;
+REVOKE ALL ON FUNCTION public.journey_lead_interest_only_hidden(UUID, UUID[], UUID[]) FROM PUBLIC, anon, authenticated;

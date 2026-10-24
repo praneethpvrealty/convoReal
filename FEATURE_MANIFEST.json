@@ -3016,8 +3016,7 @@
             "src/lib/journey/lead-interest-labels.ts",
             "supabase/migrations/20261024163000_journey_lead_interest.sql",
             "supabase/migrations/20261024163100_journey_lead_interest_signals.sql",
-            "supabase/migrations/20261024163200_copilot_property_interest_said_interested.sql",
-            "supabase/migrations/20261024163300_journey_lead_interest_only_hidden.sql"
+            "supabase/migrations/20261024163200_copilot_property_interest_said_interested.sql"
           ]
         }
       ]

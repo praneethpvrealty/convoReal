@@ -248,14 +248,15 @@ export async function handleViewNudgeReply(args: {
   );
   if (feedbackError) {
     console.error('[view-nudge-reply] interest not recorded:', feedbackError);
+  } else {
+    await recordJourneyLeadInterest(db, {
+      accountId,
+      userId: configOwnerUserId,
+      contactId: contact.id,
+      propertyId,
+      source: 'showcase_checkin',
+    });
   }
-  await recordJourneyLeadInterest(db, {
-    accountId,
-    userId: configOwnerUserId,
-    contactId: contact.id,
-    propertyId,
-    source: 'showcase_checkin',
-  });
 
   if (repeatTap) return true;
 

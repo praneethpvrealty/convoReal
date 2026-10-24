@@ -36,7 +36,7 @@ const leadOnly = readFileSync(
 );
 
 describe('journey lead interest only hidden', () => {
-  it('[JRN-026] reads the unreviewed lead-interest captures in SQL, guarded by membership', () => {
+  it('[JRN-026] the earlier lead-only lookup stays applied but callable by nobody', () => {
     expect(leadOnly).toContain(
       'CREATE OR REPLACE FUNCTION public.journey_lead_interest_only_hidden('
     );
@@ -54,11 +54,9 @@ describe('journey lead interest only hidden', () => {
     expect(leadOnly).toContain("AND e.event_type IN ('hidden', 'unhidden')");
     expect(leadOnly).not.toMatch(/\bDROP\b/);
     expect(leadOnly).toContain(
-      'REVOKE ALL ON FUNCTION public.journey_lead_interest_only_hidden(UUID, UUID[], UUID[]) FROM PUBLIC, anon;'
+      'REVOKE ALL ON FUNCTION public.journey_lead_interest_only_hidden(UUID, UUID[], UUID[]) FROM PUBLIC, anon, authenticated;'
     );
-    expect(leadOnly).toContain(
-      'GRANT EXECUTE ON FUNCTION public.journey_lead_interest_only_hidden(UUID, UUID[], UUID[]) TO authenticated;'
-    );
+    expect(leadOnly).not.toContain('GRANT EXECUTE');
   });
 });
 
