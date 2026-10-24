@@ -97,6 +97,13 @@ vi.mock('@/lib/supabase/admin', () => ({
           state.inserts.push({ table, ...row });
           return { error: state.likeError };
         },
+        upsert: async (
+          row: Record<string, unknown>,
+          opts?: { onConflict?: string }
+        ) => {
+          state.inserts.push({ table, ...row, onConflict: opts?.onConflict });
+          return { error: state.likeError };
+        },
         limit: async () => {
           state.filters.push({ table, ...filters });
           return { data: state.listed, error: null };
@@ -327,6 +334,9 @@ describe('handleShortlistPropertyReply', () => {
         property_id: PROPERTY_ID,
         contact_id: 'c1',
         session_key: 'wa:c1',
+        created_at: expect.any(String),
+        updated_at: expect.any(String),
+        onConflict: 'session_key,property_id',
       },
     ]);
     expect(state.mirrors).toEqual([
@@ -371,10 +381,17 @@ describe('handleShortlistPropertyReply', () => {
     expect(state.journeyInterest).toEqual([]);
   });
 
-  it('[INB-036] treats a listing already shortlisted as saved', async () => {
+  it('[INB-036] [JRN-026] a re-tap refreshes the like, so a Shortlist after a no counts again live and on file', async () => {
     state.regret = null;
-    state.likeError = { code: '23505' };
+    const before = Date.now();
     expect(await shortlist()).toBe(true);
+    const like = state.inserts[0];
+    expect(like.onConflict).toBe('session_key,property_id');
+    expect(Date.parse(like.created_at as string)).toBeGreaterThanOrEqual(
+      before
+    );
+    expect(like.updated_at).toBe(like.created_at);
+    expect(state.journeyInterest).toHaveLength(1);
     expect(state.sends[0].interactiveBody).toContain('to your shortlist');
   });
 

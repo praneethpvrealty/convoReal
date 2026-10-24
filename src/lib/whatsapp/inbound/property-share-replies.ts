@@ -661,13 +661,19 @@ export async function handleShortlistPropertyReply(
     });
     if (unavailable) return unavailable !== 'failed';
 
-    const { error: likeError } = await db.from('property_likes').insert({
-      account_id: accountId,
-      property_id: propertyId,
-      contact_id: contactId,
-      session_key: `wa:${contactId}`,
-    });
-    const likeSaved = !likeError || likeError.code === '23505';
+    const tappedAt = new Date().toISOString();
+    const { error: likeError } = await db.from('property_likes').upsert(
+      {
+        account_id: accountId,
+        property_id: propertyId,
+        contact_id: contactId,
+        session_key: `wa:${contactId}`,
+        created_at: tappedAt,
+        updated_at: tappedAt,
+      },
+      { onConflict: 'session_key,property_id' }
+    );
+    const likeSaved = !likeError;
     if (!likeSaved) {
       console.error('[webhook] Shortlist like insert failed:', likeError);
     }
