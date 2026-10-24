@@ -392,7 +392,7 @@ const MATCHERS: {
   {
     intent: 'dimensions',
     pattern:
-      /\b(dimension|measurement|plot size|site size|land size|length|breadth|width|frontage|how wide)\b/i,
+      /\b(dimension|measurement|plot size|site size|land size|length|breadth|width|frontage|how wide)/i,
     respond: dimensionsAnswer,
   },
   {

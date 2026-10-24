@@ -565,6 +565,10 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
       'How wide is the plot?',
       'how wide is the site frontage?',
       'plot width?',
+      'What are the plot dimensions?',
+      'What are the dimensions of the plot?',
+      'dimensions?',
+      'measurements?',
     ]) {
       expect(answerFromPropertyData(q, plot)).toEqual({
         answer: 'Plot dimensions: 30x40.',
