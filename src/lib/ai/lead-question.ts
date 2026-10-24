@@ -228,7 +228,7 @@ const GREETING_PREFIX =
 const QUESTION_OPENER =
   /^(can|could|will|would|is|are|do|does|did|what|when|where|which|who|whom|why|how|any|shall|may)\b/;
 const MID_CLAUSE_QUESTION =
-  /[,;]\s*(?:will|would|can|could|shall|should|do|does|did|is|are|am|may)\s+(?:i|we|you|u|it|this|that|there|they|he|she)\b/;
+  /[,;]\s*(?:will|would|can|could|shall|should|do|does|did|is|are|am|may)\s+(?:i|we|you|u)\b/;
 
 export function looksLikeQuestion(text: string | null | undefined): boolean {
   const t = (text || '').trim().toLowerCase();
@@ -292,7 +292,16 @@ const OWN_CALL_OFFER =
   /\b(?:(?:i|we)(?:'ll|'d|'m|'re| will| shall| would| could| can| may| might| should| must| am| are)?(?: (?:definitely|probably|surely|certainly|just|also|maybe|then|soon|myself|personally|really|quickly|ourselves))?(?: going to| gonna| try to| plan to| want to| need to| have to)?(?: (?:definitely|probably|surely|certainly|just|also|maybe|then|soon|myself|personally|really|quickly|ourselves))?|let me|let us|lemme) (?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
 
 const HUMAN_REQUEST =
-  /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me|(meeting|meet|discussion|call) with (the |a |an |your )?(owner|seller|agent|team|builder|manager)|meet (the |your )?(owner|seller|agent|builder|manager))\b/g;
+  /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/g;
+
+/** "Can you arrange a meeting with the owner", "I want to meet the
+ *  owner": a meeting is a request only after a request cue, or as a
+ *  bare imperative opening the clause. "I had a discussion with the
+ *  owner, he is ready at 1.8 cr" reports one and asks for nothing. */
+const MEETING_REQUEST =
+  /\b((meeting|meet|discussion|call) with (the |a |an |your )?(owner|seller|agent|team|builder|manager)|meet (the |your )?(owner|seller|agent|builder|manager))\b/g;
+const MEETING_CUE =
+  /^\s*$|\b(?:want|need|wish|like|love|arrange|fix|set ?up|schedule|organi[sz]e|request|please|pls|plz|(?:can|could|may|shall|would|should) (?:i|we|you|u))\b[^.?!]*$/;
 
 /** "Call ?", "call pls", "phone": the whole message is the one word.
  *  Nothing names a subject, so the clause reader above sees neither a
@@ -489,8 +498,10 @@ export function asksForContactNumber(text?: string | null): boolean {
 export function requestsHumanContact(text?: string | null): boolean {
   return (
     BARE_CALL_MESSAGE.test(normaliseCallText(text).trim()) ||
-    callClauses(text).some((clause) =>
-      unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST)
+    callClauses(text).some(
+      (clause) =>
+        unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST) ||
+        unrefusedMatch(clause, MEETING_REQUEST, MEETING_CUE)
     ) ||
     asksForContactNumber(text)
   );

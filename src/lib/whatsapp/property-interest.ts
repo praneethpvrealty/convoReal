@@ -216,10 +216,16 @@ export function resolvePropertyReference<T extends PropertyInterestCandidate>(
         }
         sizeScore = 30;
       } else if (wantedDimensionArea !== null) {
-        const actualArea = propertyAreaSqft(property);
-        if (actualArea !== null) {
+        // Sides describe the land, so only a recorded land area can
+        // contradict them; a house recorded by built-up area alone
+        // still matches on its locality.
+        const landArea = toSquareFeet(
+          property.land_area,
+          property.land_area_unit
+        );
+        if (landArea !== null) {
           if (
-            Math.abs(actualArea - wantedDimensionArea) / wantedDimensionArea >
+            Math.abs(landArea - wantedDimensionArea) / wantedDimensionArea >
             0.1
           )
             return null;

@@ -138,6 +138,21 @@ describe('resolvePropertyReference', () => {
         }),
       ])
     ).toMatchObject({ kind: 'match', property: { id: 'jaya-no-area' } });
+    expect(
+      resolvePropertyReference(
+        'I saw the 30x40 house in Jayanagar 7th block, interested',
+        [
+          block({
+            id: 'jaya-built-up',
+            property_code: 'PROP-1768',
+            title: 'House in Jayanagar 7th Block',
+            land_area: undefined,
+            area_sqft: 2400,
+            area_unit: 'Sq.Ft.',
+          }),
+        ]
+      )
+    ).toMatchObject({ kind: 'match', property: { id: 'jaya-built-up' } });
   });
 
   it('keeps property-code references authoritative', () => {

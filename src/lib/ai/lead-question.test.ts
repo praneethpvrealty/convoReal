@@ -1071,7 +1071,15 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
     ]) {
       expect(looksLikeQuestion(text), text).toBe(true);
     }
-    for (const text of ['Hi', 'Okay sir', 'Hello ji, noted', 'Out of town']) {
+    for (const text of [
+      'Hi',
+      'Okay sir',
+      'Hello ji, noted',
+      'Out of town',
+      'Ok, do it',
+      'Yes, do that',
+      'Sent the docs, did it yesterday',
+    ]) {
       expect(looksLikeQuestion(text), text).toBe(false);
     }
   });
@@ -1085,6 +1093,8 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
       'Can you arrange a meeting with the owner',
       'I want to meet the owner',
       'set up a call with your agent',
+      'Meet the owner',
+      "please don't call, but can we have a meeting with the owner",
     ]) {
       expect(requestsHumanContact(text), text).toBe(true);
     }
@@ -1092,6 +1102,9 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
       "I'll call back tomorrow",
       'Meeting went well',
       'the owner is my uncle',
+      'I had a discussion with the owner, he is ready at 1.8 cr',
+      'Had a call with your agent yesterday, looking for a 3bhk villa in Whitefield 2cr',
+      "I don't want a meeting with the owner",
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
     }
