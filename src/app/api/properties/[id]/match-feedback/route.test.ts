@@ -217,6 +217,18 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
     expect(upsert?.args[0]).toMatchObject({ reason: 'size', source: 'agent' });
   });
 
+  it('reports a wrong-type mark whose type failed to save', async () => {
+    writeRows = [];
+    const res = await post({
+      action: 'reject',
+      contactId: CONTACT,
+      reason: 'type',
+      propertyTypes: ['pt_plot'],
+    });
+    expect(res.status).toBe(500);
+    expect((await res.json()).code).toBe('TYPE_NOT_SAVED');
+  });
+
   it('404s a contact outside the account', async () => {
     contactRow = null;
     const res = await post({

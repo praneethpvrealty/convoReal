@@ -253,9 +253,15 @@ export async function POST(
           optionIds
         )
       : false;
-    if (action === 'set_type' && !typeSaved) {
+    if (optionIds.length && !typeSaved) {
       return NextResponse.json(
-        { error: 'Failed to save the property type' },
+        {
+          error:
+            action === 'reject'
+              ? 'Marked not a fit, but the property type could not be saved. Try again.'
+              : 'Failed to save the property type',
+          code: 'TYPE_NOT_SAVED',
+        },
         { status: 500 }
       );
     }
