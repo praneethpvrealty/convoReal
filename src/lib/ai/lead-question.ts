@@ -546,7 +546,8 @@ export function quickReplyHumanRequest(message: {
   return label && requestsHumanContact(label) ? label : null;
 }
 
-export type SubjectProperty = QaProperty & SellerPriceFields & { id: string };
+export type SubjectProperty = QaProperty &
+  SellerPriceFields & { id: string; is_published?: boolean | null };
 
 /**
  * One message out of one answer per listing the buyer numbered.

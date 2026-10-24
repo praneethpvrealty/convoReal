@@ -110,7 +110,12 @@ beforeEach(() => {
     fakeAdmin() as unknown as ReturnType<typeof supabaseAdmin>
   );
   vi.mocked(questionSubjectProperties).mockResolvedValue([
-    { id: 'prop-493', title: 'Plot #493' },
+    {
+      id: 'prop-493',
+      title: 'Plot #493',
+      status: 'Available',
+      is_published: true,
+    },
   ] as unknown as Awaited<ReturnType<typeof questionSubjectProperties>>);
   vi.mocked(subjectPortalListings).mockResolvedValue([]);
   vi.mocked(retrieveBotInstructions).mockResolvedValue([]);
@@ -195,6 +200,36 @@ describe('[INB-037] a reply about one listing carries its link', () => {
     await leadQuestion(ctx({ inboundText: 'Facing of 1 and 2?' }));
 
     expect(withListingLink).not.toHaveBeenCalled();
+  });
+
+  it('links nothing on an unpublished or under-review listing', async () => {
+    for (const subject of [
+      {
+        id: 'prop-493',
+        title: 'Plot #493',
+        status: 'Available',
+        is_published: false,
+      },
+      {
+        id: 'prop-493',
+        title: 'Plot #493',
+        status: 'Pending Review',
+        is_published: true,
+      },
+    ]) {
+      vi.mocked(questionSubjectProperties).mockResolvedValue([
+        subject,
+      ] as unknown as Awaited<ReturnType<typeof questionSubjectProperties>>);
+      vi.mocked(answerLeadQuestion).mockResolvedValue({
+        text: "It's located in JP Nagar 4th Phase.",
+        source: 'listing',
+        intent: 'location',
+      });
+
+      await leadQuestion(ctx({ inboundText: 'Location?' }));
+
+      expect(withListingLink).not.toHaveBeenCalled();
+    }
   });
 
   it('links nothing on a listing that has left the market', async () => {

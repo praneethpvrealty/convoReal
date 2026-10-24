@@ -22,7 +22,10 @@ import {
 } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
 import { asksListingAttribute } from '@/lib/ai/requirement-signal';
-import { unavailableListingReply } from '@/lib/inventory/listing-status';
+import {
+  isListingLive,
+  unavailableListingReply,
+} from '@/lib/inventory/listing-status';
 import {
   hasRequirementOnFile,
   sendRequirementConfirmAfterRegret,
@@ -241,8 +244,10 @@ export async function leadQuestion(
       // Every answer about one live listing carries its showcase link
       // until the thread holds one: a buyer sent a template with no
       // link in its body had nowhere to read what the bot left out.
+      // Live as the showcase reads it: an unpublished or under-review
+      // listing never opens from the link, so none is sent for it.
       const linkSubject =
-        subjects.length === 1 && !photoRequest && !unavailableSubject
+        subjects.length === 1 && !photoRequest && isListingLive(subjects[0])
           ? subjects[0]
           : null;
       const text = linkSubject
