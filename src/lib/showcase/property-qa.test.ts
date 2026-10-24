@@ -559,6 +559,47 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     ).toEqual({ answer: null, intent: 'rent' });
   });
 
+  it('answers "how wide is the plot" from the dimensions, never from the road', () => {
+    const plot = makeProp({ road_width: 30, dimensions: '30x40' });
+    for (const q of [
+      'How wide is the plot?',
+      'how wide is the site frontage?',
+      'plot width?',
+    ]) {
+      expect(answerFromPropertyData(q, plot)).toEqual({
+        answer: 'Plot dimensions: 30x40.',
+        intent: 'dimensions',
+      });
+    }
+    expect(answerFromPropertyData('how wide is the road?', plot).answer).toBe(
+      'The approach road is 30 ft wide.'
+    );
+  });
+
+  it('lets lease and deposit questions escalate even when they mention rent', () => {
+    const tenanted = makeProp({ rental_income: 1000000, roi: 6 });
+    expect(
+      answerFromPropertyData(
+        'What is the lease period of the rental?',
+        tenanted
+      )
+    ).toEqual({ answer: null, intent: 'lease' });
+    expect(
+      answerFromPropertyData('how much is the rent deposit', tenanted)
+    ).toEqual({ answer: null, intent: 'deposit' });
+    expect(
+      answerFromPropertyData(
+        'how much is the rent deposit',
+        makeProp({
+          listing_type: 'Rent',
+          price: 0,
+          rent_per_month: 35000,
+          advance: 70000,
+        })
+      ).answer
+    ).toBe('The monthly rent is ₹35,000. Advance/deposit is ₹70,000.');
+  });
+
   it('says a rental answer once when several named fields share it', () => {
     const rental = makeProp({
       listing_type: 'Rent',

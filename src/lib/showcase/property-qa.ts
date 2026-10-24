@@ -345,18 +345,14 @@ const MATCHERS: {
   },
   {
     intent: 'road',
-    pattern: /\b(road width|width of (the )?road|approach road|how wide)/i,
+    pattern:
+      /\b(road width|width of (the )?road|approach road|how wide is (the )?(approach |main |access )?road)\b/i,
     respond: roadAnswer,
   },
   {
     intent: 'roi',
     pattern: /\b(roi|yield|rental income|return on|investment return)/i,
     respond: roiAnswer,
-  },
-  {
-    intent: 'rent',
-    pattern: /\brent/i,
-    respond: rentAnswer,
   },
   {
     intent: 'lease',
@@ -372,6 +368,11 @@ const MATCHERS: {
     intent: 'deposit',
     pattern: /\b(deposit|advance)/i,
     respond: depositAnswer,
+  },
+  {
+    intent: 'rent',
+    pattern: /\brent/i,
+    respond: rentAnswer,
   },
   {
     intent: 'price',
@@ -391,7 +392,7 @@ const MATCHERS: {
   {
     intent: 'dimensions',
     pattern:
-      /\b(dimension|measurement|plot size|site size|land size|length|breadth)/i,
+      /\b(dimension|measurement|plot size|site size|land size|length|breadth|width|frontage|how wide)\b/i,
     respond: dimensionsAnswer,
   },
   {
