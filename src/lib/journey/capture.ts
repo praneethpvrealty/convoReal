@@ -16,6 +16,7 @@
  */
 
 import { createClient } from '@/lib/supabase/client';
+import { LEAD_INTEREST_CAPTURE_REASON } from './capture-server';
 import type { JourneyItemSource, JourneyStage } from '@/types';
 
 /**
@@ -62,9 +63,54 @@ export interface CaptureResult {
   /** Rows actually created — 0 with a null error means every pair
    *  was already on the journey. */
   created: number;
+  /** Pairs that only a lead's own yes had captured hidden and a visible
+   *  capture showed instead of creating (JRN-026). */
+  shown: number;
   /** Database failure, verbatim — callers surface it so a broken
    *  capture never masquerades as "nothing new". */
   error: string | null;
+}
+
+/**
+ * Among hidden items, the ones only a lead's own yes captured and
+ * nobody has reviewed since: their 'added' event carries the
+ * lead-interest reason and no 'hidden' or 'unhidden' event follows. The
+ * agent's own visible captures (Add, Import inquiries, Import from chat)
+ * treat these as not yet on the journey, as the server capture does.
+ */
+export async function leadInterestOnlyHiddenIds(
+  accountId: string,
+  items: Array<{ id: string; hidden: boolean }>
+): Promise<Set<string>> {
+  const result = new Set<string>();
+  const hiddenIds = items.filter((i) => i.hidden).map((i) => i.id);
+  if (hiddenIds.length === 0) return result;
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('journey_events')
+    .select('item_id, event_type, reason')
+    .eq('account_id', accountId)
+    .in('event_type', ['added', 'hidden', 'unhidden'])
+    .in('item_id', hiddenIds);
+  if (error) {
+    console.error('Journey capture events failed:', error.message);
+    return result;
+  }
+  const reviewed = new Set<string>();
+  for (const event of (data ?? []) as Array<{
+    item_id: string;
+    event_type: string;
+    reason: string | null;
+  }>) {
+    if (event.event_type === 'added') {
+      if (event.reason === LEAD_INTEREST_CAPTURE_REASON)
+        result.add(event.item_id);
+    } else {
+      reviewed.add(event.item_id);
+    }
+  }
+  for (const id of reviewed) result.delete(id);
+  return result;
 }
 
 /**
@@ -79,13 +125,17 @@ export async function captureJourneyItems({
   source,
   hidden,
 }: CaptureJourneyItemsInput): Promise<CaptureResult> {
-  if (pairs.length === 0) return { created: 0, error: null };
+  if (pairs.length === 0) return { created: 0, shown: 0, error: null };
   const supabase = createClient();
 
   const stages = await ensureJourneyStages(accountId);
   const firstStage = stages[0];
   if (!firstStage) {
-    return { created: 0, error: 'Journey stages could not be loaded' };
+    return {
+      created: 0,
+      shown: 0,
+      error: 'Journey stages could not be loaded',
+    };
   }
 
   // Dedupe input pairs (a broadcast can list the same contact twice
@@ -120,7 +170,7 @@ export async function captureJourneyItems({
 
   if (error) {
     console.error('Journey capture failed:', error.message);
-    return { created: 0, error: error.message };
+    return { created: 0, shown: 0, error: error.message };
   }
 
   const created = data ?? [];
@@ -148,5 +198,38 @@ export async function captureJourneyItems({
       console.error('Journey capture event log failed:', evError.message);
     }
   }
-  return { created: created.length, error: null };
+  let shown = 0;
+  if (!hidden && created.length < payload.length) {
+    const { data: hiddenRows } = await supabase
+      .from('journey_items')
+      .select('id, contact_id, property_id')
+      .eq('account_id', accountId)
+      .eq('hidden', true)
+      .in('contact_id', [...new Set(payload.map((p) => p.contact_id))])
+      .in('property_id', [...new Set(payload.map((p) => p.property_id))]);
+    const wanted = new Set(seen);
+    const candidates = (
+      (hiddenRows ?? []) as Array<{
+        id: string;
+        contact_id: string;
+        property_id: string;
+      }>
+    ).filter((row) => wanted.has(`${row.contact_id}:${row.property_id}`));
+    const leadOnly = await leadInterestOnlyHiddenIds(
+      accountId,
+      candidates.map((row) => ({ id: row.id, hidden: true }))
+    );
+    if (leadOnly.size > 0) {
+      const { data: shownIds, error: showError } = await supabase.rpc(
+        'journey_show_captured',
+        { p_account_id: accountId, p_item_ids: [...leadOnly] }
+      );
+      if (showError) {
+        console.error('Journey capture show failed:', showError.message);
+      } else {
+        shown = ((shownIds ?? []) as unknown[]).length;
+      }
+    }
+  }
+  return { created: created.length, shown, error: null };
 }

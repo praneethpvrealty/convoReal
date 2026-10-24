@@ -56,7 +56,10 @@ import type {
   JourneyStage,
   Property,
 } from '@/types';
-import { captureJourneyItems } from '@/lib/journey/capture';
+import {
+  captureJourneyItems,
+  leadInterestOnlyHiddenIds,
+} from '@/lib/journey/capture';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { removeJourneyItems } from '@/lib/journey/remove';
 import { JourneyCanvas } from './journey-canvas';
@@ -144,6 +147,25 @@ export function JourneySection({
   const [brokerageType, setBrokerageType] =
     useState<BrokerageType>('percentage');
   const [brokerageValue, setBrokerageValue] = useState('');
+  // Hidden items only a lead's own yes captured and nobody reviewed:
+  // Add and the imports treat them as not yet on the journey (JRN-026).
+  const [leadOnlyHidden, setLeadOnlyHidden] = useState<Set<string>>(
+    () => new Set()
+  );
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    leadInterestOnlyHiddenIds(accountId, items).then((ids) => {
+      if (!cancelled) setLeadOnlyHidden(ids);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, items]);
+  const onJourneyItems = useMemo(
+    () => items.filter((i) => !i.hidden || !leadOnlyHidden.has(i.id)),
+    [items, leadOnlyHidden]
+  );
 
   // ── Load subject + items ─────────────────────────────────────
   const loadJourney = useCallback(async () => {
@@ -218,7 +240,7 @@ export function JourneySection({
         .select('property_id')
         .eq('contact_id', subjectId);
       if (cancelled) return;
-      const existing = new Set(items.map((i) => i.property_id));
+      const existing = new Set(onJourneyItems.map((i) => i.property_id));
       setImportableCount(
         (data ?? []).filter((r) => !existing.has(r.property_id)).length
       );
@@ -226,7 +248,7 @@ export function JourneySection({
     return () => {
       cancelled = true;
     };
-  }, [mode, subjectId, items, supabase]);
+  }, [mode, subjectId, onJourneyItems, supabase]);
 
   // ── Contact note count (buyer mode) ──────────────────────────
   useEffect(() => {
@@ -275,7 +297,7 @@ export function JourneySection({
   const handleAddItems = useCallback(
     async (ids: string[], source: JourneyItemSource = 'manual') => {
       if (!accountId) return;
-      const { created, error } = await captureJourneyItems({
+      const { created, shown, error } = await captureJourneyItems({
         accountId,
         userId: user?.id,
         pairs: ids.map((id) => ({
@@ -289,14 +311,15 @@ export function JourneySection({
         toast.error(`Failed to add: ${error}`);
         return;
       }
-      if (created === 0) {
+      const added = created + shown;
+      if (added === 0) {
         toast.info('Already on the journey — nothing new to add.');
         await refresh();
         return;
       }
       toast.success(
-        `Added ${created} ${mode === 'buyer' ? 'propert' : 'contact'}${
-          created === 1
+        `Added ${added} ${mode === 'buyer' ? 'propert' : 'contact'}${
+          added === 1
             ? mode === 'buyer'
               ? 'y'
               : ''
@@ -316,7 +339,7 @@ export function JourneySection({
       .from('contact_property_inquiries')
       .select('property_id')
       .eq('contact_id', subjectId);
-    const existing = new Set(items.map((i) => i.property_id));
+    const existing = new Set(onJourneyItems.map((i) => i.property_id));
     const fresh = Array.from(
       new Set(
         (data ?? [])
@@ -329,7 +352,7 @@ export function JourneySection({
       return;
     }
     await handleAddItems(fresh, 'inquiry_import');
-  }, [mode, subjectId, items, supabase, handleAddItems]);
+  }, [mode, subjectId, onJourneyItems, supabase, handleAddItems]);
 
   const handleImportFromChat = useCallback(async () => {
     if (mode !== 'buyer' || !accountId || scanningChat) return;
@@ -358,7 +381,7 @@ export function JourneySection({
           .limit(2000),
       ]);
       const found = scanMessagesForProperties(messages ?? [], props ?? []);
-      const existing = new Set(items.map((i) => i.property_id));
+      const existing = new Set(onJourneyItems.map((i) => i.property_id));
       const fresh = Array.from(found.keys()).filter((id) => !existing.has(id));
       if (fresh.length === 0) {
         toast.info(
@@ -378,7 +401,7 @@ export function JourneySection({
     accountId,
     scanningChat,
     supabase,
-    items,
+    onJourneyItems,
     handleAddItems,
   ]);
 
@@ -650,9 +673,11 @@ export function JourneySection({
   const existingIds = useMemo(
     () =>
       new Set(
-        items.map((i) => (mode === 'buyer' ? i.property_id : i.contact_id))
+        onJourneyItems.map((i) =>
+          mode === 'buyer' ? i.property_id : i.contact_id
+        )
       ),
-    [items, mode]
+    [onJourneyItems, mode]
   );
   const visibleItems = useMemo(() => items.filter((i) => !i.hidden), [items]);
   const capturedItems = useMemo(() => items.filter((i) => i.hidden), [items]);

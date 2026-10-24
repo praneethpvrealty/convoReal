@@ -19,6 +19,14 @@ const signals = readFileSync(
   'utf8'
 );
 
+const copilot = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20261024163200_copilot_property_interest_said_interested.sql'
+  ),
+  'utf8'
+);
+
 describe('journey lead interest columns', () => {
   it('[JRN-026] adds the nullable stamp and its index without touching anything live', () => {
     expect(columns).toContain(
@@ -61,7 +69,9 @@ describe('journey lead interest signals', () => {
     );
     const backfill = signals.slice(
       0,
-      signals.indexOf('DROP FUNCTION IF EXISTS')
+      signals.indexOf(
+        'CREATE OR REPLACE FUNCTION public.journey_overview_groups('
+      )
     );
     expect(backfill).not.toContain('SET hidden');
   });
@@ -77,29 +87,37 @@ describe('journey lead interest signals', () => {
     expect(disable).toBeGreaterThan(-1);
     expect(update).toBeGreaterThan(disable);
     expect(enable).toBeGreaterThan(update);
-    expect(signals.indexOf('DROP FUNCTION IF EXISTS')).toBeGreaterThan(enable);
+    expect(
+      signals.indexOf(
+        'CREATE OR REPLACE FUNCTION public.journey_overview_groups('
+      )
+    ).toBeGreaterThan(enable);
   });
 
-  it('[CPL-004] [JRN-026] the Helper reads the lead’s own Interested answers as a signal', () => {
-    expect(signals).toContain(
+  it('[CPL-004] [JRN-026] the Helper reads the lead’s own Interested answers as a signal, in its own migration', () => {
+    expect(signals).not.toMatch(/\bDROP\b/);
+    expect(signals).not.toContain(
+      'CREATE OR REPLACE FUNCTION public.copilot_property_interest('
+    );
+    expect(copilot).toContain(
       'DROP FUNCTION IF EXISTS public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT);'
     );
-    expect(signals).toMatch(
+    expect(copilot).toMatch(
       /liked BOOLEAN,\s+interested BOOLEAN,\s+journey_stage TEXT,/
     );
-    expect(signals).toContain(
+    expect(copilot).toContain(
       "SELECT f.property_id, f.contact_id, 'interested', NULL, NULL, COALESCE(f.updated_at, f.created_at)"
     );
-    expect(signals).toContain('FROM listing_feedback f');
-    expect(signals).toContain("BOOL_OR(s.kind = 'interested') AS interested");
-    expect(signals).toContain(
+    expect(copilot).toContain('FROM listing_feedback f');
+    expect(copilot).toContain("BOOL_OR(s.kind = 'interested') AS interested");
+    expect(copilot).toContain(
       "OR (sc.signal = 'interested' AND pr.interested)"
     );
-    expect(signals).toContain('WHERE public.is_account_member(p_account_id)');
-    expect(signals).toContain(
+    expect(copilot).toContain('WHERE public.is_account_member(p_account_id)');
+    expect(copilot).toContain(
       'REVOKE ALL ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) FROM PUBLIC, anon;'
     );
-    expect(signals).toContain(
+    expect(copilot).toContain(
       'GRANT EXECUTE ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) TO authenticated;'
     );
   });

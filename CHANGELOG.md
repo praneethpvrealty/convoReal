@@ -35,9 +35,12 @@ than a written entry. Newest first.
   an "N interested" chip, and the Helper counts the Interested answers as
   "Said interested" and answers "who tapped interested on Adithi's plot".
   JRN-026, CPL-004. **Migration required:** `20261024163000_journey_lead_interest.sql`
-  (additive) and `20261024163100_journey_lead_interest_signals.sql` (backfills
-  the stamp from the answers already on file and replaces
-  `copilot_property_interest` and `journey_overview_groups`).
+  (additive), `20261024163100_journey_lead_interest_signals.sql` (backfills
+  the stamp from the answers already on file, replaces
+  `journey_overview_groups` and the share capture trigger) and
+  `20261024163200_copilot_property_interest_said_interested.sql` (drops and
+  re-creates `copilot_property_interest`; apply it over the direct database
+  connection, the connector holds its DROP).
 - **A shortlist outside the locality a lead named now says so.** "I'm
   looking near horamavu" was answered with two Koramangala houses as
   "matching residential house options", and the lead replied "Stop alerts".
