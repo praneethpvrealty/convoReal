@@ -414,13 +414,20 @@ async function main() {
   const previous =
     REVIEW_SCOPE === 'full' ? null : await lastReviewedHead(headSha);
   let scope = files;
+  let reverted = [];
   if (previous) {
-    scope = rereviewFiles(files, [
-      ...selectFiles(
-        git('diff', '--name-status', `${previous.sha}..${headSha}`)
-      ),
-      ...files.filter((f) => !previous.files.includes(f)),
-    ]);
+    const changedSince = selectFiles(
+      git('diff', '--name-status', `${previous.sha}..${headSha}`)
+    );
+    reverted = previous.files.filter(
+      (f) => changedSince.includes(f) && !files.includes(f)
+    );
+    scope = reverted.length
+      ? files
+      : rereviewFiles(files, [
+          ...changedSince,
+          ...files.filter((f) => !previous.files.includes(f)),
+        ]);
     if (scope.length === 0) {
       console.log(
         `No reviewed file changed since ${previous.sha}; carrying its findings forward.`
@@ -489,7 +496,7 @@ async function main() {
   const rest = files.filter((f) => !scope.includes(f));
   const earlier = previous ? previous.findings : [];
   const intro = previous
-    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}${earlier.length ? `\n\nThe earlier review reported these findings. Report each one again, with the same path and title, unless the current code no longer has the problem, reading its file when it is not in the diff below; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
+    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${reverted.length ? ` Since that head the pull request stopped changing ${reverted.join(', ')} (reverted to the base content), so every file of the pull request is under review again; check that nothing in them depended on the reverted change.` : ''}${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}${earlier.length ? `\n\nThe earlier review reported these findings. Report each one again, with the same path and title, unless the current code no longer has the problem, reading its file when it is not in the diff below; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
     : '';
   const messages = [
     {

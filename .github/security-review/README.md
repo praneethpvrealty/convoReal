@@ -60,7 +60,10 @@ How a review runs:
      PR commit ran the PR branch's own copy of the workflow, and a run
      started by a second PR from the same branch into another base never
      counts either. It then reviews the PR's files that changed between that
-     commit and the head, plus any file the PR has gained since that review.
+     commit and the head, plus any file the PR has gained since that review;
+     when a file the earlier review covered has been reverted out of the PR,
+     every PR file is reviewed again and the prompt names the reverted
+     files, since another file may have depended on the reverted change.
      The diff it shows is those files' full pull-request diff, and the other
      files are listed so the model can read them. Every finding of the
      earlier review is listed in the prompt, and the model is told to report
