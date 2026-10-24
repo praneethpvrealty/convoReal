@@ -309,7 +309,7 @@ const MATCHERS: {
   {
     intent: 'age',
     pattern:
-      /\b(how old|age of|years? old|built in|year built|year of construction|construction year|when was (it|this|that|the (building|house|property)) (built|constructed))/i,
+      /\b(how old|age of|years? old|built in (the year )?\d{4}|year built|year of construction|construction year|when was (it|this|that|the (building|house|property)) (built|constructed))/i,
     respond: ageAnswer,
   },
   {
@@ -328,14 +328,14 @@ const MATCHERS: {
     respond: leaseAnswer,
   },
   {
-    intent: 'price',
-    pattern: /\b(price|cost|rate|how much|budget)/i,
-    respond: priceAnswer,
-  },
-  {
     intent: 'charges',
     pattern: /\b(deposit|advance|maintenance)/i,
     respond: chargesAnswer,
+  },
+  {
+    intent: 'price',
+    pattern: /\b(price|cost|rate|how much|budget)/i,
+    respond: priceAnswer,
   },
   {
     intent: 'bedrooms',
@@ -350,7 +350,7 @@ const MATCHERS: {
   {
     intent: 'dimensions',
     pattern:
-      /\b(dimension|measurement|plot size|site size|land size|length|breadth|\d+\s*[x×/]\s*\d+)/i,
+      /\b(dimension|measurement|plot size|site size|land size|length|breadth|\d{2,3}\s*[x×*]\s*\d{2,3}|(plot|site|size|measurement)\b[^?.!]{0,30}\b\d{2,3}\s*\/\s*\d{2,3}|\d{2,3}\s*\/\s*\d{2,3}\b[^?.!]{0,30}\b(plot|site|size|measurement))/i,
     respond: dimensionsAnswer,
   },
   {

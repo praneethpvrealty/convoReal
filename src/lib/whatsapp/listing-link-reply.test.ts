@@ -57,7 +57,14 @@ describe('[INB-037] a bot answer carries the listing link once per thread', () =
       'contact-1'
     );
     expect(orFilter).toBe(
-      'content_text.ilike.%property_id=AV-0021%,content_text.ilike.%property_id=prop-uuid-1%'
+      [
+        'content_text.ilike.%property_id=AV-0021&%',
+        'content_text.ilike.%property_id=AV-0021 %',
+        'content_text.ilike.%property_id=AV-0021',
+        'content_text.ilike.%property_id=prop-uuid-1&%',
+        'content_text.ilike.%property_id=prop-uuid-1 %',
+        'content_text.ilike.%property_id=prop-uuid-1',
+      ].join(',')
     );
   });
 

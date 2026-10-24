@@ -67,7 +67,11 @@ const DIMENSION_PATTERN = /\b(\d{2,3})\s*(?:x|×|\*|by)\s*(\d{2,3})\b/i;
 
 export function mentionedAreaSqft(text: string): number | null {
   const match = AREA_PATTERN.exec(text || '');
-  if (match) return toSquareFeet(Number(match[1]), match[2]);
+  if (!match) return null;
+  return toSquareFeet(Number(match[1]), match[2]);
+}
+
+export function mentionedDimensionArea(text: string): number | null {
   const dims = DIMENSION_PATTERN.exec(text || '');
   return dims ? Number(dims[1]) * Number(dims[2]) : null;
 }
@@ -185,6 +189,10 @@ export function resolvePropertyReference<T extends PropertyInterestCandidate>(
   if (!isDirectPropertyInterest(value)) return { kind: 'unresolved' };
 
   const wantedArea = mentionedAreaSqft(value);
+  // Sides are a tie-breaker, never a filter: a listing recorded with
+  // dimensions but no area still matches on its locality.
+  const wantedDimensionArea =
+    wantedArea === null ? mentionedDimensionArea(value) : null;
   const messageStems = comparableStems(value);
   const ranked = candidates
     .filter(
@@ -207,6 +215,16 @@ export function resolvePropertyReference<T extends PropertyInterestCandidate>(
           return null;
         }
         sizeScore = 30;
+      } else if (wantedDimensionArea !== null) {
+        const actualArea = propertyAreaSqft(property);
+        if (actualArea !== null) {
+          if (
+            Math.abs(actualArea - wantedDimensionArea) / wantedDimensionArea >
+            0.1
+          )
+            return null;
+          sizeScore = 30;
+        }
       }
 
       return {

@@ -470,7 +470,7 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     for (const q of [
       'What is the Plot measurement ?',
       "Site measurement I'm asking",
-      'is it 40/60 or 50/80',
+      'is the site 40/60 or 50/80',
       'plot size?',
     ]) {
       const r = answerFromPropertyData(q, building());
@@ -485,10 +485,51 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     ).toBe('Plot dimensions: 50x80.');
   });
 
+  it('leaves 24/7, a date and built-in wardrobes to the matcher they belong to', () => {
+    const r = answerFromPropertyData(
+      'Is there 24/7 security?',
+      makeProp({ dimensions: '50x80' })
+    );
+    expect(r.intent).toBe('amenities');
+    expect(
+      answerFromPropertyData(
+        'can I see it on 15/08',
+        makeProp({ dimensions: '50x80' })
+      ).intent
+    ).not.toBe('dimensions');
+    const wardrobes = answerFromPropertyData(
+      'Does it have built in wardrobes?',
+      makeProp({ year_built: 2018 })
+    );
+    expect(wardrobes.intent).not.toBe('age');
+    expect(wardrobes.answer).toBeNull();
+    expect(
+      answerFromPropertyData(
+        'was it built in 2018?',
+        makeProp({ year_built: 2018 })
+      ).intent
+    ).toBe('age');
+  });
+
   it('answers maintenance on a sale listing from its own field, and never with the price', () => {
     expect(
       answerFromPropertyData('what is the maintenance', makeProp()).answer
     ).toBeNull();
+    for (const q of [
+      'How much is the maintenance?',
+      'maintenance cost?',
+      'how much deposit',
+    ]) {
+      const r = answerFromPropertyData(q, makeProp());
+      expect(r.intent, q).toBe('charges');
+      expect(r.answer, q).toBeNull();
+    }
+    expect(
+      answerFromPropertyData(
+        'How much is the maintenance?',
+        makeProp({ maintenance: 4500 })
+      ).answer
+    ).toBe('Maintenance is ₹4,500/month.');
     expect(
       answerFromPropertyData(
         'what is the maintenance',

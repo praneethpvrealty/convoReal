@@ -127,6 +127,17 @@ describe('resolvePropertyReference', () => {
       matchedBy: 'natural',
       property: { id: 'jaya-50x70' },
     });
+    expect(
+      resolvePropertyReference('I saw the 30x40 plot in Jayanagar 7th block', [
+        block({
+          id: 'jaya-no-area',
+          property_code: 'PROP-1767',
+          title: 'Plot in Jayanagar 7th Block',
+          land_area: undefined,
+          area_sqft: undefined,
+        }),
+      ])
+    ).toMatchObject({ kind: 'match', property: { id: 'jaya-no-area' } });
   });
 
   it('keeps property-code references authoritative', () => {

@@ -24,7 +24,13 @@ export async function listingLinkAlreadySent(
       .in('sender_type', ['agent', 'bot'])
       .neq('status', 'failed')
       .or(
-        refs.map((ref) => `content_text.ilike.%property_id=${ref}%`).join(',')
+        refs
+          .flatMap((ref) => [
+            `content_text.ilike.%property_id=${ref}&%`,
+            `content_text.ilike.%property_id=${ref} %`,
+            `content_text.ilike.%property_id=${ref}`,
+          ])
+          .join(',')
       )
       .limit(1);
     if (error) return false;
