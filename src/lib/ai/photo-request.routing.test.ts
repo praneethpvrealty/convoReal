@@ -51,10 +51,11 @@ describe('a photo request reaches the photo branch', () => {
   });
 
   it('is not claimed by the inbound scheduler', () => {
-    // "Sir" is a greeting, so what follows it is read as the question
-    // it is, and the scheduler's !looksLikeQuestion gate keeps it out;
-    // looksLikeSchedulingText would keep it out on its own as well.
-    expect(looksLikeQuestion(PHOTO_REQUEST)).toBe(true);
+    // A bare "Sir" is not stripped (it may be the subject: "Sir will
+    // call you"), so this clears the handler's !looksLikeQuestion gate
+    // and genuinely reaches the scheduler; only looksLikeSchedulingText
+    // keeps it out.
+    expect(looksLikeQuestion(PHOTO_REQUEST)).toBe(false);
     expect(looksLikeSchedulingText(PHOTO_REQUEST)).toBe(false);
   });
 

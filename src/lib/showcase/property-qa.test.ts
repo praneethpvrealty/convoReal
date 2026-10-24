@@ -440,6 +440,12 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     );
     expect(r.intent).toBe('nearby');
     expect(r.answer).toBe('Nearby: SBI Bank 200m.');
+    expect(
+      answerFromPropertyData(
+        'is it close to the bank?',
+        makeProp({ nearby_highlights: ['SBI Bank 200m'] })
+      ).intent
+    ).toBe('nearby');
   });
 
   it('sends a question about how the rent is paid to a person or the model', () => {
@@ -540,6 +546,20 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
       expect(r.intent, q).toBe('deposit');
       expect(r.answer, q).toBeNull();
     }
+    const jvDeal = {
+      listing_type: 'JV/JD' as const,
+      owner_share_percent: 40,
+      builder_share_percent: 60,
+    };
+    expect(
+      answerFromPropertyData('how much advance?', makeProp(jvDeal)).answer
+    ).toBeNull();
+    expect(
+      answerFromPropertyData(
+        'how much advance?',
+        makeProp({ ...jvDeal, advance: 5000000 })
+      ).answer
+    ).toBe('The refundable advance is ₹50 Lakhs.');
     expect(
       answerFromPropertyData(
         'How much is the maintenance?',

@@ -240,7 +240,10 @@ function maintenanceAnswer(p: QaProperty): string | null {
 }
 
 function depositAnswer(p: QaProperty): string | null {
-  return isRentLike(p) || isJV(p) ? priceAnswer(p) : null;
+  if (isRentLike(p)) return priceAnswer(p);
+  if (isJV(p))
+    return p.advance ? `The refundable advance is ${inr(p.advance)}.` : null;
+  return null;
 }
 
 function ageAnswer(p: QaProperty): string | null {
@@ -258,7 +261,7 @@ function ageAnswer(p: QaProperty): string | null {
 // legal questions are outside the structured data entirely. Checked
 // before the structured matchers so these never get a canned reply.
 const ESCALATE_PATTERN =
-  /\b(negotiab|negotiate|bargain|discount|best price|final price|lowest|loan|home loan|emi|down payment|which floor|what floor|floor number|legal|approv|clearance|khata|rera|possession date|when.*ready|tax|registration|bank (account|transfer)|by bank|(into|to) (the |a |my |our )?bank\b|cheque|in cash|payment (terms|mode)|mode of payment)/i;
+  /\b(negotiab|negotiate|bargain|discount|best price|final price|lowest|loan|home loan|emi|down payment|which floor|what floor|floor number|legal|approv|clearance|khata|rera|possession date|when.*ready|tax|registration|bank (account|transfer)|by bank|(paid|pay|payment|received|credited|deposited|transferred) (in|into|to) (the |a |my |our )?bank\b|cheque|in cash|payment (terms|mode)|mode of payment)/i;
 
 // "Is it the pink house or the one next to it?" asks a person to look
 // at the photo, and nothing in the listing's fields can do that. The

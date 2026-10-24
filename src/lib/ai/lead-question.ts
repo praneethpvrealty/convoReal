@@ -223,8 +223,10 @@ export function answerFromSellerFinalPrice(
 // "Hi ji\nWhich old building" opens with a greeting and asks on the
 // next line; "if I get a buyer, will I get commission" asks after a
 // comma. Both were read as statements and left unanswered for days.
+// An honorific is stripped only when punctuation sets it apart: "Sir,
+// is it available" asks; "Sir will call you in the evening" reports.
 const GREETING_PREFIX =
-  /^(?:(?:hi+|hello|hey|helo|namaste|namaskara|namaskar|vanakkam|good (?:morning|afternoon|evening|day)|dear|sir|madam|ma'am|mam|ji|bro|boss|team)[\s,.!]*)+/;
+  /^(?:(?:hi+|hello|hey|helo|namaste|namaskara|namaskar|vanakkam|good (?:morning|afternoon|evening|day)|dear)[\s,.!]*|(?:sir|madam|ma'am|mam|ji|bro|boss|team)[,.!]+\s*)+/;
 const QUESTION_OPENER =
   /^(can|could|will|would|is|are|do|does|did|what|when|where|which|who|whom|why|how|any|shall|may)\b/;
 const MID_CLAUSE_QUESTION =

@@ -1079,6 +1079,9 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
       'Ok, do it',
       'Yes, do that',
       'Sent the docs, did it yesterday',
+      'Sir will call you in the evening',
+      'Team is visiting the site',
+      'Madam is out of station',
     ]) {
       expect(looksLikeQuestion(text), text).toBe(false);
     }
