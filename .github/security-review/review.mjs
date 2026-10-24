@@ -9,7 +9,6 @@ import {
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  carriedFindings,
   checkConclusion,
   confinedRealPath,
   extractHandbookSections,
@@ -22,7 +21,6 @@ import {
   parseReviewResult,
   planComments,
   planModel,
-  priorFindingsIn,
   rereviewFiles,
   RESULT_ARTIFACT,
   reviewBody,
@@ -427,12 +425,7 @@ async function main() {
       console.log(
         `No reviewed file changed since ${previous.sha}; carrying its findings forward.`
       );
-      const carriedAll = carriedFindings(previous.findings, {
-        scope,
-        fresh: [],
-        files,
-      });
-      const byKind = splitByKind(carriedAll);
+      const byKind = splitByKind(previous.findings);
       for (const kind of Object.keys(CHECK_NAMES)) {
         const carried = byKind[kind];
         await postCheck(
@@ -451,7 +444,7 @@ async function main() {
           })
         );
       }
-      writeResult(headSha, files, carriedAll);
+      writeResult(headSha, files, previous.findings);
       return;
     }
   }
@@ -492,11 +485,9 @@ async function main() {
     },
   ];
   const rest = files.filter((f) => !scope.includes(f));
-  const earlier = previous
-    ? priorFindingsIn(previous.findings, { scope, files })
-    : [];
+  const earlier = previous ? previous.findings : [];
   const intro = previous
-    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}${earlier.length ? `\n\nThe earlier review reported these findings, in the files under review or in files the pull request does not change. Report each one again, with the same path and title, unless the current code no longer has the problem; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
+    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}${earlier.length ? `\n\nThe earlier review reported these findings. Report each one again, with the same path and title, unless the current code no longer has the problem, reading its file when it is not in the diff below; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
     : '';
   const messages = [
     {
@@ -610,23 +601,13 @@ async function main() {
 
   const byKind = splitByKind(findings);
   const posted = splitByKind(alreadyPosted);
-  const carriedAll = previous
-    ? carriedFindings(previous.findings, {
-        scope,
-        fresh: findings,
-        files,
-      })
-    : [];
-  const carriedByKind = splitByKind(carriedAll);
   for (const kind of Object.keys(CHECK_NAMES)) {
     const list = byKind[kind];
-    const carried = carriedByKind[kind];
-    const conclusion = checkConclusion([...list, ...carried]);
-    let titleText =
+    const conclusion = checkConclusion(list);
+    const titleText =
       list.length === 0
         ? `No ${kind} findings`
         : `${list.length} ${kind} finding${list.length === 1 ? '' : 's'}`;
-    if (carried.length) titleText += `, ${carried.length} carried over`;
     await postCheck(
       CHECK_NAMES[kind],
       headSha,
@@ -640,13 +621,11 @@ async function main() {
         plan,
         usage,
         alreadyPosted: posted[kind],
-        carried,
-        carriedFrom: previous?.sha,
       })
     );
     console.log(titleText);
   }
-  writeResult(headSha, files, [...findings, ...carriedAll]);
+  writeResult(headSha, files, findings);
   console.log(footer);
 }
 

@@ -62,17 +62,16 @@ How a review runs:
      counts either. It then reviews the PR's files that changed between that
      commit and the head, plus any file the PR has gained since that review.
      The diff it shows is those files' full pull-request diff, and the other
-     files are listed so the model can read them. The earlier findings in
-     the re-reviewed files, and any earlier finding anchored in a file the
-     PR does not change, are listed in the prompt, and the model is told to
-     report each one again unless the code no longer has the problem. The
-     deep triggers still apply to that delta: a fix that touches a migration
-     or auth code goes to Opus. Earlier findings in PR files this push did
-     not change are carried over: they count toward the check conclusion and
-     are listed in the summary, so a high in an untouched file keeps the
-     check red until a push changes that file. When no reviewed file
-     changed (a merge of the base branch, a test-only push), the carried
-     findings alone decide the checks and no model is called.
+     files are listed so the model can read them. Every finding of the
+     earlier review is listed in the prompt, and the model is told to report
+     each one again, reading its file when it is not in the diff, unless the
+     code no longer has the problem; a finding it omits is treated as fixed,
+     so a fix that lands in a different file from the one a finding is
+     anchored to can clear it. The deep triggers still apply to that delta: a
+     fix that touches a migration or auth code goes to Opus. When no reviewed
+     file changed (a merge of the base branch, a test-only push), the earlier
+     findings are carried over unchanged, they alone decide the checks, and
+     no model is called.
      `REVIEW_SCOPE=full` forces a full review. A `workflow_dispatch` run
      defaults to `full`; `scope=auto` dispatched from `main` re-reviews a PR
      against its last `pull_request_target` result. The re-review path

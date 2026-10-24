@@ -27,7 +27,6 @@ const ready = {
   ci: { status: 'completed', conclusion: 'success' },
   behindMain: 0,
   unresolvedThreads: 0,
-  codexRunning: false,
   mergeable: true as boolean | null,
   now: NOW,
 };
@@ -107,8 +106,7 @@ describe('decideRelease', () => {
     expect(decideRelease({ ...ready, mergeable: false }).action).toBe('hold');
   });
 
-  it('waits for Codex, review settling and mergeability', () => {
-    expect(decideRelease({ ...ready, codexRunning: true }).action).toBe('wait');
+  it('waits for review settling and mergeability', () => {
     expect(
       decideRelease({
         ...ready,

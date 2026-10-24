@@ -10,7 +10,6 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
-  carriedFindings,
   checkConclusion,
   confinedRealPath,
   estimateCost,
@@ -29,7 +28,6 @@ import {
   parseDiff,
   parseReviewResult,
   planComments,
-  priorFindingsIn,
   safeRepoPath,
   selectFiles,
   truncateDiff,
@@ -529,8 +527,17 @@ test('parseReviewResult accepts only this pull request and head', () => {
   );
 });
 
-test('a re-review carries findings in untouched PR files and hands the rest to the model', () => {
-  const prior = [
+test('a re-review scope covers changed files and files the PR gained, and a no-change run lists carried findings', () => {
+  const files = ['src/a.ts', 'src/b.ts', 'src/c.ts'];
+  const priorFiles = ['src/a.ts', 'src/b.ts'];
+  assert.deepEqual(
+    rereviewFiles(files, [
+      'src/b.ts',
+      ...files.filter((f) => !priorFiles.includes(f)),
+    ]),
+    ['src/b.ts', 'src/c.ts']
+  );
+  const carried = [
     {
       kind: 'security',
       path: 'src/a.ts',
@@ -538,91 +545,18 @@ test('a re-review carries findings in untouched PR files and hands the rest to t
       severity: 'high',
       title: 'Check the account',
     },
-    {
-      kind: 'code',
-      path: 'src/b.ts',
-      line: 0,
-      severity: 'low',
-      title: 'Log the failure',
-    },
-    {
-      kind: 'code',
-      path: 'src/c.ts',
-      line: 3,
-      severity: 'medium',
-      title: 'Await the send',
-    },
-    {
-      kind: 'code',
-      path: 'src/gone.ts',
-      line: 1,
-      severity: 'high',
-      title: 'Reverted file',
-    },
-    {
-      kind: 'code',
-      path: 'src/caller.ts',
-      line: 9,
-      severity: 'high',
-      title: 'Caller now breaks',
-    },
   ];
-  const fresh = [
-    {
-      kind: 'code',
-      path: 'src/c.ts',
-      line: 3,
-      severity: 'medium',
-      title: 'Await the send',
-    },
-  ];
-  const files = ['src/a.ts', 'src/b.ts', 'src/c.ts'];
-  const carried = carriedFindings(prior, { scope: ['src/b.ts'], fresh, files });
-  assert.deepEqual(
-    carried.map((f) => f.path),
-    ['src/a.ts']
-  );
-  assert.equal(checkConclusion([...fresh, ...carried]), 'failure');
-  assert.equal(checkConclusion(fresh), 'neutral');
-  assert.deepEqual(
-    carriedFindings(prior, { scope: [], fresh: [], files }).map((f) => f.path),
-    ['src/a.ts', 'src/b.ts', 'src/c.ts']
-  );
-  assert.deepEqual(
-    carriedFindings(undefined, { scope: [], fresh: [], files }),
-    []
-  );
-  assert.deepEqual(
-    priorFindingsIn(prior, { scope: ['src/b.ts'], files }).map((f) => f.title),
-    ['Log the failure', 'Reverted file', 'Caller now breaks']
-  );
-  assert.deepEqual(
-    rereviewFiles(files, [
-      'src/b.ts',
-      ...files.filter((f) => !['src/a.ts', 'src/b.ts'].includes(f)),
-    ]),
-    ['src/b.ts', 'src/c.ts']
-  );
-
-  const next = summaryMarkdown({
-    findings: fresh,
-    kind: 'code',
-    summary: '',
-    model: 'claude-sonnet-5-5',
-    plan: { tier: 'rereview', reasons: ['x'] },
-    usage: { input: 1, output: 1, cacheRead: 0, cacheCreation: 0 },
+  assert.equal(checkConclusion(carried), 'failure');
+  const quiet = summaryMarkdown({
+    findings: [],
+    kind: 'security',
+    summary: 'stands',
     carried,
     carriedFrom: 'abc1234def',
   });
-  assert.match(next, /1 finding carried over from abc1234/);
-  assert.match(next, /src\/a\.ts:12/);
-  const quiet = summaryMarkdown({
-    findings: [],
-    kind: 'code',
-    summary: 'stands',
-    carried,
-  });
-  assert.match(quiet, /No code findings in this change/);
+  assert.match(quiet, /No security findings in this change/);
+  assert.match(quiet, /1 finding carried over from abc1234/);
+  assert.match(quiet, /src\/a\.ts:12/);
   assert.doesNotMatch(quiet, /Reviewed by/);
 });
 

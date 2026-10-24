@@ -1,6 +1,5 @@
 const RELEASE_BRANCH = /^release\//;
 const MINUTE_MS = 60_000;
-const CODEX_LOGIN = 'chatgpt-codex-connector[bot]';
 const HOLD_MARKER = 'release-timer:held';
 
 const MOBILE_UPDATE_WORKFLOW = '.github/workflows/eas-update.yml';
@@ -129,7 +128,6 @@ export function decideRelease({
   behindMain,
   ci,
   unresolvedThreads,
-  codexRunning,
   mergeable,
   now,
 }) {
@@ -166,7 +164,6 @@ export function decideRelease({
       reason: `${unresolvedThreads} unresolved review thread(s)`,
     };
   }
-  if (codexRunning) return { action: 'wait', reason: 'Codex review running' };
   if (minutesSince(releasePr.createdAt, now) < REVIEW_SETTLE_MINUTES) {
     return { action: 'wait', reason: 'giving review bots time to start' };
   }
@@ -266,15 +263,6 @@ async function prComments(github, owner, repo, number) {
   });
 }
 
-function codexIsRunning(comments) {
-  return comments.some(
-    (comment) =>
-      comment.user?.login === CODEX_LOGIN &&
-      comment.body?.includes('codex-pull-request-review-summary') &&
-      comment.body.includes('**Running**')
-  );
-}
-
 function releaseBody(branch, mergedMembers) {
   const lines = mergedMembers.map((pull) => `- #${pull.number} ${pull.title}`);
   return [
@@ -284,7 +272,7 @@ function releaseBody(branch, mergedMembers) {
     '',
     ...lines,
     '',
-    'The timer squash-merges this once CI is green, no review thread is unresolved and no Codex review is running.',
+    'The timer squash-merges this once CI is green and no review thread is unresolved.',
   ].join('\n');
 }
 
@@ -424,7 +412,6 @@ async function shipBranch({
 
   let ci = null;
   let unresolvedThreads = 0;
-  let codexRunning = false;
   let mergeable = null;
   let behindMain = 0;
   let comments = [];
@@ -445,7 +432,6 @@ async function shipBranch({
       releasePr.number
     );
     comments = await prComments(github, owner, repo, releasePr.number);
-    codexRunning = codexIsRunning(comments);
     ({
       data: { mergeable },
     } = await github.rest.pulls.get({
@@ -463,7 +449,6 @@ async function shipBranch({
     behindMain,
     ci,
     unresolvedThreads,
-    codexRunning,
     mergeable,
     now,
   });

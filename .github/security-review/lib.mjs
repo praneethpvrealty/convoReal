@@ -420,24 +420,6 @@ export function parseReviewResult(text, { prNumber, headSha }) {
   };
 }
 
-export function carriedFindings(prior, { scope, fresh, files }) {
-  const inScope = new Set(scope);
-  const inPr = new Set(files);
-  const seen = new Set(fresh.map(findingKey));
-  return (prior ?? []).filter((f) => {
-    if (inScope.has(f.path) || !inPr.has(f.path)) return false;
-    if (seen.has(findingKey(f))) return false;
-    seen.add(findingKey(f));
-    return true;
-  });
-}
-
-export function priorFindingsIn(prior, { scope, files }) {
-  const inScope = new Set(scope);
-  const inPr = new Set(files);
-  return (prior ?? []).filter((f) => inScope.has(f.path) || !inPr.has(f.path));
-}
-
 export function rereviewFiles(allFiles, changedSince) {
   const changed = new Set(changedSince);
   return allFiles.filter((f) => changed.has(f));
