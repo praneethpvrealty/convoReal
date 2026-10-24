@@ -28,6 +28,7 @@ interface InterestRow {
   shortlisted: boolean | null;
   visited: boolean | null;
   liked: boolean | null;
+  interested: boolean | null;
   journey_stage: string | null;
   journey_status: string | null;
   last_at: string | null;
@@ -266,6 +267,7 @@ export async function findCopilotPropertyInterest(
     shortlisted: Boolean(row.shortlisted),
     visited: Boolean(row.visited),
     liked: Boolean(row.liked),
+    interested: Boolean(row.interested),
     journeyStage: row.journey_stage,
     journeyStatus: row.journey_status,
     lastAt: row.last_at,

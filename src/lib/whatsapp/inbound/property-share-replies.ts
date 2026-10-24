@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { buildSoldPriceReply } from '@/lib/whatsapp/sold-notification';
 import { buildPropertyInterestQuestion } from '@/lib/whatsapp/property-interest';
 import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
+import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
 import { replyListingUnavailableOnce } from '@/lib/whatsapp/inbound/unavailable-listing-reply';
 import { formatCurrency, formatInrCompact } from '@/lib/format/currency';
 import { truncate } from '@/lib/format/text';
@@ -697,6 +698,14 @@ export async function handleShortlistPropertyReply(
       });
       return true;
     }
+
+    await recordJourneyLeadInterest(db, {
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      propertyId,
+      source: 'whatsapp_shortlist',
+    });
 
     await sendWhatsAppMessageAndPersist({
       accountId,

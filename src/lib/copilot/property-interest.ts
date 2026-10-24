@@ -9,7 +9,13 @@ import type { CopilotNavigationLink } from './engine';
 export const PROPERTY_INTEREST_LIMIT = 6;
 
 export type InterestSignal =
-  'any' | 'enquired' | 'viewed' | 'shortlisted' | 'visited' | 'liked';
+  | 'any'
+  | 'enquired'
+  | 'viewed'
+  | 'shortlisted'
+  | 'visited'
+  | 'liked'
+  | 'interested';
 
 export interface PropertyInterestQuery {
   direction: 'contacts' | 'properties';
@@ -51,6 +57,8 @@ export interface PropertyInterestMatch {
   shortlisted: boolean;
   visited: boolean;
   liked: boolean;
+  /** The lead's own Interested answer on listing_feedback. */
+  interested: boolean;
   journeyStage: string | null;
   journeyStatus: string | null;
   lastAt: string | null;
@@ -186,6 +194,12 @@ function cleanName(raw: string): string | null {
 }
 
 function readSignal(text: string): InterestSignal {
+  if (
+    /\b(?:tapped|said|replied|answered|marked|confirmed|clicked)\s+(?:they\s+(?:are|were)\s+|that\s+they\s+(?:are|were)\s+)?interested\b/i.test(
+      text
+    )
+  )
+    return 'interested';
   if (/\bshortlist(?:ed|s|ing)?\b/i.test(text)) return 'shortlisted';
   if (/\b(?:site\s+)?visit(?:ed|s|ing)?\b/i.test(text)) return 'visited';
   if (/\bliked?\b|\bthumbs\s+up\b/i.test(text)) return 'liked';
@@ -414,6 +428,7 @@ export function interestReasonLabel(match: PropertyInterestMatch): string {
   if (match.shortlisted) parts.push('Shortlisted');
   if (match.visited) parts.push('Site visit');
   if (match.liked) parts.push('Liked');
+  if (match.interested) parts.push('Said interested');
   if (match.journeyStage) {
     parts.push(
       match.journeyStatus === 'dropped'
@@ -447,6 +462,8 @@ function signalVerb(signal: InterestSignal): string {
       return 'had a site visit for';
     case 'liked':
       return 'liked';
+    case 'interested':
+      return 'said they were interested in';
     default:
       return 'showed interest in';
   }

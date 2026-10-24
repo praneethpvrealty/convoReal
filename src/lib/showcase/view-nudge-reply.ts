@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
 import { sendRequirementConfirmAfterRegret } from '@/lib/whatsapp/unavailable-brief-followup';
 import { createNotification } from '@/lib/notifications/create';
+import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
 import { resolveAssignedAgent } from '@/lib/voice/assigned-agent';
 import { handleListingFeedbackReply } from '@/lib/whatsapp/listing-feedback';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
@@ -248,6 +249,13 @@ export async function handleViewNudgeReply(args: {
   if (feedbackError) {
     console.error('[view-nudge-reply] interest not recorded:', feedbackError);
   }
+  await recordJourneyLeadInterest(db, {
+    accountId,
+    userId: configOwnerUserId,
+    contactId: contact.id,
+    propertyId,
+    source: 'showcase_checkin',
+  });
 
   if (repeatTap) return true;
 

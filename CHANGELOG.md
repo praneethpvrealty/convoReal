@@ -19,6 +19,23 @@ than a written entry. Newest first.
 
 #### 24 October 2026
 
+- **The Journey tab now lists the leads who said yes.** A lead who tapped
+  👍 Interested on a bot listing card, ⭐ Shortlist, or Book a visit / Call
+  me back on a showcase check-in was filed on `listing_feedback` and
+  `property_likes`, pinged the agent once, and appeared nowhere as a list:
+  the Journey's Captured tray showed the bot's share with no sign the lead
+  answered, and the Helper's "who showed interest in …" never read the
+  Interested taps at all. Every such yes now stamps the contact×property
+  journey item (Interested outranks Shortlisted; a pair nothing captured
+  before is captured hidden, as a bot share is), the Captured tray lists
+  those items first with a "Said interested" or "Shortlisted" badge on web
+  and mobile, the item carries the badge, each journey's overview row shows
+  an "N interested" chip, and the Helper counts the Interested answers as
+  "Said interested" and answers "who tapped interested on Adithi's plot".
+  JRN-026, CPL-004. **Migration required:** `20261024163000_journey_lead_interest.sql`
+  (additive) and `20261024163100_journey_lead_interest_signals.sql` (backfills
+  the stamp from the answers already on file and replaces
+  `copilot_property_interest` and `journey_overview_groups`).
 - **A shortlist outside the locality a lead named now says so.** "I'm
   looking near horamavu" was answered with two Koramangala houses as
   "matching residential house options", and the lead replied "Stop alerts".

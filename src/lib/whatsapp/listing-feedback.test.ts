@@ -24,6 +24,13 @@ vi.mock('@/lib/whatsapp/budget-band', () => ({
   sendBudgetBandPrompt: (...args: unknown[]) => sendBudgetBandPrompt(...args),
 }));
 
+const recordJourneyLeadInterest = vi.fn();
+
+vi.mock('@/lib/journey/lead-interest', () => ({
+  recordJourneyLeadInterest: (...args: unknown[]) =>
+    recordJourneyLeadInterest(...args),
+}));
+
 const {
   buildListingFeedbackSections,
   sendListingFeedbackPrompt,
@@ -144,6 +151,7 @@ beforeEach(() => {
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
   sendPreferenceFlowToContact.mockResolvedValue({ success: true });
   createNotification.mockResolvedValue({});
+  recordJourneyLeadInterest.mockResolvedValue({ itemId: 'ji-1', error: null });
 });
 
 describe('handleListingFeedbackReply', () => {
@@ -184,6 +192,33 @@ describe('handleListingFeedbackReply', () => {
     expect(createNotification).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'agent-7', type: 'listing_interest' })
     );
+    // …and it lands on the Journey tab, the one place that lists who said yes.
+    expect(recordJourneyLeadInterest).toHaveBeenCalledWith(db, {
+      accountId: 'acct-1',
+      userId: 'owner-1',
+      contactId: 'c1',
+      propertyId: P1,
+      source: 'whatsapp_interested',
+    });
+  });
+
+  it('[JRN-026] still confirms to the lead when the journey stamp fails', async () => {
+    recordJourneyLeadInterest.mockResolvedValueOnce({
+      itemId: null,
+      error: 'stages missing',
+    });
+    const { db } = stubDb({
+      properties: [{ id: P1, title: 'Plot in Koramangala', user_id: 'u9' }],
+      contacts: [{ assigned_agent_id: 'agent-7' }],
+    });
+    expect(await handleListingFeedbackReply(baseArgs(db, `lfb_y_${P1}`))).toBe(
+      true
+    );
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Plot in Koramangala'),
+      })
+    );
   });
 
   it('records nothing for a property outside the account', async () => {
@@ -197,6 +232,7 @@ describe('handleListingFeedbackReply', () => {
       calls.some((c) => c.table === 'listing_feedback' && c.method === 'upsert')
     ).toBe(false);
     expect(createNotification).not.toHaveBeenCalled();
+    expect(recordJourneyLeadInterest).not.toHaveBeenCalled();
   });
 
   it('rejects every shown listing at once and asks why with one-tap reasons', async () => {

@@ -874,6 +874,10 @@ export interface JourneyItem {
    *  reached or cleared; any stage move clears it. */
   planned_stage_id?: string | null;
   planned_at?: string | null;
+  /** The lead's own yes on this listing (Interested / Shortlist tap,
+   *  showcase check-in visit or call); interested outranks shortlisted. */
+  lead_interest?: 'interested' | 'shortlisted' | null;
+  lead_interest_at?: string | null;
   notes?: string | null;
   created_by?: string | null;
   created_at: string;
@@ -929,6 +933,7 @@ export interface JourneyOverviewGroup {
   active_count: number;
   dropped_count: number;
   captured_count: number;
+  interested_count?: number;
   furthest_stage_id: string;
   lost_stage_id?: string | null;
   last_updated: string;

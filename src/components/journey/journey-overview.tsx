@@ -41,6 +41,7 @@ import {
   Search,
   Shrink,
   Target,
+  ThumbsUp,
   UserRound,
   X,
 } from 'lucide-react';
@@ -65,6 +66,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { useAuth } from '@/hooks/useAuth';
+import { journeyLeadInterestCountLabel } from '@/lib/journey/lead-interest-labels';
 import {
   CLOSED_JOURNEY_STATUS_META,
   matchesJourneySearch,
@@ -121,6 +123,7 @@ interface JourneyGroup {
   active: number;
   dropped: number;
   captured: number;
+  interested: number;
   furthestStageIdx: number;
   lostStageId: string | null;
   lastUpdated: string;
@@ -474,6 +477,7 @@ export function JourneyOverview({
           active: Number(row.active_count),
           dropped: Number(row.dropped_count),
           captured: Number(row.captured_count),
+          interested: Number(row.interested_count ?? 0),
           furthestStageIdx: stages.findIndex(
             (stage) => stage.id === row.furthest_stage_id
           ),
@@ -1707,6 +1711,22 @@ function SortableJourneyRow({
           >
             <MessageSquare className="h-3 w-3 shrink-0" />
             <span className="truncate">{journeyEnquiryLabel(group)}</span>
+          </button>
+        )}
+        {journeyLeadInterestCountLabel(group.interested) && (
+          <button
+            type="button"
+            onClick={onToggle}
+            title={
+              mode === 'buyer'
+                ? 'Listings this lead said Interested or Shortlisted on'
+                : 'Leads who said Interested or Shortlisted on this listing'
+            }
+            aria-label={`Open ${journeyLeadInterestCountLabel(group.interested)} for ${titleOf(group, mode)}`}
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10.5px] font-semibold text-emerald-300 hover:bg-emerald-500/20"
+          >
+            <ThumbsUp className="h-3 w-3 shrink-0" />
+            {journeyLeadInterestCountLabel(group.interested)}
           </button>
         )}
 

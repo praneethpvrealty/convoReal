@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   } as Record<string, unknown>,
   listed: [] as Record<string, unknown>[],
   filters: [] as Record<string, unknown>[],
+  journeyInterest: [] as Record<string, unknown>[],
   regret: 'sent' as string | null,
   regrets: [] as Record<string, unknown>[],
   sends: [] as Record<string, unknown>[],
@@ -49,6 +50,16 @@ vi.mock('@/lib/whatsapp/share-property-send', () => ({
 
 vi.mock('@/lib/whatsapp/listing-feedback', () => ({
   sendListingFeedbackPrompt: async () => true,
+}));
+
+vi.mock('@/lib/journey/lead-interest', () => ({
+  recordJourneyLeadInterest: async (
+    _db: unknown,
+    args: Record<string, unknown>
+  ) => {
+    state.journeyInterest.push(args);
+    return { itemId: 'ji-1', error: null };
+  },
 }));
 
 vi.mock('@/lib/buyer/shared-listings', () => ({
@@ -126,6 +137,7 @@ beforeEach(() => {
   state.regret = 'sent';
   state.regrets = [];
   state.sends = [];
+  state.journeyInterest = [];
   state.shares = [];
   state.filters = [];
   state.listed = [];
@@ -328,6 +340,15 @@ describe('handleShortlistPropertyReply', () => {
     expect(state.sends[0].interactiveButtons).toEqual([
       { id: `lfb_y_${PROPERTY_ID}`, title: '👍 Interested' },
     ]);
+    expect(state.journeyInterest).toEqual([
+      {
+        accountId: 'acc-1',
+        userId: 'owner-1',
+        contactId: 'c1',
+        propertyId: PROPERTY_ID,
+        source: 'whatsapp_shortlist',
+      },
+    ]);
   });
 
   it('[INB-036] never confirms a save that failed', async () => {
@@ -338,6 +359,7 @@ describe('handleShortlistPropertyReply', () => {
     expect(state.sends[0].kind).toBe('text');
     expect(state.sends[0].text).toContain("couldn't save");
     expect(JSON.stringify(state.sends)).not.toContain('Saved');
+    expect(state.journeyInterest).toEqual([]);
   });
 
   it('[INB-036] treats a listing already shortlisted as saved', async () => {
@@ -352,6 +374,7 @@ describe('handleShortlistPropertyReply', () => {
     expect(state.regrets).toHaveLength(1);
     expect(state.inserts).toEqual([]);
     expect(state.sends).toEqual([]);
+    expect(state.journeyInterest).toEqual([]);
   });
 
   it('[INB-036] ignores a tap whose id is not a property uuid', async () => {

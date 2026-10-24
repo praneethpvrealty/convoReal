@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   send: vi.fn(),
   notify: vi.fn(),
   listingFeedback: vi.fn(),
+  journeyInterest: vi.fn(),
   submit: vi.fn(),
   quiet: false,
   lease: 'run' as 'run' | 'busy',
@@ -29,6 +30,9 @@ vi.mock('@/lib/notifications/create', () => ({
 vi.mock('@/lib/whatsapp/listing-feedback', () => ({
   handleListingFeedbackReply: (...args: unknown[]) =>
     h.listingFeedback(...args),
+}));
+vi.mock('@/lib/journey/lead-interest', () => ({
+  recordJourneyLeadInterest: (...args: unknown[]) => h.journeyInterest(...args),
 }));
 vi.mock('@/lib/whatsapp/meta-api', () => ({
   submitMessageTemplate: (...args: unknown[]) => h.submit(...args),
@@ -232,6 +236,9 @@ beforeEach(() => {
   });
   h.notify.mockReset().mockResolvedValue({});
   h.listingFeedback.mockReset().mockResolvedValue(true);
+  h.journeyInterest
+    .mockReset()
+    .mockResolvedValue({ itemId: 'ji-1', error: null });
   h.submit.mockReset().mockResolvedValue({ id: 'meta-1', status: 'PENDING' });
   h.quiet = false;
   h.lease = 'run';
@@ -932,6 +939,13 @@ describe('[PLS-007] answers to the showcase view check-in', () => {
     expect(
       queries.find((q) => q.table === 'listing_feedback')?.payload
     ).toMatchObject({ verdict: 'interested', property_id: PROPERTY });
+    expect(h.journeyInterest).toHaveBeenCalledWith(db, {
+      accountId: ACCOUNT,
+      userId: OWNER,
+      contactId: CONTACT,
+      propertyId: PROPERTY,
+      source: 'showcase_checkin',
+    });
     expect(h.notify).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: AGENT,

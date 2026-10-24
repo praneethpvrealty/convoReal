@@ -57,6 +57,7 @@ const interestRow = {
   shortlisted: false,
   visited: false,
   liked: false,
+  interested: true,
   journey_stage: 'Shortlist',
   journey_status: 'dropped',
   last_at: '2026-10-08T10:00:00Z',
@@ -140,6 +141,7 @@ describe('findCopilotPropertyInterest', () => {
       label: 'Ramesh',
       enquired: true,
       viewsCount: 2,
+      interested: true,
       journeyStage: 'Shortlist',
       journeyStatus: 'dropped',
     });

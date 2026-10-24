@@ -363,6 +363,8 @@ export interface JourneyItem {
   source?: JourneyItemSource;
   drop_reason?: string | null;
   hidden: boolean;
+  lead_interest?: 'interested' | 'shortlisted' | null;
+  lead_interest_at?: string | null;
   created_at?: string;
   updated_at?: string;
   contact?: Contact | null;

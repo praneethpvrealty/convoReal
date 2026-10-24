@@ -40,6 +40,7 @@ const result = {
       shortlisted: false,
       visited: false,
       liked: false,
+      interested: false,
       journeyStage: 'Shortlist',
       journeyStatus: 'dropped',
       lastAt: '2026-10-08T10:00:00Z',

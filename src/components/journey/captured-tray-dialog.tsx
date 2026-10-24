@@ -13,7 +13,7 @@
  */
 
 import { formatDistanceToNow } from 'date-fns';
-import { Eye, Home, Trash2, UserRound } from 'lucide-react';
+import { Eye, Home, ThumbsUp, Trash2, UserRound } from 'lucide-react';
 
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import { Button } from '@/components/ui/button';
@@ -28,6 +28,10 @@ import {
   JOURNEY_ITEM_SOURCE_LABELS,
   capturedItemTitle,
 } from '@/lib/journey/captured';
+import {
+  journeyLeadInterestLabel,
+  sortCapturedByLeadInterest,
+} from '@/lib/journey/lead-interest-labels';
 import type { JourneyItem } from '@/types';
 import type { JourneyMode } from './shared';
 
@@ -66,7 +70,8 @@ export function CapturedTrayDialog({
         <p className="-mt-1 text-xs text-slate-400">
           {mode === 'buyer'
             ? 'Properties shared with this contact that were captured automatically. Show the ones worth tracking; remove the rest.'
-            : 'Contacts this property was shared with, captured automatically. Show the ones worth tracking; remove the rest.'}
+            : 'Contacts this property was shared with, captured automatically. Show the ones worth tracking; remove the rest.'}{' '}
+          A lead who said Interested or Shortlisted on WhatsApp is listed first.
         </p>
 
         <div className="max-h-[340px] space-y-1 overflow-y-auto pr-1">
@@ -75,8 +80,9 @@ export function CapturedTrayDialog({
               Nothing waiting — all captured shares have been reviewed.
             </p>
           ) : (
-            items.map((item) => {
+            sortCapturedByLeadInterest(items).map((item) => {
               const title = capturedItemTitle(item, mode);
+              const interest = journeyLeadInterestLabel(item);
               const subtitle =
                 mode === 'buyer'
                   ? [
@@ -109,6 +115,19 @@ export function CapturedTrayDialog({
                       <span className="shrink-0 rounded bg-slate-800 px-1.5 py-0.5 text-[9px] font-medium tracking-wide text-slate-400 uppercase">
                         {JOURNEY_ITEM_SOURCE_LABELS[item.source]}
                       </span>
+                      {interest && (
+                        <span
+                          className="inline-flex shrink-0 items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-emerald-300 uppercase"
+                          title={
+                            item.lead_interest_at
+                              ? `${interest} ${formatDistanceToNow(new Date(item.lead_interest_at), { addSuffix: true })}`
+                              : interest
+                          }
+                        >
+                          <ThumbsUp className="h-2.5 w-2.5" />
+                          {interest}
+                        </span>
+                      )}
                     </div>
                     <p className="truncate text-[10px] text-slate-500">
                       {subtitle}

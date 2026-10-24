@@ -22,6 +22,7 @@ import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
 import { createNotification } from '@/lib/notifications/create';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { clearAgentMarkReasons } from '@/lib/inventory/listing-feedback-writes';
+import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
 import type { Property } from '@/types';
 
 /** Every id this module owns starts with this. */
@@ -230,6 +231,13 @@ export async function handleListingFeedbackReply(args: {
         },
         { onConflict: 'contact_id,property_id' }
       );
+      await recordJourneyLeadInterest(db, {
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contact.id,
+        propertyId,
+        source: 'whatsapp_interested',
+      });
 
       await send(
         `Great choice 👌 I've flagged your interest in *${property.title}* — our team will reach out shortly with photos and next steps. Want a site visit? Just say when.`

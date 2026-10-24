@@ -54,6 +54,11 @@ import {
   capturedItemTitle,
 } from '@/lib/journey-captured';
 import {
+  journeyLeadInterestCountLabel,
+  journeyLeadInterestLabel,
+  sortCapturedByLeadInterest,
+} from '@shared/lib/journey/lead-interest-labels';
+import {
   CLOSED_JOURNEY_STATUS_LABELS,
   DEFAULT_JOURNEY_SORT,
   JOURNEY_CLOSURE_REASONS,
@@ -100,6 +105,7 @@ interface JourneyGroup {
   property: JourneyItem['property'];
   active: number;
   captured: number;
+  interested: number;
   furthestStageIdx: number;
   lostStageId: string | null;
   lastUpdated: string;
@@ -336,7 +342,7 @@ export function JourneyBody() {
     queryFn: () => loadJourneyItems(mode, trayGroup!.subjectId, true),
   });
   const capturedItems = useMemo(
-    () => capturedQuery.data ?? [],
+    () => sortCapturedByLeadInterest(capturedQuery.data ?? []),
     [capturedQuery.data]
   );
 
@@ -405,6 +411,7 @@ export function JourneyBody() {
               : null,
           active: Number(row.active_count),
           captured: Number(row.captured_count),
+          interested: Number(row.interested_count ?? 0),
           furthestStageIdx: stageIndexById.get(row.furthest_stage_id) ?? -1,
           lostStageId: row.lost_stage_id ?? null,
           lastUpdated: row.last_updated,
@@ -1835,7 +1842,9 @@ export function JourneyBody() {
           <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
             {mode === 'buyer'
               ? 'Properties shared with this contact that were captured automatically. Show the ones worth tracking; remove the rest.'
-              : 'Contacts this property was shared with, captured automatically. Show the ones worth tracking; remove the rest.'}
+              : 'Contacts this property was shared with, captured automatically. Show the ones worth tracking; remove the rest.'}{' '}
+            A lead who said Interested or Shortlisted on WhatsApp is listed
+            first.
           </Text>
           {trayError ? (
             <Text style={{ fontSize: 12.5, color: colors.danger }}>
@@ -1854,6 +1863,7 @@ export function JourneyBody() {
           ) : null}
           {capturedItems.map((item) => {
             const confirming = confirmRemoveId === item.id;
+            const interest = journeyLeadInterestLabel(item);
             const meta = [
               capturedItemSubtitle(item, mode),
               item.source ? JOURNEY_ITEM_SOURCE_LABELS[item.source] : null,
@@ -1890,6 +1900,21 @@ export function JourneyBody() {
                   >
                     {capturedItemTitle(item, mode)}
                   </Text>
+                  {interest ? (
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        fontSize: 11,
+                        fontFamily: f.bold,
+                        color: colors.success,
+                      }}
+                    >
+                      {interest}
+                      {item.lead_interest_at
+                        ? ` · ${auditDate(item.lead_interest_at)}`
+                        : ''}
+                    </Text>
+                  ) : null}
                   {meta ? (
                     <Text
                       numberOfLines={1}
@@ -2434,6 +2459,36 @@ function DraggableJourneyCard({
                   </Text>
                 </Pressable>
               ) : null}
+              {journeyLeadInterestCountLabel(group.interested) ? (
+                <Pressable
+                  onPress={onToggle}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${journeyLeadInterestCountLabel(group.interested)}`}
+                  style={[
+                    styles.capturedChip,
+                    {
+                      borderColor: `${colors.success}66`,
+                      backgroundColor: `${colors.success}14`,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="thumbs-up-outline"
+                    size={11}
+                    color={colors.success}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 10.5,
+                      fontFamily: f.bold,
+                      color: colors.success,
+                    }}
+                  >
+                    {journeyLeadInterestCountLabel(group.interested)}
+                  </Text>
+                </Pressable>
+              ) : null}
               {group.captured ? (
                 <Pressable
                   onPress={onCaptured}
@@ -2585,7 +2640,7 @@ async function loadJourneyItems(
     let query = supabase
       .from('journey_items')
       .select(
-        'id, contact_id, property_id, stage_id, status, source, drop_reason, hidden, created_at, updated_at, ' +
+        'id, contact_id, property_id, stage_id, status, source, drop_reason, hidden, lead_interest, lead_interest_at, created_at, updated_at, ' +
           'contact:contacts(id, name, phone, classification), property:properties(id, title, property_code, location), ' +
           'deal:deals!deals_source_journey_item_id_fkey(id)'
       )
