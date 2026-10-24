@@ -316,7 +316,11 @@ export async function POST(
                   'This contact told us they are interested in this listing, so it cannot be marked not a fit.',
                 code: 'CONTACT_INTERESTED',
               }
-            : { error: 'Failed to save the mark' },
+            : {
+                error: typeSaved
+                  ? 'The property type was saved, but the not-a-fit mark was not. Try again.'
+                  : 'Failed to save the mark',
+              },
           {
             status:
               now?.source === 'contact' && now.verdict === 'interested'

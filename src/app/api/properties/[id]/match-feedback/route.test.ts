@@ -323,6 +323,15 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
     });
     expect(res.status).toBe(500);
 
+    const typed = await post({
+      action: 'reject',
+      contactId: CONTACT,
+      reason: 'type',
+      propertyTypes: ['pt_plot'],
+    });
+    expect(typed.status).toBe(500);
+    expect((await typed.json()).error).toMatch(/property type was saved/);
+
     feedbackRow = null;
     const realFeedback = { verdict: 'interested', source: 'contact' };
     let reads = 0;
