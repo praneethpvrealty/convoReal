@@ -122,8 +122,9 @@ describe('journey lead interest signals', () => {
     expect(trigger).toBeGreaterThan(-1);
     expect(update).toBeGreaterThan(trigger);
     expect(signals).toMatch(
-      /v_old\.lead_interest := NULL;\s+v_old\.lead_interest_at := NULL;\s+v_old\.updated_at := NULL;\s+v_new\.lead_interest := NULL;\s+v_new\.lead_interest_at := NULL;\s+v_new\.updated_at := NULL;\s+IF v_new IS NOT DISTINCT FROM v_old THEN\s+NEW\.updated_at := OLD\.updated_at;\s+ELSE\s+NEW\.updated_at := NOW\(\);/
+      /v_old\.lead_interest := NULL;\s+v_old\.lead_interest_at := NULL;\s+v_new\.lead_interest := NULL;\s+v_new\.lead_interest_at := NULL;\s+IF v_new IS NOT DISTINCT FROM v_old\s+AND \(NEW\.lead_interest, NEW\.lead_interest_at\)\s+IS DISTINCT FROM \(OLD\.lead_interest, OLD\.lead_interest_at\) THEN\s+NEW\.updated_at := OLD\.updated_at;\s+ELSE\s+NEW\.updated_at := NOW\(\);/
     );
+    expect(signals).not.toContain('v_old.updated_at := NULL');
     expect(signals).toContain(
       'CREATE OR REPLACE TRIGGER set_journey_items_updated_at\n  BEFORE UPDATE ON journey_items\n  FOR EACH ROW EXECUTE FUNCTION public.journey_items_set_updated_at();'
     );

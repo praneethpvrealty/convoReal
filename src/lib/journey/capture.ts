@@ -101,10 +101,7 @@ export async function leadInterestOnlyHidden(
       p_property_ids: scope.propertyIds ?? null,
     }
   );
-  if (error) {
-    console.error('Journey lead-interest lookup failed:', error.message);
-    return [];
-  }
+  if (error) throw new Error(error.message);
   return (data ?? []) as LeadInterestOnlyHiddenRow[];
 }
 
@@ -196,12 +193,19 @@ export async function captureJourneyItems({
   let shown = 0;
   if (!hidden && created.length < payload.length) {
     const wanted = new Set(seen);
-    const leadOnly = (
-      await leadInterestOnlyHidden(accountId, {
-        contactIds: [...new Set(payload.map((p) => p.contact_id))],
-        propertyIds: [...new Set(payload.map((p) => p.property_id))],
-      })
-    ).filter((row) => wanted.has(`${row.contact_id}:${row.property_id}`));
+    let leadOnly: LeadInterestOnlyHiddenRow[];
+    try {
+      leadOnly = (
+        await leadInterestOnlyHidden(accountId, {
+          contactIds: [...new Set(payload.map((p) => p.contact_id))],
+          propertyIds: [...new Set(payload.map((p) => p.property_id))],
+        })
+      ).filter((row) => wanted.has(`${row.contact_id}:${row.property_id}`));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('Journey lead-interest lookup failed:', message);
+      return { created: created.length, shown, error: message };
+    }
     if (leadOnly.length > 0) {
       const { data: shownIds, error: showError } = await supabase.rpc(
         'journey_show_captured',
@@ -209,9 +213,9 @@ export async function captureJourneyItems({
       );
       if (showError) {
         console.error('Journey capture show failed:', showError.message);
-      } else {
-        shown = ((shownIds ?? []) as unknown[]).length;
+        return { created: created.length, shown, error: showError.message };
       }
+      shown = ((shownIds ?? []) as unknown[]).length;
     }
   }
   return { created: created.length, shown, error: null };

@@ -13,6 +13,7 @@ let leadOnlyRows: Array<{
   contact_id: string;
   property_id: string;
 }>;
+let rpcError: string | null;
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
@@ -52,7 +53,9 @@ vi.mock('@/lib/supabase/client', () => ({
         };
       }
       if (fn === 'journey_lead_interest_only_hidden') {
-        return { data: leadOnlyRows, error: null };
+        return rpcError
+          ? { data: null, error: { message: rpcError } }
+          : { data: leadOnlyRows, error: null };
       }
       return { data: null, error: null };
     },
@@ -68,6 +71,7 @@ beforeEach(() => {
   calls = [];
   rpcCalls = [];
   leadOnlyRows = [];
+  rpcError = null;
 });
 
 describe('[JRN-026] leadInterestOnlyHidden', () => {
@@ -141,6 +145,26 @@ describe('[JRN-009] [JRN-026] captureJourneyItems', () => {
     expect(rpcCalls.filter((c) => c.fn === 'journey_show_captured')).toEqual(
       []
     );
+  });
+
+  it('[JRN-026] reports a failed lookup instead of calling the pair already on the journey', async () => {
+    queues.journey_stages = [{ data: STAGES, error: null }];
+    queues.journey_items = [{ data: [], error: null }];
+    rpcError = 'function unavailable';
+
+    const result = await captureJourneyItems({
+      accountId: 'acc-1',
+      userId: 'user-1',
+      pairs: [{ contactId: 'c-1', propertyId: 'p-1' }],
+      source: 'manual',
+      hidden: false,
+    });
+
+    expect(result).toEqual({
+      created: 0,
+      shown: 0,
+      error: 'function unavailable',
+    });
   });
 
   it('never shows anything for a hidden capture', async () => {

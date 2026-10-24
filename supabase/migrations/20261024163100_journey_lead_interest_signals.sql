@@ -38,9 +38,11 @@
 -- overview's last_updated, the closing-nudge stall clock and the
 -- Helper's signal time all read updated_at. journey_items therefore
 -- gets its own updated_at trigger that leaves updated_at alone when an
--- UPDATE changes nothing but lead_interest / lead_interest_at, so the
--- backfill, a repeat tap and a lead's later no all keep the item's real
--- last-activity time (lead_interest_at carries the time of the yes).
+-- UPDATE changes lead_interest / lead_interest_at and nothing else, so
+-- the backfill, a repeat tap and a lead's later no all keep the item's
+-- real last-activity time (lead_interest_at carries the time of the
+-- yes); every other update, a bare SET updated_at = now() that records
+-- a client's reply or a visit request included, bumps it as before.
 --
 -- The Helper's side is copilot_property_interest_v2 in
 -- 20261024163200_copilot_property_interest_said_interested.sql, a new
@@ -61,11 +63,11 @@ BEGIN
   v_new := NEW;
   v_old.lead_interest := NULL;
   v_old.lead_interest_at := NULL;
-  v_old.updated_at := NULL;
   v_new.lead_interest := NULL;
   v_new.lead_interest_at := NULL;
-  v_new.updated_at := NULL;
-  IF v_new IS NOT DISTINCT FROM v_old THEN
+  IF v_new IS NOT DISTINCT FROM v_old
+     AND (NEW.lead_interest, NEW.lead_interest_at)
+         IS DISTINCT FROM (OLD.lead_interest, OLD.lead_interest_at) THEN
     NEW.updated_at := OLD.updated_at;
   ELSE
     NEW.updated_at := NOW();
@@ -75,7 +77,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.journey_items_set_updated_at() IS
-  'BEFORE UPDATE on journey_items: bumps updated_at for every change except one that touches only lead_interest / lead_interest_at, which records what the lead said rather than activity on the item.';
+  'BEFORE UPDATE on journey_items: bumps updated_at for every update, including a bare SET updated_at = now() that records activity, except one that changes lead_interest / lead_interest_at and nothing else, which records what the lead said rather than activity on the item.';
 
 CREATE OR REPLACE TRIGGER set_journey_items_updated_at
   BEFORE UPDATE ON journey_items
