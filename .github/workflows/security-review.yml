@@ -18,6 +18,12 @@ on:
         default: auto
         type: choice
         options: [auto, opus, sonnet, haiku]
+      scope:
+        description: full reviews the whole PR; auto re-reviews only what changed since the last completed review
+        required: false
+        default: full
+        type: choice
+        options: [full, auto]
 
 concurrency:
   group: security-review-${{ github.event.pull_request.number || inputs.pr }}
@@ -90,7 +96,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           REVIEW_ROOT: head
           REVIEW_MODEL: ${{ inputs.model || 'auto' }}
-          REVIEW_SCOPE: ${{ github.event_name == 'workflow_dispatch' && 'full' || 'auto' }}
+          REVIEW_SCOPE: ${{ inputs.scope || 'auto' }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}

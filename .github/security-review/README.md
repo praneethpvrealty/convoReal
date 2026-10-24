@@ -54,8 +54,9 @@ How a review runs:
      that touches a migration or auth code goes to Opus. When no reviewed
      file changed (a merge of the base branch, a test-only push), the earlier
      checks' conclusions are reposted on the new head and no model is called.
-     `REVIEW_SCOPE=full` forces a full review; the workflow sets it for every
-     `workflow_dispatch` run.
+     `REVIEW_SCOPE=full` forces a full review. A `workflow_dispatch` run
+     defaults to `full`; pass `scope=auto` to exercise the re-review path by
+     hand.
 3. Claude reads the diff with the handbook's engineering and security
    sections from the base commit's `AGENTS.md`, then reads files and
    searches the head checkout with two read-only tools to confirm who calls
