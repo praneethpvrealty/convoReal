@@ -610,6 +610,7 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
       price: 0,
       rent_per_month: 35000,
       advance: 70000,
+      maintenance: 2000,
     });
     for (const q of [
       'price and deposit',
@@ -619,6 +620,32 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
       const answer = answerFromPropertyData(q, rental).answer ?? '';
       expect(answer.match(/The monthly rent is ₹35,000\./g)).toHaveLength(1);
     }
+  });
+
+  it('escalates a rental deposit or maintenance question the listing does not record', () => {
+    const bare = makeProp({
+      listing_type: 'Rent',
+      price: 0,
+      rent_per_month: 35000,
+      advance: null,
+      maintenance: undefined,
+    });
+    for (const q of ['how much deposit?', 'advance?', 'Deposit']) {
+      expect(answerFromPropertyData(q, bare)).toEqual({
+        answer: null,
+        intent: 'deposit',
+      });
+    }
+    for (const q of ['maintenance?', 'what is the maintenance charge']) {
+      expect(answerFromPropertyData(q, bare)).toEqual({
+        answer: null,
+        intent: 'maintenance',
+      });
+    }
+    expect(answerFromPropertyData('maintenance and deposit', bare)).toEqual({
+      answer: null,
+      intent: 'maintenance',
+    });
   });
 
   it('answers "is it for sale or rent" from the listing type, not the rent field', () => {

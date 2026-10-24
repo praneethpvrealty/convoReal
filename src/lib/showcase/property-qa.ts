@@ -247,12 +247,13 @@ function leaseAnswer(p: QaProperty): string | null {
 }
 
 function maintenanceAnswer(p: QaProperty): string | null {
+  if (!p.maintenance) return null;
   if (isRentLike(p)) return priceAnswer(p);
-  return p.maintenance ? `Maintenance is ${inr(p.maintenance)}/month.` : null;
+  return `Maintenance is ${inr(p.maintenance)}/month.`;
 }
 
 function depositAnswer(p: QaProperty): string | null {
-  if (isRentLike(p)) return priceAnswer(p);
+  if (isRentLike(p)) return p.advance ? priceAnswer(p) : null;
   if (isJV(p))
     return p.advance ? `The refundable advance is ${inr(p.advance)}.` : null;
   return null;
