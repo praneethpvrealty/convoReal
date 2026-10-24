@@ -277,6 +277,7 @@ export async function handleListingFeedbackReply(args: {
             contact_id: contact.id,
             property_id: propertyId,
             verdict: 'rejected',
+            reason: null,
           })),
           { onConflict: 'contact_id,property_id' }
         );

@@ -110,6 +110,7 @@ export async function closePropertyEnquiry(args: {
       contact_id: contact.id,
       property_id: property.id,
       verdict: 'rejected',
+      reason: null,
     },
     { onConflict: 'contact_id,property_id' }
   );

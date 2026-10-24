@@ -183,6 +183,7 @@ export async function handlePropertyDisinterestMessage(args: {
           contact_id: contact.id,
           property_id: subjectProperty.id,
           verdict: 'rejected',
+          reason: null,
         },
         { onConflict: 'contact_id,property_id' }
       );
