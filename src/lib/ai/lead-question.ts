@@ -244,11 +244,16 @@ export function looksLikeQuestion(text: string | null | undefined): boolean {
   if (/\b(book|schedule|remind me|set up|arrange)\b/.test(t)) return false;
   if (t.includes('?')) return true;
   if (MID_CLAUSE_QUESTION.test(t)) return true;
+  // Only the opening line may ask with a bare modal; "Noted sir / Will
+  // call you in the evening" reports on its second line.
   const body = t.replace(GREETING_PREFIX, '').trim();
-  const opener = body === t ? QUESTION_OPENER : QUESTION_AFTER_GREETING;
-  return body
-    .split('\n')
-    .some((line) => opener.test(line.replace(GREETING_PREFIX, '').trim()));
+  const firstOpener = body === t ? QUESTION_OPENER : QUESTION_AFTER_GREETING;
+  return body.split('\n').some((line, index) => {
+    const stripped = line.replace(GREETING_PREFIX, '').trim();
+    return index === 0
+      ? firstOpener.test(stripped)
+      : QUESTION_AFTER_GREETING.test(stripped);
+  });
 }
 
 /** What a lead hears when they ask for a person. Same promise as
@@ -326,7 +331,7 @@ const MEETING_VERB_CUE = new RegExp(
 // this classifier stays free of that module's database and credit
 // imports.
 const VISIT_OR_TIME =
-  /\b(?:visit|viewing|see the (?:site|property|house|plot|flat)|today|tomorrow|tonight|weekend|day after|(?:this|next|coming) (?:week|month|weekend|mon|tue|wed|thu|fri|sat|sun)[a-z]*|(?:mon|tues|wednes|thurs|fri|satur|sun)day|at \d{1,2}(?:[:.]\d{2})?\s?(?:am|pm)?|\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2}|\d{1,2}(?:st|nd|rd|th)? (?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?|\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?)\b/;
+  /\b(?:visit|viewing|see the (?:site|property|house|plot|flat)|today|tomorrow|tonight|weekend|day after|(?:this|next|coming) (?:week|month|weekend|mon|tue|wed|thu|fri|sat|sun)[a-z]*|(?:mon|tues|wednes|thurs|fri|satur|sun)day|at \d{1,2}(?:[:.]\d{2}|\s?(?:am|pm))|\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2}|\d{1,2}(?:st|nd|rd|th)? (?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?|\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}|(?:on|by|before|after|from|till|until) \d{1,2}[\/-]\d{1,2})\b/;
 
 /** "Call ?", "call pls", "phone": the whole message is the one word.
  *  Nothing names a subject, so the clause reader above sees neither a

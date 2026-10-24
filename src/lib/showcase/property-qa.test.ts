@@ -518,6 +518,22 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     ).toBe('Plot dimensions: 50x80.');
   });
 
+  it('answers a land-size question from the land area when no dimensions are recorded', () => {
+    const land = makeProp({
+      type: 'Agricultural Land',
+      dimensions: undefined,
+      land_area: 5,
+      land_area_unit: 'Acre',
+    });
+    const r = answerFromPropertyData('What is the land size?', land);
+    expect(r.intent).toBe('dimensions');
+    expect(r.answer).toBe('Land area: 5 Acre.');
+    expect(
+      answerFromPropertyData('plot measurement?', makeProp({ land_area: 2400 }))
+        .answer
+    ).toBe('Land area: 2,400 sq.ft.');
+  });
+
   it('answers a question that names the plot by its sides from the field it asks for', () => {
     const plot = makeProp({
       type: 'Residential Land/ Plot',

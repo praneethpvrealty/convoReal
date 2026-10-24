@@ -217,7 +217,10 @@ function roiAnswer(p: QaProperty): string | null {
 }
 
 function dimensionsAnswer(p: QaProperty): string | null {
-  return p.dimensions ? `Plot dimensions: ${p.dimensions}.` : null;
+  if (p.dimensions) return `Plot dimensions: ${p.dimensions}.`;
+  if (!p.land_area) return null;
+  const size = `${p.land_area.toLocaleString('en-IN')} ${p.land_area_unit || 'sq.ft.'}`;
+  return `Land area: ${size}${size.endsWith('.') ? '' : '.'}`;
 }
 
 function rentAnswer(p: QaProperty): string | null {

@@ -1085,10 +1085,16 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
       'Hi, will call you in the evening',
       'Good morning will send the documents',
       'Hello\nWill visit Sunday',
+      'Noted sir\nWill call you in the evening',
+      'Ok\nWill send documents tomorrow',
     ]) {
       expect(looksLikeQuestion(text), text).toBe(false);
     }
     expect(looksLikeQuestion('Hi, will you be there on Sunday')).toBe(true);
+    expect(looksLikeQuestion('Noted sir\nWill you be there on Sunday')).toBe(
+      true
+    );
+    expect(looksLikeQuestion('Will visit Sunday')).toBe(true);
   });
 
   it('reads a bare "call" and a meeting with the owner as asking for a person', () => {
@@ -1102,6 +1108,8 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
       'set up a call with your agent',
       'Meet the owner',
       "please don't call, but can we have a meeting with the owner",
+      'I want to meet the owner of the 30/40 site',
+      'I want to meet the owner, my offer is at 1.8 cr',
     ]) {
       expect(requestsHumanContact(text), text).toBe(true);
     }
@@ -1119,7 +1127,8 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
       'Discussion with owner went well',
       'I want to meet the owner on 25th October',
       'can we meet the owner next week',
-      'I want to meet the owner at 5',
+      'I want to meet the owner at 5 pm',
+      'can we meet the owner on 25/10',
       'please arrange a meeting with the owner at 18:30',
       'can we meet the owner on Oct 25',
     ]) {
