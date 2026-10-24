@@ -8,6 +8,7 @@ const calls: Call[] = [];
 let contactRow: Record<string, unknown> | null;
 let writeRole: () => Promise<unknown>;
 let writeRows: unknown[];
+let feedbackRow: Record<string, unknown> | null;
 
 function table(name: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -26,7 +27,12 @@ function table(name: string) {
   }
   query.maybeSingle = () =>
     Promise.resolve({
-      data: name === 'contacts' ? contactRow : { id: PROPERTY },
+      data:
+        name === 'contacts'
+          ? contactRow
+          : name === 'listing_feedback'
+            ? feedbackRow
+            : { id: PROPERTY },
       error: null,
     });
   query.then = (resolve: (v: unknown) => unknown) =>
@@ -63,6 +69,7 @@ beforeEach(() => {
   contactRow = { id: CONTACT, requirement_profiles: [] };
   writeRole = async () => ctx;
   writeRows = [{ id: 'row-1' }];
+  feedbackRow = null;
 });
 
 describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
@@ -178,6 +185,38 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
     expect(calls.some((c) => c.op === 'insert')).toBe(false);
   });
 
+  it("leaves the buyer's own rejection in place and still saves the type", async () => {
+    feedbackRow = { verdict: 'rejected', source: 'contact' };
+    const res = await post({
+      action: 'reject',
+      contactId: CONTACT,
+      reason: 'type',
+      propertyTypes: ['pt_plot'],
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data).toEqual({ typeSaved: true });
+    expect(calls.some((c) => c.op === 'upsert')).toBe(false);
+  });
+
+  it("refuses to overwrite the buyer's own interest", async () => {
+    feedbackRow = { verdict: 'interested', source: 'contact' };
+    const res = await post({
+      action: 'reject',
+      contactId: CONTACT,
+      reason: 'budget',
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('CONTACT_INTERESTED');
+    expect(calls.some((c) => c.op === 'upsert')).toBe(false);
+  });
+
+  it('replaces an earlier agent mark', async () => {
+    feedbackRow = { verdict: 'rejected', source: 'agent' };
+    await post({ action: 'reject', contactId: CONTACT, reason: 'size' });
+    const upsert = calls.find((c) => c.op === 'upsert');
+    expect(upsert?.args[0]).toMatchObject({ reason: 'size', source: 'agent' });
+  });
+
   it('404s a contact outside the account', async () => {
     contactRow = null;
     const res = await post({
@@ -205,7 +244,7 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
 });
 
 describe('[PRP-051] DELETE /api/properties/[id]/match-feedback', () => {
-  it('restores the contact within the account and listing only', async () => {
+  it('undoes only an agent mark, within the account and listing', async () => {
     const res = await DELETE(
       new Request(`http://x?contactId=${CONTACT}`, { method: 'DELETE' }),
       params
@@ -219,6 +258,7 @@ describe('[PRP-051] DELETE /api/properties/[id]/match-feedback', () => {
       ['property_id', PROPERTY],
       ['contact_id', CONTACT],
       ['verdict', 'rejected'],
+      ['source', 'agent'],
     ]);
   });
 

@@ -282,7 +282,7 @@ export function HiddenMatches({
                       : 'said by the buyer'}
                   </p>
                 </div>
-                {canEdit && (
+                {canEdit && feedback.source === 'agent' && (
                   <button
                     type="button"
                     disabled={busyId === c.id}

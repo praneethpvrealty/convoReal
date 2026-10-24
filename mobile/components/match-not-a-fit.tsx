@@ -381,7 +381,7 @@ export function HiddenMatches({
                       : 'said by the buyer'}
                   </Text>
                 </View>
-                {canAct ? (
+                {canAct && feedback.source === 'agent' ? (
                   <Pressable
                     disabled={busyId === contact.id}
                     onPress={() => restore(contact.id, name)}

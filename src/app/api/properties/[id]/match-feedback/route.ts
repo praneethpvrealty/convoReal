@@ -186,7 +186,42 @@ export async function POST(
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
     }
 
-    if (action === 'reject') {
+    // The buyer's own answer is never overwritten: a "no" they gave is
+    // already a rejection that hides them and closes their enquiry, and
+    // a "yes" is theirs to take back, not the agent's.
+    const { data: existing, error: existingError } =
+      action === 'reject'
+        ? await ctx.supabase
+            .from('listing_feedback')
+            .select('verdict, source')
+            .eq('account_id', ctx.accountId)
+            .eq('property_id', propertyId)
+            .eq('contact_id', contactId)
+            .maybeSingle()
+        : { data: null, error: null };
+    if (existingError) {
+      console.error(
+        '[POST /api/properties/[id]/match-feedback]',
+        existingError
+      );
+      return NextResponse.json(
+        { error: 'Failed to save the mark' },
+        { status: 500 }
+      );
+    }
+    const buyerSaid = existing?.source === 'contact' ? existing.verdict : null;
+    if (buyerSaid === 'interested') {
+      return NextResponse.json(
+        {
+          error:
+            'This contact told us they are interested in this listing, so it cannot be marked not a fit.',
+          code: 'CONTACT_INTERESTED',
+        },
+        { status: 409 }
+      );
+    }
+
+    if (action === 'reject' && buyerSaid !== 'rejected') {
       const { error } = await ctx.supabase.from('listing_feedback').upsert(
         {
           account_id: ctx.accountId,
@@ -232,7 +267,8 @@ export async function POST(
 }
 
 // DELETE /api/properties/[id]/match-feedback?contactId=
-// Undoes a rejection, so the contact is offered for this listing again.
+// Undoes an agent's mark, so the contact is offered for this listing
+// again. The buyer's own "no" is theirs and stays.
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -252,10 +288,11 @@ export async function DELETE(
       .eq('property_id', propertyId)
       .eq('contact_id', contactId)
       .eq('verdict', 'rejected')
+      .eq('source', 'agent')
       .select('id');
     if (!error && !removed?.length) {
       return NextResponse.json(
-        { error: 'Nothing to restore for this contact' },
+        { error: 'No agent mark to undo for this contact' },
         { status: 404 }
       );
     }
