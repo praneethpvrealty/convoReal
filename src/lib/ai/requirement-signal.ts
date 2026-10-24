@@ -88,7 +88,7 @@ const LISTING_REFERENCE =
 // Every phrasing needs a listing fact beside it: "sorry wrong number,
 // this isn't for me" and "that doesn't look good" name none.
 const LISTING_DISPUTE =
-  /\b(?:doesn'?t|does not|didn'?t|did not|isn'?t|is not|wasn'?t|was not|not)\s+(?:seem|look|appear|match|matching|the same)\b|\b(?:mismatch(?:ed|es)?|differs?|different from)\b/i;
+  /\b(?:doesn'?t|does not|didn'?t|did not|isn'?t|is not|wasn'?t|was not|not)\s+(?:seem|look|appear|match|matching|the same)\b|\bmismatch(?:ed|es)?\b/i;
 const LISTING_DISPUTE_BARE =
   /\b(?:wrong|incorrect|inaccurate|not (?:correct|right|accurate))\b|\b(?:seems?|looks?|appears?)\s+(?:different|wrong|off|incorrect|smaller|bigger|larger)\b/i;
 
@@ -113,7 +113,7 @@ const REQUIREMENT_INTENT =
   /\b(looking|want|need|interested|searching|require|prefer|suggest|options?|any|have you|do you have|get me|find|show me|send me|share)\b/i;
 
 const LISTING_FACT = new RegExp(
-  `\\b(?:${LISTING_ATTRIBUTE}|${PROPERTY_TYPE_WORDS}|photos?|pictures?|pics?|images?|map|pin|listing|property|details?)\\b`,
+  `\\b(?:${LISTING_ATTRIBUTE}|${PROPERTY_TYPE_WORDS}|photos?|pictures?|pics?|images?|map|pin)\\b`,
   'i'
 );
 
@@ -121,7 +121,7 @@ const LISTING_FACT = new RegExp(
 // properties are not matching my requirement", "this area doesn't look
 // good": the lead is turning the listing down, not disputing its record.
 const REJECTION =
-  /\b(?:budget|afford(?:able)?|expensive|costly|pricey|overpriced|worth|requirements?|criteria|preferences?|not what|what (?:i|we) (?:asked|need|want|said|am looking|are looking)|not for (?:me|us)|not interested)\b|\b(?:doesn'?t|does not|don'?t|do not|not)\s+(?:look|seem|feel)\s+(?:good|great|nice|fine|ok(?:ay)?|suitable|convenient|right for)\b/i;
+  /\b(?:budget|afford(?:able)?|expensive|costly|pricey|overpriced|worth|requirements?|criteria|preferences?|not what|what (?:i|we) (?:asked|need|want|said|am looking|are looking)|not for (?:me|us)|not interested|wrong (?:number|person|contact)|never (?:enquired|inquired|asked|contacted|requested)|something (?:else|different))\b|\b(?:doesn'?t|does not|don'?t|do not|not)\s+(?:look|seem|feel)\s+(?:good|great|nice|fine|ok(?:ay)?|suitable|convenient|right for)\b/i;
 
 /**
  * True when the message disputes a fact about the listing already in
