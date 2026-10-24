@@ -777,6 +777,9 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(overview).toContain(
       'if (group.interestedHidden > 0) setTrayRequest((n) => n + 1);'
     );
+    expect(overview).toContain(
+      'onTrayRequestHandled={() => setTrayRequest(0)}'
+    );
   });
 
   it('[JRN-005] reviews captured shares in a tray with show, show all and remove', () => {

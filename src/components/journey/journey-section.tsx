@@ -94,8 +94,11 @@ export interface JourneySectionProps {
   spotlightItemId?: string | null;
   onItemMoved?: (itemId: string) => void;
   /** Bumped by the overview's "N interested" chip when a stamped item
-   *  is still captured: each change opens the Captured tray. */
+   *  is still captured: each change opens the Captured tray once, and
+   *  onTrayRequestHandled lets the owner clear it so a later mount does
+   *  not reopen the tray. */
   openTrayRequest?: number;
+  onTrayRequestHandled?: () => void;
 }
 
 export function JourneySection({
@@ -114,6 +117,7 @@ export function JourneySection({
   spotlightItemId = null,
   onItemMoved,
   openTrayRequest = 0,
+  onTrayRequestHandled,
 }: JourneySectionProps) {
   const supabase = createClient();
   const { user, accountId } = useAuth();
@@ -131,8 +135,11 @@ export function JourneySection({
   const [addOpen, setAddOpen] = useState(false);
   const [trayOpen, setTrayOpen] = useState(false);
   useEffect(() => {
-    if (openTrayRequest > 0) setTrayOpen(true);
-  }, [openTrayRequest]);
+    if (openTrayRequest > 0) {
+      setTrayOpen(true);
+      onTrayRequestHandled?.();
+    }
+  }, [openTrayRequest, onTrayRequestHandled]);
   const [importableCount, setImportableCount] = useState(0);
   const [scanningChat, setScanningChat] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);

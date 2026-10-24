@@ -1918,6 +1918,7 @@ function SortableJourneyRow({
             spotlightItemId={spotlightItemId}
             onItemMoved={onItemMoved}
             openTrayRequest={trayRequest}
+            onTrayRequestHandled={() => setTrayRequest(0)}
             focusStageId={showStage ? null : (bucketStage?.id ?? null)}
             focusDropped={
               !showStage &&
