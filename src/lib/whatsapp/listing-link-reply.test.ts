@@ -10,7 +10,7 @@ import {
   withListingLink,
 } from '@/lib/whatsapp/listing-link-reply';
 
-let rows: { content_text: string | null }[] = [];
+let rows: { content_text: string | null; status?: string | null }[] = [];
 let orFilter: string | null = null;
 
 function fakeDb() {
@@ -99,6 +99,29 @@ describe('[INB-037] a bot answer carries the listing link once per thread', () =
     expect(
       await listingLinkAlreadySent(fakeDb() as never, 'conv-1', property)
     ).toBe(true);
+  });
+
+  it('counts a link in a message with no status and ignores a failed send', async () => {
+    rows = [
+      {
+        content_text:
+          'https://aryavarta.convoreal.com/?property_id=AV-0021&v=contact-1',
+        status: null,
+      },
+    ];
+    expect(
+      await listingLinkAlreadySent(fakeDb() as never, 'conv-1', property)
+    ).toBe(true);
+    rows = [
+      {
+        content_text:
+          'https://aryavarta.convoreal.com/?property_id=AV-0021&v=contact-1',
+        status: 'failed',
+      },
+    ];
+    expect(
+      await listingLinkAlreadySent(fakeDb() as never, 'conv-1', property)
+    ).toBe(false);
   });
 
   it('treats a lookup failure as no link sent, so the buyer still gets one', async () => {

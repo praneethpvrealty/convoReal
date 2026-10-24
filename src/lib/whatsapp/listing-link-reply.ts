@@ -23,17 +23,20 @@ export async function listingLinkAlreadySent(
   try {
     const { data, error } = await db
       .from('messages')
-      .select('content_text')
+      .select('content_text, status')
       .eq('conversation_id', conversationId)
       .in('sender_type', ['agent', 'bot'])
-      .neq('status', 'failed')
       .or(
         refs.map((ref) => `content_text.ilike.%property_id=${ref}%`).join(',')
       )
       .limit(50);
     if (error) return false;
-    return ((data ?? []) as { content_text: string | null }[]).some((row) =>
-      refs.some((ref) => holdsLink(row.content_text ?? '', ref))
+    return (
+      (data ?? []) as { content_text: string | null; status?: string | null }[]
+    ).some(
+      (row) =>
+        row.status !== 'failed' &&
+        refs.some((ref) => holdsLink(row.content_text ?? '', ref))
     );
   } catch {
     return false;

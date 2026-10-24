@@ -518,6 +518,24 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     ).toBe('Plot dimensions: 50x80.');
   });
 
+  it('answers every field a field-only message names', () => {
+    const r = answerFromPropertyData(
+      'location and measurement pls',
+      makeProp({ dimensions: '30x40' })
+    );
+    expect(r.intent).toBe('location');
+    expect(r.answer).toBe(
+      "It's located in HSR Layout, Sector 2, Bengaluru, Karnataka. Plot dimensions: 30x40."
+    );
+    const partial = answerFromPropertyData('location and facing', makeProp());
+    expect(partial.answer).toBe(
+      "It's located in HSR Layout, Sector 2, Bengaluru, Karnataka. It faces East."
+    );
+    expect(
+      answerFromPropertyData('Location road width', makeProp()).answer
+    ).toBe("It's located in HSR Layout, Sector 2, Bengaluru, Karnataka.");
+  });
+
   it('answers a land-size question from the land area when no dimensions are recorded', () => {
     const land = makeProp({
       type: 'Agricultural Land',

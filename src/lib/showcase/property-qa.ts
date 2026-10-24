@@ -11,6 +11,7 @@
 import type { Property } from '@/types';
 import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
 import { requestsMoreListings } from '@/lib/ai/more-listings';
+import { asksListingAttribute } from '@/lib/ai/requirement-signal';
 import { formatCurrency } from '@/lib/format/currency';
 import {
   listingAvailabilityAnswer,
@@ -443,6 +444,29 @@ export function answerFromPropertyData(
     return { answer: null, intent: 'photo_identification' };
   }
   if (ESCALATE_PATTERN.test(q)) return { answer: null, intent: null };
+
+  // "location and measurement pls" names two fields: each one named
+  // is answered, in the order the matchers run.
+  if (asksListingAttribute(q)) {
+    const parts = q
+      .split(/\s*(?:,|&|\/|\+|\band\b)\s*/i)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const matched = parts
+      .map((part) => MATCHERS.find((m) => m.pattern.test(part)))
+      .filter((m): m is (typeof MATCHERS)[number] => !!m)
+      .filter((m, i, all) => all.findIndex((o) => o.intent === m.intent) === i);
+    if (matched.length > 1) {
+      const answers = matched
+        .map((m) => m.respond(property, opts))
+        .filter((a): a is string => !!a);
+      const intent = matched[0].intent;
+      if (answers.length === 0) return { answer: null, intent };
+      const caveat = listingStatusCaveat(property.status);
+      const text = answers.join(' ');
+      return { answer: caveat ? `${text} ${caveat}` : text, intent };
+    }
+  }
 
   for (const m of MATCHERS) {
     if (m.pattern.test(q)) {
