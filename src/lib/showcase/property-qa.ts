@@ -229,7 +229,9 @@ function rentAnswer(p: QaProperty): string | null {
 }
 
 function leaseAnswer(p: QaProperty): string | null {
-  return isRentLike(p) ? priceAnswer(p) : null;
+  return p.listing_type === 'Built to Suit' && p.bts_lease_years
+    ? priceAnswer(p)
+    : null;
 }
 
 function chargesAnswer(p: QaProperty): string | null {

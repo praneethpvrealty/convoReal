@@ -398,7 +398,21 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     );
   });
 
-  it('escalates a lease-tenure question on a sale listing, and answers it for a lease', () => {
+  it('escalates a lease-tenure question unless the lease term is recorded', () => {
+    for (const prop of [
+      building(),
+      makeProp({ listing_type: 'Rent', price: 0, rent_per_month: 35000 }),
+      makeProp({
+        listing_type: 'Built to Suit',
+        price: 0,
+        rent_per_month: 500000,
+        bts_lease_years: null,
+      }),
+    ]) {
+      const r = answerFromPropertyData('what is the lease term', prop);
+      expect(r.intent, prop.listing_type).toBe('lease');
+      expect(r.answer, prop.listing_type).toBeNull();
+    }
     const r = answerFromPropertyData(
       'tenure of the lease agreements with tenant',
       building()
