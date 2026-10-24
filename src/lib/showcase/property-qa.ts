@@ -222,6 +222,10 @@ function roiAnswer(p: QaProperty): string | null {
   return parts.length ? `Investment: ${parts.join(', ')}.` : null;
 }
 
+function sidesAnswer(p: QaProperty): string | null {
+  return p.dimensions ? `Plot dimensions: ${p.dimensions}.` : null;
+}
+
 function dimensionsAnswer(p: QaProperty): string | null {
   if (p.dimensions) return `Plot dimensions: ${p.dimensions}.`;
   if (!p.land_area) return null;
@@ -392,8 +396,12 @@ const MATCHERS: {
   },
   {
     intent: 'dimensions',
-    pattern:
-      /\b(dimension|measurement|plot size|site size|land size|length|breadth|width|frontage|how wide)/i,
+    pattern: /\b(dimension|length|breadth|width|frontage|how wide)/i,
+    respond: sidesAnswer,
+  },
+  {
+    intent: 'dimensions',
+    pattern: /\b(measurement|plot size|site size|land size)/i,
     respond: dimensionsAnswer,
   },
   {

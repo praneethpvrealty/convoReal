@@ -685,6 +685,24 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     ).toBe('Land area: 2,400 sq.ft.');
   });
 
+  it('escalates a side measurement the listing does not record instead of quoting the land area', () => {
+    const plot = makeProp({ dimensions: undefined, land_area: 2400 });
+    for (const q of [
+      'what is the frontage?',
+      'how wide is the plot?',
+      'length and breadth?',
+      'What are the dimensions?',
+    ]) {
+      expect(answerFromPropertyData(q, plot)).toEqual({
+        answer: null,
+        intent: 'dimensions',
+      });
+    }
+    expect(answerFromPropertyData('plot size?', plot).answer).toBe(
+      'Land area: 2,400 sq.ft.'
+    );
+  });
+
   it('answers a question that names the plot by its sides from the field it asks for', () => {
     const plot = makeProp({
       type: 'Residential Land/ Plot',
