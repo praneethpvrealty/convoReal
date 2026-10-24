@@ -17,6 +17,37 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 24 October 2026
+
+- **The bot no longer answers a rent question about a sale listing with
+  the asking price.** A buyer sent a ₹20 Cr commercial building's card
+  asked "Rent per month ?" and "Rentals received on bank account?" and was
+  told "The asking price is ₹20 Cr." both times, because "rent" sat in the
+  price matcher. On a sale or JV listing a rent or lease question is now
+  answered from the recorded rental income and yield, or handed to the
+  model when none is recorded; deposit, advance and maintenance questions
+  are answered from the listing's maintenance or handed over the same way;
+  only price, cost and rate questions quote the asking price. "How old is
+  the building?" is answered from the year built, "What is the plot
+  measurement?" from the dimensions rather than with the listing type, and
+  a question about how the rent is paid (bank account, cheque, cash,
+  payment terms) is never given a canned reply. And every bot reply about
+  one live listing now ends with the listing's showcase link until the
+  thread holds one — the photo template that opened this thread carries
+  its link only as a button, so the buyer had nowhere to read on.
+- **Six more ways a lead's message was misread, found by reading every
+  lead thread of the last thirty days.** "Hi ji / Which old building" and
+  "if I get a buyer, will I get commission" were not read as questions and
+  went unanswered for days; a bare "Call ?" and "Can you arrange a meeting
+  with the owner" were not read as asking for a person, so one was answered
+  by the model asking for the lead's own number and the other with "take
+  your time"; "Location road width" fell to the qualification ladder, which
+  replied with a fresh shortlist; "what all are available", asked about a
+  sold listing, got that listing's regret; "the plot at Jayanagar 7th block
+  50x70" could not be told apart from the other plot in the block; and a
+  model reply asking for the lead's contact number went out as an answer.
+  Each now reaches the handler it asked for.
+
 #### 23 October 2026
 
 - **Marking a listing Sold now reaches its buyers, and a regret never asks

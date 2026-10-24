@@ -21,7 +21,11 @@ import {
   sendSubjectPhotos,
 } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
-import { unavailableListingReply } from '@/lib/inventory/listing-status';
+import { asksListingAttribute } from '@/lib/ai/requirement-signal';
+import {
+  isListingLive,
+  unavailableListingReply,
+} from '@/lib/inventory/listing-status';
 import {
   hasRequirementOnFile,
   sendRequirementConfirmAfterRegret,
@@ -29,6 +33,7 @@ import {
 import { createNotification } from '@/lib/notifications/create';
 import { relayLeadMessageToBridgedAgent } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { withListingLink } from '@/lib/whatsapp/listing-link-reply';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { latestTeamReply } from '@/lib/whatsapp/agent-takeover';
 import type { InboundChainContext, StepResult } from '../context';
@@ -100,6 +105,9 @@ export async function leadQuestion(
     (tappedHumanRequest !== null ||
       (message.type === 'text' &&
         (looksLikeQuestion(inboundText) ||
+          // "Location road width" names the field it wants and nothing
+          // else: not question-shaped, but a question about the listing.
+          asksListingAttribute(inboundText) ||
           requestsHumanContact(inboundText) ||
           // "Sir can I get images" is not question-shaped either, but it
           // asks for the listing's own photos, which we hold.
@@ -233,6 +241,25 @@ export async function leadQuestion(
       : answer;
 
     if (reply) {
+      // Every answer about one live listing carries its showcase link
+      // until the thread holds one: a buyer sent a template with no
+      // link in its body had nowhere to read what the bot left out.
+      // Live as the showcase reads it: an unpublished or under-review
+      // listing never opens from the link, so none is sent for it.
+      const linkSubject =
+        subjects.length === 1 && !photoRequest && isListingLive(subjects[0])
+          ? subjects[0]
+          : null;
+      const text = linkSubject
+        ? await withListingLink({
+            db: admin,
+            accountId,
+            conversationId: conversation.id,
+            contactId: contactRecord.id,
+            property: linkSubject,
+            text: reply.text,
+          })
+        : reply.text;
       const sent = await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
@@ -240,7 +267,7 @@ export async function leadQuestion(
         conversationId: conversation.id,
         kind: 'text',
         senderType: 'bot',
-        text: reply.text,
+        text,
       });
 
       await markBotInstructionsFired(

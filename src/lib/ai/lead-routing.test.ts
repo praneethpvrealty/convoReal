@@ -284,3 +284,36 @@ describe('[INB-034] a correction that names a shared listing by a figure', () =>
     );
   });
 });
+
+describe('[INB-038] routes read from the October lead threads', () => {
+  it.each([
+    'what all are available',
+    'What else is available?',
+    'what all do you have',
+    'any other properties available',
+  ])('%s → more_listings', (text) => {
+    expect(routeLeadMessage(text)).toBe('more_listings');
+  });
+
+  it.each(['What plots are available?', 'What sites are available'])(
+    '%s names a property type and stays with the ladder',
+    (text) => {
+      expect(routeLeadMessage(text)).not.toBe('more_listings');
+      expect(routeLeadMessage(text)).toBe('qualification');
+    }
+  );
+
+  it.each(['Location road width', 'Size in sft?', 'rent per month'])(
+    '%s → listing_question',
+    (text) => {
+      expect(routeLeadMessage(text)).toBe('listing_question');
+    }
+  );
+
+  it.each(['Call ?', 'Can you arrange a meeting with the owner'])(
+    '%s → callback_handover',
+    (text) => {
+      expect(routeLeadMessage(text)).toBe('callback_handover');
+    }
+  );
+});

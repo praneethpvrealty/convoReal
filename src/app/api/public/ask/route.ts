@@ -85,6 +85,9 @@ const QA_COLUMNS = [
   'rental_income',
   'roi',
   'dimensions',
+  'year_built',
+  'road_width',
+  'road_width_unit',
 ].join(', ');
 
 const HANDOFF_MESSAGE =
@@ -181,6 +184,16 @@ export async function POST(request: NextRequest) {
     // A question about which house is in the photo has no answer in the
     // fields and none in the model: it goes straight to the agent.
     if (structured.intent === 'photo_identification') {
+      return NextResponse.json({
+        answer: null,
+        escalate_whatsapp: true,
+        message: HANDOFF_MESSAGE,
+      });
+    }
+
+    // "What else do you have" asks past this listing: the agent answers
+    // that, never a model grounded in the one listing.
+    if (structured.intent === 'more_listings') {
       return NextResponse.json({
         answer: null,
         escalate_whatsapp: true,
