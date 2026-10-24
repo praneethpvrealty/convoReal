@@ -29,6 +29,7 @@ import {
 import { createNotification } from '@/lib/notifications/create';
 import { relayLeadMessageToBridgedAgent } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { withListingLink } from '@/lib/whatsapp/listing-link-reply';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { latestTeamReply } from '@/lib/whatsapp/agent-takeover';
 import type { InboundChainContext, StepResult } from '../context';
@@ -233,6 +234,23 @@ export async function leadQuestion(
       : answer;
 
     if (reply) {
+      // Every answer about one live listing carries its showcase link
+      // until the thread holds one: a buyer sent a template with no
+      // link in its body had nowhere to read what the bot left out.
+      const linkSubject =
+        subjects.length === 1 && !photoRequest && !unavailableSubject
+          ? subjects[0]
+          : null;
+      const text = linkSubject
+        ? await withListingLink({
+            db: admin,
+            accountId,
+            conversationId: conversation.id,
+            contactId: contactRecord.id,
+            property: linkSubject,
+            text: reply.text,
+          })
+        : reply.text;
       const sent = await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
@@ -240,7 +258,7 @@ export async function leadQuestion(
         conversationId: conversation.id,
         kind: 'text',
         senderType: 'bot',
-        text: reply.text,
+        text,
       });
 
       await markBotInstructionsFired(

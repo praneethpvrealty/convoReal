@@ -27,6 +27,9 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
 vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: vi.fn(),
 }));
+vi.mock('@/lib/whatsapp/listing-link-reply', () => ({
+  withListingLink: vi.fn(async ({ text }: { text: string }) => text),
+}));
 
 import {
   contactNumberHandoverText,
@@ -40,6 +43,7 @@ import { createNotification } from '@/lib/notifications/create';
 import { relayLeadMessageToBridgedAgent } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { withListingLink } from '@/lib/whatsapp/listing-link-reply';
 import type { InboundChainContext } from './context';
 import { photoHandoverText } from '@/lib/ai/photo-request';
 import { leadQuestion, withoutHandovers } from './steps/lead-question';
@@ -110,6 +114,82 @@ beforeEach(() => {
   ] as unknown as Awaited<ReturnType<typeof questionSubjectProperties>>);
   vi.mocked(subjectPortalListings).mockResolvedValue([]);
   vi.mocked(retrieveBotInstructions).mockResolvedValue([]);
+  vi.mocked(withListingLink).mockImplementation(async ({ text }) => text);
+});
+
+describe('[INB-037] a reply about one listing carries its link', () => {
+  it('sends the answer with the listing link the helper attached', async () => {
+    vi.mocked(answerLeadQuestion).mockResolvedValue({
+      text: 'This is a Commercial Building listed for sale.',
+      source: 'listing',
+      intent: 'type',
+    });
+    vi.mocked(withListingLink).mockImplementation(
+      async ({ text }) =>
+        `${text}\n\nFull details: https://x.test/?property_id=p`
+    );
+
+    await leadQuestion(ctx({ inboundText: 'What is the plot measurement?' }));
+
+    expect(withListingLink).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'acc-1',
+        conversationId: 'conv-1',
+        contactId: 'contact-1',
+        property: expect.objectContaining({ id: 'prop-493' }),
+        text: 'This is a Commercial Building listed for sale.',
+      })
+    );
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        senderType: 'bot',
+        text: 'This is a Commercial Building listed for sale.\n\nFull details: https://x.test/?property_id=p',
+      })
+    );
+  });
+
+  it('also links the listing under a handover, so the buyer can read on while they wait', async () => {
+    vi.mocked(answerLeadQuestion).mockResolvedValue({
+      text: HANDOVER_TEXT,
+      source: 'handover',
+    });
+
+    await leadQuestion(ctx());
+
+    expect(withListingLink).toHaveBeenCalledWith(
+      expect.objectContaining({ text: HANDOVER_TEXT })
+    );
+  });
+
+  it('links nothing when the question spans several listings', async () => {
+    vi.mocked(questionSubjectProperties).mockResolvedValue([
+      { id: 'prop-1', title: 'Koramangala plot' },
+      { id: 'prop-2', title: 'JP Nagar villa' },
+    ] as unknown as Awaited<ReturnType<typeof questionSubjectProperties>>);
+    vi.mocked(answerLeadQuestion).mockResolvedValue({
+      text: 'It is East facing.',
+      source: 'listing',
+    });
+
+    await leadQuestion(ctx({ inboundText: 'Facing of 1 and 2?' }));
+
+    expect(withListingLink).not.toHaveBeenCalled();
+  });
+
+  it('links nothing on a listing that has left the market', async () => {
+    vi.mocked(questionSubjectProperties).mockResolvedValue([
+      { id: 'prop-493', title: 'Plot #493', status: 'Sold' },
+    ] as unknown as Awaited<ReturnType<typeof questionSubjectProperties>>);
+    vi.mocked(answerLeadQuestion).mockResolvedValue({
+      text: 'Sorry, this one has already been sold.',
+      source: 'listing',
+      intent: 'availability',
+    });
+
+    await leadQuestion(ctx({ inboundText: 'still available?' }));
+
+    expect(withListingLink).not.toHaveBeenCalled();
+  });
 });
 
 describe('[INB-035] the bot does not hand over on top of a live agent', () => {

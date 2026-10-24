@@ -85,6 +85,7 @@ const QA_COLUMNS = [
   'rental_income',
   'roi',
   'dimensions',
+  'year_built',
 ].join(', ');
 
 const HANDOFF_MESSAGE =

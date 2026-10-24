@@ -55,7 +55,7 @@ describe('answerFromPropertyData — structured answers', () => {
       maintenance: 2000,
     });
     const r = answerFromPropertyData('what is the rent?', prop);
-    expect(r.intent).toBe('price');
+    expect(r.intent).toBe('rent');
     expect(r.answer).toContain('The monthly rent is ₹35,000.');
     expect(r.answer).toContain('Maintenance is ₹2,000/month.');
   });
@@ -350,5 +350,147 @@ describe('[INB-032] prices and places read the way the listing message wrote the
     expect(answerFromPropertyData('where is it located', prop).answer).toBe(
       "It's located in JP Nagar 4th Phase, Bangalore, Karnataka."
     );
+  });
+});
+
+// The Kundalahalli thread of 24 October 2026: a buyer sent a ₹20 Cr
+// commercial building's card asked "Rent per month ?", "How old the
+// building?" and "Rentals received on bank account?" — and was told
+// "The asking price is ₹20 Cr." twice, because "rent" sat in the price
+// matcher and the sale branch of its responder knows only the price.
+describe('[INB-037] a rent question about a sale listing is never answered with the asking price', () => {
+  const building = () =>
+    makeProp({
+      title: 'Commercial Building with 16000 Sq.Ft. Built-up Area',
+      type: 'Commercial Building',
+      price: 200000000,
+      rental_income: 1000000,
+      roi: 6,
+      year_built: 2022,
+    });
+
+  it.each(['Rent per month ?', 'what is the rent', 'monthly rental?'])(
+    'answers "%s" from the rental income',
+    (q) => {
+      const r = answerFromPropertyData(q, building());
+      expect(r.intent).toBe('rent');
+      expect(r.answer).toBe(
+        'This property is listed for sale, not for rent; the expected rental income is ₹10 Lakhs/month (ROI/yield 6%).'
+      );
+    }
+  );
+
+  it('escalates a rent question when the sale listing records no rental income', () => {
+    const r = answerFromPropertyData('Rent per month ?', makeProp());
+    expect(r.intent).toBe('rent');
+    expect(r.answer).toBeNull();
+  });
+
+  it('still answers rent for a rental listing, and the price for a price question', () => {
+    expect(
+      answerFromPropertyData(
+        'rent per month?',
+        makeProp({ listing_type: 'Rent', price: 0, rent_per_month: 35000 })
+      ).answer
+    ).toBe('The monthly rent is ₹35,000.');
+    expect(answerFromPropertyData('what is the price', building()).answer).toBe(
+      'The asking price is ₹20 Cr.'
+    );
+  });
+
+  it('escalates a lease-tenure question on a sale listing, and answers it for a lease', () => {
+    const r = answerFromPropertyData(
+      'tenure of the lease agreements with tenant',
+      building()
+    );
+    expect(r.intent).toBe('lease');
+    expect(r.answer).toBeNull();
+    expect(
+      answerFromPropertyData(
+        'what is the lease term',
+        makeProp({
+          listing_type: 'Built to Suit',
+          price: 0,
+          rent_per_month: 500000,
+          bts_lease_years: 9,
+          bts_lock_in_years: 3,
+        })
+      ).answer
+    ).toContain('Built to Suit lease with a 9-year term (3-year lock-in)');
+  });
+
+  it('sends a question about how the rent is paid to a person or the model', () => {
+    for (const q of [
+      'Rentals received on bank account?',
+      'is the rent paid by cheque or in cash',
+      'what are the payment terms',
+    ]) {
+      expect(answerFromPropertyData(q, building()), q).toEqual({
+        answer: null,
+        intent: null,
+      });
+    }
+  });
+
+  it('answers the age of the building from its year built', () => {
+    const age = new Date().getFullYear() - 2022;
+    for (const q of [
+      'How old the building?',
+      'how old is this building',
+      'when was it built',
+      'year of construction?',
+    ]) {
+      const r = answerFromPropertyData(q, building());
+      expect(r.intent, q).toBe('age');
+      expect(r.answer, q).toBe(
+        `It was built in 2022, so it's about ${age} years old.`
+      );
+    }
+    const unknown = answerFromPropertyData('How old the building?', makeProp());
+    expect(unknown.intent).toBe('age');
+    expect(unknown.answer).toBeNull();
+    expect(buildPropertyContext(building())).toContain('Year built: 2022');
+  });
+
+  it('answers a plot or site measurement from the dimensions, never with the listing type', () => {
+    for (const q of [
+      'What is the Plot measurement ?',
+      "Site measurement I'm asking",
+      'is it 40/60 or 50/80',
+      'plot size?',
+    ]) {
+      const r = answerFromPropertyData(q, building());
+      expect(r.intent, q).toBe('dimensions');
+      expect(r.answer, q).toBeNull();
+    }
+    expect(
+      answerFromPropertyData(
+        'What is the Plot measurement ?',
+        makeProp({ type: 'Commercial Building', dimensions: '50x80' })
+      ).answer
+    ).toBe('Plot dimensions: 50x80.');
+  });
+
+  it('answers maintenance on a sale listing from its own field, and never with the price', () => {
+    expect(
+      answerFromPropertyData('what is the maintenance', makeProp()).answer
+    ).toBeNull();
+    expect(
+      answerFromPropertyData(
+        'what is the maintenance',
+        makeProp({ maintenance: 4500 })
+      ).answer
+    ).toBe('Maintenance is ₹4,500/month.');
+    expect(
+      answerFromPropertyData(
+        'how much advance',
+        makeProp({
+          listing_type: 'Rent',
+          price: 0,
+          rent_per_month: 35000,
+          advance: 70000,
+        })
+      ).answer
+    ).toContain('Advance/deposit is ₹70,000.');
   });
 });

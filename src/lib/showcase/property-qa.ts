@@ -55,6 +55,7 @@ export type QaProperty = Pick<
   | 'bts_lease_years'
   | 'bts_lock_in_years'
   | 'bts_escalation_percent'
+  | 'year_built'
 > & {
   /** Optional only for callers that never see an unavailable row (the
    *  public endpoints select Available listings); the WhatsApp Q&A
@@ -215,13 +216,41 @@ function dimensionsAnswer(p: QaProperty): string | null {
   return p.dimensions ? `Plot dimensions: ${p.dimensions}.` : null;
 }
 
+function rentAnswer(p: QaProperty): string | null {
+  if (isRentLike(p)) return priceAnswer(p);
+  if (!p.rental_income) return null;
+  const listedAs = isJV(p)
+    ? 'for Joint Venture/Development'
+    : 'for sale, not for rent';
+  let s = `This property is listed ${listedAs}; the expected rental income is ${inr(p.rental_income)}/month`;
+  if (p.roi) s += ` (ROI/yield ${p.roi}%)`;
+  return `${s}.`;
+}
+
+function leaseAnswer(p: QaProperty): string | null {
+  return isRentLike(p) ? priceAnswer(p) : null;
+}
+
+function chargesAnswer(p: QaProperty): string | null {
+  if (isRentLike(p) || isJV(p)) return priceAnswer(p);
+  return p.maintenance ? `Maintenance is ${inr(p.maintenance)}/month.` : null;
+}
+
+function ageAnswer(p: QaProperty): string | null {
+  if (!p.year_built) return null;
+  const age = new Date().getFullYear() - p.year_built;
+  return age > 0
+    ? `It was built in ${p.year_built}, so it's about ${age} year${age === 1 ? '' : 's'} old.`
+    : `It was built in ${p.year_built}.`;
+}
+
 // Questions that must always go to the AI/agent even when they mention
 // an answerable field. "Is the price negotiable?" contains "price" but
 // the buyer wants a judgement call, not the sticker number; floor/loan/
 // legal questions are outside the structured data entirely. Checked
 // before the structured matchers so these never get a canned reply.
 const ESCALATE_PATTERN =
-  /\b(negotiab|negotiate|bargain|discount|best price|final price|lowest|loan|home loan|emi|down payment|which floor|what floor|floor number|legal|approv|clearance|khata|rera|possession date|when.*ready|tax|registration)/i;
+  /\b(negotiab|negotiate|bargain|discount|best price|final price|lowest|loan|home loan|emi|down payment|which floor|what floor|floor number|legal|approv|clearance|khata|rera|possession date|when.*ready|tax|registration|bank|cheque|in cash|payment (terms|mode)|mode of payment)/i;
 
 // "Is it the pink house or the one next to it?" asks a person to look
 // at the photo, and nothing in the listing's fields can do that. The
@@ -275,15 +304,35 @@ const MATCHERS: {
     respond: availabilityAnswer,
   },
   {
+    intent: 'age',
+    pattern:
+      /\b(how old|age of|years? old|built in|year built|year of construction|construction year|when was (it|this|that|the (building|house|property)) (built|constructed))/i,
+    respond: ageAnswer,
+  },
+  {
     intent: 'roi',
     pattern: /\b(roi|yield|rental income|return on|investment return)/i,
     respond: roiAnswer,
   },
   {
+    intent: 'rent',
+    pattern: /\brent/i,
+    respond: rentAnswer,
+  },
+  {
+    intent: 'lease',
+    pattern: /\b(lease|tenure|lock.?in)/i,
+    respond: leaseAnswer,
+  },
+  {
     intent: 'price',
-    pattern:
-      /\b(price|cost|rate|how much|budget|rent|deposit|advance|maintenance)/i,
+    pattern: /\b(price|cost|rate|how much|budget)/i,
     respond: priceAnswer,
+  },
+  {
+    intent: 'charges',
+    pattern: /\b(deposit|advance|maintenance)/i,
+    respond: chargesAnswer,
   },
   {
     intent: 'bedrooms',
@@ -296,15 +345,16 @@ const MATCHERS: {
     respond: bathroomsAnswer,
   },
   {
+    intent: 'dimensions',
+    pattern:
+      /\b(dimension|measurement|plot size|site size|land size|length|breadth|\d+\s*[x×/]\s*\d+)/i,
+    respond: dimensionsAnswer,
+  },
+  {
     intent: 'area',
     pattern:
       /\b(area|size|sq\.?\s?ft|square feet|sqft|built.?up|carpet|how big)/i,
     respond: areaAnswer,
-  },
-  {
-    intent: 'dimensions',
-    pattern: /\b(dimension|plot size|length|breadth)/i,
-    respond: dimensionsAnswer,
   },
   {
     intent: 'nearby',
@@ -439,6 +489,7 @@ export function buildPropertyContext(property: QaProperty): string {
     p.land_area ? `${p.land_area} ${p.land_area_unit || 'sq.ft.'}` : null
   );
   add('Dimensions', p.dimensions);
+  add('Year built', p.year_built ?? null);
   add('Facing', p.facing_direction);
   add('Amenities', p.features);
   add('Nearby highlights', p.nearby_highlights);
