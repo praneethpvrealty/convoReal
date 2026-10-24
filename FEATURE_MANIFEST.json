@@ -5428,6 +5428,40 @@
               "case": "[CNV-010]"
             }
           ]
+        },
+        {
+          "id": "CNV-011",
+          "rule": "A lead discussing the listing in their thread is never pitched another one. A statement that disputes a fact about the shared listing (\"based on the location you've sent, it doesn't seem to be a 30-50 plot\") is a question about that listing, not a requirement: the qualification ladder stands down, the listing Q&A hands it to a person with the listing-dispute reply, and the agent is notified. A bare message that names a listing field (plot number, survey number, block) is a question about the listing. Tapping Interested pins the thread to that listing (last_inquired_property_id). A bare reply to the location question must name a stem of a locality, never a substring of one (\"Ik\" is an acknowledgement, not Chikkaballapur), and an acknowledgement of three letters or fewer is never a locality. The requirement playback card is not sent twice in a row for an unchanged brief.",
+          "tests": [
+            {
+              "file": "src/lib/ai/requirement-signal.test.ts",
+              "case": "[CNV-011]"
+            },
+            {
+              "file": "src/lib/ai/lead-routing.test.ts",
+              "case": "[CNV-011]"
+            },
+            {
+              "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[CNV-011]"
+            },
+            {
+              "file": "src/lib/whatsapp/inbound/chain/lead-question-step.test.ts",
+              "case": "[CNV-011]"
+            },
+            {
+              "file": "src/lib/ai/buyer-qualification.test.ts",
+              "case": "[CNV-011]"
+            },
+            {
+              "file": "src/lib/whatsapp/listing-feedback.test.ts",
+              "case": "[CNV-011]"
+            },
+            {
+              "file": "src/lib/whatsapp/requirement-review.test.ts",
+              "case": "[CNV-011]"
+            }
+          ]
         }
       ]
     },

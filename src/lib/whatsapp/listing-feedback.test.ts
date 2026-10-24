@@ -109,10 +109,12 @@ function stubDb(results: Record<string, unknown[]>) {
   const queues = new Map(Object.entries(results));
   const from = (table: string) => {
     const chain: Record<string, unknown> = {};
+    let mutates = false;
     const handler =
       (method: string) =>
       (...args: unknown[]) => {
         calls.push({ table, method, args });
+        if (method === 'update' || method === 'upsert') mutates = true;
         return chain;
       };
     for (const m of [
@@ -132,6 +134,8 @@ function stubDb(results: Record<string, unknown[]>) {
       return { data: q.shift() ?? null };
     };
     (chain as { then?: unknown }).then = (resolve: (v: unknown) => unknown) => {
+      // A write resolves without consuming the rows queued for reads.
+      if (mutates) return Promise.resolve(resolve({ data: null, error: null }));
       const q = queues.get(table) ?? [];
       return Promise.resolve(resolve({ data: q.shift() ?? null }));
     };
@@ -366,6 +370,48 @@ describe('sendListingFeedbackPrompt', () => {
         kind: 'interactive',
         interactiveType: 'list',
         senderType: 'bot',
+      })
+    );
+  });
+});
+
+describe('[CNV-011] an Interested tap pins the thread to that listing', () => {
+  it('points last_inquired_property_id at the listing the lead chose', async () => {
+    const { db, calls } = stubDb({
+      properties: [{ id: P1, title: 'Plot in Koramangala', user_id: 'u9' }],
+      contacts: [{ assigned_agent_id: 'agent-7' }],
+    });
+
+    await handleListingFeedbackReply(baseArgs(db, `lfb_y_${P1}`));
+
+    const pin = calls.find(
+      (c) => c.table === 'contacts' && c.method === 'update'
+    );
+    expect(pin?.args[0]).toMatchObject({ last_inquired_property_id: P1 });
+    const scope = calls
+      .filter((c) => c.table === 'contacts' && c.method === 'eq')
+      .map((c) => c.args);
+    expect(scope).toContainEqual(['id', 'c1']);
+    expect(scope).toContainEqual(['account_id', 'acct-1']);
+  });
+
+  it('keeps the enquiry pointer of a lead still awaiting approval', async () => {
+    const { db, calls } = stubDb({
+      properties: [{ id: P1, title: 'Plot in Koramangala', user_id: 'u9' }],
+      contacts: [{ assigned_agent_id: 'agent-7', status: 'pending_review' }],
+    });
+
+    const handled = await handleListingFeedbackReply(
+      baseArgs(db, `lfb_y_${P1}`)
+    );
+
+    expect(handled).toBe(true);
+    expect(
+      calls.some((c) => c.table === 'contacts' && c.method === 'update')
+    ).toBe(false);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Plot in Koramangala'),
       })
     );
   });

@@ -97,6 +97,23 @@ function firstName(name: string | null | undefined): string {
 }
 
 /**
+ * True when the thread's latest bot message is this card for this
+ * same brief. A lead's "Interested in that" after one playback earned
+ * the same card again; the caller acknowledges instead of repeating it.
+ */
+export function requirementReviewAlreadyShown(
+  contact: Contact,
+  previousBotTexts: (string | null | undefined)[]
+): boolean {
+  const summary = buildRequirementSummary(contact);
+  if (!summary) return false;
+  const shown = (previousBotTexts[0] ?? '')
+    .split('\n')
+    .find((line) => line.startsWith('📌 '));
+  return shown?.trim() === `📌 ${summary}`;
+}
+
+/**
  * The playback card: the saved brief in the body, each field a tap
  * away from correction. Returns false when there is nothing on file
  * to review — the caller falls back to its plain reply.

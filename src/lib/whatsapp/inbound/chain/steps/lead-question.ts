@@ -21,7 +21,10 @@ import {
   sendSubjectPhotos,
 } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
-import { asksListingAttribute } from '@/lib/ai/requirement-signal';
+import {
+  asksListingAttribute,
+  disputesSharedListing,
+} from '@/lib/ai/requirement-signal';
 import {
   isListingLive,
   unavailableListingReply,
@@ -108,6 +111,10 @@ export async function leadQuestion(
           // "Location road width" names the field it wants and nothing
           // else: not question-shaped, but a question about the listing.
           asksListingAttribute(inboundText) ||
+          // "It doesn't seem to be a 30-50 plot" disputes the listing's
+          // record: not a question by shape, but about the listing, and
+          // only a person can settle it.
+          disputesSharedListing(inboundText) ||
           requestsHumanContact(inboundText) ||
           // "Sir can I get images" is not question-shaped either, but it
           // asks for the listing's own photos, which we hold.

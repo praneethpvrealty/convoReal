@@ -1792,3 +1792,48 @@ describe('[INB-039] a shortlist outside the named locality says so', () => {
     );
   });
 });
+
+describe('[CNV-011] a two-letter acknowledgement is not a locality', () => {
+  const inventory = [
+    { locality_canonical: 'Chikkaballapur', sublocality: null, project: null },
+    { locality_canonical: 'Koramangala', sublocality: null, project: null },
+  ];
+
+  it('reads "Ik" as "I know", never as the locality that contains those letters', () => {
+    for (const text of ['Ik', 'ik', 'K', 'Ok sir', 'Noted', 'Got it']) {
+      expect(resolveInventoryLocalityReply(text, inventory), text).toBeNull();
+    }
+  });
+
+  it('needs a stem of the name, not a substring of it', () => {
+    expect(resolveInventoryLocalityReply('ram', inventory)).toBeNull();
+    expect(resolveInventoryLocalityReply('Chikkaballapur', inventory)).toBe(
+      'Chikkaballapur'
+    );
+    expect(resolveInventoryLocalityReply('Chikkabalapur', inventory)).toBe(
+      'Chikkaballapur'
+    );
+    expect(
+      resolveInventoryLocalityReply('Koramangala 5th block', inventory)
+    ).toBe('Koramangala');
+  });
+
+  it('[INB-004] still reads a locality written as initials', () => {
+    const initials = [
+      { locality_canonical: 'JP Nagar', sublocality: null, project: null },
+      { locality_canonical: 'RT Nagar', sublocality: null, project: null },
+    ];
+    expect(resolveInventoryLocalityReply('J P Nagar', initials)).toBe(
+      'JP Nagar'
+    );
+    expect(resolveInventoryLocalityReply('J.P. Nagar', initials)).toBe(
+      'JP Nagar'
+    );
+    expect(resolveInventoryLocalityReply('R T Nagar', initials)).toBe(
+      'RT Nagar'
+    );
+    expect(resolveInventoryLocalityReply('JP Nagar 7th phase', initials)).toBe(
+      'JP Nagar'
+    );
+  });
+});

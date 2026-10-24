@@ -29,7 +29,10 @@ import {
   localityLabel,
 } from '@/lib/inventory/location-guard';
 import { PORTALS } from '@/lib/portals/post-kit';
-import { asksListingAttribute } from '@/lib/ai/requirement-signal';
+import {
+  asksListingAttribute,
+  disputesSharedListing,
+} from '@/lib/ai/requirement-signal';
 import { unavailableListingReply } from '@/lib/inventory/listing-status';
 import {
   findPortalDiscrepancies,
@@ -77,11 +80,19 @@ export const HANDOVER_TEXT =
 export const PHOTO_IDENTIFICATION_HANDOVER_TEXT =
   "Good question — I'll confirm exactly which one it is in the photo with the team and come right back to you.";
 
+/** What the lead hears when they dispute a fact about the listing —
+ *  "it doesn't seem to be a 30x50 plot". The listing's own record is
+ *  the thing in question, so only a person can settle it; same
+ *  obligations as HANDOVER_TEXT. */
+export const LISTING_DISPUTE_HANDOVER_TEXT =
+  "Thanks for flagging that — I'll have the team verify this listing's details and come right back to you.";
+
 export function isHandoverText(text: string | null | undefined): boolean {
   const t = text ?? '';
   return [
     HANDOVER_TEXT,
     PHOTO_IDENTIFICATION_HANDOVER_TEXT,
+    LISTING_DISPUTE_HANDOVER_TEXT,
     CALLBACK_HANDOVER_TEXT,
     CONTACT_NUMBER_HANDOVER_PREFIX,
   ].some((line) => t.includes(line));
@@ -557,7 +568,9 @@ export function repliesRatherThanOpens(
   if (requestsHumanContact(text)) return true;
   return (
     options.listingAlreadySent &&
-    (looksLikeQuestion(text) || asksListingAttribute(text))
+    (looksLikeQuestion(text) ||
+      asksListingAttribute(text) ||
+      disputesSharedListing(text))
   );
 }
 
@@ -901,6 +914,17 @@ export async function answerLeadQuestion(args: {
         intent: 'portal_compare',
       };
     }
+  }
+
+  // After the portal rung: "is the 99acres listing different from this
+  // one?" is a comparison the portal data answers. Any other buyer
+  // disputing what the record says is not asking the record.
+  if (disputesSharedListing(question)) {
+    return {
+      text: LISTING_DISPUTE_HANDOVER_TEXT,
+      source: 'handover',
+      intent: 'listing_dispute',
+    };
   }
 
   // Ahead of the structured matchers: property-qa deliberately refuses

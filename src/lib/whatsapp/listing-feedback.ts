@@ -242,16 +242,38 @@ export async function handleListingFeedbackReply(args: {
         source: 'whatsapp_interested',
       });
 
-      await send(
-        `Great choice 👌 I've flagged your interest in *${property.title}* — our team will reach out shortly with photos and next steps. Want a site visit? Just say when.`
-      );
-
       const { data: contactRow } = await db
         .from('contacts')
-        .select('assigned_agent_id')
+        .select('assigned_agent_id, status')
         .eq('id', contact.id)
         .eq('account_id', accountId)
         .maybeSingle();
+
+      // The thread is now about this listing: the questions that follow
+      // ("dimensions of the plot?") and any size the lead gives relative
+      // to it are answered against it, not against an older enquiry.
+      // A lead still awaiting approval keeps their enquiry pointer: the
+      // approval sends the details of the listing they enquired about.
+      if (contactRow?.status !== 'pending_review') {
+        const { error: pinError } = await db
+          .from('contacts')
+          .update({
+            last_inquired_property_id: propertyId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', contact.id)
+          .eq('account_id', accountId);
+        if (pinError) {
+          console.error(
+            `[listing-feedback] pinning ${propertyId} on contact ${contact.id} failed:`,
+            pinError
+          );
+        }
+      }
+
+      await send(
+        `Great choice 👌 I've flagged your interest in *${property.title}* — our team will reach out shortly with photos and next steps. Want a site visit? Just say when.`
+      );
 
       // Interest is perishable — ping the human while the lead is
       // still in the chat.
