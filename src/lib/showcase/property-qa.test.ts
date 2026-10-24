@@ -559,6 +559,44 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     ).toEqual({ answer: null, intent: 'rent' });
   });
 
+  it('says a rental answer once when several named fields share it', () => {
+    const rental = makeProp({
+      listing_type: 'Rent',
+      price: 0,
+      rent_per_month: 35000,
+      advance: 70000,
+    });
+    for (const q of [
+      'price and deposit',
+      'maintenance and deposit',
+      'Rent per month, maintenance, deposit',
+    ]) {
+      const answer = answerFromPropertyData(q, rental).answer ?? '';
+      expect(answer.match(/The monthly rent is ₹35,000\./g)).toHaveLength(1);
+    }
+  });
+
+  it('answers "is it for sale or rent" from the listing type, not the rent field', () => {
+    for (const q of ['for sale or rent?', 'rent or sale?']) {
+      expect(answerFromPropertyData(q, makeProp())).toEqual({
+        answer: 'This is a Flat/ Apartment listed for sale.',
+        intent: 'type',
+      });
+    }
+    expect(
+      answerFromPropertyData('Is it for sale or rent?', makeProp())
+    ).toEqual({
+      answer: 'Yes, this property is currently available for sale.',
+      intent: 'availability',
+    });
+    expect(
+      answerFromPropertyData(
+        'sale or rent?',
+        makeProp({ listing_type: 'Rent', price: 0, rent_per_month: 35000 })
+      ).answer
+    ).toBe('This is a Flat/ Apartment listed for rent.');
+  });
+
   it('answers a land-size question from the land area when no dimensions are recorded', () => {
     const land = makeProp({
       type: 'Agricultural Land',

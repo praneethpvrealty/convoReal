@@ -333,6 +333,11 @@ const MATCHERS: {
     respond: availabilityAnswer,
   },
   {
+    intent: 'type',
+    pattern: /\b(sale|rent) or (sale|rent)\b/i,
+    respond: typeAnswer,
+  },
+  {
     intent: 'age',
     pattern:
       /\b(how old|age of|years? old|built in (the year )?\d{4}|year built|year of construction|construction year|when was (it|this|that|the (building|house|property)) (built|constructed))/i,
@@ -483,7 +488,7 @@ export function answerFromPropertyData(
       const missing = responded.find((r) => !r.answer);
       if (missing) return { answer: null, intent: missing.intent };
       const caveat = listingStatusCaveat(property.status);
-      const text = responded.map((r) => r.answer).join(' ');
+      const text = [...new Set(responded.map((r) => r.answer))].join(' ');
       return {
         answer: caveat ? `${text} ${caveat}` : text,
         intent: matched[0].intent,
