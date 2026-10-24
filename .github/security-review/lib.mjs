@@ -374,13 +374,14 @@ const SMALL_DIFF_CHARS = 3_000;
 const SMALL_FILE_COUNT = 3;
 
 export const RESULT_ARTIFACT = 'claude-review-result';
-export const TRUSTED_RUN_EVENTS = ['pull_request_target', 'workflow_dispatch'];
+export const WORKFLOW_PATH = '.github/workflows/security-review.yml';
 
 export function isTrustedReviewRun(run) {
   return (
     run?.status === 'completed' &&
     run.conclusion === 'success' &&
-    TRUSTED_RUN_EVENTS.includes(run.event)
+    run.event === 'pull_request_target' &&
+    run.path === WORKFLOW_PATH
   );
 }
 
@@ -399,27 +400,38 @@ export function parseReviewResult(text, { prNumber, headSha }) {
   ) {
     return null;
   }
-  return parsed.findings
-    .filter((f) => f && typeof f.path === 'string')
-    .map((f) => ({
-      kind: normalizeKind(f.kind),
-      path: f.path,
-      line: Number(f.line) || 0,
-      severity: normalizeSeverity(f.severity),
-      title: String(f.title ?? ''),
-    }));
+  return {
+    files: Array.isArray(parsed.files)
+      ? parsed.files.filter((f) => typeof f === 'string')
+      : [],
+    findings: parsed.findings
+      .filter((f) => f && typeof f.path === 'string')
+      .map((f) => ({
+        kind: normalizeKind(f.kind),
+        path: f.path,
+        line: Number(f.line) || 0,
+        severity: normalizeSeverity(f.severity),
+        title: String(f.title ?? ''),
+      })),
+  };
 }
 
-export function carriedFindings(prior, { scope, fresh, files }) {
+export function carriedFindings(prior, { scope, fresh, files, priorFiles }) {
   const inScope = new Set(scope);
   const inPr = new Set(files);
+  const left = new Set((priorFiles ?? []).filter((f) => !inPr.has(f)));
   const seen = new Set(fresh.map(findingKey));
   return (prior ?? []).filter((f) => {
-    if (inScope.has(f.path) || !inPr.has(f.path)) return false;
+    if (inScope.has(f.path) || left.has(f.path)) return false;
     if (seen.has(findingKey(f))) return false;
     seen.add(findingKey(f));
     return true;
   });
+}
+
+export function priorFindingsIn(prior, scope) {
+  const inScope = new Set(scope);
+  return (prior ?? []).filter((f) => inScope.has(f.path));
 }
 
 export function rereviewFiles(allFiles, changedSince) {
