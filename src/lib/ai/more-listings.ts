@@ -17,7 +17,7 @@ const MORE_LISTINGS =
 // these used to be answered with that listing's regret, because the
 // word "available" is what the status matcher keys on.
 const WHAT_ELSE =
-  /^(?:(?:ok(?:ay)?|yes|pls|please|sir|madam)[,.!\s]*)*(?:(?:what|which|anything|something)\s+(?:all|else)(?:\s+(?:is|are|do\s+you\s+have|you\s+have|u\s+have|available|there|options?|properties|listings?))*|what\s+(?:all\s+)?(?:(?:is|are)\s+)?(?:(?:the\s+)?(?:other\s+)?(?:options?|properties|listings?|sites?|plots?)\s+)?(?:are\s+)?available(?:\s+(?:with\s+you|now|there))?|(?:any|what)\s+other\s+(?:properties|listings?|options?|sites?|plots?)(?:\s+(?:are\s+)?available)?)\s*[?.!]*$/i;
+  /^(?:(?:ok(?:ay)?|yes|pls|please|sir|madam)[,.!\s]*)*(?:(?:what|which|anything|something)\s+(?:all|else)(?:\s+(?:is|are|do\s+you\s+have|you\s+have|u\s+have|available|there|options?|properties|listings?))*|what\s+(?:all\s+)?(?:(?:is|are)\s+)?(?:(?:the\s+)?other\s+(?:options?|properties|listings?|sites?|plots?)\s+)?(?:are\s+)?available(?:\s+(?:with\s+you|now|there))?|(?:any|what)\s+other\s+(?:properties|listings?|options?|sites?|plots?)(?:\s+(?:are\s+)?available)?)\s*[?.!]*$/i;
 
 /** True when the message asks for more listings and states nothing
  *  else — no requirement, no question about a specific listing. */
