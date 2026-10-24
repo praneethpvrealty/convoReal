@@ -73,6 +73,7 @@ jobs:
           {
             echo "number=${PR_NUMBER}"
             echo "base_sha=$(jq -r .base.sha <<<"$pr")"
+            echo "base_ref=$(jq -r .base.ref <<<"$pr")"
             echo "head_sha=$(jq -r .head.sha <<<"$pr")"
             echo "title=$(jq -r .title <<<"$pr" | tr -d '\r\n' | head -c 200)"
           } >> "$GITHUB_OUTPUT"
@@ -101,6 +102,7 @@ jobs:
           REVIEW_RESULT_PATH: review-result.json
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          PR_BASE_REF: ${{ steps.pr.outputs.base_ref }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           PR_TITLE: ${{ steps.pr.outputs.title }}
         run: node .github/security-review/review.mjs

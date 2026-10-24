@@ -397,29 +397,65 @@ test('rereviewFiles keeps the pull request files that changed since the last rev
   assert.deepEqual(rereviewFiles(['src/a.ts'], []), []);
 });
 
-test('only a successful base-branch run of the reviewer workflow counts as a prior review', () => {
+test('only a successful base-branch run of the reviewer workflow for this PR counts as a prior review', () => {
   const run = {
     status: 'completed',
     conclusion: 'success',
     event: 'pull_request_target',
     path: '.github/workflows/security-review.yml',
+    pull_requests: [{ number: 42, base: { ref: 'main' } }],
   };
-  assert.equal(isTrustedReviewRun(run), true);
+  const ctx = { prNumber: 42, baseRef: 'main' };
+  assert.equal(isTrustedReviewRun(run, ctx), true);
   assert.equal(
-    isTrustedReviewRun({ ...run, event: 'workflow_dispatch' }),
-    false
-  );
-  assert.equal(isTrustedReviewRun({ ...run, event: 'pull_request' }), false);
-  assert.equal(isTrustedReviewRun({ ...run, conclusion: 'skipped' }), false);
-  assert.equal(
-    isTrustedReviewRun({ ...run, path: '.github/workflows/ci.yml' }),
+    isTrustedReviewRun({ ...run, event: 'workflow_dispatch' }, ctx),
     false
   );
   assert.equal(
-    isTrustedReviewRun({ status: 'in_progress', conclusion: null }),
+    isTrustedReviewRun({ ...run, event: 'pull_request' }, ctx),
     false
   );
-  assert.equal(isTrustedReviewRun(undefined), false);
+  assert.equal(
+    isTrustedReviewRun({ ...run, conclusion: 'skipped' }, ctx),
+    false
+  );
+  assert.equal(
+    isTrustedReviewRun({ ...run, path: '.github/workflows/ci.yml' }, ctx),
+    false
+  );
+  assert.equal(
+    isTrustedReviewRun(
+      { ...run, pull_requests: [{ number: 43, base: { ref: 'main' } }] },
+      ctx
+    ),
+    false
+  );
+  assert.equal(
+    isTrustedReviewRun(
+      { ...run, pull_requests: [{ number: 42, base: { ref: 'release/x' } }] },
+      ctx
+    ),
+    false
+  );
+  assert.equal(
+    isTrustedReviewRun(
+      {
+        ...run,
+        pull_requests: [
+          { number: 42, base: { ref: 'main' } },
+          { number: 43, base: { ref: 'release/x' } },
+        ],
+      },
+      ctx
+    ),
+    false
+  );
+  assert.equal(isTrustedReviewRun({ ...run, pull_requests: [] }, ctx), false);
+  assert.equal(
+    isTrustedReviewRun({ status: 'in_progress', conclusion: null }, ctx),
+    false
+  );
+  assert.equal(isTrustedReviewRun(undefined, ctx), false);
 });
 
 test('parseReviewResult accepts only this pull request and head', () => {
@@ -493,7 +529,7 @@ test('parseReviewResult accepts only this pull request and head', () => {
   );
 });
 
-test('a re-review carries earlier findings unless their file was re-reviewed or left the pull request', () => {
+test('a re-review carries findings in untouched PR files and hands the rest to the model', () => {
   const prior = [
     {
       kind: 'security',
@@ -531,7 +567,6 @@ test('a re-review carries earlier findings unless their file was re-reviewed or 
       title: 'Caller now breaks',
     },
   ];
-  const priorFiles = ['src/a.ts', 'src/b.ts', 'src/c.ts', 'src/gone.ts'];
   const fresh = [
     {
       kind: 'code',
@@ -542,37 +577,31 @@ test('a re-review carries earlier findings unless their file was re-reviewed or 
     },
   ];
   const files = ['src/a.ts', 'src/b.ts', 'src/c.ts'];
-  const carried = carriedFindings(prior, {
-    scope: ['src/b.ts'],
-    fresh,
-    files,
-    priorFiles,
-  });
+  const carried = carriedFindings(prior, { scope: ['src/b.ts'], fresh, files });
   assert.deepEqual(
     carried.map((f) => f.path),
-    ['src/a.ts', 'src/caller.ts']
+    ['src/a.ts']
   );
   assert.equal(checkConclusion([...fresh, ...carried]), 'failure');
   assert.equal(checkConclusion(fresh), 'neutral');
   assert.deepEqual(
-    carriedFindings(prior, { scope: [], fresh: [], files, priorFiles }).map(
-      (f) => f.path
-    ),
-    ['src/a.ts', 'src/b.ts', 'src/c.ts', 'src/caller.ts']
+    carriedFindings(prior, { scope: [], fresh: [], files }).map((f) => f.path),
+    ['src/a.ts', 'src/b.ts', 'src/c.ts']
   );
   assert.deepEqual(
-    carriedFindings(prior, { scope: [], fresh: [], files, priorFiles: [] }).map(
-      (f) => f.path
-    ),
-    ['src/a.ts', 'src/b.ts', 'src/c.ts', 'src/gone.ts', 'src/caller.ts']
-  );
-  assert.deepEqual(
-    carriedFindings(undefined, { scope: [], fresh: [], files, priorFiles }),
+    carriedFindings(undefined, { scope: [], fresh: [], files }),
     []
   );
   assert.deepEqual(
-    priorFindingsIn(prior, ['src/b.ts', 'src/c.ts']).map((f) => f.title),
-    ['Log the failure', 'Await the send']
+    priorFindingsIn(prior, { scope: ['src/b.ts'], files }).map((f) => f.title),
+    ['Log the failure', 'Reverted file', 'Caller now breaks']
+  );
+  assert.deepEqual(
+    rereviewFiles(files, [
+      'src/b.ts',
+      ...files.filter((f) => !['src/a.ts', 'src/b.ts'].includes(f)),
+    ]),
+    ['src/b.ts', 'src/c.ts']
   );
 
   const next = summaryMarkdown({
@@ -585,7 +614,7 @@ test('a re-review carries earlier findings unless their file was re-reviewed or 
     carried,
     carriedFrom: 'abc1234def',
   });
-  assert.match(next, /2 findings carried over from abc1234/);
+  assert.match(next, /1 finding carried over from abc1234/);
   assert.match(next, /src\/a\.ts:12/);
   const quiet = summaryMarkdown({
     findings: [],

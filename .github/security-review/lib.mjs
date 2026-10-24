@@ -376,12 +376,16 @@ const SMALL_FILE_COUNT = 3;
 export const RESULT_ARTIFACT = 'claude-review-result';
 export const WORKFLOW_PATH = '.github/workflows/security-review.yml';
 
-export function isTrustedReviewRun(run) {
+export function isTrustedReviewRun(run, { prNumber, baseRef }) {
+  const prs = run?.pull_requests ?? [];
   return (
     run?.status === 'completed' &&
     run.conclusion === 'success' &&
     run.event === 'pull_request_target' &&
-    run.path === WORKFLOW_PATH
+    run.path === WORKFLOW_PATH &&
+    prs.length === 1 &&
+    Number(prs[0]?.number) === Number(prNumber) &&
+    prs[0]?.base?.ref === baseRef
   );
 }
 
@@ -416,22 +420,22 @@ export function parseReviewResult(text, { prNumber, headSha }) {
   };
 }
 
-export function carriedFindings(prior, { scope, fresh, files, priorFiles }) {
+export function carriedFindings(prior, { scope, fresh, files }) {
   const inScope = new Set(scope);
   const inPr = new Set(files);
-  const left = new Set((priorFiles ?? []).filter((f) => !inPr.has(f)));
   const seen = new Set(fresh.map(findingKey));
   return (prior ?? []).filter((f) => {
-    if (inScope.has(f.path) || left.has(f.path)) return false;
+    if (inScope.has(f.path) || !inPr.has(f.path)) return false;
     if (seen.has(findingKey(f))) return false;
     seen.add(findingKey(f));
     return true;
   });
 }
 
-export function priorFindingsIn(prior, scope) {
+export function priorFindingsIn(prior, { scope, files }) {
   const inScope = new Set(scope);
-  return (prior ?? []).filter((f) => inScope.has(f.path));
+  const inPr = new Set(files);
+  return (prior ?? []).filter((f) => inScope.has(f.path) || !inPr.has(f.path));
 }
 
 export function rereviewFiles(allFiles, changedSince) {

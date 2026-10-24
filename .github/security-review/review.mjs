@@ -51,6 +51,7 @@ const CHECK_NAMES = {
 const root = path.resolve(required('REVIEW_ROOT'));
 const repo = required('GITHUB_REPOSITORY');
 const prNumber = Number(required('PR_NUMBER'));
+const baseRef = required('PR_BASE_REF');
 const githubToken = required('GITHUB_TOKEN');
 required('ANTHROPIC_API_KEY');
 
@@ -133,7 +134,9 @@ async function priorResult(sha) {
     'GET',
     `/repos/${repo}/actions/workflows/${WORKFLOW_FILE}/runs?head_sha=${sha}&per_page=20`
   );
-  for (const run of runs.filter(isTrustedReviewRun)) {
+  for (const run of runs.filter((run) =>
+    isTrustedReviewRun(run, { prNumber, baseRef })
+  )) {
     const { artifacts } = await github(
       'GET',
       `/repos/${repo}/actions/runs/${run.id}/artifacts?name=${RESULT_ARTIFACT}`
@@ -414,10 +417,12 @@ async function main() {
     REVIEW_SCOPE === 'full' ? null : await lastReviewedHead(headSha);
   let scope = files;
   if (previous) {
-    scope = rereviewFiles(
-      files,
-      selectFiles(git('diff', '--name-status', `${previous.sha}..${headSha}`))
-    );
+    scope = rereviewFiles(files, [
+      ...selectFiles(
+        git('diff', '--name-status', `${previous.sha}..${headSha}`)
+      ),
+      ...files.filter((f) => !previous.files.includes(f)),
+    ]);
     if (scope.length === 0) {
       console.log(
         `No reviewed file changed since ${previous.sha}; carrying its findings forward.`
@@ -426,7 +431,6 @@ async function main() {
         scope,
         fresh: [],
         files,
-        priorFiles: previous.files,
       });
       const byKind = splitByKind(carriedAll);
       for (const kind of Object.keys(CHECK_NAMES)) {
@@ -488,9 +492,11 @@ async function main() {
     },
   ];
   const rest = files.filter((f) => !scope.includes(f));
-  const earlier = previous ? priorFindingsIn(previous.findings, scope) : [];
+  const earlier = previous
+    ? priorFindingsIn(previous.findings, { scope, files })
+    : [];
   const intro = previous
-    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}${earlier.length ? `\n\nThe earlier review reported these findings in the files under review. Report each one again, with the same path and title, unless the current code no longer has the problem; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
+    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}${earlier.length ? `\n\nThe earlier review reported these findings, in the files under review or in files the pull request does not change. Report each one again, with the same path and title, unless the current code no longer has the problem; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
     : '';
   const messages = [
     {
@@ -609,7 +615,6 @@ async function main() {
         scope,
         fresh: findings,
         files,
-        priorFiles: previous.files,
       })
     : [];
   const carriedByKind = splitByKind(carriedAll);
