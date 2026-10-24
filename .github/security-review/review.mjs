@@ -13,6 +13,7 @@ import {
   confinedRealPath,
   extractHandbookSections,
   isTrustedReviewRun,
+  latestBaseChange,
   markersIn,
   MODELS,
   normalizeKind,
@@ -127,14 +128,31 @@ async function downloadArtifactJson(artifact) {
   }
 }
 
-async function priorResult(sha) {
+async function baseChangedAt() {
+  let latest = null;
+  for (let page = 1; page <= 5; page += 1) {
+    const events = await github(
+      'GET',
+      `/repos/${repo}/issues/${prNumber}/timeline?per_page=100&page=${page}`
+    );
+    const at = latestBaseChange(events);
+    if (at !== null && (latest === null || at > latest)) latest = at;
+    if (events.length < 100) break;
+  }
+  return latest;
+}
+
+async function priorResult(sha, notBefore) {
   const { workflow_runs: runs } = await github(
     'GET',
     `/repos/${repo}/actions/workflows/${WORKFLOW_FILE}/runs?head_sha=${sha}&per_page=20`
   );
-  for (const run of runs.filter((run) =>
-    isTrustedReviewRun(run, { prNumber, baseRef })
-  )) {
+  const trusted = runs.filter(
+    (run) =>
+      isTrustedReviewRun(run, { prNumber, baseRef }) &&
+      (notBefore === null || Date.parse(run.created_at) > notBefore)
+  );
+  for (const run of trusted) {
     const { artifacts } = await github(
       'GET',
       `/repos/${repo}/actions/runs/${run.id}/artifacts?name=${RESULT_ARTIFACT}`
@@ -162,8 +180,9 @@ async function lastReviewedHead(headSha) {
     .reverse()
     .filter((sha) => sha !== headSha)
     .slice(0, MAX_COMMITS_SEARCHED);
+  const notBefore = await baseChangedAt();
   for (const sha of candidates) {
-    const result = await priorResult(sha);
+    const result = await priorResult(sha, notBefore);
     if (result) return { sha, ...result };
   }
   return null;
@@ -423,10 +442,18 @@ async function main() {
   }
   let scope = files;
   let reverted = [];
+  let changedAtAll = [];
   if (previous) {
-    const changedSince = selectFiles(
-      git('diff', '--name-status', `${previous.sha}..${headSha}`)
+    const nameStatusSince = git(
+      'diff',
+      '--name-status',
+      `${previous.sha}..${headSha}`
     );
+    changedAtAll = nameStatusSince
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => line.split('\t').pop());
+    const changedSince = selectFiles(nameStatusSince);
     reverted = previous.files.filter(
       (f) => changedSince.includes(f) && !files.includes(f)
     );
@@ -436,7 +463,10 @@ async function main() {
           ...changedSince,
           ...files.filter((f) => !previous.files.includes(f)),
         ]);
-    if (scope.length === 0) {
+    if (
+      scope.length === 0 &&
+      (changedAtAll.length === 0 || previous.findings.length === 0)
+    ) {
       console.log(
         `No reviewed file changed since ${previous.sha}; carrying its findings forward.`
       );
@@ -466,13 +496,10 @@ async function main() {
     }
   }
 
-  const rawDiff = git(
-    'diff',
-    '--unified=4',
-    `${mergeBase}..${headSha}`,
-    '--',
-    ...scope
-  );
+  const rawDiff =
+    scope.length === 0
+      ? ''
+      : git('diff', '--unified=4', `${mergeBase}..${headSha}`, '--', ...scope);
   const diffIndex = parseDiff(rawDiff);
   const { text: diff, truncated } = truncateDiff(rawDiff, MAX_DIFF_CHARS);
   const plan = planModel({
@@ -502,9 +529,10 @@ async function main() {
     },
   ];
   const rest = files.filter((f) => !scope.includes(f));
+  const unreviewedChanged = changedAtAll.filter((f) => !files.includes(f));
   const earlier = previous ? previous.findings : [];
   const intro = previous
-    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${reverted.length ? ` Since that head the pull request stopped changing ${reverted.join(', ')} (reverted to the base content), so every file of the pull request is under review again; check that nothing in them depended on the reverted change.` : ''}${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}${earlier.length ? `\n\nThe earlier review reported these findings. Report each one again, with the same path and title, unless the current code no longer has the problem, reading its file when it is not in the diff below; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
+    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${scope.length === 0 ? ` No reviewed file changed since that head, so there is no diff below; the files that did change are listed and can be read with read_file.` : ''}${unreviewedChanged.length ? ` Files changed since that head that are outside the reviewed set (tests, generated files, docs): ${unreviewedChanged.join(', ')}.` : ''}${reverted.length ? ` Since that head the pull request stopped changing ${reverted.join(', ')} (reverted to the base content), so every file of the pull request is under review again; check that nothing in them depended on the reverted change.` : ''}${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}${earlier.length ? `\n\nThe earlier review reported these findings. Report each one again, with the same path and title, unless the current code no longer has the problem, reading its file when it is not in the diff below; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
     : '';
   const messages = [
     {

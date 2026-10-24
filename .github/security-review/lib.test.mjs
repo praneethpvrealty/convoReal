@@ -24,6 +24,7 @@ import {
   formatFinding,
   isReviewed,
   isTrustedReviewRun,
+  latestBaseChange,
   markersIn,
   parseDiff,
   parseReviewResult,
@@ -454,6 +455,28 @@ test('only a successful base-branch run of the reviewer workflow for this PR cou
     false
   );
   assert.equal(isTrustedReviewRun(undefined, ctx), false);
+});
+
+test('latestBaseChange finds the newest base-branch change in a timeline', () => {
+  assert.equal(latestBaseChange([]), null);
+  assert.equal(latestBaseChange(undefined), null);
+  assert.equal(
+    latestBaseChange([
+      { event: 'commented', created_at: '2026-10-24T10:00:00Z' },
+    ]),
+    null
+  );
+  assert.equal(
+    latestBaseChange([
+      { event: 'base_ref_changed', created_at: '2026-10-24T10:00:00Z' },
+      {
+        event: 'automatic_base_change_succeeded',
+        created_at: '2026-10-24T12:00:00Z',
+      },
+      { event: 'base_ref_changed', created_at: '2026-10-24T11:00:00Z' },
+    ]),
+    Date.parse('2026-10-24T12:00:00Z')
+  );
 });
 
 test('parseReviewResult accepts only this pull request and head', () => {

@@ -389,6 +389,21 @@ export function isTrustedReviewRun(run, { prNumber, baseRef }) {
   );
 }
 
+const BASE_CHANGE_EVENTS = new Set([
+  'base_ref_changed',
+  'automatic_base_change_succeeded',
+]);
+
+export function latestBaseChange(events) {
+  let latest = null;
+  for (const e of events ?? []) {
+    if (!BASE_CHANGE_EVENTS.has(e?.event)) continue;
+    const at = Date.parse(e.created_at);
+    if (Number.isFinite(at) && (latest === null || at > latest)) latest = at;
+  }
+  return latest;
+}
+
 export function parseReviewResult(text, { prNumber, headSha }) {
   let parsed;
   try {

@@ -50,6 +50,7 @@ jobs:
       pull-requests: write
       checks: write
       actions: read
+      issues: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -87,7 +88,9 @@ jobs:
           persist-credentials: false
 
       - name: Install the reviewer
-        run: npm ci --prefix .github/security-review --no-audit --no-fund
+        run: |
+          command -v funzip
+          npm ci --prefix .github/security-review --no-audit --no-fund
 
       - name: Test the reviewer's helpers
         run: npm test --prefix .github/security-review
