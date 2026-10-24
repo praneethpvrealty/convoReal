@@ -425,7 +425,9 @@ async function main() {
       console.log(
         `No reviewed file changed since ${previous.sha}; carrying its findings forward.`
       );
-      const byKind = splitByKind(previous.findings);
+      const left = new Set(previous.files.filter((f) => !files.includes(f)));
+      const kept = previous.findings.filter((f) => !left.has(f.path));
+      const byKind = splitByKind(kept);
       for (const kind of Object.keys(CHECK_NAMES)) {
         const carried = byKind[kind];
         await postCheck(
@@ -444,7 +446,7 @@ async function main() {
           })
         );
       }
-      writeResult(headSha, files, previous.findings);
+      writeResult(headSha, files, kept);
       return;
     }
   }

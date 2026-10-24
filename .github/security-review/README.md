@@ -70,8 +70,8 @@ How a review runs:
      anchored to can clear it. The deep triggers still apply to that delta: a
      fix that touches a migration or auth code goes to Opus. When no reviewed
      file changed (a merge of the base branch, a test-only push), the earlier
-     findings are carried over unchanged, they alone decide the checks, and
-     no model is called.
+     findings are carried over unchanged, minus those in a file that has left
+     the PR since, they alone decide the checks, and no model is called.
      `REVIEW_SCOPE=full` forces a full review. A `workflow_dispatch` run
      defaults to `full`; `scope=auto` dispatched from `main` re-reviews a PR
      against its last `pull_request_target` result. The re-review path
