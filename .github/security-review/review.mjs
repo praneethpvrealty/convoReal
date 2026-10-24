@@ -6,7 +6,6 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import {
@@ -115,10 +114,11 @@ async function downloadArtifactJson(artifact) {
     },
   });
   if (!res.ok) return null;
-  const zipPath = path.join(tmpdir(), `claude-review-${artifact.id}.zip`);
-  writeFileSync(zipPath, Buffer.from(await res.arrayBuffer()));
+  const zip = Buffer.from(await res.arrayBuffer());
+  if (zip.length > 8 * 1024 * 1024) return null;
   try {
-    return execFileSync('unzip', ['-p', zipPath, path.basename(RESULT_PATH)], {
+    return execFileSync('funzip', [], {
+      input: zip,
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
     });

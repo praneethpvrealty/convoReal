@@ -50,7 +50,8 @@ How a review runs:
      days). The script walks the PR's commits from the newest backwards (at
      most 30) for one with a successful `security-review.yml` run started by
      `pull_request_target` or `workflow_dispatch`, downloads that run's
-     artifact and accepts it only if it names this PR and that head. Check
+     artifact (unpacked in memory through `funzip`, never written to disk)
+     and accepts it only if it names this PR and that head. Check
      runs, comments and statuses are not consulted for this: a same-repo PR
      workflow can post those, but it cannot produce a run of this workflow
      or attach an artifact to one. It then reviews only the PR's files that
