@@ -97,6 +97,19 @@ function firstName(name: string | null | undefined): string {
 }
 
 /**
+ * True when the thread's latest bot message is this card for this
+ * same brief. A lead's "Interested in that" after one playback earned
+ * the same card again; the caller acknowledges instead of repeating it.
+ */
+export function requirementReviewAlreadyShown(
+  contact: Contact,
+  previousBotTexts: (string | null | undefined)[]
+): boolean {
+  const summary = buildRequirementSummary(contact);
+  return !!summary && !!previousBotTexts[0]?.includes(`📌 ${summary}`);
+}
+
+/**
  * The playback card: the saved brief in the body, each field a tap
  * away from correction. Returns false when there is nothing on file
  * to review — the caller falls back to its plain reply.
@@ -110,14 +123,9 @@ export async function sendRequirementReview(args: {
   contact: Contact;
   opening?: string;
   closing?: string;
-  /** The thread's recent bot messages, newest first. The card is not
-   *  sent twice in a row for an unchanged brief: a lead's "Interested
-   *  in that" after one playback earned the same card again. */
-  previousBotTexts?: (string | null | undefined)[];
 }): Promise<boolean> {
   const summary = buildRequirementSummary(args.contact);
   if (!summary) return false;
-  if (args.previousBotTexts?.[0]?.includes(`📌 ${summary}`)) return true;
 
   try {
     const source = resolveRequirementSource(args.contact);

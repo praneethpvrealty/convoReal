@@ -29,6 +29,7 @@ vi.mock('@/lib/showcase/account-showcase-url', () => ({
 
 const {
   buildRequirementSummary,
+  requirementReviewAlreadyShown,
   sendRequirementReview,
   handleRequirementTweakReply,
 } = await import('./requirement-review');
@@ -349,38 +350,28 @@ describe('handleRequirementTweakReply', () => {
 });
 
 describe('[CNV-011] the playback card is not repeated for an unchanged brief', () => {
-  it('sends nothing when the latest bot message already carries this summary', async () => {
+  it('recognises its own card for this brief as the latest bot message', () => {
     const summary = buildRequirementSummary(aryan)!;
-    const sent = await sendRequirementReview({
-      db: {} as never,
-      accountId: 'acct-1',
-      userId: 'u1',
-      contactId: 'c1',
-      conversationId: 'conv-1',
-      contact: aryan,
-      previousBotTexts: [
+    expect(
+      requirementReviewAlreadyShown(aryan, [
         `Thanks Aryan — nothing live fits this yet, but our engine is watching. Here's what I'm matching against:\n\n📌 ${summary}\n\nYou'll hear from us the moment a matching listing arrives.`,
-      ],
-    });
-
-    expect(sent).toBe(true);
-    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+      ])
+    ).toBe(true);
   });
 
-  it('still sends when the brief has moved since the last card', async () => {
-    const sent = await sendRequirementReview({
-      db: {} as never,
-      accountId: 'acct-1',
-      userId: 'u1',
-      contactId: 'c1',
-      conversationId: 'conv-1',
-      contact: aryan,
-      previousBotTexts: [
+  it('lets the card go out when the brief has moved, or an older card is not the latest message', () => {
+    const summary = buildRequirementSummary(aryan)!;
+    expect(
+      requirementReviewAlreadyShown(aryan, [
         'Thanks Aryan — nothing live fits this yet. 📌 Residential Plot · near Chikkaballapur',
-      ],
-    });
-
-    expect(sent).toBe(true);
-    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+      ])
+    ).toBe(false);
+    expect(
+      requirementReviewAlreadyShown(aryan, [
+        'Plot dimensions: 30x50.',
+        `📌 ${summary}`,
+      ])
+    ).toBe(false);
+    expect(requirementReviewAlreadyShown(aryan, [])).toBe(false);
   });
 });

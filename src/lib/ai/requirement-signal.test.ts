@@ -134,7 +134,7 @@ describe('[CNV-011] a statement disputing the shared listing is about the listin
       'This is not the same plot as in the photo',
       "It doesn't look like a corner site",
       'The map pin you shared does not match the address',
-      "Isn't it a 30x40 plot? The photo looks different",
+      'The photo you sent looks different from the listing',
     ]) {
       expect(disputesSharedListing(text), text).toBe(true);
       expect(asksAboutSharedListing(text), text).toBe(true);
@@ -150,6 +150,10 @@ describe('[CNV-011] a statement disputing the shared listing is about the listin
       'This is not what I want, I am looking for a villa',
       'It does not seem worth 90 lakhs, my budget is 60 lakh',
       '30x40 plot in Suryanagar',
+      "That's wrong, 30x40 corner site",
+      "Isn't it a 30x40 plot? The photo looks different",
+      "Sorry wrong number, this isn't for me",
+      "No that's not right, I want it east facing",
     ]) {
       expect(disputesSharedListing(text), text).toBe(false);
     }

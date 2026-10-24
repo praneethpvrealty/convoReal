@@ -84,15 +84,14 @@ const LISTING_REFERENCE =
 // filed it, asked buy-or-rent, and five replies later pitched a house
 // in a locality the buyer never named. A dispute is settled by a
 // person, never by a new shortlist.
+//
+// "Doesn't seem", "does not match", "not the same" dispute on their
+// own. A bare "wrong" or "not right" does not: "sorry wrong number,
+// this isn't for me" names no listing fact, so it needs one beside it.
 const LISTING_DISPUTE =
-  /\b(?:doesn'?t|does not|didn'?t|did not|isn'?t|is not|wasn'?t|was not|not)\s+(?:seem|look|appear|match|the same|correct|right|accurate|what you)\b|\b(?:seems?|looks?|appears?)\s+(?:different|wrong|off|incorrect|smaller|bigger|larger|less|more)\b|\b(?:wrong|incorrect|mismatch(?:ed|es)?|differs?|different from|not matching)\b/i;
-
-// Verbs and openers that state a search, not a question about the
-// listing in hand. No qualifier words ("under", "within", "max"): a
-// figure is what makes "under 2 Cr" a budget, and statesBudget reads
-// the figure, while "is this plot under contract?" is a status question.
-const REQUIREMENT_INTENT =
-  /\b(looking|want|need|interested|searching|require|prefer|suggest|options?|any|have you|do you have|get me|find|show me|send me|share)\b/i;
+  /\b(?:doesn'?t|does not|didn'?t|did not|isn'?t|is not|wasn'?t|was not|not)\s+(?:seem|look|appear|match|matching|the same)\b|\b(?:mismatch(?:ed|es)?|differs?|different from)\b/i;
+const LISTING_DISPUTE_BARE =
+  /\b(?:wrong|incorrect|inaccurate|not (?:correct|right|accurate))\b|\b(?:seems?|looks?|appears?)\s+(?:different|wrong|off|incorrect|smaller|bigger|larger)\b/i;
 
 /**
  * True when a question is about the listing already in the thread —
@@ -107,13 +106,36 @@ const REQUIREMENT_INTENT =
  * something ("do you have any villa under 2 Cr?") is still a
  * requirement.
  */
+// Verbs and openers that state a search, not a question about the
+// listing in hand. No qualifier words ("under", "within", "max"): a
+// figure is what makes "under 2 Cr" a budget, and statesBudget reads
+// the figure, while "is this plot under contract?" is a status question.
+const REQUIREMENT_INTENT =
+  /\b(looking|want|need|interested|searching|require|prefer|suggest|options?|any|have you|do you have|get me|find|show me|send me|share)\b/i;
+
+const LISTING_FACT = new RegExp(
+  `\\b(?:${LISTING_ATTRIBUTE}|${PROPERTY_TYPE_WORDS}|photos?|pictures?|pics?|images?|map|pin|listing|property|details?)\\b`,
+  'i'
+);
+
+/**
+ * True when the message disputes a fact about the listing already in
+ * the thread. A dispute that states a size or a budget is a correction
+ * the ladder can file ("that's wrong, 30x40 corner site"), and a
+ * search verb makes it a requirement; both stay with the ladder.
+ */
 export function disputesSharedListing(text?: string | null): boolean {
   const clean = (text || '').trim();
   if (!clean) return false;
+  if (!LISTING_REFERENCE.test(clean)) return false;
+  if (
+    !LISTING_DISPUTE.test(clean) &&
+    !(LISTING_DISPUTE_BARE.test(clean) && LISTING_FACT.test(clean))
+  )
+    return false;
   return (
-    LISTING_REFERENCE.test(clean) &&
-    LISTING_DISPUTE.test(clean) &&
     !statesBudget(clean) &&
+    !SIZE_SIGNAL.test(clean) &&
     !REQUIREMENT_INTENT.test(clean)
   );
 }

@@ -99,10 +99,12 @@ function stubDb(results: Record<string, unknown[]>) {
   const queues = new Map(Object.entries(results));
   const from = (table: string) => {
     const chain: Record<string, unknown> = {};
+    let mutates = false;
     const handler =
       (method: string) =>
       (...args: unknown[]) => {
         calls.push({ table, method, args });
+        if (method === 'update' || method === 'upsert') mutates = true;
         return chain;
       };
     for (const m of [
@@ -122,6 +124,8 @@ function stubDb(results: Record<string, unknown[]>) {
       return { data: q.shift() ?? null };
     };
     (chain as { then?: unknown }).then = (resolve: (v: unknown) => unknown) => {
+      // A write resolves without consuming the rows queued for reads.
+      if (mutates) return Promise.resolve(resolve({ data: null, error: null }));
       const q = queues.get(table) ?? [];
       return Promise.resolve(resolve({ data: q.shift() ?? null }));
     };

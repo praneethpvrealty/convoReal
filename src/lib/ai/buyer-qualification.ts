@@ -49,7 +49,10 @@ import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordLearnedFacts } from '@/lib/learning/record';
 import { valuesDiffer } from '@/lib/learning/fields';
-import { sendRequirementReview } from '@/lib/whatsapp/requirement-review';
+import {
+  requirementReviewAlreadyShown,
+  sendRequirementReview,
+} from '@/lib/whatsapp/requirement-review';
 import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
@@ -617,6 +620,12 @@ function qualifiedMatchesOpening(
   return count === 1
     ? `Thanks ${firstName(contactName)} — here's one matching ${typeLabel(prefs)}${deal} 👇`
     : `Thanks ${firstName(contactName)} — here are ${count} matching ${typeLabel(prefs)} options${deal} 👇`;
+}
+
+export function buildBriefUnchangedReply(
+  contactName: string | null | undefined
+): string {
+  return `Noted ${firstName(contactName)} 👍 — your brief stands as above, and you'll hear from us the moment a matching listing arrives.`;
 }
 
 export function buildQualifierQuestion(
@@ -1914,26 +1923,38 @@ export async function processBuyerQualificationMessage(
       configOwnerUserId &&
       !isBudgetDisparity
     ) {
+      const reviewContact = {
+        ...contact,
+        pref_property_types: prefs.property_types,
+        pref_property_categories: prefs.property_categories,
+        pref_bhk_min: prefs.bhk_min,
+        pref_bhk_max: prefs.bhk_max,
+        pref_budget_min: prefs.budget_min,
+        pref_budget_max: prefs.budget_max,
+        pref_land_area_min_sqft: prefs.land_area_min_sqft,
+        pref_land_area_max_sqft: prefs.land_area_max_sqft,
+        pref_areas: prefs.areas,
+        pref_listing_types: prefs.listing_types,
+      } as Contact;
+      // The card is already the latest thing the lead sees, and the
+      // brief it shows has not moved: acknowledge rather than repeat it.
+      if (requirementReviewAlreadyShown(reviewContact, recentBotTexts)) {
+        await reply(
+          buildBriefUnchangedReply(contact.name),
+          contactRecord,
+          conversation,
+          accessToken,
+          phoneNumberId
+        );
+        return true;
+      }
       const reviewed = await sendRequirementReview({
         db,
         accountId,
         userId: configOwnerUserId,
         contactId: contact.id,
         conversationId: conversation.id,
-        contact: {
-          ...contact,
-          pref_property_types: prefs.property_types,
-          pref_property_categories: prefs.property_categories,
-          pref_bhk_min: prefs.bhk_min,
-          pref_bhk_max: prefs.bhk_max,
-          pref_budget_min: prefs.budget_min,
-          pref_budget_max: prefs.budget_max,
-          pref_land_area_min_sqft: prefs.land_area_min_sqft,
-          pref_land_area_max_sqft: prefs.land_area_max_sqft,
-          pref_areas: prefs.areas,
-          pref_listing_types: prefs.listing_types,
-        } as Contact,
-        previousBotTexts: recentBotTexts,
+        contact: reviewContact,
       });
       if (reviewed) return true;
     }
