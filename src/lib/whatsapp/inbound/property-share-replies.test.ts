@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   } as Record<string, unknown>,
   listed: [] as Record<string, unknown>[],
   filters: [] as Record<string, unknown>[],
+  journeyInterest: [] as Record<string, unknown>[],
   regret: 'sent' as string | null,
   regrets: [] as Record<string, unknown>[],
   sends: [] as Record<string, unknown>[],
@@ -51,6 +52,16 @@ vi.mock('@/lib/whatsapp/listing-feedback', () => ({
   sendListingFeedbackPrompt: async () => true,
 }));
 
+vi.mock('@/lib/journey/lead-interest', () => ({
+  recordJourneyLeadInterest: async (
+    _db: unknown,
+    args: Record<string, unknown>
+  ) => {
+    state.journeyInterest.push(args);
+    return { itemId: 'ji-1', error: null };
+  },
+}));
+
 vi.mock('@/lib/buyer/shared-listings', () => ({
   mirrorSharedListingsToPortfolio: async (
     _db: unknown,
@@ -84,6 +95,13 @@ vi.mock('@/lib/supabase/admin', () => ({
         order: () => builder,
         insert: async (row: Record<string, unknown>) => {
           state.inserts.push({ table, ...row });
+          return { error: state.likeError };
+        },
+        upsert: async (
+          row: Record<string, unknown>,
+          opts?: { onConflict?: string }
+        ) => {
+          state.inserts.push({ table, ...row, onConflict: opts?.onConflict });
           return { error: state.likeError };
         },
         limit: async () => {
@@ -126,6 +144,7 @@ beforeEach(() => {
   state.regret = 'sent';
   state.regrets = [];
   state.sends = [];
+  state.journeyInterest = [];
   state.shares = [];
   state.filters = [];
   state.listed = [];
@@ -315,6 +334,9 @@ describe('handleShortlistPropertyReply', () => {
         property_id: PROPERTY_ID,
         contact_id: 'c1',
         session_key: 'wa:c1',
+        created_at: expect.any(String),
+        updated_at: expect.any(String),
+        onConflict: 'session_key,property_id',
       },
     ]);
     expect(state.mirrors).toEqual([
@@ -328,6 +350,15 @@ describe('handleShortlistPropertyReply', () => {
     expect(state.sends[0].interactiveButtons).toEqual([
       { id: `lfb_y_${PROPERTY_ID}`, title: '👍 Interested' },
     ]);
+    expect(state.journeyInterest).toEqual([
+      {
+        accountId: 'acc-1',
+        userId: 'owner-1',
+        contactId: 'c1',
+        propertyId: PROPERTY_ID,
+        source: 'whatsapp_shortlist',
+      },
+    ]);
   });
 
   it('[INB-036] never confirms a save that failed', async () => {
@@ -338,12 +369,29 @@ describe('handleShortlistPropertyReply', () => {
     expect(state.sends[0].kind).toBe('text');
     expect(state.sends[0].text).toContain("couldn't save");
     expect(JSON.stringify(state.sends)).not.toContain('Saved');
+    expect(state.journeyInterest).toEqual([]);
   });
 
-  it('[INB-036] treats a listing already shortlisted as saved', async () => {
+  it('[JRN-026] leaves the journey unstamped when only the Portfolio mirror saved the tap', async () => {
     state.regret = null;
-    state.likeError = { code: '23505' };
+    state.likeError = { code: '57014' };
+    state.linked = true;
     expect(await shortlist()).toBe(true);
+    expect(JSON.stringify(state.sends)).not.toContain("couldn't save");
+    expect(state.journeyInterest).toEqual([]);
+  });
+
+  it('[INB-036] [JRN-026] a re-tap refreshes the like, so a Shortlist after a no counts again live and on file', async () => {
+    state.regret = null;
+    const before = Date.now();
+    expect(await shortlist()).toBe(true);
+    const like = state.inserts[0];
+    expect(like.onConflict).toBe('session_key,property_id');
+    expect(Date.parse(like.created_at as string)).toBeGreaterThanOrEqual(
+      before
+    );
+    expect(like.updated_at).toBe(like.created_at);
+    expect(state.journeyInterest).toHaveLength(1);
     expect(state.sends[0].interactiveBody).toContain('to your shortlist');
   });
 
@@ -352,6 +400,7 @@ describe('handleShortlistPropertyReply', () => {
     expect(state.regrets).toHaveLength(1);
     expect(state.inserts).toEqual([]);
     expect(state.sends).toEqual([]);
+    expect(state.journeyInterest).toEqual([]);
   });
 
   it('[INB-036] ignores a tap whose id is not a property uuid', async () => {

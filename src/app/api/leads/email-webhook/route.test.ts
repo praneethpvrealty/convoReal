@@ -28,6 +28,19 @@ const mockDb = {
   email_sync_configs: { account_id: 'acc-789', is_active: true },
 };
 
+const journeyInterest = vi.hoisted(() => ({
+  clear: vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
+  record: vi.fn<
+    (...args: unknown[]) => Promise<{ itemId: string; error: null }>
+  >(async () => ({ itemId: 'ji-1', error: null })),
+}));
+vi.mock('@/lib/journey/lead-interest', () => ({
+  clearJourneyLeadInterest: (...args: unknown[]) =>
+    journeyInterest.clear(...args),
+  recordJourneyLeadInterest: (...args: unknown[]) =>
+    journeyInterest.record(...args),
+}));
+
 vi.mock('@/lib/supabase/admin', () => {
   const selectImpl = (table: string) => {
     if (table === 'whatsapp_config')
@@ -1653,6 +1666,22 @@ describe('[PRP-014] a repeat portal enquiry reopens a closed one', () => {
     );
     expect(source).toContain(
       'const reopenError = reopened.find((result) => result.error)?.error;'
+    );
+  });
+});
+
+describe('[JRN-026] a portal enquiry lands on the Journey tab', () => {
+  it('stamps the journey for a new contact and an existing one alike, after the enquiry is saved', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('./route.ts', import.meta.url), 'utf8');
+    expect(source).toMatch(
+      /from\('listing_feedback'\)\.upsert\(\s*\{\s*account_id: accountId,\s*contact_id: newContact\.id,\s*property_id: matchedPropertyIds\[0\],\s*verdict: 'interested',/
+    );
+    expect(source).toMatch(
+      /const recordError = recorded\.find\(\(result\) => result\.error\)\?\.error;[\s\S]*?\} else \{\s*await recordJourneyLeadInterest\(supabase, \{\s*accountId,\s*userId,\s*contactId: newContact\.id,\s*propertyId: matchedPropertyIds\[0\],\s*source: 'portal_enquiry',/
+    );
+    expect(source).toMatch(
+      /return NextResponse\.json\(\s*\{ error: reopenError\.message \},\s*\{ status: 500 \}\s*\);\s*\}\s*await recordJourneyLeadInterest\(supabase, \{\s*accountId,\s*userId,\s*contactId: existingContact\.id,/
     );
   });
 });

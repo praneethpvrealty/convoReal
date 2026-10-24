@@ -81,6 +81,10 @@ function makeDb() {
         writes.push({ table, op: 'update', row });
         return builder;
       };
+      builder.or = (expr: string) => {
+        orFilters.push({ table, expr });
+        return builder;
+      };
       builder.maybeSingle = async () => ({
         data: (tables[table] ?? [])[0] ?? null,
         error: null,
@@ -93,11 +97,13 @@ function makeDb() {
 }
 
 const contact = { id: 'c-1', name: 'Ramanathan' };
+let orFilters: Array<{ table: string; expr: string }> = [];
 
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   writes = [];
+  orFilters = [];
   tables = {
     journey_items: [
       {
@@ -202,6 +208,35 @@ describe('[JRN-015] captureTypedCheckBack', () => {
     expect(createNotification).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'owner-1', entityId: 'c-1' })
     );
+  });
+
+  it("[JRN-026] picks the item behind a bare timeline answer by the client's own reply, never by a lead-interest tap", async () => {
+    tables.journey_items = [
+      ...tables.journey_items,
+      {
+        id: 'item-2',
+        contact_id: 'c-1',
+        property_id: 'p-2',
+        stage_id: 'stage-new',
+        status: 'active',
+        hidden: true,
+      },
+    ];
+    tables.journey_events = [{ item_id: 'item-1', created_at: NOW }];
+    await captureTypedCheckBack({
+      db: makeDb(),
+      accountId: 'acc-1',
+      ownerUserId: 'owner-1',
+      contact,
+      text: 'in 10 days',
+      previousBotText: 'When should we check back with you?',
+      now: NOW,
+    });
+    expect(orFilters).toContainEqual({
+      table: 'journey_events',
+      expr: 'dedupe_key.is.null,dedupe_key.not.like.lead_interest:*',
+    });
+    expect(todoWrite()).toMatchObject({ property_id: 'p-1' });
   });
 
   it('moves the open reminder instead of adding a second one', async () => {

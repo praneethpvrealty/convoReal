@@ -39,7 +39,8 @@ export async function POST(request: Request) {
       !UUID_RE.test(accountId) ||
       !propertyId ||
       !UUID_RE.test(propertyId) ||
-      !sessionKey
+      !sessionKey ||
+      sessionKey.startsWith('wa:')
     ) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }

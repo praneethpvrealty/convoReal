@@ -16,6 +16,7 @@ import {
   buildUnresolvedPropertyInterestAck,
 } from '@/lib/whatsapp/property-interest';
 import { handlePropertyShareYesReply } from '@/lib/whatsapp/inbound/property-share-replies';
+import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
 import type { InboundChainContext, StepResult } from '../context';
 
 export async function specificPropertyInterest(
@@ -92,7 +93,7 @@ export async function specificPropertyInterest(
         });
       }
 
-      const [shareSent] = await Promise.all([
+      const [shareSent, , feedbackWrite] = await Promise.all([
         unavailableReply
           ? Promise.resolve(false)
           : handlePropertyShareYesReply(
@@ -127,6 +128,20 @@ export async function specificPropertyInterest(
           { onConflict: 'contact_id,property_id' }
         ),
       ]);
+      if (feedbackWrite.error) {
+        console.error(
+          '[specific-property-interest] interest not recorded:',
+          feedbackWrite.error.message
+        );
+      } else {
+        await recordJourneyLeadInterest(admin, {
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contactRecord.id,
+          propertyId: enquiryPropertyId,
+          source: 'whatsapp_enquiry',
+        });
+      }
 
       await admin
         .from('conversations')

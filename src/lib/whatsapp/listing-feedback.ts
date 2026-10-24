@@ -22,6 +22,10 @@ import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
 import { createNotification } from '@/lib/notifications/create';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { clearAgentMarkReasons } from '@/lib/inventory/listing-feedback-writes';
+import {
+  clearJourneyLeadInterest,
+  recordJourneyLeadInterest,
+} from '@/lib/journey/lead-interest';
 import type { Property } from '@/types';
 
 /** Every id this module owns starts with this. */
@@ -220,7 +224,7 @@ export async function handleListingFeedbackReply(args: {
         .maybeSingle();
       if (!property) return false;
 
-      await db.from('listing_feedback').upsert(
+      const { error: feedbackError } = await db.from('listing_feedback').upsert(
         {
           account_id: accountId,
           contact_id: contact.id,
@@ -230,6 +234,20 @@ export async function handleListingFeedbackReply(args: {
         },
         { onConflict: 'contact_id,property_id' }
       );
+      if (feedbackError) {
+        console.error(
+          `[listing-feedback] recording interest in ${propertyId} for contact ${contact.id} failed:`,
+          feedbackError
+        );
+      } else {
+        await recordJourneyLeadInterest(db, {
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contact.id,
+          propertyId,
+          source: 'whatsapp_interested',
+        });
+      }
 
       const { data: contactRow } = await db
         .from('contacts')
@@ -295,7 +313,7 @@ export async function handleListingFeedbackReply(args: {
 
       if (ownedIds.length > 0) {
         await clearAgentMarkReasons(db, accountId, contact.id, ownedIds);
-        await db.from('listing_feedback').upsert(
+        const { error: rejectError } = await db.from('listing_feedback').upsert(
           ownedIds.map((propertyId) => ({
             account_id: accountId,
             contact_id: contact.id,
@@ -304,6 +322,18 @@ export async function handleListingFeedbackReply(args: {
           })),
           { onConflict: 'contact_id,property_id' }
         );
+        if (rejectError) {
+          console.error(
+            `[listing-feedback] recording rejections for contact ${contact.id} failed:`,
+            rejectError
+          );
+        } else {
+          await clearJourneyLeadInterest(db, {
+            accountId,
+            contactId: contact.id,
+            propertyIds: ownedIds,
+          });
+        }
       }
 
       await sendWhatsAppMessageAndPersist({

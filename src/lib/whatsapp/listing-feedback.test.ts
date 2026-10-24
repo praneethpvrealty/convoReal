@@ -24,6 +24,16 @@ vi.mock('@/lib/whatsapp/budget-band', () => ({
   sendBudgetBandPrompt: (...args: unknown[]) => sendBudgetBandPrompt(...args),
 }));
 
+const recordJourneyLeadInterest = vi.fn();
+const clearJourneyLeadInterest = vi.fn();
+
+vi.mock('@/lib/journey/lead-interest', () => ({
+  recordJourneyLeadInterest: (...args: unknown[]) =>
+    recordJourneyLeadInterest(...args),
+  clearJourneyLeadInterest: (...args: unknown[]) =>
+    clearJourneyLeadInterest(...args),
+}));
+
 const {
   buildListingFeedbackSections,
   sendListingFeedbackPrompt,
@@ -94,7 +104,10 @@ describe('buildListingFeedbackSections', () => {
 
 /** Chainable query stub: every method returns itself; awaiting any
  *  chain resolves to the next queued result. */
-function stubDb(results: Record<string, unknown[]>) {
+function stubDb(
+  results: Record<string, unknown[]>,
+  writeErrors: Record<string, unknown> = {}
+) {
   const calls: { table: string; method: string; args: unknown[] }[] = [];
   const queues = new Map(Object.entries(results));
   const from = (table: string) => {
@@ -125,7 +138,10 @@ function stubDb(results: Record<string, unknown[]>) {
     };
     (chain as { then?: unknown }).then = (resolve: (v: unknown) => unknown) => {
       // A write resolves without consuming the rows queued for reads.
-      if (mutates) return Promise.resolve(resolve({ data: null, error: null }));
+      if (mutates)
+        return Promise.resolve(
+          resolve({ data: null, error: writeErrors[table] ?? null })
+        );
       const q = queues.get(table) ?? [];
       return Promise.resolve(resolve({ data: q.shift() ?? null }));
     };
@@ -148,6 +164,7 @@ beforeEach(() => {
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
   sendPreferenceFlowToContact.mockResolvedValue({ success: true });
   createNotification.mockResolvedValue({});
+  recordJourneyLeadInterest.mockResolvedValue({ itemId: 'ji-1', error: null });
 });
 
 describe('handleListingFeedbackReply', () => {
@@ -188,6 +205,61 @@ describe('handleListingFeedbackReply', () => {
     expect(createNotification).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'agent-7', type: 'listing_interest' })
     );
+    // …and it lands on the Journey tab, the one place that lists who said yes.
+    expect(recordJourneyLeadInterest).toHaveBeenCalledWith(db, {
+      accountId: 'acct-1',
+      userId: 'owner-1',
+      contactId: 'c1',
+      propertyId: P1,
+      source: 'whatsapp_interested',
+    });
+  });
+
+  it('[JRN-026] still confirms to the lead when the journey stamp fails', async () => {
+    recordJourneyLeadInterest.mockResolvedValueOnce({
+      itemId: null,
+      error: 'stages missing',
+    });
+    const { db } = stubDb({
+      properties: [{ id: P1, title: 'Plot in Koramangala', user_id: 'u9' }],
+      contacts: [{ assigned_agent_id: 'agent-7' }],
+    });
+    expect(await handleListingFeedbackReply(baseArgs(db, `lfb_y_${P1}`))).toBe(
+      true
+    );
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Plot in Koramangala'),
+      })
+    );
+  });
+
+  it('[JRN-026] leaves the journey unstamped when the Interested write failed', async () => {
+    const { db } = stubDb(
+      {
+        properties: [{ id: P1, title: 'Plot in Koramangala', user_id: 'u9' }],
+        contacts: [{ assigned_agent_id: 'agent-7' }],
+      },
+      { listing_feedback: { message: 'connection reset' } }
+    );
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(await handleListingFeedbackReply(baseArgs(db, `lfb_y_${P1}`))).toBe(
+      true
+    );
+
+    expect(recordJourneyLeadInterest).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('recording interest'),
+      { message: 'connection reset' }
+    );
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Plot in Koramangala'),
+      })
+    );
+    expect(createNotification).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it('records nothing for a property outside the account', async () => {
@@ -201,6 +273,7 @@ describe('handleListingFeedbackReply', () => {
       calls.some((c) => c.table === 'listing_feedback' && c.method === 'upsert')
     ).toBe(false);
     expect(createNotification).not.toHaveBeenCalled();
+    expect(recordJourneyLeadInterest).not.toHaveBeenCalled();
   });
 
   it('rejects every shown listing at once and asks why with one-tap reasons', async () => {
@@ -221,6 +294,35 @@ describe('handleListingFeedbackReply', () => {
     const rowIds = sent.interactiveSections[0].rows.map((r) => r.id);
     expect(rowIds.some((id) => id.startsWith('lfbr_budget_'))).toBe(true);
     expect(rowIds.some((id) => id.startsWith('lfbr_location_'))).toBe(true);
+    // [JRN-026] saying no takes back the yes on the Journey tab.
+    expect(clearJourneyLeadInterest).toHaveBeenCalledWith(db, {
+      accountId: 'acct-1',
+      contactId: 'c1',
+      propertyIds: [P1, P2],
+    });
+  });
+
+  it('[JRN-026] keeps the stamp when the rejection could not be written', async () => {
+    const { db } = stubDb(
+      { properties: [[{ id: P1 }, { id: P2 }]] },
+      { listing_feedback: { message: 'connection reset' } }
+    );
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const handled = await handleListingFeedbackReply(
+      baseArgs(db, `lfb_n_${P1}.${P2}`)
+    );
+
+    expect(handled).toBe(true);
+    expect(clearJourneyLeadInterest).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('recording rejections'),
+      { message: 'connection reset' }
+    );
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({ interactiveType: 'list' })
+    );
+    errorSpy.mockRestore();
   });
 
   it('drops malformed ids inside a none-fit tap instead of trusting them', async () => {

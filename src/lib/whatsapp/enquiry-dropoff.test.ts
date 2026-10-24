@@ -5,6 +5,19 @@ const createNotification = vi.fn();
 const continueAfterEnquiryClose = vi.fn();
 const markContactDead = vi.fn();
 
+const journeyInterest = vi.hoisted(() => ({
+  clear: vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
+  record: vi.fn<
+    (...args: unknown[]) => Promise<{ itemId: string; error: null }>
+  >(async () => ({ itemId: 'ji-1', error: null })),
+}));
+vi.mock('@/lib/journey/lead-interest', () => ({
+  clearJourneyLeadInterest: (...args: unknown[]) =>
+    journeyInterest.clear(...args),
+  recordJourneyLeadInterest: (...args: unknown[]) =>
+    journeyInterest.record(...args),
+}));
+
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: (...args: unknown[]) =>
     sendWhatsAppMessageAndPersist(...args),
@@ -269,6 +282,42 @@ describe('handleEnquiryDropoffReason', () => {
       false
     );
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('[JRN-026] keeps the stamp when the reason could not be written on the listing', async () => {
+    journeyInterest.clear.mockClear();
+    const { db, calls } = stubDb({
+      properties: [{ ...properties[0], user_id: 'u9' }],
+      journey_items: [{ id: 'item-1' }],
+      contacts: [{ assigned_agent_id: 'agent-7' }],
+    });
+    const from = (db as { from: (t: string) => Record<string, unknown> }).from;
+    (db as { from: unknown }).from = (table: string) => {
+      const chain = from(table);
+      if (table === 'listing_feedback') {
+        chain.then = (resolve: (v: unknown) => unknown) =>
+          Promise.resolve(
+            resolve({ data: null, error: { message: 'timeout' } })
+          );
+      }
+      return chain;
+    };
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const handled = await handleEnquiryDropoffReason(
+      baseArgs(db, `lfbd_budget_${P1}`)
+    );
+
+    expect(handled).toBe(true);
+    expect(journeyInterest.clear).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('recording the reason'),
+      { message: 'timeout' }
+    );
+    expect(
+      calls.some((c) => c.table === 'contact_notes' && c.method === 'insert')
+    ).toBe(true);
+    errorSpy.mockRestore();
   });
 
   it('[INB-009] files the reason on the listing, the timeline and the journey, tells the agent, and carries the thanks into the review', async () => {

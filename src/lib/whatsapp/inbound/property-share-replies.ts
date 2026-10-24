@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { buildSoldPriceReply } from '@/lib/whatsapp/sold-notification';
 import { buildPropertyInterestQuestion } from '@/lib/whatsapp/property-interest';
 import { logPropertyShare } from '@/lib/whatsapp/share-property-send';
+import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
 import { replyListingUnavailableOnce } from '@/lib/whatsapp/inbound/unavailable-listing-reply';
 import { formatCurrency, formatInrCompact } from '@/lib/format/currency';
 import { truncate } from '@/lib/format/text';
@@ -660,13 +661,19 @@ export async function handleShortlistPropertyReply(
     });
     if (unavailable) return unavailable !== 'failed';
 
-    const { error: likeError } = await db.from('property_likes').insert({
-      account_id: accountId,
-      property_id: propertyId,
-      contact_id: contactId,
-      session_key: `wa:${contactId}`,
-    });
-    const likeSaved = !likeError || likeError.code === '23505';
+    const tappedAt = new Date().toISOString();
+    const { error: likeError } = await db.from('property_likes').upsert(
+      {
+        account_id: accountId,
+        property_id: propertyId,
+        contact_id: contactId,
+        session_key: `wa:${contactId}`,
+        created_at: tappedAt,
+        updated_at: tappedAt,
+      },
+      { onConflict: 'session_key,property_id' }
+    );
+    const likeSaved = !likeError;
     if (!likeSaved) {
       console.error('[webhook] Shortlist like insert failed:', likeError);
     }
@@ -696,6 +703,16 @@ export async function handleShortlistPropertyReply(
         senderType: 'bot',
       });
       return true;
+    }
+
+    if (likeSaved) {
+      await recordJourneyLeadInterest(db, {
+        accountId,
+        userId: configOwnerUserId,
+        contactId,
+        propertyId,
+        source: 'whatsapp_shortlist',
+      });
     }
 
     await sendWhatsAppMessageAndPersist({

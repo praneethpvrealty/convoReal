@@ -729,6 +729,59 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     );
   });
 
+  it('[JRN-026] lists the leads who said Interested or Shortlisted first, badged, with an overview chip', () => {
+    expect(screen).toContain(
+      "} from '@shared/lib/journey/lead-interest-labels';"
+    );
+    expect(screen).toContain(
+      'sortCapturedByLeadInterest(capturedQuery.data ?? [])'
+    );
+    expect(screen).toContain(
+      'const interest = journeyLeadInterestLabel(item);'
+    );
+    expect(screen).toContain(
+      'const itemInterest = journeyLeadInterestLabel(item);'
+    );
+    expect(screen).toContain(
+      'accessibilityLabel={`Lead ${itemInterest.toLowerCase()}`}'
+    );
+    expect(screen).toContain('journeyLeadInterestCountLabel(group.interested)');
+    expect(screen).toContain('interested: Number(row.interested_count ?? 0)');
+    expect(screen).toContain(
+      'interestedHidden: Number(row.interested_hidden_count ?? 0)'
+    );
+    expect(screen).toContain('if (group.interestedHidden > 0) {');
+    expect(screen).toContain('lead_interest, lead_interest_at, created_at');
+    expect(screen).toContain(
+      'A lead who said Interested or Shortlisted is listed first.'
+    );
+    const trayDialog = readFileSync(
+      join(process.cwd(), 'src/components/journey/captured-tray-dialog.tsx'),
+      'utf8'
+    );
+    expect(trayDialog).toContain('sortCapturedByLeadInterest(items)');
+    expect(trayDialog).toContain(
+      'A lead who said Interested or Shortlisted is listed first.'
+    );
+    const overview = readFileSync(
+      join(process.cwd(), 'src/components/journey/journey-overview.tsx'),
+      'utf8'
+    );
+    expect(overview).toContain(
+      'journeyLeadInterestCountLabel(group.interested)'
+    );
+    expect(overview).toContain('interested: Number(row.interested_count ?? 0)');
+    expect(overview).toContain(
+      'interestedHidden: Number(row.interested_hidden_count ?? 0)'
+    );
+    expect(overview).toContain(
+      'if (group.interestedHidden > 0) setTrayRequest((n) => n + 1);'
+    );
+    expect(overview).toContain(
+      'onTrayRequestHandled={() => setTrayRequest(0)}'
+    );
+  });
+
   it('[JRN-005] reviews captured shares in a tray with show, show all and remove', () => {
     const helpers = mobileSource('lib/journey-captured.ts');
     for (const [source, label] of Object.entries(JOURNEY_ITEM_SOURCE_LABELS)) {

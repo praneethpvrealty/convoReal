@@ -18,6 +18,7 @@ import { leadFirstName } from '@/lib/contacts/lead-placeholder';
 import { PAST_ENQUIRY_STAGE_KINDS } from '@/components/journey/shared';
 import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 import { clearAgentMarkReasons } from '@/lib/inventory/listing-feedback-writes';
+import { clearJourneyLeadInterest } from '@/lib/journey/lead-interest';
 
 export const ENQUIRY_REVIEW_ID_PREFIX = 'enqrev_';
 export const ENQUIRY_REVIEW_KEEP_ID = `${ENQUIRY_REVIEW_ID_PREFIX}keep`;
@@ -115,6 +116,13 @@ export async function closePropertyEnquiry(args: {
     },
     { onConflict: 'contact_id,property_id' }
   );
+  if (!feedbackError) {
+    await clearJourneyLeadInterest(db, {
+      accountId,
+      contactId: contact.id,
+      propertyIds: [property.id],
+    });
+  }
 
   let dropped = true;
   const { data: item, error: itemError } = await db

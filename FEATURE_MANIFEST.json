@@ -2988,6 +2988,36 @@
             "src/lib/journey/client-response.ts",
             "src/lib/whatsapp/template-copy.ts"
           ]
+        },
+        {
+          "id": "JRN-026",
+          "rule": "A lead's own yes on a listing lands on the Journey tab, the one place that lists who said yes to what: every writer of an Interested answer on listing_feedback (the 👍 Interested tap on a bot listing card, a typed WhatsApp enquiry about a listing, a portal email enquiry from a new or an existing contact, a Book a visit or Call me back answer to a showcase check-in) and the ⭐ Shortlist tap (shortlisted) stamp the contact×property journey item with lead_interest and when, logging one client-response event per source under a lead_interest: dedupe key, which the bare timeline-answer lookup leaves out so a tap never redirects a client's check-in reply. A yes stamps a pair that is already on the journey and never creates one, so a pair the agent removed from the tray stays removed (JRN-009); a pair captured after the yes (a share, an import, a visit request) carries the strongest yes on file from the start, and the backfill stamps existing rows the same way. Interested outranks Shortlisted and a later Shortlist tap never downgrades it; a Shortlist re-tap refreshes the like's time, so a tap after a no counts again live and on file alike; a lead who then says no (None of these fit, Not for me, Close my enquiry) has the stamp cleared, and a Shortlist tap the lead took back is not stamped; the stamp never un-hides, moves or reactivates a branch and never counts as activity on it (an update that changes only the stamp leaves updated_at alone, while a bare updated_at bump still records activity). Both surfaces list the stamped items first in the Captured tray with a Said interested or Shortlisted badge, show the badge on the item, and show an \"N interested\" chip on the journey's overview row that opens the journey, and the Captured tray as well while any stamped item is still captured, so the tap always lands where the lead is; the overview count comes from the aggregate function, never from rows shipped to the client. A stamp is written only once the answer is on file and a clear only once the rejection is: a failed listing_feedback or property_likes write is logged and leaves the journey as it was, so the stamp always agrees with what the backfill and the Helper read; the on-file lookup the capture and the backfill use is scoped to the item's account and counts only the bot's exact wa:<contact> like, which the public like and rating routes refuse to store. A failed stamp never blocks the lead's acknowledgement.",
+          "tests": [
+            {
+              "file": "src/lib/journey/lead-interest.test.ts",
+              "case": "[JRN-026]"
+            },
+            {
+              "file": "src/lib/journey/lead-interest-labels.test.ts",
+              "case": "[JRN-026]"
+            },
+            {
+              "file": "src/lib/migrations/journey-lead-interest.test.ts",
+              "case": "[JRN-026]"
+            },
+            {
+              "file": "src/lib/whatsapp/listing-feedback.test.ts",
+              "case": "[JRN-026]"
+            },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[JRN-026]" }
+          ],
+          "guards": [
+            "src/lib/journey/lead-interest.ts",
+            "src/lib/journey/lead-interest-labels.ts",
+            "supabase/migrations/20261024163000_journey_lead_interest.sql",
+            "supabase/migrations/20261024163100_journey_lead_interest_signals.sql",
+            "supabase/migrations/20261024163200_copilot_property_interest_said_interested.sql"
+          ]
         }
       ]
     },
@@ -4662,7 +4692,7 @@
         },
         {
           "id": "CPL-004",
-          "rule": "A staff question asking who showed interest in a listing — named by a # reference, a PROP code, its owner (\"Adithi's property\", \"property where Adithi is the owner\", an @ contact), a quoted or described title, or a time window alone — or which listings one contact engaged with, is answered from the account's own enquiries, identified showcase views, deals, site visits, journey items and likes, ahead of the preference-based contact search and without a model call: a bounded, latest-first list of contact-card or listing links on web and mobile, with the matching listing or contact links, no phone numbers, and never stored in the shared answer cache.",
+          "rule": "A staff question asking who showed interest in a listing — named by a # reference, a PROP code, its owner (\"Adithi's property\", \"property where Adithi is the owner\", an @ contact), a quoted or described title, or a time window alone — or which listings one contact engaged with, is answered from the account's own enquiries, identified showcase views, deals, site visits, journey items, likes and the lead's own Interested answers (listing_feedback, shown as Said interested and filterable by \"tapped interested\"), ahead of the preference-based contact search and without a model call: a bounded, latest-first list of contact-card or listing links on web and mobile, with the matching listing or contact links, no phone numbers, and never stored in the shared answer cache.",
           "tests": [
             {
               "file": "src/lib/copilot/property-interest.test.ts",
@@ -4676,10 +4706,15 @@
               "file": "src/lib/copilot/property-interest-query.test.ts",
               "case": "[CPL-004]"
             },
-            { "file": "mobile/lib/copilot.test.ts", "case": "[CPL-004]" }
+            { "file": "mobile/lib/copilot.test.ts", "case": "[CPL-004]" },
+            {
+              "file": "src/lib/migrations/journey-lead-interest.test.ts",
+              "case": "[CPL-004]"
+            }
           ],
           "guards": [
-            "supabase/migrations/20261010114941_copilot_property_interest.sql"
+            "supabase/migrations/20261010114941_copilot_property_interest.sql",
+            "supabase/migrations/20261024163200_copilot_property_interest_said_interested.sql"
           ]
         },
         {

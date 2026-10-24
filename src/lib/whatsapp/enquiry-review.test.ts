@@ -4,6 +4,19 @@ const sendWhatsAppMessageAndPersist = vi.fn();
 const sendAlertsOnboarding = vi.fn();
 const createNotification = vi.fn();
 
+const journeyInterest = vi.hoisted(() => ({
+  clear: vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
+  record: vi.fn<
+    (...args: unknown[]) => Promise<{ itemId: string; error: null }>
+  >(async () => ({ itemId: 'ji-1', error: null })),
+}));
+vi.mock('@/lib/journey/lead-interest', () => ({
+  clearJourneyLeadInterest: (...args: unknown[]) =>
+    journeyInterest.clear(...args),
+  recordJourneyLeadInterest: (...args: unknown[]) =>
+    journeyInterest.record(...args),
+}));
+
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: (...args: unknown[]) =>
     sendWhatsAppMessageAndPersist(...args),
@@ -359,6 +372,7 @@ describe('closePropertyEnquiry', () => {
   });
 
   it('[CNV-007] leaves the pointer alone when the close itself failed', async () => {
+    journeyInterest.clear.mockClear();
     const { db, calls } = stubDb({
       journey_items: [{ id: 'item-1', stage_id: 'stage-a' }, null, openRows],
     });
@@ -383,6 +397,7 @@ describe('closePropertyEnquiry', () => {
 
     expect(closed).toBe(false);
     expect(calls.some((c) => c.table === 'contacts')).toBe(false);
+    expect(journeyInterest.clear).not.toHaveBeenCalled();
   });
 
   it('[CNV-007] reports the close as failed when the next open enquiry cannot be read', async () => {

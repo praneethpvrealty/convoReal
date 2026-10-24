@@ -59,6 +59,7 @@ export async function POST(request: Request) {
       !propertyId ||
       !UUID_RE.test(propertyId) ||
       !sessionKey ||
+      sessionKey.startsWith('wa:') ||
       typeof rating !== 'number' ||
       !Number.isInteger(rating) ||
       rating < 1 ||

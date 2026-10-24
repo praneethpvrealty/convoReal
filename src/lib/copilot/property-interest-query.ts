@@ -28,6 +28,7 @@ interface InterestRow {
   shortlisted: boolean | null;
   visited: boolean | null;
   liked: boolean | null;
+  interested: boolean | null;
   journey_stage: string | null;
   journey_status: string | null;
   last_at: string | null;
@@ -244,14 +245,17 @@ export async function findCopilotPropertyInterest(
   }
   if (query.direction === 'properties' && !contacts.length) return empty;
 
-  const { data, error } = await ctx.supabase.rpc('copilot_property_interest', {
-    p_account_id: ctx.accountId,
-    p_property_ids: properties.map((property) => property.id),
-    p_contact_ids: contacts.map((contact) => contact.id),
-    p_since: query.since,
-    p_signal: query.signal,
-    p_limit: PROPERTY_INTEREST_LIMIT,
-  });
+  const { data, error } = await ctx.supabase.rpc(
+    'copilot_property_interest_v2',
+    {
+      p_account_id: ctx.accountId,
+      p_property_ids: properties.map((property) => property.id),
+      p_contact_ids: contacts.map((contact) => contact.id),
+      p_since: query.since,
+      p_signal: query.signal,
+      p_limit: PROPERTY_INTEREST_LIMIT,
+    }
+  );
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as InterestRow[];
   const matches: PropertyInterestMatch[] = rows.map((row) => ({
@@ -266,6 +270,7 @@ export async function findCopilotPropertyInterest(
     shortlisted: Boolean(row.shortlisted),
     visited: Boolean(row.visited),
     liked: Boolean(row.liked),
+    interested: Boolean(row.interested),
     journeyStage: row.journey_stage,
     journeyStatus: row.journey_status,
     lastAt: row.last_at,

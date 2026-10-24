@@ -27,6 +27,7 @@ import {
 import { createNotification } from '@/lib/notifications/create';
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
 import { markContactDead } from '@/lib/contacts/lifecycle';
+import { clearJourneyLeadInterest } from '@/lib/journey/lead-interest';
 import { continueAfterEnquiryClose } from '@/lib/whatsapp/enquiry-review';
 
 export const ENQUIRY_DROPOFF_ID_PREFIX = 'lfbd_';
@@ -267,7 +268,7 @@ export async function handleEnquiryDropoffReason(args: {
     const title = reasonTitle(parsed.reason);
     const name = leadFirstName(contact.name) || 'The lead';
 
-    await db.from('listing_feedback').upsert(
+    const { error: feedbackError } = await db.from('listing_feedback').upsert(
       {
         account_id: accountId,
         contact_id: contact.id,
@@ -277,6 +278,18 @@ export async function handleEnquiryDropoffReason(args: {
       },
       { onConflict: 'contact_id,property_id' }
     );
+    if (feedbackError) {
+      console.error(
+        `[enquiry-dropoff] recording the reason on ${property.id} failed:`,
+        feedbackError
+      );
+    } else {
+      await clearJourneyLeadInterest(db, {
+        accountId,
+        contactId: contact.id,
+        propertyIds: [property.id as string],
+      });
+    }
 
     await db.from('contact_notes').insert({
       contact_id: contact.id,

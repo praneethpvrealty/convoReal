@@ -48,6 +48,7 @@ function match(
     shortlisted: false,
     visited: false,
     liked: false,
+    interested: false,
     journeyStage: null,
     journeyStatus: null,
     lastAt: '2026-10-08T10:00:00Z',
@@ -180,6 +181,18 @@ describe('parsePropertyInterestQuestion', () => {
     ["which contacts shortlisted Adithi's property", 'shortlisted', null],
     ["who had a site visit for Adithi's property", 'visited', null],
     ["who liked Adithi's listing", 'liked', null],
+    ["who tapped interested on Adithi's listing", 'interested', null],
+    [
+      "who clicked interested on Adithi's plot this week",
+      'interested',
+      'this week',
+    ],
+    [
+      "which leads said they were interested in Adithi's plot this week",
+      'any',
+      'this week',
+    ],
+    ["who is interested in Adithi's property", 'any', null],
   ])(
     '[CPL-004] reads the signal and window out of "%s"',
     (message, signal, sinceLabel) => {
@@ -454,5 +467,10 @@ describe('buildPropertyInterestAnswer', () => {
     ).toBe(
       'Enquired · 2 views · Shortlisted · Site visit · Liked · At Site visit'
     );
+    expect(
+      interestReasonLabel(
+        match({ enquired: false, viewsCount: 0, interested: true })
+      )
+    ).toBe('Said interested');
   });
 });

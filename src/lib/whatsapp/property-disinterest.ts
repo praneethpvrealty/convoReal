@@ -8,6 +8,7 @@ import {
   type InboundSubjectContext,
 } from '@/lib/learning/subject';
 import { clearAgentMarkReasons } from '@/lib/inventory/listing-feedback-writes';
+import { clearJourneyLeadInterest } from '@/lib/journey/lead-interest';
 import type { Property } from '@/types';
 
 /**
@@ -181,7 +182,7 @@ export async function handlePropertyDisinterestMessage(args: {
       await clearAgentMarkReasons(db, accountId, contact.id, [
         subjectProperty.id,
       ]);
-      await db.from('listing_feedback').upsert(
+      const { error: feedbackError } = await db.from('listing_feedback').upsert(
         {
           account_id: accountId,
           contact_id: contact.id,
@@ -190,6 +191,12 @@ export async function handlePropertyDisinterestMessage(args: {
         },
         { onConflict: 'contact_id,property_id' }
       );
+      if (feedbackError) throw feedbackError;
+      await clearJourneyLeadInterest(db, {
+        accountId,
+        contactId: contact.id,
+        propertyIds: [subjectProperty.id],
+      });
     } catch (err) {
       console.error('[property-disinterest] feedback recording failed:', err);
     }

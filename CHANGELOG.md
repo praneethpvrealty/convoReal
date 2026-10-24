@@ -19,6 +19,29 @@ than a written entry. Newest first.
 
 #### 24 October 2026
 
+- **The Journey tab now lists the leads who said yes.** A lead who tapped
+  👍 Interested on a bot listing card, ⭐ Shortlist, or Book a visit / Call
+  me back on a showcase check-in was filed on `listing_feedback` and
+  `property_likes`, pinged the agent once, and appeared nowhere as a list:
+  the Journey's Captured tray showed the bot's share with no sign the lead
+  answered, and the Helper's "who showed interest in …" never read the
+  Interested taps at all. Every such yes, a typed or portal enquiry about a
+  listing included, now stamps the contact×property journey item (Interested
+  outranks Shortlisted; a yes never creates a pair, a pair captured later
+  carries the yes from the start, and a later "None of these fit", "Not for
+  me" or "Close my enquiry" clears it), the Captured tray lists
+  those items first with a "Said interested" or "Shortlisted" badge on web
+  and mobile, the item carries the badge, each journey's overview row shows
+  an "N interested" chip, and the Helper counts the Interested answers as
+  "Said interested" and answers "who tapped interested on Adithi's plot".
+  JRN-026, CPL-004. **Migration required:** `20261024163000_journey_lead_interest.sql`,
+  `20261024163200_copilot_property_interest_said_interested.sql` (the Helper's
+  new `copilot_property_interest_v2`) and
+  `20261024163300_journey_lead_interest_only_hidden.sql` (all additive), and
+  `20261024163100_journey_lead_interest_signals.sql` (gives `journey_items` an
+  updated_at trigger that ignores stamp-only updates and an insert trigger that
+  seeds the stamp, backfills existing rows from the answers already on file,
+  replaces `journey_overview_groups`).
 - **A lead discussing their shortlisted plot is no longer pitched a different
   one.** A buyer tapped Interested on a 1,500 sq.ft Suryanagar plot, asked its
   dimensions, and replied "based on the location you've sent, it doesn't seem

@@ -54,6 +54,7 @@ import {
 import { describeEnquiredProperty } from '@/lib/whatsapp/enquiry-notice-template';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { formatCurrencyShort } from '@/lib/currency-utils';
+import { journeyLeadInterestLabel } from '@/lib/journey/lead-interest-labels';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -409,6 +410,18 @@ export function JourneyItemSheet({
             {dropped && (
               <span className="shrink-0 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-red-300 uppercase">
                 Dropped
+              </span>
+            )}
+            {journeyLeadInterestLabel(item) && (
+              <span
+                className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wider text-emerald-300 uppercase"
+                title={
+                  item.lead_interest_at
+                    ? `${journeyLeadInterestLabel(item)} ${formatDistanceToNow(new Date(item.lead_interest_at), { addSuffix: true })}`
+                    : undefined
+                }
+              >
+                {journeyLeadInterestLabel(item)}
               </span>
             )}
           </SheetTitle>

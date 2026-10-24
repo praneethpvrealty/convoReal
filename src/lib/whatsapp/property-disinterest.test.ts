@@ -7,6 +7,19 @@ import {
 } from './property-disinterest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+const journeyInterest = vi.hoisted(() => ({
+  clear: vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
+  record: vi.fn<
+    (...args: unknown[]) => Promise<{ itemId: string; error: null }>
+  >(async () => ({ itemId: 'ji-1', error: null })),
+}));
+vi.mock('@/lib/journey/lead-interest', () => ({
+  clearJourneyLeadInterest: (...args: unknown[]) =>
+    journeyInterest.clear(...args),
+  recordJourneyLeadInterest: (...args: unknown[]) =>
+    journeyInterest.record(...args),
+}));
+
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: vi
     .fn()
@@ -218,5 +231,47 @@ describe('handlePropertyDisinterestMessage', () => {
           c.data?.verdict === 'rejected'
       )
     ).toBe(true);
+  });
+
+  it('[JRN-026] keeps the stamp when the rejection could not be written', async () => {
+    journeyInterest.clear.mockClear();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const mockDb = {
+      from: vi.fn().mockImplementation(() => ({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              maybeSingle: vi.fn().mockResolvedValue({
+                data: { id: 'prop-1072', title: 'Rental Building' },
+              }),
+            }),
+          }),
+        }),
+        upsert: vi
+          .fn()
+          .mockResolvedValue({ error: { message: 'connection reset' } }),
+      })),
+    } as unknown as SupabaseClient;
+
+    const handled = await handlePropertyDisinterestMessage({
+      db: mockDb,
+      accountId: 'acc-1',
+      configOwnerUserId: 'user-1',
+      contact: {
+        id: 'contact-1',
+        name: 'Ramanathan',
+        last_inquired_property_id: 'prop-1072',
+      },
+      conversationId: 'conv-1',
+      inboundText: 'I am not interested',
+    });
+
+    expect(handled).toBe(true);
+    expect(journeyInterest.clear).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[property-disinterest] feedback recording failed:',
+      { message: 'connection reset' }
+    );
+    errorSpy.mockRestore();
   });
 });

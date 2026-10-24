@@ -22,6 +22,7 @@ import { sendLeadArrivalReplies } from './lead-replies';
 import { portalKeyFromSource } from '@/lib/portals/listing-identity';
 import { placeholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
+import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
 
 // Re-export for route.test.ts and backward compatibility
 export {
@@ -1154,6 +1155,13 @@ export async function POST(request: Request) {
             { status: 500 }
           );
         }
+        await recordJourneyLeadInterest(supabase, {
+          accountId,
+          userId,
+          contactId: existingContact.id,
+          propertyId: matchedPropertyIds[0],
+          source: 'portal_enquiry',
+        });
       }
 
       // Auto-assign tags based on property interests and budget
@@ -1348,15 +1356,42 @@ export async function POST(request: Request) {
     // Record the inquiry in the junction table — top-scored match only,
     // same reasoning as the existing-contact branch above.
     if (matchedPropertyIds.length > 0 && newContact) {
-      await supabase.from('contact_property_inquiries').upsert(
-        {
-          account_id: accountId,
-          contact_id: newContact.id,
-          property_id: matchedPropertyIds[0],
-          inquiry_source: parsed.source,
-        },
-        { onConflict: 'contact_id,property_id' }
-      );
+      const recorded = await Promise.all([
+        supabase.from('contact_property_inquiries').upsert(
+          {
+            account_id: accountId,
+            contact_id: newContact.id,
+            property_id: matchedPropertyIds[0],
+            inquiry_source: parsed.source,
+          },
+          { onConflict: 'contact_id,property_id' }
+        ),
+        supabase.from('listing_feedback').upsert(
+          {
+            account_id: accountId,
+            contact_id: newContact.id,
+            property_id: matchedPropertyIds[0],
+            verdict: 'interested',
+            reason: null,
+          },
+          { onConflict: 'contact_id,property_id' }
+        ),
+      ]);
+      const recordError = recorded.find((result) => result.error)?.error;
+      if (recordError) {
+        console.error(
+          '[lead-webhook] Enquiry not recorded for new contact:',
+          recordError.message
+        );
+      } else {
+        await recordJourneyLeadInterest(supabase, {
+          accountId,
+          userId,
+          contactId: newContact.id,
+          propertyId: matchedPropertyIds[0],
+          source: 'portal_enquiry',
+        });
+      }
     }
 
     // Auto-assign tags based on property interests and budget
