@@ -243,6 +243,29 @@ export async function POST(
       );
     }
 
+    // The type goes first: a mark whose type then failed to save would
+    // hide the contact with the agent's answer lost and nothing left on
+    // screen to retry from. A failed type save writes no mark at all.
+    const typeSaved = optionIds.length
+      ? await applyPropertyType(
+          ctx.supabase,
+          ctx.accountId,
+          ctx.userId,
+          contact as Contact,
+          property as Partial<Property>,
+          optionIds
+        )
+      : false;
+    if (optionIds.length && !typeSaved) {
+      return NextResponse.json(
+        {
+          error: 'The property type could not be saved. Try again.',
+          code: 'TYPE_NOT_SAVED',
+        },
+        { status: 500 }
+      );
+    }
+
     if (action === 'reject' && buyerSaid !== 'rejected') {
       const { error } = await ctx.supabase.from('listing_feedback').upsert(
         {
@@ -264,29 +287,6 @@ export async function POST(
           { status: 500 }
         );
       }
-    }
-
-    const typeSaved = optionIds.length
-      ? await applyPropertyType(
-          ctx.supabase,
-          ctx.accountId,
-          ctx.userId,
-          contact as Contact,
-          property as Partial<Property>,
-          optionIds
-        )
-      : false;
-    if (optionIds.length && !typeSaved) {
-      return NextResponse.json(
-        {
-          error:
-            action === 'reject'
-              ? 'Marked not a fit, but the property type could not be saved. Try again.'
-              : 'Failed to save the property type',
-          code: 'TYPE_NOT_SAVED',
-        },
-        { status: 500 }
-      );
     }
 
     return NextResponse.json({ data: { typeSaved } });
