@@ -31,7 +31,13 @@ export interface JourneyItemRow {
   stage_id: string;
   status: string;
   planned_at?: string | null;
+  hidden?: boolean;
 }
+
+/** The 'added' reason of a pair a lead's own yes captured hidden (see
+ *  lead-interest.ts). A visible capture that finds such a pair shows
+ *  it, as it would have created it visibly had the yes not come first. */
+export const LEAD_INTEREST_CAPTURE_REASON = 'Captured from lead interest';
 
 /** The account's mirrored journey stages, creating the default board
  *  when the account has none. Service-role safe: the mirror function
@@ -100,7 +106,7 @@ export async function ensureJourneyItem(
   const read = async () => {
     const { data } = await db
       .from('journey_items')
-      .select('id, stage_id, status, planned_at')
+      .select('id, stage_id, status, planned_at, hidden')
       .eq('account_id', accountId)
       .eq('contact_id', contactId)
       .eq('property_id', propertyId)
@@ -108,7 +114,12 @@ export async function ensureJourneyItem(
     return (data ?? null) as JourneyItemRow | null;
   };
   const existing = await read();
-  if (existing) return existing;
+  if (existing) {
+    if (existing.hidden && !input.hidden) {
+      return showLeadInterestCapture(db, accountId, userId, existing);
+    }
+    return existing;
+  }
 
   const stages = input.stages ?? (await loadJourneyStages(db, accountId));
   const firstStage = stages[0];
@@ -150,6 +161,48 @@ export async function ensureJourneyItem(
   if (evError)
     console.error('[journey/capture] capture event failed:', evError.message);
   return created;
+}
+
+async function showLeadInterestCapture(
+  db: SupabaseClient,
+  accountId: string,
+  userId: string | null,
+  item: JourneyItemRow
+): Promise<JourneyItemRow> {
+  const { data: added } = await db
+    .from('journey_events')
+    .select('reason')
+    .eq('account_id', accountId)
+    .eq('item_id', item.id)
+    .eq('event_type', 'added')
+    .maybeSingle();
+  if (
+    (added as { reason?: string | null } | null)?.reason !==
+    LEAD_INTEREST_CAPTURE_REASON
+  ) {
+    return item;
+  }
+  const { error } = await db
+    .from('journey_items')
+    .update({ hidden: false })
+    .eq('id', item.id)
+    .eq('account_id', accountId);
+  if (error) {
+    console.error('[journey/capture] show failed:', error.message);
+    return item;
+  }
+  const { error: evError } = await db.from('journey_events').insert({
+    account_id: accountId,
+    item_id: item.id,
+    event_type: 'unhidden',
+    from_stage_id: item.stage_id,
+    to_stage_id: item.stage_id,
+    reason: 'Shown by a visible capture',
+    created_by: userId,
+  });
+  if (evError)
+    console.error('[journey/capture] show event failed:', evError.message);
+  return { ...item, hidden: false };
 }
 
 export interface CaptureJourneyItemsInput {

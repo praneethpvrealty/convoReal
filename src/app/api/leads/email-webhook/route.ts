@@ -1145,13 +1145,6 @@ export async function POST(request: Request) {
           ),
         ]);
         const reopenError = reopened.find((result) => result.error)?.error;
-        await recordJourneyLeadInterest(supabase, {
-          accountId,
-          userId,
-          contactId: existingContact.id,
-          propertyId: matchedPropertyIds[0],
-          source: 'portal_enquiry',
-        });
         if (reopenError) {
           console.error(
             '[lead-webhook] Enquiry not recorded for existing contact:',
@@ -1162,6 +1155,13 @@ export async function POST(request: Request) {
             { status: 500 }
           );
         }
+        await recordJourneyLeadInterest(supabase, {
+          accountId,
+          userId,
+          contactId: existingContact.id,
+          propertyId: matchedPropertyIds[0],
+          source: 'portal_enquiry',
+        });
       }
 
       // Auto-assign tags based on property interests and budget

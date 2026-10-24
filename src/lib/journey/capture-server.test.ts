@@ -229,6 +229,78 @@ describe('[JRN-009] ensureJourneyItem', () => {
     expect(writes).toEqual([]);
   });
 
+  it("[JRN-026] shows a pair that only a lead's yes captured hidden when a visible capture finds it", async () => {
+    queues.journey_items = [
+      {
+        data: {
+          id: 'item-9',
+          stage_id: 'stage-new',
+          status: 'active',
+          hidden: true,
+        },
+        error: null,
+      },
+    ];
+    queues.journey_events = [
+      { data: { reason: 'Captured from lead interest' }, error: null },
+    ];
+
+    const item = await ensureJourneyItem(makeDb(), {
+      accountId: 'acc-1',
+      userId: 'user-1',
+      contactId: 'c-1',
+      propertyId: 'p-1',
+      source: 'chat_import',
+      hidden: false,
+      reason: 'Captured from visit request',
+    });
+
+    expect(item).toMatchObject({ id: 'item-9', hidden: false });
+    expect(writes).toEqual([
+      { table: 'journey_items', op: 'update', row: { hidden: false } },
+      {
+        table: 'journey_events',
+        op: 'insert',
+        row: expect.objectContaining({
+          item_id: 'item-9',
+          event_type: 'unhidden',
+          reason: 'Shown by a visible capture',
+          created_by: 'user-1',
+        }),
+      },
+    ]);
+  });
+
+  it('[JRN-026] leaves a hidden share capture hidden for a visible capture, as before', async () => {
+    queues.journey_items = [
+      {
+        data: {
+          id: 'item-9',
+          stage_id: 'stage-new',
+          status: 'active',
+          hidden: true,
+        },
+        error: null,
+      },
+    ];
+    queues.journey_events = [
+      { data: { reason: 'Captured from WhatsApp share' }, error: null },
+    ];
+
+    const item = await ensureJourneyItem(makeDb(), {
+      accountId: 'acc-1',
+      userId: 'user-1',
+      contactId: 'c-1',
+      propertyId: 'p-1',
+      source: 'chat_import',
+      hidden: false,
+      reason: 'Captured from visit request',
+    });
+
+    expect(item).toMatchObject({ id: 'item-9', hidden: true });
+    expect(writes).toEqual([]);
+  });
+
   it('captures a new pair at the first stage with the given reason', async () => {
     queues.journey_items = [
       { data: null, error: null },

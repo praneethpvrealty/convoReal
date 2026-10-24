@@ -4,6 +4,7 @@ const ensureJourneyItem = vi.fn();
 const writeJourneyEvent = vi.fn();
 
 vi.mock('./capture-server', () => ({
+  LEAD_INTEREST_CAPTURE_REASON: 'Captured from lead interest',
   ensureJourneyItem: (...args: unknown[]) => ensureJourneyItem(...args),
 }));
 vi.mock('./events', () => ({

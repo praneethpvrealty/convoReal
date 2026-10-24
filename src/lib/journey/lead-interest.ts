@@ -10,11 +10,14 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { ensureJourneyItem } from './capture-server';
+import {
+  ensureJourneyItem,
+  LEAD_INTEREST_CAPTURE_REASON,
+} from './capture-server';
 import { writeJourneyEvent } from './events';
 import type { JourneyLeadInterest } from './lead-interest-labels';
 
-export const LEAD_INTEREST_CAPTURE_REASON = 'Captured from lead interest';
+export { LEAD_INTEREST_CAPTURE_REASON };
 
 export const LEAD_INTEREST_EVENT_REASONS = {
   whatsapp_interested: 'Tapped Interested on WhatsApp',
