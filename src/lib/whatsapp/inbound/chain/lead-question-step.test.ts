@@ -117,6 +117,27 @@ beforeEach(() => {
   vi.mocked(withListingLink).mockImplementation(async ({ text }) => text);
 });
 
+describe('[INB-038] an attribute-only message reaches the listing Q&A', () => {
+  it('answers "Location road width" from the listing instead of leaving it to the ladder', async () => {
+    vi.mocked(answerLeadQuestion).mockResolvedValue({
+      text: "It's located in JP Nagar 4th Phase.",
+      source: 'listing',
+      intent: 'location',
+    });
+
+    await expect(
+      leadQuestion(ctx({ inboundText: 'Location road width' }))
+    ).resolves.toBe('handled');
+
+    expect(answerLeadQuestion).toHaveBeenCalledWith(
+      expect.objectContaining({ question: 'Location road width' })
+    );
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "It's located in JP Nagar 4th Phase." })
+    );
+  });
+});
+
 describe('[INB-037] a reply about one listing carries its link', () => {
   it('sends the answer with the listing link the helper attached', async () => {
     vi.mocked(answerLeadQuestion).mockResolvedValue({

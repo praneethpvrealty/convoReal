@@ -672,6 +672,42 @@
             "src/lib/whatsapp/listing-link-reply.ts",
             "src/lib/whatsapp/inbound/chain/steps/lead-question.ts"
           ]
+        },
+        {
+          "id": "INB-038",
+          "rule": "A lead's message is read for what it asks before any handler claims it: a question still counts after a greeting line or after a comma mid-sentence; a bare \"call\" or a request to meet or talk with the owner, seller, agent or team is a request for a person; a message that only names a listing field (location, road width, size, rent per month, facing, age, dimensions) is a question about the listing in the thread and never a requirement; a request for other listings (\"what all are available\", \"what else is available\") goes to the next matches and never to one listing's status reply; a plot named by its sides (50x70) is told apart from another in the same block by that area; and a model reply that asks the lead for their own contact number is a handover, not an answer.",
+          "tests": [
+            {
+              "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[INB-038]"
+            },
+            {
+              "file": "src/lib/ai/requirement-signal.test.ts",
+              "case": "[INB-038]"
+            },
+            {
+              "file": "src/lib/ai/lead-routing.test.ts",
+              "case": "[INB-038]"
+            },
+            {
+              "file": "src/lib/showcase/property-qa.test.ts",
+              "case": "[INB-038]"
+            },
+            {
+              "file": "src/lib/whatsapp/property-interest.test.ts",
+              "case": "[INB-038]"
+            },
+            {
+              "file": "src/lib/whatsapp/inbound/chain/lead-question-step.test.ts",
+              "case": "[INB-038]"
+            }
+          ],
+          "guards": [
+            "src/lib/ai/lead-question.ts",
+            "src/lib/ai/requirement-signal.ts",
+            "src/lib/ai/more-listings.ts",
+            "src/lib/whatsapp/property-interest.ts"
+          ]
         }
       ]
     },

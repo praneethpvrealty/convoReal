@@ -10,6 +10,7 @@
 
 import type { Property } from '@/types';
 import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
+import { requestsMoreListings } from '@/lib/ai/more-listings';
 import { formatCurrency } from '@/lib/format/currency';
 import {
   listingAvailabilityAnswer,
@@ -406,6 +407,9 @@ export function answerFromPropertyData(
 ): QaResult {
   const q = (question || '').trim();
   if (!q) return { answer: null, intent: null };
+  // "What all are available" asks for other listings, not for this
+  // one's status; the ladder answers it with the next matches.
+  if (requestsMoreListings(q)) return { answer: null, intent: 'more_listings' };
   if (asksToIdentifyInPhoto(q)) {
     return { answer: null, intent: 'photo_identification' };
   }

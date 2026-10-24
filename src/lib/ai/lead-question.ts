@@ -28,6 +28,7 @@ import {
   localityLabel,
 } from '@/lib/inventory/location-guard';
 import { PORTALS } from '@/lib/portals/post-kit';
+import { asksListingAttribute } from '@/lib/ai/requirement-signal';
 import {
   findPortalDiscrepancies,
   portalFromQuestion,
@@ -219,14 +220,27 @@ export function answerFromSellerFinalPrice(
  * conservative — an outright "book"/"schedule"/"remind me" is an
  * instruction even when phrased as a question ("can you schedule...").
  */
+// "Hi ji\nWhich old building" opens with a greeting and asks on the
+// next line; "if I get a buyer, will I get commission" asks after a
+// comma. Both were read as statements and left unanswered for days.
+const GREETING_PREFIX =
+  /^(?:(?:hi+|hello|hey|helo|namaste|namaskara|namaskar|vanakkam|good (?:morning|afternoon|evening|day)|dear|sir|madam|ma'am|mam|ji|bro|boss|team)[\s,.!]*)+/;
+const QUESTION_OPENER =
+  /^(can|could|will|would|is|are|do|does|did|what|when|where|which|who|whom|why|how|any|shall|may)\b/;
+const MID_CLAUSE_QUESTION =
+  /[,;]\s*(?:will|would|can|could|shall|should|do|does|did|is|are|am|may)\s+(?:i|we|you|u|it|this|that|there|they|he|she)\b/;
+
 export function looksLikeQuestion(text: string | null | undefined): boolean {
   const t = (text || '').trim().toLowerCase();
   if (!t) return false;
   if (/\b(book|schedule|remind me|set up|arrange)\b/.test(t)) return false;
   if (t.includes('?')) return true;
-  return /^(can|could|will|would|is|are|do|does|did|what|when|where|which|who|whom|why|how|any|shall|may)\b/.test(
-    t
-  );
+  if (MID_CLAUSE_QUESTION.test(t)) return true;
+  return t
+    .split('\n')
+    .some((line) =>
+      QUESTION_OPENER.test(line.replace(GREETING_PREFIX, '').trim())
+    );
 }
 
 /** What a lead hears when they ask for a person. Same promise as
@@ -278,7 +292,14 @@ const OWN_CALL_OFFER =
   /\b(?:(?:i|we)(?:'ll|'d|'m|'re| will| shall| would| could| can| may| might| should| must| am| are)?(?: (?:definitely|probably|surely|certainly|just|also|maybe|then|soon|myself|personally|really|quickly|ourselves))?(?: going to| gonna| try to| plan to| want to| need to| have to)?(?: (?:definitely|probably|surely|certainly|just|also|maybe|then|soon|myself|personally|really|quickly|ourselves))?|let me|let us|lemme) (?:give (?:you )?a )?(?:call|ring|phone)(?: you)?(?: back)?\b/g;
 
 const HUMAN_REQUEST =
-  /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/g;
+  /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me|(meeting|meet|discussion|call) with (the |a |an |your )?(owner|seller|agent|team|builder|manager)|meet (the |your )?(owner|seller|agent|builder|manager))\b/g;
+
+/** "Call ?", "call pls", "phone": the whole message is the one word.
+ *  Nothing names a subject, so the clause reader above sees neither a
+ *  request nor an offer; the model then asked the lead for a number
+ *  they were already writing from. */
+const BARE_CALL_MESSAGE =
+  /^(?:(?:pls|please|plz|kindly|sir|madam|hi|hello)[\s,]+)*(?:call|phone|ring|call ?back)(?:[\s,]+(?:pls|please|plz|sir|madam|me|back|now|today|tomorrow|asap|kindly))*\s*[?.!]*$/;
 
 /** "Could you share me an appropriate number to discuss over a call",
  *  "what's your contact number", "whom should I call": a lead asking
@@ -467,9 +488,11 @@ export function asksForContactNumber(text?: string | null): boolean {
 
 export function requestsHumanContact(text?: string | null): boolean {
   return (
+    BARE_CALL_MESSAGE.test(normaliseCallText(text).trim()) ||
     callClauses(text).some((clause) =>
       unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST)
-    ) || asksForContactNumber(text)
+    ) ||
+    asksForContactNumber(text)
   );
 }
 
@@ -483,7 +506,10 @@ export function repliesRatherThanOpens(
   options: { listingAlreadySent: boolean }
 ): boolean {
   if (requestsHumanContact(text)) return true;
-  return options.listingAlreadySent && looksLikeQuestion(text);
+  return (
+    options.listingAlreadySent &&
+    (looksLikeQuestion(text) || asksListingAttribute(text))
+  );
 }
 
 export function quickReplyHumanRequest(message: {
@@ -927,6 +953,16 @@ function isNonAnswer(answer: string): boolean {
   const text = answer.trim();
   if (
     /^(i (don'?t|do not) (know|have)|sorry[, ]|that information (is|isn'?t)|not (specified|available|mentioned)|no information)/i.test(
+      text
+    )
+  ) {
+    return true;
+  }
+  // "Please share your contact number and a convenient time" asks a
+  // lead writing from WhatsApp for the number they are writing from,
+  // and promises a call nobody was told to make.
+  if (
+    /\b(share|send|provide|give)( me| us)? your (contact|phone|mobile|whatsapp)( number| no\.?| details)?\b/i.test(
       text
     )
   ) {

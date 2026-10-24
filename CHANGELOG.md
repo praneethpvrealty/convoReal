@@ -35,6 +35,18 @@ than a written entry. Newest first.
   one live listing now ends with the listing's showcase link until the
   thread holds one — the photo template that opened this thread carries
   its link only as a button, so the buyer had nowhere to read on.
+- **Six more ways a lead's message was misread, found by reading every
+  lead thread of the last thirty days.** "Hi ji / Which old building" and
+  "if I get a buyer, will I get commission" were not read as questions and
+  went unanswered for days; a bare "Call ?" and "Can you arrange a meeting
+  with the owner" were not read as asking for a person, so one was answered
+  by the model asking for the lead's own number and the other with "take
+  your time"; "Location road width" fell to the qualification ladder, which
+  replied with a fresh shortlist; "what all are available", asked about a
+  sold listing, got that listing's regret; "the plot at Jayanagar 7th block
+  50x70" could not be told apart from the other plot in the block; and a
+  model reply asking for the lead's contact number went out as an answer.
+  Each now reaches the handler it asked for.
 
 #### 23 October 2026
 

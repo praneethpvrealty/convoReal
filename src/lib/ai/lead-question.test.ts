@@ -1058,3 +1058,69 @@ describe('[INB-034] previousLeadQuestion', () => {
     ).toBeNull();
   });
 });
+
+// Thirty days of lead threads, read on 24 October 2026: the messages
+// below each went unanswered, or were answered by the wrong handler.
+describe("[INB-038] a lead's message is read for what it asks", () => {
+  it('reads a question that follows a greeting or a comma', () => {
+    for (const text of [
+      'Hi ji \nWhich old building',
+      'Sir, is it still available',
+      'I am a real estate agent if I get a buyer, will I get commission',
+      'Good morning. Can we visit on Sunday',
+    ]) {
+      expect(looksLikeQuestion(text), text).toBe(true);
+    }
+    for (const text of ['Hi', 'Okay sir', 'Hello ji, noted', 'Out of town']) {
+      expect(looksLikeQuestion(text), text).toBe(false);
+    }
+  });
+
+  it('reads a bare "call" and a meeting with the owner as asking for a person', () => {
+    for (const text of [
+      'Call ?',
+      'call',
+      'Pls call',
+      'Call back',
+      'Can you arrange a meeting with the owner',
+      'I want to meet the owner',
+      'set up a call with your agent',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(true);
+    }
+    for (const text of [
+      "I'll call back tomorrow",
+      'Meeting went well',
+      'the owner is my uncle',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(false);
+    }
+  });
+
+  it('hands over when the model asks the lead for their own number', async () => {
+    vi.mocked(burnCredits).mockResolvedValue({ deficit: 0 } as never);
+    vi.mocked(generateText).mockResolvedValue(
+      'I would be glad to speak with you! Please share your contact number and a convenient time, and I will give you a call.'
+    );
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Is the owner open to a joint development instead?',
+      property,
+    });
+    expect(res.source).toBe('handover');
+    expect(res.text).toBe(HANDOVER_TEXT);
+  });
+
+  it('claims an attribute-only message from a lead already sent a listing', () => {
+    expect(
+      repliesRatherThanOpens('Location road width', {
+        listingAlreadySent: true,
+      })
+    ).toBe(true);
+    expect(
+      repliesRatherThanOpens('Location road width', {
+        listingAlreadySent: false,
+      })
+    ).toBe(false);
+  });
+});

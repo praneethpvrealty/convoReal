@@ -494,3 +494,18 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     ).toContain('Advance/deposit is ₹70,000.');
   });
 });
+
+describe("[INB-038] a request for other listings is never answered with this one's status", () => {
+  it('escalates "what all are available" instead of the sold regret', () => {
+    const r = answerFromPropertyData(
+      'what all are available',
+      makeProp({ status: 'Sold' })
+    );
+    expect(r.answer).toBeNull();
+    expect(r.intent).toBe('more_listings');
+    expect(
+      answerFromPropertyData('is this available', makeProp({ status: 'Sold' }))
+        .intent
+    ).toBe('availability');
+  });
+});

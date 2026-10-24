@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   asksAboutSharedListing,
+  asksListingAttribute,
   carriesRequirementSignal,
   statesBudget,
 } from './requirement-signal';
@@ -77,6 +78,37 @@ describe('[INB-032] a question about the listing in the thread is not a requirem
     ]) {
       expect(asksAboutSharedListing(text), text).toBe(false);
       expect(carriesRequirementSignal(text), text).toBe(true);
+    }
+  });
+});
+
+describe('[INB-038] a message that only names a listing field is a question about the listing', () => {
+  it('reads the attribute-only messages that fell to the ladder', () => {
+    for (const text of [
+      'Location road width',
+      'Size in sft?',
+      'Rent per month',
+      'What is the price',
+      'facing?',
+      'Age of the building',
+      'location and measurement pls',
+    ]) {
+      expect(asksListingAttribute(text), text).toBe(true);
+      expect(asksAboutSharedListing(text), text).toBe(true);
+      expect(carriesRequirementSignal(text), text).toBe(false);
+    }
+  });
+
+  it('leaves a requirement, a figure and a sentence alone', () => {
+    for (const text of [
+      'Hsr layout 30x40 north and east facing only',
+      'price 2.5 cr',
+      'location near horamavu',
+      'Rent',
+      'I will check the location and come back',
+      'size 2400 sqft',
+    ]) {
+      expect(asksListingAttribute(text), text).toBe(false);
     }
   });
 });

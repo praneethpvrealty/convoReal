@@ -40,6 +40,30 @@ export function statesBudget(text?: string | null): boolean {
   );
 }
 
+// "Location road width", "Size in sft", "rent per month": a buyer
+// naming the field they want, with no verb at all. Not a question by
+// shape and not a requirement, it fell to the qualification ladder,
+// which answered "Location road width" with a fresh shortlist.
+const LISTING_ATTRIBUTE =
+  '(?:exact location|location|address|road width|width of (?:the )?road|approach road|rent per month|monthly rent|rental income|rent amount|asking price|price|rate|cost|size in (?:sq\\.? ?ft|sft|sqft)|size|area|built.?up(?: area)?|carpet area|measurement|dimensions?|plot size|site size|facing|direction|age(?: of (?:the )?(?:building|property|house))?|year built|khata|katha|floors?|parking|amenities|possession|maintenance|deposit|advance)';
+
+const LISTING_ATTRIBUTE_MESSAGE = new RegExp(
+  `^(?:(?:what(?:'s| is| are)?|and|also|pls|please|the|its|your|tell me|share|send)\\s+)*(?:${LISTING_ATTRIBUTE}(?:\\s*(?:,|&|and|/|\\+)?\\s*)){1,3}(?:(?:of|for|in|on)\\s+(?:this|it|that|the\\s+\\w+(?:\\s+\\w+)?))?(?:\\s+(?:pls|please|sir|madam))*\\s*[?.!]*$`,
+  'i'
+);
+
+/** True when the message is nothing but the name of a listing field
+ *  the buyer wants — "Location road width", "Size in sft?". */
+export function asksListingAttribute(text?: string | null): boolean {
+  const clean = (text || '').trim();
+  if (!clean || clean.split(/\s+/).length > 6) return false;
+  return (
+    LISTING_ATTRIBUTE_MESSAGE.test(clean) &&
+    !statesBudget(clean) &&
+    !SIZE_SIGNAL.test(clean)
+  );
+}
+
 const QUESTION_SHAPE =
   /\?|^(is|are|was|were|does|do|did|can|could|will|would|which|what|where|who|whom|how|why|when|has|have)\b/i;
 
@@ -69,6 +93,7 @@ const REQUIREMENT_INTENT =
 export function asksAboutSharedListing(text?: string | null): boolean {
   const clean = (text || '').trim();
   if (!clean) return false;
+  if (asksListingAttribute(clean)) return true;
   return (
     QUESTION_SHAPE.test(clean) &&
     LISTING_REFERENCE.test(clean) &&

@@ -60,10 +60,16 @@ const GENERIC_STEMS = new Set([
 const AREA_PATTERN =
   /\b(\d+(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet|yard|yards|meter|meters|mtr|mtrs)|sqft|sqyd|sqm|acres?|guntas?|gunthas?|grounds?|cents?)\b/i;
 
+// "the plot at Jayanagar 7th block 50x70": a site named by its sides
+// is named by its area, and the area is what tells two plots in the
+// same block apart.
+const DIMENSION_PATTERN = /\b(\d{2,3})\s*(?:x|×|\*|by)\s*(\d{2,3})\b/i;
+
 export function mentionedAreaSqft(text: string): number | null {
   const match = AREA_PATTERN.exec(text || '');
-  if (!match) return null;
-  return toSquareFeet(Number(match[1]), match[2]);
+  if (match) return toSquareFeet(Number(match[1]), match[2]);
+  const dims = DIMENSION_PATTERN.exec(text || '');
+  return dims ? Number(dims[1]) * Number(dims[2]) : null;
 }
 
 export function isDirectPropertyInterest(text?: string | null): boolean {

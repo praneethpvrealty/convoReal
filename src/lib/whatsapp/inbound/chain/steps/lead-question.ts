@@ -21,6 +21,7 @@ import {
   sendSubjectPhotos,
 } from '@/lib/ai/photo-request';
 import { parseOrdinalReferences } from '@/lib/ai/shortlist-reference';
+import { asksListingAttribute } from '@/lib/ai/requirement-signal';
 import { unavailableListingReply } from '@/lib/inventory/listing-status';
 import {
   hasRequirementOnFile,
@@ -101,6 +102,9 @@ export async function leadQuestion(
     (tappedHumanRequest !== null ||
       (message.type === 'text' &&
         (looksLikeQuestion(inboundText) ||
+          // "Location road width" names the field it wants and nothing
+          // else: not question-shaped, but a question about the listing.
+          asksListingAttribute(inboundText) ||
           requestsHumanContact(inboundText) ||
           // "Sir can I get images" is not question-shaped either, but it
           // asks for the listing's own photos, which we hold.
