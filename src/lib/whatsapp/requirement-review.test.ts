@@ -29,6 +29,7 @@ vi.mock('@/lib/showcase/account-showcase-url', () => ({
 
 const {
   buildRequirementSummary,
+  requirementReviewAlreadyShown,
   sendRequirementReview,
   handleRequirementTweakReply,
 } = await import('./requirement-review');
@@ -345,5 +346,40 @@ describe('handleRequirementTweakReply', () => {
     expect(
       await handleRequirementTweakReply({ ...base, replyId: 'tw_forged' })
     ).toBe(false);
+  });
+});
+
+describe('[CNV-011] the playback card is not repeated for an unchanged brief', () => {
+  it('recognises its own card for this brief as the latest bot message', () => {
+    const summary = buildRequirementSummary(aryan)!;
+    expect(
+      requirementReviewAlreadyShown(aryan, [
+        `Thanks Aryan — nothing live fits this yet, but our engine is watching. Here's what I'm matching against:\n\n📌 ${summary}\n\nYou'll hear from us the moment a matching listing arrives.`,
+      ])
+    ).toBe(true);
+  });
+
+  it('lets the card go out when the brief has moved, or an older card is not the latest message', () => {
+    const summary = buildRequirementSummary(aryan)!;
+    expect(
+      requirementReviewAlreadyShown(aryan, [
+        'Thanks Aryan — nothing live fits this yet. 📌 Residential Plot · near Chikkaballapur',
+      ])
+    ).toBe(false);
+    expect(
+      requirementReviewAlreadyShown(aryan, [
+        'Plot dimensions: 30x50.',
+        `📌 ${summary}`,
+      ])
+    ).toBe(false);
+    expect(requirementReviewAlreadyShown(aryan, [])).toBe(false);
+  });
+
+  it('compares the whole line, so a brief that lost its trailing field is a new brief', () => {
+    const summary = buildRequirementSummary(aryan)!;
+    expect(
+      requirementReviewAlreadyShown(aryan, [`📌 ${summary} · to rent`])
+    ).toBe(false);
+    expect(requirementReviewAlreadyShown(aryan, [`📌 ${summary}`])).toBe(true);
   });
 });

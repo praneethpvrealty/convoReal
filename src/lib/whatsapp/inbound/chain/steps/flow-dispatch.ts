@@ -5,7 +5,10 @@ import {
   quickReplyHumanRequest,
   repliesRatherThanOpens,
 } from '@/lib/ai/lead-question';
-import { asksListingAttribute } from '@/lib/ai/requirement-signal';
+import {
+  asksListingAttribute,
+  disputesSharedListing,
+} from '@/lib/ai/requirement-signal';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { hasBeenSentAListing } from '@/lib/whatsapp/share-property-send';
 import { logText } from '@/lib/whatsapp/inbound/log-text';
@@ -41,7 +44,9 @@ export async function flowDispatch(
       !ownerCheck.isOwner &&
       repliesRatherThanOpens(inboundText, {
         listingAlreadySent:
-          looksLikeQuestion(inboundText) || asksListingAttribute(inboundText)
+          looksLikeQuestion(inboundText) ||
+          asksListingAttribute(inboundText) ||
+          disputesSharedListing(inboundText)
             ? await hasBeenSentAListing(
                 supabaseAdmin(),
                 accountId,

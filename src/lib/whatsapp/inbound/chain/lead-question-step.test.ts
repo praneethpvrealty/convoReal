@@ -35,6 +35,7 @@ import {
   contactNumberHandoverText,
   answerLeadQuestion,
   HANDOVER_TEXT,
+  LISTING_DISPUTE_HANDOVER_TEXT,
   questionSubjectProperties,
   subjectPortalListings,
 } from '@/lib/ai/lead-question';
@@ -140,6 +141,40 @@ describe('[INB-038] an attribute-only message reaches the listing Q&A', () => {
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
       expect.objectContaining({ text: "It's located in JP Nagar 4th Phase." })
     );
+  });
+});
+
+describe('[CNV-011] a dispute about the shared listing reaches the listing Q&A', () => {
+  it('hands "it doesn\'t seem to be a 30-50 plot" to a person instead of leaving it to the ladder', async () => {
+    vi.mocked(answerLeadQuestion).mockResolvedValue({
+      text: LISTING_DISPUTE_HANDOVER_TEXT,
+      source: 'handover',
+      intent: 'listing_dispute',
+    });
+
+    await expect(
+      leadQuestion(
+        ctx({
+          inboundText:
+            "Based on the location you've sent, it doesn't seem to be a 30-50 plot",
+        })
+      )
+    ).resolves.toBe('handled');
+
+    expect(answerLeadQuestion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        question:
+          "Based on the location you've sent, it doesn't seem to be a 30-50 plot",
+        property: expect.objectContaining({ id: 'prop-493' }),
+      })
+    );
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({ text: LISTING_DISPUTE_HANDOVER_TEXT })
+    );
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'agent-1', type: 'new_message' })
+    );
+    expect(relayLeadMessageToBridgedAgent).toHaveBeenCalled();
   });
 });
 

@@ -85,7 +85,10 @@ vi.mock('@/lib/learning/record', () => ({
   recordLearnedFacts: (...args: unknown[]) => recordLearnedFacts(...args),
 }));
 
-vi.mock('@/lib/whatsapp/requirement-review', () => ({
+vi.mock('@/lib/whatsapp/requirement-review', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/lib/whatsapp/requirement-review')
+  >()),
   sendRequirementReview: (...args: unknown[]) => sendRequirementReview(...args),
 }));
 
@@ -109,6 +112,8 @@ const { runSerializedInbound } =
   await import('@/lib/whatsapp/serialized-inbound');
 const { EMPTY_PREFERENCES, buildPreferenceSourceText, preferenceSourceHash } =
   await import('./preference-extraction');
+const { buildRequirementSummary } =
+  await import('@/lib/whatsapp/requirement-review');
 
 const fullPrefs = {
   ...EMPTY_PREFERENCES,
@@ -528,6 +533,37 @@ describe('processBuyerQualificationMessage — free-text requirement updates', (
     expect(handled).toBe(true);
     expect(recordLearnedFacts).toHaveBeenCalled();
     expect(sendRequirementReview).toHaveBeenCalled();
+  });
+
+  it('[CNV-011] acknowledges instead of repeating the playback card the lead is already looking at', async () => {
+    const summary = buildRequirementSummary({
+      name: 'Aryan',
+      pref_property_types: fullPrefs.property_types,
+      pref_property_categories: [],
+      pref_listing_types: fullPrefs.listing_types,
+      pref_budget_max: fullPrefs.budget_max,
+      pref_areas: fullPrefs.areas,
+    } as never)!;
+    queues.messages = [
+      [
+        { sender_type: 'customer', content_text: 'budget is 2 cr now' },
+        {
+          sender_type: 'bot',
+          content_text: `Thanks Aryan — nothing live fits this yet, but our engine is watching. Here's what I'm matching against:\n\n📌 ${summary}\n\nYou'll hear from us the moment a matching listing arrives.`,
+        },
+      ],
+    ];
+
+    const handled = await run('owner-1');
+
+    expect(handled).toBe(true);
+    expect(sendRequirementReview).not.toHaveBeenCalled();
+    expect(sendTextMessage).toHaveBeenCalledTimes(1);
+    expect(sendTextMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('your brief stands as above'),
+      })
+    );
   });
 
   it('falls back to the plain no-match text without an owner user id', async () => {
