@@ -54,7 +54,7 @@ import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
-import { localityLabelsMatch, textNamesLocality } from '@/lib/locality-match';
+import { localityStemsMatch, textNamesLocality } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
 import type { Contact, Property } from '@/types';
@@ -172,8 +172,11 @@ function localityReplyCore(text: string): string | null {
     .trim();
   if (!withoutOptions || withoutOptions.split(/\s+/).length > 4) return null;
   if (!/^[\p{L}\p{N}][\p{L}\p{N}\s.'&/-]*$/u.test(withoutOptions)) return null;
+  // "Ik", "k": no Indian locality is spelt in two letters, and a reply
+  // that short is an acknowledgement.
+  if (withoutOptions.replace(/[^\p{L}\p{N}]/gu, '').length < 3) return null;
   if (
-    /^(?:hi|hello|hey|ok(?:ay)?|thanks?|thank you|yes|no|sure|fine|done|good (?:morning|afternoon|evening)|more options?|other blocks?)$/i.test(
+    /^(?:hi|hello|hey|ok(?:ay)?|okk+|ik|i know|kk+|hmm+|noted|understood|got it|alright|right|correct|thanks?|thank you|yes|no|sure|fine|done|good (?:morning|afternoon|evening)|more options?|other blocks?)(?:\s+(?:sir|madam|ma'am|bro|ji))?$/i.test(
       withoutOptions
     )
   )
@@ -196,7 +199,7 @@ export function resolveInventoryLocalityReply(
       .map((row) => row[field]?.trim())
       .filter(
         (candidate): candidate is string =>
-          !!candidate && localityLabelsMatch(candidate, requested)
+          !!candidate && localityStemsMatch(candidate, requested)
       )
   );
   return (
@@ -1930,6 +1933,7 @@ export async function processBuyerQualificationMessage(
           pref_areas: prefs.areas,
           pref_listing_types: prefs.listing_types,
         } as Contact,
+        previousBotTexts: recentBotTexts,
       });
       if (reviewed) return true;
     }

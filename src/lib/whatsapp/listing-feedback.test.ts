@@ -325,3 +325,24 @@ describe('sendListingFeedbackPrompt', () => {
     );
   });
 });
+
+describe('[CNV-011] an Interested tap pins the thread to that listing', () => {
+  it('points last_inquired_property_id at the listing the lead chose', async () => {
+    const { db, calls } = stubDb({
+      properties: [{ id: P1, title: 'Plot in Koramangala', user_id: 'u9' }],
+      contacts: [{ assigned_agent_id: 'agent-7' }],
+    });
+
+    await handleListingFeedbackReply(baseArgs(db, `lfb_y_${P1}`));
+
+    const pin = calls.find(
+      (c) => c.table === 'contacts' && c.method === 'update'
+    );
+    expect(pin?.args[0]).toMatchObject({ last_inquired_property_id: P1 });
+    const scope = calls
+      .filter((c) => c.table === 'contacts' && c.method === 'eq')
+      .map((c) => c.args);
+    expect(scope).toContainEqual(['id', 'c1']);
+    expect(scope).toContainEqual(['account_id', 'acct-1']);
+  });
+});

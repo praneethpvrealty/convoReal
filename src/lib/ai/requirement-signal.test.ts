@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   asksAboutSharedListing,
+  disputesSharedListing,
   asksListingAttribute,
   namedListingAttributes,
   carriesRequirementSignal,
@@ -121,6 +122,47 @@ describe('[INB-038] a message that only names a listing field is a question abou
       'size 2400 sqft',
     ]) {
       expect(asksListingAttribute(text), text).toBe(false);
+    }
+  });
+});
+
+describe('[CNV-011] a statement disputing the shared listing is about the listing, not a requirement', () => {
+  it('reads the 24 October dispute and its siblings as about the listing', () => {
+    for (const text of [
+      "Based on the location you've sent, it doesn't seem to be a 30-50 plot",
+      'The location you sent is wrong',
+      'This is not the same plot as in the photo',
+      "It doesn't look like a corner site",
+      'The map pin you shared does not match the address',
+      "Isn't it a 30x40 plot? The photo looks different",
+    ]) {
+      expect(disputesSharedListing(text), text).toBe(true);
+      expect(asksAboutSharedListing(text), text).toBe(true);
+      expect(carriesRequirementSignal(text), text).toBe(false);
+    }
+  });
+
+  it('keeps a ladder answer, a requirement and a budget with the ladder', () => {
+    for (const text of [
+      "It's a plot",
+      'Buy',
+      'Not Koramangala, it should be HSR',
+      'This is not what I want, I am looking for a villa',
+      'It does not seem worth 90 lakhs, my budget is 60 lakh',
+      '30x40 plot in Suryanagar',
+    ]) {
+      expect(disputesSharedListing(text), text).toBe(false);
+    }
+  });
+
+  it('reads "plot number and block" as a question about the listing', () => {
+    for (const text of [
+      'Please share the plot number and block',
+      'Plot number?',
+      'Survey number and block pls',
+    ]) {
+      expect(asksListingAttribute(text), text).toBe(true);
+      expect(carriesRequirementSignal(text), text).toBe(false);
     }
   });
 });

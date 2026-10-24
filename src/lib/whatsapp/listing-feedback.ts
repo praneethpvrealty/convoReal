@@ -242,6 +242,18 @@ export async function handleListingFeedbackReply(args: {
         .eq('account_id', accountId)
         .maybeSingle();
 
+      // The thread is now about this listing: the questions that follow
+      // ("dimensions of the plot?") and any size the lead gives relative
+      // to it are answered against it, not against an older enquiry.
+      await db
+        .from('contacts')
+        .update({
+          last_inquired_property_id: propertyId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contact.id)
+        .eq('account_id', accountId);
+
       // Interest is perishable — ping the human while the lead is
       // still in the chat.
       await createNotification({

@@ -110,9 +110,14 @@ export async function sendRequirementReview(args: {
   contact: Contact;
   opening?: string;
   closing?: string;
+  /** The thread's recent bot messages, newest first. The card is not
+   *  sent twice in a row for an unchanged brief: a lead's "Interested
+   *  in that" after one playback earned the same card again. */
+  previousBotTexts?: (string | null | undefined)[];
 }): Promise<boolean> {
   const summary = buildRequirementSummary(args.contact);
   if (!summary) return false;
+  if (args.previousBotTexts?.[0]?.includes(`📌 ${summary}`)) return true;
 
   try {
     const source = resolveRequirementSource(args.contact);

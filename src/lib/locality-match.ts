@@ -193,6 +193,29 @@ export function textNamesLocality(field: string, label: string): boolean {
 }
 
 /**
+ * localityLabelsMatch without the plain-substring tier: both labels
+ * are read as stems, and a label with no stem of its own matches
+ * nothing. For a bare reply to the location question, the substring
+ * tier is what read "Ik" ("I know") as Chikkaballapur and "ram" as
+ * Koramangala — two letters inside a fourteen-letter name are not a
+ * place, and the ladder filed them as one.
+ */
+export function localityStemsMatch(
+  candidate: string,
+  requested: string
+): boolean {
+  const wanted = localityStems(requested);
+  const have = localityStems(candidate);
+  if (wanted.length === 0 || have.length === 0) return false;
+  if (wanted.every((stem) => stemHit(stem, have))) return true;
+  if (have.every((stem) => stemHit(stem, wanted))) return true;
+  return (
+    stemHit(wanted.join(''), [...have, have.join('')]) ||
+    stemHit(have.join(''), [...wanted, wanted.join('')])
+  );
+}
+
+/**
  * True when two locality labels name the same place, whichever of them
  * is the longer form: "Koramangala" against "Koramangala 1st Block" as
  * well as the reverse, and either spelt with a slip.

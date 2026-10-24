@@ -317,3 +317,29 @@ describe('[INB-038] routes read from the October lead threads', () => {
     }
   );
 });
+
+describe('[CNV-011] the 24 October Suryanagar thread, line by line', () => {
+  // A lead tapped Interested on a 1,500 sq.ft plot, asked its
+  // dimensions, then disputed the answer. The dispute was read as a
+  // requirement, and five replies later the ladder pitched a ₹1.8 Cr
+  // house in a locality the lead never named. Every line the lead
+  // typed, with the handler that owns it now.
+  it.each([
+    ['Please share the plot number and block', 'listing_question'],
+    ['May ik the dimensions of the plot?', 'listing_question'],
+    [
+      "Based on the location you've sent, it doesn't seem to be a 30-50 plot",
+      'listing_question',
+    ],
+  ])('%s → %s', (text, route) => {
+    expect(routeLeadMessage(text)).toBe(route);
+    expect(standsDownFromQualification(text)).toBe(true);
+  });
+
+  it.each(['It works', 'Okay sir', 'Ik'])(
+    '%s states no requirement, so the ladder has nothing to file',
+    (text) => {
+      expect(isBuyerRequirementMessage(text)).toBe(false);
+    }
+  );
+});

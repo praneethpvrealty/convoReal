@@ -347,3 +347,40 @@ describe('handleRequirementTweakReply', () => {
     ).toBe(false);
   });
 });
+
+describe('[CNV-011] the playback card is not repeated for an unchanged brief', () => {
+  it('sends nothing when the latest bot message already carries this summary', async () => {
+    const summary = buildRequirementSummary(aryan)!;
+    const sent = await sendRequirementReview({
+      db: {} as never,
+      accountId: 'acct-1',
+      userId: 'u1',
+      contactId: 'c1',
+      conversationId: 'conv-1',
+      contact: aryan,
+      previousBotTexts: [
+        `Thanks Aryan — nothing live fits this yet, but our engine is watching. Here's what I'm matching against:\n\n📌 ${summary}\n\nYou'll hear from us the moment a matching listing arrives.`,
+      ],
+    });
+
+    expect(sent).toBe(true);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('still sends when the brief has moved since the last card', async () => {
+    const sent = await sendRequirementReview({
+      db: {} as never,
+      accountId: 'acct-1',
+      userId: 'u1',
+      contactId: 'c1',
+      conversationId: 'conv-1',
+      contact: aryan,
+      previousBotTexts: [
+        'Thanks Aryan — nothing live fits this yet. 📌 Residential Plot · near Chikkaballapur',
+      ],
+    });
+
+    expect(sent).toBe(true);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+  });
+});

@@ -23,6 +23,7 @@ import {
   HANDOVER_TEXT,
   CALLBACK_HANDOVER_TEXT,
   PHOTO_IDENTIFICATION_HANDOVER_TEXT,
+  LISTING_DISPUTE_HANDOVER_TEXT,
   asksForContactNumber,
   contactNumberHandoverText,
   mergeLeadAnswers,
@@ -789,6 +790,32 @@ describe('answerLeadQuestion — portal rung and persona', () => {
     });
     expect(res.source).toBe('handover');
     expect(res.text).toBe(HANDOVER_TEXT);
+  });
+});
+
+describe('[CNV-011] a dispute about the listing is settled by a person', () => {
+  beforeEach(() => {
+    vi.mocked(burnCredits).mockResolvedValue({ deficit: 0 } as never);
+    vi.mocked(generateText).mockResolvedValue('It is a 30x50 plot.');
+  });
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('hands the dimension dispute over without asking the model or the fields', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'acc-1',
+      question:
+        "Based on the location you've sent, it doesn't seem to be a 30-50 plot",
+      property,
+    });
+    expect(res).toEqual({
+      text: LISTING_DISPUTE_HANDOVER_TEXT,
+      source: 'handover',
+      intent: 'listing_dispute',
+    });
+    expect(generateText).not.toHaveBeenCalled();
+    expect(isHandoverText(LISTING_DISPUTE_HANDOVER_TEXT)).toBe(true);
   });
 });
 

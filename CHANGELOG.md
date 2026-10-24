@@ -19,6 +19,19 @@ than a written entry. Newest first.
 
 #### 24 October 2026
 
+- **A lead discussing their shortlisted plot is no longer pitched a different
+  one.** A buyer tapped Interested on a 1,500 sq.ft Suryanagar plot, asked its
+  dimensions, and replied "based on the location you've sent, it doesn't seem
+  to be a 30-50 plot". The word "plot" made that a requirement, so the
+  qualification ladder asked buy-or-rent, read "Ik" as Chikkaballapur (two
+  letters inside the name) and, finding nothing there, offered a ₹1.8 Cr
+  Chikkaballapur house, twice. A statement disputing the shared listing now
+  stands the ladder down and is handed to a person with the agent notified;
+  "plot number and block" is a question about the listing; an Interested tap
+  pins the thread to that listing; a bare locality reply must name a stem of
+  the place, never a substring, and a two-letter acknowledgement is never one;
+  and the no-match playback card is not repeated for an unchanged brief
+  (CNV-011).
 - **A shortlist outside the locality a lead named now says so.** "I'm
   looking near horamavu" was answered with two Koramangala houses as
   "matching residential house options", and the lead replied "Stop alerts".
