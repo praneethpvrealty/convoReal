@@ -2322,6 +2322,10 @@
             {
               "file": "src/lib/mobile-parity.test.ts",
               "case": "[PRP-051]"
+            },
+            {
+              "file": "src/lib/inventory/listing-feedback-writes.test.ts",
+              "case": "[PRP-051]"
             }
           ],
           "guards": [
@@ -2332,7 +2336,8 @@
             "src/components/inventory/match-not-a-fit.tsx",
             "mobile/components/match-not-a-fit.tsx",
             "src/lib/deals/status-notices.ts",
-            "src/lib/whatsapp/sold-notification.ts"
+            "src/lib/whatsapp/sold-notification.ts",
+            "src/lib/inventory/listing-feedback-writes.ts"
           ]
         }
       ]

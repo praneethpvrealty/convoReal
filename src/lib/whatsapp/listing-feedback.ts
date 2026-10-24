@@ -21,6 +21,7 @@ import { sendPreferenceFlowToContact } from '@/lib/whatsapp/meta-flow-service';
 import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
 import { createNotification } from '@/lib/notifications/create';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { clearAgentMarkReasons } from '@/lib/inventory/listing-feedback-writes';
 import type { Property } from '@/types';
 
 /** Every id this module owns starts with this. */
@@ -271,13 +272,13 @@ export async function handleListingFeedbackReply(args: {
       const ownedIds = (owned ?? []).map((p) => p.id as string);
 
       if (ownedIds.length > 0) {
+        await clearAgentMarkReasons(db, accountId, contact.id, ownedIds);
         await db.from('listing_feedback').upsert(
           ownedIds.map((propertyId) => ({
             account_id: accountId,
             contact_id: contact.id,
             property_id: propertyId,
             verdict: 'rejected',
-            reason: null,
           })),
           { onConflict: 'contact_id,property_id' }
         );

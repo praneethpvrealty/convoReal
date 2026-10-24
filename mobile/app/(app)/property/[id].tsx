@@ -1855,6 +1855,9 @@ function MatchesSection({
     ].some((value) => value?.toLocaleLowerCase().includes(normalizedQuery));
   });
   const sharedCount = audienceRows.filter((m) => m.sharedAt).length;
+  const hiddenAgentCount = hidden.filter(
+    (m) => m.contact.classification === 'Agent'
+  ).length;
   const hiddenRows = hidden.filter((m) =>
     inMatchAudience(m.contact.classification, audience)
   );
@@ -1982,8 +1985,10 @@ function MatchesSection({
 
       {/* Also shown while a non-default audience is active with no
         agents left, so a refetch can never strand the section on an
-        empty tab with no way back. */}
-      {expanded && (agentCount > 0 || audience !== 'buyers') ? (
+        empty tab with no way back, and while the only agents are
+        hidden, so their marks stay reachable under Show hidden. */}
+      {expanded &&
+      (agentCount > 0 || hiddenAgentCount > 0 || audience !== 'buyers') ? (
         <View
           style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}
         >
