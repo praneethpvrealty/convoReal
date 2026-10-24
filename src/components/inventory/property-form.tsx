@@ -92,8 +92,14 @@ import {
 import { EKhataReviewDialog } from '@/components/inventory/e-khata-review-dialog';
 import { PropertyFormSectionNav } from '@/components/inventory/property-form-section-nav';
 import { PropertyMatchesTab } from '@/components/inventory/property-matches-tab';
-import { fetchListingMatchFeedback } from '@/lib/inventory/match-feedback-request';
-import { partitionMatchesByFeedback } from '@/lib/match-feedback';
+import {
+  fetchListingMatchFeedback,
+  fetchTypeSuggestions,
+} from '@/lib/inventory/match-feedback-request';
+import {
+  SUGGESTION_CONTACT_CAP,
+  partitionMatchesByFeedback,
+} from '@/lib/match-feedback';
 import { PropertyEnquiriesTab } from '@/components/inventory/property-enquiries-tab';
 import { ShareDocumentsDialog } from '@/components/inventory/share-documents-dialog';
 import { PropertyRequestsPanels } from '@/components/inventory/property-requests-panels';
@@ -586,14 +592,31 @@ export function PropertyForm({
     [rankedContacts, matchFeedbackQuery.data, contacts]
   );
 
+  const typeUnknownIds = useMemo(
+    () =>
+      matchedContacts
+        .filter(({ details }) => details.type === 'unknown')
+        .slice(0, SUGGESTION_CONTACT_CAP)
+        .map(({ contact }) => contact.id),
+    [matchedContacts]
+  );
+
+  const typeSuggestionsQuery = useQuery({
+    queryKey: ['contact-type-suggestions', typeUnknownIds],
+    queryFn: () => fetchTypeSuggestions(typeUnknownIds),
+    enabled: open && typeUnknownIds.length > 0,
+    staleTime: 30_000,
+  });
+
   const refreshMatchFeedback = useCallback(
     async (contactsChanged: boolean) => {
       await Promise.all([
         matchFeedbackQuery.refetch(),
+        typeSuggestionsQuery.refetch(),
         contactsChanged ? fetchContacts() : Promise.resolve(),
       ]);
     },
-    [matchFeedbackQuery, fetchContacts]
+    [matchFeedbackQuery, typeSuggestionsQuery, fetchContacts]
   );
 
   const displayedMatches = useMemo(() => {
@@ -2786,7 +2809,7 @@ export function PropertyForm({
               matchedContacts={matchedContacts}
               displayedMatches={displayedMatches}
               hiddenMatches={hiddenMatches}
-              typeSuggestions={matchFeedbackQuery.data?.suggestions ?? {}}
+              typeSuggestions={typeSuggestionsQuery.data ?? {}}
               onMatchFeedbackChanged={refreshMatchFeedback}
               matchAudience={matchAudience}
               setMatchAudience={setMatchAudience}

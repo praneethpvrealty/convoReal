@@ -27,6 +27,16 @@ export function fetchListingMatchFeedback(
   return call(`/api/properties/${propertyId}/match-feedback`);
 }
 
+export function fetchTypeSuggestions(
+  contactIds: string[]
+): Promise<Record<string, string>> {
+  return call('/api/contacts/type-suggestions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contactIds }),
+  });
+}
+
 export function markMatchNotAFit(
   propertyId: string,
   contactId: string,

@@ -135,8 +135,8 @@ function readOptionIds(value: unknown): string[] | null {
 }
 
 // GET /api/properties/[id]/match-feedback
-// The "Not a fit" marks on this listing's matches, and a type suggestion
-// for each contact the marks have taught something about.
+// The "Not a fit" marks on this listing's matches. Type suggestions come
+// from POST /api/contacts/type-suggestions for the contacts on screen.
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

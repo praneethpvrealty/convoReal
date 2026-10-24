@@ -196,6 +196,10 @@ export function partitionMatchesByFeedback<
   };
 }
 
+/** The most contacts one type-suggestion lookup takes, in rank order:
+ *  the bound on the id list the server sends on to the database. */
+export const SUGGESTION_CONTACT_CAP = 100;
+
 const BUILDING_GROUPS = ['apartment', 'house', 'pg', 'commercial-space'];
 
 /**

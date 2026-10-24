@@ -2326,6 +2326,14 @@
             {
               "file": "src/lib/inventory/listing-feedback-writes.test.ts",
               "case": "[PRP-051]"
+            },
+            {
+              "file": "src/lib/inventory/match-feedback-store.test.ts",
+              "case": "[PRP-051]"
+            },
+            {
+              "file": "src/app/api/contacts/type-suggestions/route.test.ts",
+              "case": "[PRP-051]"
             }
           ],
           "guards": [

@@ -1,22 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { resolvePropertyGroup } from '@/lib/matching';
 import {
+  SUGGESTION_CONTACT_CAP,
   isMatchRejectReason,
   suggestPropertyTypeOption,
   type MatchFeedbackMark,
 } from '@/lib/match-feedback';
 import type { Property } from '@/types';
 
-/** The most recent contacts with a type rejection that get a suggestion
- *  worked out — the bound on the enquiry lookup's id list. */
-const SUGGESTION_CONTACT_CAP = 100;
-
 export interface ListingMatchFeedback {
   /** Every rejection on file for this listing, one per contact. */
   marks: MatchFeedbackMark[];
-  /** contact id → suggested PROPERTY_TYPE_OPTIONS id. Callers show it
-   *  only for a contact whose type is not on file. */
-  suggestions: Record<string, string>;
 }
 
 type PropertyRef = Pick<Property, 'type' | 'title'>;
@@ -38,47 +32,65 @@ function groupOf(ref: PropertyRef | PropertyRef[] | null): string | null {
   return property ? resolvePropertyGroup(property) : null;
 }
 
+function push(map: Map<string, string[]>, key: string, value: string) {
+  map.set(key, [...(map.get(key) ?? []), value]);
+}
+
 /**
- * The rejections behind a listing's Matching Contacts list and the type
- * suggestions for the contacts they teach about. Best-effort: a failed
- * read returns no marks, which renders the list as it was before marks
- * existed rather than failing it.
+ * The rejections behind a listing's Matching Contacts list. Best-effort:
+ * a failed read returns no marks, which renders the list as it was
+ * before marks existed rather than failing it.
  */
 export async function loadListingMatchFeedback(
   db: SupabaseClient,
   accountId: string,
   propertyId: string
 ): Promise<ListingMatchFeedback> {
-  const empty: ListingMatchFeedback = { marks: [], suggestions: {} };
-
-  const { data: listingRows, error: listingError } = await db
+  const { data, error } = await db
     .from('listing_feedback')
     .select('contact_id, reason, source, created_at')
     .eq('account_id', accountId)
     .eq('property_id', propertyId)
     .eq('verdict', 'rejected');
-  if (listingError) {
-    console.error('[match-feedback] listing read failed:', listingError);
-    return empty;
+  if (error) {
+    console.error('[match-feedback] listing read failed:', error);
+    return { marks: [] };
   }
+  return {
+    marks: (data ?? []).map((row) => ({
+      contactId: row.contact_id as string,
+      reason: isMatchRejectReason(row.reason) ? row.reason : null,
+      source: row.source === 'agent' ? 'agent' : 'contact',
+      createdAt: row.created_at as string,
+    })),
+  };
+}
 
-  const marks: MatchFeedbackMark[] = (listingRows ?? []).map((row) => ({
-    contactId: row.contact_id as string,
-    reason: isMatchRejectReason(row.reason) ? row.reason : null,
-    source: row.source === 'agent' ? 'agent' : 'contact',
-    createdAt: row.created_at as string,
-  }));
+/**
+ * Type suggestions for the given contacts — the matched contacts whose
+ * type is not on file, in rank order. Every signal is read for those
+ * contacts alone, so a busy account's newer enquiries cannot push a
+ * contact's own "wrong type" marks out of view. Contacts past
+ * SUGGESTION_CONTACT_CAP get none. Best-effort: a failed read suggests
+ * nothing.
+ */
+export async function loadTypeSuggestions(
+  db: SupabaseClient,
+  accountId: string,
+  contactIds: string[]
+): Promise<Record<string, string>> {
+  const ids = [...new Set(contactIds)].slice(0, SUGGESTION_CONTACT_CAP);
+  if (ids.length === 0) return {};
 
   const { data: signalRows, error: signalError } = await db
     .from('listing_feedback')
     .select('contact_id, verdict, reason, properties(type, title)')
     .eq('account_id', accountId)
-    .or('reason.eq.type,verdict.eq.interested')
-    .order('created_at', { ascending: false })
-    .limit(2000);
+    .in('contact_id', ids)
+    .or('reason.eq.type,verdict.eq.interested');
   if (signalError) {
     console.error('[match-feedback] signal read failed:', signalError);
-    return { marks, suggestions: {} };
+    return {};
   }
 
   const rejected = new Map<string, string[]>();
@@ -86,44 +98,36 @@ export async function loadListingMatchFeedback(
   for (const row of (signalRows ?? []) as unknown as FeedbackRow[]) {
     const group = groupOf(row.properties);
     if (!group) continue;
-    const bucket =
-      row.verdict === 'rejected' && row.reason === 'type'
-        ? rejected
-        : row.verdict === 'interested'
-          ? interested
-          : null;
-    if (!bucket) continue;
-    bucket.set(row.contact_id, [...(bucket.get(row.contact_id) ?? []), group]);
+    if (row.verdict === 'rejected' && row.reason === 'type') {
+      push(rejected, row.contact_id, group);
+    } else if (row.verdict === 'interested') {
+      push(interested, row.contact_id, group);
+    }
   }
 
-  const contactIds = [...rejected.keys()].slice(0, SUGGESTION_CONTACT_CAP);
-  if (contactIds.length === 0) return { marks, suggestions: {} };
+  const ruledOut = [...rejected.keys()];
+  if (ruledOut.length === 0) return {};
 
   const { data: inquiryRows, error: inquiryError } = await db
     .from('contact_property_inquiries')
     .select('contact_id, properties(type, title)')
     .eq('account_id', accountId)
-    .in('contact_id', contactIds)
-    .limit(1000);
+    .in('contact_id', ruledOut);
   if (inquiryError) {
     console.error('[match-feedback] enquiry read failed:', inquiryError);
   }
   for (const row of (inquiryRows ?? []) as unknown as InquiryRow[]) {
     const group = groupOf(row.properties);
-    if (!group) continue;
-    interested.set(row.contact_id, [
-      ...(interested.get(row.contact_id) ?? []),
-      group,
-    ]);
+    if (group) push(interested, row.contact_id, group);
   }
 
   const suggestions: Record<string, string> = {};
-  for (const contactId of contactIds) {
+  for (const contactId of ruledOut) {
     const option = suggestPropertyTypeOption({
       rejectedGroups: rejected.get(contactId) ?? [],
       interestedGroups: interested.get(contactId) ?? [],
     });
     if (option) suggestions[contactId] = option.id;
   }
-  return { marks, suggestions };
+  return suggestions;
 }

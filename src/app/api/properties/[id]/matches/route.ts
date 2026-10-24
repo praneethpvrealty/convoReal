@@ -3,7 +3,10 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { getMatchingContacts } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { fetchInquiredProperties } from '@/lib/contacts/inquired-properties';
-import { loadListingMatchFeedback } from '@/lib/inventory/match-feedback-store';
+import {
+  loadListingMatchFeedback,
+  loadTypeSuggestions,
+} from '@/lib/inventory/match-feedback-store';
 import { partitionMatchesByFeedback } from '@/lib/match-feedback';
 import type { Contact, Property } from '@/types';
 
@@ -122,8 +125,15 @@ export async function GET(
       feedback.marks,
       [...pool, ...((missing ?? []) as unknown as Contact[])]
     );
+    const suggestions = await loadTypeSuggestions(
+      ctx.supabase,
+      ctx.accountId,
+      results
+        .filter(({ details }) => details.type === 'unknown')
+        .map(({ contact }) => contact.id)
+    );
     const suggestedTypeFor = (contact: Contact, type: string) =>
-      type === 'unknown' ? (feedback.suggestions[contact.id] ?? null) : null;
+      type === 'unknown' ? (suggestions[contact.id] ?? null) : null;
 
     // What each matched contact has already asked about, so a row can
     // say whether this share continues a conversation or opens one.
