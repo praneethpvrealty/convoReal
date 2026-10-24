@@ -45,15 +45,25 @@ How a review runs:
      `haiku`) that overrides the choice, as does `REVIEW_MODEL` in the
      environment.
    - **rereview** → `claude-sonnet-5-5` when the pull request already carries
-     a completed review. The script walks the PR's commits from the newest
-     backwards (at most 30) for one with completed `Claude Code Review` and
-     `Claude Security Review` runs, then reviews only the PR's files that
+     a completed review. Every run uploads its findings as the
+     `claude-review-result` workflow artifact (`review-result.json`, 30
+     days). The script walks the PR's commits from the newest backwards (at
+     most 30) for one with a successful `security-review.yml` run started by
+     `pull_request_target` or `workflow_dispatch`, downloads that run's
+     artifact and accepts it only if it names this PR and that head. Check
+     runs, comments and statuses are not consulted for this: a same-repo PR
+     workflow can post those, but it cannot produce a run of this workflow
+     or attach an artifact to one. It then reviews only the PR's files that
      changed between that commit and the head. The diff it shows is those
      files' full pull-request diff, and the other files are listed so the
      model can read them. The deep triggers still apply to that delta: a fix
-     that touches a migration or auth code goes to Opus. When no reviewed
-     file changed (a merge of the base branch, a test-only push), the earlier
-     checks' conclusions are reposted on the new head and no model is called.
+     that touches a migration or auth code goes to Opus. Findings from the
+     prior result in files this push did not change, and that are still in
+     the PR, are carried over: they count toward the check conclusion and
+     are listed in the summary, so a high in an untouched file keeps the
+     check red until a push changes that file. When no reviewed file
+     changed (a merge of the base branch, a test-only push), the carried
+     findings alone decide the checks and no model is called.
      `REVIEW_SCOPE=full` forces a full review. A `workflow_dispatch` run
      defaults to `full`; pass `scope=auto` to exercise the re-review path by
      hand.
@@ -98,7 +108,9 @@ Secrets and limits:
   Findings on a deleted file go in the review body, since no line of it
   remains to comment on.
 - `REVIEW_MODEL` (default `auto`), `REVIEW_SCOPE` (default `auto`),
-  `REVIEW_MAX_TURNS` (default 40) and `REVIEW_MAX_DIFF_CHARS` (default 160000) bound a run. Tool output is
+  `REVIEW_RESULT_PATH` (default `review-result.json`), `REVIEW_MAX_TURNS`
+  (default 40) and `REVIEW_MAX_DIFF_CHARS` (default 160000) bound a run.
+  The token needs `actions: read` to list runs and download the artifact. Tool output is
   clipped, file reads are capped at 400 lines, and the system prompt and
   the growing conversation are cached across turns, so each tool round
   pays cache-read prices for everything it has already sent. Opus and Sonnet runs enable the server-side refusal

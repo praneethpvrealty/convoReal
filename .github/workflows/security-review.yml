@@ -49,6 +49,7 @@ jobs:
       contents: read
       pull-requests: write
       checks: write
+      actions: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -97,8 +98,17 @@ jobs:
           REVIEW_ROOT: head
           REVIEW_MODEL: ${{ inputs.model || 'auto' }}
           REVIEW_SCOPE: ${{ inputs.scope || 'auto' }}
+          REVIEW_RESULT_PATH: review-result.json
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           PR_TITLE: ${{ steps.pr.outputs.title }}
         run: node .github/security-review/review.mjs
+
+      - name: Keep the result for the next re-review
+        uses: actions/upload-artifact@v7
+        with:
+          name: claude-review-result
+          path: review-result.json
+          retention-days: 30
+          if-no-files-found: ignore

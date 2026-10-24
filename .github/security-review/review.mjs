@@ -1,22 +1,30 @@
 import { execFileSync } from 'node:child_process';
-import { closeSync, fstatSync, openSync, readFileSync } from 'node:fs';
+import {
+  closeSync,
+  fstatSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import {
   carriedFindings,
   checkConclusion,
-  checkExternalId,
   confinedRealPath,
   extractHandbookSections,
-  isCompletedReviewRun,
+  isTrustedReviewRun,
   markersIn,
   MODELS,
   normalizeKind,
   normalizeSeverity,
   parseDiff,
+  parseReviewResult,
   planComments,
   planModel,
   rereviewFiles,
+  RESULT_ARTIFACT,
   reviewBody,
   reviewFooter,
   selectFiles,
@@ -28,6 +36,8 @@ import {
 const MODEL_OVERRIDE =
   process.env.REVIEW_MODEL || process.env.SECURITY_REVIEW_MODEL || 'auto';
 const REVIEW_SCOPE = process.env.REVIEW_SCOPE || 'auto';
+const RESULT_PATH = process.env.REVIEW_RESULT_PATH || 'review-result.json';
+const WORKFLOW_FILE = 'security-review.yml';
 const MAX_COMMITS_SEARCHED = 30;
 const MAX_TURNS = Number(process.env.REVIEW_MAX_TURNS || 40);
 const MAX_DIFF_CHARS = Number(process.env.REVIEW_MAX_DIFF_CHARS || 160_000);
@@ -96,6 +106,47 @@ async function existingFindingKeys() {
   return keys;
 }
 
+async function downloadArtifactJson(artifact) {
+  const res = await fetch(artifact.archive_download_url, {
+    headers: {
+      authorization: `Bearer ${githubToken}`,
+      accept: 'application/vnd.github+json',
+      'x-github-api-version': '2022-11-28',
+    },
+  });
+  if (!res.ok) return null;
+  const zipPath = path.join(tmpdir(), `claude-review-${artifact.id}.zip`);
+  writeFileSync(zipPath, Buffer.from(await res.arrayBuffer()));
+  try {
+    return execFileSync('unzip', ['-p', zipPath, path.basename(RESULT_PATH)], {
+      encoding: 'utf8',
+      maxBuffer: 16 * 1024 * 1024,
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function priorResult(sha) {
+  const { workflow_runs: runs } = await github(
+    'GET',
+    `/repos/${repo}/actions/workflows/${WORKFLOW_FILE}/runs?head_sha=${sha}&per_page=20`
+  );
+  for (const run of runs.filter(isTrustedReviewRun)) {
+    const { artifacts } = await github(
+      'GET',
+      `/repos/${repo}/actions/runs/${run.id}/artifacts?name=${RESULT_ARTIFACT}`
+    );
+    const artifact = artifacts.find((a) => !a.expired);
+    if (!artifact) continue;
+    const text = await downloadArtifactJson(artifact);
+    const findings =
+      text && parseReviewResult(text, { prNumber, headSha: sha });
+    if (findings) return findings;
+  }
+  return null;
+}
+
 async function lastReviewedHead(headSha) {
   const shas = [];
   for (let page = 1; page <= 3; page += 1) {
@@ -111,17 +162,27 @@ async function lastReviewedHead(headSha) {
     .filter((sha) => sha !== headSha)
     .slice(0, MAX_COMMITS_SEARCHED);
   for (const sha of candidates) {
-    const checks = {};
-    for (const [kind, name] of Object.entries(CHECK_NAMES)) {
-      const { check_runs: runs } = await github(
-        'GET',
-        `/repos/${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&per_page=10`
-      );
-      checks[kind] = runs.find((run) => isCompletedReviewRun(run, prNumber));
-    }
-    if (checks.security && checks.code) return { sha, checks };
+    const findings = await priorResult(sha);
+    if (findings) return { sha, findings };
   }
   return null;
+}
+
+function writeResult(headSha, findings) {
+  writeFileSync(
+    RESULT_PATH,
+    JSON.stringify({
+      pr: prNumber,
+      headSha,
+      findings: findings.map((f) => ({
+        kind: f.kind,
+        path: f.path,
+        line: f.line,
+        severity: f.severity,
+        title: f.title,
+      })),
+    })
+  );
 }
 
 const TOOLS = [
@@ -344,6 +405,7 @@ async function main() {
       'Nothing to review',
       'The pull request changes no reviewable source files.'
     );
+    writeResult(headSha, []);
     return;
   }
 
@@ -357,18 +419,33 @@ async function main() {
     );
     if (scope.length === 0) {
       console.log(
-        `No reviewed file changed since ${previous.sha}; carrying its checks forward.`
+        `No reviewed file changed since ${previous.sha}; carrying its findings forward.`
       );
+      const carriedAll = carriedFindings(previous.findings, {
+        scope,
+        fresh: [],
+        files,
+      });
+      const byKind = splitByKind(carriedAll);
       for (const kind of Object.keys(CHECK_NAMES)) {
-        const prior = previous.checks[kind];
+        const carried = byKind[kind];
         await postCheck(
           CHECK_NAMES[kind],
           headSha,
-          prior.conclusion,
-          prior.output?.title ?? 'Nothing changed since the last review',
-          `No reviewed source file changed between ${previous.sha.slice(0, 7)} and this head, so the review of ${previous.sha.slice(0, 7)} stands.\n\n${prior.output?.summary ?? ''}`
+          checkConclusion(carried),
+          carried.length === 0
+            ? `No ${kind} findings`
+            : `${carried.length} ${kind} finding${carried.length === 1 ? '' : 's'} carried over`,
+          summaryMarkdown({
+            findings: [],
+            kind,
+            summary: `No reviewed source file changed between ${previous.sha.slice(0, 7)} and this head, so the review of ${previous.sha.slice(0, 7)} stands.`,
+            carried,
+            carriedFrom: previous.sha,
+          })
         );
       }
+      writeResult(headSha, carriedAll);
       return;
     }
   }
@@ -524,11 +601,13 @@ async function main() {
 
   const byKind = splitByKind(findings);
   const posted = splitByKind(alreadyPosted);
+  const carriedAll = previous
+    ? carriedFindings(previous.findings, { scope, fresh: findings, files })
+    : [];
+  const carriedByKind = splitByKind(carriedAll);
   for (const kind of Object.keys(CHECK_NAMES)) {
     const list = byKind[kind];
-    const carried = previous
-      ? carriedFindings(previous.checks[kind].output?.summary, scope, list)
-      : [];
+    const carried = carriedByKind[kind];
     const conclusion = checkConclusion([...list, ...carried]);
     let titleText =
       list.length === 0
@@ -554,6 +633,7 @@ async function main() {
     );
     console.log(titleText);
   }
+  writeResult(headSha, [...findings, ...carriedAll]);
   console.log(footer);
 }
 
@@ -567,7 +647,6 @@ async function postCheck(name, headSha, conclusion, title, summary) {
   await github('POST', `/repos/${repo}/check-runs`, {
     name,
     head_sha: headSha,
-    external_id: checkExternalId(prNumber),
     status: 'completed',
     conclusion,
     output: { title, summary: summary.slice(0, 60_000) },

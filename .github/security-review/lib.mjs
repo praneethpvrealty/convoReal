@@ -276,7 +276,7 @@ export function summaryMarkdown({
     );
   }
   if (summary) lines.push('', summary);
-  lines.push('', reviewFooter({ model, plan, usage }));
+  if (model) lines.push('', reviewFooter({ model, plan, usage }));
   return lines.join('\n');
 }
 
@@ -373,43 +373,50 @@ const LARGE_FILE_COUNT = 15;
 const SMALL_DIFF_CHARS = 3_000;
 const SMALL_FILE_COUNT = 3;
 
-export function checkExternalId(prNumber) {
-  return `pr-${prNumber}`;
-}
+export const RESULT_ARTIFACT = 'claude-review-result';
+export const TRUSTED_RUN_EVENTS = ['pull_request_target', 'workflow_dispatch'];
 
-export function isCompletedReviewRun(run, prNumber) {
+export function isTrustedReviewRun(run) {
   return (
     run?.status === 'completed' &&
-    ['success', 'neutral', 'failure', 'skipped'].includes(run.conclusion) &&
-    run.output?.title !== 'Review did not complete' &&
-    run.external_id === checkExternalId(prNumber)
+    run.conclusion === 'success' &&
+    TRUSTED_RUN_EVENTS.includes(run.event)
   );
 }
 
-const SUMMARY_FINDING_LINE =
-  /^- \S+ \*\*(critical|high|medium|low)\*\* `(.+?)(?::(\d+))?` — (.+)$/;
-
-export function parseSummaryFindings(summary) {
-  const out = [];
-  for (const line of String(summary ?? '').split('\n')) {
-    const m = SUMMARY_FINDING_LINE.exec(line);
-    if (m) {
-      out.push({
-        severity: m[1],
-        path: m[2],
-        line: Number(m[3] || 0),
-        title: m[4],
-      });
-    }
+export function parseReviewResult(text, { prNumber, headSha }) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
   }
-  return out;
+  if (
+    !parsed ||
+    Number(parsed.pr) !== Number(prNumber) ||
+    parsed.headSha !== headSha ||
+    !Array.isArray(parsed.findings)
+  ) {
+    return null;
+  }
+  return parsed.findings
+    .filter((f) => f && typeof f.path === 'string')
+    .map((f) => ({
+      kind: normalizeKind(f.kind),
+      path: f.path,
+      line: Number(f.line) || 0,
+      severity: normalizeSeverity(f.severity),
+      title: String(f.title ?? ''),
+    }));
 }
 
-export function carriedFindings(summary, scope, fresh) {
+export function carriedFindings(prior, { scope, fresh, files }) {
   const inScope = new Set(scope);
+  const inPr = new Set(files);
   const seen = new Set(fresh.map(findingKey));
-  return parseSummaryFindings(summary).filter((f) => {
-    if (inScope.has(f.path) || seen.has(findingKey(f))) return false;
+  return (prior ?? []).filter((f) => {
+    if (inScope.has(f.path) || !inPr.has(f.path)) return false;
+    if (seen.has(findingKey(f))) return false;
     seen.add(findingKey(f));
     return true;
   });
