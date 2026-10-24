@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 24 October 2026
 
+- **A shortlist outside the locality a lead named now says so.** "I'm
+  looking near horamavu" was answered with two Koramangala houses as
+  "matching residential house options", and the lead replied "Stop alerts".
+  The matcher already keeps a reply's listings within a tight radius of the
+  named area, but their neighbours were still called matches. The
+  qualification shortlist and the post-call matches pack now open with
+  "nothing new in Horamavu itself right now, but here are 2 … close by" when no
+  listing shown is in the named locality, and the preference-tap reply says
+  it searched elsewhere when its tight radius found nothing. A market zone or
+  an "any location" placeholder is never named this way. INB-039.
 - **The bot no longer answers a rent question about a sale listing with
   the asking price.** A buyer sent a ₹20 Cr commercial building's card
   asked "Rent per month ?" and "Rentals received on bank account?" and was

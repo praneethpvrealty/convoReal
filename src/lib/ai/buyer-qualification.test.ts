@@ -43,6 +43,9 @@ import {
   rebuildRequirements,
   buildWidenSearchQuestion,
   describeBrief,
+  namedLocality,
+  nearbyMatchesOpening,
+  shortlistOutsideLocality,
 } from './buyer-qualification';
 import {
   EMPTY_PREFERENCES,
@@ -1622,5 +1625,170 @@ describe('portal plot lead replay (sandhiya)', () => {
         [field]
       );
     }
+  });
+});
+
+describe('[INB-039] a shortlist outside the named locality says so', () => {
+  const horamavuBrief = prefs({
+    property_types: ['Residential House'],
+    listing_types: ['Sale'],
+    budget_max: 147_000_000,
+    areas: ['Horamavu'],
+  });
+  const neighbour = (id: string, sublocality: string): RankedPropertyMatch => ({
+    ...match({
+      id,
+      title: `4 BHK Villa in ${sublocality}`,
+      sublocality,
+      type: 'Residential House',
+    }),
+    details: { ...match({}).details, named_area: 'unknown' },
+  });
+  const inHoramavu: RankedPropertyMatch = {
+    ...match({
+      id: 'prop-h',
+      title: '5 BHK Residential House in Horamavu',
+      sublocality: 'Horamavu',
+      type: 'Residential House',
+    }),
+    details: { ...match({}).details, named_area: 'match' },
+  };
+
+  it('names the locality the shortlist sits outside of', () => {
+    expect(
+      shortlistOutsideLocality(
+        ['Horamavu'],
+        [neighbour('p1', 'TC Palaya'), neighbour('p2', 'Banaswadi')]
+      )
+    ).toBe('Horamavu');
+    expect(
+      shortlistOutsideLocality(
+        ['Horamavu'],
+        [neighbour('p1', 'TC Palaya'), inHoramavu]
+      )
+    ).toBeNull();
+    expect(shortlistOutsideLocality(['Horamavu'], [])).toBeNull();
+  });
+
+  it('calls a listing close by only when the matcher placed it within radius', () => {
+    const bypassed: RankedPropertyMatch = {
+      ...neighbour('p3', 'Whitefield'),
+      details: {
+        ...match({}).details,
+        location: 'unknown',
+        named_area: 'unknown',
+      },
+    };
+    const namedProject: RankedPropertyMatch = {
+      ...neighbour('p4', 'Sarjapur'),
+      details: {
+        ...match({}).details,
+        project: 'match',
+        named_area: 'unknown',
+      },
+    };
+    expect(
+      shortlistOutsideLocality(
+        ['Horamavu'],
+        [neighbour('p1', 'TC Palaya'), bypassed]
+      )
+    ).toBeNull();
+    expect(shortlistOutsideLocality(['Horamavu'], [namedProject])).toBeNull();
+    expect(
+      shortlistOutsideLocality(
+        ['Horamavu', 'any location'],
+        [neighbour('p1', 'TC Palaya')]
+      )
+    ).toBeNull();
+  });
+
+  it('never names a market zone or a placeholder as a locality', () => {
+    expect(namedLocality(['North Bengaluru'])).toBeNull();
+    expect(namedLocality(['any location', 'Horamavu'])).toBeNull();
+    expect(namedLocality(['Anywhere in Bangalore'])).toBeNull();
+    expect(namedLocality(['North Bengaluru', 'Horamavu'])).toBe('Horamavu');
+    expect(namedLocality([])).toBeNull();
+    expect(
+      shortlistOutsideLocality(
+        ['North Bengaluru'],
+        [neighbour('p1', 'TC Palaya')]
+      )
+    ).toBeNull();
+  });
+
+  it('opens the ladder shortlist with the gap before the nearby listings', () => {
+    const out = buildQualificationReply(
+      horamavuBrief,
+      'Pradeep Naidu',
+      [neighbour('p1', 'TC Palaya'), neighbour('p2', 'Banaswadi')],
+      [],
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(out.missing).toBeNull();
+    expect(out.reply).toContain(
+      'Thanks Pradeep — nothing new in Horamavu itself right now, but here are 2 residential house options for sale close by 👇'
+    );
+    expect(out.reply).not.toContain('matching');
+    expect(out.reply).toContain('4 BHK Villa in TC Palaya');
+    expect(out.sentPropertyIds).toEqual(['p1', 'p2']);
+
+    const one = buildQualificationReply(
+      horamavuBrief,
+      'Pradeep Naidu',
+      [neighbour('p1', 'TC Palaya')],
+      [],
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(one.reply).toContain(
+      "nothing new in Horamavu itself right now, but here's one residential house for sale close by 👇"
+    );
+  });
+
+  it('keeps the ordinary opening when a listing in the named locality is shown', () => {
+    const out = buildQualificationReply(
+      horamavuBrief,
+      'Pradeep Naidu',
+      [inHoramavu, neighbour('p1', 'TC Palaya')],
+      [],
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(out.reply).toContain(
+      'here are 2 matching residential house options for sale 👇'
+    );
+    expect(out.reply).not.toContain('itself right now');
+  });
+
+  it('gives the post-call matches pack the same opening', () => {
+    expect(
+      nearbyMatchesOpening(
+        'Pradeep Naidu',
+        ['Horamavu'],
+        [neighbour('p1', 'TC Palaya'), neighbour('p2', 'Banaswadi')]
+      )
+    ).toBe(
+      'Thanks Pradeep — nothing new in Horamavu itself right now, but here are 2 close by 👇'
+    );
+    expect(
+      nearbyMatchesOpening('Pradeep Naidu', ['Horamavu'], [inHoramavu])
+    ).toBeNull();
+    expect(
+      buildMatchesReply(
+        'Pradeep Naidu',
+        [neighbour('p1', 'TC Palaya')],
+        'https://convoreal.com',
+        'c1',
+        null,
+        nearbyMatchesOpening(
+          'Pradeep Naidu',
+          ['Horamavu'],
+          [neighbour('p1', 'TC Palaya')]
+        )
+      )
+    ).toContain(
+      "nothing new in Horamavu itself right now, but here's one close by 👇"
+    );
   });
 });

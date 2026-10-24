@@ -229,7 +229,13 @@ const args = (row: Record<string, unknown> | null = contactRow) => ({
 const aMatch = {
   property: { id: 'p1', title: 'Plot in Koramangala' },
   score: 85,
-  details: {},
+  details: { named_area: 'match' },
+};
+
+const aNeighbour = {
+  property: { id: 'p2', title: 'Plot in HSR Layout' },
+  score: 80,
+  details: { location: 'match', named_area: 'unknown' },
 };
 
 beforeEach(() => {
@@ -469,5 +475,77 @@ describe('sendPreferenceTapReply', () => {
 
     expect(result.replySent).toBe(false);
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+});
+
+describe('[INB-039] the tap reply says when its listings lie outside the named locality', () => {
+  it('words the widened search and the near neighbours differently', () => {
+    const base = {
+      contactName: 'Pradeep',
+      enquiry: null,
+      listings: [LISTING],
+      question: null,
+    };
+    expect(
+      buildPreferenceTapReply({
+        ...base,
+        outside: { locality: 'Horamavu', widened: true },
+      })
+    ).toContain(
+      "Based on your requirement, nothing new is live near Horamavu right now, so here's one live option from elsewhere in our inventory:"
+    );
+    expect(
+      buildPreferenceTapReply({
+        ...base,
+        listings: [LISTING, LISTING.replace('*1.', '*2.')],
+        outside: { locality: 'Horamavu', widened: false },
+      })
+    ).toContain(
+      'Based on your requirement, nothing new in Horamavu itself right now, but here are 2 live options close by:'
+    );
+    expect(buildPreferenceTapReply(base)).toContain(
+      "Based on your requirement, here's one live option from our inventory:"
+    );
+  });
+
+  it('says the search widened when the tight radius found nothing', async () => {
+    rankPropertiesForContact
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([aNeighbour]);
+
+    await sendPreferenceTapReply(args());
+
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain(
+      "nothing new is live near Koramangala right now, so here's one live option from elsewhere in our inventory:"
+    );
+    expect(text).toContain('Plot in HSR Layout');
+  });
+
+  it('says the listings are close by when the tight radius holds only neighbours', async () => {
+    rankPropertiesForContact.mockResolvedValue([aNeighbour]);
+
+    await sendPreferenceTapReply(args());
+
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain(
+      "nothing new in Koramangala itself right now, but here's one live option close by:"
+    );
+  });
+
+  it('keeps the ordinary line when a listing in the named locality is shown', async () => {
+    rankPropertiesForContact.mockResolvedValue([aMatch, aNeighbour]);
+
+    await sendPreferenceTapReply(args());
+
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain('here are 2 live options from our inventory:');
+    expect(text).not.toContain('itself right now');
   });
 });

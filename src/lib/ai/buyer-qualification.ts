@@ -552,10 +552,51 @@ function typeLabel(prefs: ExtractedPreferences): string {
   return category ? `${category} property` : 'property';
 }
 
+const AREA_PLACEHOLDER_PATTERN =
+  /^(any|anywhere|all|not specific|no preference|flexible)\b/i;
+
+export function namedLocality(
+  areas: (string | null | undefined)[]
+): string | null {
+  const stated = areas.filter((area): area is string => !!area?.trim());
+  if (stated.some((area) => AREA_PLACEHOLDER_PATTERN.test(area.trim())))
+    return null;
+  return stated.find((area) => !canonicalBengaluruZone(area)) ?? null;
+}
+
+export function shortlistOutsideLocality(
+  areas: (string | null | undefined)[],
+  matches: RankedPropertyMatch[]
+): string | null {
+  const locality = namedLocality(areas);
+  if (!locality) return null;
+  const shown = matches.slice(0, MAX_MATCHES_SENT);
+  if (shown.length === 0) return null;
+  if (shown.some((m) => m.details.named_area === 'match')) return null;
+  const nearby = shown.every(
+    (m) => m.details.location === 'match' && m.details.project !== 'match'
+  );
+  return nearby ? locality : null;
+}
+
+export function nearbyMatchesOpening(
+  contactName: string | null | undefined,
+  areas: (string | null | undefined)[],
+  matches: RankedPropertyMatch[]
+): string | null {
+  const outside = shortlistOutsideLocality(areas, matches);
+  if (!outside) return null;
+  const count = Math.min(matches.length, MAX_MATCHES_SENT);
+  return count === 1
+    ? `Thanks ${firstName(contactName)} — nothing new in ${outside} itself right now, but here's one close by 👇`
+    : `Thanks ${firstName(contactName)} — nothing new in ${outside} itself right now, but here are ${count} close by 👇`;
+}
+
 function qualifiedMatchesOpening(
   contactName: string | null | undefined,
   prefs: ExtractedPreferences,
-  count: number
+  count: number,
+  outsideLocality: string | null = null
 ): string {
   const deal =
     prefs.listing_types.length === 1
@@ -565,6 +606,11 @@ function qualifiedMatchesOpening(
           ? ' for rent'
           : ''
       : '';
+  if (outsideLocality) {
+    return count === 1
+      ? `Thanks ${firstName(contactName)} — nothing new in ${outsideLocality} itself right now, but here's one ${typeLabel(prefs)}${deal} close by 👇`
+      : `Thanks ${firstName(contactName)} — nothing new in ${outsideLocality} itself right now, but here are ${count} ${typeLabel(prefs)} options${deal} close by 👇`;
+  }
   return count === 1
     ? `Thanks ${firstName(contactName)} — here's one matching ${typeLabel(prefs)}${deal} 👇`
     : `Thanks ${firstName(contactName)} — here are ${count} matching ${typeLabel(prefs)} options${deal} 👇`;
@@ -848,7 +894,8 @@ export function buildQualificationReply(
         qualifiedMatchesOpening(
           contactName,
           prefs,
-          Math.min(matches.length, MAX_MATCHES_SENT)
+          Math.min(matches.length, MAX_MATCHES_SENT),
+          shortlistOutsideLocality(prefs.areas, matches)
         )
       ),
       sentPropertyIds: matches
