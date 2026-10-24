@@ -223,12 +223,10 @@ export function resolvePropertyReference<T extends PropertyInterestCandidate>(
           property.land_area,
           property.land_area_unit
         );
-        if (landArea !== null) {
-          if (
-            Math.abs(landArea - wantedDimensionArea) / wantedDimensionArea >
-            0.1
-          )
-            return null;
+        if (
+          landArea !== null &&
+          Math.abs(landArea - wantedDimensionArea) / wantedDimensionArea <= 0.1
+        ) {
           sizeScore = 30;
         }
       }

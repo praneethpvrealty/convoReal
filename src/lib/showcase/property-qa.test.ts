@@ -463,6 +463,12 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     const unknown = answerFromPropertyData('How old the building?', makeProp());
     expect(unknown.intent).toBe('age');
     expect(unknown.answer).toBeNull();
+    const future = answerFromPropertyData(
+      'How old the building?',
+      makeProp({ year_built: new Date().getFullYear() + 1 })
+    );
+    expect(future.intent).toBe('age');
+    expect(future.answer).toBeNull();
     expect(buildPropertyContext(building())).toContain('Year built: 2022');
   });
 
@@ -515,13 +521,14 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     expect(
       answerFromPropertyData('what is the maintenance', makeProp()).answer
     ).toBeNull();
-    for (const q of [
-      'How much is the maintenance?',
-      'maintenance cost?',
-      'how much deposit',
-    ]) {
+    for (const q of ['How much is the maintenance?', 'maintenance cost?']) {
       const r = answerFromPropertyData(q, makeProp());
-      expect(r.intent, q).toBe('charges');
+      expect(r.intent, q).toBe('maintenance');
+      expect(r.answer, q).toBeNull();
+    }
+    for (const q of ['how much deposit', 'how much advance to pay?']) {
+      const r = answerFromPropertyData(q, makeProp({ maintenance: 4500 }));
+      expect(r.intent, q).toBe('deposit');
       expect(r.answer, q).toBeNull();
     }
     expect(

@@ -234,14 +234,19 @@ function leaseAnswer(p: QaProperty): string | null {
     : null;
 }
 
-function chargesAnswer(p: QaProperty): string | null {
+function maintenanceAnswer(p: QaProperty): string | null {
   if (isRentLike(p) || isJV(p)) return priceAnswer(p);
   return p.maintenance ? `Maintenance is ${inr(p.maintenance)}/month.` : null;
+}
+
+function depositAnswer(p: QaProperty): string | null {
+  return isRentLike(p) || isJV(p) ? priceAnswer(p) : null;
 }
 
 function ageAnswer(p: QaProperty): string | null {
   if (!p.year_built) return null;
   const age = new Date().getFullYear() - p.year_built;
+  if (age < 0) return null;
   return age > 0
     ? `It was built in ${p.year_built}, so it's about ${age} year${age === 1 ? '' : 's'} old.`
     : `It was built in ${p.year_built}.`;
@@ -328,9 +333,14 @@ const MATCHERS: {
     respond: leaseAnswer,
   },
   {
-    intent: 'charges',
-    pattern: /\b(deposit|advance|maintenance)/i,
-    respond: chargesAnswer,
+    intent: 'maintenance',
+    pattern: /\bmaintenance/i,
+    respond: maintenanceAnswer,
+  },
+  {
+    intent: 'deposit',
+    pattern: /\b(deposit|advance)/i,
+    respond: depositAnswer,
   },
   {
     intent: 'price',
