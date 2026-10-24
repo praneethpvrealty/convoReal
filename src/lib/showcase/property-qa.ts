@@ -366,7 +366,7 @@ const MATCHERS: {
   {
     intent: 'dimensions',
     pattern:
-      /\b(dimension|measurement|plot size|site size|land size|length|breadth|\d{2,3}\s*[x×*]\s*\d{2,3}|(plot|site|size|measurement)\b[^?.!]{0,30}\b\d{2,3}\s*\/\s*\d{2,3}|\d{2,3}\s*\/\s*\d{2,3}\b[^?.!]{0,30}\b(plot|site|size|measurement))/i,
+      /\b(dimension|measurement|plot size|site size|land size|length|breadth)/i,
     respond: dimensionsAnswer,
   },
   {
@@ -397,6 +397,14 @@ const MATCHERS: {
     intent: 'facing',
     pattern: /\b(facing|direction|vastu|east|west|north|south)/i,
     respond: facingAnswer,
+  },
+  // A plot named by its sides, after every field it could be naming:
+  // "where is the 30x40 site" asks for the location, not the size.
+  {
+    intent: 'dimensions',
+    pattern:
+      /\b\d{2,3}\s*[x×*]\s*\d{2,3}\b|\b(plot|site|size|measurement)\b[^?.!]{0,30}\b\d{2,3}\s*\/\s*\d{2,3}\b|\b\d{2,3}\s*\/\s*\d{2,3}\b[^?.!]{0,30}\b(plot|site|size|measurement)\b/i,
+    respond: dimensionsAnswer,
   },
   {
     intent: 'type',

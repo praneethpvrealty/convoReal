@@ -306,10 +306,17 @@ const HUMAN_REQUEST =
  *  owner": a meeting is a request only after a request cue, or as a
  *  bare imperative opening the clause. "I had a discussion with the
  *  owner, he is ready at 1.8 cr" reports one and asks for nothing. */
-const MEETING_REQUEST =
-  /\b((meeting|meet|discussion|call) with (the |a |an |your )?(owner|seller|agent|team|builder|manager)|meet (the |your )?(owner|seller|agent|builder|manager))\b/g;
-const MEETING_CUE =
-  /^\s*$|\b(?:want|need|wish|like|love|arrange|fix|set ?up|schedule|organi[sz]e|request|please|pls|plz|(?:can|could|may|shall|would|should) (?:i|we|you|u))(?: (?!(?:after|before|following|once|post)\b)\w+){0,3} $/;
+const MEETING_VERB_REQUEST =
+  /\bmeet (the |your )?(owner|seller|agent|builder|manager)\b/g;
+const MEETING_NOUN_REQUEST =
+  /\b(meeting|discussion|call) with (the |a |an |your )?(owner|seller|agent|team|builder|manager)\b/g;
+const REQUEST_CUE_BEFORE_MEETING =
+  /\b(?:want|need|wish|like|love|arrange|fix|set ?up|schedule|organi[sz]e|request|please|pls|plz|(?:can|could|may|shall|would|should) (?:i|we|you|u))(?: (?!(?:after|before|following|once|post)\b)\w+){0,3} $/;
+// The bare imperative opens its clause only as a verb: "Meet the owner"
+// asks, "Meeting with the owner done, he agreed" reports.
+const MEETING_VERB_CUE = new RegExp(
+  `^\\s*$|${REQUEST_CUE_BEFORE_MEETING.source}`
+);
 
 /** "I want to visit the site and meet the owner on Saturday at 11am"
  *  is a visit to book, not a call to promise: a meeting named with a
@@ -520,8 +527,14 @@ export function requestsHumanContact(text?: string | null): boolean {
       unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST)
     ) ||
     (!VISIT_OR_TIME.test(normaliseCallText(text)) &&
-      callClauses(text).some((clause) =>
-        unrefusedMatch(clause, MEETING_REQUEST, MEETING_CUE)
+      callClauses(text).some(
+        (clause) =>
+          unrefusedMatch(clause, MEETING_VERB_REQUEST, MEETING_VERB_CUE) ||
+          unrefusedMatch(
+            clause,
+            MEETING_NOUN_REQUEST,
+            REQUEST_CUE_BEFORE_MEETING
+          )
       )) ||
     asksForContactNumber(text)
   );

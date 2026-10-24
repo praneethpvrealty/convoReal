@@ -506,6 +506,27 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     ).toBe('Plot dimensions: 50x80.');
   });
 
+  it('answers a question that names the plot by its sides from the field it asks for', () => {
+    const plot = makeProp({
+      type: 'Residential Land/ Plot',
+      dimensions: '30x40',
+      facing_direction: 'East',
+    });
+    expect(
+      answerFromPropertyData('Where is the 30x40 site?', plot).intent
+    ).toBe('location');
+    expect(
+      answerFromPropertyData('Is the 30x40 plot east facing?', plot).intent
+    ).toBe('facing');
+    expect(
+      answerFromPropertyData('What is the location of Sy No 45/12 plot?', plot)
+        .intent
+    ).toBe('location');
+    expect(answerFromPropertyData('is it 30x40?', plot).answer).toBe(
+      'Plot dimensions: 30x40.'
+    );
+  });
+
   it('leaves 24/7, a date and built-in wardrobes to the matcher they belong to', () => {
     const r = answerFromPropertyData(
       'Is there 24/7 security?',
