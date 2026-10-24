@@ -106,17 +106,17 @@ async function existingFindingKeys() {
 }
 
 async function downloadArtifactJson(artifact) {
-  const res = await fetch(artifact.archive_download_url, {
-    headers: {
-      authorization: `Bearer ${githubToken}`,
-      accept: 'application/vnd.github+json',
-      'x-github-api-version': '2022-11-28',
-    },
-  });
-  if (!res.ok) return null;
-  const zip = Buffer.from(await res.arrayBuffer());
-  if (zip.length > 8 * 1024 * 1024) return null;
   try {
+    const res = await fetch(artifact.archive_download_url, {
+      headers: {
+        authorization: `Bearer ${githubToken}`,
+        accept: 'application/vnd.github+json',
+        'x-github-api-version': '2022-11-28',
+      },
+    });
+    if (!res.ok) return null;
+    const zip = Buffer.from(await res.arrayBuffer());
+    if (zip.length > 8 * 1024 * 1024) return null;
     return execFileSync('funzip', [], {
       input: zip,
       encoding: 'utf8',
@@ -411,8 +411,16 @@ async function main() {
     return;
   }
 
-  const previous =
-    REVIEW_SCOPE === 'full' ? null : await lastReviewedHead(headSha);
+  let previous = null;
+  if (REVIEW_SCOPE !== 'full') {
+    try {
+      previous = await lastReviewedHead(headSha);
+    } catch (err) {
+      console.warn(
+        `Prior review lookup failed, reviewing the whole pull request: ${err instanceof Error ? err.message : err}`
+      );
+    }
+  }
   let scope = files;
   let reverted = [];
   if (previous) {
