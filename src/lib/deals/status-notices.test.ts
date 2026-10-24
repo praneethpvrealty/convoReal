@@ -559,6 +559,7 @@ describe('[DSN-003] who is never messaged, and when a row waits', () => {
       ['property_id', 'p-1'],
       ['contact_id', 'c-1'],
       ['verdict', 'rejected'],
+      ['source', 'contact'],
     ]);
     expect(updatesTo(calls, 'deal_status_notifications').at(-1)).toMatchObject({
       status: 'skipped',

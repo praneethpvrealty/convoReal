@@ -169,6 +169,7 @@ async function closedEnquiryOnListing(
     .eq('property_id', propertyId)
     .eq('contact_id', contactId)
     .eq('verdict', 'rejected')
+    .eq('source', 'contact')
     .maybeSingle();
   return !!error || !!data;
 }
@@ -424,7 +425,8 @@ export async function notifyBuyersOfPropertyStatus(
         .select('contact_id')
         .eq('account_id', accountId)
         .eq('property_id', propertyId)
-        .eq('verdict', 'rejected'),
+        .eq('verdict', 'rejected')
+        .eq('source', 'contact'),
     ]);
   const lookupError =
     interestedRes.error ??
