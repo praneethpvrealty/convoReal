@@ -5239,6 +5239,10 @@ describe('[PRP-051] "Not a fit" on matching contacts runs one rule on both surfa
     expect(matchesRoute).toContain('hidden: hidden.map(');
     expect(mobileLib).toContain('hidden: hidden ?? []');
     expect(mobileLib).toContain('...set.hidden.map((row) => row.contact.id),');
+    expect(webTab).toContain('prev.filter((id) => !hiddenIds.has(id))');
+    expect(mobileScreen).toContain(
+      'const selectedContacts = (matchesQuery.data?.matches ?? [])'
+    );
   });
 
   it('offers the mark, the suggestion and the hidden list on both surfaces', () => {

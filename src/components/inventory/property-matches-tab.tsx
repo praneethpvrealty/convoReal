@@ -240,6 +240,19 @@ export function PropertyMatchesTab({
     );
   }, [displayedMatches, matchSearch]);
 
+  // A contact ruled out for this listing is never a recipient, however
+  // they came to be ticked: before the marks loaded, or by another agent
+  // while this list was open. The share handlers read the selection.
+  useEffect(() => {
+    if (hiddenMatches.length === 0) return;
+    const hiddenIds = new Set(hiddenMatches.map(({ contact }) => contact.id));
+    setSelectedContactIds((prev) =>
+      prev.some((id) => hiddenIds.has(id))
+        ? prev.filter((id) => !hiddenIds.has(id))
+        : prev
+    );
+  }, [hiddenMatches]);
+
   const displayedHiddenMatches = useMemo(
     () =>
       hiddenMatches.filter(({ contact }) =>

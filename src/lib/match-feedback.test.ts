@@ -80,14 +80,45 @@ describe('[PRP-051] "Not a fit" teaches the matcher', () => {
 
   it('writes the matcher vocabulary and a note that survives re-extraction', () => {
     expect(propertyTypePatch(['pt_house', 'pt_land'])).toEqual({
-      pref_property_types: ['Residential House', 'Villa'],
-      pref_property_categories: ['plot'],
+      pref_property_types: [
+        'Residential House',
+        'Villa',
+        'Residential Land/ Plot',
+        'Commercial Plot',
+        'Agricultural Land',
+      ],
+      pref_property_categories: [],
       property_interests: [],
     });
     expect(propertyTypePatch(['nope'])).toBeNull();
     expect(propertyTypeNote(['pt_plot', 'pt_agri'])).toBe(
       'Looking for Residential Plot or Agricultural Land only (set by agent from a "Not a fit" mark).'
     );
+  });
+
+  it('keeps every kind of land when Any land is picked beside a building type', () => {
+    const contactFor = (ids: string[]) =>
+      contact({ pref_areas: [], ...propertyTypePatch(ids)! });
+    const listing = (type: string) => ({
+      ...building,
+      type,
+      title: type,
+    });
+    for (const type of [
+      'Residential Land/ Plot',
+      'Commercial Plot',
+      'Agricultural Land',
+      'Villa',
+    ]) {
+      expect(
+        getMatchingContacts(listing(type), [
+          contactFor(['pt_house', 'pt_land']),
+        ])
+      ).toHaveLength(1);
+    }
+    expect(
+      getMatchingContacts(building, [contactFor(['pt_house', 'pt_land'])])
+    ).toHaveLength(0);
   });
 
   it('every type option resolves to the groups it claims', () => {

@@ -109,8 +109,11 @@ export const PROPERTY_TYPE_OPTIONS: PropertyTypeOption[] = [
     id: 'pt_land',
     title: 'Any land / plot',
     description: 'A site, not a building',
-    types: [],
-    categories: ['plot'],
+    // Spelled out as the land subtypes rather than the broad 'plot'
+    // category: the matcher narrows 'plot' to any sector stated beside
+    // it, so House / Villa + Any land would have dropped commercial and
+    // agricultural land.
+    types: ['Residential Land/ Plot', 'Commercial Plot', 'Agricultural Land'],
     groups: ['residential-plot', 'commercial-plot', 'agricultural'],
     staffOnly: true,
   },
