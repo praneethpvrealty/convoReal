@@ -26,8 +26,16 @@
 -- 3. journey_overview_groups adds interested_count per journey so both
 --    surfaces can show the chip on the overview row.
 --
+-- The stamp records what the lead said before, not activity on the
+-- item: the overview's last_updated, the closing-nudge stall clock and
+-- the Helper's signal time all read updated_at, so the updated_at
+-- trigger is held off while the backfill runs and historic rows keep
+-- their real last-activity time.
+--
 -- Not additive: hold until the production PR is green and merged.
 -- ============================================================
+
+ALTER TABLE journey_items DISABLE TRIGGER set_journey_items_updated_at;
 
 WITH first_stage AS (
   SELECT DISTINCT ON (account_id) account_id, id
@@ -98,6 +106,8 @@ WHERE ji.account_id = r.account_id
   AND (ji.lead_interest IS NULL
        OR (ji.lead_interest = 'shortlisted' AND r.kind = 'interested')
        OR (ji.lead_interest = r.kind AND ji.lead_interest_at IS DISTINCT FROM r.at));
+
+ALTER TABLE journey_items ENABLE TRIGGER set_journey_items_updated_at;
 
 DROP FUNCTION IF EXISTS public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT);
 

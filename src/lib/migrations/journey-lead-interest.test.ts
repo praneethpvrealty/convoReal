@@ -62,6 +62,20 @@ describe('journey lead interest signals', () => {
     expect(signals).not.toContain('SET hidden');
   });
 
+  it('[JRN-026] the backfill never counts as activity on the item', () => {
+    const disable = signals.indexOf(
+      'ALTER TABLE journey_items DISABLE TRIGGER set_journey_items_updated_at;'
+    );
+    const update = signals.indexOf('UPDATE journey_items ji');
+    const enable = signals.indexOf(
+      'ALTER TABLE journey_items ENABLE TRIGGER set_journey_items_updated_at;'
+    );
+    expect(disable).toBeGreaterThan(-1);
+    expect(update).toBeGreaterThan(disable);
+    expect(enable).toBeGreaterThan(update);
+    expect(signals.indexOf('DROP FUNCTION IF EXISTS')).toBeGreaterThan(enable);
+  });
+
   it('[CPL-004] [JRN-026] the Helper reads the lead’s own Interested answers as a signal', () => {
     expect(signals).toContain(
       'DROP FUNCTION IF EXISTS public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT);'
