@@ -21,7 +21,7 @@ const MATCH_CONTACT_COLUMNS =
   'pref_budget_min, pref_budget_max, pref_budget_anchor, pref_land_area_min_sqft, pref_land_area_max_sqft, pref_areas, pref_excluded_areas, pref_projects, ' +
   'pref_min_roi, requires_tenanted, pref_requires_tenanted, pref_listing_types, pref_extracted_at, contact_notes(note_text)';
 
-const HIDDEN_LOOKUP_CAP = 200;
+const HIDDEN_LOOKUP_CAP = 100;
 
 // GET /api/properties/[id]/matches
 // Scored contact matches for one listing, ranked best-first. The engine
@@ -113,13 +113,16 @@ export async function GET(
       .map((m) => m.contactId)
       .filter((id) => !pooled.has(id))
       .slice(0, HIDDEN_LOOKUP_CAP);
-    const { data: missing } = missingIds.length
+    const { data: missing, error: missingError } = missingIds.length
       ? await ctx.supabase
           .from('contacts')
           .select('id, name, phone, classification, name_tag')
           .eq('account_id', ctx.accountId)
           .in('id', missingIds)
-      : { data: [] };
+      : { data: [], error: null };
+    if (missingError) {
+      console.error('[GET /api/properties/[id]/matches]', missingError);
+    }
     const { visible: results, hidden } = partitionMatchesByFeedback(
       ranked,
       feedback.marks,

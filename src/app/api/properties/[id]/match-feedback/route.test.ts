@@ -11,6 +11,8 @@ let writeRows: unknown[];
 let feedbackRow: Record<string, unknown> | null;
 let propertyRow: Record<string, unknown>;
 let insertError: unknown;
+let noteRow: Record<string, unknown> | null;
+let upsertError: unknown;
 
 function table(name: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,14 +36,18 @@ function table(name: string) {
           ? contactRow
           : name === 'listing_feedback'
             ? feedbackRow
-            : propertyRow,
+            : name === 'contact_notes'
+              ? noteRow
+              : propertyRow,
       error: null,
     });
   query.then = (resolve: (v: unknown) => unknown) =>
     Promise.resolve(
       calls.at(-1)?.op === 'insert'
         ? { data: null, error: insertError }
-        : { data: writeRows, error: null }
+        : calls.at(-1)?.op === 'upsert'
+          ? { data: null, error: upsertError }
+          : { data: writeRows, error: null }
     ).then(resolve);
   return query;
 }
@@ -78,6 +84,8 @@ beforeEach(() => {
   feedbackRow = null;
   propertyRow = { id: PROPERTY };
   insertError = null;
+  noteRow = null;
+  upsertError = null;
 });
 
 describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
@@ -293,6 +301,56 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
     expect(res.status).toBe(500);
     expect((await res.json()).code).toBe('TYPE_NOT_SAVED');
     expect(calls.some((c) => c.op === 'upsert')).toBe(false);
+  });
+
+  it('writes the type note once, however often the type is saved', async () => {
+    noteRow = { id: 'note-1' };
+    const res = await post({
+      action: 'set_type',
+      contactId: CONTACT,
+      propertyTypes: ['pt_plot'],
+    });
+    expect(res.status).toBe(200);
+    expect(calls.some((c) => c.op === 'insert')).toBe(false);
+  });
+
+  it('reports a buyer who said interested while the mark was being saved', async () => {
+    upsertError = { message: 'new row violates row-level security policy' };
+    const res = await post({
+      action: 'reject',
+      contactId: CONTACT,
+      reason: 'budget',
+    });
+    expect(res.status).toBe(500);
+
+    feedbackRow = null;
+    const realFeedback = { verdict: 'interested', source: 'contact' };
+    let reads = 0;
+    const origFrom = ctx.supabase.from;
+    ctx.supabase.from = (name: string) => {
+      const q = origFrom(name);
+      if (name === 'listing_feedback') {
+        const ms = q.maybeSingle;
+        q.maybeSingle = () => {
+          reads += 1;
+          return reads === 1
+            ? ms()
+            : Promise.resolve({ data: realFeedback, error: null });
+        };
+      }
+      return q;
+    };
+    try {
+      const raced = await post({
+        action: 'reject',
+        contactId: CONTACT,
+        reason: 'budget',
+      });
+      expect(raced.status).toBe(409);
+      expect((await raced.json()).code).toBe('CONTACT_INTERESTED');
+    } finally {
+      ctx.supabase.from = origFrom;
+    }
   });
 
   it('404s a contact outside the account', async () => {

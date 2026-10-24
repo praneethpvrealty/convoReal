@@ -112,6 +112,20 @@ async function applyPropertyType(
     return false;
   }
 
+  const { data: sameNote, error: sameNoteError } = await db
+    .from('contact_notes')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contact.id)
+    .eq('note_text', note)
+    .limit(1)
+    .maybeSingle();
+  if (sameNoteError) {
+    console.error('[match-feedback] type note lookup failed:', sameNoteError);
+    return false;
+  }
+  if (sameNote) return true;
+
   const { error: noteError } = await db.from('contact_notes').insert({
     account_id: accountId,
     contact_id: contact.id,
@@ -281,10 +295,34 @@ export async function POST(
         { onConflict: 'contact_id,property_id' }
       );
       if (error) {
+        // The buyer may have answered between the read above and this
+        // write, and the policy refuses an agent write over their row:
+        // report what they said rather than a bare failure.
+        const { data: now } = await ctx.supabase
+          .from('listing_feedback')
+          .select('verdict, source')
+          .eq('account_id', ctx.accountId)
+          .eq('property_id', propertyId)
+          .eq('contact_id', contactId)
+          .maybeSingle();
+        if (now?.source === 'contact' && now.verdict === 'rejected') {
+          return NextResponse.json({ data: { typeSaved } });
+        }
         console.error('[POST /api/properties/[id]/match-feedback]', error);
         return NextResponse.json(
-          { error: 'Failed to save the mark' },
-          { status: 500 }
+          now?.source === 'contact' && now.verdict === 'interested'
+            ? {
+                error:
+                  'This contact told us they are interested in this listing, so it cannot be marked not a fit.',
+                code: 'CONTACT_INTERESTED',
+              }
+            : { error: 'Failed to save the mark' },
+          {
+            status:
+              now?.source === 'contact' && now.verdict === 'interested'
+                ? 409
+                : 500,
+          }
         );
       }
     }
