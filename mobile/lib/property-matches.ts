@@ -37,7 +37,6 @@ export interface HiddenPropertyMatch {
     Contact,
     'id' | 'name' | 'phone' | 'classification' | 'name_tag'
   >;
-  score: number;
   feedback: MatchFeedbackMark;
 }
 
@@ -117,7 +116,12 @@ export async function fetchPropertyMatches(
   if (overlay.targetPropertyId === null) overlay.targetPropertyId = propertyId;
   if (overlay.targetPropertyId !== propertyId) return set;
 
-  const known = new Set(matches.map((match) => match.contact.id));
+  // A contact marked not a fit stays out even when the overlay picked
+  // them: they wait under hidden like every other rejection.
+  const known = new Set([
+    ...matches.map((match) => match.contact.id),
+    ...set.hidden.map((row) => row.contact.id),
+  ]);
   const historical = overlay.contacts
     .filter((member) => !known.has(member.contactId))
     .map(audienceContactToMatch);

@@ -75,7 +75,7 @@ interface PropertyMatchesTabProps {
   loadingContacts: boolean;
   matchedContacts: MatchingResult[];
   displayedMatches: MatchingResult[];
-  hiddenMatches: (MatchingResult & { feedback: MatchFeedbackMark })[];
+  hiddenMatches: { contact: Contact; feedback: MatchFeedbackMark }[];
   typeSuggestions: Record<string, string>;
   onMatchFeedbackChanged: (contactsChanged: boolean) => Promise<void>;
   matchAudience: MatchAudience;

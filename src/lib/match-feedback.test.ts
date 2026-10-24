@@ -109,15 +109,33 @@ describe('[PRP-051] "Not a fit" teaches the matcher', () => {
       { contact: { id: 'b' } },
       { contact: { id: 'c' } },
     ];
-    const { visible, hidden } = partitionMatchesByFeedback(rows, [
-      mark('b'),
-      mark('c', { source: 'contact', reason: 'budget' }),
-    ]);
+    const contacts = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    const { visible, hidden } = partitionMatchesByFeedback(
+      rows,
+      [
+        mark('b', { createdAt: '2026-10-23T00:00:00Z' }),
+        mark('c', { source: 'contact', reason: 'budget' }),
+      ],
+      contacts
+    );
     expect(visible.map((r) => r.contact.id)).toEqual(['a']);
     expect(hidden.map((r) => [r.contact.id, r.feedback.source])).toEqual([
-      ['b', 'agent'],
       ['c', 'contact'],
+      ['b', 'agent'],
     ]);
+  });
+
+  it('keeps a contact restorable after their corrected type stops them ranking', () => {
+    const corrected = contact({ ...propertyTypePatch(['pt_plot'])! });
+    const ranked = getMatchingContacts(building, [corrected]);
+    expect(ranked).toHaveLength(0);
+    const { visible, hidden } = partitionMatchesByFeedback(
+      ranked,
+      [mark(corrected.id)],
+      [corrected]
+    );
+    expect(visible).toHaveLength(0);
+    expect(hidden.map((r) => r.contact.id)).toEqual([corrected.id]);
   });
 
   it('accepts only the reasons the table allows', () => {

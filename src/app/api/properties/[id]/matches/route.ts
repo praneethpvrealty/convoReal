@@ -18,6 +18,8 @@ const MATCH_CONTACT_COLUMNS =
   'pref_budget_min, pref_budget_max, pref_budget_anchor, pref_land_area_min_sqft, pref_land_area_max_sqft, pref_areas, pref_excluded_areas, pref_projects, ' +
   'pref_min_roi, requires_tenanted, pref_requires_tenanted, pref_listing_types, pref_extracted_at, contact_notes(note_text)';
 
+const HIDDEN_LOOKUP_CAP = 200;
+
 // GET /api/properties/[id]/matches
 // Scored contact matches for one listing, ranked best-first. The engine
 // runs server-side so native clients share the web's ranking instead of
@@ -99,9 +101,26 @@ export async function GET(
       ctx.accountId,
       propertyId
     );
+    // A rejected contact may sit outside the Buyer/Agent pool above (an
+    // audience member picked on mobile) or no longer rank at all once
+    // their type was corrected; either way they stay restorable.
+    const pool = (contacts ?? []) as unknown as Contact[];
+    const pooled = new Set(pool.map((c) => c.id));
+    const missingIds = feedback.marks
+      .map((m) => m.contactId)
+      .filter((id) => !pooled.has(id))
+      .slice(0, HIDDEN_LOOKUP_CAP);
+    const { data: missing } = missingIds.length
+      ? await ctx.supabase
+          .from('contacts')
+          .select('id, name, phone, classification, name_tag')
+          .eq('account_id', ctx.accountId)
+          .in('id', missingIds)
+      : { data: [] };
     const { visible: results, hidden } = partitionMatchesByFeedback(
       ranked,
-      feedback.marks
+      feedback.marks,
+      [...pool, ...((missing ?? []) as unknown as Contact[])]
     );
     const suggestedTypeFor = (contact: Contact, type: string) =>
       type === 'unknown' ? (feedback.suggestions[contact.id] ?? null) : null;
@@ -132,7 +151,7 @@ export async function GET(
           suggestedType: suggestedTypeFor(contact, details.type),
         };
       }),
-      hidden: hidden.map(({ contact, score, details, feedback: mark }) => ({
+      hidden: hidden.map(({ contact, feedback: mark }) => ({
         contact: {
           id: contact.id,
           name: contact.name,
@@ -140,8 +159,6 @@ export async function GET(
           classification: contact.classification,
           name_tag: contact.name_tag,
         },
-        score,
-        details,
         feedback: mark,
       })),
     });

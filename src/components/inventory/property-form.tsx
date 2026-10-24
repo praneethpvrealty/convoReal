@@ -580,9 +580,10 @@ export function PropertyForm({
     () =>
       partitionMatchesByFeedback(
         rankedContacts,
-        matchFeedbackQuery.data?.marks ?? []
+        matchFeedbackQuery.data?.marks ?? [],
+        contacts
       ),
-    [rankedContacts, matchFeedbackQuery.data]
+    [rankedContacts, matchFeedbackQuery.data, contacts]
   );
 
   const refreshMatchFeedback = useCallback(

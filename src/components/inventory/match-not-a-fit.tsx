@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { EyeOff, Loader2, RotateCcw, Sparkles, X } from 'lucide-react';
-import type { MatchingResult } from '@/lib/matching';
+import type { Contact } from '@/types';
 import {
   MATCH_REJECT_REASONS,
   STAFF_PROPERTY_TYPE_OPTIONS,
@@ -222,7 +222,7 @@ export function TypeSuggestion({
 
 interface HiddenMatchesProps {
   propertyId: string;
-  hidden: (MatchingResult & { feedback: MatchFeedbackMark })[];
+  hidden: { contact: Contact; feedback: MatchFeedbackMark }[];
   canEdit: boolean;
   onRestored: () => void | Promise<void>;
 }

@@ -171,23 +171,29 @@ export interface MatchFeedbackMark {
  * Splits a ranked match list by the rejections on file for the listing.
  * A rejected contact leaves the list, whoever said no — the buyer on
  * WhatsApp or an agent from this list — and waits under "Hidden" with
- * the reason, so a mark can be undone.
+ * the reason, so a mark can be undone. The hidden list is read off the
+ * marks, not the ranked rows: a contact whose saved type no longer fits
+ * the listing drops out of the ranking, and must still be restorable.
  */
 export function partitionMatchesByFeedback<
   T extends { contact: { id: string } },
+  C extends { id: string },
 >(
   rows: T[],
-  marks: MatchFeedbackMark[]
-): { visible: T[]; hidden: (T & { feedback: MatchFeedbackMark })[] } {
-  const byContact = new Map(marks.map((m) => [m.contactId, m]));
-  const visible: T[] = [];
-  const hidden: (T & { feedback: MatchFeedbackMark })[] = [];
-  for (const row of rows) {
-    const feedback = byContact.get(row.contact.id);
-    if (feedback) hidden.push({ ...row, feedback });
-    else visible.push(row);
-  }
-  return { visible, hidden };
+  marks: MatchFeedbackMark[],
+  contacts: C[]
+): { visible: T[]; hidden: { contact: C; feedback: MatchFeedbackMark }[] } {
+  const rejected = new Set(marks.map((m) => m.contactId));
+  const byId = new Map(contacts.map((c) => [c.id, c]));
+  return {
+    visible: rows.filter((row) => !rejected.has(row.contact.id)),
+    hidden: [...marks]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .flatMap((feedback) => {
+        const contact = byId.get(feedback.contactId);
+        return contact ? [{ contact, feedback }] : [];
+      }),
+  };
 }
 
 const BUILDING_GROUPS = ['apartment', 'house', 'pg', 'commercial-space'];
