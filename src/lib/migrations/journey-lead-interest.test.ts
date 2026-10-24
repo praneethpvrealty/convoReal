@@ -97,9 +97,12 @@ describe('journey lead interest signals', () => {
       'CREATE OR REPLACE FUNCTION public.journey_lead_interest_on_file('
     );
     expect(signals).toContain("AND f.verdict = 'interested'");
-    expect(signals).toContain("AND l.session_key LIKE 'wa:%'");
+    expect(signals).toContain(
+      "AND l.session_key = 'wa:' || p_contact_id::text"
+    );
+    expect(signals).not.toContain("LIKE 'wa:%'");
     expect(signals).toMatch(
-      /AND l\.session_key LIKE 'wa:%'\s+AND NOT EXISTS \(\s+SELECT 1 FROM listing_feedback f\s+WHERE f\.account_id = l\.account_id\s+AND f\.contact_id = l\.contact_id\s+AND f\.property_id = l\.property_id\s+AND f\.verdict = 'rejected'\s+AND f\.source = 'contact'\s+AND COALESCE\(f\.updated_at, f\.created_at\) > l\.created_at\s+\)/
+      /AND l\.session_key = 'wa:' \|\| p_contact_id::text\s+AND NOT EXISTS \(\s+SELECT 1 FROM listing_feedback f\s+WHERE f\.account_id = l\.account_id\s+AND f\.contact_id = l\.contact_id\s+AND f\.property_id = l\.property_id\s+AND f\.verdict = 'rejected'\s+AND f\.source = 'contact'\s+AND COALESCE\(f\.updated_at, f\.created_at\) > l\.created_at\s+\)/
     );
     expect(signals).toMatch(
       /FROM listing_feedback f\s+WHERE f\.account_id = p_account_id\s+AND f\.contact_id = p_contact_id\s+AND f\.property_id = p_property_id\s+AND f\.verdict = 'interested'/

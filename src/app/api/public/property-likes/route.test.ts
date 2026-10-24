@@ -66,6 +66,17 @@ describe('POST /api/public/property-likes', () => {
     expect(res.status).toBe(400);
   });
 
+  it("[JRN-026] refuses the bot's wa: session key, so a showcase like can never pass as a Shortlist tap", async () => {
+    const res = await POST(
+      postReq({
+        account_id: ACCOUNT,
+        property_id: PROPERTY,
+        session_key: 'wa:11111111-1111-4111-8111-111111111111',
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
   it('returns 404 when the property is not in the account', async () => {
     state.singleQueue.properties = [{ data: null }];
     const res = await POST(

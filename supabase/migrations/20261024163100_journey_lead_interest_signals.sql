@@ -32,7 +32,9 @@
 --    showcase check-in visit or call: the same writers that stamp live;
 --    a later rejection overwrote the verdict, so a lead who then said no
 --    is left out) or a WhatsApp Shortlist tap (the session_key
---    'wa:<contact>' rows the bot writes, unless the lead themselves said
+--    'wa:<contact>' rows the bot writes, matched exactly because the
+--    public like route stores any key its caller sends, unless the lead
+--    themselves said
 --    no to that listing after the tap, as the live clear does; a
 --    showcase like is a like, not a shortlist, and the Helper already
 --    counts it) is stamped. Interested outranks Shortlisted.
@@ -105,7 +107,7 @@ AS $$
     WHERE l.account_id = p_account_id
       AND l.contact_id = p_contact_id
       AND l.property_id = p_property_id
-      AND l.session_key LIKE 'wa:%'
+      AND l.session_key = 'wa:' || p_contact_id::text
       AND NOT EXISTS (
         SELECT 1 FROM listing_feedback f
         WHERE f.account_id = l.account_id
