@@ -817,6 +817,18 @@ describe('[CNV-011] a dispute about the listing is settled by a person', () => {
     expect(generateText).not.toHaveBeenCalled();
     expect(isHandoverText(LISTING_DISPUTE_HANDOVER_TEXT)).toBe(true);
   });
+
+  it('lets the portal rung answer a comparison with a portal listing first', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'acc-1',
+      question: 'Is the magicbricks listing different from this one?',
+      property,
+      portalListings: [{ portal: 'magicbricks', areaSqft: 4000 }],
+    });
+    expect(res.source).toBe('listing');
+    expect(res.intent).toBe('portal_compare');
+    expect(generateText).not.toHaveBeenCalled();
+  });
 });
 
 describe('[INB-035] isHandoverText', () => {

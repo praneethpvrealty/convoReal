@@ -879,14 +879,6 @@ export async function answerLeadQuestion(args: {
     };
   }
   if (!property) return { text: HANDOVER_TEXT, source: 'handover' };
-  // A buyer disputing what the record says is not asking the record.
-  if (disputesSharedListing(question)) {
-    return {
-      text: LISTING_DISPUTE_HANDOVER_TEXT,
-      source: 'handover',
-      intent: 'listing_dispute',
-    };
-  }
   // Before every rung and before any credit is spent: no field and no
   // model can say which house in the photo is the listing.
   if (asksToIdentifyInPhoto(question)) {
@@ -920,6 +912,17 @@ export async function answerLeadQuestion(args: {
         intent: 'portal_compare',
       };
     }
+  }
+
+  // After the portal rung: "is the 99acres listing different from this
+  // one?" is a comparison the portal data answers. Any other buyer
+  // disputing what the record says is not asking the record.
+  if (disputesSharedListing(question)) {
+    return {
+      text: LISTING_DISPUTE_HANDOVER_TEXT,
+      source: 'handover',
+      intent: 'listing_dispute',
+    };
   }
 
   // Ahead of the structured matchers: property-qa deliberately refuses

@@ -158,6 +158,10 @@ describe('[CNV-011] a statement disputing the shared listing is about the listin
       "That doesn't look good",
       "It doesn't seem worth it",
       "The price doesn't match my budget",
+      'These properties are not matching my requirement',
+      "This area doesn't look good",
+      'Those plots are different from what I asked',
+      'This is not what I am looking for',
     ]) {
       expect(disputesSharedListing(text), text).toBe(false);
     }

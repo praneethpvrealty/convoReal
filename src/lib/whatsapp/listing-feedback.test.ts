@@ -349,4 +349,25 @@ describe('[CNV-011] an Interested tap pins the thread to that listing', () => {
     expect(scope).toContainEqual(['id', 'c1']);
     expect(scope).toContainEqual(['account_id', 'acct-1']);
   });
+
+  it('keeps the enquiry pointer of a lead still awaiting approval', async () => {
+    const { db, calls } = stubDb({
+      properties: [{ id: P1, title: 'Plot in Koramangala', user_id: 'u9' }],
+      contacts: [{ assigned_agent_id: 'agent-7', status: 'pending_review' }],
+    });
+
+    const handled = await handleListingFeedbackReply(
+      baseArgs(db, `lfb_y_${P1}`)
+    );
+
+    expect(handled).toBe(true);
+    expect(
+      calls.some((c) => c.table === 'contacts' && c.method === 'update')
+    ).toBe(false);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Plot in Koramangala'),
+      })
+    );
+  });
 });

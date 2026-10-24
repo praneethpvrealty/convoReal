@@ -117,10 +117,11 @@ const LISTING_FACT = new RegExp(
   'i'
 );
 
-// "This doesn't match my budget", "it doesn't seem worth it": the
-// lead is turning the listing down, not disputing its record.
-const AFFORDABILITY =
-  /\b(?:budget|afford(?:able)?|expensive|costly|pricey|overpriced|worth)\b/i;
+// "This doesn't match my budget", "it doesn't seem worth it", "these
+// properties are not matching my requirement", "this area doesn't look
+// good": the lead is turning the listing down, not disputing its record.
+const REJECTION =
+  /\b(?:budget|afford(?:able)?|expensive|costly|pricey|overpriced|worth|requirements?|criteria|preferences?|not what|what (?:i|we) (?:asked|need|want|said|am looking|are looking)|not for (?:me|us)|not interested)\b|\b(?:doesn'?t|does not|don'?t|do not|not)\s+(?:look|seem|feel)\s+(?:good|great|nice|fine|ok(?:ay)?|suitable|convenient|right for)\b/i;
 
 /**
  * True when the message disputes a fact about the listing already in
@@ -128,8 +129,8 @@ const AFFORDABILITY =
  * field, a property-type word, the photo or the map) and says that fact
  * is off. A dispute that states a size or a budget is a correction the
  * ladder can file ("that's wrong, 30x40 corner site"), a search verb
- * makes it a requirement, and budget talk is a rejection; all three
- * stay with the ladder.
+ * makes it a requirement, and budget or requirement talk is a
+ * rejection; all three stay with the ladder.
  */
 export function disputesSharedListing(text?: string | null): boolean {
   const clean = (text || '').trim();
@@ -140,7 +141,7 @@ export function disputesSharedListing(text?: string | null): boolean {
   return (
     !statesBudget(clean) &&
     !SIZE_SIGNAL.test(clean) &&
-    !AFFORDABILITY.test(clean) &&
+    !REJECTION.test(clean) &&
     !REQUIREMENT_INTENT.test(clean)
   );
 }
