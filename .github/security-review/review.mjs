@@ -449,10 +449,16 @@ async function main() {
       '--name-status',
       `${previous.sha}..${headSha}`
     );
+    const inPullRequest = new Set(
+      git('diff', '--name-only', `${mergeBase}..${headSha}`)
+        .split('\n')
+        .filter(Boolean)
+    );
     changedAtAll = nameStatusSince
       .split('\n')
       .filter(Boolean)
-      .map((line) => line.split('\t').pop());
+      .map((line) => line.split('\t').pop())
+      .filter((f) => inPullRequest.has(f));
     const changedSince = selectFiles(nameStatusSince);
     reverted = previous.files.filter(
       (f) => changedSince.includes(f) && !files.includes(f)
