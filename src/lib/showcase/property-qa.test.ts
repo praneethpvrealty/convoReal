@@ -453,12 +453,24 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
       'Rentals received on bank account?',
       'is the rent paid by cheque or in cash',
       'what are the payment terms',
+      'how is the rent paid?',
+      'rent comes by cash or online?',
+      'rent received via UPI?',
+      'How do the tenants pay the rent, NEFT?',
     ]) {
-      expect(answerFromPropertyData(q, building()), q).toEqual({
-        answer: null,
-        intent: null,
-      });
+      for (const prop of [
+        building(),
+        makeProp({ listing_type: 'Rent', price: 0, rent_per_month: 35000 }),
+      ]) {
+        expect(answerFromPropertyData(q, prop), q).toEqual({
+          answer: null,
+          intent: null,
+        });
+      }
     }
+    expect(answerFromPropertyData('Rent per month ?', building()).intent).toBe(
+      'rent'
+    );
   });
 
   it('answers the age of the building from its year built', () => {
