@@ -5211,3 +5211,50 @@ describe('[PRP-049] matching contacts name what each contact enquired about earl
     expect(webTab).toContain('Clear {selectedContactIds.length} selected');
   });
 });
+
+describe('[PRP-051] "Not a fit" on matching contacts runs one rule on both surfaces', () => {
+  const webPanel = webSource('components/inventory/match-not-a-fit.tsx');
+  const webTab = webSource('components/inventory/property-matches-tab.tsx');
+  const webForm = webSource('components/inventory/property-form.tsx');
+  const matchesRoute = webSource('app/api/properties/[id]/matches/route.ts');
+  const mobilePanel = mobileSource('components/match-not-a-fit.tsx');
+  const mobileScreen = mobileSource('app/(app)/property/[id].tsx');
+  const mobileLib = mobileSource('lib/property-matches.ts');
+
+  it('takes the reasons and type options from the shared module', () => {
+    for (const name of [
+      'MATCH_REJECT_REASONS',
+      'STAFF_PROPERTY_TYPE_OPTIONS',
+      'matchRejectReasonLabel',
+    ]) {
+      expect(webPanel).toContain(name);
+      expect(mobilePanel).toContain(name);
+    }
+    expect(mobilePanel).toContain("from '@shared/lib/match-feedback'");
+  });
+
+  it('hides rejected contacts the same way on both surfaces', () => {
+    expect(webForm).toContain('partitionMatchesByFeedback(');
+    expect(matchesRoute).toContain('partitionMatchesByFeedback(');
+    expect(matchesRoute).toContain('hidden: hidden.map(');
+    expect(mobileLib).toContain('hidden: hidden ?? []');
+  });
+
+  it('offers the mark, the suggestion and the hidden list on both surfaces', () => {
+    for (const source of [webTab, mobileScreen]) {
+      expect(source).toContain('<NotAFitPanel');
+      expect(source).toContain('<TypeSuggestion');
+      expect(source).toContain('<HiddenMatches');
+    }
+    expect(matchesRoute).toContain("type === 'unknown'");
+    expect(mobileScreen).toContain("m.details?.type === 'unknown'");
+    expect(webTab).toContain("details.type === 'unknown'");
+  });
+
+  it('calls the same route', () => {
+    expect(mobileLib).toContain('/match-feedback');
+    expect(webSource('lib/inventory/match-feedback-request.ts')).toContain(
+      '/match-feedback'
+    );
+  });
+});

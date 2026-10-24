@@ -239,7 +239,7 @@ export interface MatchingResult {
 
 // ── Property type taxonomy ──────────────────────────────────────────
 
-type SubtypeGroup =
+export type SubtypeGroup =
   | 'apartment'
   | 'house'
   | 'residential-plot'
@@ -309,7 +309,7 @@ const PLOT_GROUPS: SubtypeGroup[] = [
 ];
 
 /** Resolve a property's subtype group from its (possibly free-form) type string. */
-function resolvePropertyGroup(
+export function resolvePropertyGroup(
   property: Partial<Property>
 ): SubtypeGroup | null {
   const canonical = normalizePropertyType(property.type);

@@ -3,6 +3,8 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { getMatchingContacts } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { fetchInquiredProperties } from '@/lib/contacts/inquired-properties';
+import { loadListingMatchFeedback } from '@/lib/inventory/match-feedback-store';
+import { partitionMatchesByFeedback } from '@/lib/match-feedback';
 import type { Contact, Property } from '@/types';
 
 // Only the columns src/lib/matching.ts reads, plus what the caller needs
@@ -81,7 +83,7 @@ export async function GET(
       ])
     );
 
-    const results = getMatchingContacts(
+    const ranked = getMatchingContacts(
       property as Property,
       await attachInquiredListingTypes(
         ctx.supabase,
@@ -89,6 +91,20 @@ export async function GET(
         (contacts ?? []) as unknown as Contact[]
       )
     );
+
+    // A contact ruled out for this listing — by the buyer on WhatsApp or
+    // an agent's "Not a fit" — leaves the list and waits under hidden.
+    const feedback = await loadListingMatchFeedback(
+      ctx.supabase,
+      ctx.accountId,
+      propertyId
+    );
+    const { visible: results, hidden } = partitionMatchesByFeedback(
+      ranked,
+      feedback.marks
+    );
+    const suggestedTypeFor = (contact: Contact, type: string) =>
+      type === 'unknown' ? (feedback.suggestions[contact.id] ?? null) : null;
 
     // What each matched contact has already asked about, so a row can
     // say whether this share continues a conversation or opens one.
@@ -113,8 +129,21 @@ export async function GET(
           matchedFields,
           sharedAt: sharedAtByContact.get(contact.id) ?? null,
           inquiries: inquiriesByContact.get(contact.id) ?? [],
+          suggestedType: suggestedTypeFor(contact, details.type),
         };
       }),
+      hidden: hidden.map(({ contact, score, details, feedback: mark }) => ({
+        contact: {
+          id: contact.id,
+          name: contact.name,
+          phone: contact.phone,
+          classification: contact.classification,
+          name_tag: contact.name_tag,
+        },
+        score,
+        details,
+        feedback: mark,
+      })),
     });
   } catch (err) {
     return toErrorResponse(err);

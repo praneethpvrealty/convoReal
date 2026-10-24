@@ -42,6 +42,8 @@ interface MatchTargetRowProps {
   dimmed?: boolean;
   /** Row actions (view, share) on their own line under the details. */
   footer?: ReactNode;
+  /** Full-width content under the footer, such as an inline form. */
+  below?: ReactNode;
 }
 
 export function MatchTargetRow({
@@ -59,6 +61,7 @@ export function MatchTargetRow({
   initials,
   dimmed = false,
   footer,
+  below,
 }: MatchTargetRowProps) {
   const { colors, fonts: f } = useTheme();
   const toneColor =
@@ -211,6 +214,7 @@ export function MatchTargetRow({
           {footer}
         </View>
       ) : null}
+      {below ? <View style={{ width: '100%' }}>{below}</View> : null}
     </View>
   );
 }

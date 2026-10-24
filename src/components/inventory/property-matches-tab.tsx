@@ -28,6 +28,7 @@ import {
   Clock,
   Eye,
   History,
+  ThumbsDown,
 } from 'lucide-react';
 import {
   inMatchAudience,
@@ -54,6 +55,13 @@ import {
   inquiredPropertyLabel,
 } from '@/lib/contacts/inquired-properties';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
+import {
+  HiddenMatches,
+  NotAFitPanel,
+  TypeSuggestion,
+} from '@/components/inventory/match-not-a-fit';
+import type { MatchFeedbackMark } from '@/lib/match-feedback';
+import { useCan } from '@/hooks/useCan';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { formatCurrency } from '@/lib/currency-utils';
 
@@ -67,6 +75,9 @@ interface PropertyMatchesTabProps {
   loadingContacts: boolean;
   matchedContacts: MatchingResult[];
   displayedMatches: MatchingResult[];
+  hiddenMatches: (MatchingResult & { feedback: MatchFeedbackMark })[];
+  typeSuggestions: Record<string, string>;
+  onMatchFeedbackChanged: (contactsChanged: boolean) => Promise<void>;
   matchAudience: MatchAudience;
   setMatchAudience: (audience: MatchAudience) => void;
   currency: string;
@@ -98,6 +109,9 @@ export function PropertyMatchesTab({
   loadingContacts,
   matchedContacts,
   displayedMatches,
+  hiddenMatches,
+  typeSuggestions,
+  onMatchFeedbackChanged,
   matchAudience,
   setMatchAudience,
   currency,
@@ -121,6 +135,8 @@ export function PropertyMatchesTab({
   const supabase = createClient();
   const { user, accountId, profile } = useAuth();
   const isEdit = !!property;
+  const canMarkMatches = useCan('make-changes');
+  const [notFitContactId, setNotFitContactId] = useState<string | null>(null);
 
   const [sharedAtByContact, setSharedAtByContact] = useState<
     Record<string, string>
@@ -223,6 +239,14 @@ export function PropertyMatchesTab({
       ].some((value) => value?.toLocaleLowerCase().includes(query))
     );
   }, [displayedMatches, matchSearch]);
+
+  const displayedHiddenMatches = useMemo(
+    () =>
+      hiddenMatches.filter(({ contact }) =>
+        inMatchAudience(contact.classification, matchAudience)
+      ),
+    [hiddenMatches, matchAudience]
+  );
 
   const matchedContactIds = useMemo(
     () => matchedContacts.map(({ contact }) => contact.id).sort(),
@@ -1026,6 +1050,18 @@ export function PropertyMatchesTab({
                                 )}
 
                                 <MatchDetailChips details={details} />
+
+                                {details.type === 'unknown' &&
+                                  typeSuggestions[c.id] &&
+                                  property?.id && (
+                                    <TypeSuggestion
+                                      propertyId={property.id}
+                                      contactId={c.id}
+                                      optionId={typeSuggestions[c.id]}
+                                      canEdit={canMarkMatches}
+                                      onSaved={onMatchFeedbackChanged}
+                                    />
+                                  )}
                               </div>
                             </div>
 
@@ -1040,6 +1076,22 @@ export function PropertyMatchesTab({
                                 <Eye className="size-3.5" />
                                 View contact
                               </a>
+                              {canMarkMatches && (
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setNotFitContactId((prev) =>
+                                      prev === c.id ? null : c.id
+                                    );
+                                  }}
+                                  aria-expanded={notFitContactId === c.id}
+                                  className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:bg-slate-800 hover:text-white"
+                                >
+                                  <ThumbsDown className="size-3.5" />
+                                  Not a fit
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={(event) => {
@@ -1057,10 +1109,32 @@ export function PropertyMatchesTab({
                                 {sharedAt ? 'Share again' : 'Share property'}
                               </button>
                             </div>
+                            {notFitContactId === c.id && property?.id && (
+                              <NotAFitPanel
+                                propertyId={property.id}
+                                contactId={c.id}
+                                contactName={displayName}
+                                onClose={() => setNotFitContactId(null)}
+                                onSaved={async (contactsChanged) => {
+                                  setSelectedContactIds((prev) =>
+                                    prev.filter((id) => id !== c.id)
+                                  );
+                                  await onMatchFeedbackChanged(contactsChanged);
+                                }}
+                              />
+                            )}
                           </div>
                         );
                       }
                     )
+                  )}
+                  {property?.id && (
+                    <HiddenMatches
+                      propertyId={property.id}
+                      hidden={displayedHiddenMatches}
+                      canEdit={canMarkMatches}
+                      onRestored={() => onMatchFeedbackChanged(false)}
+                    />
                   )}
                 </div>
 

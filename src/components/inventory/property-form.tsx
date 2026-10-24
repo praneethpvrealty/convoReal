@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import NextImage from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import { resolveConversation } from '@/lib/conversations/resolve';
@@ -91,6 +92,8 @@ import {
 import { EKhataReviewDialog } from '@/components/inventory/e-khata-review-dialog';
 import { PropertyFormSectionNav } from '@/components/inventory/property-form-section-nav';
 import { PropertyMatchesTab } from '@/components/inventory/property-matches-tab';
+import { fetchListingMatchFeedback } from '@/lib/inventory/match-feedback-request';
+import { partitionMatchesByFeedback } from '@/lib/match-feedback';
 import { PropertyEnquiriesTab } from '@/components/inventory/property-enquiries-tab';
 import { ShareDocumentsDialog } from '@/components/inventory/share-documents-dialog';
 import { PropertyRequestsPanels } from '@/components/inventory/property-requests-panels';
@@ -508,7 +511,7 @@ export function PropertyForm({
     }
   }, [open, property, contacts, set]);
 
-  const matchedContacts = useMemo(() => {
+  const rankedContacts = useMemo(() => {
     const fullLocation = [
       address.trim(),
       sublocality.trim(),
@@ -565,6 +568,32 @@ export function PropertyForm({
     rentalIncome,
     roiValue,
   ]);
+
+  const matchFeedbackQuery = useQuery({
+    queryKey: ['property-match-feedback', property?.id],
+    queryFn: () => fetchListingMatchFeedback(property!.id),
+    enabled: open && !!property?.id,
+    staleTime: 30_000,
+  });
+
+  const { visible: matchedContacts, hidden: hiddenMatches } = useMemo(
+    () =>
+      partitionMatchesByFeedback(
+        rankedContacts,
+        matchFeedbackQuery.data?.marks ?? []
+      ),
+    [rankedContacts, matchFeedbackQuery.data]
+  );
+
+  const refreshMatchFeedback = useCallback(
+    async (contactsChanged: boolean) => {
+      await Promise.all([
+        matchFeedbackQuery.refetch(),
+        contactsChanged ? fetchContacts() : Promise.resolve(),
+      ]);
+    },
+    [matchFeedbackQuery, fetchContacts]
+  );
 
   const displayedMatches = useMemo(() => {
     return matchedContacts.filter(({ contact: c }) =>
@@ -2755,6 +2784,9 @@ export function PropertyForm({
               loadingContacts={loadingContacts}
               matchedContacts={matchedContacts}
               displayedMatches={displayedMatches}
+              hiddenMatches={hiddenMatches}
+              typeSuggestions={matchFeedbackQuery.data?.suggestions ?? {}}
+              onMatchFeedbackChanged={refreshMatchFeedback}
               matchAudience={matchAudience}
               setMatchAudience={setMatchAudience}
               currency={currency}

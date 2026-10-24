@@ -4,6 +4,10 @@ import type { Contact } from '@/lib/types';
 import type { MatchDetails } from '@shared/lib/matching';
 import type { InquiredProperty } from '@shared/lib/contacts/inquired-properties';
 import type { AudienceContact } from '@shared/lib/inventory/listing-audience';
+import type {
+  MatchFeedbackMark,
+  MatchRejectReason,
+} from '@shared/lib/match-feedback';
 
 /**
  * Web parity: the Matching Contacts tab (src/components/inventory/
@@ -21,6 +25,25 @@ export interface PropertyMatch {
   /** The listings this contact enquired about, newest first, capped
    *  server-side. Empty when they have never asked about anything. */
   inquiries: InquiredProperty[];
+  /** A PROPERTY_TYPE_OPTIONS id the server read off this contact's
+   *  "Not a fit" marks and enquiries; set only while their type is not
+   *  on file. Absent from servers that predate it. */
+  suggestedType?: string | null;
+}
+
+/** A contact ruled out for this listing — by the buyer or an agent. */
+export interface HiddenPropertyMatch {
+  contact: Pick<
+    Contact,
+    'id' | 'name' | 'phone' | 'classification' | 'name_tag'
+  >;
+  score: number;
+  feedback: MatchFeedbackMark;
+}
+
+export interface PropertyMatchSet {
+  matches: PropertyMatch[];
+  hidden: HiddenPropertyMatch[];
 }
 
 /** Ported rather than imported: `@shared/` resolves types only, so a
@@ -81,20 +104,64 @@ function audienceContactToMatch(member: AudienceContact): PropertyMatch {
 
 export async function fetchPropertyMatches(
   propertyId: string
-): Promise<PropertyMatch[]> {
-  const { data } = await apiFetch<{ data: PropertyMatch[] }>(
-    `/api/properties/${propertyId}/matches`
-  );
+): Promise<PropertyMatchSet> {
+  const { data, hidden } = await apiFetch<{
+    data: PropertyMatch[];
+    hidden?: HiddenPropertyMatch[];
+  }>(`/api/properties/${propertyId}/matches`);
   const matches = data ?? [];
+  const set = { matches, hidden: hidden ?? [] };
 
   const overlay = audienceOverlay;
-  if (!overlay || overlay.contacts.length === 0) return matches;
+  if (!overlay || overlay.contacts.length === 0) return set;
   if (overlay.targetPropertyId === null) overlay.targetPropertyId = propertyId;
-  if (overlay.targetPropertyId !== propertyId) return matches;
+  if (overlay.targetPropertyId !== propertyId) return set;
 
   const known = new Set(matches.map((match) => match.contact.id));
   const historical = overlay.contacts
     .filter((member) => !known.has(member.contactId))
     .map(audienceContactToMatch);
-  return [...matches, ...historical];
+  return { ...set, matches: [...matches, ...historical] };
+}
+
+/** Web parity: src/lib/inventory/match-feedback-request.ts. */
+export function markMatchNotAFit(
+  propertyId: string,
+  contactId: string,
+  reason: MatchRejectReason,
+  propertyTypes: string[] = []
+) {
+  return apiFetch<{ data: { typeSaved: boolean } }>(
+    `/api/properties/${propertyId}/match-feedback`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'reject',
+        contactId,
+        reason,
+        propertyTypes,
+      }),
+    }
+  );
+}
+
+export function saveMatchPropertyType(
+  propertyId: string,
+  contactId: string,
+  propertyTypes: string[]
+) {
+  return apiFetch<{ data: { typeSaved: boolean } }>(
+    `/api/properties/${propertyId}/match-feedback`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ action: 'set_type', contactId, propertyTypes }),
+    }
+  );
+}
+
+export function restoreMatch(propertyId: string, contactId: string) {
+  return apiFetch<{ data: { restored: boolean } }>(
+    `/api/properties/${propertyId}/match-feedback?contactId=${encodeURIComponent(contactId)}`,
+    { method: 'DELETE' }
+  );
 }
