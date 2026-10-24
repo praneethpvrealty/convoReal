@@ -2270,6 +2270,7 @@ function DraggableJourneyCard({
   const renderItem = (item: JourneyItem) => {
     const itemStage = stageById.get(item.stage_id);
     const dropped = item.status === 'dropped';
+    const itemInterest = journeyLeadInterestLabel(item);
     const highlighted =
       stageInHeader &&
       Boolean(stage) &&
@@ -2320,6 +2321,19 @@ function DraggableJourneyCard({
               ? item.property?.title || 'Property'
               : item.contact?.name || item.contact?.phone || 'Contact'}
           </Text>
+          {itemInterest ? (
+            <Text
+              numberOfLines={1}
+              accessibilityLabel={`Lead ${itemInterest.toLowerCase()}`}
+              style={{
+                fontSize: 10.5,
+                fontFamily: f.bold,
+                color: colors.success,
+              }}
+            >
+              {itemInterest}
+            </Text>
+          ) : null}
           <Text
             style={{
               fontSize: 11,

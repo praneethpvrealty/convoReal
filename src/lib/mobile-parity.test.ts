@@ -739,6 +739,12 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain(
       'const interest = journeyLeadInterestLabel(item);'
     );
+    expect(screen).toContain(
+      'const itemInterest = journeyLeadInterestLabel(item);'
+    );
+    expect(screen).toContain(
+      'accessibilityLabel={`Lead ${itemInterest.toLowerCase()}`}'
+    );
     expect(screen).toContain('journeyLeadInterestCountLabel(group.interested)');
     expect(screen).toContain('interested: Number(row.interested_count ?? 0)');
     expect(screen).toContain('lead_interest, lead_interest_at, created_at');
