@@ -19,6 +19,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   answerFromPropertyData,
   asksToIdentifyInPhoto,
+  availabilityAnswer,
   buildPropertyContext,
   PROPERTY_QA_SYSTEM_PROMPT,
   type QaProperty,
@@ -29,6 +30,7 @@ import {
 } from '@/lib/inventory/location-guard';
 import { PORTALS } from '@/lib/portals/post-kit';
 import { asksListingAttribute } from '@/lib/ai/requirement-signal';
+import { unavailableListingReply } from '@/lib/inventory/listing-status';
 import {
   findPortalDiscrepancies,
   portalFromQuestion,
@@ -229,6 +231,10 @@ const GREETING_PREFIX =
   /^(?:(?:hi+|hello|hey|helo|namaste|namaskara|namaskar|vanakkam|good (?:morning|afternoon|evening|day)|dear)[\s,.!]*|(?:sir|madam|ma'am|mam|ji|bro|boss|team)[,.!]+\s*)+/;
 const QUESTION_OPENER =
   /^(can|could|will|would|is|are|do|does|did|what|when|where|which|who|whom|why|how|any|shall|may)\b/;
+// After a greeting a modal needs a subject: "Hi, will call you in the
+// evening" reports, "Hi, will you be there" asks.
+const QUESTION_AFTER_GREETING =
+  /^(?:what|when|where|which|who|whom|why|how)\b|^(?:is|are|was|were|can|could|will|would|shall|should|do|does|did|may|any)\s+(?:i|we|you|u|it|this|that|there|the|these|those|they|he|she)\b/;
 const MID_CLAUSE_QUESTION =
   /[,;]\s*(?:will|would|can|could|shall|should|do|does|did|is|are|am|may)\s+(?:i|we|you|u)\b/;
 
@@ -238,11 +244,11 @@ export function looksLikeQuestion(text: string | null | undefined): boolean {
   if (/\b(book|schedule|remind me|set up|arrange)\b/.test(t)) return false;
   if (t.includes('?')) return true;
   if (MID_CLAUSE_QUESTION.test(t)) return true;
-  return t
+  const body = t.replace(GREETING_PREFIX, '').trim();
+  const opener = body === t ? QUESTION_OPENER : QUESTION_AFTER_GREETING;
+  return body
     .split('\n')
-    .some((line) =>
-      QUESTION_OPENER.test(line.replace(GREETING_PREFIX, '').trim())
-    );
+    .some((line) => opener.test(line.replace(GREETING_PREFIX, '').trim()));
 }
 
 /** What a lead hears when they ask for a person. Same promise as
@@ -899,7 +905,16 @@ export async function answerLeadQuestion(args: {
   // "What all are available" asks for other listings: the ladder sends
   // them when it runs; when it does not, a person does, never a model
   // grounded in the one listing the lead is asking past.
+  // Asked about a listing that has left the market, the regret and
+  // the brief playback (PRP-050) still answer it, as for "is it sold?".
   if (structured.intent === 'more_listings') {
+    if (unavailableListingReply(null, qaProperty.title, qaProperty.status)) {
+      return {
+        text: availabilityAnswer(qaProperty, { briefOnFile: args.briefOnFile }),
+        source: 'listing',
+        intent: 'availability',
+      };
+    }
     return { text: HANDOVER_TEXT, source: 'handover', intent: 'more_listings' };
   }
   if (structured.answer) {

@@ -1082,9 +1082,13 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
       'Sir will call you in the evening',
       'Team is visiting the site',
       'Madam is out of station',
+      'Hi, will call you in the evening',
+      'Good morning will send the documents',
+      'Hello\nWill visit Sunday',
     ]) {
       expect(looksLikeQuestion(text), text).toBe(false);
     }
+    expect(looksLikeQuestion('Hi, will you be there on Sunday')).toBe(true);
   });
 
   it('reads a bare "call" and a meeting with the owner as asking for a person', () => {
@@ -1148,6 +1152,20 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
       intent: 'more_listings',
     });
     expect(burnCredits).not.toHaveBeenCalled();
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('[PRP-050] keeps the regret for "what all are available" about a sold listing', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'what all are available',
+      property: { ...property, status: 'Sold' },
+      briefOnFile: true,
+    });
+    expect(res.source).toBe('listing');
+    expect(res.intent).toBe('availability');
+    expect(res.text).toMatch(/already been sold/);
+    expect(res.text).toMatch(/requirement on file/);
     expect(generateText).not.toHaveBeenCalled();
   });
 

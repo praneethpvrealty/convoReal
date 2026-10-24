@@ -169,7 +169,10 @@ export interface QaAnswerOptions {
   briefOnFile?: boolean;
 }
 
-function availabilityAnswer(p: QaProperty, opts: QaAnswerOptions): string {
+export function availabilityAnswer(
+  p: QaProperty,
+  opts: QaAnswerOptions
+): string {
   return listingAvailabilityAnswer(p.status, p.listing_type, opts.briefOnFile);
 }
 
