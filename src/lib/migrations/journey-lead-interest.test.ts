@@ -41,6 +41,9 @@ describe('journey lead interest signals', () => {
   it('[JRN-026] backfills Interested answers and WhatsApp Shortlist taps, capturing missing pairs hidden', () => {
     expect(signals).toContain("WHERE f.verdict = 'interested'");
     expect(signals).toContain("AND l.session_key LIKE 'wa:%'");
+    expect(signals).toMatch(
+      /AND l\.session_key LIKE 'wa:%'\s+AND NOT EXISTS \(\s+SELECT 1 FROM listing_feedback f\s+WHERE f\.contact_id = l\.contact_id\s+AND f\.property_id = l\.property_id\s+AND f\.verdict = 'rejected'\s+\)/
+    );
     expect(signals).toContain(
       "CASE s.kind WHEN 'interested' THEN 0 ELSE 1 END, s.at DESC"
     );

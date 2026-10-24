@@ -10,9 +10,9 @@
 --    journey live from now on; a later rejection overwrote the verdict,
 --    so a lead who then said no is left out) and every WhatsApp
 --    Shortlist tap already on property_likes (the session_key
---    'wa:<contact>' rows the bot writes; a showcase like is a like, not
---    a shortlist, and the Helper already counts it) stamps its journey
---    item. A pair never captured is captured hidden at the
+--    'wa:<contact>' rows the bot writes, unless the lead has since said
+--    no to that listing; a showcase like is a like, not a shortlist, and
+--    the Helper already counts it) stamps its journey item. A pair never captured is captured hidden at the
 --    account's first mirrored stage, as the share backfill did
 --    (20260926115400), so it waits in the Captured tray rather than
 --    appearing on the map unreviewed; Interested outranks Shortlisted.
@@ -46,6 +46,12 @@ signals AS (
   FROM property_likes l
   WHERE l.contact_id IS NOT NULL
     AND l.session_key LIKE 'wa:%'
+    AND NOT EXISTS (
+      SELECT 1 FROM listing_feedback f
+      WHERE f.contact_id = l.contact_id
+        AND f.property_id = l.property_id
+        AND f.verdict = 'rejected'
+    )
 ),
 ranked AS (
   SELECT DISTINCT ON (s.account_id, s.contact_id, s.property_id)
