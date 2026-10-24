@@ -1628,10 +1628,6 @@ describe('portal plot lead replay (sandhiya)', () => {
   });
 });
 
-// Pradeep, 4 October 2026: "I'm looking near horamavu" was answered with
-// two Koramangala houses as "matching residential house options", and he
-// replied "Stop alerts". The matcher keeps a listing within radius of the
-// named area; the reply has to say when none of them is in it.
 describe('[INB-039] a shortlist outside the named locality says so', () => {
   const horamavuBrief = prefs({
     property_types: ['Residential House'],
@@ -1674,10 +1670,43 @@ describe('[INB-039] a shortlist outside the named locality says so', () => {
     expect(shortlistOutsideLocality(['Horamavu'], [])).toBeNull();
   });
 
+  it('calls a listing close by only when the matcher placed it within radius', () => {
+    const bypassed: RankedPropertyMatch = {
+      ...neighbour('p3', 'Whitefield'),
+      details: {
+        ...match({}).details,
+        location: 'unknown',
+        named_area: 'unknown',
+      },
+    };
+    const namedProject: RankedPropertyMatch = {
+      ...neighbour('p4', 'Sarjapur'),
+      details: {
+        ...match({}).details,
+        project: 'match',
+        named_area: 'unknown',
+      },
+    };
+    expect(
+      shortlistOutsideLocality(
+        ['Horamavu'],
+        [neighbour('p1', 'TC Palaya'), bypassed]
+      )
+    ).toBeNull();
+    expect(shortlistOutsideLocality(['Horamavu'], [namedProject])).toBeNull();
+    expect(
+      shortlistOutsideLocality(
+        ['Horamavu', 'any location'],
+        [neighbour('p1', 'TC Palaya')]
+      )
+    ).toBeNull();
+  });
+
   it('never names a market zone or a placeholder as a locality', () => {
     expect(namedLocality(['North Bengaluru'])).toBeNull();
-    expect(namedLocality(['any location', 'Horamavu'])).toBe('Horamavu');
+    expect(namedLocality(['any location', 'Horamavu'])).toBeNull();
     expect(namedLocality(['Anywhere in Bangalore'])).toBeNull();
+    expect(namedLocality(['North Bengaluru', 'Horamavu'])).toBe('Horamavu');
     expect(namedLocality([])).toBeNull();
     expect(
       shortlistOutsideLocality(
@@ -1698,7 +1727,7 @@ describe('[INB-039] a shortlist outside the named locality says so', () => {
     );
     expect(out.missing).toBeNull();
     expect(out.reply).toContain(
-      'Thanks Pradeep — nothing in Horamavu itself right now, but here are 2 residential house options for sale close by 👇'
+      'Thanks Pradeep — nothing new in Horamavu itself right now, but here are 2 residential house options for sale close by 👇'
     );
     expect(out.reply).not.toContain('matching');
     expect(out.reply).toContain('4 BHK Villa in TC Palaya');
@@ -1713,7 +1742,7 @@ describe('[INB-039] a shortlist outside the named locality says so', () => {
       'c1'
     );
     expect(one.reply).toContain(
-      "nothing in Horamavu itself right now, but here's one residential house for sale close by 👇"
+      "nothing new in Horamavu itself right now, but here's one residential house for sale close by 👇"
     );
   });
 
@@ -1740,7 +1769,7 @@ describe('[INB-039] a shortlist outside the named locality says so', () => {
         [neighbour('p1', 'TC Palaya'), neighbour('p2', 'Banaswadi')]
       )
     ).toBe(
-      'Thanks Pradeep — nothing in Horamavu itself right now, but here are 2 close by 👇'
+      'Thanks Pradeep — nothing new in Horamavu itself right now, but here are 2 close by 👇'
     );
     expect(
       nearbyMatchesOpening('Pradeep Naidu', ['Horamavu'], [inHoramavu])
@@ -1759,7 +1788,7 @@ describe('[INB-039] a shortlist outside the named locality says so', () => {
         )
       )
     ).toContain(
-      "nothing in Horamavu itself right now, but here's one close by 👇"
+      "nothing new in Horamavu itself right now, but here's one close by 👇"
     );
   });
 });

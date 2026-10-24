@@ -555,31 +555,15 @@ function typeLabel(prefs: ExtractedPreferences): string {
 const AREA_PLACEHOLDER_PATTERN =
   /^(any|anywhere|all|not specific|no preference|flexible)\b/i;
 
-/**
- * The locality the lead named, when they named one. A market zone
- * ("North Bengaluru") or a placeholder ("any location") is not a place
- * a listing can sit outside of, so neither is ever reported that way.
- */
 export function namedLocality(
   areas: (string | null | undefined)[]
 ): string | null {
-  return (
-    areas.find(
-      (area): area is string =>
-        !!area?.trim() &&
-        !AREA_PLACEHOLDER_PATTERN.test(area.trim()) &&
-        !canonicalBengaluruZone(area)
-    ) ?? null
-  );
+  const stated = areas.filter((area): area is string => !!area?.trim());
+  if (stated.some((area) => AREA_PLACEHOLDER_PATTERN.test(area.trim())))
+    return null;
+  return stated.find((area) => !canonicalBengaluruZone(area)) ?? null;
 }
 
-/**
- * The named locality a shortlist sits entirely outside of, or null when
- * it holds a listing in that locality or none was named. The matcher
- * keeps a listing within radius of the named area; a buyer who asked
- * for Horamavu and is shown TC Palaya and Banaswadi as "matching
- * options" reads it as the bot not having listened.
- */
 export function shortlistOutsideLocality(
   areas: (string | null | undefined)[],
   matches: RankedPropertyMatch[]
@@ -588,11 +572,13 @@ export function shortlistOutsideLocality(
   if (!locality) return null;
   const shown = matches.slice(0, MAX_MATCHES_SENT);
   if (shown.length === 0) return null;
-  return shown.some((m) => m.details.named_area === 'match') ? null : locality;
+  if (shown.some((m) => m.details.named_area === 'match')) return null;
+  const nearby = shown.every(
+    (m) => m.details.location === 'match' && m.details.project !== 'match'
+  );
+  return nearby ? locality : null;
 }
 
-/** The opening for a shortlist that lies outside the locality the lead
- *  named, or null when the ordinary opening applies. */
 export function nearbyMatchesOpening(
   contactName: string | null | undefined,
   areas: (string | null | undefined)[],
@@ -602,8 +588,8 @@ export function nearbyMatchesOpening(
   if (!outside) return null;
   const count = Math.min(matches.length, MAX_MATCHES_SENT);
   return count === 1
-    ? `Thanks ${firstName(contactName)} — nothing in ${outside} itself right now, but here's one close by 👇`
-    : `Thanks ${firstName(contactName)} — nothing in ${outside} itself right now, but here are ${count} close by 👇`;
+    ? `Thanks ${firstName(contactName)} — nothing new in ${outside} itself right now, but here's one close by 👇`
+    : `Thanks ${firstName(contactName)} — nothing new in ${outside} itself right now, but here are ${count} close by 👇`;
 }
 
 function qualifiedMatchesOpening(
@@ -622,8 +608,8 @@ function qualifiedMatchesOpening(
       : '';
   if (outsideLocality) {
     return count === 1
-      ? `Thanks ${firstName(contactName)} — nothing in ${outsideLocality} itself right now, but here's one ${typeLabel(prefs)}${deal} close by 👇`
-      : `Thanks ${firstName(contactName)} — nothing in ${outsideLocality} itself right now, but here are ${count} ${typeLabel(prefs)} options${deal} close by 👇`;
+      ? `Thanks ${firstName(contactName)} — nothing new in ${outsideLocality} itself right now, but here's one ${typeLabel(prefs)}${deal} close by 👇`
+      : `Thanks ${firstName(contactName)} — nothing new in ${outsideLocality} itself right now, but here are ${count} ${typeLabel(prefs)} options${deal} close by 👇`;
   }
   return count === 1
     ? `Thanks ${firstName(contactName)} — here's one matching ${typeLabel(prefs)}${deal} 👇`

@@ -711,7 +711,7 @@
         },
         {
           "id": "INB-039",
-          "rule": "When a lead names a locality and every listing a shortlist shows sits outside it, the reply says so before the listings: the qualification shortlist and the post-call matches pack open with \"nothing in <locality> itself right now\" and call the listings close by, and the preference-tap reply says the same for its tight-radius neighbours and says it searched elsewhere when the tight radius found nothing; a market zone or an \"any location\" placeholder is never named this way, and a shortlist that holds a listing in the named locality keeps the ordinary opening.",
+          "rule": "When a lead names a locality and every listing a shortlist shows sits outside it, the reply says so before the listings: the qualification shortlist and the post-call matches pack open with \"nothing new in <locality> itself right now\" and call the listings close by, and the preference-tap reply says the same for its tight-radius neighbours and says it searched elsewhere when the tight radius found nothing; a market zone or an \"any location\" placeholder is never named this way, a listing the matcher admitted outside its radius (a location bypass or a named project) is never called close by, and a shortlist that holds a listing in the named locality keeps the ordinary opening.",
           "tests": [
             {
               "file": "src/lib/ai/buyer-qualification.test.ts",

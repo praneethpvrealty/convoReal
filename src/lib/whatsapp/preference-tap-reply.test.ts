@@ -235,7 +235,7 @@ const aMatch = {
 const aNeighbour = {
   property: { id: 'p2', title: 'Plot in HSR Layout' },
   score: 80,
-  details: { named_area: 'unknown' },
+  details: { location: 'match', named_area: 'unknown' },
 };
 
 beforeEach(() => {
@@ -492,7 +492,7 @@ describe('[INB-039] the tap reply says when its listings lie outside the named l
         outside: { locality: 'Horamavu', widened: true },
       })
     ).toContain(
-      "Based on your requirement, nothing is live near Horamavu right now, so here's one live option from elsewhere in our inventory:"
+      "Based on your requirement, nothing new is live near Horamavu right now, so here's one live option from elsewhere in our inventory:"
     );
     expect(
       buildPreferenceTapReply({
@@ -501,7 +501,7 @@ describe('[INB-039] the tap reply says when its listings lie outside the named l
         outside: { locality: 'Horamavu', widened: false },
       })
     ).toContain(
-      'Based on your requirement, nothing in Horamavu itself right now, but here are 2 live options close by:'
+      'Based on your requirement, nothing new in Horamavu itself right now, but here are 2 live options close by:'
     );
     expect(buildPreferenceTapReply(base)).toContain(
       "Based on your requirement, here's one live option from our inventory:"
@@ -519,7 +519,7 @@ describe('[INB-039] the tap reply says when its listings lie outside the named l
       text: string;
     };
     expect(text).toContain(
-      "nothing is live near Koramangala right now, so here's one live option from elsewhere in our inventory:"
+      "nothing new is live near Koramangala right now, so here's one live option from elsewhere in our inventory:"
     );
     expect(text).toContain('Plot in HSR Layout');
   });
@@ -533,7 +533,7 @@ describe('[INB-039] the tap reply says when its listings lie outside the named l
       text: string;
     };
     expect(text).toContain(
-      "nothing in Koramangala itself right now, but here's one live option close by:"
+      "nothing new in Koramangala itself right now, but here's one live option close by:"
     );
   });
 

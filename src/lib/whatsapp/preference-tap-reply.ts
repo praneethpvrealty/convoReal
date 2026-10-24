@@ -89,9 +89,6 @@ export function buildPreferenceTapReply(args: {
   /** The lead's attributed showcase link — every reply hands them the
    *  whole catalogue, whatever the bot found. */
   showcaseUrl?: string | null;
-  /** Set when every listing shown lies outside the locality the lead
-   *  named: `widened` when the tight search found nothing and the
-   *  ordinary radius was used, false when they are its near neighbours. */
   outside?: { locality: string; widened: boolean } | null;
 }): string {
   const { contactName, enquiry, listings, question } = args;
@@ -111,8 +108,8 @@ export function buildPreferenceTapReply(args: {
         : `here are ${listings.length} live options`;
     const where = args.outside
       ? args.outside.widened
-        ? `nothing is live near ${args.outside.locality} right now, so ${count} from elsewhere in our inventory:`
-        : `nothing in ${args.outside.locality} itself right now, but ${count} close by:`
+        ? `nothing new is live near ${args.outside.locality} right now, so ${count} from elsewhere in our inventory:`
+        : `nothing new in ${args.outside.locality} itself right now, but ${count} close by:`
       : `${count} from our inventory:`;
     return [
       opener,

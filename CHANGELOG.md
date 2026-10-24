@@ -25,7 +25,7 @@ than a written entry. Newest first.
   The matcher already keeps a reply's listings within a tight radius of the
   named area, but their neighbours were still called matches. The
   qualification shortlist and the post-call matches pack now open with
-  "nothing in Horamavu itself right now, but here are 2 … close by" when no
+  "nothing new in Horamavu itself right now, but here are 2 … close by" when no
   listing shown is in the named locality, and the preference-tap reply says
   it searched elsewhere when its tight radius found nothing. A market zone or
   an "any location" placeholder is never named this way. INB-039.
