@@ -332,11 +332,11 @@ export function JourneySection({
         source,
         hidden: false,
       });
-      if (error) {
+      const added = created + shown;
+      if (error && added === 0) {
         toast.error(`Failed to add: ${error}`);
         return;
       }
-      const added = created + shown;
       if (added === 0) {
         toast.info('Already on the journey — nothing new to add.');
         await refresh();
@@ -353,6 +353,11 @@ export function JourneySection({
               : 's'
         }`
       );
+      if (error) {
+        toast.warning(
+          `Could not show the captured ${mode === 'buyer' ? 'properties' : 'contacts'} a lead said yes to: ${error}`
+        );
+      }
       await refresh();
     },
     [accountId, subjectId, mode, user?.id, refresh]
