@@ -130,13 +130,17 @@ describe('journey lead interest signals', () => {
     expect(signals).not.toContain('DISABLE TRIGGER');
   });
 
-  it('[CPL-004] [JRN-026] the Helper reads the lead’s own Interested answers as a signal, in its own migration', () => {
+  it('[CPL-004] [JRN-026] the Helper reads the lead’s own Interested answers as a signal from a new function, with nothing held', () => {
     expect(signals).not.toMatch(/\bDROP\b/);
     expect(signals).not.toContain(
       'CREATE OR REPLACE FUNCTION public.copilot_property_interest('
     );
+    expect(copilot).not.toMatch(/\bDROP\b/);
     expect(copilot).toContain(
-      'DROP FUNCTION IF EXISTS public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT);'
+      'CREATE OR REPLACE FUNCTION public.copilot_property_interest_v2('
+    );
+    expect(copilot).not.toContain(
+      'CREATE OR REPLACE FUNCTION public.copilot_property_interest('
     );
     expect(copilot).toMatch(
       /liked BOOLEAN,\s+interested BOOLEAN,\s+journey_stage TEXT,/
@@ -151,10 +155,10 @@ describe('journey lead interest signals', () => {
     );
     expect(copilot).toContain('WHERE public.is_account_member(p_account_id)');
     expect(copilot).toContain(
-      'REVOKE ALL ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) FROM PUBLIC, anon;'
+      'REVOKE ALL ON FUNCTION public.copilot_property_interest_v2(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) FROM PUBLIC, anon;'
     );
     expect(copilot).toContain(
-      'GRANT EXECUTE ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) TO authenticated;'
+      'GRANT EXECUTE ON FUNCTION public.copilot_property_interest_v2(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) TO authenticated;'
     );
   });
 

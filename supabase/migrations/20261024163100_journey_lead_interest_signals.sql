@@ -42,11 +42,9 @@
 -- backfill, a repeat tap and a lead's later no all keep the item's real
 -- last-activity time (lead_interest_at carries the time of the yes).
 --
--- The Helper's side (copilot_property_interest) changes its RETURNS
--- TABLE, which takes a statement the Supabase connector holds for a
--- confirmation an agent session cannot give (§7.2); it lives in
--- 20261024163200_copilot_property_interest_said_interested.sql so this
--- file can be applied through the connector on its own.
+-- The Helper's side is copilot_property_interest_v2 in
+-- 20261024163200_copilot_property_interest_said_interested.sql, a new
+-- function and so additive on its own.
 --
 -- Not additive: hold until the production PR is green and merged.
 -- ============================================================

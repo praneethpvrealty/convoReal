@@ -119,7 +119,7 @@ describe('findCopilotPropertyInterest', () => {
       'eq',
       ['account_id', 'acct-1'],
     ]);
-    expect(rpc).toHaveBeenCalledWith('copilot_property_interest', {
+    expect(rpc).toHaveBeenCalledWith('copilot_property_interest_v2', {
       p_account_id: 'acct-1',
       p_property_ids: [PROPERTY_ID],
       p_contact_ids: [],
@@ -169,7 +169,7 @@ describe('findCopilotPropertyInterest', () => {
       { supabase: client, accountId: 'acct-1' },
       query
     );
-    expect(rpc).toHaveBeenCalledWith('copilot_property_interest', {
+    expect(rpc).toHaveBeenCalledWith('copilot_property_interest_v2', {
       p_account_id: 'acct-1',
       p_property_ids: [],
       p_contact_ids: [],
@@ -207,7 +207,7 @@ describe('findCopilotPropertyInterest', () => {
       )
     ).rejects.toThrow('boom');
     expect(rpc).toHaveBeenCalledWith(
-      'copilot_property_interest',
+      'copilot_property_interest_v2',
       expect.objectContaining({
         p_property_ids: [],
         p_contact_ids: ['c1'],

@@ -34,13 +34,14 @@ than a written entry. Newest first.
   and mobile, the item carries the badge, each journey's overview row shows
   an "N interested" chip, and the Helper counts the Interested answers as
   "Said interested" and answers "who tapped interested on Adithi's plot".
-  JRN-026, CPL-004. **Migration required:** `20261024163000_journey_lead_interest.sql`
-  and `20261024163300_journey_lead_interest_only_hidden.sql` (additive), `20261024163100_journey_lead_interest_signals.sql` (backfills
-  the stamp from the answers already on file, replaces
-  `journey_overview_groups` and the share capture trigger) and
-  `20261024163200_copilot_property_interest_said_interested.sql` (drops and
-  re-creates `copilot_property_interest`; apply it over the direct database
-  connection, the connector holds its DROP).
+  JRN-026, CPL-004. **Migration required:** `20261024163000_journey_lead_interest.sql`,
+  `20261024163200_copilot_property_interest_said_interested.sql` (the Helper's
+  new `copilot_property_interest_v2`) and
+  `20261024163300_journey_lead_interest_only_hidden.sql` (all additive), and
+  `20261024163100_journey_lead_interest_signals.sql` (backfills the stamp from
+  the answers already on file, gives `journey_items` an updated_at trigger
+  that ignores stamp-only updates, replaces `journey_overview_groups` and the
+  share capture trigger).
 - **A lead discussing their shortlisted plot is no longer pitched a different
   one.** A buyer tapped Interested on a 1,500 sq.ft Suryanagar plot, asked its
   dimensions, and replied "based on the location you've sent, it doesn't seem

@@ -1,22 +1,21 @@
 -- ============================================================
 -- 20261024163200_copilot_property_interest_said_interested.sql
 --
--- copilot_property_interest gains the lead's own Interested answers on
--- listing_feedback as a signal (an `interested` column and a p_signal
--- value), so "who showed interest in Adithi's plot?" lists the lead who
--- tapped Interested on the bot's card, and "who tapped interested on …"
--- filters on it. RETURNS TABLE changes, so the function is dropped and
--- re-created with the same guard and grants. Kept apart from
--- 20261024163100_journey_lead_interest_signals.sql because the DROP is
--- held by the Supabase connector (§7.2): apply this one through the
--- direct database connection.
+-- copilot_property_interest_v2 is copilot_property_interest (migration
+-- 20261010114941) plus the lead's own Interested answers on
+-- listing_feedback as a signal: an `interested` column and a p_signal
+-- value, so "who showed interest in Adithi's plot?" lists the lead who
+-- tapped Interested on the bot's card and "who tapped interested on …"
+-- filters on it. The RETURNS TABLE changes, and swapping the old
+-- function's return type takes a statement the Supabase connector holds
+-- for a confirmation an agent session cannot give (§7.2) and the direct
+-- database connection is not reachable from one, so the Helper moves to
+-- a new name and the old function stays as it is, unused.
 --
--- Not additive: hold until the production PR is green and merged.
+-- Additive: a new function.
 -- ============================================================
 
-DROP FUNCTION IF EXISTS public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT);
-
-CREATE OR REPLACE FUNCTION public.copilot_property_interest(
+CREATE OR REPLACE FUNCTION public.copilot_property_interest_v2(
   p_account_id UUID,
   p_property_ids UUID[] DEFAULT '{}'::UUID[],
   p_contact_ids UUID[] DEFAULT '{}'::UUID[],
@@ -218,8 +217,8 @@ AS $$
   LIMIT LEAST(GREATEST(COALESCE(p_limit, 6), 1), 10);
 $$;
 
-COMMENT ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) IS
+COMMENT ON FUNCTION public.copilot_property_interest_v2(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) IS
   'Helper: contacts who showed interest in given listings (one row per contact), or listings a given contact showed interest in (one row per listing) — enquiries, identified showcase views, deals, elapsed site visits, visible journey items, likes and the lead''s own Interested answers on listing_feedback.';
 
-REVOKE ALL ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) TO authenticated;
+REVOKE ALL ON FUNCTION public.copilot_property_interest_v2(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.copilot_property_interest_v2(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) TO authenticated;
