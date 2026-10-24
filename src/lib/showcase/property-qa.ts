@@ -501,7 +501,9 @@ export function answerFromPropertyData(
       const text = [...new Set(responded.map((r) => r.answer))].join(' ');
       return {
         answer: caveat ? `${text} ${caveat}` : text,
-        intent: matched[0].intent,
+        intent: matched.some((m) => m.intent === 'location')
+          ? 'location'
+          : matched[0].intent,
       };
     }
   }

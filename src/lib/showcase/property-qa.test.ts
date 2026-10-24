@@ -539,6 +539,11 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     ).toBe(
       "It's located in HSR Layout, Sector 2, Bengaluru, Karnataka. The approach road is 40 ft wide."
     );
+    for (const q of ['Road width, location', 'price and location']) {
+      expect(
+        answerFromPropertyData(q, makeProp({ road_width: 40 })).intent
+      ).toBe('location');
+    }
     expect(answerFromPropertyData('Location road width', makeProp())).toEqual({
       answer: null,
       intent: 'road',
