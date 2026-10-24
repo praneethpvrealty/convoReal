@@ -22,6 +22,7 @@ import {
   parseReviewResult,
   planComments,
   planModel,
+  priorFindingsIn,
   rereviewFiles,
   RESULT_ARTIFACT,
   reviewBody,
@@ -140,9 +141,8 @@ async function priorResult(sha) {
     const artifact = artifacts.find((a) => !a.expired);
     if (!artifact) continue;
     const text = await downloadArtifactJson(artifact);
-    const findings =
-      text && parseReviewResult(text, { prNumber, headSha: sha });
-    if (findings) return findings;
+    const result = text && parseReviewResult(text, { prNumber, headSha: sha });
+    if (result) return result;
   }
   return null;
 }
@@ -162,18 +162,19 @@ async function lastReviewedHead(headSha) {
     .filter((sha) => sha !== headSha)
     .slice(0, MAX_COMMITS_SEARCHED);
   for (const sha of candidates) {
-    const findings = await priorResult(sha);
-    if (findings) return { sha, findings };
+    const result = await priorResult(sha);
+    if (result) return { sha, ...result };
   }
   return null;
 }
 
-function writeResult(headSha, findings) {
+function writeResult(headSha, files, findings) {
   writeFileSync(
     RESULT_PATH,
     JSON.stringify({
       pr: prNumber,
       headSha,
+      files,
       findings: findings.map((f) => ({
         kind: f.kind,
         path: f.path,
@@ -405,7 +406,7 @@ async function main() {
       'Nothing to review',
       'The pull request changes no reviewable source files.'
     );
-    writeResult(headSha, []);
+    writeResult(headSha, [], []);
     return;
   }
 
@@ -425,6 +426,7 @@ async function main() {
         scope,
         fresh: [],
         files,
+        priorFiles: previous.files,
       });
       const byKind = splitByKind(carriedAll);
       for (const kind of Object.keys(CHECK_NAMES)) {
@@ -445,7 +447,7 @@ async function main() {
           })
         );
       }
-      writeResult(headSha, carriedAll);
+      writeResult(headSha, files, carriedAll);
       return;
     }
   }
@@ -486,8 +488,9 @@ async function main() {
     },
   ];
   const rest = files.filter((f) => !scope.includes(f));
+  const earlier = previous ? priorFindingsIn(previous.findings, scope) : [];
   const intro = previous
-    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}`
+    ? `This is a re-review.\g<1>${earlier.length ? `\n\nThe earlier review reported these findings in the files under review. Report each one again, with the same path and title, unless the current code no longer has the problem; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
     : '';
   const messages = [
     {
@@ -602,7 +605,12 @@ async function main() {
   const byKind = splitByKind(findings);
   const posted = splitByKind(alreadyPosted);
   const carriedAll = previous
-    ? carriedFindings(previous.findings, { scope, fresh: findings, files })
+    ? carriedFindings(previous.findings, {
+        scope,
+        fresh: findings,
+        files,
+        priorFiles: previous.files,
+      })
     : [];
   const carriedByKind = splitByKind(carriedAll);
   for (const kind of Object.keys(CHECK_NAMES)) {
@@ -633,7 +641,7 @@ async function main() {
     );
     console.log(titleText);
   }
-  writeResult(headSha, [...findings, ...carriedAll]);
+  writeResult(headSha, files, [...findings, ...carriedAll]);
   console.log(footer);
 }
 

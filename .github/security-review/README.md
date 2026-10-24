@@ -48,26 +48,34 @@ How a review runs:
      a completed review. Every run uploads its findings as the
      `claude-review-result` workflow artifact (`review-result.json`, 30
      days). The script walks the PR's commits from the newest backwards (at
-     most 30) for one with a successful `security-review.yml` run started by
-     `pull_request_target` or `workflow_dispatch`, downloads that run's
-     artifact (unpacked in memory through `funzip`, never written to disk)
-     and accepts it only if it names this PR and that head. Check
-     runs, comments and statuses are not consulted for this: a same-repo PR
-     workflow can post those, but it cannot produce a run of this workflow
-     or attach an artifact to one. It then reviews only the PR's files that
-     changed between that commit and the head. The diff it shows is those
-     files' full pull-request diff, and the other files are listed so the
-     model can read them. The deep triggers still apply to that delta: a fix
-     that touches a migration or auth code goes to Opus. Findings from the
-     prior result in files this push did not change, and that are still in
-     the PR, are carried over: they count toward the check conclusion and
-     are listed in the summary, so a high in an untouched file keeps the
-     check red until a push changes that file. When no reviewed file
-     changed (a merge of the base branch, a test-only push), the carried
-     findings alone decide the checks and no model is called.
+     most 30) for one with a successful `pull_request_target` run of
+     `.github/workflows/security-review.yml`, downloads that run's artifact
+     (unpacked in memory through `funzip`, never written to disk) and
+     accepts it only if it names this PR and that head. Check runs, comments
+     and statuses are not consulted for this: a same-repo PR workflow can
+     post those, but it cannot produce a `pull_request_target` run, which
+     always executes the base branch's workflow file. A `workflow_dispatch`
+     run never counts, because a dispatch whose head is a PR commit ran the
+     PR branch's own copy of the workflow. It then reviews only the PR's
+     files that changed between that commit and the head. The diff it shows
+     is those files' full pull-request diff, and the other files are listed
+     so the model can read them. The earlier findings in the re-reviewed
+     files are listed in the prompt, and the model is told to report each
+     one again unless the code no longer has the problem. The deep triggers
+     still apply to that delta: a fix that touches a migration or auth code
+     goes to Opus. Findings from the prior result in files this push did
+     not change are carried over, including ones anchored in a file the PR
+     does not touch, and dropped only when their file left the PR: they
+     count toward the check conclusion and are listed in the summary, so a
+     high in an untouched file keeps the check red until a push changes
+     that file. When no reviewed file changed (a merge of the base branch,
+     a test-only push), the carried findings alone decide the checks and no
+     model is called.
      `REVIEW_SCOPE=full` forces a full review. A `workflow_dispatch` run
-     defaults to `full`; pass `scope=auto` to exercise the re-review path by
-     hand.
+     defaults to `full`; `scope=auto` dispatched from `main` re-reviews a PR
+     against its last `pull_request_target` result. The re-review path
+     cannot be exercised by a dispatch on the PR's own branch, since such a
+     run's result is never trusted as a prior review.
 3. Claude reads the diff with the handbook's engineering and security
    sections from the base commit's `AGENTS.md`, then reads files and
    searches the head checkout with two read-only tools to confirm who calls
