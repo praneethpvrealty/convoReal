@@ -194,11 +194,7 @@ function cleanName(raw: string): string | null {
 }
 
 function readSignal(text: string): InterestSignal {
-  if (
-    /\b(?:tapped|said|replied|answered|marked|confirmed|clicked)\s+(?:they\s+(?:are|were)\s+|that\s+they\s+(?:are|were)\s+)?interested\b/i.test(
-      text
-    )
-  )
+  if (/\b(?:tapped|clicked|pressed|marked)\s+interested\b/i.test(text))
     return 'interested';
   if (/\bshortlist(?:ed|s|ing)?\b/i.test(text)) return 'shortlisted';
   if (/\b(?:site\s+)?visit(?:ed|s|ing)?\b/i.test(text)) return 'visited';

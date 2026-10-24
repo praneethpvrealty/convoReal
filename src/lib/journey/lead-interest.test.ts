@@ -27,12 +27,25 @@ interface Update {
 
 let updates: Update[];
 let updateError: { message: string } | null;
+let reads: Record<string, unknown[]>;
 
 function makeDb() {
   return {
     from(table: string) {
       const current: Update = { table, payload: {}, filters: [], or: [] };
       const builder = {
+        select() {
+          return builder;
+        },
+        limit() {
+          return builder;
+        },
+        maybeSingle() {
+          return Promise.resolve({
+            data: (reads[table] ?? []).shift() ?? null,
+            error: null,
+          });
+        },
         update(payload: Record<string, unknown>) {
           current.payload = payload;
           updates.push(current);
@@ -76,6 +89,7 @@ const input = {
 beforeEach(() => {
   updates = [];
   updateError = null;
+  reads = {};
   ensureJourneyItem.mockReset();
   writeJourneyEvent.mockReset();
   ensureJourneyItem.mockResolvedValue({
@@ -131,6 +145,30 @@ describe('recordJourneyLeadInterest', () => {
         dedupeKey: 'lead_interest:whatsapp_interested',
       })
     );
+  });
+
+  it('[JRN-009] [JRN-026] never recreates a pair the agent removed from the tray', async () => {
+    reads.journey_items = [null];
+    reads.property_shares = [{ id: 'share-1' }];
+    const result = await recordJourneyLeadInterest(makeDb() as never, {
+      ...input,
+      source: 'whatsapp_interested',
+    });
+    expect(result).toEqual({ itemId: null, error: null });
+    expect(ensureJourneyItem).not.toHaveBeenCalled();
+    expect(updates).toEqual([]);
+    expect(writeJourneyEvent).not.toHaveBeenCalled();
+  });
+
+  it('[JRN-026] stamps a pair that is on the journey whatever the ledger says', async () => {
+    reads.journey_items = [{ id: 'item-1' }];
+    reads.property_shares = [{ id: 'share-1' }];
+    await recordJourneyLeadInterest(makeDb() as never, {
+      ...input,
+      source: 'whatsapp_interested',
+    });
+    expect(ensureJourneyItem).toHaveBeenCalled();
+    expect(updates).toHaveLength(1);
   });
 
   it('[JRN-026] a Shortlist tap never downgrades a branch the lead already said Interested on', async () => {

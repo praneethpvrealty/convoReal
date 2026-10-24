@@ -183,8 +183,13 @@ describe('parsePropertyInterestQuestion', () => {
     ["who liked Adithi's listing", 'liked', null],
     ["who tapped interested on Adithi's listing", 'interested', null],
     [
-      "which leads said they were interested in Adithi's plot this week",
+      "who clicked interested on Adithi's plot this week",
       'interested',
+      'this week',
+    ],
+    [
+      "which leads said they were interested in Adithi's plot this week",
+      'any',
       'this week',
     ],
     ["who is interested in Adithi's property", 'any', null],

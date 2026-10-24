@@ -1,11 +1,14 @@
 /**
  * A lead's own interest signal on a listing — the 👍 Interested tap, the
- * ⭐ Shortlist tap, a Book a visit / Call me back answer to a showcase
- * check-in — lands on the contact×property journey item so the Journey
- * tab is the one place that lists who said yes to what. The pair is
- * captured hidden when nothing captured it before, exactly as a bot
- * share is (JRN-005), and the stamp never un-hides, moves or reactivates
- * the branch; Interested outranks Shortlisted and is never downgraded.
+ * ⭐ Shortlist tap, a typed or portal enquiry, a Book a visit / Call me
+ * back answer to a showcase check-in — lands on the contact×property
+ * journey item so the Journey tab is the one place that lists who said
+ * yes to what. The pair is captured hidden when nothing captured it
+ * before, exactly as a bot share is (JRN-005), unless the share ledger
+ * holds the pair: then the share capture put it on the journey and its
+ * absence means the agent removed it from the tray, which is never
+ * undone (JRN-009). The stamp never un-hides, moves or reactivates the
+ * branch; Interested outranks Shortlisted and is never downgraded.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -75,6 +78,24 @@ export async function recordJourneyLeadInterest(
 ): Promise<{ itemId: string | null; error: string | null }> {
   const kind = KIND_OF_SOURCE[source];
   try {
+    const { data: existing } = await db
+      .from('journey_items')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('contact_id', contactId)
+      .eq('property_id', propertyId)
+      .maybeSingle();
+    if (!existing) {
+      const { data: shared } = await db
+        .from('property_shares')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .eq('property_id', propertyId)
+        .limit(1)
+        .maybeSingle();
+      if (shared) return { itemId: null, error: null };
+    }
     const item = await ensureJourneyItem(db, {
       accountId,
       userId,
