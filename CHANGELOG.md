@@ -35,7 +35,7 @@ than a written entry. Newest first.
   an "N interested" chip, and the Helper counts the Interested answers as
   "Said interested" and answers "who tapped interested on Adithi's plot".
   JRN-026, CPL-004. **Migration required:** `20261024163000_journey_lead_interest.sql`
-  (additive), `20261024163100_journey_lead_interest_signals.sql` (backfills
+  and `20261024163300_journey_lead_interest_only_hidden.sql` (additive), `20261024163100_journey_lead_interest_signals.sql` (backfills
   the stamp from the answers already on file, replaces
   `journey_overview_groups` and the share capture trigger) and
   `20261024163200_copilot_property_interest_said_interested.sql` (drops and

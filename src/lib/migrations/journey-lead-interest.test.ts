@@ -27,6 +27,41 @@ const copilot = readFileSync(
   'utf8'
 );
 
+const leadOnly = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20261024163300_journey_lead_interest_only_hidden.sql'
+  ),
+  'utf8'
+);
+
+describe('journey lead interest only hidden', () => {
+  it('[JRN-026] reads the unreviewed lead-interest captures in SQL, guarded by membership', () => {
+    expect(leadOnly).toContain(
+      'CREATE OR REPLACE FUNCTION public.journey_lead_interest_only_hidden('
+    );
+    expect(leadOnly).toContain('SECURITY DEFINER');
+    expect(leadOnly).toContain('WHERE public.is_account_member(p_account_id)');
+    expect(leadOnly).toContain('AND ji.account_id = p_account_id');
+    expect(leadOnly).toContain('AND ji.hidden');
+    expect(leadOnly).toContain(
+      '(p_contact_ids IS NULL OR ji.contact_id = ANY (p_contact_ids))'
+    );
+    expect(leadOnly).toContain(
+      '(p_property_ids IS NULL OR ji.property_id = ANY (p_property_ids))'
+    );
+    expect(leadOnly).toContain("AND e.reason = 'Captured from lead interest'");
+    expect(leadOnly).toContain("AND e.event_type IN ('hidden', 'unhidden')");
+    expect(leadOnly).not.toMatch(/\bDROP\b/);
+    expect(leadOnly).toContain(
+      'REVOKE ALL ON FUNCTION public.journey_lead_interest_only_hidden(UUID, UUID[], UUID[]) FROM PUBLIC, anon;'
+    );
+    expect(leadOnly).toContain(
+      'GRANT EXECUTE ON FUNCTION public.journey_lead_interest_only_hidden(UUID, UUID[], UUID[]) TO authenticated;'
+    );
+  });
+});
+
 describe('journey lead interest columns', () => {
   it('[JRN-026] adds the nullable stamp and its index without touching anything live', () => {
     expect(columns).toContain(

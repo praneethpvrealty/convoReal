@@ -16,7 +16,6 @@
  */
 
 import { createClient } from '@/lib/supabase/client';
-import { LEAD_INTEREST_CAPTURE_REASON } from './capture-server';
 import type { JourneyItemSource, JourneyStage } from '@/types';
 
 /**
@@ -71,46 +70,42 @@ export interface CaptureResult {
   error: string | null;
 }
 
+export interface LeadInterestOnlyHiddenRow {
+  id: string;
+  contact_id: string;
+  property_id: string;
+}
+
 /**
- * Among hidden items, the ones only a lead's own yes captured and
- * nobody has reviewed since: their 'added' event carries the
- * lead-interest reason and no 'hidden' or 'unhidden' event follows. The
- * agent's own visible captures (Add, Import inquiries, Import from chat)
- * treat these as not yet on the journey, as the server capture does.
+ * The hidden items only a lead's own yes captured and nobody has
+ * reviewed since, for the given contacts and/or properties (either
+ * side may be left open). The agent's own visible captures (Add,
+ * Import inquiries, Import from chat) treat these as not yet on the
+ * journey, as the server capture does. Read through a SECURITY DEFINER
+ * function so the ids of a listing shared with hundreds of contacts
+ * never travel in a request URL (§2.6).
  */
-export async function leadInterestOnlyHiddenIds(
+export async function leadInterestOnlyHidden(
   accountId: string,
-  items: Array<{ id: string; hidden: boolean }>
-): Promise<Set<string>> {
-  const result = new Set<string>();
-  const hiddenIds = items.filter((i) => i.hidden).map((i) => i.id);
-  if (hiddenIds.length === 0) return result;
+  scope: { contactIds?: string[]; propertyIds?: string[] }
+): Promise<LeadInterestOnlyHiddenRow[]> {
+  if (scope.contactIds?.length === 0 || scope.propertyIds?.length === 0) {
+    return [];
+  }
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from('journey_events')
-    .select('item_id, event_type, reason')
-    .eq('account_id', accountId)
-    .in('event_type', ['added', 'hidden', 'unhidden'])
-    .in('item_id', hiddenIds);
-  if (error) {
-    console.error('Journey capture events failed:', error.message);
-    return result;
-  }
-  const reviewed = new Set<string>();
-  for (const event of (data ?? []) as Array<{
-    item_id: string;
-    event_type: string;
-    reason: string | null;
-  }>) {
-    if (event.event_type === 'added') {
-      if (event.reason === LEAD_INTEREST_CAPTURE_REASON)
-        result.add(event.item_id);
-    } else {
-      reviewed.add(event.item_id);
+  const { data, error } = await supabase.rpc(
+    'journey_lead_interest_only_hidden',
+    {
+      p_account_id: accountId,
+      p_contact_ids: scope.contactIds ?? null,
+      p_property_ids: scope.propertyIds ?? null,
     }
+  );
+  if (error) {
+    console.error('Journey lead-interest lookup failed:', error.message);
+    return [];
   }
-  for (const id of reviewed) result.delete(id);
-  return result;
+  return (data ?? []) as LeadInterestOnlyHiddenRow[];
 }
 
 /**
@@ -200,29 +195,17 @@ export async function captureJourneyItems({
   }
   let shown = 0;
   if (!hidden && created.length < payload.length) {
-    const { data: hiddenRows } = await supabase
-      .from('journey_items')
-      .select('id, contact_id, property_id')
-      .eq('account_id', accountId)
-      .eq('hidden', true)
-      .in('contact_id', [...new Set(payload.map((p) => p.contact_id))])
-      .in('property_id', [...new Set(payload.map((p) => p.property_id))]);
     const wanted = new Set(seen);
-    const candidates = (
-      (hiddenRows ?? []) as Array<{
-        id: string;
-        contact_id: string;
-        property_id: string;
-      }>
+    const leadOnly = (
+      await leadInterestOnlyHidden(accountId, {
+        contactIds: [...new Set(payload.map((p) => p.contact_id))],
+        propertyIds: [...new Set(payload.map((p) => p.property_id))],
+      })
     ).filter((row) => wanted.has(`${row.contact_id}:${row.property_id}`));
-    const leadOnly = await leadInterestOnlyHiddenIds(
-      accountId,
-      candidates.map((row) => ({ id: row.id, hidden: true }))
-    );
-    if (leadOnly.size > 0) {
+    if (leadOnly.length > 0) {
       const { data: shownIds, error: showError } = await supabase.rpc(
         'journey_show_captured',
-        { p_account_id: accountId, p_item_ids: [...leadOnly] }
+        { p_account_id: accountId, p_item_ids: leadOnly.map((row) => row.id) }
       );
       if (showError) {
         console.error('Journey capture show failed:', showError.message);

@@ -19,6 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Building2,
   Import,
@@ -58,7 +59,7 @@ import type {
 } from '@/types';
 import {
   captureJourneyItems,
-  leadInterestOnlyHiddenIds,
+  leadInterestOnlyHidden,
 } from '@/lib/journey/capture';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { removeJourneyItems } from '@/lib/journey/remove';
@@ -149,23 +150,47 @@ export function JourneySection({
   const [brokerageValue, setBrokerageValue] = useState('');
   // Hidden items only a lead's own yes captured and nobody reviewed:
   // Add and the imports treat them as not yet on the journey (JRN-026).
-  const [leadOnlyHidden, setLeadOnlyHidden] = useState<Set<string>>(
-    () => new Set()
+  const hiddenKey = items
+    .filter((i) => i.hidden)
+    .map((i) => i.id)
+    .join(',');
+  const leadOnlyQuery = useQuery({
+    queryKey: [
+      'journey-lead-only-hidden',
+      accountId,
+      mode,
+      subjectId,
+      hiddenKey,
+    ],
+    enabled: Boolean(accountId) && hiddenKey.length > 0,
+    queryFn: async () =>
+      new Set(
+        (
+          await leadInterestOnlyHidden(
+            accountId!,
+            mode === 'buyer'
+              ? { contactIds: [subjectId] }
+              : { propertyIds: [subjectId] }
+          )
+        ).map((row) => row.id)
+      ),
+  });
+  const leadOnlyHidden = useMemo(
+    () => (hiddenKey.length > 0 ? leadOnlyQuery.data : new Set<string>()),
+    [hiddenKey, leadOnlyQuery.data]
   );
-  useEffect(() => {
-    if (!accountId) return;
-    let cancelled = false;
-    leadInterestOnlyHiddenIds(accountId, items).then((ids) => {
-      if (!cancelled) setLeadOnlyHidden(ids);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [accountId, items]);
   const onJourneyItems = useMemo(
-    () => items.filter((i) => !i.hidden || !leadOnlyHidden.has(i.id)),
+    () =>
+      items.filter((i) => !i.hidden || !(leadOnlyHidden?.has(i.id) ?? false)),
     [items, leadOnlyHidden]
   );
+  /** The items on the journey once the lead-only lookup has answered;
+   *  an Add or Import pressed before it has waits for it. */
+  const resolveOnJourneyItems = useCallback(async () => {
+    if (hiddenKey.length === 0 || leadOnlyHidden) return onJourneyItems;
+    const { data } = await leadOnlyQuery.refetch();
+    return items.filter((i) => !i.hidden || !(data?.has(i.id) ?? false));
+  }, [hiddenKey, items, leadOnlyHidden, leadOnlyQuery, onJourneyItems]);
 
   // ── Load subject + items ─────────────────────────────────────
   const loadJourney = useCallback(async () => {
@@ -339,7 +364,9 @@ export function JourneySection({
       .from('contact_property_inquiries')
       .select('property_id')
       .eq('contact_id', subjectId);
-    const existing = new Set(onJourneyItems.map((i) => i.property_id));
+    const existing = new Set(
+      (await resolveOnJourneyItems()).map((i) => i.property_id)
+    );
     const fresh = Array.from(
       new Set(
         (data ?? [])
@@ -352,7 +379,7 @@ export function JourneySection({
       return;
     }
     await handleAddItems(fresh, 'inquiry_import');
-  }, [mode, subjectId, onJourneyItems, supabase, handleAddItems]);
+  }, [mode, subjectId, resolveOnJourneyItems, supabase, handleAddItems]);
 
   const handleImportFromChat = useCallback(async () => {
     if (mode !== 'buyer' || !accountId || scanningChat) return;
@@ -381,7 +408,9 @@ export function JourneySection({
           .limit(2000),
       ]);
       const found = scanMessagesForProperties(messages ?? [], props ?? []);
-      const existing = new Set(onJourneyItems.map((i) => i.property_id));
+      const existing = new Set(
+        (await resolveOnJourneyItems()).map((i) => i.property_id)
+      );
       const fresh = Array.from(found.keys()).filter((id) => !existing.has(id));
       if (fresh.length === 0) {
         toast.info(
@@ -401,7 +430,7 @@ export function JourneySection({
     accountId,
     scanningChat,
     supabase,
-    onJourneyItems,
+    resolveOnJourneyItems,
     handleAddItems,
   ]);
 

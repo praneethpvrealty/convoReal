@@ -8,6 +8,11 @@ interface Queued {
 let queues: Record<string, Queued[]>;
 let calls: Array<{ table: string; method: string; args: unknown[] }>;
 let rpcCalls: Array<{ fn: string; args: unknown }>;
+let leadOnlyRows: Array<{
+  id: string;
+  contact_id: string;
+  property_id: string;
+}>;
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
@@ -40,14 +45,21 @@ vi.mock('@/lib/supabase/client', () => ({
     },
     rpc: async (fn: string, args: unknown) => {
       rpcCalls.push({ fn, args });
-      return fn === 'journey_show_captured'
-        ? { data: (args as { p_item_ids: string[] }).p_item_ids, error: null }
-        : { data: null, error: null };
+      if (fn === 'journey_show_captured') {
+        return {
+          data: (args as { p_item_ids: string[] }).p_item_ids,
+          error: null,
+        };
+      }
+      if (fn === 'journey_lead_interest_only_hidden') {
+        return { data: leadOnlyRows, error: null };
+      }
+      return { data: null, error: null };
     },
   }),
 }));
 
-import { captureJourneyItems, leadInterestOnlyHiddenIds } from './capture';
+import { captureJourneyItems, leadInterestOnlyHidden } from './capture';
 
 const STAGES = [{ id: 'stage-new', name: 'New Inquiry', position: 0 }];
 
@@ -55,78 +67,44 @@ beforeEach(() => {
   queues = {};
   calls = [];
   rpcCalls = [];
+  leadOnlyRows = [];
 });
 
-describe('[JRN-026] leadInterestOnlyHiddenIds', () => {
-  it('keeps the hidden items only a lead’s yes captured and nobody reviewed', async () => {
-    queues.journey_events = [
+describe('[JRN-026] leadInterestOnlyHidden', () => {
+  it('asks the account-scoped function for the subject, never shipping item ids', async () => {
+    leadOnlyRows = [{ id: 'lead-only', contact_id: 'c-1', property_id: 'p-1' }];
+    const rows = await leadInterestOnlyHidden('acc-1', {
+      contactIds: ['c-1'],
+    });
+    expect(rows).toEqual(leadOnlyRows);
+    expect(rpcCalls).toEqual([
       {
-        data: [
-          {
-            item_id: 'lead-only',
-            event_type: 'added',
-            reason: 'Captured from lead interest',
-          },
-          {
-            item_id: 'reviewed',
-            event_type: 'added',
-            reason: 'Captured from lead interest',
-          },
-          { item_id: 'reviewed', event_type: 'unhidden', reason: null },
-          { item_id: 'reviewed', event_type: 'hidden', reason: null },
-          {
-            item_id: 'share',
-            event_type: 'added',
-            reason: 'Captured from WhatsApp share',
-          },
-        ],
-        error: null,
+        fn: 'journey_lead_interest_only_hidden',
+        args: {
+          p_account_id: 'acc-1',
+          p_contact_ids: ['c-1'],
+          p_property_ids: null,
+        },
       },
-    ];
-
-    const ids = await leadInterestOnlyHiddenIds('acc-1', [
-      { id: 'lead-only', hidden: true },
-      { id: 'reviewed', hidden: true },
-      { id: 'share', hidden: true },
-      { id: 'visible', hidden: false },
     ]);
-
-    expect([...ids]).toEqual(['lead-only']);
-    expect(
-      calls.find((c) => c.table === 'journey_events' && c.method === 'in')?.args
-    ).toEqual(['event_type', ['added', 'hidden', 'unhidden']]);
+    expect(calls).toEqual([]);
   });
 
-  it('asks nothing when no item is hidden', async () => {
-    const ids = await leadInterestOnlyHiddenIds('acc-1', [
-      { id: 'visible', hidden: false },
-    ]);
-    expect(ids.size).toBe(0);
-    expect(calls).toEqual([]);
+  it('asks nothing for an empty scope', async () => {
+    expect(await leadInterestOnlyHidden('acc-1', { propertyIds: [] })).toEqual(
+      []
+    );
+    expect(rpcCalls).toEqual([]);
   });
 });
 
 describe('[JRN-009] [JRN-026] captureJourneyItems', () => {
   it('shows a pair only a lead’s yes captured through the reviewed-show function', async () => {
     queues.journey_stages = [{ data: STAGES, error: null }];
-    queues.journey_items = [
-      { data: [], error: null },
-      {
-        data: [{ id: 'lead-only', contact_id: 'c-1', property_id: 'p-1' }],
-        error: null,
-      },
-    ];
-    queues.journey_events = [
-      {
-        data: [
-          {
-            item_id: 'lead-only',
-            event_type: 'added',
-            reason: 'Captured from lead interest',
-          },
-        ],
-        error: null,
-      },
+    queues.journey_items = [{ data: [], error: null }];
+    leadOnlyRows = [
+      { id: 'lead-only', contact_id: 'c-1', property_id: 'p-1' },
+      { id: 'other-pair', contact_id: 'c-1', property_id: 'p-9' },
     ];
 
     const result = await captureJourneyItems({
@@ -148,25 +126,8 @@ describe('[JRN-009] [JRN-026] captureJourneyItems', () => {
 
   it('leaves a hidden share capture alone and reports nothing new', async () => {
     queues.journey_stages = [{ data: STAGES, error: null }];
-    queues.journey_items = [
-      { data: [], error: null },
-      {
-        data: [{ id: 'share', contact_id: 'c-1', property_id: 'p-1' }],
-        error: null,
-      },
-    ];
-    queues.journey_events = [
-      {
-        data: [
-          {
-            item_id: 'share',
-            event_type: 'added',
-            reason: 'Captured from WhatsApp share',
-          },
-        ],
-        error: null,
-      },
-    ];
+    queues.journey_items = [{ data: [], error: null }];
+    leadOnlyRows = [];
 
     const result = await captureJourneyItems({
       accountId: 'acc-1',
@@ -195,9 +156,8 @@ describe('[JRN-009] [JRN-026] captureJourneyItems', () => {
     });
 
     expect(result).toEqual({ created: 0, shown: 0, error: null });
-    expect(calls.filter((c) => c.table === 'journey_events')).toEqual([]);
-    expect(rpcCalls.filter((c) => c.fn === 'journey_show_captured')).toEqual(
-      []
-    );
+    expect(
+      rpcCalls.filter((c) => c.fn !== 'sync_journey_stages_from_pipeline')
+    ).toEqual([]);
   });
 });
