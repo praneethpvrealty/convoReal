@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   asksAboutSharedListing,
   asksListingAttribute,
+  namedListingAttributes,
   carriesRequirementSignal,
   statesBudget,
 } from './requirement-signal';
@@ -97,6 +98,17 @@ describe('[INB-038] a message that only names a listing field is a question abou
       expect(asksAboutSharedListing(text), text).toBe(true);
       expect(carriesRequirementSignal(text), text).toBe(false);
     }
+  });
+
+  it('lists the fields a message names, in order', () => {
+    expect(namedListingAttributes('Location, road width')).toEqual([
+      'Location',
+      'road width',
+    ]);
+    expect(namedListingAttributes('Price and possession')).toEqual([
+      'Price',
+      'possession',
+    ]);
   });
 
   it('leaves a requirement, a figure and a sentence alone', () => {

@@ -532,8 +532,24 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
       "It's located in HSR Layout, Sector 2, Bengaluru, Karnataka. It faces East."
     );
     expect(
-      answerFromPropertyData('Location road width', makeProp()).answer
-    ).toBe("It's located in HSR Layout, Sector 2, Bengaluru, Karnataka.");
+      answerFromPropertyData(
+        'Location road width',
+        makeProp({ road_width: 40, road_width_unit: 'ft' })
+      ).answer
+    ).toBe(
+      "It's located in HSR Layout, Sector 2, Bengaluru, Karnataka. The approach road is 40 ft wide."
+    );
+    expect(answerFromPropertyData('Location road width', makeProp())).toEqual({
+      answer: null,
+      intent: 'road',
+    });
+    expect(
+      answerFromPropertyData('Road width?', makeProp({ road_width: 30 })).answer
+    ).toBe('The approach road is 30 ft wide.');
+    expect(answerFromPropertyData('Price and possession', makeProp())).toEqual({
+      answer: null,
+      intent: null,
+    });
     expect(answerFromPropertyData('price and deposit', makeProp())).toEqual({
       answer: null,
       intent: 'deposit',

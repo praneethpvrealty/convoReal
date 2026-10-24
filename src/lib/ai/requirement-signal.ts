@@ -52,6 +52,14 @@ const LISTING_ATTRIBUTE_MESSAGE = new RegExp(
   'i'
 );
 
+/** The listing fields a message names, in order: "Location, road
+ *  width" → ["Location", "road width"]. */
+export function namedListingAttributes(text?: string | null): string[] {
+  return (
+    (text || '').match(new RegExp(`\\b${LISTING_ATTRIBUTE}\\b`, 'gi')) ?? []
+  );
+}
+
 /** True when the message is nothing but the name of a listing field
  *  the buyer wants — "Location road width", "Size in sft?". */
 export function asksListingAttribute(text?: string | null): boolean {

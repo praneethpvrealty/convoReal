@@ -86,6 +86,8 @@ const QA_COLUMNS = [
   'roi',
   'dimensions',
   'year_built',
+  'road_width',
+  'road_width_unit',
 ].join(', ');
 
 const HANDOFF_MESSAGE =
