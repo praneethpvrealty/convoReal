@@ -23,7 +23,9 @@ import {
   MAX_MATCHES_SENT,
   buildListingLines,
   buildFollowUpQuestion,
+  namedLocality,
   nextQualifierForContact,
+  shortlistOutsideLocality,
 } from '@/lib/ai/buyer-qualification';
 import { extractEnquiredPropertyFromNote } from '@/lib/contacts/enquiry-note';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
@@ -87,6 +89,10 @@ export function buildPreferenceTapReply(args: {
   /** The lead's attributed showcase link — every reply hands them the
    *  whole catalogue, whatever the bot found. */
   showcaseUrl?: string | null;
+  /** Set when every listing shown lies outside the locality the lead
+   *  named: `widened` when the tight search found nothing and the
+   *  ordinary radius was used, false when they are its near neighbours. */
+  outside?: { locality: string; widened: boolean } | null;
 }): string {
   const { contactName, enquiry, listings, question } = args;
   const name = firstName(contactName);
@@ -103,10 +109,15 @@ export function buildPreferenceTapReply(args: {
       listings.length === 1
         ? "here's one live option"
         : `here are ${listings.length} live options`;
+    const where = args.outside
+      ? args.outside.widened
+        ? `nothing is live near ${args.outside.locality} right now, so ${count} from elsewhere in our inventory:`
+        : `nothing in ${args.outside.locality} itself right now, but ${count} close by:`
+      : `${count} from our inventory:`;
     return [
       opener,
       '',
-      `Based on ${anchor}, ${count} from our inventory:`,
+      `Based on ${anchor}, ${where}`,
       '',
       listings.join('\n\n'),
       '',
@@ -223,6 +234,14 @@ export async function sendPreferenceTapReply(args: {
         ? missing
         : null;
 
+    const areas = [...(row.areas_of_interest ?? []), ...(row.pref_areas ?? [])];
+    const outsideLocality =
+      strictMatches.length > 0
+        ? shortlistOutsideLocality(areas, matches)
+        : matches.length > 0
+          ? namedLocality(areas)
+          : null;
+
     const text = buildPreferenceTapReply({
       contactName,
       enquiry: notes[0] ?? null,
@@ -230,6 +249,9 @@ export async function sendPreferenceTapReply(args: {
       reEngaged: isReEngagedLead(row.created_at),
       nearMiss,
       showcaseUrl,
+      outside: outsideLocality
+        ? { locality: outsideLocality, widened: strictMatches.length === 0 }
+        : null,
       question: tapRung
         ? tapRung === 'budget'
           ? defaultedBuying

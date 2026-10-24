@@ -552,10 +552,65 @@ function typeLabel(prefs: ExtractedPreferences): string {
   return category ? `${category} property` : 'property';
 }
 
+const AREA_PLACEHOLDER_PATTERN =
+  /^(any|anywhere|all|not specific|no preference|flexible)\b/i;
+
+/**
+ * The locality the lead named, when they named one. A market zone
+ * ("North Bengaluru") or a placeholder ("any location") is not a place
+ * a listing can sit outside of, so neither is ever reported that way.
+ */
+export function namedLocality(
+  areas: (string | null | undefined)[]
+): string | null {
+  return (
+    areas.find(
+      (area): area is string =>
+        !!area?.trim() &&
+        !AREA_PLACEHOLDER_PATTERN.test(area.trim()) &&
+        !canonicalBengaluruZone(area)
+    ) ?? null
+  );
+}
+
+/**
+ * The named locality a shortlist sits entirely outside of, or null when
+ * it holds a listing in that locality or none was named. The matcher
+ * keeps a listing within radius of the named area; a buyer who asked
+ * for Horamavu and is shown TC Palaya and Banaswadi as "matching
+ * options" reads it as the bot not having listened.
+ */
+export function shortlistOutsideLocality(
+  areas: (string | null | undefined)[],
+  matches: RankedPropertyMatch[]
+): string | null {
+  const locality = namedLocality(areas);
+  if (!locality) return null;
+  const shown = matches.slice(0, MAX_MATCHES_SENT);
+  if (shown.length === 0) return null;
+  return shown.some((m) => m.details.named_area === 'match') ? null : locality;
+}
+
+/** The opening for a shortlist that lies outside the locality the lead
+ *  named, or null when the ordinary opening applies. */
+export function nearbyMatchesOpening(
+  contactName: string | null | undefined,
+  areas: (string | null | undefined)[],
+  matches: RankedPropertyMatch[]
+): string | null {
+  const outside = shortlistOutsideLocality(areas, matches);
+  if (!outside) return null;
+  const count = Math.min(matches.length, MAX_MATCHES_SENT);
+  return count === 1
+    ? `Thanks ${firstName(contactName)} — nothing in ${outside} itself right now, but here's one close by 👇`
+    : `Thanks ${firstName(contactName)} — nothing in ${outside} itself right now, but here are ${count} close by 👇`;
+}
+
 function qualifiedMatchesOpening(
   contactName: string | null | undefined,
   prefs: ExtractedPreferences,
-  count: number
+  count: number,
+  outsideLocality: string | null = null
 ): string {
   const deal =
     prefs.listing_types.length === 1
@@ -565,6 +620,11 @@ function qualifiedMatchesOpening(
           ? ' for rent'
           : ''
       : '';
+  if (outsideLocality) {
+    return count === 1
+      ? `Thanks ${firstName(contactName)} — nothing in ${outsideLocality} itself right now, but here's one ${typeLabel(prefs)}${deal} close by 👇`
+      : `Thanks ${firstName(contactName)} — nothing in ${outsideLocality} itself right now, but here are ${count} ${typeLabel(prefs)} options${deal} close by 👇`;
+  }
   return count === 1
     ? `Thanks ${firstName(contactName)} — here's one matching ${typeLabel(prefs)}${deal} 👇`
     : `Thanks ${firstName(contactName)} — here are ${count} matching ${typeLabel(prefs)} options${deal} 👇`;
@@ -848,7 +908,8 @@ export function buildQualificationReply(
         qualifiedMatchesOpening(
           contactName,
           prefs,
-          Math.min(matches.length, MAX_MATCHES_SENT)
+          Math.min(matches.length, MAX_MATCHES_SENT),
+          shortlistOutsideLocality(prefs.areas, matches)
         )
       ),
       sentPropertyIds: matches

@@ -36,6 +36,7 @@ import {
 import {
   buildMatchesReply,
   MAX_MATCHES_SENT,
+  nearbyMatchesOpening,
 } from '@/lib/ai/buyer-qualification';
 import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { isPitchQuiet } from '@/lib/journey/pitch-quiet';
@@ -169,7 +170,7 @@ async function sendMatchesPack(args: {
   // asked for.
   const { data: quietRow } = await admin
     .from('contacts')
-    .select('pitch_quiet_until')
+    .select('pitch_quiet_until, areas_of_interest, pref_areas')
     .eq('id', contact.id)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -184,7 +185,16 @@ async function sendMatchesPack(args: {
         contact.name,
         matches,
         await accountShowcaseOrigin(admin, accountId),
-        contact.id
+        contact.id,
+        null,
+        nearbyMatchesOpening(
+          contact.name,
+          [
+            ...((quietRow?.areas_of_interest as string[] | null) ?? []),
+            ...((quietRow?.pref_areas as string[] | null) ?? []),
+          ],
+          matches
+        )
       )
     : buildNoMatchesFollowUp(args.ctx);
   const result = await sendWhatsAppMessageAndPersist({
