@@ -137,9 +137,9 @@ async function baseChangedAt() {
     );
     const at = latestBaseChange(events);
     if (at !== null && (latest === null || at > latest)) latest = at;
-    if (events.length < 100) break;
+    if (events.length < 100) return latest;
   }
-  return latest;
+  throw new Error('pull request timeline longer than 500 events');
 }
 
 async function priorResult(sha, notBefore) {
