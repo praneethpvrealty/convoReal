@@ -114,22 +114,20 @@ describe('journey lead interest signals', () => {
     expect(backfill).not.toContain('SET hidden');
   });
 
-  it('[JRN-026] the backfill never counts as activity on the item', () => {
-    const disable = signals.indexOf(
-      'ALTER TABLE journey_items DISABLE TRIGGER set_journey_items_updated_at;'
+  it('[JRN-026] a stamp-only update never counts as activity on the item, live or backfilled', () => {
+    const trigger = signals.indexOf(
+      'CREATE OR REPLACE FUNCTION public.journey_items_set_updated_at()'
     );
     const update = signals.indexOf('UPDATE journey_items ji');
-    const enable = signals.indexOf(
-      'ALTER TABLE journey_items ENABLE TRIGGER set_journey_items_updated_at;'
+    expect(trigger).toBeGreaterThan(-1);
+    expect(update).toBeGreaterThan(trigger);
+    expect(signals).toMatch(
+      /v_old\.lead_interest := NULL;\s+v_old\.lead_interest_at := NULL;\s+v_old\.updated_at := NULL;\s+v_new\.lead_interest := NULL;\s+v_new\.lead_interest_at := NULL;\s+v_new\.updated_at := NULL;\s+IF v_new IS NOT DISTINCT FROM v_old THEN\s+NEW\.updated_at := OLD\.updated_at;\s+ELSE\s+NEW\.updated_at := NOW\(\);/
     );
-    expect(disable).toBeGreaterThan(-1);
-    expect(update).toBeGreaterThan(disable);
-    expect(enable).toBeGreaterThan(update);
-    expect(
-      signals.indexOf(
-        'CREATE OR REPLACE FUNCTION public.journey_overview_groups('
-      )
-    ).toBeGreaterThan(enable);
+    expect(signals).toContain(
+      'CREATE OR REPLACE TRIGGER set_journey_items_updated_at\n  BEFORE UPDATE ON journey_items\n  FOR EACH ROW EXECUTE FUNCTION public.journey_items_set_updated_at();'
+    );
+    expect(signals).not.toContain('DISABLE TRIGGER');
   });
 
   it('[CPL-004] [JRN-026] the Helper reads the lead’s own Interested answers as a signal, in its own migration', () => {

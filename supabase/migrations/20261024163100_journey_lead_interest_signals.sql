@@ -34,11 +34,13 @@
 --    trigger (JRN-018); a pair a share captured, or one the agent
 --    showed and hid again, still stays hidden.
 --
--- The stamp records what the lead said before, not activity on the
--- item: the overview's last_updated, the closing-nudge stall clock and
--- the Helper's signal time all read updated_at, so the updated_at
--- trigger is held off while the backfill runs and historic rows keep
--- their real last-activity time.
+-- The stamp records what the lead said, not activity on the item: the
+-- overview's last_updated, the closing-nudge stall clock and the
+-- Helper's signal time all read updated_at. journey_items therefore
+-- gets its own updated_at trigger that leaves updated_at alone when an
+-- UPDATE changes nothing but lead_interest / lead_interest_at, so the
+-- backfill, a repeat tap and a lead's later no all keep the item's real
+-- last-activity time (lead_interest_at carries the time of the yes).
 --
 -- The Helper's side (copilot_property_interest) changes its RETURNS
 -- TABLE, which takes a statement the Supabase connector holds for a
@@ -49,7 +51,37 @@
 -- Not additive: hold until the production PR is green and merged.
 -- ============================================================
 
-ALTER TABLE journey_items DISABLE TRIGGER set_journey_items_updated_at;
+CREATE OR REPLACE FUNCTION public.journey_items_set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_old journey_items;
+  v_new journey_items;
+BEGIN
+  v_old := OLD;
+  v_new := NEW;
+  v_old.lead_interest := NULL;
+  v_old.lead_interest_at := NULL;
+  v_old.updated_at := NULL;
+  v_new.lead_interest := NULL;
+  v_new.lead_interest_at := NULL;
+  v_new.updated_at := NULL;
+  IF v_new IS NOT DISTINCT FROM v_old THEN
+    NEW.updated_at := OLD.updated_at;
+  ELSE
+    NEW.updated_at := NOW();
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.journey_items_set_updated_at() IS
+  'BEFORE UPDATE on journey_items: bumps updated_at for every change except one that touches only lead_interest / lead_interest_at, which records what the lead said rather than activity on the item.';
+
+CREATE OR REPLACE TRIGGER set_journey_items_updated_at
+  BEFORE UPDATE ON journey_items
+  FOR EACH ROW EXECUTE FUNCTION public.journey_items_set_updated_at();
 
 WITH first_stage AS (
   SELECT DISTINCT ON (account_id) account_id, id
@@ -132,8 +164,6 @@ WHERE ji.account_id = r.account_id
   AND (ji.lead_interest IS NULL
        OR (ji.lead_interest = 'shortlisted' AND r.kind = 'interested')
        OR (ji.lead_interest = r.kind AND ji.lead_interest_at IS DISTINCT FROM r.at));
-
-ALTER TABLE journey_items ENABLE TRIGGER set_journey_items_updated_at;
 
 CREATE OR REPLACE FUNCTION public.journey_overview_groups(
   p_account_id UUID,
