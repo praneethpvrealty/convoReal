@@ -302,6 +302,29 @@ describe('handleListingFeedbackReply', () => {
     });
   });
 
+  it('[JRN-026] keeps the stamp when the rejection could not be written', async () => {
+    const { db } = stubDb(
+      { properties: [[{ id: P1 }, { id: P2 }]] },
+      { listing_feedback: { message: 'connection reset' } }
+    );
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const handled = await handleListingFeedbackReply(
+      baseArgs(db, `lfb_n_${P1}.${P2}`)
+    );
+
+    expect(handled).toBe(true);
+    expect(clearJourneyLeadInterest).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('recording rejections'),
+      { message: 'connection reset' }
+    );
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({ interactiveType: 'list' })
+    );
+    errorSpy.mockRestore();
+  });
+
   it('drops malformed ids inside a none-fit tap instead of trusting them', async () => {
     const { db } = stubDb({ properties: [] });
     const handled = await handleListingFeedbackReply(

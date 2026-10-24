@@ -699,13 +699,15 @@ export async function handleShortlistPropertyReply(
       return true;
     }
 
-    await recordJourneyLeadInterest(db, {
-      accountId,
-      userId: configOwnerUserId,
-      contactId,
-      propertyId,
-      source: 'whatsapp_shortlist',
-    });
+    if (likeSaved) {
+      await recordJourneyLeadInterest(db, {
+        accountId,
+        userId: configOwnerUserId,
+        contactId,
+        propertyId,
+        source: 'whatsapp_shortlist',
+      });
+    }
 
     await sendWhatsAppMessageAndPersist({
       accountId,

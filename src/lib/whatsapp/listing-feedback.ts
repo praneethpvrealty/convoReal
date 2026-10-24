@@ -313,7 +313,7 @@ export async function handleListingFeedbackReply(args: {
 
       if (ownedIds.length > 0) {
         await clearAgentMarkReasons(db, accountId, contact.id, ownedIds);
-        await db.from('listing_feedback').upsert(
+        const { error: rejectError } = await db.from('listing_feedback').upsert(
           ownedIds.map((propertyId) => ({
             account_id: accountId,
             contact_id: contact.id,
@@ -322,11 +322,18 @@ export async function handleListingFeedbackReply(args: {
           })),
           { onConflict: 'contact_id,property_id' }
         );
-        await clearJourneyLeadInterest(db, {
-          accountId,
-          contactId: contact.id,
-          propertyIds: ownedIds,
-        });
+        if (rejectError) {
+          console.error(
+            `[listing-feedback] recording rejections for contact ${contact.id} failed:`,
+            rejectError
+          );
+        } else {
+          await clearJourneyLeadInterest(db, {
+            accountId,
+            contactId: contact.id,
+            propertyIds: ownedIds,
+          });
+        }
       }
 
       await sendWhatsAppMessageAndPersist({

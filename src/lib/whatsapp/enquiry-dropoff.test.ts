@@ -284,6 +284,42 @@ describe('handleEnquiryDropoffReason', () => {
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 
+  it('[JRN-026] keeps the stamp when the reason could not be written on the listing', async () => {
+    journeyInterest.clear.mockClear();
+    const { db, calls } = stubDb({
+      properties: [{ ...properties[0], user_id: 'u9' }],
+      journey_items: [{ id: 'item-1' }],
+      contacts: [{ assigned_agent_id: 'agent-7' }],
+    });
+    const from = (db as { from: (t: string) => Record<string, unknown> }).from;
+    (db as { from: unknown }).from = (table: string) => {
+      const chain = from(table);
+      if (table === 'listing_feedback') {
+        chain.then = (resolve: (v: unknown) => unknown) =>
+          Promise.resolve(
+            resolve({ data: null, error: { message: 'timeout' } })
+          );
+      }
+      return chain;
+    };
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const handled = await handleEnquiryDropoffReason(
+      baseArgs(db, `lfbd_budget_${P1}`)
+    );
+
+    expect(handled).toBe(true);
+    expect(journeyInterest.clear).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('recording the reason'),
+      { message: 'timeout' }
+    );
+    expect(
+      calls.some((c) => c.table === 'contact_notes' && c.method === 'insert')
+    ).toBe(true);
+    errorSpy.mockRestore();
+  });
+
   it('[INB-009] files the reason on the listing, the timeline and the journey, tells the agent, and carries the thanks into the review', async () => {
     const { db, calls } = stubDb({
       properties: [{ ...properties[0], user_id: 'u9' }],

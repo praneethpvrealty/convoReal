@@ -362,6 +362,15 @@ describe('handleShortlistPropertyReply', () => {
     expect(state.journeyInterest).toEqual([]);
   });
 
+  it('[JRN-026] leaves the journey unstamped when only the Portfolio mirror saved the tap', async () => {
+    state.regret = null;
+    state.likeError = { code: '57014' };
+    state.linked = true;
+    expect(await shortlist()).toBe(true);
+    expect(JSON.stringify(state.sends)).not.toContain("couldn't save");
+    expect(state.journeyInterest).toEqual([]);
+  });
+
   it('[INB-036] treats a listing already shortlisted as saved', async () => {
     state.regret = null;
     state.likeError = { code: '23505' };

@@ -372,6 +372,7 @@ describe('closePropertyEnquiry', () => {
   });
 
   it('[CNV-007] leaves the pointer alone when the close itself failed', async () => {
+    journeyInterest.clear.mockClear();
     const { db, calls } = stubDb({
       journey_items: [{ id: 'item-1', stage_id: 'stage-a' }, null, openRows],
     });
@@ -396,6 +397,7 @@ describe('closePropertyEnquiry', () => {
 
     expect(closed).toBe(false);
     expect(calls.some((c) => c.table === 'contacts')).toBe(false);
+    expect(journeyInterest.clear).not.toHaveBeenCalled();
   });
 
   it('[CNV-007] reports the close as failed when the next open enquiry cannot be read', async () => {

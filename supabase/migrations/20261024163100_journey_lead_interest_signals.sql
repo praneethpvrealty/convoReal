@@ -21,7 +21,11 @@
 -- 2. Seed on capture. When a pair is captured after the lead already
 --    said yes (a share, an import, a visit request), the insert trigger
 --    copies the strongest yes on file onto the new row, so the Journey
---    tab lists the lead whichever came first.
+--    tab lists the lead whichever came first. The lookup is scoped to
+--    the row's account: a journey_items insert is not checked against
+--    the contact's and the property's account, so an unscoped read from
+--    a SECURITY DEFINER trigger would copy another account's answer
+--    onto a row the inserter can read back.
 --
 -- 3. Backfill. Every journey item whose pair has an Interested answer
 --    (the Interested tap, a typed WhatsApp enquiry, a portal enquiry, a
@@ -77,6 +81,7 @@ CREATE OR REPLACE TRIGGER set_journey_items_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.journey_items_set_updated_at();
 
 CREATE OR REPLACE FUNCTION public.journey_lead_interest_on_file(
+  p_account_id UUID,
   p_contact_id UUID,
   p_property_id UUID,
   OUT lead_interest TEXT,
@@ -90,18 +95,21 @@ AS $$
   FROM (
     SELECT 'interested'::TEXT AS kind, COALESCE(f.updated_at, f.created_at) AS at
     FROM listing_feedback f
-    WHERE f.contact_id = p_contact_id
+    WHERE f.account_id = p_account_id
+      AND f.contact_id = p_contact_id
       AND f.property_id = p_property_id
       AND f.verdict = 'interested'
     UNION ALL
     SELECT 'shortlisted'::TEXT AS kind, l.created_at AS at
     FROM property_likes l
-    WHERE l.contact_id = p_contact_id
+    WHERE l.account_id = p_account_id
+      AND l.contact_id = p_contact_id
       AND l.property_id = p_property_id
       AND l.session_key LIKE 'wa:%'
       AND NOT EXISTS (
         SELECT 1 FROM listing_feedback f
-        WHERE f.contact_id = l.contact_id
+        WHERE f.account_id = l.account_id
+          AND f.contact_id = l.contact_id
           AND f.property_id = l.property_id
           AND f.verdict = 'rejected'
           AND f.source = 'contact'
@@ -112,10 +120,10 @@ AS $$
   LIMIT 1;
 $$;
 
-COMMENT ON FUNCTION public.journey_lead_interest_on_file(UUID, UUID) IS
-  'The strongest yes a lead gave on a listing themselves: an Interested answer on listing_feedback outranks a WhatsApp Shortlist tap on property_likes that the lead did not take back; NULLs when there is none.';
+COMMENT ON FUNCTION public.journey_lead_interest_on_file(UUID, UUID, UUID) IS
+  'The strongest yes a lead gave on a listing themselves, within the given account: an Interested answer on listing_feedback outranks a WhatsApp Shortlist tap on property_likes that the lead did not take back; NULLs when there is none.';
 
-REVOKE ALL ON FUNCTION public.journey_lead_interest_on_file(UUID, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.journey_lead_interest_on_file(UUID, UUID, UUID) FROM PUBLIC, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.journey_items_seed_lead_interest()
 RETURNS TRIGGER
@@ -127,7 +135,7 @@ BEGIN
   IF NEW.lead_interest IS NULL THEN
     SELECT y.lead_interest, y.lead_interest_at
     INTO NEW.lead_interest, NEW.lead_interest_at
-    FROM journey_lead_interest_on_file(NEW.contact_id, NEW.property_id) y;
+    FROM journey_lead_interest_on_file(NEW.account_id, NEW.contact_id, NEW.property_id) y;
   END IF;
   RETURN NEW;
 END;
@@ -144,7 +152,7 @@ UPDATE journey_items ji
 SET lead_interest = y.lead_interest,
     lead_interest_at = y.lead_interest_at
 FROM journey_items j2
-CROSS JOIN LATERAL journey_lead_interest_on_file(j2.contact_id, j2.property_id) y
+CROSS JOIN LATERAL journey_lead_interest_on_file(j2.account_id, j2.contact_id, j2.property_id) y
 WHERE ji.id = j2.id
   AND y.lead_interest IS NOT NULL
   AND (ji.lead_interest IS NULL

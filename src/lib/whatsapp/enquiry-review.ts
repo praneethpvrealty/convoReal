@@ -116,11 +116,13 @@ export async function closePropertyEnquiry(args: {
     },
     { onConflict: 'contact_id,property_id' }
   );
-  await clearJourneyLeadInterest(db, {
-    accountId,
-    contactId: contact.id,
-    propertyIds: [property.id],
-  });
+  if (!feedbackError) {
+    await clearJourneyLeadInterest(db, {
+      accountId,
+      contactId: contact.id,
+      propertyIds: [property.id],
+    });
+  }
 
   let dropped = true;
   const { data: item, error: itemError } = await db

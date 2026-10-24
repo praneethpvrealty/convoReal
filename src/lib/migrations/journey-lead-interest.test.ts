@@ -99,13 +99,19 @@ describe('journey lead interest signals', () => {
     expect(signals).toContain("AND f.verdict = 'interested'");
     expect(signals).toContain("AND l.session_key LIKE 'wa:%'");
     expect(signals).toMatch(
-      /AND l\.session_key LIKE 'wa:%'\s+AND NOT EXISTS \(\s+SELECT 1 FROM listing_feedback f\s+WHERE f\.contact_id = l\.contact_id\s+AND f\.property_id = l\.property_id\s+AND f\.verdict = 'rejected'\s+AND f\.source = 'contact'\s+AND COALESCE\(f\.updated_at, f\.created_at\) > l\.created_at\s+\)/
+      /AND l\.session_key LIKE 'wa:%'\s+AND NOT EXISTS \(\s+SELECT 1 FROM listing_feedback f\s+WHERE f\.account_id = l\.account_id\s+AND f\.contact_id = l\.contact_id\s+AND f\.property_id = l\.property_id\s+AND f\.verdict = 'rejected'\s+AND f\.source = 'contact'\s+AND COALESCE\(f\.updated_at, f\.created_at\) > l\.created_at\s+\)/
+    );
+    expect(signals).toMatch(
+      /FROM listing_feedback f\s+WHERE f\.account_id = p_account_id\s+AND f\.contact_id = p_contact_id\s+AND f\.property_id = p_property_id\s+AND f\.verdict = 'interested'/
+    );
+    expect(signals).toMatch(
+      /FROM property_likes l\s+WHERE l\.account_id = p_account_id\s+AND l\.contact_id = p_contact_id\s+AND l\.property_id = p_property_id/
     );
     expect(signals).toContain(
       "ORDER BY CASE s.kind WHEN 'interested' THEN 0 ELSE 1 END, s.at DESC"
     );
     expect(signals).toContain(
-      'REVOKE ALL ON FUNCTION public.journey_lead_interest_on_file(UUID, UUID) FROM PUBLIC, anon, authenticated;'
+      'REVOKE ALL ON FUNCTION public.journey_lead_interest_on_file(UUID, UUID, UUID) FROM PUBLIC, anon, authenticated;'
     );
   });
 
@@ -114,10 +120,10 @@ describe('journey lead interest signals', () => {
       'CREATE OR REPLACE TRIGGER seed_journey_items_lead_interest\n  BEFORE INSERT ON journey_items\n  FOR EACH ROW EXECUTE FUNCTION public.journey_items_seed_lead_interest();'
     );
     expect(signals).toMatch(
-      /IF NEW\.lead_interest IS NULL THEN\s+SELECT y\.lead_interest, y\.lead_interest_at\s+INTO NEW\.lead_interest, NEW\.lead_interest_at\s+FROM journey_lead_interest_on_file\(NEW\.contact_id, NEW\.property_id\) y;/
+      /IF NEW\.lead_interest IS NULL THEN\s+SELECT y\.lead_interest, y\.lead_interest_at\s+INTO NEW\.lead_interest, NEW\.lead_interest_at\s+FROM journey_lead_interest_on_file\(NEW\.account_id, NEW\.contact_id, NEW\.property_id\) y;/
     );
     expect(signals).toMatch(
-      /UPDATE journey_items ji\s+SET lead_interest = y\.lead_interest,\s+lead_interest_at = y\.lead_interest_at\s+FROM journey_items j2\s+CROSS JOIN LATERAL journey_lead_interest_on_file\(j2\.contact_id, j2\.property_id\) y/
+      /UPDATE journey_items ji\s+SET lead_interest = y\.lead_interest,\s+lead_interest_at = y\.lead_interest_at\s+FROM journey_items j2\s+CROSS JOIN LATERAL journey_lead_interest_on_file\(j2\.account_id, j2\.contact_id, j2\.property_id\) y/
     );
     expect(signals).toContain(
       "OR (ji.lead_interest = 'shortlisted' AND y.lead_interest = 'interested')"
