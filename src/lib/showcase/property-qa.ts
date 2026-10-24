@@ -457,14 +457,20 @@ export function answerFromPropertyData(
       .filter((m): m is (typeof MATCHERS)[number] => !!m)
       .filter((m, i, all) => all.findIndex((o) => o.intent === m.intent) === i);
     if (matched.length > 1) {
-      const answers = matched
-        .map((m) => m.respond(property, opts))
-        .filter((a): a is string => !!a);
-      const intent = matched[0].intent;
-      if (answers.length === 0) return { answer: null, intent };
+      // A field the listing cannot answer sends the whole question on:
+      // "price and deposit" on a sale listing is a deposit question too.
+      const responded = matched.map((m) => ({
+        intent: m.intent,
+        answer: m.respond(property, opts),
+      }));
+      const missing = responded.find((r) => !r.answer);
+      if (missing) return { answer: null, intent: missing.intent };
       const caveat = listingStatusCaveat(property.status);
-      const text = answers.join(' ');
-      return { answer: caveat ? `${text} ${caveat}` : text, intent };
+      const text = responded.map((r) => r.answer).join(' ');
+      return {
+        answer: caveat ? `${text} ${caveat}` : text,
+        intent: matched[0].intent,
+      };
     }
   }
 

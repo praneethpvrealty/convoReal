@@ -534,6 +534,13 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     expect(
       answerFromPropertyData('Location road width', makeProp()).answer
     ).toBe("It's located in HSR Layout, Sector 2, Bengaluru, Karnataka.");
+    expect(answerFromPropertyData('price and deposit', makeProp())).toEqual({
+      answer: null,
+      intent: 'deposit',
+    });
+    expect(
+      answerFromPropertyData('location and rent per month', makeProp())
+    ).toEqual({ answer: null, intent: 'rent' });
   });
 
   it('answers a land-size question from the land area when no dimensions are recorded', () => {
