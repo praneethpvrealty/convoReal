@@ -9,6 +9,10 @@ function linkRefs(property: ShowcaseLinkProperty): string[] {
     .filter(Boolean);
 }
 
+function holdsLink(text: string, ref: string): boolean {
+  return new RegExp(`property_id=${ref}(?![A-Za-z0-9-])`, 'i').test(text);
+}
+
 export async function listingLinkAlreadySent(
   db: SupabaseClient,
   conversationId: string,
@@ -19,22 +23,18 @@ export async function listingLinkAlreadySent(
   try {
     const { data, error } = await db
       .from('messages')
-      .select('id')
+      .select('content_text')
       .eq('conversation_id', conversationId)
       .in('sender_type', ['agent', 'bot'])
       .neq('status', 'failed')
       .or(
-        refs
-          .flatMap((ref) => [
-            `content_text.ilike.%property_id=${ref}&%`,
-            `content_text.ilike.%property_id=${ref} %`,
-            `content_text.ilike.%property_id=${ref}`,
-          ])
-          .join(',')
+        refs.map((ref) => `content_text.ilike.%property_id=${ref}%`).join(',')
       )
-      .limit(1);
+      .limit(50);
     if (error) return false;
-    return (data?.length ?? 0) > 0;
+    return ((data ?? []) as { content_text: string | null }[]).some((row) =>
+      refs.some((ref) => holdsLink(row.content_text ?? '', ref))
+    );
   } catch {
     return false;
   }

@@ -10,7 +10,7 @@ import {
   withListingLink,
 } from '@/lib/whatsapp/listing-link-reply';
 
-let rows: { id: string }[] = [];
+let rows: { content_text: string | null }[] = [];
 let orFilter: string | null = null;
 
 function fakeDb() {
@@ -57,19 +57,17 @@ describe('[INB-037] a bot answer carries the listing link once per thread', () =
       'contact-1'
     );
     expect(orFilter).toBe(
-      [
-        'content_text.ilike.%property_id=AV-0021&%',
-        'content_text.ilike.%property_id=AV-0021 %',
-        'content_text.ilike.%property_id=AV-0021',
-        'content_text.ilike.%property_id=prop-uuid-1&%',
-        'content_text.ilike.%property_id=prop-uuid-1 %',
-        'content_text.ilike.%property_id=prop-uuid-1',
-      ].join(',')
+      'content_text.ilike.%property_id=AV-0021%,content_text.ilike.%property_id=prop-uuid-1%'
     );
   });
 
   it('leaves the answer alone when a team or bot message already linked the listing', async () => {
-    rows = [{ id: 'msg-1' }];
+    rows = [
+      {
+        content_text:
+          'Have a look: https://aryavarta.convoreal.com/?property_id=AV-0021\nCall me after.',
+      },
+    ];
     const text = await withListingLink({
       db: fakeDb() as never,
       accountId: 'acc-1',
@@ -80,6 +78,27 @@ describe('[INB-037] a bot answer carries the listing link once per thread', () =
     });
     expect(text).toBe('The asking price is ₹20 Cr.');
     expect(accountPropertyShowcaseUrl).not.toHaveBeenCalled();
+  });
+
+  it('does not mistake a longer code for this one', async () => {
+    rows = [
+      {
+        content_text:
+          'https://aryavarta.convoreal.com/?property_id=AV-00210&v=contact-1',
+      },
+    ];
+    expect(
+      await listingLinkAlreadySent(fakeDb() as never, 'conv-1', property)
+    ).toBe(false);
+    rows = [
+      {
+        content_text:
+          '🔗 https://aryavarta.convoreal.com/?property_id=AV-0021&v=contact-1',
+      },
+    ];
+    expect(
+      await listingLinkAlreadySent(fakeDb() as never, 'conv-1', property)
+    ).toBe(true);
   });
 
   it('treats a lookup failure as no link sent, so the buyer still gets one', async () => {

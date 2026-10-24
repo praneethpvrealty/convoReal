@@ -308,8 +308,12 @@ const MEETING_CUE =
 /** "I want to visit the site and meet the owner on Saturday at 11am"
  *  is a visit to book, not a call to promise: a meeting named with a
  *  visit, a day or a time stays with the scheduler. */
+// The same day and time forms the scheduler reads (TIME_CUE and
+// DATE_CUE in src/lib/calendar/whatsapp-scheduler.ts), kept here so
+// this classifier stays free of that module's database and credit
+// imports.
 const VISIT_OR_TIME =
-  /\b(?:visit|viewing|see the (?:site|property|house|plot|flat)|today|tomorrow|tonight|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}\s*\/\s*\d{1,2})\b/;
+  /\b(?:visit|viewing|see the (?:site|property|house|plot|flat)|today|tomorrow|tonight|weekend|day after|(?:this|next|coming) (?:week|month|weekend|mon|tue|wed|thu|fri|sat|sun)[a-z]*|(?:mon|tues|wednes|thurs|fri|satur|sun)day|at \d{1,2}(?:[:.]\d{2})?\s?(?:am|pm)?|\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}:\d{2}|\d{1,2}(?:st|nd|rd|th)? (?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?|\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?)\b/;
 
 /** "Call ?", "call pls", "phone": the whole message is the one word.
  *  Nothing names a subject, so the clause reader above sees neither a

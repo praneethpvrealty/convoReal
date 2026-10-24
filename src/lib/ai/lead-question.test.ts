@@ -1111,6 +1111,11 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
       'I want to visit the site and meet the owner on Saturday at 11am',
       'Can I visit tomorrow at 11am to meet the owner?',
       'pls confirm after your discussion with the owner',
+      'I want to meet the owner on 25th October',
+      'can we meet the owner next week',
+      'I want to meet the owner at 5',
+      'please arrange a meeting with the owner at 18:30',
+      'can we meet the owner on Oct 25',
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
     }
