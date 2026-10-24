@@ -60,10 +60,20 @@ const GENERIC_STEMS = new Set([
 const AREA_PATTERN =
   /\b(\d+(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet|yard|yards|meter|meters|mtr|mtrs)|sqft|sqyd|sqm|acres?|guntas?|gunthas?|grounds?|cents?)\b/i;
 
+// "the plot at Jayanagar 7th block 50x70": a site named by its sides
+// is named by its area, and the area is what tells two plots in the
+// same block apart.
+const DIMENSION_PATTERN = /\b(\d{2,3})\s*(?:x|×|\*|by)\s*(\d{2,3})\b/i;
+
 export function mentionedAreaSqft(text: string): number | null {
   const match = AREA_PATTERN.exec(text || '');
   if (!match) return null;
   return toSquareFeet(Number(match[1]), match[2]);
+}
+
+export function mentionedDimensionArea(text: string): number | null {
+  const dims = DIMENSION_PATTERN.exec(text || '');
+  return dims ? Number(dims[1]) * Number(dims[2]) : null;
 }
 
 export function isDirectPropertyInterest(text?: string | null): boolean {
@@ -179,6 +189,10 @@ export function resolvePropertyReference<T extends PropertyInterestCandidate>(
   if (!isDirectPropertyInterest(value)) return { kind: 'unresolved' };
 
   const wantedArea = mentionedAreaSqft(value);
+  // Sides are a tie-breaker, never a filter: a listing recorded with
+  // dimensions but no area still matches on its locality.
+  const wantedDimensionArea =
+    wantedArea === null ? mentionedDimensionArea(value) : null;
   const messageStems = comparableStems(value);
   const ranked = candidates
     .filter(
@@ -201,6 +215,20 @@ export function resolvePropertyReference<T extends PropertyInterestCandidate>(
           return null;
         }
         sizeScore = 30;
+      } else if (wantedDimensionArea !== null) {
+        // Sides describe the land, so only a recorded land area can
+        // contradict them; a house recorded by built-up area alone
+        // still matches on its locality.
+        const landArea = toSquareFeet(
+          property.land_area,
+          property.land_area_unit
+        );
+        if (
+          landArea !== null &&
+          Math.abs(landArea - wantedDimensionArea) / wantedDimensionArea <= 0.1
+        ) {
+          sizeScore = 30;
+        }
       }
 
       return {

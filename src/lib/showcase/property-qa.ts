@@ -10,6 +10,11 @@
 
 import type { Property } from '@/types';
 import { REPLY_LANGUAGE_RULE } from '@/lib/languages';
+import { requestsMoreListings } from '@/lib/ai/more-listings';
+import {
+  asksListingAttribute,
+  namedListingAttributes,
+} from '@/lib/ai/requirement-signal';
 import { formatCurrency } from '@/lib/format/currency';
 import {
   listingAvailabilityAnswer,
@@ -55,6 +60,9 @@ export type QaProperty = Pick<
   | 'bts_lease_years'
   | 'bts_lock_in_years'
   | 'bts_escalation_percent'
+  | 'year_built'
+  | 'road_width'
+  | 'road_width_unit'
 > & {
   /** Optional only for callers that never see an unavailable row (the
    *  public endpoints select Available listings); the WhatsApp Q&A
@@ -167,7 +175,10 @@ export interface QaAnswerOptions {
   briefOnFile?: boolean;
 }
 
-function availabilityAnswer(p: QaProperty, opts: QaAnswerOptions): string {
+export function availabilityAnswer(
+  p: QaProperty,
+  opts: QaAnswerOptions
+): string {
   return listingAvailabilityAnswer(p.status, p.listing_type, opts.briefOnFile);
 }
 
@@ -211,8 +222,60 @@ function roiAnswer(p: QaProperty): string | null {
   return parts.length ? `Investment: ${parts.join(', ')}.` : null;
 }
 
-function dimensionsAnswer(p: QaProperty): string | null {
+function sidesAnswer(p: QaProperty): string | null {
   return p.dimensions ? `Plot dimensions: ${p.dimensions}.` : null;
+}
+
+function dimensionsAnswer(p: QaProperty): string | null {
+  if (p.dimensions) return `Plot dimensions: ${p.dimensions}.`;
+  if (!p.land_area) return null;
+  const size = `${p.land_area.toLocaleString('en-IN')} ${p.land_area_unit || 'sq.ft.'}`;
+  return `Land area: ${size}${size.endsWith('.') ? '' : '.'}`;
+}
+
+function rentAnswer(p: QaProperty): string | null {
+  if (isRentLike(p)) return priceAnswer(p);
+  if (!p.rental_income) return null;
+  const listedAs = isJV(p)
+    ? 'for Joint Venture/Development'
+    : 'for sale, not for rent';
+  let s = `This property is listed ${listedAs}; the expected rental income is ${inr(p.rental_income)}/month`;
+  if (p.roi) s += ` (ROI/yield ${p.roi}%)`;
+  return `${s}.`;
+}
+
+function leaseAnswer(p: QaProperty): string | null {
+  return p.listing_type === 'Built to Suit' && p.bts_lease_years
+    ? priceAnswer(p)
+    : null;
+}
+
+function maintenanceAnswer(p: QaProperty): string | null {
+  if (!p.maintenance) return null;
+  if (isRentLike(p)) return priceAnswer(p);
+  return `Maintenance is ${inr(p.maintenance)}/month.`;
+}
+
+function depositAnswer(p: QaProperty): string | null {
+  if (isRentLike(p)) return p.advance ? priceAnswer(p) : null;
+  if (isJV(p))
+    return p.advance ? `The refundable advance is ${inr(p.advance)}.` : null;
+  return null;
+}
+
+function roadAnswer(p: QaProperty): string | null {
+  return p.road_width
+    ? `The approach road is ${p.road_width} ${p.road_width_unit || 'ft'} wide.`
+    : null;
+}
+
+function ageAnswer(p: QaProperty): string | null {
+  if (!p.year_built) return null;
+  const age = new Date().getFullYear() - p.year_built;
+  if (age < 0) return null;
+  return age > 0
+    ? `It was built in ${p.year_built}, so it's about ${age} year${age === 1 ? '' : 's'} old.`
+    : `It was built in ${p.year_built}.`;
 }
 
 // Questions that must always go to the AI/agent even when they mention
@@ -221,7 +284,7 @@ function dimensionsAnswer(p: QaProperty): string | null {
 // legal questions are outside the structured data entirely. Checked
 // before the structured matchers so these never get a canned reply.
 const ESCALATE_PATTERN =
-  /\b(negotiab|negotiate|bargain|discount|best price|final price|lowest|loan|home loan|emi|down payment|which floor|what floor|floor number|legal|approv|clearance|khata|rera|possession date|when.*ready|tax|registration)/i;
+  /\b(negotiab|negotiate|bargain|discount|best price|final price|lowest|loan|home loan|emi|down payment|which floor|what floor|floor number|legal|approv|clearance|khata|rera|possession date|when.*ready|tax|registration|bank (account|transfer)|by bank|(paid|pay|payment|received|credited|deposited|transferred) (in|into|to) (the |a |my |our )?bank\b|cheque|\bcash\b|\bupi\b|\bneft\b|\bimps\b|\brtgs\b|online (payment|transfer)|payment (terms|mode)|mode of payment|(rent|rentals|rental|payment)s? (is|are|comes?|paid|collected|received|credited|deposited)\b[^.?!]{0,20}\b(by|via|through|in|into|on|online)\b|how (is|are|do|does|will|would) (the |you |they )?(rent|rentals?|payments?)( get| be)? (paid|collected|received|come|made|transferred|credited))/i;
 
 // "Is it the pink house or the one next to it?" asks a person to look
 // at the photo, and nothing in the listing's fields can do that. The
@@ -275,14 +338,50 @@ const MATCHERS: {
     respond: availabilityAnswer,
   },
   {
+    intent: 'type',
+    pattern: /\b(sale|rent) or (sale|rent)\b/i,
+    respond: typeAnswer,
+  },
+  {
+    intent: 'age',
+    pattern:
+      /\b(how old|age of|years? old|built in (the year )?\d{4}|year built|year of construction|construction year|when was (it|this|that|the (building|house|property)) (built|constructed))/i,
+    respond: ageAnswer,
+  },
+  {
+    intent: 'road',
+    pattern:
+      /\b(road width|width of (the )?road|approach road|how wide is (the )?(approach |main |access )?road)\b/i,
+    respond: roadAnswer,
+  },
+  {
     intent: 'roi',
     pattern: /\b(roi|yield|rental income|return on|investment return)/i,
     respond: roiAnswer,
   },
   {
+    intent: 'lease',
+    pattern: /\b(lease|tenure|lock.?in)/i,
+    respond: leaseAnswer,
+  },
+  {
+    intent: 'maintenance',
+    pattern: /\bmaintenance/i,
+    respond: maintenanceAnswer,
+  },
+  {
+    intent: 'deposit',
+    pattern: /\b(deposit|advance)/i,
+    respond: depositAnswer,
+  },
+  {
+    intent: 'rent',
+    pattern: /\brent/i,
+    respond: rentAnswer,
+  },
+  {
     intent: 'price',
-    pattern:
-      /\b(price|cost|rate|how much|budget|rent|deposit|advance|maintenance)/i,
+    pattern: /\b(price|cost|rate|how much|budget)/i,
     respond: priceAnswer,
   },
   {
@@ -296,15 +395,20 @@ const MATCHERS: {
     respond: bathroomsAnswer,
   },
   {
+    intent: 'dimensions',
+    pattern: /\b(dimension|length|breadth|width|frontage|how wide)/i,
+    respond: sidesAnswer,
+  },
+  {
+    intent: 'dimensions',
+    pattern: /\b(measurement|plot size|site size|land size)/i,
+    respond: dimensionsAnswer,
+  },
+  {
     intent: 'area',
     pattern:
       /\b(area|size|sq\.?\s?ft|square feet|sqft|built.?up|carpet|how big)/i,
     respond: areaAnswer,
-  },
-  {
-    intent: 'dimensions',
-    pattern: /\b(dimension|plot size|length|breadth)/i,
-    respond: dimensionsAnswer,
   },
   {
     intent: 'nearby',
@@ -328,6 +432,14 @@ const MATCHERS: {
     intent: 'facing',
     pattern: /\b(facing|direction|vastu|east|west|north|south)/i,
     respond: facingAnswer,
+  },
+  // A plot named by its sides, after every field it could be naming:
+  // "where is the 30x40 site" asks for the location, not the size.
+  {
+    intent: 'dimensions',
+    pattern:
+      /\b\d{2,3}\s*[x×*]\s*\d{2,3}\b|\b(plot|site|size|measurement)\b[^?.!]{0,30}\b\d{2,3}\s*\/\s*\d{2,3}\b|\b\d{2,3}\s*\/\s*\d{2,3}\b[^?.!]{0,30}\b(plot|site|size|measurement)\b/i,
+    respond: dimensionsAnswer,
   },
   {
     intent: 'type',
@@ -356,10 +468,45 @@ export function answerFromPropertyData(
 ): QaResult {
   const q = (question || '').trim();
   if (!q) return { answer: null, intent: null };
+  // "What all are available" asks for other listings, not for this
+  // one's status; the ladder answers it with the next matches.
+  if (requestsMoreListings(q)) return { answer: null, intent: 'more_listings' };
   if (asksToIdentifyInPhoto(q)) {
     return { answer: null, intent: 'photo_identification' };
   }
   if (ESCALATE_PATTERN.test(q)) return { answer: null, intent: null };
+
+  // "location and measurement pls" names two fields: each one named
+  // is answered, in the order the matchers run.
+  if (asksListingAttribute(q)) {
+    // Every field named must have a matcher; "possession" has none, so
+    // "Price and possession" goes whole to the model or a person.
+    const byTerm = namedListingAttributes(q).map((term) =>
+      MATCHERS.find((m) => m.pattern.test(term))
+    );
+    if (byTerm.some((m) => !m)) return { answer: null, intent: null };
+    const matched = byTerm
+      .filter((m): m is (typeof MATCHERS)[number] => !!m)
+      .filter((m, i, all) => all.findIndex((o) => o.intent === m.intent) === i);
+    if (matched.length > 1) {
+      // A field the listing cannot answer sends the whole question on:
+      // "price and deposit" on a sale listing is a deposit question too.
+      const responded = matched.map((m) => ({
+        intent: m.intent,
+        answer: m.respond(property, opts),
+      }));
+      const missing = responded.find((r) => !r.answer);
+      if (missing) return { answer: null, intent: missing.intent };
+      const caveat = listingStatusCaveat(property.status);
+      const text = [...new Set(responded.map((r) => r.answer))].join(' ');
+      return {
+        answer: caveat ? `${text} ${caveat}` : text,
+        intent: matched.some((m) => m.intent === 'location')
+          ? 'location'
+          : matched[0].intent,
+      };
+    }
+  }
 
   for (const m of MATCHERS) {
     if (m.pattern.test(q)) {
@@ -439,6 +586,11 @@ export function buildPropertyContext(property: QaProperty): string {
     p.land_area ? `${p.land_area} ${p.land_area_unit || 'sq.ft.'}` : null
   );
   add('Dimensions', p.dimensions);
+  add(
+    'Road width',
+    p.road_width ? `${p.road_width} ${p.road_width_unit || 'ft'}` : null
+  );
+  add('Year built', p.year_built ?? null);
   add('Facing', p.facing_direction);
   add('Amenities', p.features);
   add('Nearby highlights', p.nearby_highlights);

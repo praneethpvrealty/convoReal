@@ -127,3 +127,15 @@ describe('[JRN-015] a check-in reply about calling reaches the right handler', (
     );
   });
 });
+
+describe('[INB-038] an attribute-only message is a reply, not a flow opener', () => {
+  it('consults the share ledger for it before a keyword flow can claim it', () => {
+    const source = inboundStepSource('flow-dispatch');
+    const gate = source.slice(
+      source.indexOf('listingAlreadySent:'),
+      source.indexOf('hasBeenSentAListing(')
+    );
+    expect(gate).toContain('looksLikeQuestion(inboundText) ||');
+    expect(gate).toContain('asksListingAttribute(inboundText)');
+  });
+});

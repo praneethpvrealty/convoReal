@@ -1058,3 +1058,138 @@ describe('[INB-034] previousLeadQuestion', () => {
     ).toBeNull();
   });
 });
+
+// Thirty days of lead threads, read on 24 October 2026: the messages
+// below each went unanswered, or were answered by the wrong handler.
+describe("[INB-038] a lead's message is read for what it asks", () => {
+  it('reads a question that follows a greeting or a comma', () => {
+    for (const text of [
+      'Hi ji \nWhich old building',
+      'Sir, is it still available',
+      'I am a real estate agent if I get a buyer, will I get commission',
+      'Good morning. Can we visit on Sunday',
+    ]) {
+      expect(looksLikeQuestion(text), text).toBe(true);
+    }
+    for (const text of [
+      'Hi',
+      'Okay sir',
+      'Hello ji, noted',
+      'Out of town',
+      'Ok, do it',
+      'Yes, do that',
+      'Sent the docs, did it yesterday',
+      'Sir will call you in the evening',
+      'Team is visiting the site',
+      'Madam is out of station',
+      'Hi, will call you in the evening',
+      'Good morning will send the documents',
+      'Hello\nWill visit Sunday',
+      'Noted sir\nWill call you in the evening',
+      'Ok\nWill send documents tomorrow',
+    ]) {
+      expect(looksLikeQuestion(text), text).toBe(false);
+    }
+    expect(looksLikeQuestion('Hi, will you be there on Sunday')).toBe(true);
+    expect(looksLikeQuestion('Noted sir\nWill you be there on Sunday')).toBe(
+      true
+    );
+    expect(looksLikeQuestion('Will visit Sunday')).toBe(true);
+  });
+
+  it('reads a bare "call" and a meeting with the owner as asking for a person', () => {
+    for (const text of [
+      'Call ?',
+      'call',
+      'Pls call',
+      'Call back',
+      'Can you arrange a meeting with the owner',
+      'I want to meet the owner',
+      'set up a call with your agent',
+      'Meet the owner',
+      "please don't call, but can we have a meeting with the owner",
+      'I want to meet the owner of the 30/40 site',
+      'I want to meet the owner, my offer is at 1.8 cr',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(true);
+    }
+    for (const text of [
+      "I'll call back tomorrow",
+      'Meeting went well',
+      'the owner is my uncle',
+      'I had a discussion with the owner, he is ready at 1.8 cr',
+      'Had a call with your agent yesterday, looking for a 3bhk villa in Whitefield 2cr',
+      "I don't want a meeting with the owner",
+      'I want to visit the site and meet the owner on Saturday at 11am',
+      'Can I visit tomorrow at 11am to meet the owner?',
+      'pls confirm after your discussion with the owner',
+      'Meeting with the owner done, he agreed to 1.8 cr',
+      'Discussion with owner went well',
+      'I want to meet the owner on 25th October',
+      'can we meet the owner next week',
+      'I want to meet the owner at 5 pm',
+      'can we meet the owner on 25/10',
+      'please arrange a meeting with the owner at 18:30',
+      'can we meet the owner on Oct 25',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(false);
+    }
+  });
+
+  it('hands over when the model asks the lead for their own number', async () => {
+    vi.mocked(burnCredits).mockResolvedValue({ deficit: 0 } as never);
+    vi.mocked(generateText).mockResolvedValue(
+      'I would be glad to speak with you! Please share your contact number and a convenient time, and I will give you a call.'
+    );
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Is the owner open to a joint development instead?',
+      property,
+    });
+    expect(res.source).toBe('handover');
+    expect(res.text).toBe(HANDOVER_TEXT);
+  });
+
+  it('hands "what all are available" to a person without a model call', async () => {
+    vi.mocked(burnCredits).mockResolvedValue({ deficit: 0 } as never);
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'what all are available',
+      property,
+    });
+    expect(res).toMatchObject({
+      source: 'handover',
+      text: HANDOVER_TEXT,
+      intent: 'more_listings',
+    });
+    expect(burnCredits).not.toHaveBeenCalled();
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('[PRP-050] keeps the regret for "what all are available" about a sold listing', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'what all are available',
+      property: { ...property, status: 'Sold' },
+      briefOnFile: true,
+    });
+    expect(res.source).toBe('listing');
+    expect(res.intent).toBe('availability');
+    expect(res.text).toMatch(/already been sold/);
+    expect(res.text).toMatch(/requirement on file/);
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('claims an attribute-only message from a lead already sent a listing', () => {
+    expect(
+      repliesRatherThanOpens('Location road width', {
+        listingAlreadySent: true,
+      })
+    ).toBe(true);
+    expect(
+      repliesRatherThanOpens('Location road width', {
+        listingAlreadySent: false,
+      })
+    ).toBe(false);
+  });
+});

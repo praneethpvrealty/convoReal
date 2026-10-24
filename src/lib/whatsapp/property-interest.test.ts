@@ -97,6 +97,64 @@ describe('resolvePropertyReference', () => {
     ).toEqual({ kind: 'unresolved' });
   });
 
+  it('[INB-038] tells two plots in one block apart by the sides the buyer names', () => {
+    const block = (overrides: Partial<PropertyInterestCandidate>) =>
+      property({
+        sublocality: 'Jayanagar 7th Block',
+        location: 'Jayanagar 7th Block, Bangalore',
+        land_area_unit: 'Sq.Ft.',
+        ...overrides,
+      });
+    const result = resolvePropertyReference(
+      'Also please send me the details of the plot at Jayanagar 7th block 50x70',
+      [
+        block({
+          id: 'jaya-50x70',
+          property_code: 'PROP-1765',
+          title: '50x70 Commercial Plot for Sale in Jayanagar 7th Block',
+          land_area: 3500,
+        }),
+        block({
+          id: 'jaya-2400',
+          property_code: 'PROP-1766',
+          title: 'Commercial Plot in Jayanagar 7th Block',
+          land_area: 2400,
+        }),
+      ]
+    );
+    expect(result).toMatchObject({
+      kind: 'match',
+      matchedBy: 'natural',
+      property: { id: 'jaya-50x70' },
+    });
+    expect(
+      resolvePropertyReference('I saw the 30x40 plot in Jayanagar 7th block', [
+        block({
+          id: 'jaya-no-area',
+          property_code: 'PROP-1767',
+          title: 'Plot in Jayanagar 7th Block',
+          land_area: undefined,
+          area_sqft: undefined,
+        }),
+      ])
+    ).toMatchObject({ kind: 'match', property: { id: 'jaya-no-area' } });
+    expect(
+      resolvePropertyReference(
+        'I saw the 30x40 house in Jayanagar 7th block, interested',
+        [
+          block({
+            id: 'jaya-built-up',
+            property_code: 'PROP-1768',
+            title: 'House in Jayanagar 7th Block',
+            land_area: undefined,
+            area_sqft: 2400,
+            area_unit: 'Sq.Ft.',
+          }),
+        ]
+      )
+    ).toMatchObject({ kind: 'match', property: { id: 'jaya-built-up' } });
+  });
+
   it('keeps property-code references authoritative', () => {
     expect(
       resolvePropertyReference('Please share PROP-1090 details', [property()])
