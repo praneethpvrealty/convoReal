@@ -9,6 +9,8 @@ let contactRow: Record<string, unknown> | null;
 let writeRole: () => Promise<unknown>;
 let writeRows: unknown[];
 let feedbackRow: Record<string, unknown> | null;
+let propertyRow: Record<string, unknown>;
+let insertError: unknown;
 
 function table(name: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,11 +34,15 @@ function table(name: string) {
           ? contactRow
           : name === 'listing_feedback'
             ? feedbackRow
-            : { id: PROPERTY },
+            : propertyRow,
       error: null,
     });
   query.then = (resolve: (v: unknown) => unknown) =>
-    Promise.resolve({ data: writeRows, error: null }).then(resolve);
+    Promise.resolve(
+      calls.at(-1)?.op === 'insert'
+        ? { data: null, error: insertError }
+        : { data: writeRows, error: null }
+    ).then(resolve);
   return query;
 }
 
@@ -70,6 +76,8 @@ beforeEach(() => {
   writeRole = async () => ctx;
   writeRows = [{ id: 'row-1' }];
   feedbackRow = null;
+  propertyRow = { id: PROPERTY };
+  insertError = null;
 });
 
 describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
@@ -144,6 +152,63 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
     expect(profiles[0].property_types).toEqual(['Agricultural Land']);
     expect(profiles[1].property_types).toEqual(['Commercial Shop']);
     expect(calls.some((c) => c.op === 'upsert')).toBe(false);
+  });
+
+  it('rewrites the typed brief that put the contact on this listing, not another', async () => {
+    propertyRow = {
+      id: PROPERTY,
+      title: 'Commercial Building',
+      type: 'Commercial Building',
+      listing_type: 'Sale',
+      price: 150_000_000,
+      city: 'Bengaluru',
+    };
+    contactRow = {
+      id: CONTACT,
+      classification: 'Buyer',
+      requirement_profiles: [
+        {
+          id: 'office',
+          raw_text: 'Commercial office space in Bengaluru',
+          active: true,
+          property_types: ['Commercial Office Space'],
+          property_categories: [],
+        },
+        {
+          id: 'farm',
+          raw_text: 'Farmland near Bengaluru',
+          active: true,
+          property_types: ['Agricultural Land'],
+          property_categories: [],
+        },
+      ],
+    };
+    await post({
+      action: 'reject',
+      contactId: CONTACT,
+      reason: 'type',
+      propertyTypes: ['pt_plot'],
+    });
+    const update = calls.find((c) => c.op === 'update');
+    const profiles = (update?.args[0] as { requirement_profiles: unknown[] })
+      .requirement_profiles as { id: string; property_types: string[] }[];
+    expect(profiles.find((p) => p.id === 'office')?.property_types).toEqual([
+      'Residential Land/ Plot',
+    ]);
+    expect(profiles.find((p) => p.id === 'farm')?.property_types).toEqual([
+      'Agricultural Land',
+    ]);
+  });
+
+  it('reports the type as not saved when the note that keeps it fails', async () => {
+    insertError = { message: 'boom' };
+    const res = await post({
+      action: 'set_type',
+      contactId: CONTACT,
+      propertyTypes: ['pt_plot'],
+    });
+    expect(res.status).toBe(500);
+    expect((await res.json()).code).toBe('TYPE_NOT_SAVED');
   });
 
   it('marks without touching the contact when no type is named', async () => {

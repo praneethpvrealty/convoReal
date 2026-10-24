@@ -12,7 +12,12 @@ import {
   propertyTypeOption,
   propertyTypePatch,
 } from '@/lib/match-feedback';
-import type { ContactRequirementProfile } from '@/types';
+import { getMatchingContacts } from '@/lib/matching';
+import {
+  activeRequirementProfiles,
+  contactForRequirementProfile,
+} from '@/lib/requirements/profiles';
+import type { Contact, ContactRequirementProfile, Property } from '@/types';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,13 +35,13 @@ async function findListingAndContact(
   const [{ data: property }, { data: contact }] = await Promise.all([
     db
       .from('properties')
-      .select('id')
+      .select('*')
       .eq('id', propertyId)
       .eq('account_id', accountId)
       .maybeSingle(),
     db
       .from('contacts')
-      .select('id, requirement_profiles')
+      .select('*')
       .eq('id', contactId)
       .eq('account_id', accountId)
       .maybeSingle(),
@@ -46,16 +51,21 @@ async function findListingAndContact(
 
 /**
  * Writes a staff type answer to the contact: the columns the matcher
- * reads, every active brief that names no type of its own, and a note
- * in the agent's name. The note is what keeps the answer: a later
- * re-extraction rebuilds pref_* from requirements and notes, and would
- * otherwise wipe a type that lived in pref_* alone.
+ * reads, and the briefs it reads in their place. A brief that names no
+ * type takes the answer; so does a brief that put the contact on this
+ * listing, because the matcher reads a contact's first brief instead of
+ * their own columns and would otherwise keep offering what the agent
+ * just ruled out. A brief for something else is left alone: a buyer can
+ * want a plot and, separately, a warehouse. The note in the agent's name
+ * is what keeps the answer through a later re-extraction, which rebuilds
+ * pref_* from requirements and notes, so a failed note fails the save.
  */
 async function applyPropertyType(
   db: SupabaseClient,
   accountId: string,
   userId: string,
-  contact: { id: string; requirement_profiles: unknown },
+  contact: Contact,
+  property: Partial<Property>,
   optionIds: string[]
 ): Promise<boolean> {
   const patch = propertyTypePatch(optionIds);
@@ -65,10 +75,21 @@ async function applyPropertyType(
   const profiles = Array.isArray(contact.requirement_profiles)
     ? (contact.requirement_profiles as ContactRequirementProfile[])
     : [];
+  const matchedHere = new Set(
+    activeRequirementProfiles(contact)
+      .filter(
+        (profile) =>
+          getMatchingContacts(property, [
+            contactForRequirementProfile(contact, profile),
+          ]).length > 0
+      )
+      .map((profile) => profile.id)
+  );
   const filledProfiles = profiles.map((profile) =>
     profile?.active !== false &&
-    !(profile.property_types ?? []).length &&
-    !(profile.property_categories ?? []).length
+    (matchedHere.has(profile.id) ||
+      (!(profile.property_types ?? []).length &&
+        !(profile.property_categories ?? []).length))
       ? {
           ...profile,
           property_types: patch.pref_property_types,
@@ -99,6 +120,7 @@ async function applyPropertyType(
   });
   if (noteError) {
     console.error('[match-feedback] type note failed:', noteError);
+    return false;
   }
   return true;
 }
@@ -249,7 +271,8 @@ export async function POST(
           ctx.supabase,
           ctx.accountId,
           ctx.userId,
-          contact,
+          contact as Contact,
+          property as Partial<Property>,
           optionIds
         )
       : false;
