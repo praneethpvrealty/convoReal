@@ -6,6 +6,7 @@ import {
   checkConclusion,
   confinedRealPath,
   extractHandbookSections,
+  isCompletedReviewRun,
   markersIn,
   MODELS,
   normalizeKind,
@@ -13,6 +14,7 @@ import {
   parseDiff,
   planComments,
   planModel,
+  rereviewFiles,
   reviewBody,
   reviewFooter,
   selectFiles,
@@ -23,6 +25,8 @@ import {
 
 const MODEL_OVERRIDE =
   process.env.REVIEW_MODEL || process.env.SECURITY_REVIEW_MODEL || 'auto';
+const REVIEW_SCOPE = process.env.REVIEW_SCOPE || 'auto';
+const MAX_COMMITS_SEARCHED = 30;
 const MAX_TURNS = Number(process.env.REVIEW_MAX_TURNS || 40);
 const MAX_DIFF_CHARS = Number(process.env.REVIEW_MAX_DIFF_CHARS || 160_000);
 const MAX_TOOL_RESULT_CHARS = 24_000;
@@ -88,6 +92,34 @@ async function existingFindingKeys() {
   );
   for (const r of reviews) for (const k of markersIn(r.body)) keys.add(k);
   return keys;
+}
+
+async function lastReviewedHead(headSha) {
+  const shas = [];
+  for (let page = 1; page <= 3; page += 1) {
+    const commits = await github(
+      'GET',
+      `/repos/${repo}/pulls/${prNumber}/commits?per_page=100&page=${page}`
+    );
+    for (const c of commits) shas.push(c.sha);
+    if (commits.length < 100) break;
+  }
+  const candidates = shas
+    .reverse()
+    .filter((sha) => sha !== headSha)
+    .slice(0, MAX_COMMITS_SEARCHED);
+  for (const sha of candidates) {
+    const checks = {};
+    for (const [kind, name] of Object.entries(CHECK_NAMES)) {
+      const { check_runs: runs } = await github(
+        'GET',
+        `/repos/${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&per_page=10`
+      );
+      checks[kind] = runs.find(isCompletedReviewRun);
+    }
+    if (checks.security && checks.code) return { sha, checks };
+  }
+  return null;
 }
 
 const TOOLS = [
@@ -313,23 +345,50 @@ async function main() {
     return;
   }
 
+  const previous =
+    REVIEW_SCOPE === 'full' ? null : await lastReviewedHead(headSha);
+  let scope = files;
+  if (previous) {
+    scope = rereviewFiles(
+      files,
+      selectFiles(git('diff', '--name-status', `${previous.sha}..${headSha}`))
+    );
+    if (scope.length === 0) {
+      console.log(
+        `No reviewed file changed since ${previous.sha}; carrying its checks forward.`
+      );
+      for (const kind of Object.keys(CHECK_NAMES)) {
+        const prior = previous.checks[kind];
+        await postCheck(
+          CHECK_NAMES[kind],
+          headSha,
+          prior.conclusion,
+          prior.output?.title ?? 'Nothing changed since the last review',
+          `No reviewed source file changed between ${previous.sha.slice(0, 7)} and this head, so the review of ${previous.sha.slice(0, 7)} stands.\n\n${prior.output?.summary ?? ''}`
+        );
+      }
+      return;
+    }
+  }
+
   const rawDiff = git(
     'diff',
     '--unified=4',
     `${mergeBase}..${headSha}`,
     '--',
-    ...files
+    ...scope
   );
   const diffIndex = parseDiff(rawDiff);
   const { text: diff, truncated } = truncateDiff(rawDiff, MAX_DIFF_CHARS);
   const plan = planModel({
-    files,
+    files: scope,
     diffChars: rawDiff.length,
     diffText: rawDiff,
     override: MODEL_OVERRIDE,
+    rereviewOf: previous?.sha,
   });
   console.log(
-    `Reviewing ${files.length} files (${rawDiff.length} diff chars) on ${plan.model} [${plan.tier}: ${plan.reasons.join(', ')}]`
+    `Reviewing ${scope.length} of ${files.length} files (${rawDiff.length} diff chars) on ${plan.model} [${plan.tier}: ${plan.reasons.join(', ')}]`
   );
 
   let handbook = '';
@@ -347,10 +406,14 @@ async function main() {
       cache_control: { type: 'ephemeral' },
     },
   ];
+  const rest = files.filter((f) => !scope.includes(f));
+  const intro = previous
+    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}`
+    : '';
   const messages = [
     {
       role: 'user',
-      content: `Pull request #${prNumber}: ${title}\nRepository: ${repo}\nBase: ${baseSha}\nHead: ${headSha}\n\nChanged files under review (${files.length}):\n${files.map((f) => `- ${f}`).join('\n')}\n\nUnified diff${truncated ? ' (truncated; read the rest with read_file)' : ''}:\n\n${diff}`,
+      content: `Pull request #${prNumber}: ${title}\nRepository: ${repo}\nBase: ${baseSha}\nHead: ${headSha}\n${intro ? `\n${intro}\n` : ''}\nChanged files under review (${scope.length}):\n${scope.map((f) => `- ${f}`).join('\n')}${rest.length ? `\n\nOther files in the pull request (${rest.length}):\n${rest.map((f) => `- ${f}`).join('\n')}` : ''}\n\nUnified diff${truncated ? ' (truncated; read the rest with read_file)' : ''}:\n\n${diff}`,
     },
   ];
 

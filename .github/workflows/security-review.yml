@@ -90,6 +90,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           REVIEW_ROOT: head
           REVIEW_MODEL: ${{ inputs.model || 'auto' }}
+          REVIEW_SCOPE: ${{ github.event_name == 'workflow_dispatch' && 'full' || 'auto' }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}

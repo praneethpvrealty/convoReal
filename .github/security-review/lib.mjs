@@ -363,7 +363,26 @@ const LARGE_FILE_COUNT = 15;
 const SMALL_DIFF_CHARS = 3_000;
 const SMALL_FILE_COUNT = 3;
 
-export function planModel({ files, diffChars, diffText = '', override }) {
+export function isCompletedReviewRun(run) {
+  return (
+    run?.status === 'completed' &&
+    ['success', 'neutral', 'failure', 'skipped'].includes(run.conclusion) &&
+    run.output?.title !== 'Review did not complete'
+  );
+}
+
+export function rereviewFiles(allFiles, changedSince) {
+  const changed = new Set(changedSince);
+  return allFiles.filter((f) => changed.has(f));
+}
+
+export function planModel({
+  files,
+  diffChars,
+  diffText = '',
+  override,
+  rereviewOf,
+}) {
   if (override && override !== 'auto') {
     const model = MODELS[override] ?? override;
     return {
@@ -377,6 +396,11 @@ export function planModel({ files, diffChars, diffText = '', override }) {
     SENSITIVE_PATTERNS.some((re) => re.test(f))
   );
   const reasons = [];
+  if (rereviewOf) {
+    reasons.push(
+      `re-review of ${files.length} file${files.length === 1 ? '' : 's'} changed since ${rereviewOf.slice(0, 7)}`
+    );
+  }
   if (sensitive.length) {
     reasons.push(
       `${sensitive.length} sensitive path${sensitive.length === 1 ? '' : 's'} (${sensitive.slice(0, 3).join(', ')}${sensitive.length > 3 ? ', …' : ''})`
@@ -388,8 +412,11 @@ export function planModel({ files, diffChars, diffText = '', override }) {
   if (diffChars > LARGE_DIFF_CHARS)
     reasons.push(`${Math.round(diffChars / 1000)}k-char diff`);
   if (files.length > LARGE_FILE_COUNT) reasons.push(`${files.length} files`);
-  if (reasons.length) {
+  if (reasons.length > (rereviewOf ? 1 : 0)) {
     return { tier: 'deep', model: MODELS.opus, effort: 'high', reasons };
+  }
+  if (rereviewOf) {
+    return { tier: 'rereview', model: MODELS.sonnet, effort: 'high', reasons };
   }
   const routes = files.filter((f) =>
     /(^|\/)(route|page|layout|proxy)\.tsx?$/.test(f)

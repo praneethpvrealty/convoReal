@@ -44,6 +44,18 @@ How a review runs:
      `workflow_dispatch` takes a `model` input (`auto`, `opus`, `sonnet`,
      `haiku`) that overrides the choice, as does `REVIEW_MODEL` in the
      environment.
+   - **rereview** → `claude-sonnet-5-5` when the pull request already carries
+     a completed review. The script walks the PR's commits from the newest
+     backwards (at most 30) for one with completed `Claude Code Review` and
+     `Claude Security Review` runs, then reviews only the PR's files that
+     changed between that commit and the head. The diff it shows is those
+     files' full pull-request diff, and the other files are listed so the
+     model can read them. The deep triggers still apply to that delta: a fix
+     that touches a migration or auth code goes to Opus. When no reviewed
+     file changed (a merge of the base branch, a test-only push), the earlier
+     checks' conclusions are reposted on the new head and no model is called.
+     `REVIEW_SCOPE=full` forces a full review; the workflow sets it for every
+     `workflow_dispatch` run.
 3. Claude reads the diff with the handbook's engineering and security
    sections from the base commit's `AGENTS.md`, then reads files and
    searches the head checkout with two read-only tools to confirm who calls
@@ -84,8 +96,8 @@ Secrets and limits:
   or a webhook check is exactly the change the review exists to catch.
   Findings on a deleted file go in the review body, since no line of it
   remains to comment on.
-- `REVIEW_MODEL` (default `auto`), `REVIEW_MAX_TURNS` (default 40) and
-  `REVIEW_MAX_DIFF_CHARS` (default 160000) bound a run. Tool output is
+- `REVIEW_MODEL` (default `auto`), `REVIEW_SCOPE` (default `auto`),
+  `REVIEW_MAX_TURNS` (default 40) and `REVIEW_MAX_DIFF_CHARS` (default 160000) bound a run. Tool output is
   clipped, file reads are capped at 400 lines, and the system prompt and
   the growing conversation are cached across turns, so each tool round
   pays cache-read prices for everything it has already sent. Opus and Sonnet runs enable the server-side refusal

@@ -14,12 +14,14 @@ import {
   confinedRealPath,
   estimateCost,
   planModel,
+  rereviewFiles,
   reviewBody,
   reviewFooter,
   splitByKind,
   extractHandbookSections,
   findingKey,
   formatFinding,
+  isCompletedReviewRun,
   isReviewed,
   markersIn,
   parseDiff,
@@ -330,6 +332,97 @@ test('planModel picks the tier from sensitive paths and diff size', () => {
     planModel({ files: ['src/a.ts'], diffChars: 10, override: 'auto' }).tier,
     'light'
   );
+});
+
+test('a re-review runs on Sonnet unless the changed files hit a deep trigger', () => {
+  const sha = 'abc1234def5678';
+  const routine = planModel({
+    files: ['src/lib/showcase/property-qa.ts', 'src/lib/ai/lead-question.ts'],
+    diffChars: 30_000,
+    rereviewOf: sha,
+  });
+  assert.equal(routine.tier, 'rereview');
+  assert.equal(routine.model, 'claude-sonnet-5-5');
+  assert.deepEqual(routine.reasons, [
+    're-review of 2 files changed since abc1234',
+  ]);
+
+  const tiny = planModel({
+    files: ['src/lib/showcase/property-qa.ts'],
+    diffChars: 500,
+    rereviewOf: sha,
+  });
+  assert.equal(tiny.tier, 'rereview');
+
+  const sensitive = planModel({
+    files: ['supabase/migrations/20261024000000_x.sql'],
+    diffChars: 500,
+    rereviewOf: sha,
+  });
+  assert.equal(sensitive.tier, 'deep');
+  assert.equal(sensitive.model, 'claude-opus-5-5');
+  assert.match(sensitive.reasons[0], /re-review of 1 file/);
+  assert.match(sensitive.reasons[1], /sensitive path/);
+
+  const policy = planModel({
+    files: ['src/lib/deals/x.ts'],
+    diffChars: 500,
+    diffText: '+  SECURITY DEFINER\n',
+    rereviewOf: sha,
+  });
+  assert.equal(policy.tier, 'deep');
+
+  const forced = planModel({
+    files: ['src/lib/deals/x.ts'],
+    diffChars: 500,
+    override: 'haiku',
+    rereviewOf: sha,
+  });
+  assert.equal(forced.tier, 'forced');
+  assert.equal(forced.model, 'claude-haiku-5-5');
+});
+
+test('rereviewFiles keeps the pull request files that changed since the last review', () => {
+  assert.deepEqual(
+    rereviewFiles(
+      ['src/a.ts', 'src/b.ts', 'src/c.ts'],
+      ['src/c.ts', 'src/a.ts', 'src/unrelated.ts']
+    ),
+    ['src/a.ts', 'src/c.ts']
+  );
+  assert.deepEqual(rereviewFiles(['src/a.ts'], []), []);
+});
+
+test('isCompletedReviewRun accepts a finished review and rejects an aborted one', () => {
+  assert.equal(
+    isCompletedReviewRun({
+      status: 'completed',
+      conclusion: 'neutral',
+      output: { title: '2 code findings' },
+    }),
+    true
+  );
+  assert.equal(
+    isCompletedReviewRun({
+      status: 'completed',
+      conclusion: 'skipped',
+      output: { title: 'Nothing to review' },
+    }),
+    true
+  );
+  assert.equal(
+    isCompletedReviewRun({
+      status: 'completed',
+      conclusion: 'failure',
+      output: { title: 'Review did not complete' },
+    }),
+    false
+  );
+  assert.equal(
+    isCompletedReviewRun({ status: 'in_progress', conclusion: null }),
+    false
+  );
+  assert.equal(isCompletedReviewRun(undefined), false);
 });
 
 test('estimateCost prices usage per model and reviewFooter reports it', () => {
