@@ -747,6 +747,10 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     );
     expect(screen).toContain('journeyLeadInterestCountLabel(group.interested)');
     expect(screen).toContain('interested: Number(row.interested_count ?? 0)');
+    expect(screen).toContain(
+      'interestedHidden: Number(row.interested_hidden_count ?? 0)'
+    );
+    expect(screen).toContain('if (group.interestedHidden > 0) {');
     expect(screen).toContain('lead_interest, lead_interest_at, created_at');
     expect(screen).toContain(
       'A lead who said Interested or Shortlisted is listed first.'
@@ -767,6 +771,12 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
       'journeyLeadInterestCountLabel(group.interested)'
     );
     expect(overview).toContain('interested: Number(row.interested_count ?? 0)');
+    expect(overview).toContain(
+      'interestedHidden: Number(row.interested_hidden_count ?? 0)'
+    );
+    expect(overview).toContain(
+      'if (group.interestedHidden > 0) setTrayRequest((n) => n + 1);'
+    );
   });
 
   it('[JRN-005] reviews captured shares in a tray with show, show all and remove', () => {

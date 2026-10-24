@@ -124,6 +124,7 @@ interface JourneyGroup {
   dropped: number;
   captured: number;
   interested: number;
+  interestedHidden: number;
   furthestStageIdx: number;
   lostStageId: string | null;
   lastUpdated: string;
@@ -478,6 +479,7 @@ export function JourneyOverview({
           dropped: Number(row.dropped_count),
           captured: Number(row.captured_count),
           interested: Number(row.interested_count ?? 0),
+          interestedHidden: Number(row.interested_hidden_count ?? 0),
           furthestStageIdx: stages.findIndex(
             (stage) => stage.id === row.furthest_stage_id
           ),
@@ -1622,6 +1624,7 @@ function SortableJourneyRow({
   compartment: JourneyCompartment | null;
   onCompartment: (compartment: JourneyCompartment) => void;
 }) {
+  const [trayRequest, setTrayRequest] = useState(0);
   const {
     attributes,
     listeners,
@@ -1718,6 +1721,7 @@ function SortableJourneyRow({
             type="button"
             onClick={() => {
               if (!open) onToggle();
+              if (group.interestedHidden > 0) setTrayRequest((n) => n + 1);
             }}
             title={
               mode === 'buyer'
@@ -1913,6 +1917,7 @@ function SortableJourneyRow({
             onItemsChanged={onItemsChanged}
             spotlightItemId={spotlightItemId}
             onItemMoved={onItemMoved}
+            openTrayRequest={trayRequest}
             focusStageId={showStage ? null : (bucketStage?.id ?? null)}
             focusDropped={
               !showStage &&

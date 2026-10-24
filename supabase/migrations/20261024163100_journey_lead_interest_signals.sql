@@ -40,7 +40,10 @@
 --    counts it) is stamped. Interested outranks Shortlisted.
 --
 -- 4. journey_overview_groups adds interested_count per journey so both
---    surfaces can show the chip on the overview row.
+--    surfaces can show the chip on the overview row, and
+--    interested_hidden_count, how many of those still sit in the
+--    Captured tray, so the chip opens the tray when that is where the
+--    lead is.
 --
 -- The Helper's side is copilot_property_interest_v2 in
 -- 20261024163200_copilot_property_interest_said_interested.sql, a new
@@ -202,6 +205,9 @@ BEGIN
         ) AS dropped_count,
         count(*) FILTER (WHERE items.hidden) AS captured_count,
         count(*) FILTER (WHERE items.lead_interest IS NOT NULL) AS interested_count,
+        count(*) FILTER (
+          WHERE items.hidden AND items.lead_interest IS NOT NULL
+        ) AS interested_hidden_count,
         (array_agg(stages.id ORDER BY stages.position DESC) FILTER (
           WHERE NOT items.hidden AND items.status = 'active'
         ))[1] AS live_stage_id,
@@ -223,6 +229,7 @@ BEGIN
           'dropped_count', grouped.dropped_count,
           'captured_count', grouped.captured_count,
           'interested_count', grouped.interested_count,
+          'interested_hidden_count', grouped.interested_hidden_count,
           'furthest_stage_id', COALESCE(
             grouped.live_stage_id,
             CASE
@@ -288,4 +295,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.journey_overview_groups(UUID, TEXT) IS
-  'Account-scoped buyer/property Journey summaries. A journey sits at the furthest stage of its live items, and also at the account''s lost stage (lost_stage_id) while any item is dropped; with nothing live it sits at the lost stage alone. interested_count is how many of the journey''s items carry the lead''s own yes (lead_interest). Contact identity fields preserve the caller-visible contacts_select team and assignment scope.';
+  'Account-scoped buyer/property Journey summaries. A journey sits at the furthest stage of its live items, and also at the account''s lost stage (lost_stage_id) while any item is dropped; with nothing live it sits at the lost stage alone. interested_count is how many of the journey''s items carry the lead''s own yes (lead_interest), interested_hidden_count how many of those are still captured (hidden). Contact identity fields preserve the caller-visible contacts_select team and assignment scope.';

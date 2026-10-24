@@ -177,6 +177,12 @@ describe('journey lead interest signals', () => {
       'count(*) FILTER (WHERE items.lead_interest IS NOT NULL) AS interested_count,'
     );
     expect(signals).toContain("'interested_count', grouped.interested_count,");
+    expect(signals).toMatch(
+      /count\(\*\) FILTER \(\s+WHERE items\.hidden AND items\.lead_interest IS NOT NULL\s+\) AS interested_hidden_count,/
+    );
+    expect(signals).toContain(
+      "'interested_hidden_count', grouped.interested_hidden_count,"
+    );
     expect(signals).toContain("'captured_count', grouped.captured_count,");
     expect(signals).toContain('OR NOT is_account_member(p_account_id) THEN');
   });

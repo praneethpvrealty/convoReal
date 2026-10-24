@@ -93,6 +93,9 @@ export interface JourneySectionProps {
   onFullscreen?: () => void;
   spotlightItemId?: string | null;
   onItemMoved?: (itemId: string) => void;
+  /** Bumped by the overview's "N interested" chip when a stamped item
+   *  is still captured: each change opens the Captured tray. */
+  openTrayRequest?: number;
 }
 
 export function JourneySection({
@@ -110,6 +113,7 @@ export function JourneySection({
   onFullscreen,
   spotlightItemId = null,
   onItemMoved,
+  openTrayRequest = 0,
 }: JourneySectionProps) {
   const supabase = createClient();
   const { user, accountId } = useAuth();
@@ -126,6 +130,9 @@ export function JourneySection({
   const [selectedItem, setSelectedItem] = useState<JourneyItem | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [trayOpen, setTrayOpen] = useState(false);
+  useEffect(() => {
+    if (openTrayRequest > 0) setTrayOpen(true);
+  }, [openTrayRequest]);
   const [importableCount, setImportableCount] = useState(0);
   const [scanningChat, setScanningChat] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);

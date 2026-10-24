@@ -106,6 +106,7 @@ interface JourneyGroup {
   active: number;
   captured: number;
   interested: number;
+  interestedHidden: number;
   furthestStageIdx: number;
   lostStageId: string | null;
   lastUpdated: string;
@@ -412,6 +413,7 @@ export function JourneyBody() {
           active: Number(row.active_count),
           captured: Number(row.captured_count),
           interested: Number(row.interested_count ?? 0),
+          interestedHidden: Number(row.interested_hidden_count ?? 0),
           furthestStageIdx: stageIndexById.get(row.furthest_stage_id) ?? -1,
           lostStageId: row.lost_stage_id ?? null,
           lastUpdated: row.last_updated,
@@ -2475,6 +2477,10 @@ function DraggableJourneyCard({
               {journeyLeadInterestCountLabel(group.interested) ? (
                 <Pressable
                   onPress={() => {
+                    if (group.interestedHidden > 0) {
+                      onCaptured();
+                      return;
+                    }
                     if (!expanded) onToggle();
                   }}
                   hitSlop={6}

@@ -934,6 +934,7 @@ export interface JourneyOverviewGroup {
   dropped_count: number;
   captured_count: number;
   interested_count?: number;
+  interested_hidden_count?: number;
   furthest_stage_id: string;
   lost_stage_id?: string | null;
   last_updated: string;
