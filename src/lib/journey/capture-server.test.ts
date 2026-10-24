@@ -31,6 +31,7 @@ function makeDb() {
       const builder: Record<string, (...args: unknown[]) => unknown> = {
         select: () => builder,
         eq: () => builder,
+        in: () => builder,
         not: () => builder,
         order: () => builder,
         insert: (row: unknown) => {
@@ -173,6 +174,83 @@ describe('[JRN-009] captureJourneyItems', () => {
     expect(writes.map((w) => w.table)).toEqual(['journey_items']);
   });
 
+  it("[JRN-009] [JRN-026] a visible share shows a pair only a lead's yes captured, and nothing else", async () => {
+    queues.journey_stages = [{ data: STAGES, error: null }];
+    queues.journey_items = [
+      { data: [], error: null },
+      {
+        data: [
+          {
+            id: 'item-portal',
+            contact_id: 'c-1',
+            property_id: 'p-1',
+            stage_id: 'stage-new',
+          },
+          {
+            id: 'item-share',
+            contact_id: 'c-1',
+            property_id: 'p-2',
+            stage_id: 'stage-new',
+          },
+          {
+            id: 'item-other',
+            contact_id: 'c-1',
+            property_id: 'p-9',
+            stage_id: 'stage-new',
+          },
+        ],
+        error: null,
+      },
+      { data: null, error: null },
+    ];
+    queues.journey_events = [
+      { data: [{ item_id: 'item-portal' }], error: null },
+      { data: null, error: null },
+    ];
+
+    const result = await captureJourneyItems(makeDb(), {
+      accountId: 'acc-1',
+      userId: 'user-1',
+      pairs: [
+        { contactId: 'c-1', propertyId: 'p-1' },
+        { contactId: 'c-1', propertyId: 'p-2' },
+      ],
+      source: 'whatsapp_share',
+      hidden: false,
+    });
+
+    expect(result).toEqual({ created: 0, error: null });
+    expect(writes.slice(1)).toEqual([
+      { table: 'journey_items', op: 'update', row: { hidden: false } },
+      {
+        table: 'journey_events',
+        op: 'insert',
+        row: [
+          expect.objectContaining({
+            item_id: 'item-portal',
+            event_type: 'unhidden',
+            reason: 'Shown by a visible capture',
+          }),
+        ],
+      },
+    ]);
+  });
+
+  it('[JRN-026] a hidden share capture never shows anything', async () => {
+    queues.journey_stages = [{ data: STAGES, error: null }];
+    queues.journey_items = [{ data: [], error: null }];
+
+    await captureJourneyItems(makeDb(), {
+      accountId: 'acc-1',
+      userId: 'user-1',
+      pairs: [{ contactId: 'c-1', propertyId: 'p-1' }],
+      source: 'whatsapp_share',
+      hidden: true,
+    });
+
+    expect(writes.map((w) => w.op)).toEqual(['upsert']);
+  });
+
   it('reports a database failure instead of masquerading as nothing new', async () => {
     queues.journey_stages = [{ data: STAGES, error: null }];
     queues.journey_items = [{ data: null, error: { message: 'boom' } }];
@@ -230,19 +308,22 @@ describe('[JRN-009] ensureJourneyItem', () => {
   });
 
   it("[JRN-026] shows a pair that only a lead's yes captured hidden when a visible capture finds it", async () => {
+    const row = {
+      id: 'item-9',
+      contact_id: 'c-1',
+      property_id: 'p-1',
+      stage_id: 'stage-new',
+      status: 'active',
+      hidden: true,
+    };
     queues.journey_items = [
-      {
-        data: {
-          id: 'item-9',
-          stage_id: 'stage-new',
-          status: 'active',
-          hidden: true,
-        },
-        error: null,
-      },
+      { data: row, error: null },
+      { data: [row], error: null },
+      { data: null, error: null },
     ];
     queues.journey_events = [
-      { data: { reason: 'Captured from lead interest' }, error: null },
+      { data: [{ item_id: 'item-9' }], error: null },
+      { data: null, error: null },
     ];
 
     const item = await ensureJourneyItem(makeDb(), {
@@ -261,31 +342,34 @@ describe('[JRN-009] ensureJourneyItem', () => {
       {
         table: 'journey_events',
         op: 'insert',
-        row: expect.objectContaining({
-          item_id: 'item-9',
-          event_type: 'unhidden',
-          reason: 'Shown by a visible capture',
-          created_by: 'user-1',
-        }),
+        row: [
+          expect.objectContaining({
+            item_id: 'item-9',
+            event_type: 'unhidden',
+            from_stage_id: 'stage-new',
+            to_stage_id: 'stage-new',
+            reason: 'Shown by a visible capture',
+            created_by: 'user-1',
+          }),
+        ],
       },
     ]);
   });
 
   it('[JRN-026] leaves a hidden share capture hidden for a visible capture, as before', async () => {
+    const row = {
+      id: 'item-9',
+      contact_id: 'c-1',
+      property_id: 'p-1',
+      stage_id: 'stage-new',
+      status: 'active',
+      hidden: true,
+    };
     queues.journey_items = [
-      {
-        data: {
-          id: 'item-9',
-          stage_id: 'stage-new',
-          status: 'active',
-          hidden: true,
-        },
-        error: null,
-      },
+      { data: row, error: null },
+      { data: [row], error: null },
     ];
-    queues.journey_events = [
-      { data: { reason: 'Captured from WhatsApp share' }, error: null },
-    ];
+    queues.journey_events = [{ data: [], error: null }];
 
     const item = await ensureJourneyItem(makeDb(), {
       accountId: 'acc-1',

@@ -116,7 +116,10 @@ export async function ensureJourneyItem(
   const existing = await read();
   if (existing) {
     if (existing.hidden && !input.hidden) {
-      return showLeadInterestCapture(db, accountId, userId, existing);
+      const shown = await showLeadInterestCaptures(db, accountId, userId, [
+        { contactId, propertyId },
+      ]);
+      return shown.has(existing.id) ? { ...existing, hidden: false } : existing;
     }
     return existing;
   }
@@ -163,46 +166,84 @@ export async function ensureJourneyItem(
   return created;
 }
 
-async function showLeadInterestCapture(
+interface HiddenPairRow {
+  id: string;
+  contact_id: string;
+  property_id: string;
+  stage_id: string;
+}
+
+/**
+ * Shows the hidden pairs among `pairs` that only a lead's own yes
+ * captured (their 'added' event carries LEAD_INTEREST_CAPTURE_REASON),
+ * logging an 'unhidden' event for each. A visible capture would have
+ * created them visibly had the yes not come first; a pair a share or
+ * the agent tucked away stays hidden. Returns the ids shown.
+ */
+export async function showLeadInterestCaptures(
   db: SupabaseClient,
   accountId: string,
   userId: string | null,
-  item: JourneyItemRow
-): Promise<JourneyItemRow> {
+  pairs: Array<{ contactId: string; propertyId: string }>
+): Promise<Set<string>> {
+  const shown = new Set<string>();
+  if (pairs.length === 0) return shown;
+  const { data: hiddenRows } = await db
+    .from('journey_items')
+    .select('id, contact_id, property_id, stage_id')
+    .eq('account_id', accountId)
+    .eq('hidden', true)
+    .in('contact_id', [...new Set(pairs.map((p) => p.contactId))])
+    .in('property_id', [...new Set(pairs.map((p) => p.propertyId))]);
+  const wanted = new Set(pairs.map((p) => `${p.contactId}:${p.propertyId}`));
+  const candidates = ((hiddenRows ?? []) as HiddenPairRow[]).filter((row) =>
+    wanted.has(`${row.contact_id}:${row.property_id}`)
+  );
+  if (candidates.length === 0) return shown;
+
   const { data: added } = await db
     .from('journey_events')
-    .select('reason')
+    .select('item_id')
     .eq('account_id', accountId)
-    .eq('item_id', item.id)
     .eq('event_type', 'added')
-    .maybeSingle();
-  if (
-    (added as { reason?: string | null } | null)?.reason !==
-    LEAD_INTEREST_CAPTURE_REASON
-  ) {
-    return item;
-  }
+    .eq('reason', LEAD_INTEREST_CAPTURE_REASON)
+    .in(
+      'item_id',
+      candidates.map((row) => row.id)
+    );
+  const leadOnly = new Set(
+    ((added ?? []) as Array<{ item_id: string }>).map((row) => row.item_id)
+  );
+  const show = candidates.filter((row) => leadOnly.has(row.id));
+  if (show.length === 0) return shown;
+
   const { error } = await db
     .from('journey_items')
     .update({ hidden: false })
-    .eq('id', item.id)
-    .eq('account_id', accountId);
+    .eq('account_id', accountId)
+    .in(
+      'id',
+      show.map((row) => row.id)
+    );
   if (error) {
     console.error('[journey/capture] show failed:', error.message);
-    return item;
+    return shown;
   }
-  const { error: evError } = await db.from('journey_events').insert({
-    account_id: accountId,
-    item_id: item.id,
-    event_type: 'unhidden',
-    from_stage_id: item.stage_id,
-    to_stage_id: item.stage_id,
-    reason: 'Shown by a visible capture',
-    created_by: userId,
-  });
+  const { error: evError } = await db.from('journey_events').insert(
+    show.map((row) => ({
+      account_id: accountId,
+      item_id: row.id,
+      event_type: 'unhidden',
+      from_stage_id: row.stage_id,
+      to_stage_id: row.stage_id,
+      reason: 'Shown by a visible capture',
+      created_by: userId,
+    }))
+  );
   if (evError)
     console.error('[journey/capture] show event failed:', evError.message);
-  return { ...item, hidden: false };
+  for (const row of show) shown.add(row.id);
+  return shown;
 }
 
 export interface CaptureJourneyItemsInput {
@@ -278,5 +319,6 @@ export async function captureJourneyItems(
         evError.message
       );
   }
+  if (!hidden) await showLeadInterestCaptures(db, accountId, userId, unique);
   return { created: created.length, error: null };
 }

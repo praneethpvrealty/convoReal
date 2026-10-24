@@ -59,7 +59,11 @@ describe('journey lead interest signals', () => {
     expect(signals).toContain(
       "OR (ji.lead_interest = 'shortlisted' AND r.kind = 'interested')"
     );
-    expect(signals).not.toContain('SET hidden');
+    const backfill = signals.slice(
+      0,
+      signals.indexOf('DROP FUNCTION IF EXISTS')
+    );
+    expect(backfill).not.toContain('SET hidden');
   });
 
   it('[JRN-026] the backfill never counts as activity on the item', () => {
@@ -98,6 +102,21 @@ describe('journey lead interest signals', () => {
     expect(signals).toContain(
       'GRANT EXECUTE ON FUNCTION public.copilot_property_interest(UUID, UUID[], UUID[], TIMESTAMPTZ, TEXT, INT) TO authenticated;'
     );
+  });
+
+  it("[JRN-009] [JRN-026] a visible ledger row shows a pair only a lead's yes captured", () => {
+    expect(signals).toContain(
+      'CREATE OR REPLACE FUNCTION public.journey_capture_from_share()'
+    );
+    expect(signals).toContain("'whatsapp_share', NOT NEW.journey_visible");
+    expect(signals).toContain(
+      'ON CONFLICT (account_id, contact_id, property_id) DO NOTHING\n  RETURNING id INTO v_item;'
+    );
+    expect(signals).toMatch(
+      /ELSIF NEW\.journey_visible THEN\s+UPDATE journey_items ji\s+SET hidden = FALSE\s+WHERE ji\.account_id = NEW\.account_id\s+AND ji\.contact_id = NEW\.contact_id\s+AND ji\.property_id = NEW\.property_id\s+AND ji\.hidden\s+AND EXISTS \(\s+SELECT 1 FROM journey_events e\s+WHERE e\.item_id = ji\.id\s+AND e\.event_type = 'added'\s+AND e\.reason = 'Captured from lead interest'/
+    );
+    expect(signals).toContain("'unhidden', v_item_stage, v_item_stage,");
+    expect(signals).toContain("RAISE WARNING 'journey_capture_from_share:");
   });
 
   it('[JRN-026] the overview counts the yeses per journey for both surfaces', () => {

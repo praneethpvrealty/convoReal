@@ -26,6 +26,11 @@
 -- 3. journey_overview_groups adds interested_count per journey so both
 --    surfaces can show the chip on the overview row.
 --
+-- 4. journey_capture_from_share shows a pair that only a lead's yes
+--    captured hidden when a visible ledger row (an agent-composed
+--    share, JRN-009) arrives for it, as the TypeScript capture does; a
+--    pair a share or the agent tucked away still stays hidden.
+--
 -- The stamp records what the lead said before, not activity on the
 -- item: the overview's last_updated, the closing-nudge stall clock and
 -- the Helper's signal time all read updated_at, so the updated_at
@@ -446,3 +451,83 @@ $$;
 
 COMMENT ON FUNCTION public.journey_overview_groups(UUID, TEXT) IS
   'Account-scoped buyer/property Journey summaries. A journey sits at the furthest stage of its live items, and also at the account''s lost stage (lost_stage_id) while any item is dropped; with nothing live it sits at the lost stage alone. interested_count is how many of the journey''s items carry the lead''s own yes (lead_interest). Contact identity fields preserve the caller-visible contacts_select team and assignment scope.';
+
+CREATE OR REPLACE FUNCTION public.journey_capture_from_share()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_stage UUID;
+  v_item UUID;
+  v_item_stage UUID;
+BEGIN
+  SELECT id INTO v_stage
+  FROM journey_stages
+  WHERE account_id = NEW.account_id AND pipeline_stage_id IS NOT NULL
+  ORDER BY position, id
+  LIMIT 1;
+  IF v_stage IS NULL THEN
+    PERFORM journey_stages_for_account(NEW.account_id);
+    SELECT id INTO v_stage
+    FROM journey_stages
+    WHERE account_id = NEW.account_id AND pipeline_stage_id IS NOT NULL
+    ORDER BY position, id
+    LIMIT 1;
+  END IF;
+  IF v_stage IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO journey_items (
+    account_id, contact_id, property_id, stage_id, source, hidden, created_by
+  )
+  VALUES (
+    NEW.account_id, NEW.contact_id, NEW.property_id, v_stage,
+    'whatsapp_share', NOT NEW.journey_visible, NEW.created_by
+  )
+  ON CONFLICT (account_id, contact_id, property_id) DO NOTHING
+  RETURNING id INTO v_item;
+
+  IF v_item IS NOT NULL THEN
+    INSERT INTO journey_events (
+      account_id, item_id, event_type, to_stage_id, reason, created_by
+    )
+    VALUES (
+      NEW.account_id, v_item, 'added', v_stage,
+      'Captured from WhatsApp share', NEW.created_by
+    );
+  ELSIF NEW.journey_visible THEN
+    UPDATE journey_items ji
+    SET hidden = FALSE
+    WHERE ji.account_id = NEW.account_id
+      AND ji.contact_id = NEW.contact_id
+      AND ji.property_id = NEW.property_id
+      AND ji.hidden
+      AND EXISTS (
+        SELECT 1 FROM journey_events e
+        WHERE e.item_id = ji.id
+          AND e.event_type = 'added'
+          AND e.reason = 'Captured from lead interest'
+      )
+    RETURNING ji.id, ji.stage_id INTO v_item, v_item_stage;
+    IF v_item IS NOT NULL THEN
+      INSERT INTO journey_events (
+        account_id, item_id, event_type, from_stage_id, to_stage_id, reason, created_by
+      )
+      VALUES (
+        NEW.account_id, v_item, 'unhidden', v_item_stage, v_item_stage,
+        'Shown by a visible capture', NEW.created_by
+      );
+    END IF;
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'journey_capture_from_share: % (share %)', SQLERRM, NEW.id;
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION public.journey_capture_from_share() IS
+  'AFTER INSERT on property_shares: captures the contact×property pair on the journey at the account''s first mirrored stage, visible when the ledger row says journey_visible, otherwise hidden in the Captured tray. An existing pair is left untouched, except that a visible row shows a pair only a lead''s own yes had captured hidden (its added event reads Captured from lead interest).';
