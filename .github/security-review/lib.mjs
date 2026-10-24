@@ -235,6 +235,11 @@ export function checkConclusion(findings) {
   return worst === 'critical' || worst === 'high' ? 'failure' : 'neutral';
 }
 
+function summaryLine(f) {
+  const where = f.line > 0 ? `${f.path}:${f.line}` : f.path;
+  return `- ${SEVERITY_ICON[normalizeSeverity(f.severity)]} **${normalizeSeverity(f.severity)}** \`${where}\` — ${f.title}`;
+}
+
 export function summaryMarkdown({
   findings,
   kind = 'security',
@@ -243,6 +248,8 @@ export function summaryMarkdown({
   plan,
   usage,
   alreadyPosted,
+  carried = [],
+  carriedFrom,
 }) {
   const lines = [];
   if (findings.length === 0) {
@@ -252,12 +259,15 @@ export function summaryMarkdown({
       `${findings.length} finding${findings.length === 1 ? '' : 's'}:`,
       ''
     );
-    for (const f of findings) {
-      const where = f.line > 0 ? `${f.path}:${f.line}` : f.path;
-      lines.push(
-        `- ${SEVERITY_ICON[normalizeSeverity(f.severity)]} **${normalizeSeverity(f.severity)}** \`${where}\` — ${f.title}`
-      );
-    }
+    for (const f of findings) lines.push(summaryLine(f));
+  }
+  if (carried.length) {
+    lines.push(
+      '',
+      `${carried.length} finding${carried.length === 1 ? '' : 's'} carried over from ${String(carriedFrom ?? '').slice(0, 7)}, in files this push did not change:`,
+      ''
+    );
+    for (const f of carried) lines.push(summaryLine(f));
   }
   if (alreadyPosted?.length) {
     lines.push(
@@ -363,12 +373,46 @@ const LARGE_FILE_COUNT = 15;
 const SMALL_DIFF_CHARS = 3_000;
 const SMALL_FILE_COUNT = 3;
 
-export function isCompletedReviewRun(run) {
+export function checkExternalId(prNumber) {
+  return `pr-${prNumber}`;
+}
+
+export function isCompletedReviewRun(run, prNumber) {
   return (
     run?.status === 'completed' &&
     ['success', 'neutral', 'failure', 'skipped'].includes(run.conclusion) &&
-    run.output?.title !== 'Review did not complete'
+    run.output?.title !== 'Review did not complete' &&
+    run.external_id === checkExternalId(prNumber)
   );
+}
+
+const SUMMARY_FINDING_LINE =
+  /^- \S+ \*\*(critical|high|medium|low)\*\* `(.+?)(?::(\d+))?` — (.+)$/;
+
+export function parseSummaryFindings(summary) {
+  const out = [];
+  for (const line of String(summary ?? '').split('\n')) {
+    const m = SUMMARY_FINDING_LINE.exec(line);
+    if (m) {
+      out.push({
+        severity: m[1],
+        path: m[2],
+        line: Number(m[3] || 0),
+        title: m[4],
+      });
+    }
+  }
+  return out;
+}
+
+export function carriedFindings(summary, scope, fresh) {
+  const inScope = new Set(scope);
+  const seen = new Set(fresh.map(findingKey));
+  return parseSummaryFindings(summary).filter((f) => {
+    if (inScope.has(f.path) || seen.has(findingKey(f))) return false;
+    seen.add(findingKey(f));
+    return true;
+  });
 }
 
 export function rereviewFiles(allFiles, changedSince) {

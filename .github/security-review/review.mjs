@@ -3,7 +3,9 @@ import { closeSync, fstatSync, openSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import {
+  carriedFindings,
   checkConclusion,
+  checkExternalId,
   confinedRealPath,
   extractHandbookSections,
   isCompletedReviewRun,
@@ -115,7 +117,7 @@ async function lastReviewedHead(headSha) {
         'GET',
         `/repos/${repo}/commits/${sha}/check-runs?check_name=${encodeURIComponent(name)}&per_page=10`
       );
-      checks[kind] = runs.find(isCompletedReviewRun);
+      checks[kind] = runs.find((run) => isCompletedReviewRun(run, prNumber));
     }
     if (checks.security && checks.code) return { sha, checks };
   }
@@ -524,11 +526,15 @@ async function main() {
   const posted = splitByKind(alreadyPosted);
   for (const kind of Object.keys(CHECK_NAMES)) {
     const list = byKind[kind];
-    const conclusion = checkConclusion(list);
-    const titleText =
+    const carried = previous
+      ? carriedFindings(previous.checks[kind].output?.summary, scope, list)
+      : [];
+    const conclusion = checkConclusion([...list, ...carried]);
+    let titleText =
       list.length === 0
         ? `No ${kind} findings`
         : `${list.length} ${kind} finding${list.length === 1 ? '' : 's'}`;
+    if (carried.length) titleText += `, ${carried.length} carried over`;
     await postCheck(
       CHECK_NAMES[kind],
       headSha,
@@ -542,6 +548,8 @@ async function main() {
         plan,
         usage,
         alreadyPosted: posted[kind],
+        carried,
+        carriedFrom: previous?.sha,
       })
     );
     console.log(titleText);
@@ -559,6 +567,7 @@ async function postCheck(name, headSha, conclusion, title, summary) {
   await github('POST', `/repos/${repo}/check-runs`, {
     name,
     head_sha: headSha,
+    external_id: checkExternalId(prNumber),
     status: 'completed',
     conclusion,
     output: { title, summary: summary.slice(0, 60_000) },

@@ -10,7 +10,9 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
+  carriedFindings,
   checkConclusion,
+  checkExternalId,
   confinedRealPath,
   estimateCost,
   planModel,
@@ -18,6 +20,7 @@ import {
   reviewBody,
   reviewFooter,
   splitByKind,
+  summaryMarkdown,
   extractHandbookSections,
   findingKey,
   formatFinding,
@@ -25,6 +28,7 @@ import {
   isReviewed,
   markersIn,
   parseDiff,
+  parseSummaryFindings,
   planComments,
   safeRepoPath,
   selectFiles,
@@ -393,36 +397,136 @@ test('rereviewFiles keeps the pull request files that changed since the last rev
   assert.deepEqual(rereviewFiles(['src/a.ts'], []), []);
 });
 
-test('isCompletedReviewRun accepts a finished review and rejects an aborted one', () => {
+test('isCompletedReviewRun accepts only a finished review of this pull request', () => {
+  const id = checkExternalId(42);
+  assert.equal(id, 'pr-42');
   assert.equal(
-    isCompletedReviewRun({
-      status: 'completed',
-      conclusion: 'neutral',
-      output: { title: '2 code findings' },
-    }),
+    isCompletedReviewRun(
+      {
+        status: 'completed',
+        conclusion: 'neutral',
+        external_id: id,
+        output: { title: '2 code findings' },
+      },
+      42
+    ),
     true
   );
   assert.equal(
-    isCompletedReviewRun({
-      status: 'completed',
-      conclusion: 'skipped',
-      output: { title: 'Nothing to review' },
-    }),
+    isCompletedReviewRun(
+      {
+        status: 'completed',
+        conclusion: 'skipped',
+        external_id: id,
+        output: { title: 'Nothing to review' },
+      },
+      42
+    ),
     true
   );
   assert.equal(
-    isCompletedReviewRun({
-      status: 'completed',
-      conclusion: 'failure',
-      output: { title: 'Review did not complete' },
-    }),
+    isCompletedReviewRun(
+      {
+        status: 'completed',
+        conclusion: 'failure',
+        external_id: id,
+        output: { title: 'Review did not complete' },
+      },
+      42
+    ),
     false
   );
   assert.equal(
-    isCompletedReviewRun({ status: 'in_progress', conclusion: null }),
+    isCompletedReviewRun(
+      {
+        status: 'completed',
+        conclusion: 'success',
+        external_id: 'pr-41',
+        output: { title: 'No code findings' },
+      },
+      42
+    ),
     false
   );
-  assert.equal(isCompletedReviewRun(undefined), false);
+  assert.equal(
+    isCompletedReviewRun(
+      {
+        status: 'completed',
+        conclusion: 'success',
+        output: { title: 'No code findings' },
+      },
+      42
+    ),
+    false
+  );
+  assert.equal(
+    isCompletedReviewRun({ status: 'in_progress', conclusion: null }, 42),
+    false
+  );
+  assert.equal(isCompletedReviewRun(undefined, 42), false);
+});
+
+test('a re-review carries findings in untouched files into the conclusion', () => {
+  const prior = summaryMarkdown({
+    findings: [
+      {
+        path: 'src/a.ts',
+        line: 12,
+        severity: 'high',
+        title: 'Check the account',
+      },
+      { path: 'src/b.ts', line: 0, severity: 'low', title: 'Log the failure' },
+      {
+        path: 'src/c.ts',
+        line: 3,
+        severity: 'medium',
+        title: 'Await the send',
+      },
+    ],
+    kind: 'code',
+    summary: 'Reviewed three files.',
+    model: 'claude-opus-5-5',
+    plan: { tier: 'deep', reasons: ['x'] },
+    usage: { input: 1, output: 1, cacheRead: 0, cacheCreation: 0 },
+  });
+  assert.deepEqual(parseSummaryFindings(prior), [
+    {
+      severity: 'high',
+      path: 'src/a.ts',
+      line: 12,
+      title: 'Check the account',
+    },
+    { severity: 'low', path: 'src/b.ts', line: 0, title: 'Log the failure' },
+    { severity: 'medium', path: 'src/c.ts', line: 3, title: 'Await the send' },
+  ]);
+
+  const fresh = [
+    { path: 'src/c.ts', line: 3, severity: 'medium', title: 'Await the send' },
+  ];
+  const carried = carriedFindings(prior, ['src/b.ts'], fresh);
+  assert.deepEqual(
+    carried.map((f) => f.path),
+    ['src/a.ts']
+  );
+  assert.equal(checkConclusion([...fresh, ...carried]), 'failure');
+  assert.equal(checkConclusion(fresh), 'neutral');
+
+  const next = summaryMarkdown({
+    findings: fresh,
+    kind: 'code',
+    summary: '',
+    model: 'claude-sonnet-5-5',
+    plan: { tier: 'rereview', reasons: ['x'] },
+    usage: { input: 1, output: 1, cacheRead: 0, cacheCreation: 0 },
+    carried,
+    carriedFrom: 'abc1234def',
+  });
+  assert.match(next, /1 finding carried over from abc1234/);
+  assert.deepEqual(
+    parseSummaryFindings(next).map((f) => f.path),
+    ['src/c.ts', 'src/a.ts']
+  );
+  assert.deepEqual(carriedFindings(undefined, [], []), []);
 });
 
 test('estimateCost prices usage per model and reviewFooter reports it', () => {
