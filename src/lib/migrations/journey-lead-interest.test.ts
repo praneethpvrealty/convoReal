@@ -102,6 +102,9 @@ describe('journey lead interest signals', () => {
     expect(signals).toContain(
       "OR (ji.lead_interest = 'shortlisted' AND r.kind = 'interested')"
     );
+    expect(signals).toMatch(
+      /AND NOT EXISTS \(\s+SELECT 1 FROM property_shares ps\s+WHERE ps\.account_id = r\.account_id\s+AND ps\.contact_id = r\.contact_id\s+AND ps\.property_id = r\.property_id\s+\)\s+ON CONFLICT/
+    );
     const backfill = signals.slice(
       0,
       signals.indexOf(
@@ -172,6 +175,9 @@ describe('journey lead interest signals', () => {
       /AND e\.reason = 'Captured from lead interest'\s+\)\s+AND NOT EXISTS \(\s+SELECT 1 FROM journey_events e\s+WHERE e\.item_id = ji\.id\s+AND e\.event_type IN \('hidden', 'unhidden'\)\s+\)/
     );
     expect(signals).toContain("'unhidden', v_item_stage, v_item_stage,");
+    expect(signals).toMatch(
+      /'Shown by a visible capture', NEW\.created_by\s+\);\s+PERFORM journey_open_deal_for_item\(v_item\);/
+    );
     expect(signals).toContain("RAISE WARNING 'journey_capture_from_share:");
   });
 

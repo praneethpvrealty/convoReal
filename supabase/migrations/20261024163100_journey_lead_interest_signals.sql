@@ -18,7 +18,10 @@
 --    (20260926115400), labelled an enquiry when an enquiry is on file
 --    for the pair and a WhatsApp share otherwise (as the live writers
 --    do), so it waits in the Captured tray rather than appearing on the
---    map unreviewed; Interested outranks Shortlisted.
+--    map unreviewed; a pair the ledger holds a share for is skipped,
+--    since the share capture put it on the journey and its absence
+--    means the agent removed it from the tray; Interested outranks
+--    Shortlisted.
 --
 -- 2. journey_overview_groups adds interested_count per journey so both
 --    surfaces can show the chip on the overview row.
@@ -26,7 +29,9 @@
 -- 3. journey_capture_from_share shows a pair that only a lead's yes
 --    captured hidden and nobody reviewed since when a visible ledger row
 --    (an agent-composed share, JRN-009) arrives for it, as the
---    TypeScript capture does; a pair a share captured, or one the agent
+--    TypeScript capture does, and opens the branch's deal itself since
+--    journey_auto_open_deal sits out an UPDATE made from inside another
+--    trigger (JRN-018); a pair a share captured, or one the agent
 --    showed and hid again, still stays hidden.
 --
 -- The stamp records what the lead said before, not activity on the
@@ -100,6 +105,12 @@ inserted AS (
     WHERE ji.account_id = r.account_id
       AND ji.contact_id = r.contact_id
       AND ji.property_id = r.property_id
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM property_shares ps
+    WHERE ps.account_id = r.account_id
+      AND ps.contact_id = r.contact_id
+      AND ps.property_id = r.property_id
   )
   ON CONFLICT (account_id, contact_id, property_id) DO NOTHING
   RETURNING id, account_id, stage_id, created_at
@@ -325,6 +336,7 @@ BEGIN
         NEW.account_id, v_item, 'unhidden', v_item_stage, v_item_stage,
         'Shown by a visible capture', NEW.created_by
       );
+      PERFORM journey_open_deal_for_item(v_item);
     END IF;
   END IF;
   RETURN NEW;
