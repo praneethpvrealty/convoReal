@@ -50,7 +50,10 @@ How a review runs:
      days). The script walks the PR's commits from the newest backwards (at
      most 30) for one with a successful `pull_request_target` run of
      `.github/workflows/security-review.yml` that GitHub associates with
-     this PR alone and whose base is this PR's current base branch, downloads
+     this PR alone, whose base is this PR's current base branch and which
+     started after the PR's last base-branch change (read from the PR's
+     timeline, since a run under an earlier base ran that base's workflow
+     file), downloads
      that run's artifact (unpacked in memory through `funzip`, never written
      to disk) and accepts it only if it names this PR and that head. Check
      runs, comments and statuses are not consulted for this: a same-repo PR
@@ -72,9 +75,13 @@ How a review runs:
      so a fix that lands in a different file from the one a finding is
      anchored to can clear it. The deep triggers still apply to that delta: a
      fix that touches a migration or auth code goes to Opus. When no reviewed
-     file changed (a merge of the base branch, a test-only push), the earlier
-     findings are carried over unchanged, minus those in a file that has left
-     the PR since, they alone decide the checks, and no model is called.
+     file changed and nothing else did either, or no earlier finding is open,
+     the earlier findings are carried over unchanged, minus those in a file
+     that has left the PR since, they alone decide the checks, and no model is
+     called. When only unreviewed files changed (a test, a generated file) and
+     earlier findings are open, the model runs with no diff, the changed
+     files named, and the earlier findings to confirm or clear, since the fix
+     for a missing regression test is a test file.
      `REVIEW_SCOPE=full` forces a full review. A `workflow_dispatch` run
      defaults to `full`; `scope=auto` dispatched from `main` re-reviews a PR
      against its last `pull_request_target` result. The re-review path
