@@ -204,8 +204,10 @@ export function localityStemsMatch(
   candidate: string,
   requested: string
 ): boolean {
-  const wanted = localityStems(requested);
-  const have = localityStems(candidate);
+  // "J P Nagar" and "R.T. Nagar" have no stem until their initials are
+  // joined: single letters are dropped as noise, and so was the place.
+  const wanted = localityStems(normalizeLocalityLabel(requested));
+  const have = localityStems(normalizeLocalityLabel(candidate));
   if (wanted.length === 0 || have.length === 0) return false;
   if (wanted.every((stem) => stemHit(stem, have))) return true;
   if (have.every((stem) => stemHit(stem, wanted))) return true;

@@ -1817,4 +1817,23 @@ describe('[CNV-011] a two-letter acknowledgement is not a locality', () => {
       resolveInventoryLocalityReply('Koramangala 5th block', inventory)
     ).toBe('Koramangala');
   });
+
+  it('[INB-004] still reads a locality written as initials', () => {
+    const initials = [
+      { locality_canonical: 'JP Nagar', sublocality: null, project: null },
+      { locality_canonical: 'RT Nagar', sublocality: null, project: null },
+    ];
+    expect(resolveInventoryLocalityReply('J P Nagar', initials)).toBe(
+      'JP Nagar'
+    );
+    expect(resolveInventoryLocalityReply('J.P. Nagar', initials)).toBe(
+      'JP Nagar'
+    );
+    expect(resolveInventoryLocalityReply('R T Nagar', initials)).toBe(
+      'RT Nagar'
+    );
+    expect(resolveInventoryLocalityReply('JP Nagar 7th phase', initials)).toBe(
+      'JP Nagar'
+    );
+  });
 });

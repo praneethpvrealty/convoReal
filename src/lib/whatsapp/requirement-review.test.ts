@@ -374,4 +374,12 @@ describe('[CNV-011] the playback card is not repeated for an unchanged brief', (
     ).toBe(false);
     expect(requirementReviewAlreadyShown(aryan, [])).toBe(false);
   });
+
+  it('compares the whole line, so a brief that lost its trailing field is a new brief', () => {
+    const summary = buildRequirementSummary(aryan)!;
+    expect(
+      requirementReviewAlreadyShown(aryan, [`📌 ${summary} · to rent`])
+    ).toBe(false);
+    expect(requirementReviewAlreadyShown(aryan, [`📌 ${summary}`])).toBe(true);
+  });
 });

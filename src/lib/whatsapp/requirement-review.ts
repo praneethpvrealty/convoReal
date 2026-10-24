@@ -106,7 +106,11 @@ export function requirementReviewAlreadyShown(
   previousBotTexts: (string | null | undefined)[]
 ): boolean {
   const summary = buildRequirementSummary(contact);
-  return !!summary && !!previousBotTexts[0]?.includes(`📌 ${summary}`);
+  if (!summary) return false;
+  const shown = (previousBotTexts[0] ?? '')
+    .split('\n')
+    .find((line) => line.startsWith('📌 '));
+  return shown?.trim() === `📌 ${summary}`;
 }
 
 /**
