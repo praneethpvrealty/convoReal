@@ -3,6 +3,11 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { getMatchingContacts } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { fetchInquiredProperties } from '@/lib/contacts/inquired-properties';
+import {
+  loadListingMatchFeedback,
+  loadTypeSuggestions,
+} from '@/lib/inventory/match-feedback-store';
+import { partitionMatchesByFeedback } from '@/lib/match-feedback';
 import type { Contact, Property } from '@/types';
 
 // Only the columns src/lib/matching.ts reads, plus what the caller needs
@@ -15,6 +20,8 @@ const MATCH_CONTACT_COLUMNS =
   'pref_property_types, pref_property_categories, pref_bhk_min, pref_bhk_max, ' +
   'pref_budget_min, pref_budget_max, pref_budget_anchor, pref_land_area_min_sqft, pref_land_area_max_sqft, pref_areas, pref_excluded_areas, pref_projects, ' +
   'pref_min_roi, requires_tenanted, pref_requires_tenanted, pref_listing_types, pref_extracted_at, contact_notes(note_text)';
+
+const HIDDEN_LOOKUP_CAP = 100;
 
 // GET /api/properties/[id]/matches
 // Scored contact matches for one listing, ranked best-first. The engine
@@ -81,7 +88,7 @@ export async function GET(
       ])
     );
 
-    const results = getMatchingContacts(
+    const ranked = getMatchingContacts(
       property as Property,
       await attachInquiredListingTypes(
         ctx.supabase,
@@ -89,6 +96,47 @@ export async function GET(
         (contacts ?? []) as unknown as Contact[]
       )
     );
+
+    // A contact ruled out for this listing — by the buyer on WhatsApp or
+    // an agent's "Not a fit" — leaves the list and waits under hidden.
+    const feedback = await loadListingMatchFeedback(
+      ctx.supabase,
+      ctx.accountId,
+      propertyId
+    );
+    // A rejected contact may sit outside the Buyer/Agent pool above (an
+    // audience member picked on mobile) or no longer rank at all once
+    // their type was corrected; either way they stay restorable.
+    const pool = (contacts ?? []) as unknown as Contact[];
+    const pooled = new Set(pool.map((c) => c.id));
+    const missingIds = feedback.marks
+      .map((m) => m.contactId)
+      .filter((id) => !pooled.has(id))
+      .slice(0, HIDDEN_LOOKUP_CAP);
+    const { data: missing, error: missingError } = missingIds.length
+      ? await ctx.supabase
+          .from('contacts')
+          .select('id, name, phone, classification, name_tag')
+          .eq('account_id', ctx.accountId)
+          .in('id', missingIds)
+      : { data: [], error: null };
+    if (missingError) {
+      console.error('[GET /api/properties/[id]/matches]', missingError);
+    }
+    const { visible: results, hidden } = partitionMatchesByFeedback(
+      ranked,
+      feedback.marks,
+      [...pool, ...((missing ?? []) as unknown as Contact[])]
+    );
+    const suggestions = await loadTypeSuggestions(
+      ctx.supabase,
+      ctx.accountId,
+      results
+        .filter(({ details }) => details.type === 'unknown')
+        .map(({ contact }) => contact.id)
+    );
+    const suggestedTypeFor = (contact: Contact, type: string) =>
+      type === 'unknown' ? (suggestions[contact.id] ?? null) : null;
 
     // What each matched contact has already asked about, so a row can
     // say whether this share continues a conversation or opens one.
@@ -113,8 +161,19 @@ export async function GET(
           matchedFields,
           sharedAt: sharedAtByContact.get(contact.id) ?? null,
           inquiries: inquiriesByContact.get(contact.id) ?? [],
+          suggestedType: suggestedTypeFor(contact, details.type),
         };
       }),
+      hidden: hidden.map(({ contact, feedback: mark }) => ({
+        contact: {
+          id: contact.id,
+          name: contact.name,
+          phone: contact.phone,
+          classification: contact.classification,
+          name_tag: contact.name_tag,
+        },
+        feedback: mark,
+      })),
     });
   } catch (err) {
     return toErrorResponse(err);

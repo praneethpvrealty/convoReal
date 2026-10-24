@@ -501,6 +501,7 @@ export async function drainDealStatusNotices(
         .eq('property_id', row.property_id)
         .eq('contact_id', recipient.id)
         .eq('verdict', 'rejected')
+        .eq('source', 'contact')
         .limit(1)
         .maybeSingle();
       if (rejectedError) {

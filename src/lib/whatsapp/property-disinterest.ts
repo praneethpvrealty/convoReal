@@ -7,6 +7,7 @@ import {
   resolvePropertySubject,
   type InboundSubjectContext,
 } from '@/lib/learning/subject';
+import { clearAgentMarkReasons } from '@/lib/inventory/listing-feedback-writes';
 import type { Property } from '@/types';
 
 /**
@@ -177,6 +178,9 @@ export async function handlePropertyDisinterestMessage(args: {
   // Record rejection if a subject property was identified
   if (subjectProperty?.id) {
     try {
+      await clearAgentMarkReasons(db, accountId, contact.id, [
+        subjectProperty.id,
+      ]);
       await db.from('listing_feedback').upsert(
         {
           account_id: accountId,

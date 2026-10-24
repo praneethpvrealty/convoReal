@@ -17,6 +17,7 @@ import { createNotification } from '@/lib/notifications/create';
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
 import { PAST_ENQUIRY_STAGE_KINDS } from '@/components/journey/shared';
 import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
+import { clearAgentMarkReasons } from '@/lib/inventory/listing-feedback-writes';
 
 export const ENQUIRY_REVIEW_ID_PREFIX = 'enqrev_';
 export const ENQUIRY_REVIEW_KEEP_ID = `${ENQUIRY_REVIEW_ID_PREFIX}keep`;
@@ -104,6 +105,7 @@ export async function closePropertyEnquiry(args: {
   const reason = args.reason ?? CLOSED_FROM_WHATSAPP_REASON;
   const now = new Date().toISOString();
 
+  await clearAgentMarkReasons(db, accountId, contact.id, [property.id]);
   const { error: feedbackError } = await db.from('listing_feedback').upsert(
     {
       account_id: accountId,

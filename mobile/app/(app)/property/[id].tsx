@@ -26,6 +26,11 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContextMenu } from '@/components/context-menu';
 import { FlyerSheet } from '@/components/flyer-sheet';
 import { ListingAudienceSheet } from '@/components/listing-audience-sheet';
+import {
+  HiddenMatches,
+  NotAFitPanel,
+  TypeSuggestion,
+} from '@/components/match-not-a-fit';
 import { PortalExpirySheet } from '@/components/portal-expiry-sheet';
 import { PropertyInterestFollowUpSheet } from '@/components/property-interest-follow-up-sheet';
 import { ConvoRealLoader } from '@/components/loader';
@@ -65,6 +70,7 @@ import {
 import {
   fetchPropertyMatches,
   inquiredPropertyLabel,
+  type HiddenPropertyMatch,
   type PropertyMatch,
 } from '@/lib/property-matches';
 import {
@@ -124,6 +130,7 @@ export default function PropertyDetailScreen() {
   // Viewers read the dashboard and nothing else (AGENTS.md §8.2); the
   // API enforces it too, this just keeps the buttons honest.
   const canEdit = useAuthStore((s) => s.profile?.account_role) !== 'viewer';
+  const isReadOnly = useAuthStore((s) => s.profile?.is_read_only === true);
   // Live window width (module-scope Dimensions is stale on foldables/
   // rotation and broke pager math on wide screens).
   const { width: winW } = useWindowDimensions();
@@ -221,7 +228,7 @@ export default function PropertyDetailScreen() {
   // (e.g. "Coorg") would just open a vague search, so we hide it.
   const hasMapLocation = Boolean(coords) || !!property.google_map_link;
   const ownerPhone = property.owner?.phone;
-  const selectedContacts = (matchesQuery.data ?? [])
+  const selectedContacts = (matchesQuery.data?.matches ?? [])
     .filter((match) => selectedMatchIds.includes(match.contact.id))
     .map((match) => match.contact);
   const primaryAction = propertyDetailPrimaryAction({
@@ -972,7 +979,15 @@ export default function PropertyDetailScreen() {
           />
 
           <MatchesSection
-            matches={matchesQuery.data ?? []}
+            propertyId={property.id}
+            matches={matchesQuery.data?.matches ?? []}
+            hidden={matchesQuery.data?.hidden ?? []}
+            canAct={canEdit && !isReadOnly}
+            onFeedbackChanged={() => {
+              void queryClient.invalidateQueries({
+                queryKey: ['property-matches', property.id],
+              });
+            }}
             isLoading={matchesQuery.isLoading}
             isError={matchesQuery.isError}
             selectedIds={selectedMatchIds}
@@ -1771,7 +1786,11 @@ function chipColor(tone: MatchChipTone, colors: ThemeColors): string {
  * surfaces.
  */
 function MatchesSection({
+  propertyId,
   matches,
+  hidden,
+  canAct,
+  onFeedbackChanged,
   isLoading,
   isError,
   selectedIds,
@@ -1779,7 +1798,11 @@ function MatchesSection({
   onShare,
   openListingAudience,
 }: {
+  propertyId: string;
   matches: PropertyMatch[];
+  hidden: HiddenPropertyMatch[];
+  canAct: boolean;
+  onFeedbackChanged: () => void;
   isLoading: boolean;
   isError: boolean;
   selectedIds: string[];
@@ -1793,6 +1816,7 @@ function MatchesSection({
   const [expanded, setExpanded] = useState(false);
   const [audiencePickerOpen, setAudiencePickerOpen] = useState(false);
   const [audienceBusyId, setAudienceBusyId] = useState<string | null>(null);
+  const [notFitId, setNotFitId] = useState<string | null>(null);
   // Survives the action that created it: a silent bulk selection is
   // the one thing that could put a listing in front of the wrong 22
   // people, so what was added stays on screen — count, source listing,
@@ -1831,6 +1855,24 @@ function MatchesSection({
     ].some((value) => value?.toLocaleLowerCase().includes(normalizedQuery));
   });
   const sharedCount = audienceRows.filter((m) => m.sharedAt).length;
+  const hiddenAgentCount = hidden.filter(
+    (m) => m.contact.classification === 'Agent'
+  ).length;
+  const hiddenRows = hidden.filter((m) =>
+    inMatchAudience(m.contact.classification, audience)
+  );
+  function feedbackSaved(message: string, contactId?: string) {
+    haptic.success();
+    if (contactId) {
+      setNotFitId(null);
+      setSelectedIds((prev) => prev.filter((id) => id !== contactId));
+    }
+    show({ title: 'Saved', message });
+    onFeedbackChanged();
+  }
+  function feedbackFailed(message: string) {
+    show({ title: 'Could not save', message });
+  }
   const allSelected =
     rows.length > 0 && rows.every((m) => selectedIds.includes(m.contact.id));
   const selectedCount = all.filter((m) =>
@@ -1943,8 +1985,10 @@ function MatchesSection({
 
       {/* Also shown while a non-default audience is active with no
         agents left, so a refetch can never strand the section on an
-        empty tab with no way back. */}
-      {expanded && (agentCount > 0 || audience !== 'buyers') ? (
+        empty tab with no way back, and while the only agents are
+        hidden, so their marks stay reachable under Show hidden. */}
+      {expanded &&
+      (agentCount > 0 || hiddenAgentCount > 0 || audience !== 'buyers') ? (
         <View
           style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}
         >
@@ -2254,6 +2298,37 @@ function MatchesSection({
                         View contact
                       </Text>
                     </Pressable>
+                    {canAct ? (
+                      <Pressable
+                        onPress={() => {
+                          haptic.tap();
+                          setNotFitId((prev) =>
+                            prev === m.contact.id ? null : m.contact.id
+                          );
+                        }}
+                        accessibilityRole="button"
+                        accessibilityState={{
+                          expanded: notFitId === m.contact.id,
+                        }}
+                        accessibilityLabel={`Mark ${displayName} not a fit`}
+                        style={[styles.matchAction, { marginLeft: 'auto' }]}
+                      >
+                        <Ionicons
+                          name="thumbs-down-outline"
+                          size={15}
+                          color={colors.textMuted}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 11.5,
+                            fontFamily: f.semibold,
+                            color: colors.textMuted,
+                          }}
+                        >
+                          Not a fit
+                        </Text>
+                      </Pressable>
+                    ) : null}
                     <Pressable
                       onPress={() => {
                         haptic.tap();
@@ -2290,10 +2365,46 @@ function MatchesSection({
                     </Pressable>
                   </>
                 }
+                below={
+                  <>
+                    {m.details?.type === 'unknown' && m.suggestedType ? (
+                      <TypeSuggestion
+                        propertyId={propertyId}
+                        contactId={m.contact.id}
+                        optionId={m.suggestedType}
+                        canAct={canAct}
+                        onSaved={(message) => feedbackSaved(message)}
+                        onError={feedbackFailed}
+                      />
+                    ) : null}
+                    {notFitId === m.contact.id ? (
+                      <NotAFitPanel
+                        propertyId={propertyId}
+                        contactId={m.contact.id}
+                        contactName={displayName}
+                        onClose={() => setNotFitId(null)}
+                        onSaved={(message) =>
+                          feedbackSaved(message, m.contact.id)
+                        }
+                        onError={feedbackFailed}
+                      />
+                    ) : null}
+                  </>
+                }
               />
             );
           })}
         </ScrollView>
+      ) : null}
+
+      {expanded && !isLoading ? (
+        <HiddenMatches
+          propertyId={propertyId}
+          hidden={hiddenRows}
+          canAct={canAct}
+          onRestored={(message) => feedbackSaved(message)}
+          onError={feedbackFailed}
+        />
       ) : null}
 
       <ListingAudienceSheet

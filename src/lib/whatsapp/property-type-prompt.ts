@@ -8,50 +8,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import type { InteractiveListSection } from '@/lib/whatsapp/meta-api';
+import { PROPERTY_TYPE_OPTIONS } from '@/lib/match-feedback';
 
 /** Every id this module owns starts with this. */
 export const PROPERTY_TYPE_ID_PREFIX = 'pt_';
 
-interface PropertyTypeOption {
-  id: string;
-  title: string;
-  description?: string;
-  /** Values written to contacts.pref_property_types — matcher vocabulary. */
-  types: string[];
-}
-
-const OPTIONS: PropertyTypeOption[] = [
-  {
-    id: 'pt_plot',
-    title: 'Residential Plot',
-    types: ['Residential Land/ Plot'],
-  },
-  { id: 'pt_apartment', title: 'Flat / Apartment', types: ['Flat/ Apartment'] },
-  {
-    id: 'pt_house',
-    title: 'House / Villa',
-    types: ['Residential House', 'Villa'],
-  },
-  {
-    id: 'pt_commspace',
-    title: 'Commercial Space',
-    description: 'Office, shop, showroom or building',
-    types: ['Commercial Office Space', 'Commercial Shop'],
-  },
-  { id: 'pt_commplot', title: 'Commercial Plot', types: ['Commercial Plot'] },
-  { id: 'pt_commland', title: 'Commercial Land', types: ['Commercial Land'] },
-  {
-    id: 'pt_agri',
-    title: 'Agricultural Land',
-    description: 'Farmland',
-    types: ['Agricultural Land'],
-  },
-  {
-    id: 'pt_industrial',
-    title: 'Industrial',
-    types: ['Industrial Land', 'Industrial Building'],
-  },
-];
+const OPTIONS = PROPERTY_TYPE_OPTIONS.filter((o) => !o.staffOnly);
 
 const OPTION_BY_ID = new Map(OPTIONS.map((o) => [o.id, o]));
 
