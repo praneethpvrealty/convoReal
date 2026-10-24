@@ -56,6 +56,7 @@ import {
 } from '@/lib/journey/client-candidates';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { createNotification } from '@/lib/notifications/create';
+import { LEAD_INTEREST_DEDUPE_PREFIX } from '@/lib/journey/lead-interest';
 import {
   asksToCloseEnquiry,
   readCheckinEnding,
@@ -2183,6 +2184,9 @@ async function latestRespondedItemId(
     .eq('account_id', accountId)
     .eq('event_type', 'client_response')
     .in('item_id', ids)
+    .or(
+      `dedupe_key.is.null,dedupe_key.not.like.${LEAD_INTEREST_DEDUPE_PREFIX}*`
+    )
     .order('created_at', { ascending: false })
     .limit(1);
   return (

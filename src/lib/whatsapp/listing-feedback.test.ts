@@ -25,10 +25,13 @@ vi.mock('@/lib/whatsapp/budget-band', () => ({
 }));
 
 const recordJourneyLeadInterest = vi.fn();
+const clearJourneyLeadInterest = vi.fn();
 
 vi.mock('@/lib/journey/lead-interest', () => ({
   recordJourneyLeadInterest: (...args: unknown[]) =>
     recordJourneyLeadInterest(...args),
+  clearJourneyLeadInterest: (...args: unknown[]) =>
+    clearJourneyLeadInterest(...args),
 }));
 
 const {
@@ -253,6 +256,12 @@ describe('handleListingFeedbackReply', () => {
     const rowIds = sent.interactiveSections[0].rows.map((r) => r.id);
     expect(rowIds.some((id) => id.startsWith('lfbr_budget_'))).toBe(true);
     expect(rowIds.some((id) => id.startsWith('lfbr_location_'))).toBe(true);
+    // [JRN-026] saying no takes back the yes on the Journey tab.
+    expect(clearJourneyLeadInterest).toHaveBeenCalledWith(db, {
+      accountId: 'acct-1',
+      contactId: 'c1',
+      propertyIds: [P1, P2],
+    });
   });
 
   it('drops malformed ids inside a none-fit tap instead of trusting them', async () => {

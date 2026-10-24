@@ -71,7 +71,7 @@ export function CapturedTrayDialog({
           {mode === 'buyer'
             ? 'Properties shared with this contact that were captured automatically. Show the ones worth tracking; remove the rest.'
             : 'Contacts this property was shared with, captured automatically. Show the ones worth tracking; remove the rest.'}{' '}
-          A lead who said Interested or Shortlisted on WhatsApp is listed first.
+          A lead who said Interested or Shortlisted is listed first.
         </p>
 
         <div className="max-h-[340px] space-y-1 overflow-y-auto pr-1">

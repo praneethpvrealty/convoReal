@@ -28,6 +28,19 @@ const mockDb = {
   email_sync_configs: { account_id: 'acc-789', is_active: true },
 };
 
+const journeyInterest = vi.hoisted(() => ({
+  clear: vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
+  record: vi.fn<
+    (...args: unknown[]) => Promise<{ itemId: string; error: null }>
+  >(async () => ({ itemId: 'ji-1', error: null })),
+}));
+vi.mock('@/lib/journey/lead-interest', () => ({
+  clearJourneyLeadInterest: (...args: unknown[]) =>
+    journeyInterest.clear(...args),
+  recordJourneyLeadInterest: (...args: unknown[]) =>
+    journeyInterest.record(...args),
+}));
+
 vi.mock('@/lib/supabase/admin', () => {
   const selectImpl = (table: string) => {
     if (table === 'whatsapp_config')

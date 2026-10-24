@@ -22,7 +22,10 @@ import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
 import { createNotification } from '@/lib/notifications/create';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { clearAgentMarkReasons } from '@/lib/inventory/listing-feedback-writes';
-import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
+import {
+  clearJourneyLeadInterest,
+  recordJourneyLeadInterest,
+} from '@/lib/journey/lead-interest';
 import type { Property } from '@/types';
 
 /** Every id this module owns starts with this. */
@@ -290,6 +293,11 @@ export async function handleListingFeedbackReply(args: {
           })),
           { onConflict: 'contact_id,property_id' }
         );
+        await clearJourneyLeadInterest(db, {
+          accountId,
+          contactId: contact.id,
+          propertyIds: ownedIds,
+        });
       }
 
       await sendWhatsAppMessageAndPersist({

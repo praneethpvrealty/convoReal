@@ -25,9 +25,11 @@ than a written entry. Newest first.
   `property_likes`, pinged the agent once, and appeared nowhere as a list:
   the Journey's Captured tray showed the bot's share with no sign the lead
   answered, and the Helper's "who showed interest in …" never read the
-  Interested taps at all. Every such yes now stamps the contact×property
-  journey item (Interested outranks Shortlisted; a pair nothing captured
-  before is captured hidden, as a bot share is), the Captured tray lists
+  Interested taps at all. Every such yes, a typed or portal enquiry about a
+  listing included, now stamps the contact×property journey item (Interested
+  outranks Shortlisted; a pair nothing captured before is captured hidden, as
+  a bot share is; a later "None of these fit", "Not for me" or "Close my
+  enquiry" clears it), the Captured tray lists
   those items first with a "Said interested" or "Shortlisted" badge on web
   and mobile, the item carries the badge, each journey's overview row shows
   an "N interested" chip, and the Helper counts the Interested answers as

@@ -22,6 +22,7 @@ import { sendLeadArrivalReplies } from './lead-replies';
 import { portalKeyFromSource } from '@/lib/portals/listing-identity';
 import { placeholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
+import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
 
 // Re-export for route.test.ts and backward compatibility
 export {
@@ -1144,6 +1145,13 @@ export async function POST(request: Request) {
           ),
         ]);
         const reopenError = reopened.find((result) => result.error)?.error;
+        await recordJourneyLeadInterest(supabase, {
+          accountId,
+          userId,
+          contactId: existingContact.id,
+          propertyId: matchedPropertyIds[0],
+          source: 'portal_enquiry',
+        });
         if (reopenError) {
           console.error(
             '[lead-webhook] Enquiry not recorded for existing contact:',

@@ -749,7 +749,7 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     expect(screen).toContain('interested: Number(row.interested_count ?? 0)');
     expect(screen).toContain('lead_interest, lead_interest_at, created_at');
     expect(screen).toContain(
-      'A lead who said Interested or Shortlisted on WhatsApp is listed'
+      'A lead who said Interested or Shortlisted is listed first.'
     );
     const trayDialog = readFileSync(
       join(process.cwd(), 'src/components/journey/captured-tray-dialog.tsx'),
@@ -757,7 +757,7 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     );
     expect(trayDialog).toContain('sortCapturedByLeadInterest(items)');
     expect(trayDialog).toContain(
-      'A lead who said Interested or Shortlisted on WhatsApp is listed'
+      'A lead who said Interested or Shortlisted is listed first.'
     );
     const overview = readFileSync(
       join(process.cwd(), 'src/components/journey/journey-overview.tsx'),

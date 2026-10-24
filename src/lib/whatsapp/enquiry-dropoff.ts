@@ -27,6 +27,7 @@ import {
 import { createNotification } from '@/lib/notifications/create';
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
 import { markContactDead } from '@/lib/contacts/lifecycle';
+import { clearJourneyLeadInterest } from '@/lib/journey/lead-interest';
 import { continueAfterEnquiryClose } from '@/lib/whatsapp/enquiry-review';
 
 export const ENQUIRY_DROPOFF_ID_PREFIX = 'lfbd_';
@@ -277,6 +278,11 @@ export async function handleEnquiryDropoffReason(args: {
       },
       { onConflict: 'contact_id,property_id' }
     );
+    await clearJourneyLeadInterest(db, {
+      accountId,
+      contactId: contact.id,
+      propertyIds: [property.id as string],
+    });
 
     await db.from('contact_notes').insert({
       contact_id: contact.id,

@@ -13,6 +13,7 @@ vi.mock('./events', () => ({
 import {
   LEAD_INTEREST_CAPTURE_REASON,
   LEAD_INTEREST_EVENT_REASONS,
+  clearJourneyLeadInterest,
   recordJourneyLeadInterest,
 } from './lead-interest';
 
@@ -42,6 +43,14 @@ function makeDb() {
         },
         or(expr: string) {
           current.or.push(expr);
+          return builder;
+        },
+        in(column: string, value: unknown) {
+          current.filters.push([column, value]);
+          return builder;
+        },
+        not(column: string, op: string, value: unknown) {
+          current.filters.push([`${column}.not.${op}`, value]);
           return builder;
         },
         then(
@@ -142,6 +151,21 @@ describe('recordJourneyLeadInterest', () => {
     );
   });
 
+  it('[JRN-026] a typed WhatsApp enquiry and a portal enquiry count as Interested, each with its own event', async () => {
+    for (const source of ['whatsapp_enquiry', 'portal_enquiry'] as const) {
+      updates = [];
+      writeJourneyEvent.mockClear();
+      await recordJourneyLeadInterest(makeDb() as never, { ...input, source });
+      expect(updates[0].payload).toMatchObject({ lead_interest: 'interested' });
+      expect(writeJourneyEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: LEAD_INTEREST_EVENT_REASONS[source],
+          dedupeKey: `lead_interest:${source}`,
+        })
+      );
+    }
+  });
+
   it('[JRN-026] a showcase check-in visit or call counts as Interested', async () => {
     const db = makeDb();
     await recordJourneyLeadInterest(db as never, {
@@ -179,5 +203,37 @@ describe('recordJourneyLeadInterest', () => {
         source: 'whatsapp_interested',
       })
     ).toEqual({ itemId: null, error: 'offline' });
+  });
+});
+
+describe('clearJourneyLeadInterest', () => {
+  it('[JRN-026] takes back the yes on exactly the listings the lead said no to', async () => {
+    const db = makeDb();
+    await clearJourneyLeadInterest(db as never, {
+      accountId: 'acc-1',
+      contactId: 'c1',
+      propertyIds: ['p1', 'p2'],
+    });
+    expect(updates).toHaveLength(1);
+    expect(updates[0].table).toBe('journey_items');
+    expect(updates[0].payload).toEqual({
+      lead_interest: null,
+      lead_interest_at: null,
+    });
+    expect(updates[0].filters).toEqual([
+      ['account_id', 'acc-1'],
+      ['contact_id', 'c1'],
+      ['property_id', ['p1', 'p2']],
+      ['lead_interest.not.is', null],
+    ]);
+  });
+
+  it('[JRN-026] writes nothing for an empty list', async () => {
+    await clearJourneyLeadInterest(makeDb() as never, {
+      accountId: 'acc-1',
+      contactId: 'c1',
+      propertyIds: [],
+    });
+    expect(updates).toEqual([]);
   });
 });

@@ -16,6 +16,7 @@ import {
   buildUnresolvedPropertyInterestAck,
 } from '@/lib/whatsapp/property-interest';
 import { handlePropertyShareYesReply } from '@/lib/whatsapp/inbound/property-share-replies';
+import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
 import type { InboundChainContext, StepResult } from '../context';
 
 export async function specificPropertyInterest(
@@ -127,6 +128,13 @@ export async function specificPropertyInterest(
           { onConflict: 'contact_id,property_id' }
         ),
       ]);
+      await recordJourneyLeadInterest(admin, {
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        propertyId: enquiryPropertyId,
+        source: 'whatsapp_enquiry',
+      });
 
       await admin
         .from('conversations')

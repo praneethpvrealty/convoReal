@@ -4,11 +4,15 @@
 -- Reads and backfills the lead_interest stamp that
 -- 20261024163000_journey_lead_interest.sql added to journey_items.
 --
--- 1. Backfill. Every Interested answer already on listing_feedback and
---    every WhatsApp Shortlist tap already on property_likes (the
---    session_key 'wa:<contact>' rows the bot writes; a showcase like is
---    a like, not a shortlist, and the Helper already counts it) stamps
---    its journey item. A pair never captured is captured hidden at the
+-- 1. Backfill. Every Interested answer already on listing_feedback (the
+--    Interested tap, a typed WhatsApp enquiry, a portal enquiry, a
+--    showcase check-in visit or call: the same writers that stamp the
+--    journey live from now on; a later rejection overwrote the verdict,
+--    so a lead who then said no is left out) and every WhatsApp
+--    Shortlist tap already on property_likes (the session_key
+--    'wa:<contact>' rows the bot writes; a showcase like is a like, not
+--    a shortlist, and the Helper already counts it) stamps its journey
+--    item. A pair never captured is captured hidden at the
 --    account's first mirrored stage, as the share backfill did
 --    (20260926115400), so it waits in the Captured tray rather than
 --    appearing on the map unreviewed; Interested outranks Shortlisted.

@@ -8,6 +8,7 @@ import {
   type InboundSubjectContext,
 } from '@/lib/learning/subject';
 import { clearAgentMarkReasons } from '@/lib/inventory/listing-feedback-writes';
+import { clearJourneyLeadInterest } from '@/lib/journey/lead-interest';
 import type { Property } from '@/types';
 
 /**
@@ -190,6 +191,11 @@ export async function handlePropertyDisinterestMessage(args: {
         },
         { onConflict: 'contact_id,property_id' }
       );
+      await clearJourneyLeadInterest(db, {
+        accountId,
+        contactId: contact.id,
+        propertyIds: [subjectProperty.id],
+      });
     } catch (err) {
       console.error('[property-disinterest] feedback recording failed:', err);
     }
