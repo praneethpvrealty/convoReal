@@ -433,6 +433,15 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
     ).toContain('Built to Suit lease with a 9-year term (3-year lock-in)');
   });
 
+  it('still answers a question about a nearby bank from the highlights', () => {
+    const r = answerFromPropertyData(
+      'Is there a bank nearby?',
+      makeProp({ nearby_highlights: ['SBI Bank 200m'] })
+    );
+    expect(r.intent).toBe('nearby');
+    expect(r.answer).toBe('Nearby: SBI Bank 200m.');
+  });
+
   it('sends a question about how the rent is paid to a person or the model', () => {
     for (const q of [
       'Rentals received on bank account?',
@@ -537,6 +546,16 @@ describe('[INB-037] a rent question about a sale listing is never answered with 
         makeProp({ maintenance: 4500 })
       ).answer
     ).toBe('Maintenance is ₹4,500/month.');
+    const jv = answerFromPropertyData(
+      'what is the maintenance?',
+      makeProp({
+        listing_type: 'JV/JD',
+        owner_share_percent: 40,
+        builder_share_percent: 60,
+      })
+    );
+    expect(jv.intent).toBe('maintenance');
+    expect(jv.answer).toBeNull();
     expect(
       answerFromPropertyData(
         'what is the maintenance',

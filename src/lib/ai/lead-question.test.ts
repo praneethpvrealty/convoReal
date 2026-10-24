@@ -1105,6 +1105,9 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
       'I had a discussion with the owner, he is ready at 1.8 cr',
       'Had a call with your agent yesterday, looking for a 3bhk villa in Whitefield 2cr',
       "I don't want a meeting with the owner",
+      'I want to visit the site and meet the owner on Saturday at 11am',
+      'Can I visit tomorrow at 11am to meet the owner?',
+      'pls confirm after your discussion with the owner',
     ]) {
       expect(requestsHumanContact(text), text).toBe(false);
     }
@@ -1122,6 +1125,22 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
     });
     expect(res.source).toBe('handover');
     expect(res.text).toBe(HANDOVER_TEXT);
+  });
+
+  it('hands "what all are available" to a person without a model call', async () => {
+    vi.mocked(burnCredits).mockResolvedValue({ deficit: 0 } as never);
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'what all are available',
+      property,
+    });
+    expect(res).toMatchObject({
+      source: 'handover',
+      text: HANDOVER_TEXT,
+      intent: 'more_listings',
+    });
+    expect(burnCredits).not.toHaveBeenCalled();
+    expect(generateText).not.toHaveBeenCalled();
   });
 
   it('claims an attribute-only message from a lead already sent a listing', () => {

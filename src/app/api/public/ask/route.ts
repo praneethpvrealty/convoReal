@@ -189,6 +189,16 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // "What else do you have" asks past this listing: the agent answers
+    // that, never a model grounded in the one listing.
+    if (structured.intent === 'more_listings') {
+      return NextResponse.json({
+        answer: null,
+        escalate_whatsapp: true,
+        message: HANDOFF_MESSAGE,
+      });
+    }
+
     // 4. Open-ended question → AI path, but only once we have a phone.
     const rawPhone = (body?.visitor_phone || '').trim();
     if (!rawPhone) {

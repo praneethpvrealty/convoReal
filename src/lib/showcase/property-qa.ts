@@ -235,7 +235,7 @@ function leaseAnswer(p: QaProperty): string | null {
 }
 
 function maintenanceAnswer(p: QaProperty): string | null {
-  if (isRentLike(p) || isJV(p)) return priceAnswer(p);
+  if (isRentLike(p)) return priceAnswer(p);
   return p.maintenance ? `Maintenance is ${inr(p.maintenance)}/month.` : null;
 }
 
@@ -258,7 +258,7 @@ function ageAnswer(p: QaProperty): string | null {
 // legal questions are outside the structured data entirely. Checked
 // before the structured matchers so these never get a canned reply.
 const ESCALATE_PATTERN =
-  /\b(negotiab|negotiate|bargain|discount|best price|final price|lowest|loan|home loan|emi|down payment|which floor|what floor|floor number|legal|approv|clearance|khata|rera|possession date|when.*ready|tax|registration|bank|cheque|in cash|payment (terms|mode)|mode of payment)/i;
+  /\b(negotiab|negotiate|bargain|discount|best price|final price|lowest|loan|home loan|emi|down payment|which floor|what floor|floor number|legal|approv|clearance|khata|rera|possession date|when.*ready|tax|registration|bank (account|transfer)|by bank|(into|to) (the |a |my |our )?bank\b|cheque|in cash|payment (terms|mode)|mode of payment)/i;
 
 // "Is it the pink house or the one next to it?" asks a person to look
 // at the photo, and nothing in the listing's fields can do that. The

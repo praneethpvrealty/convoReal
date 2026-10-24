@@ -301,7 +301,13 @@ const HUMAN_REQUEST =
 const MEETING_REQUEST =
   /\b((meeting|meet|discussion|call) with (the |a |an |your )?(owner|seller|agent|team|builder|manager)|meet (the |your )?(owner|seller|agent|builder|manager))\b/g;
 const MEETING_CUE =
-  /^\s*$|\b(?:want|need|wish|like|love|arrange|fix|set ?up|schedule|organi[sz]e|request|please|pls|plz|(?:can|could|may|shall|would|should) (?:i|we|you|u))\b[^.?!]*$/;
+  /^\s*$|\b(?:want|need|wish|like|love|arrange|fix|set ?up|schedule|organi[sz]e|request|please|pls|plz|(?:can|could|may|shall|would|should) (?:i|we|you|u))(?: (?!(?:after|before|following|once|post)\b)\w+){0,3} $/;
+
+/** "I want to visit the site and meet the owner on Saturday at 11am"
+ *  is a visit to book, not a call to promise: a meeting named with a
+ *  visit, a day or a time stays with the scheduler. */
+const VISIT_OR_TIME =
+  /\b(?:visit|viewing|see the (?:site|property|house|plot|flat)|today|tomorrow|tonight|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2}(?::\d{2})?\s*(?:am|pm)|\d{1,2}\s*\/\s*\d{1,2})\b/;
 
 /** "Call ?", "call pls", "phone": the whole message is the one word.
  *  Nothing names a subject, so the clause reader above sees neither a
@@ -498,11 +504,13 @@ export function asksForContactNumber(text?: string | null): boolean {
 export function requestsHumanContact(text?: string | null): boolean {
   return (
     BARE_CALL_MESSAGE.test(normaliseCallText(text).trim()) ||
-    callClauses(text).some(
-      (clause) =>
-        unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST) ||
-        unrefusedMatch(clause, MEETING_REQUEST, MEETING_CUE)
+    callClauses(text).some((clause) =>
+      unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST)
     ) ||
+    (!VISIT_OR_TIME.test(normaliseCallText(text)) &&
+      callClauses(text).some((clause) =>
+        unrefusedMatch(clause, MEETING_REQUEST, MEETING_CUE)
+      )) ||
     asksForContactNumber(text)
   );
 }
@@ -881,6 +889,12 @@ export async function answerLeadQuestion(args: {
   const structured = answerFromPropertyData(question, qaProperty, {
     briefOnFile: args.briefOnFile,
   });
+  // "What all are available" asks for other listings: the ladder sends
+  // them when it runs; when it does not, a person does, never a model
+  // grounded in the one listing the lead is asking past.
+  if (structured.intent === 'more_listings') {
+    return { text: HANDOVER_TEXT, source: 'handover', intent: 'more_listings' };
+  }
   if (structured.answer) {
     const text =
       guarded && structured.intent === 'location'
