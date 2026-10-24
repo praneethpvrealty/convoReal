@@ -490,7 +490,7 @@ async function main() {
   const rest = files.filter((f) => !scope.includes(f));
   const earlier = previous ? priorFindingsIn(previous.findings, scope) : [];
   const intro = previous
-    ? `This is a re-review.\g<1>${earlier.length ? `\n\nThe earlier review reported these findings in the files under review. Report each one again, with the same path and title, unless the current code no longer has the problem; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
+    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}${earlier.length ? `\n\nThe earlier review reported these findings in the files under review. Report each one again, with the same path and title, unless the current code no longer has the problem; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
     : '';
   const messages = [
     {
