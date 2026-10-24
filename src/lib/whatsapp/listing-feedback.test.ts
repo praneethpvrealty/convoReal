@@ -104,7 +104,10 @@ describe('buildListingFeedbackSections', () => {
 
 /** Chainable query stub: every method returns itself; awaiting any
  *  chain resolves to the next queued result. */
-function stubDb(results: Record<string, unknown[]>) {
+function stubDb(
+  results: Record<string, unknown[]>,
+  writeErrors: Record<string, unknown> = {}
+) {
   const calls: { table: string; method: string; args: unknown[] }[] = [];
   const queues = new Map(Object.entries(results));
   const from = (table: string) => {
@@ -135,7 +138,10 @@ function stubDb(results: Record<string, unknown[]>) {
     };
     (chain as { then?: unknown }).then = (resolve: (v: unknown) => unknown) => {
       // A write resolves without consuming the rows queued for reads.
-      if (mutates) return Promise.resolve(resolve({ data: null, error: null }));
+      if (mutates)
+        return Promise.resolve(
+          resolve({ data: null, error: writeErrors[table] ?? null })
+        );
       const q = queues.get(table) ?? [];
       return Promise.resolve(resolve({ data: q.shift() ?? null }));
     };
@@ -226,6 +232,34 @@ describe('handleListingFeedbackReply', () => {
         text: expect.stringContaining('Plot in Koramangala'),
       })
     );
+  });
+
+  it('[JRN-026] leaves the journey unstamped when the Interested write failed', async () => {
+    const { db } = stubDb(
+      {
+        properties: [{ id: P1, title: 'Plot in Koramangala', user_id: 'u9' }],
+        contacts: [{ assigned_agent_id: 'agent-7' }],
+      },
+      { listing_feedback: { message: 'connection reset' } }
+    );
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(await handleListingFeedbackReply(baseArgs(db, `lfb_y_${P1}`))).toBe(
+      true
+    );
+
+    expect(recordJourneyLeadInterest).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('recording interest'),
+      { message: 'connection reset' }
+    );
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('Plot in Koramangala'),
+      })
+    );
+    expect(createNotification).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it('records nothing for a property outside the account', async () => {

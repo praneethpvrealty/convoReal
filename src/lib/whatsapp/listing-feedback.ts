@@ -224,7 +224,7 @@ export async function handleListingFeedbackReply(args: {
         .maybeSingle();
       if (!property) return false;
 
-      await db.from('listing_feedback').upsert(
+      const { error: feedbackError } = await db.from('listing_feedback').upsert(
         {
           account_id: accountId,
           contact_id: contact.id,
@@ -234,13 +234,20 @@ export async function handleListingFeedbackReply(args: {
         },
         { onConflict: 'contact_id,property_id' }
       );
-      await recordJourneyLeadInterest(db, {
-        accountId,
-        userId: configOwnerUserId,
-        contactId: contact.id,
-        propertyId,
-        source: 'whatsapp_interested',
-      });
+      if (feedbackError) {
+        console.error(
+          `[listing-feedback] recording interest in ${propertyId} for contact ${contact.id} failed:`,
+          feedbackError
+        );
+      } else {
+        await recordJourneyLeadInterest(db, {
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contact.id,
+          propertyId,
+          source: 'whatsapp_interested',
+        });
+      }
 
       const { data: contactRow } = await db
         .from('contacts')
