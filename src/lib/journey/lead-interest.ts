@@ -16,6 +16,7 @@ import {
 } from './capture-server';
 import { writeJourneyEvent } from './events';
 import type { JourneyLeadInterest } from './lead-interest-labels';
+import type { JourneyItemSource } from '@/types';
 
 export { LEAD_INTEREST_CAPTURE_REASON };
 
@@ -39,6 +40,19 @@ const KIND_OF_SOURCE: Record<LeadInterestEventSource, JourneyLeadInterest> = {
   whatsapp_enquiry: 'interested',
   portal_enquiry: 'interested',
   showcase_checkin: 'interested',
+};
+
+/** How a pair the yes itself captures is labelled in the tray: a tap
+ *  answers a card the bot shared, an enquiry is an enquiry. */
+const ITEM_SOURCE_OF_SOURCE: Record<
+  LeadInterestEventSource,
+  JourneyItemSource
+> = {
+  whatsapp_interested: 'whatsapp_share',
+  whatsapp_shortlist: 'whatsapp_share',
+  whatsapp_enquiry: 'inquiry_import',
+  portal_enquiry: 'inquiry_import',
+  showcase_checkin: 'whatsapp_share',
 };
 
 export interface RecordJourneyLeadInterestInput {
@@ -66,7 +80,7 @@ export async function recordJourneyLeadInterest(
       userId,
       contactId,
       propertyId,
-      source: 'whatsapp_share',
+      source: ITEM_SOURCE_OF_SOURCE[source],
       hidden: true,
       reason: LEAD_INTEREST_CAPTURE_REASON,
     });

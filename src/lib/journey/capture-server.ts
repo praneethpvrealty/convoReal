@@ -175,10 +175,12 @@ interface HiddenPairRow {
 
 /**
  * Shows the hidden pairs among `pairs` that only a lead's own yes
- * captured (their 'added' event carries LEAD_INTEREST_CAPTURE_REASON),
+ * captured (their 'added' event carries LEAD_INTEREST_CAPTURE_REASON)
+ * and nobody has reviewed since (no 'hidden' or 'unhidden' event),
  * logging an 'unhidden' event for each. A visible capture would have
- * created them visibly had the yes not come first; a pair a share or
- * the agent tucked away stays hidden. Returns the ids shown.
+ * created them visibly had the yes not come first; a pair a share
+ * captured, or one the agent tucked away, stays hidden. Returns the
+ * ids shown.
  */
 export async function showLeadInterestCaptures(
   db: SupabaseClient,
@@ -201,20 +203,32 @@ export async function showLeadInterestCaptures(
   );
   if (candidates.length === 0) return shown;
 
-  const { data: added } = await db
+  const { data: events } = await db
     .from('journey_events')
-    .select('item_id')
+    .select('item_id, event_type, reason')
     .eq('account_id', accountId)
-    .eq('event_type', 'added')
-    .eq('reason', LEAD_INTEREST_CAPTURE_REASON)
+    .in('event_type', ['added', 'hidden', 'unhidden'])
     .in(
       'item_id',
       candidates.map((row) => row.id)
     );
-  const leadOnly = new Set(
-    ((added ?? []) as Array<{ item_id: string }>).map((row) => row.item_id)
+  const leadOnly = new Set<string>();
+  const reviewed = new Set<string>();
+  for (const event of (events ?? []) as Array<{
+    item_id: string;
+    event_type: string;
+    reason: string | null;
+  }>) {
+    if (event.event_type === 'added') {
+      if (event.reason === LEAD_INTEREST_CAPTURE_REASON)
+        leadOnly.add(event.item_id);
+    } else {
+      reviewed.add(event.item_id);
+    }
+  }
+  const show = candidates.filter(
+    (row) => leadOnly.has(row.id) && !reviewed.has(row.id)
   );
-  const show = candidates.filter((row) => leadOnly.has(row.id));
   if (show.length === 0) return shown;
 
   const { error } = await db

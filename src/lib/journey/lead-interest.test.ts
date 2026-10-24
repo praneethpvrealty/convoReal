@@ -156,7 +156,12 @@ describe('recordJourneyLeadInterest', () => {
     for (const source of ['whatsapp_enquiry', 'portal_enquiry'] as const) {
       updates = [];
       writeJourneyEvent.mockClear();
+      ensureJourneyItem.mockClear();
       await recordJourneyLeadInterest(makeDb() as never, { ...input, source });
+      expect(ensureJourneyItem).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ source: 'inquiry_import', hidden: true })
+      );
       expect(updates[0].payload).toMatchObject({ lead_interest: 'interested' });
       expect(writeJourneyEvent).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -204,7 +204,21 @@ describe('[JRN-009] captureJourneyItems', () => {
       { data: null, error: null },
     ];
     queues.journey_events = [
-      { data: [{ item_id: 'item-portal' }], error: null },
+      {
+        data: [
+          {
+            item_id: 'item-portal',
+            event_type: 'added',
+            reason: 'Captured from lead interest',
+          },
+          {
+            item_id: 'item-share',
+            event_type: 'added',
+            reason: 'Captured from WhatsApp share',
+          },
+        ],
+        error: null,
+      },
       { data: null, error: null },
     ];
 
@@ -322,7 +336,16 @@ describe('[JRN-009] ensureJourneyItem', () => {
       { data: null, error: null },
     ];
     queues.journey_events = [
-      { data: [{ item_id: 'item-9' }], error: null },
+      {
+        data: [
+          {
+            item_id: 'item-9',
+            event_type: 'added',
+            reason: 'Captured from lead interest',
+          },
+        ],
+        error: null,
+      },
       { data: null, error: null },
     ];
 
@@ -356,6 +379,48 @@ describe('[JRN-009] ensureJourneyItem', () => {
     ]);
   });
 
+  it('[JRN-009] [JRN-026] never shows a lead-interest capture the agent already reviewed and hid', async () => {
+    const row = {
+      id: 'item-9',
+      contact_id: 'c-1',
+      property_id: 'p-1',
+      stage_id: 'stage-new',
+      status: 'active',
+      hidden: true,
+    };
+    queues.journey_items = [
+      { data: row, error: null },
+      { data: [row], error: null },
+    ];
+    queues.journey_events = [
+      {
+        data: [
+          {
+            item_id: 'item-9',
+            event_type: 'added',
+            reason: 'Captured from lead interest',
+          },
+          { item_id: 'item-9', event_type: 'unhidden', reason: null },
+          { item_id: 'item-9', event_type: 'hidden', reason: null },
+        ],
+        error: null,
+      },
+    ];
+
+    const item = await ensureJourneyItem(makeDb(), {
+      accountId: 'acc-1',
+      userId: 'user-1',
+      contactId: 'c-1',
+      propertyId: 'p-1',
+      source: 'chat_import',
+      hidden: false,
+      reason: 'Captured from visit request',
+    });
+
+    expect(item).toMatchObject({ id: 'item-9', hidden: true });
+    expect(writes).toEqual([]);
+  });
+
   it('[JRN-026] leaves a hidden share capture hidden for a visible capture, as before', async () => {
     const row = {
       id: 'item-9',
@@ -369,7 +434,18 @@ describe('[JRN-009] ensureJourneyItem', () => {
       { data: row, error: null },
       { data: [row], error: null },
     ];
-    queues.journey_events = [{ data: [], error: null }];
+    queues.journey_events = [
+      {
+        data: [
+          {
+            item_id: 'item-9',
+            event_type: 'added',
+            reason: 'Captured from WhatsApp share',
+          },
+        ],
+        error: null,
+      },
+    ];
 
     const item = await ensureJourneyItem(makeDb(), {
       accountId: 'acc-1',

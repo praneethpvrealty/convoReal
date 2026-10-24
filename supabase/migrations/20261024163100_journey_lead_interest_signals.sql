@@ -10,12 +10,15 @@
 --    journey live from now on; a later rejection overwrote the verdict,
 --    so a lead who then said no is left out) and every WhatsApp
 --    Shortlist tap already on property_likes (the session_key
---    'wa:<contact>' rows the bot writes, unless the lead has since said
---    no to that listing; a showcase like is a like, not a shortlist, and
---    the Helper already counts it) stamps its journey item. A pair never captured is captured hidden at the
---    account's first mirrored stage, as the share backfill did
---    (20260926115400), so it waits in the Captured tray rather than
---    appearing on the map unreviewed; Interested outranks Shortlisted.
+--    'wa:<contact>' rows the bot writes, unless the lead themselves said
+--    no to that listing after the tap, as the live clear does; a showcase
+--    like is a like, not a shortlist, and the Helper already counts it)
+--    stamps its journey item. A pair never captured is captured hidden
+--    at the account's first mirrored stage, as the share backfill did
+--    (20260926115400), labelled an enquiry when an enquiry is on file
+--    for the pair and a WhatsApp share otherwise (as the live writers
+--    do), so it waits in the Captured tray rather than appearing on the
+--    map unreviewed; Interested outranks Shortlisted.
 --
 -- 2. copilot_property_interest gains the lead's own Interested answers
 --    as a signal (and an `interested` column and p_signal value), so
@@ -27,9 +30,10 @@
 --    surfaces can show the chip on the overview row.
 --
 -- 4. journey_capture_from_share shows a pair that only a lead's yes
---    captured hidden when a visible ledger row (an agent-composed
---    share, JRN-009) arrives for it, as the TypeScript capture does; a
---    pair a share or the agent tucked away still stays hidden.
+--    captured hidden and nobody reviewed since when a visible ledger row
+--    (an agent-composed share, JRN-009) arrives for it, as the
+--    TypeScript capture does; a pair a share captured, or one the agent
+--    showed and hid again, still stays hidden.
 --
 -- The stamp records what the lead said before, not activity on the
 -- item: the overview's last_updated, the closing-nudge stall clock and
@@ -64,6 +68,8 @@ signals AS (
       WHERE f.contact_id = l.contact_id
         AND f.property_id = l.property_id
         AND f.verdict = 'rejected'
+        AND f.source = 'contact'
+        AND COALESCE(f.updated_at, f.created_at) > l.created_at
     )
 ),
 ranked AS (
@@ -81,8 +87,12 @@ inserted AS (
     lead_interest, lead_interest_at, created_at, updated_at
   )
   SELECT
-    r.account_id, r.contact_id, r.property_id, fs.id, 'whatsapp_share', TRUE,
-    r.kind, r.at, r.at, r.at
+    r.account_id, r.contact_id, r.property_id, fs.id,
+    CASE WHEN EXISTS (
+      SELECT 1 FROM contact_property_inquiries cpi
+      WHERE cpi.contact_id = r.contact_id AND cpi.property_id = r.property_id
+    ) THEN 'inquiry_import' ELSE 'whatsapp_share' END,
+    TRUE, r.kind, r.at, r.at, r.at
   FROM ranked r
   JOIN first_stage fs ON fs.account_id = r.account_id
   WHERE NOT EXISTS (
@@ -511,6 +521,11 @@ BEGIN
           AND e.event_type = 'added'
           AND e.reason = 'Captured from lead interest'
       )
+      AND NOT EXISTS (
+        SELECT 1 FROM journey_events e
+        WHERE e.item_id = ji.id
+          AND e.event_type IN ('hidden', 'unhidden')
+      )
     RETURNING ji.id, ji.stage_id INTO v_item, v_item_stage;
     IF v_item IS NOT NULL THEN
       INSERT INTO journey_events (
@@ -530,4 +545,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.journey_capture_from_share() IS
-  'AFTER INSERT on property_shares: captures the contact×property pair on the journey at the account''s first mirrored stage, visible when the ledger row says journey_visible, otherwise hidden in the Captured tray. An existing pair is left untouched, except that a visible row shows a pair only a lead''s own yes had captured hidden (its added event reads Captured from lead interest).';
+  'AFTER INSERT on property_shares: captures the contact×property pair on the journey at the account''s first mirrored stage, visible when the ledger row says journey_visible, otherwise hidden in the Captured tray. An existing pair is left untouched, except that a visible row shows a pair only a lead''s own yes had captured hidden (its added event reads Captured from lead interest) and nobody has reviewed since.';

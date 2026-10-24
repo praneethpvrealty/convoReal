@@ -42,13 +42,13 @@ describe('journey lead interest signals', () => {
     expect(signals).toContain("WHERE f.verdict = 'interested'");
     expect(signals).toContain("AND l.session_key LIKE 'wa:%'");
     expect(signals).toMatch(
-      /AND l\.session_key LIKE 'wa:%'\s+AND NOT EXISTS \(\s+SELECT 1 FROM listing_feedback f\s+WHERE f\.contact_id = l\.contact_id\s+AND f\.property_id = l\.property_id\s+AND f\.verdict = 'rejected'\s+\)/
+      /AND l\.session_key LIKE 'wa:%'\s+AND NOT EXISTS \(\s+SELECT 1 FROM listing_feedback f\s+WHERE f\.contact_id = l\.contact_id\s+AND f\.property_id = l\.property_id\s+AND f\.verdict = 'rejected'\s+AND f\.source = 'contact'\s+AND COALESCE\(f\.updated_at, f\.created_at\) > l\.created_at\s+\)/
     );
     expect(signals).toContain(
       "CASE s.kind WHEN 'interested' THEN 0 ELSE 1 END, s.at DESC"
     );
-    expect(signals).toContain(
-      "r.account_id, r.contact_id, r.property_id, fs.id, 'whatsapp_share', TRUE,"
+    expect(signals).toMatch(
+      /CASE WHEN EXISTS \(\s+SELECT 1 FROM contact_property_inquiries cpi\s+WHERE cpi\.contact_id = r\.contact_id AND cpi\.property_id = r\.property_id\s+\) THEN 'inquiry_import' ELSE 'whatsapp_share' END,\s+TRUE, r\.kind, r\.at, r\.at, r\.at/
     );
     expect(signals).toContain(
       'ON CONFLICT (account_id, contact_id, property_id) DO NOTHING'
@@ -114,6 +114,9 @@ describe('journey lead interest signals', () => {
     );
     expect(signals).toMatch(
       /ELSIF NEW\.journey_visible THEN\s+UPDATE journey_items ji\s+SET hidden = FALSE\s+WHERE ji\.account_id = NEW\.account_id\s+AND ji\.contact_id = NEW\.contact_id\s+AND ji\.property_id = NEW\.property_id\s+AND ji\.hidden\s+AND EXISTS \(\s+SELECT 1 FROM journey_events e\s+WHERE e\.item_id = ji\.id\s+AND e\.event_type = 'added'\s+AND e\.reason = 'Captured from lead interest'/
+    );
+    expect(signals).toMatch(
+      /AND e\.reason = 'Captured from lead interest'\s+\)\s+AND NOT EXISTS \(\s+SELECT 1 FROM journey_events e\s+WHERE e\.item_id = ji\.id\s+AND e\.event_type IN \('hidden', 'unhidden'\)\s+\)/
     );
     expect(signals).toContain("'unhidden', v_item_stage, v_item_stage,");
     expect(signals).toContain("RAISE WARNING 'journey_capture_from_share:");
