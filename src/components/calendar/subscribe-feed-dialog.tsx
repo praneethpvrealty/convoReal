@@ -1,12 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { CalendarPlus, Check, Copy, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import {
+  GoogleCalendarSync,
+  useGoogleCalendarReturn,
+} from '@/components/calendar/google-calendar-sync';
 import {
   Dialog,
   DialogContent,
@@ -76,6 +80,8 @@ export function SubscribeFeedDialog() {
     }
   };
 
+  const openDialog = useCallback(() => setOpen(true), []);
+  useGoogleCalendarReturn(openDialog);
   const busy = create.isPending || turnOff.isPending;
   const enabled = status.data?.enabled ?? false;
 
@@ -92,15 +98,16 @@ export function SubscribeFeedDialog() {
         className="hover:bg-slate-850 flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white"
       >
         <CalendarPlus className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">Subscribe</span>
+        <span className="hidden sm:inline">Sync</span>
       </button>
       <DialogContent className="max-w-lg rounded-2xl border-slate-800 bg-slate-900/95 p-6 text-white">
         <DialogHeader>
-          <DialogTitle>Subscribe in Google, Apple or Outlook</DialogTitle>
+          <DialogTitle>Your calendar in Google, Apple or Outlook</DialogTitle>
           <DialogDescription>
-            Your appointments and dated open to-dos appear in your own calendar
-            app and refresh about every hour. Anyone with the link can see them,
-            including contact names and phone numbers, so keep it private.
+            Subscribe with a private link, or sync straight into Google Calendar
+            below. Your appointments and dated open to-dos appear in your own
+            calendar app. Anyone with the link can see them, including contact
+            names and phone numbers, so keep it private.
           </DialogDescription>
         </DialogHeader>
 
@@ -178,6 +185,7 @@ export function SubscribeFeedDialog() {
             {enabled ? 'Reset link' : 'Create link'}
           </Button>
         </div>
+        <GoogleCalendarSync enabled={open} />
       </DialogContent>
     </Dialog>
   );

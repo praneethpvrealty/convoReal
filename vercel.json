@@ -14,6 +14,10 @@
       "schedule": "17 * * * *"
     },
     {
+      "path": "/api/cron/google-calendar-sync",
+      "schedule": "2,17,32,47 * * * *"
+    },
+    {
       "path": "/api/cron/realtime-publication-check",
       "schedule": "40 2 * * *"
     },

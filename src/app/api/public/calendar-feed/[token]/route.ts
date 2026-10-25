@@ -2,16 +2,14 @@ import { NextResponse } from 'next/server';
 
 import { hashFeedToken } from '@/lib/calendar/feed-token';
 import {
-  FEED_MAX_ITEMS,
-  appointmentToIcsEvent,
   buildIcsCalendar,
   feedTokenFromParam,
-  feedWindow,
-  todoToIcsEvent,
-  type FeedAppointment,
-  type FeedTodo,
   type IcsEvent,
 } from '@/lib/calendar/ics-feed';
+import {
+  activeMemberAccountName,
+  loadMemberCalendarEvents,
+} from '@/lib/calendar/member-events';
 import { clientIp } from '@/lib/deals/share-server';
 import { publicSiteUrl } from '@/lib/deals/update-delivery';
 import {
@@ -59,72 +57,27 @@ export async function GET(
   }
   if (!feed) return notFound();
 
-  const { data: profile, error: profileError } = await admin
-    .from('profiles')
-    .select('account_id, account:accounts!inner(name, status)')
-    .eq('user_id', feed.user_id)
-    .eq('account_id', feed.account_id)
-    .maybeSingle();
-  if (profileError) {
-    console.error('[calendar-feed] profile lookup failed:', profileError);
-    return NextResponse.json({ error: 'Feed unavailable' }, { status: 500 });
-  }
-  const account = Array.isArray(profile?.account)
-    ? profile.account[0]
-    : profile?.account;
-  if (!profile || !account || account.status === 'archived') {
-    return notFound();
-  }
-
   const now = new Date();
-  const { from, to } = feedWindow(now);
-  const ownedBy = `assigned_to.eq.${feed.user_id},and(assigned_to.is.null,user_id.eq.${feed.user_id})`;
-
-  const [appointments, todos] = await Promise.all([
-    admin
-      .from('appointments')
-      .select(
-        'id, title, description, agenda, start_time, end_time, location, event_type, updated_at, ' +
-          'contact:contacts(name, phone), property:properties(title)'
-      )
-      .eq('account_id', feed.account_id)
-      .or(ownedBy)
-      .neq('status', 'cancelled')
-      .gte('start_time', from.toISOString())
-      .lte('start_time', to.toISOString())
-      .order('start_time', { ascending: true })
-      .limit(FEED_MAX_ITEMS),
-    admin
-      .from('todos')
-      .select(
-        'id, title, description, due_date, priority, updated_at, ' +
-          'contact:contacts(name, phone), property:properties(title)'
-      )
-      .eq('account_id', feed.account_id)
-      .or(ownedBy)
-      .eq('completed', false)
-      .gte('due_date', from.toISOString())
-      .lte('due_date', to.toISOString())
-      .order('due_date', { ascending: true })
-      .limit(FEED_MAX_ITEMS),
-  ]);
-  if (appointments.error || todos.error) {
-    console.error(
-      '[calendar-feed] load failed:',
-      appointments.error ?? todos.error
+  let accountName: string | null;
+  let events: IcsEvent[];
+  try {
+    accountName = await activeMemberAccountName(
+      admin,
+      feed.account_id,
+      feed.user_id
     );
+    if (!accountName) return notFound();
+    events = await loadMemberCalendarEvents(
+      admin,
+      feed.account_id,
+      feed.user_id,
+      publicSiteUrl(request).replace(/\/+$/, ''),
+      now
+    );
+  } catch (error) {
+    console.error('[calendar-feed] load failed:', error);
     return NextResponse.json({ error: 'Feed unavailable' }, { status: 500 });
   }
-
-  const appUrl = publicSiteUrl(request).replace(/\/+$/, '');
-  const events = [
-    ...(appointments.data as unknown as FeedAppointment[]).map((a) =>
-      appointmentToIcsEvent(a, appUrl)
-    ),
-    ...(todos.data as unknown as FeedTodo[]).map((t) =>
-      todoToIcsEvent(t, appUrl)
-    ),
-  ].filter((event): event is IcsEvent => event !== null);
 
   if (
     !feed.last_used_at ||
@@ -142,7 +95,7 @@ export async function GET(
   }
 
   return new NextResponse(
-    buildIcsCalendar(`ConvoReal · ${account.name}`, events, now),
+    buildIcsCalendar(`ConvoReal · ${accountName}`, events, now),
     {
       status: 200,
       headers: {

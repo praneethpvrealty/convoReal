@@ -5344,3 +5344,37 @@ describe('[CAL-014] the calendar subscription link is managed the same way on bo
     }
   });
 });
+
+describe('[CAL-015] Google Calendar sync is connected and managed the same way on both surfaces', () => {
+  it('drives one set of routes and shares the error messages', () => {
+    const web = webSource('components/calendar/google-calendar-sync.tsx');
+    const mobile = mobileSource('components/google-calendar-sync.tsx');
+    expect(
+      webSource('components/calendar/subscribe-feed-dialog.tsx')
+    ).toContain('<GoogleCalendarSync enabled={open} />');
+    expect(mobileSource('app/(app)/calendar-feed.tsx')).toContain(
+      '<GoogleCalendarSyncSection />'
+    );
+    expect(web).toContain("fetch('/api/google-calendar', { method })");
+    expect(mobile).toContain("'/api/google-calendar',");
+    expect(web).toContain("fetch('/api/google-calendar/oauth/start', {");
+    expect(web).toContain("JSON.stringify({ client: 'web' })");
+    expect(mobile).toContain("JSON.stringify({ client: 'mobile' })");
+    expect(mobile).toContain("'/api/google-calendar/oauth/complete'");
+    expect(web).toContain("from '@/lib/google-calendar/messages'");
+    expect(mobile).toContain("from '@shared/lib/google-calendar/messages'");
+    for (const source of [web, mobile]) {
+      for (const method of ["'GET'", "'POST'", "'DELETE'"]) {
+        expect(source).toContain(`googleRequest(${method})`);
+      }
+      for (const label of [
+        'Connect Google Calendar',
+        'Sync now',
+        'Reconnect',
+        'Disconnect',
+      ]) {
+        expect(source).toContain(label);
+      }
+    }
+  });
+});

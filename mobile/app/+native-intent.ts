@@ -18,6 +18,9 @@ export function redirectSystemPath({
 }): string {
   try {
     const url = new URL(path, 'https://convoreal.com');
+    if (url.protocol === 'convoreal:' && url.host === 'google-calendar') {
+      return '/calendar-feed';
+    }
     const q = url.searchParams;
     const audience =
       q.get('audience') === '1' || q.get('shareAudience') === '1'

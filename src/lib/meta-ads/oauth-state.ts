@@ -21,6 +21,8 @@ export interface OAuthStatePayload {
   accountId: string;
   nonce: string;
   ts: number; // ms epoch
+  userId?: string;
+  client?: 'web' | 'mobile';
 }
 
 const MAX_STATE_AGE_MS = 10 * 60 * 1000; // 10 minutes

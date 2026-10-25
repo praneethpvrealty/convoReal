@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 25 October 2026
 
+- **Sync your ConvoReal calendar straight into Google Calendar.** The
+  calendar's Sync button on web, and the share icon on mobile, now offer
+  Connect Google Calendar. ConvoReal adds its own "ConvoReal" calendar to your
+  Google account and keeps your appointments and dated open to-dos up to date
+  every 15 minutes, including changes, cancellations and completed to-dos. It
+  can only see and change that one calendar (CAL-015). **Migration required:**
+  `20261025131500_google_calendar_sync.sql`. Operators enable the Google
+  Calendar API and add the callback URL in Google Cloud; see
+  `docs/google-calendar-sync-setup.md`.
+
 - **Subscribe to your ConvoReal calendar from Google, Apple or Outlook.** The
   calendar has a Subscribe button on web and a share icon on mobile that
   creates a private iCalendar link. Your own appointments and dated open

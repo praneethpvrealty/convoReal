@@ -89,15 +89,20 @@ export function buildAuthUrl(opts: {
   clientId: string;
   redirectUri: string;
   state: string;
+  scope?: string;
+  includeGrantedScopes?: boolean;
 }): string {
   const url = new URL(GOOGLE_AUTH_URL);
   url.searchParams.set('client_id', opts.clientId);
   url.searchParams.set('redirect_uri', opts.redirectUri);
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', YOUTUBE_SCOPES);
+  url.searchParams.set('scope', opts.scope ?? YOUTUBE_SCOPES);
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('prompt', 'consent');
-  url.searchParams.set('include_granted_scopes', 'true');
+  url.searchParams.set(
+    'include_granted_scopes',
+    opts.includeGrantedScopes === false ? 'false' : 'true'
+  );
   url.searchParams.set('state', opts.state);
   return url.toString();
 }
