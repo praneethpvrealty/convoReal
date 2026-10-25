@@ -11,6 +11,11 @@
 // twin) in what it loads and how it ranks; it differs only in
 // authenticating by API key, scoping by `ctx.accountId` in code rather
 // than through RLS, and returning the compact v1 contact shape.
+//
+// A contact ruled out for this listing — "Not a fit" from an agent, or
+// the buyer's own no — is left out, exactly as the app hides them;
+// `excluded_not_a_fit` says how many, so an assistant can say so.
+// PRP-051.
 // ============================================================
 
 import { NextResponse } from 'next/server';
@@ -18,6 +23,8 @@ import { NextResponse } from 'next/server';
 import { withApiKeyAuth } from '@/lib/auth/api-keys';
 import { getMatchingContacts } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import { loadListingMatchFeedback } from '@/lib/inventory/match-feedback-store';
+import { partitionMatchesByFeedback } from '@/lib/match-feedback';
 import { matchReasons } from '@/lib/buyer/matches-ranking';
 import { pageArray, parsePageParams } from '@/lib/v1/pagination';
 import {
@@ -80,24 +87,30 @@ export const GET = withApiKeyAuth('read', async (ctx, req, routeCtx) => {
     );
   }
 
-  const ranked = getMatchingContacts(
+  const { marks } = await loadListingMatchFeedback(ctx.db, ctx.accountId, id);
+  const scored = getMatchingContacts(
     property as unknown as Property,
     await attachInquiredListingTypes(
       ctx.db,
       ctx.accountId,
       (contacts ?? []) as unknown as Contact[]
     )
-  )
-    .filter((result) => result.score >= minScore)
-    .map((result) => ({
-      contact: toV1Contact(result.contact),
-      score: result.score,
-      details: result.details,
-      reasons: matchReasons(result.details),
-    }));
+  ).filter((result) => result.score >= minScore);
+  const { visible } = partitionMatchesByFeedback(scored, marks, []);
+  const ranked = visible.map((result) => ({
+    contact: toV1Contact(result.contact),
+    score: result.score,
+    details: result.details,
+    reasons: matchReasons(result.details),
+  }));
 
+  const excluded = scored.length - visible.length;
   return NextResponse.json({
     property_id: id,
+    excluded_not_a_fit: excluded,
+    ...(excluded > 0 && {
+      note: `${excluded} contact${excluded === 1 ? ' was' : 's were'} left out because they were marked "Not a fit" for this listing.`,
+    }),
     ...pageArray(ranked, params),
   });
 });

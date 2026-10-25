@@ -67,6 +67,30 @@ export async function loadListingMatchFeedback(
 }
 
 /**
+ * The listings a contact has been ruled out for, by their own answer or
+ * an agent's mark — the transpose of loadListingMatchFeedback, for
+ * ranking a contact's matches. Best-effort: a failed read rules nothing
+ * out.
+ */
+export async function loadContactRejectedPropertyIds(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<Set<string>> {
+  const { data, error } = await db
+    .from('listing_feedback')
+    .select('property_id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .eq('verdict', 'rejected');
+  if (error) {
+    console.error('[match-feedback] contact read failed:', error);
+    return new Set();
+  }
+  return new Set((data ?? []).map((row) => row.property_id as string));
+}
+
+/**
  * Type suggestions for the given contacts — the matched contacts whose
  * type is not on file, in rank order. Every signal is read for those
  * contacts alone, so a busy account's newer enquiries cannot push a

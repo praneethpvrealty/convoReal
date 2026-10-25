@@ -2387,7 +2387,7 @@
         },
         {
           "id": "PRP-051",
-          "rule": "An agent can mark any contact on a listing's Matching Contacts list as not a fit, on web and mobile alike, with one of the listing feedback reasons (wrong property type, budget, location, size, already bought, not buying now, something else). A rejected contact leaves that listing's list whoever said no — the agent here or the buyer on WhatsApp — and waits under \"Show hidden\" with the reason and who gave it, from where an agent can undo their own team's mark (the buyer's own \"no\" stays). An agent mark never overwrites the buyer's own answer: a contact who already said no stays as the buyer's rejection, and one who said they are interested cannot be marked not a fit for that listing; Match Radar's existing exclusion of rejected listings applies to agent marks too. An agent mark says the listing does not suit the contact, not that they closed their enquiry: deal status notices, sold notices and the follow-up radar still treat only the contact's own rejection as a closed enquiry, and a buyer who answers after an agent marked them is recorded as having said it themselves. Choosing wrong property type asks what the contact is looking for: the answer replaces their stated property types (clearing legacy interests that would keep the ruled-out listing), fills any active brief that names no type, and is written as a contact note so a later re-extraction keeps it. A contact whose type is not on file, who has been ruled out for type at least once, gets a suggested type to confirm in one tap: the type they showed most interest in (enquiries, interested answers) that was not rejected, or any land when two or more rejections were all buildings; nothing is written until the agent confirms. Read-only members see marks and suggestions but cannot make, confirm or restore them.",
+          "rule": "An agent can mark any contact on a listing's Matching Contacts list as not a fit, on web and mobile alike, with one of the listing feedback reasons (wrong property type, budget, location, size, already bought, not buying now, something else). A rejected contact leaves that listing's list whoever said no — the agent here or the buyer on WhatsApp — and waits under \"Show hidden\" with the reason and who gave it, from where an agent can undo their own team's mark (the buyer's own \"no\" stays). An agent mark never overwrites the buyer's own answer: a contact who already said no stays as the buyer's rejection, and one who said they are interested cannot be marked not a fit for that listing; Match Radar's existing exclusion of rejected listings applies to agent marks too. An agent mark says the listing does not suit the contact, not that they closed their enquiry: deal status notices, sold notices and the follow-up radar still treat only the contact's own rejection as a closed enquiry, and a buyer who answers after an agent marked them is recorded as having said it themselves. Choosing wrong property type asks what the contact is looking for: the answer replaces their stated property types (clearing legacy interests that would keep the ruled-out listing), fills any active brief that names no type, and is written as a contact note so a later re-extraction keeps it. A contact whose type is not on file, who has been ruled out for type at least once, gets a suggested type to confirm in one tap: the type they showed most interest in (enquiries, interested answers) that was not rejected, or any land when two or more rejections were all buildings; nothing is written until the agent confirms. Read-only members see marks and suggestions but cannot make, confirm or restore them. The API-key surface agrees with the app: /api/v1 property matches leave out contacts ruled out for the listing and contact matches leave out listings the contact was ruled out for, each reporting how many it left out.",
           "tests": [
             {
               "file": "src/lib/match-feedback.test.ts",
@@ -2411,6 +2411,14 @@
             },
             {
               "file": "src/app/api/contacts/type-suggestions/route.test.ts",
+              "case": "[PRP-051]"
+            },
+            {
+              "file": "src/app/api/v1/properties/[id]/matches/route.test.ts",
+              "case": "[PRP-051]"
+            },
+            {
+              "file": "src/app/api/v1/contacts/[id]/matches/route.test.ts",
               "case": "[PRP-051]"
             }
           ],
