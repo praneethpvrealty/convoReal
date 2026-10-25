@@ -14,7 +14,8 @@ import {
 //   1. Re-points conversations, notes, custom values, inquiries, appointments, and todos → target
 //   2. Safely merges tags, custom values, and inquiries without duplicate constraint errors
 //   3. Merges preferences (budgets, ROI, interest areas, specifications, requirements)
-//   4. Marks source as is_merged = true, sets merged_into_id = target
+//   4. Marks source as is_merged = true, sets merged_into_id = target, and
+//      re-points contacts already merged into source at target
 //   5. Inserts a merge log note on the target contact card
 //   6. Writes a merge log entry
 //
@@ -232,6 +233,15 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', sourceId);
+
+    await admin
+      .from('contacts')
+      .update({
+        merged_into_id: targetId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('account_id', ctx.accountId)
+      .eq('merged_into_id', sourceId);
 
     // ── 4. Add system note on target contact detailing the merge ───────────
     const mergeDate = new Date().toLocaleDateString('en-IN', {

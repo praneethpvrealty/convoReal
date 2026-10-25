@@ -21,9 +21,9 @@ than a written entry. Newest first.
 
 - **An owner is no longer asked why they rejected their own listing, and a
   merged duplicate stops collecting messages.** A send addressed to a contact
-  that was merged away now goes to the surviving contact's thread, so a share
-  and its "Did it match?" follow-up land in the one conversation the person
-  replies from. A "Not interested" tap on that follow-up names the shared
+  that was merged away on the same number now goes to the surviving contact's
+  thread, so a share and its "Did it match?" follow-up land in the one
+  conversation the person replies from. A "Not interested" tap on that follow-up names the shared
   listing, and a "Not interested" never names, records or asks about a listing
   the contact owns (INB-022, INB-040). Merging two records with different
   WhatsApp numbers now asks the agent to confirm both numbers belong to the

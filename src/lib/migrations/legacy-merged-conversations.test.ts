@@ -19,8 +19,15 @@ describe('[CTM-001] contacts merged before conversations were consolidated', () 
     expect(sql).toContain('AND NOT w.is_merged');
   });
 
+  it('follows a merge chain to the contact that survived it', () => {
+    expect(sql).toContain('WITH RECURSIVE chain AS');
+    expect(sql).toContain('ch.depth < 5');
+  });
+
   it('only folds threads of records on the same WhatsApp number', () => {
-    expect(sql).toContain("right(regexp_replace(c.phone, '\\D', '', 'g'), 10)");
+    expect(sql).toContain(
+      "right(regexp_replace(ch.alias_phone, '\\D', '', 'g'), 10)"
+    );
     expect(sql).toContain(
       "= right(regexp_replace(coalesce(w.phone, ''), '\\D', '', 'g'), 10)"
     );

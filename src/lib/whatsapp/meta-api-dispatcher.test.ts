@@ -52,8 +52,8 @@ function makeDb(
     /** Rows the swap lookup finds for the template name. */
     templateVariants?: Row[];
     messageInsertError?: { message: string };
-    /** Marks the contact as merged into this surviving contact id. */
-    mergedInto?: string;
+    /** Contact rows by id, served ahead of the default contact. */
+    contactRows?: Record<string, Row>;
   } = {}
 ) {
   const inserts: Record<string, Row[]> = {
@@ -141,10 +141,10 @@ function makeDb(
               },
             });
           }
-          if (overrides.mergedInto && filters.id === overrides.mergedInto) {
+          const row = overrides.contactRows?.[String(filters.id)];
+          if (row) {
             return Promise.resolve({
               data: {
-                id: overrides.mergedInto,
                 phone: '+919876543210',
                 name: 'Narendra',
                 salutation: null,
@@ -155,6 +155,7 @@ function makeDb(
                 whatsapp_marketing_suppression_code: null,
                 is_merged: false,
                 merged_into_id: null,
+                ...row,
               },
               error: null,
             });
@@ -162,8 +163,6 @@ function makeDb(
           return Promise.resolve({
             data: {
               id: CONTACT_ID,
-              is_merged: !!overrides.mergedInto,
-              merged_into_id: overrides.mergedInto ?? null,
               phone: '+919876543210',
               name: 'Sajjen',
               salutation: null,
@@ -307,8 +306,19 @@ describe('sendWhatsAppMessageAndPersist', () => {
     header_type: null,
   };
 
-  it('[CTM-001] sends to a merged contact through the surviving contact and its thread', async () => {
-    const db = makeDb({ mergedInto: 'winner-1' });
+  const mergedChain = (aliasRow: Row = {}, winnerRow: Row = {}) => ({
+    [CONTACT_ID]: {
+      id: CONTACT_ID,
+      is_merged: true,
+      merged_into_id: 'middle-1',
+      ...aliasRow,
+    },
+    'middle-1': { id: 'middle-1', is_merged: true, merged_into_id: 'winner-1' },
+    'winner-1': { id: 'winner-1', ...winnerRow },
+  });
+
+  it('[CTM-001] sends to a merged contact through the contact that survived its merge chain', async () => {
+    const db = makeDb({ contactRows: mergedChain() });
     const { sendWhatsAppMessageAndPersist } =
       await import('./meta-api-dispatcher');
 
@@ -334,6 +344,66 @@ describe('sendWhatsAppMessageAndPersist', () => {
       (vi.mocked(fetch).mock.calls.at(-1)?.[1] as { body: string }).body
     );
     expect(body.to).toBe('919876543210');
+  });
+
+  it('[CTM-001] keeps a merged contact on another number in its own thread', async () => {
+    const db = makeDb({
+      contactRows: mergedChain({ phone: '+919845551375' }),
+    });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      conversationId: 'conv-of-merged-contact',
+      kind: 'text',
+      senderType: 'bot',
+      text: 'Hello',
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(db._inserts.conversations).toEqual([]);
+    expect(db._inserts.messages).toEqual([
+      expect.objectContaining({ conversation_id: 'conv-of-merged-contact' }),
+    ]);
+  });
+
+  it('[CTM-001] honours a Marketing pause Meta set on the merged record of the same number', async () => {
+    const db = makeDb({
+      lastInboundAt: null,
+      contactRows: mergedChain({
+        whatsapp_marketing_suppressed_until: '2099-01-01T00:00:00.000Z',
+        whatsapp_marketing_suppression_code: 130472,
+      }),
+    });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      kind: 'template',
+      senderType: 'bot',
+      templateName: 'property_requirement_review',
+      templateLanguage: 'en_US',
+      templateParams: ['Narendra'],
+      templateRow: {
+        name: 'property_requirement_review',
+        language: 'en_US',
+        category: 'Marketing',
+        status: 'APPROVED',
+        body_text: 'Hello {{1}}',
+        header_type: null,
+      },
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe(130472);
   });
 
   it('[CLG-006] swaps a paused Marketing send onto the Utility variant', async () => {

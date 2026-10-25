@@ -41,6 +41,8 @@ import {
   numberChangeWindow,
 } from '@/lib/whatsapp/number-change-notice';
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only';
+import { MAX_MERGE_HOPS } from '@/lib/contacts/merge-chain';
+import { primaryPhonesDiffer } from '@/lib/contacts/phone-key';
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle';
 import {
   isMarketingTemplateSuppressed,
@@ -369,14 +371,40 @@ export async function sendWhatsAppMessageAndPersist(
       if (!loaded) {
         throw new Error('Contact not found for this account');
       }
-      if (loaded.is_merged && loaded.merged_into_id) {
-        const winner = await loadContact(loaded.merged_into_id);
-        if (winner && !winner.is_merged) {
-          targetPhone ||= loaded.phone;
-          resolvedContactId = winner.id;
-          resolvedConversationId = null;
-          loaded = winner;
-        }
+      let winner: MergeableOutboundContact | null = loaded;
+      for (
+        let hop = 0;
+        winner?.is_merged && winner.merged_into_id && hop < MAX_MERGE_HOPS;
+        hop += 1
+      ) {
+        winner = await loadContact(winner.merged_into_id);
+      }
+      if (
+        winner &&
+        winner.id !== loaded.id &&
+        !winner.is_merged &&
+        !primaryPhonesDiffer(loaded.phone, winner.phone)
+      ) {
+        const alias = loaded;
+        const aliasPauseLater =
+          !!alias.whatsapp_marketing_suppressed_until &&
+          laterSuppression(
+            winner.whatsapp_marketing_suppressed_until,
+            alias.whatsapp_marketing_suppressed_until
+          ) !== winner.whatsapp_marketing_suppressed_until;
+        resolvedContactId = winner.id;
+        resolvedConversationId = null;
+        loaded = {
+          ...winner,
+          ...(aliasPauseLater
+            ? {
+                whatsapp_marketing_suppressed_until:
+                  alias.whatsapp_marketing_suppressed_until,
+                whatsapp_marketing_suppression_code:
+                  alias.whatsapp_marketing_suppression_code,
+              }
+            : {}),
+        };
       }
       resolvedContact = loaded;
       targetPhone ||= resolvedContact.phone;

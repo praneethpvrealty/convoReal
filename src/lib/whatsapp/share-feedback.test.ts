@@ -487,7 +487,7 @@ describe('findFeedbackSharePropertyId', () => {
   function lookupDb(
     rows: Row[],
     failOr = false,
-    aliases: { id: string }[] = []
+    contacts: Record<string, Row> = {}
   ) {
     const calls: [string, unknown][] = [];
     const tables: string[] = [];
@@ -497,23 +497,27 @@ describe('findFeedbackSharePropertyId', () => {
       from(table: string) {
         tables.push(table);
         if (table === 'contacts') {
+          let id = '';
           const c: Record<string, unknown> = {
-            then: (resolve: (v: unknown) => unknown) =>
-              resolve({ data: aliases, error: null }),
-          };
-          for (const m of ['select', 'eq']) {
-            c[m] = (col: string, val: unknown) => {
-              calls.push([`contacts.${m}:${col}`, val]);
+            select: () => c,
+            eq: (col: string, val: unknown) => {
+              if (col === 'id') id = String(val);
               return c;
-            };
-          }
+            },
+            maybeSingle: async () => ({
+              data: contacts[id] ?? null,
+              error: null,
+            }),
+          };
           return c;
         }
         const ors: string[] = [];
+        const eqs: Record<string, unknown> = {};
         const b: Record<string, unknown> = {};
-        for (const m of ['select', 'eq', 'in', 'limit']) {
+        for (const m of ['select', 'eq', 'limit']) {
           b[m] = (col: string, val: unknown) => {
             calls.push([`${m}:${col}`, val]);
+            if (m === 'eq') eqs[col] = val;
             return b;
           };
         }
@@ -525,9 +529,14 @@ describe('findFeedbackSharePropertyId', () => {
           if (failOr && ors.length > 0) {
             return { data: null, error: { message: 'timeout' } };
           }
-          const hit = rows.filter((row) =>
-            ors.every((expr) => matchesOr(row, expr))
-          );
+          const hit = rows
+            .map((row) => ({ contact_id: CONTACT_ID, ...row }))
+            .filter(
+              (row) =>
+                (eqs.contact_id === undefined ||
+                  row.contact_id === eqs.contact_id) &&
+                ors.every((expr) => matchesOr(row, expr))
+            );
           return { data: hit[0] ?? null, error: null };
         };
         return b;
@@ -549,16 +558,33 @@ describe('findFeedbackSharePropertyId', () => {
     expect(db.calls).toEqual(
       expect.arrayContaining([
         ['eq:account_id', ACCOUNT_ID],
-        ['in:contact_id', [CONTACT_ID]],
         ['eq:feedback_message_id', 'wamid.prompt'],
       ])
     );
   });
 
-  it('[INB-022] finds a share recorded on a contact since merged into the one that tapped', async () => {
-    const db = lookupDb([{ property_id: PROPERTY_ID }], false, [
-      { id: 'merged-alias' },
-    ]);
+  it('[INB-022] finds a share recorded on a contact since merged, through a merge chain, into the one that tapped', async () => {
+    const db = lookupDb(
+      [{ property_id: PROPERTY_ID, contact_id: 'alias-a' }],
+      false,
+      {
+        'alias-a': {
+          id: 'alias-a',
+          is_merged: true,
+          merged_into_id: 'alias-b',
+        },
+        'alias-b': {
+          id: 'alias-b',
+          is_merged: true,
+          merged_into_id: CONTACT_ID,
+        },
+        [CONTACT_ID]: {
+          id: CONTACT_ID,
+          is_merged: false,
+          merged_into_id: null,
+        },
+      }
+    );
     expect(
       await findFeedbackSharePropertyId(
         db as never,
@@ -567,12 +593,24 @@ describe('findFeedbackSharePropertyId', () => {
         'wamid.prompt'
       )
     ).toBe(PROPERTY_ID);
-    expect(db.calls).toEqual(
-      expect.arrayContaining([
-        ['contacts.eq:merged_into_id', CONTACT_ID],
-        ['in:contact_id', [CONTACT_ID, 'merged-alias']],
-      ])
+  });
+
+  it('[INB-022] ignores a share on the prompt that belongs to someone else', async () => {
+    const db = lookupDb(
+      [{ property_id: PROPERTY_ID, contact_id: 'stranger' }],
+      false,
+      {
+        stranger: { id: 'stranger', is_merged: false, merged_into_id: null },
+      }
     );
+    expect(
+      await findFeedbackSharePropertyId(
+        db as never,
+        ACCOUNT_ID,
+        CONTACT_ID,
+        'wamid.prompt'
+      )
+    ).toBeNull();
   });
 
   it('[INB-022] refuses to pick when one prompt covers shares of different properties', async () => {
