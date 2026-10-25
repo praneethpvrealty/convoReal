@@ -4,6 +4,12 @@ import { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { create } from 'zustand';
 
+import {
+  SESSION_PROFILE_PATH,
+  parseSessionProfileResponse,
+} from '@shared/lib/auth/session-profile';
+
+import { toMobileProfile } from './session-profile';
 import { asyncStoragePersister, queryClient } from './query';
 import { supabase } from './supabase';
 import type { Profile } from './types';
@@ -136,12 +142,29 @@ async function loadProfile(userId: string): Promise<Profile | null> {
       }
       return profile;
     }
-    if (!error || attempt === PROFILE_LOAD_ATTEMPTS) return null;
+    if (!error) return null;
+    if (attempt === PROFILE_LOAD_ATTEMPTS) return loadProfileViaApi(userId);
     await new Promise((resolve) =>
       setTimeout(resolve, PROFILE_RETRY_DELAY_MS * attempt)
     );
   }
   return null;
+}
+
+async function loadProfileViaApi(userId: string): Promise<Profile | null> {
+  try {
+    const { apiFetch } = await import('./api');
+    const result = parseSessionProfileResponse(
+      await apiFetch<unknown>(SESSION_PROFILE_PATH)
+    );
+    const profile = result ? toMobileProfile(result.profile) : null;
+    if (profile && useAuthStore.getState().session?.user.id === userId) {
+      useAuthStore.setState({ profile });
+    }
+    return profile;
+  } catch {
+    return null;
+  }
 }
 
 /**

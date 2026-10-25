@@ -61,9 +61,12 @@ const eslintConfig = defineConfig([
     // Routes resolve their caller through the shared helpers so the
     // archived-account block and the role check are never skipped. The
     // exemptions run before a caller has an account, or for a persona
-    // that never gets one.
+    // that never gets one. The session profile route answers for a caller
+    // whose profile row may not exist yet, and must still report an
+    // archived account to the shell rather than refuse it.
     files: ['src/app/api/**/route.ts'],
     ignores: [
+      'src/app/api/auth/profile/route.ts',
       'src/app/api/auth/profile-setup/route.ts',
       'src/app/api/invitations/*/redeem/route.ts',
       'src/app/api/den/auth/complete/route.ts',

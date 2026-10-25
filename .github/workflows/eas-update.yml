@@ -38,6 +38,8 @@ on:
       - '!mobile/**.md'
       # Web modules the bundle imports through @shared/; [SHR-003] in
       # src/lib/mobile-parity.test.ts keeps this list whole.
+      - 'src/lib/auth/roles.ts'
+      - 'src/lib/auth/session-profile.ts'
       - 'src/lib/automations/step-tree.ts'
       - 'src/lib/automations/trigger-meta.ts'
       - 'src/lib/calendar/archive-sort.ts'
