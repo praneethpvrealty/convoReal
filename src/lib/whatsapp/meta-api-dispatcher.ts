@@ -396,6 +396,9 @@ export async function sendWhatsAppMessageAndPersist(
         resolvedConversationId = null;
         loaded = {
           ...winner,
+          chain_only: winner.chain_only || alias.chain_only,
+          is_dead: winner.is_dead || alias.is_dead,
+          is_archived: winner.is_archived || alias.is_archived,
           ...(aliasPauseLater
             ? {
                 whatsapp_marketing_suppressed_until:

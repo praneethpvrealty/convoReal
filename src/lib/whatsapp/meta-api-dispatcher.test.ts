@@ -371,6 +371,25 @@ describe('sendWhatsAppMessageAndPersist', () => {
     ]);
   });
 
+  it('[CTM-001] keeps refusing a send addressed to a merged record that was closed', async () => {
+    const db = makeDb({ contactRows: mergedChain({ is_dead: true }) });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      kind: 'text',
+      senderType: 'bot',
+      text: 'Hello',
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(false);
+    expect(db._inserts.messages).toEqual([]);
+  });
+
   it('[CTM-001] honours a Marketing pause Meta set on the merged record of the same number', async () => {
     const db = makeDb({
       lastInboundAt: null,
