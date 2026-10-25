@@ -5,8 +5,13 @@ import type { GoogleEventBody } from '@/lib/google-calendar/client';
 
 export const SYNC_MAX_OPERATIONS = 150;
 
+export function googleEventId(uid: string): string {
+  return createHash('sha256').update(uid).digest('hex');
+}
+
 export interface DesiredEvent {
   uid: string;
+  eventId: string;
   body: GoogleEventBody;
   hash: string;
   startsAt: string;
@@ -35,6 +40,7 @@ export function toGoogleEvent(event: IcsEvent): GoogleEventBody {
     .filter((line): line is string => !!line)
     .join('\n\n');
   return {
+    status: 'confirmed',
     summary: event.summary,
     ...(description ? { description } : {}),
     ...(event.location ? { location: event.location } : {}),
@@ -53,6 +59,7 @@ export function toDesiredEvent(event: IcsEvent): DesiredEvent {
   const body = toGoogleEvent(event);
   return {
     uid: event.uid,
+    eventId: googleEventId(event.uid),
     body,
     hash: createHash('sha256').update(JSON.stringify(body)).digest('hex'),
     startsAt: event.start.toISOString(),

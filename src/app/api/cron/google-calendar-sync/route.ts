@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     .from('google_calendar_connections')
     .select(CONNECTION_COLUMNS)
     .neq('status', 'token_expired')
-    .order('last_synced_at', { ascending: true, nullsFirst: true })
+    .order('last_attempted_at', { ascending: true, nullsFirst: true })
     .limit(BATCH_SIZE);
   if (error) {
     console.error('[google-calendar-sync] load failed:', error);

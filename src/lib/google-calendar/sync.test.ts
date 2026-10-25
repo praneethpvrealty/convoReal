@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   refreshAccessToken: vi.fn(),
   isAuthError: vi.fn(),
   createCalendar: vi.fn(),
+  calendarExists: vi.fn(),
   insertEvent: vi.fn(),
   updateEvent: vi.fn(),
   deleteEvent: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('@/lib/google-calendar/client', async (importOriginal) => {
   return {
     ...actual,
     createCalendar: mocks.createCalendar,
+    calendarExists: mocks.calendarExists,
     insertEvent: mocks.insertEvent,
     updateEvent: mocks.updateEvent,
     deleteEvent: mocks.deleteEvent,
@@ -36,6 +38,7 @@ vi.mock('@/lib/google-calendar/client', async (importOriginal) => {
 
 import { GoogleCalendarApiError } from '@/lib/google-calendar/client';
 
+import { googleEventId } from './plan';
 import { syncGoogleCalendar, type GoogleCalendarConnection } from './sync';
 
 interface Op {
@@ -114,7 +117,9 @@ beforeEach(() => {
   mocks.refreshAccessToken.mockResolvedValue({ access_token: 'at' });
   mocks.isAuthError.mockReturnValue(false);
   mocks.loadMemberCalendarEvents.mockResolvedValue([event]);
-  mocks.insertEvent.mockResolvedValue('g-1');
+  mocks.insertEvent.mockResolvedValue(undefined);
+  mocks.calendarExists.mockResolvedValue(true);
+  mocks.createCalendar.mockResolvedValue('cal-new');
 });
 
 describe('[CAL-015] syncGoogleCalendar', () => {
@@ -133,14 +138,15 @@ describe('[CAL-015] syncGoogleCalendar', () => {
     expect(mocks.insertEvent).toHaveBeenCalledWith(
       'at',
       'cal-1',
-      expect.objectContaining({ summary: 'Site visit' })
+      googleEventId(event.uid),
+      expect.objectContaining({ summary: 'Site visit', status: 'confirmed' })
     );
     const upsert = ops.find((op) => op.action === 'upsert');
     expect(upsert?.payload).toMatchObject({
       account_id: 'acct-1',
       user_id: 'user-1',
       source_uid: event.uid,
-      google_event_id: 'g-1',
+      google_event_id: googleEventId(event.uid),
     });
     const done = ops.filter(
       (op) =>
@@ -176,5 +182,55 @@ describe('[CAL-015] syncGoogleCalendar', () => {
     const result = await syncGoogleCalendar(admin as never, connection, 'x');
     expect(result.status).toBe('error');
     expect(ops.at(-1)?.payload).toMatchObject({ calendar_id: null });
+  });
+
+  it('[CAL-015] stamps every attempt so failing connections rotate out of the queue', async () => {
+    mocks.activeMemberAccountName.mockResolvedValue(null);
+    const { admin, ops } = fakeAdmin();
+    await syncGoogleCalendar(
+      admin as never,
+      connection,
+      'x',
+      new Date('2026-10-25T00:00:00Z')
+    );
+    expect(ops[0]).toMatchObject({
+      table: 'google_calendar_connections',
+      action: 'update',
+      payload: { last_attempted_at: '2026-10-25T00:00:00.000Z' },
+    });
+  });
+
+  it('[CAL-015] recreates a deleted calendar in the same run even when nothing changed', async () => {
+    mocks.calendarExists.mockResolvedValue(false);
+    mocks.loadMemberCalendarEvents.mockResolvedValue([]);
+    const { admin, ops } = fakeAdmin();
+    const result = await syncGoogleCalendar(admin as never, connection, 'x');
+    expect(result.status).toBe('synced');
+    expect(mocks.createCalendar).toHaveBeenCalledWith('at');
+    expect(
+      ops.some(
+        (op) =>
+          op.table === 'google_calendar_connections' &&
+          (op.payload as { calendar_id?: string })?.calendar_id === 'cal-new'
+      )
+    ).toBe(true);
+  });
+
+  it('[CAL-015] turns a second insert of the same item into an update instead of a duplicate', async () => {
+    mocks.insertEvent.mockRejectedValue(
+      new GoogleCalendarApiError(
+        'The requested identifier already exists.',
+        409
+      )
+    );
+    const { admin } = fakeAdmin();
+    const result = await syncGoogleCalendar(admin as never, connection, 'x');
+    expect(result).toMatchObject({ status: 'synced', created: 1 });
+    expect(mocks.updateEvent).toHaveBeenCalledWith(
+      'at',
+      'cal-1',
+      googleEventId(event.uid),
+      expect.objectContaining({ status: 'confirmed' })
+    );
   });
 });

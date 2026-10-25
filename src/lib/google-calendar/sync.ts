@@ -6,9 +6,11 @@ import {
   loadMemberCalendarEvents,
 } from '@/lib/calendar/member-events';
 import {
+  calendarExists,
   createCalendar,
   deleteEvent,
   insertEvent,
+  isConflictError,
   isGoneError,
   updateEvent,
 } from '@/lib/google-calendar/client';
@@ -16,6 +18,7 @@ import {
   SYNC_MAX_OPERATIONS,
   planSync,
   toDesiredEvent,
+  type DesiredEvent,
   type EventLink,
 } from '@/lib/google-calendar/plan';
 import { decrypt } from '@/lib/whatsapp/encryption';
@@ -79,6 +82,10 @@ export async function syncGoogleCalendar(
     user_id: connection.user_id,
   };
 
+  await markConnection(admin, connection, {
+    last_attempted_at: now.toISOString(),
+  });
+
   try {
     const member = await activeMemberAccountName(
       admin,
@@ -110,6 +117,9 @@ export async function syncGoogleCalendar(
     }
 
     let calendarId = connection.calendar_id;
+    if (calendarId && !(await calendarExists(accessToken, calendarId))) {
+      calendarId = null;
+    }
     if (!calendarId) {
       calendarId = await createCalendar(accessToken);
       const { error: deleteLinksError } = await admin
@@ -158,6 +168,16 @@ export async function syncGoogleCalendar(
       if (error) throw error;
     };
 
+    const placeEvent = async (event: DesiredEvent) => {
+      try {
+        await insertEvent(accessToken, calendarId, event.eventId, event.body);
+      } catch (err) {
+        if (!isConflictError(err)) throw err;
+        await updateEvent(accessToken, calendarId, event.eventId, event.body);
+      }
+      await writeLink(event.uid, event.eventId, event.hash, event.startsAt);
+    };
+
     for (const link of plan.remove) {
       await deleteEvent(accessToken, calendarId, link.google_event_id);
       const { error } = await admin
@@ -169,8 +189,7 @@ export async function syncGoogleCalendar(
     }
 
     for (const event of plan.create) {
-      const eventId = await insertEvent(accessToken, calendarId, event.body);
-      await writeLink(event.uid, eventId, event.hash, event.startsAt);
+      await placeEvent(event);
       result.created += 1;
     }
 
@@ -191,8 +210,7 @@ export async function syncGoogleCalendar(
         result.updated += 1;
       } catch (err) {
         if (!isGoneError(err)) throw err;
-        const eventId = await insertEvent(accessToken, calendarId, event.body);
-        await writeLink(event.uid, eventId, event.hash, event.startsAt);
+        await placeEvent(event);
         result.created += 1;
       }
     }

@@ -33,7 +33,12 @@ export interface GoogleEventTime {
   timeZone?: string;
 }
 
+export function isConflictError(err: unknown): boolean {
+  return err instanceof GoogleCalendarApiError && err.status === 409;
+}
+
 export interface GoogleEventBody {
+  status: 'confirmed';
   summary: string;
   description?: string;
   location?: string;
@@ -100,6 +105,24 @@ export async function createCalendar(accessToken: string): Promise<string> {
   return data.id;
 }
 
+export async function calendarExists(
+  accessToken: string,
+  calendarId: string
+): Promise<boolean> {
+  try {
+    await request(
+      accessToken,
+      `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}`,
+      { method: 'GET' },
+      'Failed to read the ConvoReal calendar'
+    );
+    return true;
+  } catch (err) {
+    if (isGoneError(err)) return false;
+    throw err;
+  }
+}
+
 function eventsUrl(calendarId: string, eventId?: string): string {
   const base = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events`;
   return eventId ? `${base}/${encodeURIComponent(eventId)}` : base;
@@ -108,15 +131,15 @@ function eventsUrl(calendarId: string, eventId?: string): string {
 export async function insertEvent(
   accessToken: string,
   calendarId: string,
+  eventId: string,
   body: GoogleEventBody
-): Promise<string> {
-  const data = await request<{ id: string }>(
+): Promise<void> {
+  await request(
     accessToken,
     eventsUrl(calendarId),
-    { method: 'POST', body },
+    { method: 'POST', body: { ...body, id: eventId } },
     'Failed to add the event to Google Calendar'
   );
-  return data.id;
 }
 
 export async function updateEvent(
