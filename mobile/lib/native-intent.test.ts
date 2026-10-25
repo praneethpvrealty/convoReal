@@ -23,3 +23,14 @@ describe('mobile audience-sharing links', () => {
     ).toBe(`/property/${propertyId}?audience=1`);
   });
 });
+
+describe('[CAL-015] Google Calendar sign-in return', () => {
+  it('opens the calendar sync screen without routing the code anywhere', () => {
+    expect(
+      redirectSystemPath({
+        path: 'convoreal://google-calendar?code=abc&state=xyz',
+        initial: false,
+      })
+    ).toBe('/calendar-feed');
+  });
+});

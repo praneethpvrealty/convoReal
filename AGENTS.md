@@ -782,6 +782,7 @@ Defined in `vercel.json`:
 - `/api/cron/lead-sync-reconcile` — hourly at :10
 - `/api/cron/outreach-followups` — hourly at :25
 - `/api/cron/credit-refunds` — hourly at :17; retries the AI-credit refunds queued in `credit_refund_retries`
+- `/api/cron/google-calendar-sync` — every 15 minutes (:02, :17, :32, :47); pushes each connected member's appointments and dated open to-dos into the ConvoReal calendar in their Google account (CAL-015)
 - `/api/appointments/cron` — every 15 minutes
 - `/api/cron/voice-campaigns` — every 10 minutes
 - `/api/cron/showcase-view-nudges` — every 15 minutes (:04, :19, :34, :49); WhatsApp check-in (Book a visit / Call me back / Not for me) to an identified showcase visitor who spent 30s+ on a listing, outside client quiet hours; also alerts the agent about a hot viewer (2+ minutes or 2+ days on one listing)

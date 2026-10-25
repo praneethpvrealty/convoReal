@@ -118,7 +118,7 @@ export function formatIcsUtc(date: Date): string {
   );
 }
 
-function istDate(date: Date): string {
+export function istDate(date: Date): string {
   const ist = new Date(date.getTime() + IST_OFFSET_MS);
   return `${ist.getUTCFullYear()}${pad(ist.getUTCMonth() + 1)}${pad(ist.getUTCDate())}`;
 }

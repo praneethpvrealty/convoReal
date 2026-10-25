@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import { GoogleCalendarSyncSection } from '@/components/google-calendar-sync';
 import { ConvoRealLoader } from '@/components/loader';
 import { Banner, PrimaryButton, SectionLabel } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
@@ -93,9 +94,7 @@ export default function CalendarFeedScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen
-        options={{ headerShown: true, title: 'Subscribe to calendar' }}
-      />
+      <Stack.Screen options={{ headerShown: true, title: 'Calendar sync' }} />
       {status.isLoading ? (
         <View
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
@@ -200,6 +199,7 @@ export default function CalendarFeedScreen() {
               </Text>
             </Pressable>
           ) : null}
+          <GoogleCalendarSyncSection />
         </ScrollView>
       )}
     </View>
