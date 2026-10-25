@@ -552,17 +552,38 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
         >
           Calendar
         </Text>
-        <TourTarget id="new-appointment">
-          <Link href="/(app)/appointment-new" asChild>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.md,
+          }}
+        >
+          <Link href="/(app)/calendar-feed" asChild>
             <Pressable
               hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="New appointment"
+              accessibilityLabel="Subscribe in your calendar app"
             >
-              <Ionicons name="add-circle" size={30} color={colors.primary} />
+              <Ionicons
+                name="share-outline"
+                size={24}
+                color={colors.textMuted}
+              />
             </Pressable>
           </Link>
-        </TourTarget>
+          <TourTarget id="new-appointment">
+            <Link href="/(app)/appointment-new" asChild>
+              <Pressable
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="New appointment"
+              >
+                <Ionicons name="add-circle" size={30} color={colors.primary} />
+              </Pressable>
+            </Link>
+          </TourTarget>
+        </View>
       </View>
 
       <ScrollView

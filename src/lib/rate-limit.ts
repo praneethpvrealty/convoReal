@@ -357,6 +357,13 @@ export const RATE_LIMITS = {
    *  Six digits and five attempts per challenge already bound guessing;
    *  this bounds how many challenges one client can raise. */
   publicDealShareOtp: { limit: 6, windowMs: 600_000 },
+  /** iCalendar subscription fetches, per feed link. Calendar apps poll
+   *  hourly at most; 30 an hour leaves room for manual refreshes and
+   *  several devices on one link. */
+  publicCalendarFeed: { limit: 30, windowMs: 3_600_000 },
+  /** The same feed, per IP. Google and Apple fetch every subscriber's
+   *  feed from shared egress addresses, so this only bounds scanning. */
+  publicCalendarFeedIp: { limit: 600, windowMs: 60_000 },
   /** `/api/v1/*` read+write, per API key. The consumer is an agent or
    *  an automation run, not a human clicking — a burst here is a tool
    *  loop fanning out over an inventory, which is legitimate. 120/min

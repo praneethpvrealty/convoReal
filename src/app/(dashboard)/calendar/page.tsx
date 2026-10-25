@@ -53,6 +53,7 @@ import { TeamView } from '@/components/calendar/team-view';
 import { WeekView } from '@/components/calendar/week-view';
 import { AgendaView } from '@/components/calendar/agenda-view';
 import { TasksList } from '@/components/calendar/tasks-list';
+import { SubscribeFeedDialog } from '@/components/calendar/subscribe-feed-dialog';
 import {
   CalendarEvent,
   TeamMember,
@@ -1438,6 +1439,7 @@ export default function CalendarPage() {
                     </div>
                   </>
                 )}
+                <SubscribeFeedDialog />
                 <button
                   onClick={() => openNewApptModal()}
                   data-tour="schedule-appointment"
