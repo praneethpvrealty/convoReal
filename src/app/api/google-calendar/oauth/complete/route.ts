@@ -71,7 +71,12 @@ export async function POST(request: Request) {
   try {
     const { googleEmail } = await completeGoogleCalendarConnection(
       supabaseAdmin(),
-      { code: body.code, accountId: ctx.accountId, userId: ctx.userId }
+      {
+        code: body.code,
+        accountId: ctx.accountId,
+        userId: ctx.userId,
+        client: 'mobile',
+      }
     );
     return NextResponse.json({ data: { google_email: googleEmail } });
   } catch (err) {

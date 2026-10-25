@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       data: {
         url: buildAuthUrl({
           clientId: credentials.clientId,
-          redirectUri: googleCalendarRedirectUri(),
+          redirectUri: googleCalendarRedirectUri(client),
           state,
           scope: GOOGLE_CALENDAR_SCOPES,
           includeGrantedScopes: false,

@@ -4,7 +4,6 @@ import { cookies } from 'next/headers';
 import { requireRole } from '@/lib/auth/account';
 import {
   GOOGLE_CALENDAR_COOKIE_PATH,
-  GOOGLE_CALENDAR_MOBILE_RETURN,
   GOOGLE_CALENDAR_NONCE_COOKIE,
   GoogleConnectError,
   appBaseUrl,
@@ -20,10 +19,6 @@ function calendarUrl(params: Record<string, string>): string {
   const url = new URL('/calendar', appBaseUrl());
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   return url.toString();
-}
-
-function mobileUrl(params: Record<string, string>): string {
-  return `${GOOGLE_CALENDAR_MOBILE_RETURN}?${new URLSearchParams(params).toString()}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -45,30 +40,21 @@ export async function GET(request: NextRequest) {
     return done(calendarUrl({ google_calendar_error: 'not_configured' }));
   }
 
-  const unsigned = verifyOAuthState(state, credentials.clientSecret);
-  if (!unsigned.valid) {
-    return done(
-      calendarUrl({ google_calendar_error: `state_${unsigned.reason}` })
-    );
-  }
-  const { payload } = unsigned;
-
-  if (payload.client === 'mobile') {
-    if (params.get('error') || !code || !state) {
-      return done(mobileUrl({ error: 'consent_denied' }));
-    }
-    return done(mobileUrl({ code, state }));
-  }
-
   if (params.get('error') || !code) {
     return done(calendarUrl({ google_calendar_error: 'consent_denied' }));
   }
 
-  const nonce = cookieStore.get(GOOGLE_CALENDAR_NONCE_COOKIE)?.value ?? null;
-  const verified = verifyOAuthState(state, credentials.clientSecret, nonce);
-  if (!verified.valid || !nonce) {
+  const nonce = cookieStore.get(GOOGLE_CALENDAR_NONCE_COOKIE)?.value;
+  if (!nonce) {
     return done(calendarUrl({ google_calendar_error: 'state_bad_signature' }));
   }
+  const verified = verifyOAuthState(state, credentials.clientSecret, nonce);
+  if (!verified.valid) {
+    return done(
+      calendarUrl({ google_calendar_error: `state_${verified.reason}` })
+    );
+  }
+  const { payload } = verified;
 
   try {
     const ctx = await requireRole('viewer');
@@ -79,6 +65,7 @@ export async function GET(request: NextRequest) {
       code,
       accountId: ctx.accountId,
       userId: ctx.userId,
+      client: 'web',
     });
     return done(calendarUrl({ google_calendar: 'connected' }));
   } catch (err) {

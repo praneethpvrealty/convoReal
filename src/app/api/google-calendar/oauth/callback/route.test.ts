@@ -46,15 +46,6 @@ beforeEach(() => {
 });
 
 describe('[CAL-015] GET /api/google-calendar/oauth/callback', () => {
-  it('[CAL-015] hands a mobile sign-in back to the app without completing it here', async () => {
-    const s = state('mobile');
-    const res = await get({ code: 'c', state: s });
-    const location = res.headers.get('location') ?? '';
-    expect(location.startsWith('convoreal://google-calendar?')).toBe(true);
-    expect(location).toContain('code=c');
-    expect(mocks.complete).not.toHaveBeenCalled();
-  });
-
   it('[CAL-015] completes a web sign-in only with the matching nonce cookie', async () => {
     const missing = await get({ code: 'c', state: state('web') });
     expect(missing.headers.get('location')).toContain(
@@ -73,15 +64,17 @@ describe('[CAL-015] GET /api/google-calendar/oauth/callback', () => {
       code: 'c',
       accountId: 'acct-1',
       userId: 'user-1',
+      client: 'web',
     });
   });
 
-  it('[CAL-015] rejects a forged state', async () => {
+  it('[CAL-015] rejects a forged state even with a nonce cookie', async () => {
+    mocks.nonce = 'n';
     const forged = signOAuthState(
       {
         accountId: 'acct-1',
         userId: 'user-1',
-        client: 'mobile',
+        client: 'web',
         nonce: 'n',
         ts: Date.now(),
       },
@@ -89,6 +82,6 @@ describe('[CAL-015] GET /api/google-calendar/oauth/callback', () => {
     );
     const res = await get({ code: 'c', state: forged });
     expect(res.headers.get('location')).toContain('google_calendar_error=');
-    expect(res.headers.get('location')).not.toContain('convoreal://');
+    expect(mocks.complete).not.toHaveBeenCalled();
   });
 });

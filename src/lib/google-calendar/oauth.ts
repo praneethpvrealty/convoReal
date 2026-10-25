@@ -22,8 +22,14 @@ export function appBaseUrl(): string {
   ).replace(/\/+$/, '');
 }
 
-export function googleCalendarRedirectUri(): string {
-  return `${appBaseUrl()}/api/google-calendar/oauth/callback`;
+export type GoogleCalendarClient = 'web' | 'mobile';
+
+export function googleCalendarRedirectUri(
+  client: GoogleCalendarClient = 'web'
+): string {
+  return client === 'mobile'
+    ? `${appBaseUrl()}/api/google-calendar/oauth/mobile-callback`
+    : `${appBaseUrl()}/api/google-calendar/oauth/callback`;
 }
 
 export function googleOAuthCredentials(): {
@@ -47,7 +53,12 @@ export class GoogleConnectError extends Error {
 
 export async function completeGoogleCalendarConnection(
   admin: SupabaseClient,
-  opts: { code: string; accountId: string; userId: string }
+  opts: {
+    code: string;
+    accountId: string;
+    userId: string;
+    client: GoogleCalendarClient;
+  }
 ): Promise<{ googleEmail: string | null }> {
   const credentials = googleOAuthCredentials();
   if (!credentials) {
@@ -58,7 +69,7 @@ export async function completeGoogleCalendarConnection(
   }
   const tokens = await exchangeCodeForTokens({
     code: opts.code,
-    redirectUri: googleCalendarRedirectUri(),
+    redirectUri: googleCalendarRedirectUri(opts.client),
     ...credentials,
   });
   if (!tokens.refresh_token) {

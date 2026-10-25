@@ -10,12 +10,15 @@ environment variable.
 
 1. Open the Google Cloud project that holds the OAuth client.
 2. **APIs & Services → Library:** enable the **Google Calendar API**.
-3. **APIs & Services → Credentials →** the web OAuth client: add this
-   authorised redirect URI, using the value of `NEXT_PUBLIC_APP_URL` (or
-   `NEXT_PUBLIC_SITE_URL`):
+3. **APIs & Services → Credentials →** the web OAuth client: add these two
+   authorised redirect URIs, using the value of `NEXT_PUBLIC_APP_URL` (or
+   `NEXT_PUBLIC_SITE_URL`). The first finishes a web sign-in; the second
+   only hands a mobile sign-in back to the app, which completes it with its
+   own session.
 
    ```
    https://<your app domain>/api/google-calendar/oauth/callback
+   https://<your app domain>/api/google-calendar/oauth/mobile-callback
    ```
 
 4. **OAuth consent screen → Data access:** add the scopes

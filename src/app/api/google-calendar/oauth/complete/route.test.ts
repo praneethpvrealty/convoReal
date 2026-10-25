@@ -59,6 +59,7 @@ describe('[CAL-015] POST /api/google-calendar/oauth/complete', () => {
       code: 'c',
       accountId: 'acct-1',
       userId: 'user-1',
+      client: 'mobile',
     });
   });
 

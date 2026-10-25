@@ -1256,7 +1256,7 @@
         },
         {
           "id": "CAL-015",
-          "rule": "Each member can connect their own Google account on web and mobile and have their calendar pushed into a calendar named ConvoReal that the app creates in that account, requesting only the calendar.app.created and email scopes, without previously granted ones, so no other calendar is read or changed. It pushes the same items as the iCalendar feed (CAL-014, through src/lib/calendar/member-events), and /api/cron/google-calendar-sync reconciles every 15 minutes: new items are added, changed items updated and items that leave the calendar removed, while events older than the 30-day window stay in Google. The refresh token is stored AES-256-GCM encrypted in google_calendar_connections, which, like google_calendar_event_links, is service-role only and always scoped by the member's account in code. The web flow completes in the OAuth callback only with the matching nonce cookie and the same signed-in member; the mobile flow hands the code back to the app, which completes it through POST /api/google-calendar/oauth/complete only when the signed state names the calling member and account. A revoked grant stops syncing and asks for a reconnect, a member who left the workspace is not synced, a calendar deleted in Google is recreated on the next run, Disconnect deletes the stored token and the links without revoking the Google grant, which the YouTube connection may share through the same OAuth client, and the sync never writes ConvoReal data.",
+          "rule": "Each member can connect their own Google account on web and mobile and have their calendar pushed into a calendar named ConvoReal that the app creates in that account, requesting only the calendar.app.created and email scopes, without previously granted ones, so no other calendar is read or changed. It pushes the same items as the iCalendar feed (CAL-014, through src/lib/calendar/member-events), and /api/cron/google-calendar-sync reconciles every 15 minutes: new items are added, changed items updated and items that leave the calendar removed, while events older than the 30-day window stay in Google. The refresh token is stored AES-256-GCM encrypted in google_calendar_connections, which, like google_calendar_event_links, is service-role only and always scoped by the member's account in code. The web flow completes in the OAuth callback only with the matching nonce cookie and the same signed-in member; the mobile flow uses its own redirect, /api/google-calendar/oauth/mobile-callback, which only hands the code back to the app, and the app completes it through POST /api/google-calendar/oauth/complete only when the signed state names the calling member and account. A revoked grant stops syncing and asks for a reconnect, a member who left the workspace is not synced, a calendar deleted in Google is recreated on the next run, Disconnect deletes the stored token and the links without revoking the Google grant, which the YouTube connection may share through the same OAuth client, and the sync never writes ConvoReal data.",
           "tests": [
             {
               "file": "src/lib/google-calendar/plan.test.ts",
@@ -1272,6 +1272,10 @@
             },
             {
               "file": "src/app/api/google-calendar/oauth/callback/route.test.ts",
+              "case": "[CAL-015]"
+            },
+            {
+              "file": "src/app/api/google-calendar/oauth/mobile-callback/route.test.ts",
               "case": "[CAL-015]"
             },
             {
