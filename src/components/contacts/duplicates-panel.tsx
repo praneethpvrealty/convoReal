@@ -16,12 +16,14 @@ import {
   Users,
   X,
   ExternalLink,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { diffContacts } from '@/lib/contacts/duplicate-diff';
+import { primaryPhonesDiffer } from '@/lib/contacts/phone-key';
 import {
   Dialog,
   DialogContent,
@@ -207,9 +209,20 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
   const [mergeGroup, setMergeGroup] = useState<DuplicateGroup | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [merging, setMerging] = useState(false);
+  const [phonesConfirmed, setPhonesConfirmed] = useState(false);
+  const mergeTarget = mergeGroup?.contacts.find((c) => c.id === targetId);
+  const phoneMismatch =
+    !!mergeGroup &&
+    !!mergeTarget &&
+    mergeGroup.contacts.some(
+      (c) =>
+        c.id !== mergeTarget.id &&
+        primaryPhonesDiffer(c.phone, mergeTarget.phone)
+    );
 
   async function handleMerge() {
     if (!mergeGroup || !targetId) return;
+    if (phoneMismatch && !phonesConfirmed) return;
     const sourceIds = mergeGroup.contacts
       .filter((c) => c.id !== targetId)
       .map((c) => c.id);
@@ -221,7 +234,11 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
         const res = await fetch('/api/contacts/merge', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sourceId, targetId }),
+          body: JSON.stringify({
+            sourceId,
+            targetId,
+            confirmDifferentPhones: phoneMismatch && phonesConfirmed,
+          }),
         });
         if (!res.ok) {
           const err = await res.json();
@@ -231,6 +248,7 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
       toast.success(`Merged ${sourceIds.length + 1} contacts into one`);
       setMergeGroup(null);
       setTargetId(null);
+      setPhonesConfirmed(false);
       await refetch();
       onMergeComplete?.();
     } catch (err) {
@@ -427,6 +445,7 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
           if (!open) {
             setMergeGroup(null);
             setTargetId(null);
+            setPhonesConfirmed(false);
           }
         }}
       >
@@ -445,7 +464,10 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => setTargetId(c.id)}
+                  onClick={() => {
+                    setTargetId(c.id);
+                    setPhonesConfirmed(false);
+                  }}
                   className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-all ${
                     targetId === c.id
                       ? 'border-primary bg-primary/10'
@@ -487,6 +509,26 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
             </div>
           )}
 
+          {phoneMismatch && (
+            <label className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
+              <span className="flex-1">
+                These contacts have different WhatsApp numbers. Matching names
+                alone do not make them one person: their enquiries and messages
+                would be combined under the contact you keep.
+                <span className="mt-2 flex items-center gap-2 font-medium text-amber-100">
+                  <input
+                    type="checkbox"
+                    checked={phonesConfirmed}
+                    onChange={(e) => setPhonesConfirmed(e.target.checked)}
+                    className="accent-amber-400"
+                  />
+                  Both numbers belong to the same person
+                </span>
+              </span>
+            </label>
+          )}
+
           <DialogFooter className="gap-2">
             <Button
               variant="outline"
@@ -494,6 +536,7 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
               onClick={() => {
                 setMergeGroup(null);
                 setTargetId(null);
+                setPhonesConfirmed(false);
               }}
               disabled={merging}
             >
@@ -501,7 +544,9 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
             </Button>
             <Button
               onClick={handleMerge}
-              disabled={!targetId || merging}
+              disabled={
+                !targetId || merging || (phoneMismatch && !phonesConfirmed)
+              }
               className="gap-2"
             >
               {merging ? (

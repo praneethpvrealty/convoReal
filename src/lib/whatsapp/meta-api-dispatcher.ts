@@ -221,6 +221,11 @@ export interface DispatcherResult {
   reachedMeta?: boolean;
 }
 
+interface MergeableOutboundContact extends OutboundContact {
+  is_merged: boolean | null;
+  merged_into_id: string | null;
+}
+
 interface OutboundContact {
   id: string;
   phone: string | null;
@@ -335,30 +340,45 @@ export async function sendWhatsAppMessageAndPersist(
         resolvedContact = newContact as OutboundContact;
       }
     } else {
-      let contactErr: { message?: string } | null = null;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const result = await db
-          .from('contacts')
-          .select(
-            'id, phone, name, salutation, chain_only, is_dead, is_archived, whatsapp_marketing_suppressed_until, whatsapp_marketing_suppression_code'
-          )
-          .eq('id', resolvedContactId)
-          .eq('account_id', accountId)
-          .maybeSingle();
-        resolvedContact = result.data as OutboundContact | null;
-        contactErr = result.error;
-        if (resolvedContact || !contactErr) break;
-      }
-      if (contactErr) {
-        console.error(
-          '[meta-api-dispatcher] contact lookup error:',
-          contactErr
-        );
-        throw new Error('Could not load contact. Please try again.');
-      }
-      if (!resolvedContact) {
+      const loadContact = async (id: string) => {
+        let contactErr: { message?: string } | null = null;
+        let row: MergeableOutboundContact | null = null;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const result = await db
+            .from('contacts')
+            .select(
+              'id, phone, name, salutation, chain_only, is_dead, is_archived, whatsapp_marketing_suppressed_until, whatsapp_marketing_suppression_code, is_merged, merged_into_id'
+            )
+            .eq('id', id)
+            .eq('account_id', accountId)
+            .maybeSingle();
+          row = result.data as MergeableOutboundContact | null;
+          contactErr = result.error;
+          if (row || !contactErr) break;
+        }
+        if (contactErr) {
+          console.error(
+            '[meta-api-dispatcher] contact lookup error:',
+            contactErr
+          );
+          throw new Error('Could not load contact. Please try again.');
+        }
+        return row;
+      };
+      let loaded = await loadContact(resolvedContactId);
+      if (!loaded) {
         throw new Error('Contact not found for this account');
       }
+      if (loaded.is_merged && loaded.merged_into_id) {
+        const winner = await loadContact(loaded.merged_into_id);
+        if (winner && !winner.is_merged) {
+          targetPhone ||= loaded.phone;
+          resolvedContactId = winner.id;
+          resolvedConversationId = null;
+          loaded = winner;
+        }
+      }
+      resolvedContact = loaded;
       targetPhone ||= resolvedContact.phone;
     }
 

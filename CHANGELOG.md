@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 25 October 2026
 
+- **An owner is no longer asked why they rejected their own listing, and a
+  merged duplicate stops collecting messages.** A send addressed to a contact
+  that was merged away now goes to the surviving contact's thread, so a share
+  and its "Did it match?" follow-up land in the one conversation the person
+  replies from. A "Not interested" tap on that follow-up names the shared
+  listing, and a "Not interested" never names, records or asks about a listing
+  the contact owns (INB-022, INB-040). Merging two records with different
+  WhatsApp numbers now asks the agent to confirm both numbers belong to the
+  same person, on web and mobile (CTM-001). **Migration required:**
+  `20261025165201_consolidate_legacy_merged_conversations.sql` folds the
+  threads of contacts merged before 19 September into the surviving contact.
 - **Sync your ConvoReal calendar straight into Google Calendar.** The
   calendar's Sync button on web, and the share icon on mobile, now offer
   Connect Google Calendar. ConvoReal adds its own "ConvoReal" calendar to your

@@ -484,7 +484,11 @@ describe('processShareFeedbackFollowups', () => {
 });
 
 describe('findFeedbackSharePropertyId', () => {
-  function lookupDb(rows: Row[], failOr = false) {
+  function lookupDb(
+    rows: Row[],
+    failOr = false,
+    aliases: { id: string }[] = []
+  ) {
     const calls: [string, unknown][] = [];
     const tables: string[] = [];
     return {
@@ -492,9 +496,22 @@ describe('findFeedbackSharePropertyId', () => {
       tables,
       from(table: string) {
         tables.push(table);
+        if (table === 'contacts') {
+          const c: Record<string, unknown> = {
+            then: (resolve: (v: unknown) => unknown) =>
+              resolve({ data: aliases, error: null }),
+          };
+          for (const m of ['select', 'eq']) {
+            c[m] = (col: string, val: unknown) => {
+              calls.push([`contacts.${m}:${col}`, val]);
+              return c;
+            };
+          }
+          return c;
+        }
         const ors: string[] = [];
         const b: Record<string, unknown> = {};
-        for (const m of ['select', 'eq', 'limit']) {
+        for (const m of ['select', 'eq', 'in', 'limit']) {
           b[m] = (col: string, val: unknown) => {
             calls.push([`${m}:${col}`, val]);
             return b;
@@ -532,8 +549,28 @@ describe('findFeedbackSharePropertyId', () => {
     expect(db.calls).toEqual(
       expect.arrayContaining([
         ['eq:account_id', ACCOUNT_ID],
-        ['eq:contact_id', CONTACT_ID],
+        ['in:contact_id', [CONTACT_ID]],
         ['eq:feedback_message_id', 'wamid.prompt'],
+      ])
+    );
+  });
+
+  it('[INB-022] finds a share recorded on a contact since merged into the one that tapped', async () => {
+    const db = lookupDb([{ property_id: PROPERTY_ID }], false, [
+      { id: 'merged-alias' },
+    ]);
+    expect(
+      await findFeedbackSharePropertyId(
+        db as never,
+        ACCOUNT_ID,
+        CONTACT_ID,
+        'wamid.prompt'
+      )
+    ).toBe(PROPERTY_ID);
+    expect(db.calls).toEqual(
+      expect.arrayContaining([
+        ['contacts.eq:merged_into_id', CONTACT_ID],
+        ['in:contact_id', [CONTACT_ID, 'merged-alias']],
       ])
     );
   });

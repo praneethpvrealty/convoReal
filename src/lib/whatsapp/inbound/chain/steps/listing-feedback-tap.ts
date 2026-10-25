@@ -45,13 +45,21 @@ export async function listingFeedbackTap(
     return 'handled';
   }
   if (feedbackAction === 'feedback_not_interested') {
+    const feedbackDb = supabaseAdmin();
+    const sharedPropertyId = await findFeedbackSharePropertyId(
+      feedbackDb,
+      accountId,
+      contactRecord.id,
+      message.context?.id ?? null
+    );
     const handled = await handlePropertyDisinterestMessage({
-      db: supabaseAdmin(),
+      db: feedbackDb,
       accountId,
       configOwnerUserId,
       contact: contactRecord,
       conversationId: conversation.id,
       inboundText: 'Not interested',
+      quotedPropertyId: sharedPropertyId,
     });
     if (handled) return 'handled';
   }

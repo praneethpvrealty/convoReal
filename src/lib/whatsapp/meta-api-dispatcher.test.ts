@@ -52,6 +52,8 @@ function makeDb(
     /** Rows the swap lookup finds for the template name. */
     templateVariants?: Row[];
     messageInsertError?: { message: string };
+    /** Marks the contact as merged into this surviving contact id. */
+    mergedInto?: string;
   } = {}
 ) {
   const inserts: Record<string, Row[]> = {
@@ -139,9 +141,29 @@ function makeDb(
               },
             });
           }
+          if (overrides.mergedInto && filters.id === overrides.mergedInto) {
+            return Promise.resolve({
+              data: {
+                id: overrides.mergedInto,
+                phone: '+919876543210',
+                name: 'Narendra',
+                salutation: null,
+                chain_only: false,
+                is_dead: false,
+                is_archived: false,
+                whatsapp_marketing_suppressed_until: null,
+                whatsapp_marketing_suppression_code: null,
+                is_merged: false,
+                merged_into_id: null,
+              },
+              error: null,
+            });
+          }
           return Promise.resolve({
             data: {
               id: CONTACT_ID,
+              is_merged: !!overrides.mergedInto,
+              merged_into_id: overrides.mergedInto ?? null,
               phone: '+919876543210',
               name: 'Sajjen',
               salutation: null,
@@ -284,6 +306,35 @@ describe('sendWhatsAppMessageAndPersist', () => {
     body_text: 'Hello {{1}}',
     header_type: null,
   };
+
+  it('[CTM-001] sends to a merged contact through the surviving contact and its thread', async () => {
+    const db = makeDb({ mergedInto: 'winner-1' });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      conversationId: 'conv-of-merged-contact',
+      kind: 'text',
+      senderType: 'bot',
+      text: 'Hello',
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(db._inserts.conversations).toEqual([
+      expect.objectContaining({ contact_id: 'winner-1' }),
+    ]);
+    expect(db._inserts.messages).toEqual([
+      expect.objectContaining({ conversation_id: 'conv-new' }),
+    ]);
+    const body = JSON.parse(
+      (vi.mocked(fetch).mock.calls.at(-1)?.[1] as { body: string }).body
+    );
+    expect(body.to).toBe('919876543210');
+  });
 
   it('[CLG-006] swaps a paused Marketing send onto the Utility variant', async () => {
     const db = makeDb({

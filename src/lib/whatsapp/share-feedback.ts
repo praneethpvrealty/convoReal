@@ -28,12 +28,21 @@ export async function findFeedbackSharePropertyId(
   contextMessageId: string | null
 ): Promise<string | null> {
   if (!contextMessageId) return null;
+  const { data: aliases } = await db
+    .from('contacts')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('merged_into_id', contactId);
+  const contactIds = [
+    contactId,
+    ...((aliases ?? []) as { id: string }[]).map((row) => row.id),
+  ];
   const sharesOnPrompt = () =>
     db
       .from('property_shares')
       .select('property_id')
       .eq('account_id', accountId)
-      .eq('contact_id', contactId)
+      .in('contact_id', contactIds)
       .eq('feedback_message_id', contextMessageId);
   const { data: first, error: firstError } = await sharesOnPrompt()
     .limit(1)

@@ -11,6 +11,7 @@ import {
   mergedPhonePreview,
   type MergePreviewContact,
 } from '@/lib/contact-merge';
+import { primaryPhonesDiffer } from '@shared/lib/contacts/phone-key';
 import { rankContactSearchResults } from '@/lib/contact-search-rank';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -37,12 +38,14 @@ export function ContactMergeSheet({
   const [targetId, setTargetId] = useState(contact.id);
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [phonesConfirmed, setPhonesConfirmed] = useState(false);
 
   function close() {
     if (merging) return;
     setOther(null);
     setTargetId(contact.id);
     setError(null);
+    setPhonesConfirmed(false);
     onClose();
   }
 
@@ -80,6 +83,8 @@ export function ContactMergeSheet({
 
   async function merge() {
     if (!other || merging) return;
+    const phoneMismatch = primaryPhonesDiffer(contact.phone, other.phone);
+    if (phoneMismatch && !phonesConfirmed) return;
     const sourceId = targetId === contact.id ? other.id : contact.id;
     setMerging(true);
     setError(null);
@@ -88,7 +93,11 @@ export function ContactMergeSheet({
         '/api/contacts/merge',
         {
           method: 'POST',
-          body: JSON.stringify({ sourceId, targetId }),
+          body: JSON.stringify({
+            sourceId,
+            targetId,
+            confirmDifferentPhones: phoneMismatch && phonesConfirmed,
+          }),
         }
       );
       haptic.success();
@@ -117,6 +126,7 @@ export function ContactMergeSheet({
           setOther(selected);
           setTargetId(contact.id);
           setError(null);
+          setPhonesConfirmed(false);
         }}
       />
     );
@@ -127,6 +137,7 @@ export function ContactMergeSheet({
   const target = targetId === contact.id ? currentPreview : otherPreview;
   const source = targetId === contact.id ? otherPreview : currentPreview;
   const phones = mergedPhonePreview(source, target);
+  const phoneMismatch = primaryPhonesDiffer(source.phone, target.phone);
 
   return (
     <BottomSheet visible={visible} onClose={close} title="Review contact merge">
@@ -270,11 +281,34 @@ export function ContactMergeSheet({
             </Text>
           </View>
 
+          {phoneMismatch ? (
+            <Pressable
+              onPress={() => setPhonesConfirmed((v) => !v)}
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: phonesConfirmed }}
+              accessibilityLabel="Both numbers belong to the same person"
+              testID="merge-confirm-different-phones"
+              style={[styles.warning, { alignItems: 'flex-start' }]}
+            >
+              <Ionicons
+                name={phonesConfirmed ? 'checkbox' : 'square-outline'}
+                size={20}
+                color={colors.warning}
+              />
+              <Text style={{ flex: 1, color: colors.text, fontSize: 12.5 }}>
+                These contacts have different WhatsApp numbers. Matching names
+                alone do not make them one person. Tick to confirm both numbers
+                belong to the same person.
+              </Text>
+            </Pressable>
+          ) : null}
+
           {error ? <Banner kind="error" text={error} /> : null}
           <PrimaryButton
             label="Merge contacts"
             icon="git-merge-outline"
             busy={merging}
+            disabled={phoneMismatch && !phonesConfirmed}
             onPress={merge}
             testID="merge-contacts-confirm"
           />
