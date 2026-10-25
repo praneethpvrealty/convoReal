@@ -407,7 +407,7 @@
         },
         {
           "id": "INB-022",
-          "rule": "A property-share feedback request is visible in the inbox and names its property wherever free-form text is allowed. While the buyer's 24-hour window is open and their send language (their own, else the account default) is English it goes as free-form buttons naming the property (It's perfect / Not interested / Update preferences, each title within Meta's 20 characters) wired to the listing-feedback handler; otherwise the approved property_share_feedback template goes out with its rendered body stored as the message text (the template carries no property parameter, so it cannot name one). The WhatsApp message id of every request is stored on its share, and an \"It's perfect\" tap on that template is resolved to the share whose request it replied to by that id alone, never by time, and handled as interest in that property: recorded on listing_feedback, acknowledged by naming the property, and the agent notified. A tap that matches no stored request, or one request stored on shares of different properties (the dispatcher collapses an identical template sent twice within seconds into one message), gets the generic acknowledgement and records nothing.",
+          "rule": "A property-share feedback request is visible in the inbox and names its property wherever free-form text is allowed. While the buyer's 24-hour window is open and their send language (their own, else the account default) is English it goes as free-form buttons naming the property (It's perfect / Not interested / Update preferences, each title within Meta's 20 characters) wired to the listing-feedback handler; otherwise the approved property_share_feedback template goes out with its rendered body stored as the message text (the template carries no property parameter, so it cannot name one). The WhatsApp message id of every request is stored on its share, and an \"It's perfect\" tap on that template is resolved to the share whose request it replied to by that id alone, never by time, and handled as interest in that property: recorded on listing_feedback, acknowledged by naming the property, and the agent notified. A tap that matches no stored request, or one request stored on shares of different properties (the dispatcher collapses an identical template sent twice within seconds into one message), gets the generic acknowledgement and records nothing. A share recorded on a contact since merged into the one that tapped is found the same way, and a \"Not interested\" tap on the template records the rejection on that shared listing and asks the factor prompt about it.",
           "tests": [
             {
               "file": "src/lib/whatsapp/share-feedback.test.ts",
@@ -727,6 +727,19 @@
             "src/lib/whatsapp/preference-tap-reply.ts",
             "src/lib/outreach/dispatcher.ts"
           ]
+        },
+        {
+          "id": "INB-040",
+          "rule": "A \"Not interested\" from a contact (typed, or tapped on a share-feedback request) never names, records or asks about a listing that contact owns: every step of the subject resolution skips their own listings, and when no other listing is left an owner gets no buyer factor prompt and the message goes on to the next handler.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/property-disinterest.test.ts",
+              "case": "[INB-040]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/inbound/chain/steps/listing-feedback-tap.ts"
+          ]
         }
       ]
     },
@@ -737,7 +750,7 @@
       "invariants": [
         {
           "id": "CTM-001",
-          "rule": "Agents can merge any two confirmed duplicate contacts from web or mobile, explicitly choose the surviving record, retain every distinct phone number and complementary profile or requirement data, and consolidate both one-to-one Inbox histories before hiding the duplicate.",
+          "rule": "Agents can merge any two confirmed duplicate contacts from web or mobile, explicitly choose the surviving record, retain every distinct phone number and complementary profile or requirement data, and consolidate both one-to-one Inbox histories before hiding the duplicate. Two records whose primary WhatsApp numbers belong to different subscribers (last ten digits) merge only after the agent confirms on web or mobile that both numbers belong to the same person; the merge route refuses them otherwise with 409 PHONE_MISMATCH. A merge also re-points the records already merged into the duplicate. A send addressed to a merged-away contact on the same number goes to the contact that survived its merge chain and that contact's thread, honouring a Marketing pause Meta set on either record and refusing it when either record is closed, archived or chain-only, so the duplicate never collects messages again; a merged-away contact on another number keeps its own thread.",
           "tests": [
             {
               "file": "src/lib/contacts/merge.test.ts",
@@ -754,10 +767,23 @@
             {
               "file": "mobile/lib/contact-merge.test.ts",
               "case": "[CTM-001]"
+            },
+            {
+              "file": "src/lib/contacts/phone-key.test.ts",
+              "case": "[CTM-001]"
+            },
+            {
+              "file": "src/lib/whatsapp/meta-api-dispatcher.test.ts",
+              "case": "[CTM-001]"
+            },
+            {
+              "file": "src/lib/migrations/legacy-merged-conversations.test.ts",
+              "case": "[CTM-001]"
             }
           ],
           "guards": [
             "supabase/migrations/20260919143000_merge_contact_conversations.sql",
+            "supabase/migrations/20261025165201_consolidate_legacy_merged_conversations.sql",
             ".github/workflows/eas-update.yml"
           ]
         },

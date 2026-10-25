@@ -117,10 +117,21 @@ export async function handlePropertyDisinterestMessage(args: {
     inbound,
   } = args;
 
+  const { data: ownedRows } = await db
+    .from('properties')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('owner_contact_id', contact.id);
+  const ownedIds = new Set(
+    ((ownedRows ?? []) as { id: string }[]).map((row) => row.id)
+  );
+  const notOwned = (propertyId: string | null | undefined) =>
+    !!propertyId && !ownedIds.has(propertyId);
+
   let subjectProperty: Pick<Property, 'id' | 'title'> | null = null;
 
   // 1. Quoted property id from quote-reply context
-  if (quotedPropertyId) {
+  if (notOwned(quotedPropertyId)) {
     const { data } = await db
       .from('properties')
       .select('id, title')
@@ -140,9 +151,7 @@ export async function handlePropertyDisinterestMessage(args: {
       inboundText,
       inbound
     );
-    if (subjects.length > 0) {
-      subjectProperty = subjects[0];
-    }
+    subjectProperty = subjects.find((s) => notOwned(s.id)) ?? null;
   }
 
   // 3. Thread property subject
@@ -154,7 +163,7 @@ export async function handlePropertyDisinterestMessage(args: {
       conversationId,
       inbound
     );
-    if (propId) {
+    if (notOwned(propId)) {
       const { data } = await db
         .from('properties')
         .select('id, title')
@@ -166,7 +175,7 @@ export async function handlePropertyDisinterestMessage(args: {
   }
 
   // 4. Last inquired property on contact
-  if (!subjectProperty && contact.last_inquired_property_id) {
+  if (!subjectProperty && notOwned(contact.last_inquired_property_id)) {
     const { data } = await db
       .from('properties')
       .select('id, title')
@@ -175,6 +184,8 @@ export async function handlePropertyDisinterestMessage(args: {
       .maybeSingle();
     if (data) subjectProperty = data;
   }
+
+  if (!subjectProperty && ownedIds.size > 0) return false;
 
   // Record rejection if a subject property was identified
   if (subjectProperty?.id) {

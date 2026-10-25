@@ -275,3 +275,93 @@ describe('handlePropertyDisinterestMessage', () => {
     errorSpy.mockRestore();
   });
 });
+
+describe('handlePropertyDisinterestMessage for a listing owner', () => {
+  const titles: Record<string, string> = {
+    'prop-own': 'Semi-commercial Building in Koramangala',
+    'prop-shared': 'Prime Commercial Site in Jayanagar',
+  };
+
+  function ownerDb(ownedIds: string[]) {
+    const upserts: Record<string, unknown>[] = [];
+    const db = {
+      from: vi.fn().mockImplementation(() => {
+        let id: string | null = null;
+        const builder: Record<string, unknown> = {
+          select: () => builder,
+          eq: (column: string, value: string) => {
+            if (column === 'id') id = value;
+            return builder;
+          },
+          maybeSingle: async () => ({
+            data: id && titles[id] ? { id, title: titles[id] } : null,
+          }),
+          then: (resolve: (v: unknown) => unknown) =>
+            resolve({ data: ownedIds.map((owned) => ({ id: owned })) }),
+          upsert: (data: Record<string, unknown>) => {
+            upserts.push(data);
+            return Promise.resolve({ error: null });
+          },
+        };
+        return builder;
+      }),
+    } as unknown as SupabaseClient;
+    return { db, upserts };
+  }
+
+  it('[INB-040] never records or asks about a rejection of the contact’s own listing', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('@/lib/whatsapp/meta-api-dispatcher');
+    const send = vi.mocked(sendWhatsAppMessageAndPersist);
+    send.mockClear();
+    const { resolvePropertySubject } = await import('@/lib/learning/subject');
+    vi.mocked(resolvePropertySubject).mockResolvedValueOnce('prop-own');
+    const { db, upserts } = ownerDb(['prop-own']);
+
+    const handled = await handlePropertyDisinterestMessage({
+      db,
+      accountId: 'acc-1',
+      configOwnerUserId: 'user-1',
+      contact: { id: 'owner-1', name: 'Narendra' },
+      conversationId: 'conv-1',
+      inboundText: 'Not interested',
+    });
+
+    expect(handled).toBe(false);
+    expect(upserts).toEqual([]);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('[INB-040] records the rejection on the shared listing an owner tapped Not interested on', async () => {
+    const { sendWhatsAppMessageAndPersist } =
+      await import('@/lib/whatsapp/meta-api-dispatcher');
+    const send = vi.mocked(sendWhatsAppMessageAndPersist);
+    send.mockClear();
+    const { db, upserts } = ownerDb(['prop-own']);
+
+    const handled = await handlePropertyDisinterestMessage({
+      db,
+      accountId: 'acc-1',
+      configOwnerUserId: 'user-1',
+      contact: { id: 'owner-1', name: 'Narendra' },
+      conversationId: 'conv-1',
+      inboundText: 'Not interested',
+      quotedPropertyId: 'prop-shared',
+    });
+
+    expect(handled).toBe(true);
+    expect(upserts).toEqual([
+      expect.objectContaining({
+        property_id: 'prop-shared',
+        verdict: 'rejected',
+      }),
+    ]);
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        interactiveBody: expect.stringContaining(
+          '*Prime Commercial Site in Jayanagar*'
+        ),
+      })
+    );
+  });
+});

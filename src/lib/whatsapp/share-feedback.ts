@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { mergeWinnerId } from '@/lib/contacts/merge-chain';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { lookupConversation } from '@/lib/conversations/resolve';
 import { withContactConversationLease } from '@/lib/conversations/outbound-lease';
@@ -31,15 +32,22 @@ export async function findFeedbackSharePropertyId(
   const sharesOnPrompt = () =>
     db
       .from('property_shares')
-      .select('property_id')
+      .select('property_id, contact_id')
       .eq('account_id', accountId)
-      .eq('contact_id', contactId)
       .eq('feedback_message_id', contextMessageId);
   const { data: first, error: firstError } = await sharesOnPrompt()
     .limit(1)
     .maybeSingle();
   const propertyId = (first?.property_id as string | null | undefined) ?? null;
-  if (firstError || !propertyId) return null;
+  const shareContactId =
+    (first?.contact_id as string | null | undefined) ?? null;
+  if (firstError || !propertyId || !shareContactId) return null;
+  if (
+    shareContactId !== contactId &&
+    (await mergeWinnerId(db, accountId, shareContactId)) !== contactId
+  ) {
+    return null;
+  }
   const { data: other, error: otherError } = await sharesOnPrompt()
     .or(`property_id.is.null,property_id.neq.${propertyId}`)
     .limit(1)

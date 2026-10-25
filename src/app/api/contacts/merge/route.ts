@@ -2,15 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { buildContactMergePatch } from '@/lib/contacts/merge';
+import {
+  MERGE_PHONE_MISMATCH,
+  primaryPhonesDiffer,
+} from '@/lib/contacts/phone-key';
 
 // POST /api/contacts/merge
-// Body: { sourceId: string, targetId: string }
+// Body: { sourceId: string, targetId: string, confirmDifferentPhones?: boolean }
 //
 // Merges `source` into `target`:
 //   1. Re-points conversations, notes, custom values, inquiries, appointments, and todos → target
 //   2. Safely merges tags, custom values, and inquiries without duplicate constraint errors
 //   3. Merges preferences (budgets, ROI, interest areas, specifications, requirements)
-//   4. Marks source as is_merged = true, sets merged_into_id = target
+//   4. Marks source as is_merged = true, sets merged_into_id = target, and
+//      re-points contacts already merged into source at target
 //   5. Inserts a merge log note on the target contact card
 //   6. Writes a merge log entry
 //
@@ -22,9 +27,10 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       sourceId?: string;
       targetId?: string;
+      confirmDifferentPhones?: boolean;
     };
 
-    const { sourceId, targetId } = body;
+    const { sourceId, targetId, confirmDifferentPhones } = body;
     if (!sourceId || !targetId) {
       return NextResponse.json(
         { error: 'sourceId and targetId are required' },
@@ -70,6 +76,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'The contact to keep is already merged' },
         { status: 400 }
+      );
+    }
+
+    if (
+      confirmDifferentPhones !== true &&
+      primaryPhonesDiffer(source.phone, target.phone)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'These contacts have different WhatsApp numbers. Merge them only if both numbers belong to the same person.',
+          code: MERGE_PHONE_MISMATCH,
+        },
+        { status: 409 }
       );
     }
 
@@ -213,6 +233,15 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', sourceId);
+
+    await admin
+      .from('contacts')
+      .update({
+        merged_into_id: targetId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('account_id', ctx.accountId)
+      .eq('merged_into_id', sourceId);
 
     // ── 4. Add system note on target contact detailing the merge ───────────
     const mergeDate = new Date().toLocaleDateString('en-IN', {

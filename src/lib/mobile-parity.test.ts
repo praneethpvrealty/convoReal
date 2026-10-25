@@ -493,6 +493,26 @@ describe('contact merge remains available on both surfaces', () => {
     expect(mobileMerge).toContain('Keep this record');
     expect(webMerge).toContain("'/api/contacts/merge'");
   });
+
+  it('[CTM-001] asks both surfaces to confirm a merge across different WhatsApp numbers', () => {
+    const mobileMerge = mobileSource('components/contact-merge-sheet.tsx');
+    const webMerge = webSource('components/contacts/duplicates-panel.tsx');
+    const route = webSource('app/api/contacts/merge/route.ts');
+
+    expect(route).toContain('primaryPhonesDiffer(source.phone, target.phone)');
+    expect(mobileMerge).toContain(
+      "import { primaryPhonesDiffer } from '@shared/lib/contacts/phone-key';"
+    );
+    expect(webMerge).toContain(
+      "import { primaryPhonesDiffer } from '@/lib/contacts/phone-key';"
+    );
+    for (const source of [mobileMerge, webMerge]) {
+      expect(source).toContain(
+        'confirmDifferentPhones: phoneMismatch && phonesConfirmed'
+      );
+      expect(source).toContain('Both numbers belong to the same person');
+    }
+  });
 });
 
 describe('Overview approvals read the same on web and mobile', () => {

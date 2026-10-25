@@ -41,6 +41,8 @@ import {
   numberChangeWindow,
 } from '@/lib/whatsapp/number-change-notice';
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only';
+import { MAX_MERGE_HOPS } from '@/lib/contacts/merge-chain';
+import { phoneMatchKey } from '@/lib/contacts/phone-key';
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle';
 import {
   isMarketingTemplateSuppressed,
@@ -221,6 +223,11 @@ export interface DispatcherResult {
   reachedMeta?: boolean;
 }
 
+interface MergeableOutboundContact extends OutboundContact {
+  is_merged: boolean | null;
+  merged_into_id: string | null;
+}
+
 interface OutboundContact {
   id: string;
   phone: string | null;
@@ -335,30 +342,75 @@ export async function sendWhatsAppMessageAndPersist(
         resolvedContact = newContact as OutboundContact;
       }
     } else {
-      let contactErr: { message?: string } | null = null;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const result = await db
-          .from('contacts')
-          .select(
-            'id, phone, name, salutation, chain_only, is_dead, is_archived, whatsapp_marketing_suppressed_until, whatsapp_marketing_suppression_code'
-          )
-          .eq('id', resolvedContactId)
-          .eq('account_id', accountId)
-          .maybeSingle();
-        resolvedContact = result.data as OutboundContact | null;
-        contactErr = result.error;
-        if (resolvedContact || !contactErr) break;
-      }
-      if (contactErr) {
-        console.error(
-          '[meta-api-dispatcher] contact lookup error:',
-          contactErr
-        );
-        throw new Error('Could not load contact. Please try again.');
-      }
-      if (!resolvedContact) {
+      const loadContact = async (id: string) => {
+        let contactErr: { message?: string } | null = null;
+        let row: MergeableOutboundContact | null = null;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const result = await db
+            .from('contacts')
+            .select(
+              'id, phone, name, salutation, chain_only, is_dead, is_archived, whatsapp_marketing_suppressed_until, whatsapp_marketing_suppression_code, is_merged, merged_into_id'
+            )
+            .eq('id', id)
+            .eq('account_id', accountId)
+            .maybeSingle();
+          row = result.data as MergeableOutboundContact | null;
+          contactErr = result.error;
+          if (row || !contactErr) break;
+        }
+        if (contactErr) {
+          console.error(
+            '[meta-api-dispatcher] contact lookup error:',
+            contactErr
+          );
+          throw new Error('Could not load contact. Please try again.');
+        }
+        return row;
+      };
+      let loaded = await loadContact(resolvedContactId);
+      if (!loaded) {
         throw new Error('Contact not found for this account');
       }
+      let winner: MergeableOutboundContact | null = loaded;
+      for (
+        let hop = 0;
+        winner?.is_merged && winner.merged_into_id && hop < MAX_MERGE_HOPS;
+        hop += 1
+      ) {
+        winner = await loadContact(winner.merged_into_id);
+      }
+      if (
+        winner &&
+        winner.id !== loaded.id &&
+        !winner.is_merged &&
+        phoneMatchKey(loaded.phone) !== null &&
+        phoneMatchKey(loaded.phone) === phoneMatchKey(winner.phone)
+      ) {
+        const alias = loaded;
+        const aliasPauseLater =
+          !!alias.whatsapp_marketing_suppressed_until &&
+          laterSuppression(
+            winner.whatsapp_marketing_suppressed_until,
+            alias.whatsapp_marketing_suppressed_until
+          ) !== winner.whatsapp_marketing_suppressed_until;
+        resolvedContactId = winner.id;
+        resolvedConversationId = null;
+        loaded = {
+          ...winner,
+          chain_only: winner.chain_only || alias.chain_only,
+          is_dead: winner.is_dead || alias.is_dead,
+          is_archived: winner.is_archived || alias.is_archived,
+          ...(aliasPauseLater
+            ? {
+                whatsapp_marketing_suppressed_until:
+                  alias.whatsapp_marketing_suppressed_until,
+                whatsapp_marketing_suppression_code:
+                  alias.whatsapp_marketing_suppression_code,
+              }
+            : {}),
+        };
+      }
+      resolvedContact = loaded;
       targetPhone ||= resolvedContact.phone;
     }
 
