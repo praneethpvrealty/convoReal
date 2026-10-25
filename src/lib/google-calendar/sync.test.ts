@@ -193,14 +193,35 @@ describe('[CAL-015] syncGoogleCalendar', () => {
     expect(mocks.refreshAccessToken).not.toHaveBeenCalled();
   });
 
-  it('[CAL-015] forgets a calendar the member deleted in Google so the next run recreates it', async () => {
+  it('[CAL-015] reports a calendar deleted mid-run without clearing an id another run may have set', async () => {
     mocks.insertEvent.mockRejectedValue(
       new GoogleCalendarApiError('Not Found', 404)
     );
     const { admin, ops } = fakeAdmin();
     const result = await syncGoogleCalendar(admin as never, connection, 'x');
     expect(result.status).toBe('error');
-    expect(ops.at(-1)?.payload).toMatchObject({ calendar_id: null });
+    expect(ops.at(-1)?.payload).toMatchObject({ status: 'error' });
+    expect(
+      ops.some((op) => op.payload && 'calendar_id' in (op.payload as object))
+    ).toBe(false);
+  });
+
+  it('[CAL-015] clears the old links before it claims a new calendar', async () => {
+    mocks.calendarExists.mockResolvedValue(false);
+    mocks.loadMemberCalendarEvents.mockResolvedValue([]);
+    const { admin, ops } = fakeAdmin();
+    await syncGoogleCalendar(admin as never, connection, 'x');
+    const linkDelete = ops.findIndex(
+      (op) =>
+        op.table === 'google_calendar_event_links' && op.action === 'delete'
+    );
+    const claim = ops.findIndex(
+      (op) =>
+        (op.payload as { calendar_id?: string } | undefined)?.calendar_id ===
+        'cal-new'
+    );
+    expect(linkDelete).toBeGreaterThan(-1);
+    expect(linkDelete).toBeLessThan(claim);
   });
 
   it('[CAL-015] stamps every attempt so failing connections rotate out of the queue', async () => {

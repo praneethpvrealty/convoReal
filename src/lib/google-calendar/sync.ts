@@ -84,6 +84,12 @@ async function ensureCalendar(
     if (error) throw error;
   }
 
+  const { error: deleteLinksError } = await admin
+    .from('google_calendar_event_links')
+    .delete()
+    .match({ account_id: connection.account_id, user_id: connection.user_id });
+  if (deleteLinksError) throw deleteLinksError;
+
   const created = await createCalendar(accessToken);
   const { data: claimed, error: claimError } = await admin
     .from('google_calendar_connections')
@@ -112,11 +118,6 @@ async function ensureCalendar(
     return current.calendar_id as string;
   }
 
-  const { error: deleteLinksError } = await admin
-    .from('google_calendar_event_links')
-    .delete()
-    .match({ account_id: connection.account_id, user_id: connection.user_id });
-  if (deleteLinksError) throw deleteLinksError;
   return created;
 }
 
@@ -276,19 +277,14 @@ export async function syncGoogleCalendar(
     });
     return result;
   } catch (err) {
-    if (isGoneError(err) && connection.calendar_id) {
-      await markConnection(admin, connection, {
-        calendar_id: null,
-        status: 'error',
-        last_error:
-          'The ConvoReal calendar was removed from Google. It is recreated on the next sync.',
-      });
-    } else {
-      await markConnection(admin, connection, {
-        status: 'error',
-        last_error: err instanceof Error ? err.message : 'Sync failed',
-      });
-    }
+    await markConnection(admin, connection, {
+      status: 'error',
+      last_error: isGoneError(err)
+        ? 'The ConvoReal calendar was removed from Google. It is recreated on the next sync.'
+        : err instanceof Error
+          ? err.message
+          : 'Sync failed',
+    });
     console.error('[google-calendar] sync failed:', err);
     return {
       ...result,
