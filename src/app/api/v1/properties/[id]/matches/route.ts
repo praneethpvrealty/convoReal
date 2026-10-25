@@ -109,7 +109,7 @@ export const GET = withApiKeyAuth('read', async (ctx, req, routeCtx) => {
     property_id: id,
     excluded_not_a_fit: excluded,
     ...(excluded > 0 && {
-      note: `${excluded} contact${excluded === 1 ? ' was' : 's were'} left out because they were marked "Not a fit" for this listing.`,
+      note: `${excluded} contact${excluded === 1 ? ' was' : 's were'} left out because they were ruled out for this listing (an agent's "Not a fit" or their own no).`,
     }),
     ...pageArray(ranked, params),
   });
