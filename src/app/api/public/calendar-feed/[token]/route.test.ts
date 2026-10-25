@@ -8,7 +8,10 @@ const state = vi.hoisted(() => ({
   feed: null as null | Record<string, unknown>,
   profile: null as null | Record<string, unknown>,
   queries: [] as Array<{ table: string; filters: Array<[string, unknown]> }>,
-  updates: [] as Array<Record<string, unknown>>,
+  updates: [] as Array<{
+    payload: Record<string, unknown>;
+    filters: Array<[string, unknown]>;
+  }>,
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -45,8 +48,20 @@ vi.mock('@/lib/supabase/admin', () => ({
         order: () => builder,
         limit: async () => ({ data: [], error: null }),
         update: (payload: Record<string, unknown>) => {
-          state.updates.push(payload);
-          return { eq: async () => ({ error: null }) };
+          const update = {
+            payload,
+            filters: [] as Array<[string, unknown]>,
+          };
+          state.updates.push(update);
+          const updateBuilder = {
+            eq: (column: string, value: unknown) => {
+              update.filters.push([column, value]);
+              return updateBuilder;
+            },
+            then: (resolve: (v: { error: null }) => void) =>
+              resolve({ error: null }),
+          };
+          return updateBuilder;
         },
         maybeSingle: async () => {
           if (table === 'calendar_feed_tokens') {
@@ -111,6 +126,10 @@ describe('[CAL-014] public calendar feed route', () => {
       ]);
     }
     expect(state.updates).toHaveLength(1);
+    expect(state.updates[0].filters).toContainEqual([
+      'token_hash',
+      hashFeedToken(TOKEN),
+    ]);
   });
 
   it('[CAL-014] answers 404 for an unknown or malformed token', async () => {

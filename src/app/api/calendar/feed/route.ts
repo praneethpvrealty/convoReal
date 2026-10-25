@@ -12,11 +12,12 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export async function GET() {
   try {
-    const { userId } = await requireRole('viewer');
+    const { userId, accountId } = await requireRole('viewer');
     const { data, error } = await supabaseAdmin()
       .from('calendar_feed_tokens')
       .select('created_at, last_used_at')
       .eq('user_id', userId)
+      .eq('account_id', accountId)
       .maybeSingle();
     if (error) {
       console.error('[GET /api/calendar/feed]', error);
@@ -87,11 +88,12 @@ export async function POST(request: Request) {
 
 export async function DELETE() {
   try {
-    const { userId } = await requireRole('viewer');
+    const { userId, accountId } = await requireRole('viewer');
     const { error } = await supabaseAdmin()
       .from('calendar_feed_tokens')
       .delete()
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .eq('account_id', accountId);
     if (error) {
       console.error('[DELETE /api/calendar/feed]', error);
       return NextResponse.json(

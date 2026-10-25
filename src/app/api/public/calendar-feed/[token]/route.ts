@@ -134,7 +134,8 @@ export async function GET(
     const { error: touchError } = await admin
       .from('calendar_feed_tokens')
       .update({ last_used_at: now.toISOString() })
-      .eq('id', feed.id);
+      .eq('id', feed.id)
+      .eq('token_hash', hash);
     if (touchError) {
       console.error('[calendar-feed] last_used_at update failed:', touchError);
     }
