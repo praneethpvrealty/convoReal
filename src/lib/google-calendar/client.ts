@@ -123,6 +123,22 @@ export async function calendarExists(
   }
 }
 
+export async function deleteCalendar(
+  accessToken: string,
+  calendarId: string
+): Promise<void> {
+  try {
+    await request(
+      accessToken,
+      `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}`,
+      { method: 'DELETE' },
+      'Failed to remove a duplicate ConvoReal calendar'
+    );
+  } catch (err) {
+    if (!isGoneError(err)) throw err;
+  }
+}
+
 function eventsUrl(calendarId: string, eventId?: string): string {
   const base = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events`;
   return eventId ? `${base}/${encodeURIComponent(eventId)}` : base;

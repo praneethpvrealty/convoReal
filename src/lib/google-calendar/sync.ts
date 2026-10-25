@@ -8,6 +8,7 @@ import {
 import {
   calendarExists,
   createCalendar,
+  deleteCalendar,
   deleteEvent,
   insertEvent,
   isConflictError,
@@ -65,6 +66,57 @@ async function markConnection(
   if (error) console.error('[google-calendar] status update failed:', error);
 }
 
+async function ensureCalendar(
+  admin: SupabaseClient,
+  connection: GoogleCalendarConnection,
+  accessToken: string
+): Promise<string> {
+  const stored = connection.calendar_id;
+  if (stored && (await calendarExists(accessToken, stored))) return stored;
+
+  if (stored) {
+    const { error } = await admin
+      .from('google_calendar_connections')
+      .update({ calendar_id: null })
+      .eq('id', connection.id)
+      .eq('account_id', connection.account_id)
+      .eq('calendar_id', stored);
+    if (error) throw error;
+  }
+
+  const created = await createCalendar(accessToken);
+  const { data: claimed, error: claimError } = await admin
+    .from('google_calendar_connections')
+    .update({ calendar_id: created })
+    .eq('id', connection.id)
+    .eq('account_id', connection.account_id)
+    .is('calendar_id', null)
+    .select('id');
+  if (claimError) throw claimError;
+
+  if (!claimed || claimed.length === 0) {
+    await deleteCalendar(accessToken, created);
+    const { data: current, error: currentError } = await admin
+      .from('google_calendar_connections')
+      .select('calendar_id')
+      .eq('id', connection.id)
+      .eq('account_id', connection.account_id)
+      .single();
+    if (currentError) throw currentError;
+    if (!current?.calendar_id) {
+      throw new Error('Could not settle the ConvoReal calendar. Try again.');
+    }
+    return current.calendar_id as string;
+  }
+
+  const { error: deleteLinksError } = await admin
+    .from('google_calendar_event_links')
+    .delete()
+    .match({ account_id: connection.account_id, user_id: connection.user_id });
+  if (deleteLinksError) throw deleteLinksError;
+  return created;
+}
+
 export async function syncGoogleCalendar(
   admin: SupabaseClient,
   connection: GoogleCalendarConnection,
@@ -116,19 +168,7 @@ export async function syncGoogleCalendar(
       return { ...result, status: 'token_expired' };
     }
 
-    let calendarId = connection.calendar_id;
-    if (calendarId && !(await calendarExists(accessToken, calendarId))) {
-      calendarId = null;
-    }
-    if (!calendarId) {
-      calendarId = await createCalendar(accessToken);
-      const { error: deleteLinksError } = await admin
-        .from('google_calendar_event_links')
-        .delete()
-        .match(scope);
-      if (deleteLinksError) throw deleteLinksError;
-      await markConnection(admin, connection, { calendar_id: calendarId });
-    }
+    const calendarId = await ensureCalendar(admin, connection, accessToken);
 
     const events = await loadMemberCalendarEvents(
       admin,

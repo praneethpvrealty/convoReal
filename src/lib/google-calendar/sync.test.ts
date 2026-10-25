@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   refreshAccessToken: vi.fn(),
   isAuthError: vi.fn(),
   createCalendar: vi.fn(),
+  deleteCalendar: vi.fn(),
   calendarExists: vi.fn(),
   insertEvent: vi.fn(),
   updateEvent: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock('@/lib/google-calendar/client', async (importOriginal) => {
   return {
     ...actual,
     createCalendar: mocks.createCalendar,
+    deleteCalendar: mocks.deleteCalendar,
     calendarExists: mocks.calendarExists,
     insertEvent: mocks.insertEvent,
     updateEvent: mocks.updateEvent,
@@ -48,7 +50,11 @@ interface Op {
   filters: Array<[string, unknown]>;
 }
 
-function fakeAdmin(links: unknown[] = []) {
+function fakeAdmin(
+  links: unknown[] = [],
+  claim: unknown[] = [{ id: 'conn-1' }],
+  winner: string | null = null
+) {
   const ops: Op[] = [];
   const admin = {
     from(table: string) {
@@ -78,13 +84,26 @@ function fakeAdmin(links: unknown[] = []) {
           op.filters.push(['match', value]);
           return builder;
         },
+        is: (column: string, value: unknown) => {
+          op.filters.push([`is:${column}`, value]);
+          return builder;
+        },
+        single: async () => ({
+          data: { calendar_id: winner },
+          error: null,
+        }),
         lt: (column: string, value: unknown) => {
           op.filters.push([`lt:${column}`, value]);
           return builder;
         },
         then: (resolve: (v: unknown) => void) =>
           resolve({
-            data: op.action === 'select' ? links : null,
+            data:
+              op.action === 'select'
+                ? links
+                : op.action === 'update'
+                  ? claim
+                  : null,
             error: null,
           }),
       };
@@ -231,6 +250,23 @@ describe('[CAL-015] syncGoogleCalendar', () => {
       'cal-1',
       googleEventId(event.uid),
       expect.objectContaining({ status: 'confirmed' })
+    );
+  });
+
+  it('[CAL-015] keeps one calendar when two runs create one at the same time', async () => {
+    const { admin } = fakeAdmin([], [], 'cal-winner');
+    const result = await syncGoogleCalendar(
+      admin as never,
+      { ...connection, calendar_id: null },
+      'x'
+    );
+    expect(result.status).toBe('synced');
+    expect(mocks.deleteCalendar).toHaveBeenCalledWith('at', 'cal-new');
+    expect(mocks.insertEvent).toHaveBeenCalledWith(
+      'at',
+      'cal-winner',
+      googleEventId(event.uid),
+      expect.anything()
     );
   });
 });
