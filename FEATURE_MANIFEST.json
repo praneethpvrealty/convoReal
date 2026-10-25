@@ -1232,6 +1232,27 @@
               "case": "[CAL-013]"
             }
           ]
+        },
+        {
+          "id": "CAL-014",
+          "rule": "Each member can create one private iCalendar subscription link on web and mobile through /api/calendar/feed (GET status, POST create or reset, DELETE turn off); only the SHA-256 digest of the token is stored and the link is shown once, and resetting it stops the old link at once. GET /api/public/calendar-feed/[token].ics serves that member's own appointments (assigned to them, or created by them and unassigned) other than cancelled ones and their open dated to-dos, from 30 days back to 365 days ahead, scoped by the token's account in code, rate-limited per link and per IP, and answers 404 for an unknown or malformed token, a member who has left the account, or an archived account. Appointments are timed UTC events; a to-do due at IST midnight is an all-day event on its IST date and any other to-do a 30-minute event. The feed never writes calendar data.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/ics-feed.test.ts",
+              "case": "[CAL-014]"
+            },
+            {
+              "file": "src/app/api/public/calendar-feed/[token]/route.test.ts",
+              "case": "[CAL-014]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CAL-014]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261025090000_calendar_feed_tokens.sql"
+          ]
         }
       ]
     },

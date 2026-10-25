@@ -17,6 +17,15 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 25 October 2026
+
+- **Subscribe to your ConvoReal calendar from Google, Apple or Outlook.** The
+  calendar has a Subscribe button on web and a share icon on mobile that
+  creates a private iCalendar link. Your own appointments and dated open
+  to-dos appear in your calendar app and refresh about hourly; resetting the
+  link stops the old one at once (CAL-014). **Migration required:**
+  `20261025090000_calendar_feed_tokens.sql`.
+
 #### 24 October 2026
 
 - **The Journey tab now lists the leads who said yes.** A lead who tapped

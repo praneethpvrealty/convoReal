@@ -5316,3 +5316,31 @@ describe('[PRP-051] "Not a fit" on matching contacts runs one rule on both surfa
     );
   });
 });
+
+describe('[CAL-014] the calendar subscription link is managed the same way on both surfaces', () => {
+  it('creates, resets and turns off the link through the one feed route', () => {
+    const webDialog = webSource(
+      'components/calendar/subscribe-feed-dialog.tsx'
+    );
+    const mobileScreen = mobileSource('app/(app)/calendar-feed.tsx');
+    expect(webSource('app/(dashboard)/calendar/page.tsx')).toContain(
+      '<SubscribeFeedDialog />'
+    );
+    expect(mobileSource('app/(app)/(tabs)/calendar.tsx')).toContain(
+      '<Link href="/(app)/calendar-feed" asChild>'
+    );
+    expect(webDialog).toContain("fetch('/api/calendar/feed', { method })");
+    expect(mobileScreen).toContain(
+      "apiFetch<{ data: FeedStatus }>('/api/calendar/feed'"
+    );
+    for (const source of [webDialog, mobileScreen]) {
+      for (const method of ["'GET'", "'POST'", "'DELETE'"]) {
+        expect(source).toContain(`feedRequest(${method})`);
+      }
+      expect(source).toContain('Reset link');
+      expect(source).toContain('Turn off');
+      expect(source).toContain('google_url');
+      expect(source).toContain('webcal_url');
+    }
+  });
+});
