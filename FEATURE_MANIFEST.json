@@ -5033,6 +5033,34 @@
             "src/app/api/account/transfer-ownership/route.ts",
             "src/app/api/account/delete/route.ts"
           ]
+        },
+        {
+          "id": "ACC-008",
+          "rule": "A signed-in member's profile and account, which every role gate, the header and the account-scoped screens read, load even when the browser or app cannot reach the Supabase host directly. The web AuthProvider reads the profile row from Supabase first; when that read fails or times out it asks GET /api/auth/profile on the app's own origin, then waits and tries both once more, and shows the \"We couldn't load your profile\" screen only after all four fail. The mobile app asks the same route after its direct reads fail. The route resolves the caller from their own session (cookie or bearer), reads only their own row through the RLS-scoped session client with no service-role access, answers data: null when the caller has no profile row yet so the shell still sends them to profile setup, reports a failed read as an error and never as no profile, returns an archived account with its status so the shell can show the archived overlay, and is never cached. The select list and the row normaliser live in one dependency-free module that the hook, the route and the mobile app all use, so the paths cannot disagree about a member's role or account.",
+          "tests": [
+            {
+              "file": "src/app/api/auth/profile/route.test.ts",
+              "case": "[ACC-008]"
+            },
+            {
+              "file": "src/hooks/useAuth.test.tsx",
+              "case": "[ACC-008]"
+            },
+            {
+              "file": "src/lib/auth/session-profile.test.ts",
+              "case": "[ACC-008]"
+            },
+            {
+              "file": "mobile/lib/session-profile.test.ts",
+              "case": "[ACC-008]"
+            }
+          ],
+          "guards": [
+            "src/app/api/auth/profile/route.ts",
+            "src/hooks/useAuth.tsx",
+            "src/lib/auth/session-profile.ts",
+            "mobile/lib/auth-store.ts"
+          ]
         }
       ]
     },

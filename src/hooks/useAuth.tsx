@@ -16,53 +16,24 @@ import {
   canManageMembers as canManageMembersFor,
   canSendMessages as canSendMessagesFor,
   canViewGuardedLocation as canViewGuardedLocationFor,
-  isAccountRole,
-  isOrgRole,
   hasMinOrgRole,
   type AccountRole,
   type OrgRole,
 } from '@/lib/auth/roles';
-import type { ShowcaseStyle } from '@/lib/showcase/style';
+import {
+  SESSION_PROFILE_PATH,
+  SESSION_PROFILE_SELECT,
+  parseSessionProfileResponse,
+  toSessionProfile,
+  type SessionAccount,
+  type SessionProfile,
+  type SessionProfileResult,
+  type SessionProfileRow,
+} from '@/lib/auth/session-profile';
 import { reloadTo } from '@/lib/navigation';
 
-interface Profile {
-  id: string;
-  full_name: string | null;
-  email: string;
-  phone: string | null;
-  avatar_url: string | null;
-  role: string | null;
-  /**
-   * Opted-in beta feature keys for this account. No current feature
-   * reads this — Flows was the last user and went to soft-GA in PR
-   * #134 — but the column survives for future beta gates.
-   */
-  beta_features: string[];
-  account_id: string | null;
-  account_role: AccountRole | null;
-  /** Org-hierarchy role (migration 082) — source of truth going forward. */
-  org_role: OrgRole | null;
-  team_id: string | null;
-  /** Former 'viewer' role folds into org_agent + this flag. */
-  is_read_only: boolean;
-  /** Languages this agent reads, and which one the app renders in
-   *  (migration 247). Shared with the mobile app, which reads the same
-   *  profile row. Narrowed by the locale provider, never trusted raw. */
-  ui_languages: string[];
-  active_ui_language: string | null;
-  showcase_style: ShowcaseStyle | null;
-  showcase_3d_enabled: boolean | null;
-}
-
-interface AccountSummary {
-  id: string;
-  name: string;
-  status: string;
-  /** Outbound language default (migration 246). Absent on rows read
-   *  before the column existed — callers narrow with toLanguageCode(). */
-  default_language?: string;
-  journey_compartment_scope?: string;
-}
+type Profile = SessionProfile;
+type AccountSummary = SessionAccount;
 
 interface AuthContextValue {
   user: User | null;
@@ -189,7 +160,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // refreshProfile() callback. Reads the current session's user id and
   // pulls the matching profile row along with its account summary.
   //
-  // Retries once on failure before giving up — a transient network/DB
+  // Falls back to the same-origin profile route and retries both before
+  // giving up — a transient network/DB
   // blip must not be mistaken for "this user has no profile row", which
   // is exactly what caused the /dashboard <-> /profile-setup redirect
   // loop: a failed fetch left `profile` at null, the dashboard shell
@@ -200,17 +172,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileLoading(true);
     setProfileError(false);
 
+    const applyResult = (result: SessionProfileResult) => {
+      setProfile(result.profile);
+      setAccount(result.account);
+    };
+
+    const attemptViaApi = async () => {
+      const res = await fetch(SESSION_PROFILE_PATH, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        throw new Error(`profile API answered ${res.status}`);
+      }
+      const result = parseSessionProfileResponse(await res.json());
+      if (result) applyResult(result);
+    };
+
     const attemptFetch = async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select(
-          // `account:accounts!inner(id, name)` — explicit join on the
-          // single FK profiles.account_id → accounts.id. `!inner` so a
-          // missing account collapses to null rather than a half-
-          // populated row (shouldn't happen post-017 NOT NULL, but
-          // belt-and-braces against forks running older schemas).
-          'id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, ui_languages, active_ui_language, showcase_style, showcase_3d_enabled, account:accounts!inner(id, name, status, default_language, journey_compartment_scope)'
-        )
+        .select(SESSION_PROFILE_SELECT)
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -276,54 +258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw error;
       }
 
-      if (data) {
-        // Supabase's typed client surfaces an embedded `!inner` row
-        // as either an object or a single-element array depending on
-        // the schema's inferred cardinality — normalise to the object
-        // form before reading.
-        const accountRow = Array.isArray(data.account)
-          ? (data.account[0] ?? null)
-          : (data.account as AccountSummary | null);
-
-        // Narrow the DB enum into our AccountRole union. The DB
-        // constraint should make this unconditional, but a future
-        // migration that broadens the enum without updating TS would
-        // otherwise crash here — fall back to null and let UI gates
-        // treat the caller as least-privileged.
-        const accountRole = isAccountRole(data.account_role)
-          ? data.account_role
-          : null;
-        // Same defensive narrowing for org_role — null on forks that
-        // haven't applied migration 082 yet (data.org_role would be
-        // undefined from the select, isOrgRole rejects that too).
-        const orgRole = isOrgRole(data.org_role) ? data.org_role : null;
-
-        setProfile({
-          id: data.id,
-          full_name: data.full_name,
-          email: data.email,
-          phone: data.phone ?? null,
-          avatar_url: data.avatar_url,
-          role: data.role,
-          // `beta_features` is `NOT NULL DEFAULT ARRAY[]` in the DB, but
-          // narrow defensively in case the column hasn't been migrated yet
-          // (older deployments running 011 lazily) — `null` reads as no
-          // opt-ins, which is the safe default for any future beta gate.
-          beta_features: data.beta_features ?? [],
-          // Null on a fork that has not applied migration 247 —
-          // sanitizeLanguageSet() turns that into ['en'].
-          ui_languages: data.ui_languages ?? [],
-          active_ui_language: data.active_ui_language ?? null,
-          showcase_style: data.showcase_style ?? null,
-          showcase_3d_enabled: data.showcase_3d_enabled ?? null,
-          account_id: data.account_id ?? null,
-          account_role: accountRole,
-          org_role: orgRole,
-          team_id: data.team_id ?? null,
-          is_read_only: data.is_read_only ?? false,
-        });
-        setAccount(accountRow);
-      }
+      if (data) applyResult(toSessionProfile(data as SessionProfileRow));
       // data === null && error === null: `.maybeSingle()` genuinely
       // found no row for this user — a real "no profile yet" case, not
       // a fetch failure. Leave `profile` at null and `profileError`
@@ -339,9 +274,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // yet"). Cap each attempt so a hang becomes a retry, then a real
     // error state — the shell's "We couldn't load your profile / Retry"
     // screen — instead of a zombie UI that misreports permissions.
-    const attemptWithTimeout = (ms: number) =>
+    const withTimeout = (attempt: () => Promise<void>, ms: number) =>
       Promise.race([
-        attemptFetch(),
+        attempt(),
         new Promise<never>((_, reject) =>
           setTimeout(
             () => reject(new Error(`profile fetch timed out after ${ms}ms`)),
@@ -350,17 +285,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ),
       ]);
 
+    // The direct read goes from the browser to the Supabase host; the
+    // fallback goes to this app's own origin, which reads the same row
+    // server-side under the caller's session. A browser that cannot
+    // reach Supabase for a moment (extension, flaky route, a Chrome
+    // network process awaiting relaunch) still reaches the app, so the
+    // dashboard loads instead of stopping on the error screen.
+    const attempts: Array<[label: string, run: () => Promise<void>]> = [
+      ['direct read', attemptFetch],
+      ['API fallback', attemptViaApi],
+      ['direct read retry', attemptFetch],
+      ['API fallback retry', attemptViaApi],
+    ];
+
     try {
-      await attemptWithTimeout(10_000);
-    } catch {
-      // One retry after a short delay absorbs the transient case
-      // (dropped connection, momentary DB timeout) without a page-level
-      // wait; a second failure is treated as a real error state.
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      try {
-        await attemptWithTimeout(10_000);
-      } catch (err) {
-        console.error('[AuthProvider] fetchProfile failed after retry:', err);
+      let lastError: unknown = null;
+      let loaded = false;
+      for (const [index, [label, run]] of attempts.entries()) {
+        if (index === 2) {
+          await new Promise((resolve) => setTimeout(resolve, 1_500));
+        }
+        try {
+          await withTimeout(run, 8_000);
+          loaded = true;
+          break;
+        } catch (err) {
+          lastError = err;
+          console.warn(`[AuthProvider] profile ${label} failed:`, err);
+        }
+      }
+      if (!loaded) {
+        console.error('[AuthProvider] fetchProfile failed:', lastError);
         setProfileError(true);
       }
     } finally {
