@@ -42,7 +42,7 @@ import {
 } from '@/lib/whatsapp/number-change-notice';
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only';
 import { MAX_MERGE_HOPS } from '@/lib/contacts/merge-chain';
-import { primaryPhonesDiffer } from '@/lib/contacts/phone-key';
+import { phoneMatchKey } from '@/lib/contacts/phone-key';
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle';
 import {
   isMarketingTemplateSuppressed,
@@ -383,7 +383,8 @@ export async function sendWhatsAppMessageAndPersist(
         winner &&
         winner.id !== loaded.id &&
         !winner.is_merged &&
-        !primaryPhonesDiffer(loaded.phone, winner.phone)
+        phoneMatchKey(loaded.phone) !== null &&
+        phoneMatchKey(loaded.phone) === phoneMatchKey(winner.phone)
       ) {
         const alias = loaded;
         const aliasPauseLater =

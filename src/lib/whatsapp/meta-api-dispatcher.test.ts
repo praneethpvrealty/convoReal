@@ -371,6 +371,30 @@ describe('sendWhatsAppMessageAndPersist', () => {
     ]);
   });
 
+  it('[CTM-001] keeps a merged contact on its own number when the survivor has none', async () => {
+    const db = makeDb({
+      contactRows: mergedChain({}, { phone: null }),
+    });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      conversationId: 'conv-of-merged-contact',
+      kind: 'text',
+      senderType: 'bot',
+      text: 'Hello',
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(db._inserts.messages).toEqual([
+      expect.objectContaining({ conversation_id: 'conv-of-merged-contact' }),
+    ]);
+  });
+
   it('[CTM-001] keeps refusing a send addressed to a merged record that was closed', async () => {
     const db = makeDb({ contactRows: mergedChain({ is_dead: true }) });
     const { sendWhatsAppMessageAndPersist } =

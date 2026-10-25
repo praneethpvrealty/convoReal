@@ -49,7 +49,6 @@ export async function findFeedbackSharePropertyId(
     return null;
   }
   const { data: other, error: otherError } = await sharesOnPrompt()
-    .eq('contact_id', shareContactId)
     .or(`property_id.is.null,property_id.neq.${propertyId}`)
     .limit(1)
     .maybeSingle();

@@ -595,6 +595,36 @@ describe('findFeedbackSharePropertyId', () => {
     ).toBe(PROPERTY_ID);
   });
 
+  it('[INB-022] records nothing when one prompt covers shares of different properties on a merged contact and its survivor', async () => {
+    const db = lookupDb(
+      [
+        { property_id: PROPERTY_ID, contact_id: 'alias-a' },
+        { property_id: '99999999-2222-4333-8444-555555555555' },
+      ],
+      false,
+      {
+        'alias-a': {
+          id: 'alias-a',
+          is_merged: true,
+          merged_into_id: CONTACT_ID,
+        },
+        [CONTACT_ID]: {
+          id: CONTACT_ID,
+          is_merged: false,
+          merged_into_id: null,
+        },
+      }
+    );
+    expect(
+      await findFeedbackSharePropertyId(
+        db as never,
+        ACCOUNT_ID,
+        CONTACT_ID,
+        'wamid.prompt'
+      )
+    ).toBeNull();
+  });
+
   it('[INB-022] ignores a share on the prompt that belongs to someone else', async () => {
     const db = lookupDb(
       [{ property_id: PROPERTY_ID, contact_id: 'stranger' }],
