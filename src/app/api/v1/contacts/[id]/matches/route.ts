@@ -10,6 +10,8 @@
 //
 // Unpublished and sold listings are excluded — an answer that leads
 // with something the agent cannot transact is worse than a short list.
+// So is a listing this contact was ruled out for, by an agent's "Not a
+// fit" or their own no; `excluded_not_a_fit` says how many. PRP-051.
 // ============================================================
 
 import { NextResponse } from 'next/server';
@@ -17,6 +19,7 @@ import { NextResponse } from 'next/server';
 import { withApiKeyAuth } from '@/lib/auth/api-keys';
 import { curateForBuyer, hasBuyerBrief } from '@/lib/buyer/matches-ranking';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import { loadContactRejectedPropertyIds } from '@/lib/inventory/match-feedback-store';
 import { pageArray, parsePageParams } from '@/lib/v1/pagination';
 import {
   MATCHING_CONTACT_COLUMNS,
@@ -107,19 +110,32 @@ export const GET = withApiKeyAuth('read', async (ctx, req, routeCtx) => {
     contact as unknown as Contact,
   ]);
 
-  const ranked = curateForBuyer(
+  const rejected = await loadContactRejectedPropertyIds(
+    ctx.db,
+    ctx.accountId,
+    id
+  );
+  const curated = curateForBuyer(
     (properties ?? []) as unknown as Property[],
     subject,
     minScore === null ? {} : { minScore }
-  ).map((match) => ({
-    property: toV1Property(match.property),
-    score: match.score,
-    details: match.details,
-    reasons: match.reasons,
-  }));
+  );
+  const ranked = curated
+    .filter((match) => !rejected.has(match.property.id as string))
+    .map((match) => ({
+      property: toV1Property(match.property),
+      score: match.score,
+      details: match.details,
+      reasons: match.reasons,
+    }));
 
+  const excluded = curated.length - ranked.length;
   return NextResponse.json({
     contact_id: id,
+    excluded_not_a_fit: excluded,
+    ...(excluded > 0 && {
+      note: `${excluded} listing${excluded === 1 ? ' was' : 's were'} left out because this contact was ruled out for ${excluded === 1 ? 'it' : 'them'} (an agent's "Not a fit" or their own no).`,
+    }),
     ...pageArray(ranked, params),
   });
 });

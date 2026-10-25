@@ -124,6 +124,8 @@ Every tool takes `response_format` (`markdown`, the default, or `json`) and ever
 
 They are the transpose of each other and share one implementation, so an agent's answer and a buyer's portal can never disagree about what counts as a match.
 
+Both leave out a contact and listing pair that was ruled out: an agent's "Not a fit" mark in the app, or the buyer's own no on WhatsApp. That is the same pair the app hides. The response carries `excluded_not_a_fit` with the count, plus a note the tool shows when anything was left out.
+
 ---
 
 ## What this server deliberately cannot do
