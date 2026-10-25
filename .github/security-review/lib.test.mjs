@@ -14,15 +14,20 @@ import {
   confinedRealPath,
   estimateCost,
   planModel,
+  rereviewFiles,
   reviewBody,
   reviewFooter,
   splitByKind,
+  summaryMarkdown,
   extractHandbookSections,
   findingKey,
   formatFinding,
   isReviewed,
+  isTrustedReviewRun,
+  latestBaseChange,
   markersIn,
   parseDiff,
+  parseReviewResult,
   planComments,
   safeRepoPath,
   selectFiles,
@@ -330,6 +335,252 @@ test('planModel picks the tier from sensitive paths and diff size', () => {
     planModel({ files: ['src/a.ts'], diffChars: 10, override: 'auto' }).tier,
     'light'
   );
+});
+
+test('a re-review runs on Sonnet unless the changed files hit a deep trigger', () => {
+  const sha = 'abc1234def5678';
+  const routine = planModel({
+    files: ['src/lib/showcase/property-qa.ts', 'src/lib/ai/lead-question.ts'],
+    diffChars: 30_000,
+    rereviewOf: sha,
+  });
+  assert.equal(routine.tier, 'rereview');
+  assert.equal(routine.model, 'claude-sonnet-5-5');
+  assert.deepEqual(routine.reasons, [
+    're-review of 2 files changed since abc1234',
+  ]);
+
+  const tiny = planModel({
+    files: ['src/lib/showcase/property-qa.ts'],
+    diffChars: 500,
+    rereviewOf: sha,
+  });
+  assert.equal(tiny.tier, 'rereview');
+
+  const sensitive = planModel({
+    files: ['supabase/migrations/20261024000000_x.sql'],
+    diffChars: 500,
+    rereviewOf: sha,
+  });
+  assert.equal(sensitive.tier, 'deep');
+  assert.equal(sensitive.model, 'claude-opus-5-5');
+  assert.match(sensitive.reasons[0], /re-review of 1 file/);
+  assert.match(sensitive.reasons[1], /sensitive path/);
+
+  const policy = planModel({
+    files: ['src/lib/deals/x.ts'],
+    diffChars: 500,
+    diffText: '+  SECURITY DEFINER\n',
+    rereviewOf: sha,
+  });
+  assert.equal(policy.tier, 'deep');
+
+  const forced = planModel({
+    files: ['src/lib/deals/x.ts'],
+    diffChars: 500,
+    override: 'haiku',
+    rereviewOf: sha,
+  });
+  assert.equal(forced.tier, 'forced');
+  assert.equal(forced.model, 'claude-haiku-5-5');
+});
+
+test('rereviewFiles keeps the pull request files that changed since the last review', () => {
+  assert.deepEqual(
+    rereviewFiles(
+      ['src/a.ts', 'src/b.ts', 'src/c.ts'],
+      ['src/c.ts', 'src/a.ts', 'src/unrelated.ts']
+    ),
+    ['src/a.ts', 'src/c.ts']
+  );
+  assert.deepEqual(rereviewFiles(['src/a.ts'], []), []);
+});
+
+test('only a successful base-branch run of the reviewer workflow for this PR counts as a prior review', () => {
+  const run = {
+    status: 'completed',
+    conclusion: 'success',
+    event: 'pull_request_target',
+    path: '.github/workflows/security-review.yml',
+    pull_requests: [{ number: 42, base: { ref: 'main' } }],
+  };
+  const ctx = { prNumber: 42, baseRef: 'main' };
+  assert.equal(isTrustedReviewRun(run, ctx), true);
+  assert.equal(
+    isTrustedReviewRun({ ...run, event: 'workflow_dispatch' }, ctx),
+    false
+  );
+  assert.equal(
+    isTrustedReviewRun({ ...run, event: 'pull_request' }, ctx),
+    false
+  );
+  assert.equal(
+    isTrustedReviewRun({ ...run, conclusion: 'skipped' }, ctx),
+    false
+  );
+  assert.equal(
+    isTrustedReviewRun({ ...run, path: '.github/workflows/ci.yml' }, ctx),
+    false
+  );
+  assert.equal(
+    isTrustedReviewRun(
+      { ...run, pull_requests: [{ number: 43, base: { ref: 'main' } }] },
+      ctx
+    ),
+    false
+  );
+  assert.equal(
+    isTrustedReviewRun(
+      { ...run, pull_requests: [{ number: 42, base: { ref: 'release/x' } }] },
+      ctx
+    ),
+    false
+  );
+  assert.equal(
+    isTrustedReviewRun(
+      {
+        ...run,
+        pull_requests: [
+          { number: 42, base: { ref: 'main' } },
+          { number: 43, base: { ref: 'release/x' } },
+        ],
+      },
+      ctx
+    ),
+    false
+  );
+  assert.equal(isTrustedReviewRun({ ...run, pull_requests: [] }, ctx), false);
+  assert.equal(
+    isTrustedReviewRun({ status: 'in_progress', conclusion: null }, ctx),
+    false
+  );
+  assert.equal(isTrustedReviewRun(undefined, ctx), false);
+});
+
+test('latestBaseChange finds the newest base-branch change in a timeline', () => {
+  assert.equal(latestBaseChange([]), null);
+  assert.equal(latestBaseChange(undefined), null);
+  assert.equal(
+    latestBaseChange([
+      { event: 'commented', created_at: '2026-10-24T10:00:00Z' },
+    ]),
+    null
+  );
+  assert.equal(
+    latestBaseChange([
+      { event: 'base_ref_changed', created_at: '2026-10-24T10:00:00Z' },
+      {
+        event: 'automatic_base_change_succeeded',
+        created_at: '2026-10-24T12:00:00Z',
+      },
+      { event: 'base_ref_changed', created_at: '2026-10-24T11:00:00Z' },
+    ]),
+    Date.parse('2026-10-24T12:00:00Z')
+  );
+});
+
+test('parseReviewResult accepts only this pull request and head', () => {
+  const result = JSON.stringify({
+    pr: 42,
+    headSha: 'abc',
+    findings: [
+      { kind: 'code', path: 'src/a.ts', line: 3, severity: 'high', title: 'A' },
+      {
+        kind: 'nonsense',
+        path: 'src/b.ts',
+        line: 'x',
+        severity: 'odd',
+        title: 'B',
+      },
+      { path: 7 },
+    ],
+  });
+  assert.deepEqual(
+    parseReviewResult(result, { prNumber: 42, headSha: 'abc' }),
+    {
+      files: [],
+      findings: [
+        {
+          kind: 'code',
+          path: 'src/a.ts',
+          line: 3,
+          severity: 'high',
+          title: 'A',
+        },
+        {
+          kind: 'security',
+          path: 'src/b.ts',
+          line: 0,
+          severity: 'medium',
+          title: 'B',
+        },
+      ],
+    }
+  );
+  assert.deepEqual(
+    parseReviewResult(
+      JSON.stringify({
+        pr: 42,
+        headSha: 'abc',
+        files: ['src/a.ts', 3],
+        findings: [],
+      }),
+      { prNumber: 42, headSha: 'abc' }
+    ),
+    { files: ['src/a.ts'], findings: [] }
+  );
+  assert.equal(
+    parseReviewResult(result, { prNumber: 41, headSha: 'abc' }),
+    null
+  );
+  assert.equal(
+    parseReviewResult(result, { prNumber: 42, headSha: 'abd' }),
+    null
+  );
+  assert.equal(
+    parseReviewResult('not json', { prNumber: 42, headSha: 'abc' }),
+    null
+  );
+  assert.equal(
+    parseReviewResult('{"pr":42,"headSha":"abc"}', {
+      prNumber: 42,
+      headSha: 'abc',
+    }),
+    null
+  );
+});
+
+test('a re-review scope covers changed files and files the PR gained, and a no-change run lists carried findings', () => {
+  const files = ['src/a.ts', 'src/b.ts', 'src/c.ts'];
+  const priorFiles = ['src/a.ts', 'src/b.ts'];
+  assert.deepEqual(
+    rereviewFiles(files, [
+      'src/b.ts',
+      ...files.filter((f) => !priorFiles.includes(f)),
+    ]),
+    ['src/b.ts', 'src/c.ts']
+  );
+  const carried = [
+    {
+      kind: 'security',
+      path: 'src/a.ts',
+      line: 12,
+      severity: 'high',
+      title: 'Check the account',
+    },
+  ];
+  assert.equal(checkConclusion(carried), 'failure');
+  const quiet = summaryMarkdown({
+    findings: [],
+    kind: 'security',
+    summary: 'stands',
+    carried,
+    carriedFrom: 'abc1234def',
+  });
+  assert.match(quiet, /No security findings in this change/);
+  assert.match(quiet, /1 finding carried over from abc1234/);
+  assert.match(quiet, /src\/a\.ts:12/);
+  assert.doesNotMatch(quiet, /Reviewed by/);
 });
 
 test('estimateCost prices usage per model and reviewFooter reports it', () => {

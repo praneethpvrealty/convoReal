@@ -44,6 +44,49 @@ How a review runs:
      `workflow_dispatch` takes a `model` input (`auto`, `opus`, `sonnet`,
      `haiku`) that overrides the choice, as does `REVIEW_MODEL` in the
      environment.
+   - **rereview** → `claude-sonnet-5-5` when the pull request already carries
+     a completed review. Every run uploads its findings as the
+     `claude-review-result` workflow artifact (`review-result.json`, 30
+     days). The script walks the PR's commits from the newest backwards (at
+     most 30) for one with a successful `pull_request_target` run of
+     `.github/workflows/security-review.yml` that GitHub associates with
+     this PR alone, whose base is this PR's current base branch and which
+     started after the PR's last base-branch change (read from the PR's
+     timeline, since a run under an earlier base ran that base's workflow
+     file), downloads
+     that run's artifact (unpacked in memory through `funzip`, never written
+     to disk) and accepts it only if it names this PR and that head. Check
+     runs, comments and statuses are not consulted for this: a same-repo PR
+     workflow can post those, but it cannot produce a `pull_request_target`
+     run, which always executes the base branch's workflow file. A
+     `workflow_dispatch` run never counts, because a dispatch whose head is a
+     PR commit ran the PR branch's own copy of the workflow, and a run
+     started by a second PR from the same branch into another base never
+     counts either. It then reviews the PR's files that changed between that
+     commit and the head, plus any file the PR has gained since that review;
+     when a file the earlier review covered has been reverted out of the PR,
+     every PR file is reviewed again and the prompt names the reverted
+     files, since another file may have depended on the reverted change.
+     The diff it shows is those files' full pull-request diff, and the other
+     files are listed so the model can read them. Every finding of the
+     earlier review is listed in the prompt, and the model is told to report
+     each one again, reading its file when it is not in the diff, unless the
+     code no longer has the problem; a finding it omits is treated as fixed,
+     so a fix that lands in a different file from the one a finding is
+     anchored to can clear it. The deep triggers still apply to that delta: a
+     fix that touches a migration or auth code goes to Opus. When no reviewed
+     file changed and nothing else did either, or no earlier finding is open,
+     the earlier findings are carried over unchanged, minus those in a file
+     that has left the PR since, they alone decide the checks, and no model is
+     called. When only unreviewed files changed (a test, a generated file) and
+     earlier findings are open, the model runs with no diff, the changed
+     files named, and the earlier findings to confirm or clear, since the fix
+     for a missing regression test is a test file.
+     `REVIEW_SCOPE=full` forces a full review. A `workflow_dispatch` run
+     defaults to `full`; `scope=auto` dispatched from `main` re-reviews a PR
+     against its last `pull_request_target` result. The re-review path
+     cannot be exercised by a dispatch on the PR's own branch, since such a
+     run's result is never trusted as a prior review.
 3. Claude reads the diff with the handbook's engineering and security
    sections from the base commit's `AGENTS.md`, then reads files and
    searches the head checkout with two read-only tools to confirm who calls
@@ -84,8 +127,10 @@ Secrets and limits:
   or a webhook check is exactly the change the review exists to catch.
   Findings on a deleted file go in the review body, since no line of it
   remains to comment on.
-- `REVIEW_MODEL` (default `auto`), `REVIEW_MAX_TURNS` (default 40) and
-  `REVIEW_MAX_DIFF_CHARS` (default 160000) bound a run. Tool output is
+- `REVIEW_MODEL` (default `auto`), `REVIEW_SCOPE` (default `auto`),
+  `REVIEW_RESULT_PATH` (default `review-result.json`), `REVIEW_MAX_TURNS`
+  (default 40) and `REVIEW_MAX_DIFF_CHARS` (default 160000) bound a run.
+  The token needs `actions: read` to list runs and download the artifact. Tool output is
   clipped, file reads are capped at 400 lines, and the system prompt and
   the growing conversation are cached across turns, so each tool round
   pays cache-read prices for everything it has already sent. Opus and Sonnet runs enable the server-side refusal

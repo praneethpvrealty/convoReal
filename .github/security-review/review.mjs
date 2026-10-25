@@ -1,18 +1,29 @@
 import { execFileSync } from 'node:child_process';
-import { closeSync, fstatSync, openSync, readFileSync } from 'node:fs';
+import {
+  closeSync,
+  fstatSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import {
   checkConclusion,
   confinedRealPath,
   extractHandbookSections,
+  isTrustedReviewRun,
+  latestBaseChange,
   markersIn,
   MODELS,
   normalizeKind,
   normalizeSeverity,
   parseDiff,
+  parseReviewResult,
   planComments,
   planModel,
+  rereviewFiles,
+  RESULT_ARTIFACT,
   reviewBody,
   reviewFooter,
   selectFiles,
@@ -23,6 +34,10 @@ import {
 
 const MODEL_OVERRIDE =
   process.env.REVIEW_MODEL || process.env.SECURITY_REVIEW_MODEL || 'auto';
+const REVIEW_SCOPE = process.env.REVIEW_SCOPE || 'auto';
+const RESULT_PATH = process.env.REVIEW_RESULT_PATH || 'review-result.json';
+const WORKFLOW_FILE = 'security-review.yml';
+const MAX_COMMITS_SEARCHED = 30;
 const MAX_TURNS = Number(process.env.REVIEW_MAX_TURNS || 40);
 const MAX_DIFF_CHARS = Number(process.env.REVIEW_MAX_DIFF_CHARS || 160_000);
 const MAX_TOOL_RESULT_CHARS = 24_000;
@@ -35,6 +50,7 @@ const CHECK_NAMES = {
 const root = path.resolve(required('REVIEW_ROOT'));
 const repo = required('GITHUB_REPOSITORY');
 const prNumber = Number(required('PR_NUMBER'));
+const baseRef = required('PR_BASE_REF');
 const githubToken = required('GITHUB_TOKEN');
 required('ANTHROPIC_API_KEY');
 
@@ -88,6 +104,106 @@ async function existingFindingKeys() {
   );
   for (const r of reviews) for (const k of markersIn(r.body)) keys.add(k);
   return keys;
+}
+
+async function downloadArtifactJson(artifact) {
+  try {
+    const res = await fetch(artifact.archive_download_url, {
+      headers: {
+        authorization: `Bearer ${githubToken}`,
+        accept: 'application/vnd.github+json',
+        'x-github-api-version': '2022-11-28',
+      },
+    });
+    if (!res.ok) return null;
+    const zip = Buffer.from(await res.arrayBuffer());
+    if (zip.length > 8 * 1024 * 1024) return null;
+    return execFileSync('funzip', [], {
+      input: zip,
+      encoding: 'utf8',
+      maxBuffer: 16 * 1024 * 1024,
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function baseChangedAt() {
+  let latest = null;
+  for (let page = 1; page <= 5; page += 1) {
+    const events = await github(
+      'GET',
+      `/repos/${repo}/issues/${prNumber}/timeline?per_page=100&page=${page}`
+    );
+    const at = latestBaseChange(events);
+    if (at !== null && (latest === null || at > latest)) latest = at;
+    if (events.length < 100) return latest;
+  }
+  throw new Error('pull request timeline longer than 500 events');
+}
+
+async function priorResult(sha, notBefore) {
+  const { workflow_runs: runs } = await github(
+    'GET',
+    `/repos/${repo}/actions/workflows/${WORKFLOW_FILE}/runs?head_sha=${sha}&per_page=20`
+  );
+  const trusted = runs.filter(
+    (run) =>
+      isTrustedReviewRun(run, { prNumber, baseRef }) &&
+      (notBefore === null || Date.parse(run.created_at) > notBefore)
+  );
+  for (const run of trusted) {
+    const { artifacts } = await github(
+      'GET',
+      `/repos/${repo}/actions/runs/${run.id}/artifacts?name=${RESULT_ARTIFACT}`
+    );
+    const artifact = artifacts.find((a) => !a.expired);
+    if (!artifact) continue;
+    const text = await downloadArtifactJson(artifact);
+    const result = text && parseReviewResult(text, { prNumber, headSha: sha });
+    if (result) return result;
+  }
+  return null;
+}
+
+async function lastReviewedHead(headSha) {
+  const shas = [];
+  for (let page = 1; page <= 3; page += 1) {
+    const commits = await github(
+      'GET',
+      `/repos/${repo}/pulls/${prNumber}/commits?per_page=100&page=${page}`
+    );
+    for (const c of commits) shas.push(c.sha);
+    if (commits.length < 100) break;
+  }
+  const candidates = shas
+    .reverse()
+    .filter((sha) => sha !== headSha)
+    .slice(0, MAX_COMMITS_SEARCHED);
+  const notBefore = await baseChangedAt();
+  for (const sha of candidates) {
+    const result = await priorResult(sha, notBefore);
+    if (result) return { sha, ...result };
+  }
+  return null;
+}
+
+function writeResult(headSha, files, findings) {
+  writeFileSync(
+    RESULT_PATH,
+    JSON.stringify({
+      pr: prNumber,
+      headSha,
+      files,
+      findings: findings.map((f) => ({
+        kind: f.kind,
+        path: f.path,
+        line: f.line,
+        severity: f.severity,
+        title: f.title,
+      })),
+    })
+  );
 }
 
 const TOOLS = [
@@ -310,26 +426,97 @@ async function main() {
       'Nothing to review',
       'The pull request changes no reviewable source files.'
     );
+    writeResult(headSha, [], []);
     return;
   }
 
-  const rawDiff = git(
-    'diff',
-    '--unified=4',
-    `${mergeBase}..${headSha}`,
-    '--',
-    ...files
-  );
+  let previous = null;
+  if (REVIEW_SCOPE !== 'full') {
+    try {
+      previous = await lastReviewedHead(headSha);
+    } catch (err) {
+      console.warn(
+        `Prior review lookup failed, reviewing the whole pull request: ${err instanceof Error ? err.message : err}`
+      );
+    }
+  }
+  let scope = files;
+  let reverted = [];
+  let changedAtAll = [];
+  if (previous) {
+    const nameStatusSince = git(
+      'diff',
+      '--name-status',
+      `${previous.sha}..${headSha}`
+    );
+    const inPullRequest = new Set(
+      git('diff', '--name-only', `${mergeBase}..${headSha}`)
+        .split('\n')
+        .filter(Boolean)
+    );
+    changedAtAll = nameStatusSince
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => line.split('\t').pop())
+      .filter((f) => inPullRequest.has(f));
+    const changedSince = selectFiles(nameStatusSince);
+    reverted = previous.files.filter(
+      (f) => changedSince.includes(f) && !files.includes(f)
+    );
+    scope = reverted.length
+      ? files
+      : rereviewFiles(files, [
+          ...changedSince,
+          ...files.filter((f) => !previous.files.includes(f)),
+        ]);
+    if (
+      scope.length === 0 &&
+      (changedAtAll.length === 0 || previous.findings.length === 0)
+    ) {
+      console.log(
+        `No reviewed file changed since ${previous.sha}; carrying its findings forward.`
+      );
+      const left = new Set(previous.files.filter((f) => !files.includes(f)));
+      const kept = previous.findings.filter((f) => !left.has(f.path));
+      const byKind = splitByKind(kept);
+      for (const kind of Object.keys(CHECK_NAMES)) {
+        const carried = byKind[kind];
+        await postCheck(
+          CHECK_NAMES[kind],
+          headSha,
+          checkConclusion(carried),
+          carried.length === 0
+            ? `No ${kind} findings`
+            : `${carried.length} ${kind} finding${carried.length === 1 ? '' : 's'} carried over`,
+          summaryMarkdown({
+            findings: [],
+            kind,
+            summary: `No reviewed source file changed between ${previous.sha.slice(0, 7)} and this head, so the review of ${previous.sha.slice(0, 7)} stands.`,
+            carried,
+            carriedFrom: previous.sha,
+          })
+        );
+      }
+      writeResult(headSha, files, kept);
+      return;
+    }
+  }
+
+  const rawDiff =
+    scope.length === 0
+      ? ''
+      : git('diff', '--unified=4', `${mergeBase}..${headSha}`, '--', ...scope);
   const diffIndex = parseDiff(rawDiff);
   const { text: diff, truncated } = truncateDiff(rawDiff, MAX_DIFF_CHARS);
   const plan = planModel({
-    files,
+    files: scope,
     diffChars: rawDiff.length,
     diffText: rawDiff,
     override: MODEL_OVERRIDE,
+    rereviewOf: previous?.sha,
   });
   console.log(
-    `Reviewing ${files.length} files (${rawDiff.length} diff chars) on ${plan.model} [${plan.tier}: ${plan.reasons.join(', ')}]`
+    `Reviewing ${scope.length} of ${files.length} files (${rawDiff.length} diff chars) on ${plan.model} [${plan.tier}: ${plan.reasons.join(', ')}]`
   );
 
   let handbook = '';
@@ -347,10 +534,16 @@ async function main() {
       cache_control: { type: 'ephemeral' },
     },
   ];
+  const rest = files.filter((f) => !scope.includes(f));
+  const unreviewedChanged = changedAtAll.filter((f) => !files.includes(f));
+  const earlier = previous ? previous.findings : [];
+  const intro = previous
+    ? `This is a re-review. A review of head ${previous.sha} was completed earlier and its findings were posted on their threads; the tooling does not repeat a finding already posted. Of the ${files.length} files the pull request changes, ${scope.length} changed since that head and their full pull-request diff is below. Check that those changes fix what they set out to fix without regressing their other callers, and review any new code in them as you would a first review.${scope.length === 0 ? ` No reviewed file changed since that head, so there is no diff below; the files that did change are listed and can be read with read_file.` : ''}${unreviewedChanged.length ? ` Files changed since that head that are outside the reviewed set (tests, generated files, docs): ${unreviewedChanged.join(', ')}.` : ''}${reverted.length ? ` Since that head the pull request stopped changing ${reverted.join(', ')} (reverted to the base content), so every file of the pull request is under review again; check that nothing in them depended on the reverted change.` : ''}${rest.length ? ` The other ${rest.length} files were reviewed at ${previous.sha.slice(0, 7)} and are listed for context; read them with read_file when a changed file depends on them.` : ''}${earlier.length ? `\n\nThe earlier review reported these findings. Report each one again, with the same path and title, unless the current code no longer has the problem, reading its file when it is not in the diff below; a finding you omit is treated as fixed.\n${earlier.map((f) => `- [${f.kind}] ${f.severity} ${f.path}:${f.line} — ${f.title}`).join('\n')}` : ''}`
+    : '';
   const messages = [
     {
       role: 'user',
-      content: `Pull request #${prNumber}: ${title}\nRepository: ${repo}\nBase: ${baseSha}\nHead: ${headSha}\n\nChanged files under review (${files.length}):\n${files.map((f) => `- ${f}`).join('\n')}\n\nUnified diff${truncated ? ' (truncated; read the rest with read_file)' : ''}:\n\n${diff}`,
+      content: `Pull request #${prNumber}: ${title}\nRepository: ${repo}\nBase: ${baseSha}\nHead: ${headSha}\n${intro ? `\n${intro}\n` : ''}\nChanged files under review (${scope.length}):\n${scope.map((f) => `- ${f}`).join('\n')}${rest.length ? `\n\nOther files in the pull request (${rest.length}):\n${rest.map((f) => `- ${f}`).join('\n')}` : ''}\n\nUnified diff${truncated ? ' (truncated; read the rest with read_file)' : ''}:\n\n${diff}`,
     },
   ];
 
@@ -483,6 +676,7 @@ async function main() {
     );
     console.log(titleText);
   }
+  writeResult(headSha, files, findings);
   console.log(footer);
 }
 

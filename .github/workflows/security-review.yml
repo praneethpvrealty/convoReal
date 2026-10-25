@@ -18,6 +18,12 @@ on:
         default: auto
         type: choice
         options: [auto, opus, sonnet, haiku]
+      scope:
+        description: full reviews the whole PR; auto re-reviews only what changed since the last completed review
+        required: false
+        default: full
+        type: choice
+        options: [full, auto]
 
 concurrency:
   group: security-review-${{ github.event.pull_request.number || inputs.pr }}
@@ -43,6 +49,8 @@ jobs:
       contents: read
       pull-requests: write
       checks: write
+      actions: read
+      issues: read
     steps:
       - uses: actions/checkout@v7
         with:
@@ -66,6 +74,7 @@ jobs:
           {
             echo "number=${PR_NUMBER}"
             echo "base_sha=$(jq -r .base.sha <<<"$pr")"
+            echo "base_ref=$(jq -r .base.ref <<<"$pr")"
             echo "head_sha=$(jq -r .head.sha <<<"$pr")"
             echo "title=$(jq -r .title <<<"$pr" | tr -d '\r\n' | head -c 200)"
           } >> "$GITHUB_OUTPUT"
@@ -79,7 +88,9 @@ jobs:
           persist-credentials: false
 
       - name: Install the reviewer
-        run: npm ci --prefix .github/security-review --no-audit --no-fund
+        run: |
+          command -v funzip
+          npm ci --prefix .github/security-review --no-audit --no-fund
 
       - name: Test the reviewer's helpers
         run: npm test --prefix .github/security-review
@@ -90,8 +101,19 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           REVIEW_ROOT: head
           REVIEW_MODEL: ${{ inputs.model || 'auto' }}
+          REVIEW_SCOPE: ${{ inputs.scope || 'auto' }}
+          REVIEW_RESULT_PATH: review-result.json
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          PR_BASE_REF: ${{ steps.pr.outputs.base_ref }}
           HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           PR_TITLE: ${{ steps.pr.outputs.title }}
         run: node .github/security-review/review.mjs
+
+      - name: Keep the result for the next re-review
+        uses: actions/upload-artifact@v7
+        with:
+          name: claude-review-result
+          path: review-result.json
+          retention-days: 30
+          if-no-files-found: ignore

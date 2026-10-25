@@ -235,6 +235,11 @@ export function checkConclusion(findings) {
   return worst === 'critical' || worst === 'high' ? 'failure' : 'neutral';
 }
 
+function summaryLine(f) {
+  const where = f.line > 0 ? `${f.path}:${f.line}` : f.path;
+  return `- ${SEVERITY_ICON[normalizeSeverity(f.severity)]} **${normalizeSeverity(f.severity)}** \`${where}\` — ${f.title}`;
+}
+
 export function summaryMarkdown({
   findings,
   kind = 'security',
@@ -243,6 +248,8 @@ export function summaryMarkdown({
   plan,
   usage,
   alreadyPosted,
+  carried = [],
+  carriedFrom,
 }) {
   const lines = [];
   if (findings.length === 0) {
@@ -252,12 +259,15 @@ export function summaryMarkdown({
       `${findings.length} finding${findings.length === 1 ? '' : 's'}:`,
       ''
     );
-    for (const f of findings) {
-      const where = f.line > 0 ? `${f.path}:${f.line}` : f.path;
-      lines.push(
-        `- ${SEVERITY_ICON[normalizeSeverity(f.severity)]} **${normalizeSeverity(f.severity)}** \`${where}\` — ${f.title}`
-      );
-    }
+    for (const f of findings) lines.push(summaryLine(f));
+  }
+  if (carried.length) {
+    lines.push(
+      '',
+      `${carried.length} finding${carried.length === 1 ? '' : 's'} carried over from ${String(carriedFrom ?? '').slice(0, 7)}, in files this push did not change:`,
+      ''
+    );
+    for (const f of carried) lines.push(summaryLine(f));
   }
   if (alreadyPosted?.length) {
     lines.push(
@@ -266,7 +276,7 @@ export function summaryMarkdown({
     );
   }
   if (summary) lines.push('', summary);
-  lines.push('', reviewFooter({ model, plan, usage }));
+  if (model) lines.push('', reviewFooter({ model, plan, usage }));
   return lines.join('\n');
 }
 
@@ -363,7 +373,80 @@ const LARGE_FILE_COUNT = 15;
 const SMALL_DIFF_CHARS = 3_000;
 const SMALL_FILE_COUNT = 3;
 
-export function planModel({ files, diffChars, diffText = '', override }) {
+export const RESULT_ARTIFACT = 'claude-review-result';
+export const WORKFLOW_PATH = '.github/workflows/security-review.yml';
+
+export function isTrustedReviewRun(run, { prNumber, baseRef }) {
+  const prs = run?.pull_requests ?? [];
+  return (
+    run?.status === 'completed' &&
+    run.conclusion === 'success' &&
+    run.event === 'pull_request_target' &&
+    run.path === WORKFLOW_PATH &&
+    prs.length === 1 &&
+    Number(prs[0]?.number) === Number(prNumber) &&
+    prs[0]?.base?.ref === baseRef
+  );
+}
+
+const BASE_CHANGE_EVENTS = new Set([
+  'base_ref_changed',
+  'automatic_base_change_succeeded',
+]);
+
+export function latestBaseChange(events) {
+  let latest = null;
+  for (const e of events ?? []) {
+    if (!BASE_CHANGE_EVENTS.has(e?.event)) continue;
+    const at = Date.parse(e.created_at);
+    if (Number.isFinite(at) && (latest === null || at > latest)) latest = at;
+  }
+  return latest;
+}
+
+export function parseReviewResult(text, { prNumber, headSha }) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (
+    !parsed ||
+    Number(parsed.pr) !== Number(prNumber) ||
+    parsed.headSha !== headSha ||
+    !Array.isArray(parsed.findings)
+  ) {
+    return null;
+  }
+  return {
+    files: Array.isArray(parsed.files)
+      ? parsed.files.filter((f) => typeof f === 'string')
+      : [],
+    findings: parsed.findings
+      .filter((f) => f && typeof f.path === 'string')
+      .map((f) => ({
+        kind: normalizeKind(f.kind),
+        path: f.path,
+        line: Number(f.line) || 0,
+        severity: normalizeSeverity(f.severity),
+        title: String(f.title ?? ''),
+      })),
+  };
+}
+
+export function rereviewFiles(allFiles, changedSince) {
+  const changed = new Set(changedSince);
+  return allFiles.filter((f) => changed.has(f));
+}
+
+export function planModel({
+  files,
+  diffChars,
+  diffText = '',
+  override,
+  rereviewOf,
+}) {
   if (override && override !== 'auto') {
     const model = MODELS[override] ?? override;
     return {
@@ -377,6 +460,11 @@ export function planModel({ files, diffChars, diffText = '', override }) {
     SENSITIVE_PATTERNS.some((re) => re.test(f))
   );
   const reasons = [];
+  if (rereviewOf) {
+    reasons.push(
+      `re-review of ${files.length} file${files.length === 1 ? '' : 's'} changed since ${rereviewOf.slice(0, 7)}`
+    );
+  }
   if (sensitive.length) {
     reasons.push(
       `${sensitive.length} sensitive path${sensitive.length === 1 ? '' : 's'} (${sensitive.slice(0, 3).join(', ')}${sensitive.length > 3 ? ', …' : ''})`
@@ -388,8 +476,11 @@ export function planModel({ files, diffChars, diffText = '', override }) {
   if (diffChars > LARGE_DIFF_CHARS)
     reasons.push(`${Math.round(diffChars / 1000)}k-char diff`);
   if (files.length > LARGE_FILE_COUNT) reasons.push(`${files.length} files`);
-  if (reasons.length) {
+  if (reasons.length > (rereviewOf ? 1 : 0)) {
     return { tier: 'deep', model: MODELS.opus, effort: 'high', reasons };
+  }
+  if (rereviewOf) {
+    return { tier: 'rereview', model: MODELS.sonnet, effort: 'high', reasons };
   }
   const routes = files.filter((f) =>
     /(^|\/)(route|page|layout|proxy)\.tsx?$/.test(f)
