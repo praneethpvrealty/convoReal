@@ -92,7 +92,10 @@ async function ensureCalendar(
     .eq('account_id', connection.account_id)
     .is('calendar_id', null)
     .select('id');
-  if (claimError) throw claimError;
+  if (claimError) {
+    await deleteCalendar(accessToken, created).catch(() => undefined);
+    throw claimError;
+  }
 
   if (!claimed || claimed.length === 0) {
     await deleteCalendar(accessToken, created);
