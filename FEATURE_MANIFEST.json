@@ -882,6 +882,32 @@
             }
           ],
           "guards": ["src/lib/ai/buyer-qualification.ts"]
+        },
+        {
+          "id": "INB-048",
+          "rule": "A short question about where the listing in the thread is (\"Where in Whitefield..?\", \"Where?\", \"Where exactly in HSR?\", \"Which part of Whitefield?\"), of at most eight words and stating no budget, size or search intent, is answered by the listing Q&A from that listing and never filed as a requirement: the qualification ladder stands down on it without paying for an extraction, and its locality is never read as the area the buyer wants to buy in. A bare locality reply (\"Whitefield\", \"Whitefield?\") still answers the ladder's location question (INB-029), and a where-question that states a search (\"Where do you have plots?\", \"Where can I find a 2 bhk under 80 lakh?\") stays with the ladder.",
+          "tests": [
+            {
+              "file": "src/lib/ai/requirement-signal.test.ts",
+              "case": "[INB-048]"
+            },
+            {
+              "file": "src/lib/ai/lead-routing.test.ts",
+              "case": "[INB-048]"
+            },
+            {
+              "file": "src/lib/ai/buyer-qualification.test.ts",
+              "case": "[INB-048]"
+            },
+            {
+              "file": "src/lib/ai/buyer-qualification.process.test.ts",
+              "case": "[INB-048]"
+            }
+          ],
+          "guards": [
+            "src/lib/ai/requirement-signal.ts",
+            "src/lib/ai/buyer-qualification.ts"
+          ]
         }
       ]
     },

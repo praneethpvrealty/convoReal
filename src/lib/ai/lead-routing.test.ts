@@ -395,3 +395,18 @@ describe('[INB-045] a brief laid out as a requirement is filed, never read as a 
     expect(routeLeadMessage('Not interested')).toBe('property_disinterest');
   });
 });
+
+describe('[INB-048] a where-question about the listing goes to the listing Q&A', () => {
+  it('routes the 26 October "Where in Whitefield..?" away from the ladder', () => {
+    expect(routeLeadMessage('Where in Whitefield..?')).toBe('listing_question');
+    expect(standsDownFromQualification('Where in Whitefield..?')).toBe(true);
+    expect(isBuyerRequirementMessage('Where in Whitefield..?')).toBe(false);
+  });
+
+  it('keeps a where-question that states a search with the ladder', () => {
+    expect(routeLeadMessage('Where do you have plots?')).toBe('qualification');
+    expect(routeLeadMessage('Where can I find a 2 bhk under 80 lakh?')).toBe(
+      'qualification'
+    );
+  });
+});

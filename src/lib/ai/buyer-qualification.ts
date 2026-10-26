@@ -183,6 +183,14 @@ function localityReplyCore(text: string): string | null {
     .replace(/\s+(?:any\s+)?options?$/i, '')
     .trim();
   if (!withoutOptions || withoutOptions.split(/\s+/).length > 4) return null;
+  // "Where in Whitefield" asks where a listing is; it never answers
+  // which area the buyer wants.
+  if (
+    /^(?:where|whr|which|what|how|why|when|is|are|can|do|does)\b/i.test(
+      withoutOptions
+    )
+  )
+    return null;
   if (!/^[\p{L}\p{N}][\p{L}\p{N}\s.'&/-]*$/u.test(withoutOptions)) return null;
   // "Ik", "k": no Indian locality is spelt in two letters, and a reply
   // that short is an acknowledgement.

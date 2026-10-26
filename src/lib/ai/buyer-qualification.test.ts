@@ -1854,3 +1854,17 @@ describe('[INB-045] burstRequirements keeps a sectioned brief apart', () => {
     expect(burst[0]).toMatch(/^COMMERCIAL:/);
   });
 });
+
+describe('[INB-048] resolveInventoryLocalityReply never reads a question as a locality', () => {
+  const rows = [{ sublocality: 'Whitefield', city: 'Bangalore' }] as never;
+
+  it('answers a bare locality reply, not a where-question naming it', () => {
+    expect(resolveInventoryLocalityReply('Whitefield', rows)).toBe(
+      'Whitefield'
+    );
+    expect(resolveInventoryLocalityReply('Where in Whitefield..?', rows)).toBe(
+      null
+    );
+    expect(resolveInventoryLocalityReply('Which Whitefield?', rows)).toBe(null);
+  });
+});

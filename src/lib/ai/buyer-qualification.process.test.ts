@@ -1389,3 +1389,25 @@ describe('[INB-047] a hold set while the brief is being read holds the reply bac
     expect(sendRequirementReview).toHaveBeenCalled();
   });
 });
+
+describe('[INB-048] a where-question about the shared listing is not filed', () => {
+  it('stands down on "Where in Whitefield..?" without extracting, filing or replying', async () => {
+    queues.properties = [[{ sublocality: 'Whitefield', city: 'Bangalore' }]];
+
+    expect(
+      await processBuyerQualificationMessage(
+        'Where in Whitefield..?',
+        { id: 'c1', phone: '919000000000', name: 'Gourishankar' },
+        { id: 'conv-1' },
+        'acct-1',
+        'token',
+        'phone-id',
+        'owner-1'
+      )
+    ).toBe(false);
+    expect(extractContactPreferences).not.toHaveBeenCalled();
+    expect(recordLearnedFacts).not.toHaveBeenCalled();
+    expect(sendRequirementReview).not.toHaveBeenCalled();
+    expect(sendTextMessage).not.toHaveBeenCalled();
+  });
+});
