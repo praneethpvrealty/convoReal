@@ -14,8 +14,15 @@
  * `shareId` is the share-instance token carried by `s=` on generic
  * (recipient-unknown) shares — it labels which share a visit came from
  * without identifying the visitor.
+ *
+ * A workspace member opening their own listing from the app carries
+ * `internal=1`. The app's session never reaches the showcase in that
+ * case (the phone's system browser, or a subdomain the dashboard
+ * cookie is not sent to), so the server cannot recognise the member;
+ * the tab is remembered as internal and sends nothing.
  */
 
+import { isInternalView } from './internal-view';
 import { getShowcaseSessionKey } from './session-key';
 
 interface PulseEvent {
@@ -26,6 +33,19 @@ interface PulseEvent {
 
 const FLUSH_AFTER = 5;
 const FLUSH_DELAY_MS = 3000;
+const INTERNAL_VIEW_STORAGE = 'showcase_internal_view';
+
+function isInternalTab(): boolean {
+  const marked = isInternalView(window.location.search);
+  try {
+    if (marked) window.sessionStorage.setItem(INTERNAL_VIEW_STORAGE, '1');
+    return (
+      marked || window.sessionStorage.getItem(INTERNAL_VIEW_STORAGE) === '1'
+    );
+  } catch {
+    return marked;
+  }
+}
 
 export interface ShowcaseTracker {
   track: (
@@ -42,7 +62,7 @@ export function createShowcaseTracker(
   shareId?: string | null,
   sellerPage?: string | null
 ): ShowcaseTracker {
-  if (typeof window === 'undefined') {
+  if (typeof window === 'undefined' || isInternalTab()) {
     return { track: () => {}, flush: () => {} };
   }
 

@@ -410,7 +410,9 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(mobile).toContain('isListedOnShowcase(property)');
     expect(mobile).toContain("label: 'View on showcase'");
     expect(mobile).toContain("audience: 'client'");
+    expect(mobile).toContain('markInternalView(');
     expect(web).toContain('isListedOnShowcase(property)');
+    expect(web).toContain('markInternalView(');
     expect(web).toContain('View on showcase');
     expect(web).toContain('propertyShowcaseUrl(base, property)');
   });

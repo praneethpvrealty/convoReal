@@ -29,6 +29,7 @@ import { createClient } from '@/lib/supabase/client';
 import { accountShowcaseBase } from '@/lib/showcase/account-showcase-url';
 import { isListedOnShowcase } from '@/lib/showcase/listed-statuses';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
+import { markInternalView } from '@/lib/pulse/internal-view';
 
 export interface PropertyActionHandlers {
   onEdit: (property: Property) => void;
@@ -74,7 +75,7 @@ export function PropertyActionsMenu({
         createClient(),
         property.account_id
       );
-      tab.location.href = propertyShowcaseUrl(base, property);
+      tab.location.href = markInternalView(propertyShowcaseUrl(base, property));
     } catch {
       tab.close();
     }

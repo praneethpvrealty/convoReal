@@ -112,6 +112,7 @@ jobs:
               - 'src/lib/pipelines/board-layout.ts'
               - 'src/lib/pipelines/brokerage.ts'
               - 'src/lib/pipelines/deal-money.ts'
+              - 'src/lib/pulse/internal-view.ts'
               - 'src/lib/pulse/viewed-listings.ts'
               - 'src/lib/radar/alert-defaults.ts'
               - 'src/lib/radar/send-refusal.ts'

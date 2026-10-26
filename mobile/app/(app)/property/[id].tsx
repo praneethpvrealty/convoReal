@@ -89,6 +89,7 @@ import { PropertyDocuments } from '@/components/property-documents';
 import { ENV } from '@/lib/env';
 import { propertyShareUrl } from '@/lib/property-share-link';
 import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
+import { markInternalView } from '@shared/lib/pulse/internal-view';
 import { isListedOnShowcase } from '@shared/lib/showcase/listed-statuses';
 import { useAuthStore } from '@/lib/auth-store';
 import { queryClient } from '@/lib/query';
@@ -1684,13 +1685,15 @@ function ActionRail({ property }: { property: Property }) {
     try {
       const subdomain = await fetchShowcaseSubdomain(accountId);
       await Linking.openURL(
-        propertyShareUrl({
-          siteUrl: ENV.apiBaseUrl,
-          subdomain,
-          accountId,
-          property,
-          audience: 'client',
-        })
+        markInternalView(
+          propertyShareUrl({
+            siteUrl: ENV.apiBaseUrl,
+            subdomain,
+            accountId,
+            property,
+            audience: 'client',
+          })
+        )
       );
     } catch {
       haptic.warn();
