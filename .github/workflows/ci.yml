@@ -126,6 +126,7 @@ jobs:
               - 'src/lib/inventory/showcase-share-scope.ts'
               - 'src/lib/match-feedback.ts'
               - 'src/lib/onboarding/checklist.ts'
+              - 'src/lib/showcase/listed-statuses.ts'
               - 'src/lib/showcase/message-preview.ts'
               - 'src/lib/sweep/gap-actions.ts'
               - 'src/lib/today/insights.ts'

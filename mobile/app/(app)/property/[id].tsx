@@ -86,6 +86,10 @@ import {
   isLandType,
 } from '@/lib/property-options';
 import { PropertyDocuments } from '@/components/property-documents';
+import { ENV } from '@/lib/env';
+import { propertyShareUrl } from '@/lib/property-share-link';
+import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
+import { isListedOnShowcase } from '@shared/lib/showcase/listed-statuses';
 import { useAuthStore } from '@/lib/auth-store';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
@@ -1674,7 +1678,39 @@ function ActionRail({ property }: { property: Property }) {
       },
     },
   ];
+  async function openShowcase() {
+    haptic.tap();
+    const accountId = useAuthStore.getState().profile?.account_id ?? null;
+    try {
+      const subdomain = await fetchShowcaseSubdomain(accountId);
+      await Linking.openURL(
+        propertyShareUrl({
+          siteUrl: ENV.apiBaseUrl,
+          subdomain,
+          accountId,
+          property,
+          audience: 'client',
+        })
+      );
+    } catch {
+      haptic.warn();
+      show({
+        title: 'Could not open the showcase',
+        message: 'Try again.',
+      });
+    }
+  }
+
   const moreActions = [
+    ...(isListedOnShowcase(property)
+      ? [
+          {
+            icon: 'open-outline' as const,
+            label: 'View on showcase',
+            onPress: () => void openShowcase(),
+          },
+        ]
+      : []),
     {
       icon: 'copy-outline' as const,
       label: 'Duplicate',
