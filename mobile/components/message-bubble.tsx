@@ -242,7 +242,7 @@ export function QuotedMessage({
         { borderLeftColor: colors.primary, backgroundColor: colors.glass },
       ]}
     >
-      <View style={{ flex: 1, gap: 1 }}>
+      <View style={{ flexGrow: 1, flexShrink: 1, gap: 1 }}>
         <Text
           style={{ fontSize: 11, fontFamily: f.bold, color: colors.primary }}
           numberOfLines={1}
