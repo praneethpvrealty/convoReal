@@ -2086,7 +2086,11 @@ export async function processBuyerQualificationMessage(
       phoneNumberId
     );
 
-    if (outcome.sentPropertyIds.length > 0 && configOwnerUserId) {
+    if (
+      outcome.sentPropertyIds.length > 0 &&
+      configOwnerUserId &&
+      !(await isBotPaused(db, accountId, conversation.id))
+    ) {
       try {
         const consentAsk = await claimBuyerConsentAsk(
           db,

@@ -1359,6 +1359,31 @@ describe('[INB-047] a hold set while the brief is being read holds the reply bac
     expect(sendTextMessage).not.toHaveBeenCalled();
   });
 
+  it('sends the shortlist but holds back and keeps the consent ask when the hold lands after it', async () => {
+    rankPropertiesForContact.mockResolvedValue([
+      {
+        property: {
+          id: 'p-kora',
+          title: 'Commercial Land in Koramangala',
+          type: 'Commercial Land',
+          price: 19_000_000,
+          location: 'Koramangala',
+          city: 'Bangalore',
+        },
+        score: 90,
+        details: {},
+      },
+    ]);
+    queues.conversations = [null, ...held()];
+
+    expect(await ask()).toBe(true);
+    expect(sendTextMessage).toHaveBeenCalledTimes(1);
+    expect(queues.conversations).toEqual([]);
+    expect(
+      updates.some((u) => 'buyer_alerts_consent_requested_at' in u.payload)
+    ).toBe(false);
+  });
+
   it('still answers when no hold is set', async () => {
     expect(await ask()).toBe(true);
     expect(sendRequirementReview).toHaveBeenCalled();
