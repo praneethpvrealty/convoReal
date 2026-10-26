@@ -63,7 +63,10 @@ import { AskPropertyChat } from '@/components/showcase/ask-property-chat';
 import { ShowcaseLeadBot } from '@/components/showcase/showcase-lead-bot';
 import { SimilarProperties } from '@/components/showcase/similar-properties';
 import { TeaserGate } from '@/components/showcase/teaser-gate';
-import { AddToInventory } from '@/components/showcase/add-to-inventory';
+import {
+  AddToInventory,
+  useShowcaseImportViewers,
+} from '@/components/showcase/add-to-inventory';
 import {
   PropertyRatingBar,
   HIGH_INTEREST_RATING,
@@ -449,6 +452,13 @@ export function ShowcaseView({
   const markImportViewerSignedOut = useCallback(
     () => setImportViewerSignedOut(true),
     []
+  );
+  const catalogIds = useMemo(() => properties.map((p) => p.id), [properties]);
+  const catalogIdSet = useMemo(() => new Set(catalogIds), [catalogIds]);
+  useShowcaseImportViewers(
+    catalogIds,
+    importViewerSignedOut,
+    markImportViewerSignedOut
   );
 
   // Start fetching the share target's hero image from the document head,
@@ -2993,6 +3003,14 @@ export function ShowcaseView({
                             </div>
 
                             <div className="flex shrink-0 items-center gap-1.5">
+                              <AddToInventory
+                                propertyId={property.id}
+                                title={property.title}
+                                variant="icon"
+                                probe={false}
+                                signedOut={importViewerSignedOut}
+                                onSignedOut={markImportViewerSignedOut}
+                              />
                               {!isAgentMode &&
                                 (displayPhone ||
                                   property.agent_details?.phone) && (
@@ -3381,6 +3399,7 @@ export function ShowcaseView({
                           propertyId={selectedProperty.id}
                           signedOut={importViewerSignedOut}
                           onSignedOut={markImportViewerSignedOut}
+                          probe={!catalogIdSet.has(selectedProperty.id)}
                         />
                         {/* Buyers only: a co-broker gets the attributed
                           "Get My Share Link" below instead, and an

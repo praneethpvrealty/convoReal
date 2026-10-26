@@ -10,6 +10,7 @@ import {
   localityLabel,
 } from '@/lib/inventory/location-privacy';
 import { isTeaserGated } from '@/lib/inventory/showcase-visibility';
+import { hasMinRole } from '@/lib/auth/roles';
 
 /**
  * Imports another account's published listing into the caller's own
@@ -166,4 +167,80 @@ export async function importSharedProperty(
     id: created.id as string,
     title: created.title as string,
   };
+}
+
+/** The most listings one showcase probe may ask about. The ids travel
+ *  in the query string, so the bound keeps the URL short; the showcase
+ *  splits a larger catalog into several probes. */
+export const MAX_VIEWER_LOOKUP = 60;
+
+/** Who the caller is to one published listing, as the showcase's
+ *  "Add to my inventory" control needs it. */
+export interface ShowcaseImportViewer {
+  /** The listing belongs to the caller's own account. */
+  own: boolean;
+  /** The caller may import it: agent or above, not read-only, the
+   *  listing is another account's and is not teaser-gated. */
+  canImport: boolean;
+  /** The caller's account's existing copy of the listing, if any. */
+  importedId: string | null;
+}
+
+/**
+ * The caller's relationship to each published listing among `ids`.
+ * An unpublished or unknown id is left out of the answer, exactly as the
+ * public showcase leaves it out of the catalog.
+ */
+export async function showcaseImportViewers(
+  ctx: AccountContext,
+  ids: string[]
+): Promise<Record<string, ShowcaseImportViewer>> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return {};
+  if (unique.length > MAX_VIEWER_LOOKUP) {
+    throw new UserFacingError(
+      `Ask about no more than ${MAX_VIEWER_LOOKUP} listings at a time`
+    );
+  }
+
+  const { data: sourceRows, error: sourceError } = await supabaseAdmin()
+    .from('properties')
+    .select('id, account_id, is_published, showcase_visibility')
+    .in('id', unique);
+  if (sourceError) throw sourceError;
+  const sources = (sourceRows ?? []).filter(
+    (row) => row.is_published === true
+  ) as Array<{
+    id: string;
+    account_id: string;
+    showcase_visibility: string | null;
+  }>;
+
+  const foreignIds = sources
+    .filter((row) => row.account_id !== ctx.accountId)
+    .map((row) => row.id);
+  const copies = new Map<string, string>();
+  if (foreignIds.length > 0) {
+    const { data: copyRows, error: copyError } = await ctx.supabase
+      .from('properties')
+      .select('id, source_property_id')
+      .eq('account_id', ctx.accountId)
+      .in('source_property_id', foreignIds);
+    if (copyError) throw copyError;
+    for (const row of copyRows ?? []) {
+      copies.set(row.source_property_id as string, row.id as string);
+    }
+  }
+
+  const canWrite = !ctx.isReadOnly && hasMinRole(ctx.role, 'agent');
+  const viewers: Record<string, ShowcaseImportViewer> = {};
+  for (const source of sources) {
+    const own = source.account_id === ctx.accountId;
+    viewers[source.id] = {
+      own,
+      canImport: !own && canWrite && !isTeaserGated(source),
+      importedId: own ? null : (copies.get(source.id) ?? null),
+    };
+  }
+  return viewers;
 }

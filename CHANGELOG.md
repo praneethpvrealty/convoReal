@@ -26,6 +26,13 @@ than a written entry. Newest first.
   re-saved their requirement and could reply with a "nothing live fits" card.
   A bare area name in reply to the bot's location question still counts as
   the buyer's preferred area (INB-048).
+- **Add listings to your inventory straight from the showcase grid.** The
+  "Add to my inventory" control now also sits among each listing card's
+  actions on another brokerage's showcase, so a signed-in agent can collect
+  several listings without opening each one. A card turns into an "In your
+  inventory" link once the listing is copied, and so does the open listing's
+  control. The showcase checks every listing on the page in one request, so a
+  buyer or signed-out visitor still costs a single request (PRP-053).
 - **A bot reply already in progress waits once you reply too.** When you
   reply in a chat while the bot is still working out its answer to the
   buyer's last message, the bot now checks the four-hour hold again just

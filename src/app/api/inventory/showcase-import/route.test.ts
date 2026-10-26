@@ -4,8 +4,11 @@ const state = vi.hoisted(() => ({
   signedIn: true,
   isReadOnly: false,
   role: 'agent',
-  source: null as Record<string, unknown> | null,
-  existingCopy: null as { id: string } | null,
+  viewers: {} as Record<
+    string,
+    { own: boolean; canImport: boolean; importedId: string | null }
+  >,
+  viewerCalls: [] as string[][],
   importResult: { kind: 'imported', id: 'copy-1', title: 'Villa' } as Record<
     string,
     unknown
@@ -61,8 +64,15 @@ vi.mock('@/lib/inventory/import-shared-property', async (importOriginal) => {
     >();
   return {
     UUID_RE: actual.UUID_RE,
-    lookupSharedPropertySource: async () => state.source,
-    findImportedCopy: async () => state.existingCopy,
+    MAX_VIEWER_LOOKUP: actual.MAX_VIEWER_LOOKUP,
+    showcaseImportViewers: async (_ctx: unknown, ids: string[]) => {
+      state.viewerCalls.push(ids);
+      return Object.fromEntries(
+        ids
+          .filter((id) => state.viewers[id])
+          .map((id) => [id, state.viewers[id]])
+      );
+    },
     importSharedProperty: async (_ctx: unknown, id: string) => {
       state.importCalls.push(id);
       return state.importResult;
@@ -73,6 +83,7 @@ vi.mock('@/lib/inventory/import-shared-property', async (importOriginal) => {
 import { GET, OPTIONS, POST } from './route';
 
 const PROPERTY_ID = '11111111-2222-4333-8444-555555555555';
+const OTHER_ID = '66666666-7777-4888-9999-000000000000';
 const TENANT = 'https://aryavartaventures.convoreal.com';
 const APP = 'https://www.convoreal.com';
 
@@ -83,6 +94,15 @@ function get(origin?: string, propertyId = PROPERTY_ID) {
       {
         headers: origin ? { origin } : {},
       }
+    )
+  );
+}
+
+function getMany(ids: string[], origin?: string) {
+  return GET(
+    new Request(
+      `${APP}/api/inventory/showcase-import?property_ids=${ids.join(',')}`,
+      { headers: origin ? { origin } : {} }
     )
   );
 }
@@ -104,14 +124,11 @@ beforeEach(() => {
   state.signedIn = true;
   state.isReadOnly = false;
   state.role = 'agent';
-  state.source = {
-    id: PROPERTY_ID,
-    account_id: 'acct-them',
-    type: 'Apartment',
-    is_published: true,
-    showcase_visibility: null,
+  state.viewers = {
+    [PROPERTY_ID]: { own: false, canImport: true, importedId: null },
+    [OTHER_ID]: { own: false, canImport: true, importedId: 'copy-old' },
   };
-  state.existingCopy = null;
+  state.viewerCalls = [];
   state.importResult = { kind: 'imported', id: 'copy-1', title: 'Villa' };
   state.importCalls = [];
 });
@@ -155,51 +172,54 @@ describe('OPTIONS /api/inventory/showcase-import', () => {
 describe('GET /api/inventory/showcase-import', () => {
   it('[PRP-053] tells a signed-out visitor apart, with the CORS headers the showcase needs to read it', async () => {
     state.signedIn = false;
-    const res = await get(TENANT);
-    expect(res.status).toBe(401);
-    expect(res.headers.get('access-control-allow-origin')).toBe(TENANT);
+    for (const res of [
+      await get(TENANT),
+      await getMany([PROPERTY_ID], TENANT),
+    ]) {
+      expect(res.status).toBe(401);
+      expect(res.headers.get('access-control-allow-origin')).toBe(TENANT);
+    }
+    expect(state.viewerCalls).toHaveLength(0);
   });
 
-  it('[PRP-053] lets an agent of another account import a listing it has not got', async () => {
+  it('[PRP-053] answers for every listing of a batch in one call, leaving out the ones it does not know', async () => {
+    const unknown = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const res = await getMany([PROPERTY_ID, OTHER_ID, unknown], TENANT);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBe(TENANT);
+    expect(res.headers.get('cache-control')).toBe('private, no-store');
+    expect(await res.json()).toEqual({
+      data: {
+        viewers: {
+          [PROPERTY_ID]: { own: false, canImport: true, importedId: null },
+          [OTHER_ID]: { own: false, canImport: true, importedId: 'copy-old' },
+        },
+      },
+    });
+    expect(state.viewerCalls).toEqual([[PROPERTY_ID, OTHER_ID, unknown]]);
+  });
+
+  it('[PRP-053] still answers a single property_id with the viewer itself', async () => {
     const res = await get(TENANT);
     expect(res.status).toBe(200);
-    expect(res.headers.get('cache-control')).toBe('private, no-store');
     expect(await res.json()).toEqual({
       data: { own: false, canImport: true, importedId: null },
     });
-  });
-
-  it('[PRP-053] points at the copy this account already holds', async () => {
-    state.existingCopy = { id: 'copy-old' };
-    expect(await (await get()).json()).toEqual({
-      data: { own: false, canImport: true, importedId: 'copy-old' },
-    });
-  });
-
-  it('[PRP-053] marks the account’s own listing and offers nothing', async () => {
-    state.source = { ...state.source, account_id: 'acct-me' };
-    expect(await (await get()).json()).toEqual({
-      data: { own: true, canImport: false, importedId: null },
-    });
-  });
-
-  it('[PRP-053] withholds the import from a read-only member, a viewer and for a teaser-gated listing', async () => {
-    state.isReadOnly = true;
-    expect((await (await get()).json()).data.canImport).toBe(false);
-
-    state.isReadOnly = false;
-    state.role = 'viewer';
-    expect((await (await get()).json()).data.canImport).toBe(false);
-
-    state.role = 'agent';
-    state.source = { ...state.source, showcase_visibility: 'teaser' };
-    expect((await (await get()).json()).data.canImport).toBe(false);
-  });
-
-  it('[PRP-053] rejects a malformed id and an unknown listing', async () => {
-    expect((await get(undefined, 'CR-001')).status).toBe(400);
-    state.source = null;
+    state.viewers = {};
     expect((await get()).status).toBe(404);
+  });
+
+  it('[PRP-053] refuses a malformed id, an empty list and more than the route\u2019s limit', async () => {
+    expect((await get(undefined, 'CR-001')).status).toBe(400);
+    expect((await getMany([PROPERTY_ID, 'CR-001'])).status).toBe(400);
+    expect((await getMany([])).status).toBe(400);
+    const tooMany = Array.from(
+      { length: 61 },
+      (_, i) => `11111111-2222-4333-8444-${String(i).padStart(12, '0')}`
+    );
+    expect((await getMany(tooMany)).status).toBe(400);
+    expect((await getMany(tooMany.slice(0, 60))).status).toBe(200);
+    expect(state.viewerCalls).toHaveLength(1);
   });
 });
 
