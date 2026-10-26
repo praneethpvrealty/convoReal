@@ -28,6 +28,9 @@ vi.mock('@/components/showcase/showcase-lead-bot', () => ({
 vi.mock('@/components/showcase/similar-properties', () => ({
   SimilarProperties: () => null,
 }));
+vi.mock('@/components/showcase/add-to-inventory', () => ({
+  AddToInventory: () => null,
+}));
 
 import { ShowcaseView } from './showcase-view';
 

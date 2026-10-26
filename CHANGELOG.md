@@ -19,6 +19,18 @@ than a written entry. Newest first.
 
 #### 26 October 2026
 
+- **Add a listing from another brokerage's showcase to your own inventory.**
+  A signed-in agent who opens a listing on another brokerage's public showcase
+  now sees "Add to my inventory" beside Share. One tap copies the listing into
+  their inventory the way the Import shared dialog does: unpublished,
+  agent-referred, credited to the sharing brokerage and linked to the source
+  listing; the control then links to the copy. The showcase checks who is
+  signed in through the app's own origin, so the control works on a
+  brokerage's subdomain as well as on the shared site, and only ever for the
+  app's own showcase origins. Buyers, signed-out visitors, the listing's own
+  team and read-only members see nothing. A confidential (teaser) listing
+  cannot be imported this way, and a location-guarded listing is copied with
+  its locality only, never its exact address or map pin (PRP-053).
 - **A buyer's written brief is filed as a requirement, not answered as a
   rejection.** A message laid out as a brief, under a "requirement" heading or
   as a list naming a type, budget or size, now always goes to the
