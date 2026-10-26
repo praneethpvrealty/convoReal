@@ -32,7 +32,7 @@ vi.mock('@/lib/supabase/admin', () => ({
     },
     from: (table: string) => {
       const chain: Record<string, unknown> = {};
-      for (const m of ['select', 'eq', 'gt', 'limit', 'delete']) {
+      for (const m of ['select', 'eq', 'gt', 'gte', 'limit', 'delete']) {
         chain[m] = () => chain;
       }
       for (const m of ['or', 'order']) {
@@ -800,6 +800,7 @@ describe('processBuyerQualificationMessage — the ladder remembers its question
             "Certainly — I've understood you're looking for residential plot for purchase, not rent. What budget range are you working with?",
         },
       ],
+      null,
       { count: 0 },
     ];
     extractContactPreferences.mockResolvedValue({
@@ -1175,7 +1176,7 @@ describe('processBuyerQualificationMessage — a buy-or-rent correction', () => 
   });
 
   it('[INB-016] qualifies inside the inbound chain lease without claiming a second one', async () => {
-    queues.messages = [[{ sender_type: 'bot' }], { count: 0 }];
+    queues.messages = [[{ sender_type: 'bot' }], null, { count: 0 }];
     let handled: boolean | undefined;
     await runSerializedInbound({
       accountId: 'acct-1',
@@ -1295,5 +1296,65 @@ describe('[INB-045] a sectioned brief is filed as one requirement per section', 
     expect(extractContactPreferences).not.toHaveBeenCalledWith(
       expect.stringMatching(/^RESIDENTIAL:/)
     );
+  });
+});
+
+describe('[INB-046] no card or shortlist under an agent who is handling the thread', () => {
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const ask = () =>
+    processBuyerQualificationMessage(
+      'Commercial land in Koramangala, 2 cr',
+      { id: 'c1', phone: '919000000000', name: 'Gourishankar' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+  it('stays quiet when the agent wrote minutes ago and the bot answered one question since', async () => {
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: 'Commercial land in Koramangala, 2 cr',
+          created_at: ago(1_000),
+        },
+        {
+          sender_type: 'bot',
+          content_text: "It's located in Whitefield, Bangalore, Karnataka.",
+          created_at: ago(21_000),
+        },
+        {
+          sender_type: 'agent',
+          content_text: 'Adarsh Palm Meadows Villa  in Whitefield',
+          created_at: ago(3 * 60_000),
+        },
+      ],
+    ];
+
+    expect(await ask()).toBe(false);
+    expect(recordLearnedFacts).toHaveBeenCalled();
+    expect(sendRequirementReview).not.toHaveBeenCalled();
+    expect(sendTextMessage).not.toHaveBeenCalled();
+    expect(generateMatchEventForContact).toHaveBeenCalled();
+  });
+
+  it('stands down when the agent writes while the brief is being read', async () => {
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: 'Commercial land in Koramangala, 2 cr',
+        },
+        { sender_type: 'bot', content_text: 'Here are two more options' },
+      ],
+      { id: 'agent-message' },
+    ];
+
+    expect(await ask()).toBe(false);
+    expect(recordLearnedFacts).toHaveBeenCalled();
+    expect(sendRequirementReview).not.toHaveBeenCalled();
+    expect(sendTextMessage).not.toHaveBeenCalled();
   });
 });

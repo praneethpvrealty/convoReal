@@ -68,6 +68,10 @@ import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import { localityStemsMatch, textNamesLocality } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
+import {
+  agentHandledRecently,
+  agentHandlingThread,
+} from '@/lib/conversations/agent-handling';
 import type { Contact, ContactRequirementProfile, Property } from '@/types';
 import { formatInrCompact } from '@/lib/format/currency';
 
@@ -106,11 +110,12 @@ const RECENT_CONTEXT_WINDOW = 6;
 const ASKED_WINDOW = 40;
 
 export function humanOwnsQualificationThread(
-  messages: { sender_type?: string | null }[]
+  messages: { sender_type?: string | null; created_at?: string | null }[],
+  now: Date = new Date()
 ): boolean {
   return (
     messages.find((message) => message.sender_type !== 'customer')
-      ?.sender_type === 'agent'
+      ?.sender_type === 'agent' || agentHandledRecently(messages, now)
   );
 }
 
@@ -1659,7 +1664,7 @@ export async function processBuyerQualificationMessage(
     // reply keeps the bot listening without talking over the person.
     const { data: thread } = await db
       .from('messages')
-      .select('sender_type, content_text, message_id')
+      .select('sender_type, content_text, message_id, created_at')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
       .order('ingest_seq', { ascending: false, nullsFirst: false })
@@ -1959,6 +1964,18 @@ export async function processBuyerQualificationMessage(
     // answer belongs to that message and not to this one.
     if (await supersededByLaterMessage(db, conversation.id, metaMessageId)) {
       return true;
+    }
+
+    // The extraction above takes seconds, and an agent who wrote in the
+    // meantime has taken the thread: the card or shortlist would land
+    // right under their message.
+    if (await agentHandlingThread(db, accountId, conversation.id)) {
+      void generateMatchEventForContact(db, accountId, contact.id).catch(
+        (err) => {
+          console.error('[buyer-qualification] radar event failed:', err);
+        }
+      );
+      return false;
     }
 
     // A named project earns a ranking run of its own, before any

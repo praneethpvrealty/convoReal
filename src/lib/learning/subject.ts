@@ -21,6 +21,7 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AGENT_HANDLING_WINDOW_MS } from '@/lib/conversations/agent-handling';
 import {
   MAX_REFERENCED_SUBJECTS,
   parseOrdinalReferences,
@@ -407,9 +408,6 @@ export interface ShareEvent {
   propertyId: string;
   at: number;
 }
-
-/** How long after an agent's message the thread counts as theirs. */
-const AGENT_HANDLING_WINDOW_MS = 10 * 60 * 1000;
 
 /**
  * When each listing was really last shared, newest first. The ledger

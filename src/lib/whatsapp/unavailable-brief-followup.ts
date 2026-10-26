@@ -5,6 +5,7 @@ import {
 } from '@/lib/whatsapp/requirement-review';
 import { nextQualifierForContact } from '@/lib/ai/buyer-qualification';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { agentHandlingThread } from '@/lib/conversations/agent-handling';
 import type { Contact } from '@/types';
 
 export const REGRET_BRIEF_CLOSING =
@@ -84,6 +85,7 @@ export async function sendRequirementConfirmAfterRegret(args: {
   if (!contact) return false;
   if (conversationId && (await playbackJustSent(db, conversationId)))
     return false;
+  if (await agentHandlingThread(db, accountId, conversationId)) return false;
   return sendRequirementReview({
     db,
     accountId,
