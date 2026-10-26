@@ -1692,6 +1692,20 @@ export async function processBuyerQualificationMessage(
         .map((m) => m.content_text as string | null)
     );
 
+    // Extraction and ranking take seconds, and an agent who wrote in the
+    // meantime has taken the thread: the card or shortlist would land
+    // right under their message. Asked again at each send.
+    const agentTookOver = async (): Promise<boolean> => {
+      if (!(await agentHandlingThread(db, accountId, conversation.id)))
+        return false;
+      void generateMatchEventForContact(db, accountId, contact.id).catch(
+        (err) => {
+          console.error('[buyer-qualification] radar event failed:', err);
+        }
+      );
+      return true;
+    };
+
     // "More site": nothing to file and nothing to ask — the next
     // listings this lead has not been sent, or an honest "that's all".
     if (routeLeadMessage(text) === 'more_listings') {
@@ -1713,6 +1727,7 @@ export async function processBuyerQualificationMessage(
             buildMoreListingsOpening(contact.name, shown.length)
           )
         : buildNoMoreListingsReply(contact.name);
+      if (await agentTookOver()) return false;
       await reply(
         moreReply,
         contactRecord,
@@ -1965,20 +1980,6 @@ export async function processBuyerQualificationMessage(
     if (await supersededByLaterMessage(db, conversation.id, metaMessageId)) {
       return true;
     }
-
-    // Extraction and ranking take seconds, and an agent who wrote in the
-    // meantime has taken the thread: the card or shortlist would land
-    // right under their message. Asked again at each send.
-    const agentTookOver = async (): Promise<boolean> => {
-      if (!(await agentHandlingThread(db, accountId, conversation.id)))
-        return false;
-      void generateMatchEventForContact(db, accountId, contact.id).catch(
-        (err) => {
-          console.error('[buyer-qualification] radar event failed:', err);
-        }
-      );
-      return true;
-    };
 
     // A named project earns a ranking run of its own, before any
     // question is asked — see shouldSendMatchesNow. Everything else

@@ -1371,6 +1371,30 @@ describe('[INB-046] no card or shortlist under an agent who is handling the thre
     expect(sendTextMessage).not.toHaveBeenCalled();
   });
 
+  it('sends no "more listings" reply when the agent writes while they are ranked', async () => {
+    queues.messages = [
+      [
+        { sender_type: 'customer', content_text: 'More site' },
+        { sender_type: 'bot', content_text: 'Here are 3 that fit' },
+      ],
+      { id: 'agent-message' },
+    ];
+
+    expect(
+      await processBuyerQualificationMessage(
+        'More site',
+        { id: 'c1', phone: '919000000000', name: 'Pramod' },
+        { id: 'conv-1' },
+        'acct-1',
+        'token',
+        'phone-id',
+        'owner-1'
+      )
+    ).toBe(false);
+    expect(rankPropertiesForContact).toHaveBeenCalled();
+    expect(sendTextMessage).not.toHaveBeenCalled();
+  });
+
   it('stands down when the agent writes while the brief is being read', async () => {
     queues.messages = [
       [
