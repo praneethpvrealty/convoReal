@@ -23,7 +23,11 @@ function deferred(): Deferred {
 }
 
 const pending: Deferred[] = [];
-const probeStatus = { value: 200, failShortBatch: false };
+const probeStatus = {
+  value: 200,
+  failShortBatch: false,
+  failingFirstIds: [] as string[],
+};
 
 const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
@@ -36,7 +40,8 @@ const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     .split(',')
     .filter(Boolean);
   const status =
-    probeStatus.failShortBatch && ids.length < VIEWER_BATCH_SIZE
+    (probeStatus.failShortBatch && ids.length < VIEWER_BATCH_SIZE) ||
+    probeStatus.failingFirstIds.includes(ids[0])
       ? 500
       : probeStatus.value;
   return Promise.resolve({
@@ -87,6 +92,7 @@ beforeEach(() => {
   pending.length = 0;
   probeStatus.value = 200;
   probeStatus.failShortBatch = false;
+  probeStatus.failingFirstIds = [];
   fetchMock.mockClear();
 });
 
@@ -243,6 +249,46 @@ describe('AddToInventory', () => {
     expect(
       client.getQueryData(['showcase-import', ids.at(-1)])
     ).toBeUndefined();
+  });
+
+  it('[PRP-053] asks the batches after a failed one, and retries only the listings still unanswered', async () => {
+    const ids = Array.from(
+      { length: VIEWER_BATCH_SIZE * 2 + 5 },
+      (_, i) => `prop-${String(i).padStart(3, '0')}`
+    );
+    probeStatus.failingFirstIds = [ids[VIEWER_BATCH_SIZE]];
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <Catalog ids={ids} />
+      </QueryClientProvider>
+    );
+    await waitFor(() =>
+      expect(client.getQueryData(['showcase-import', ids.at(-1)])).toBeTruthy()
+    );
+    expect(client.getQueryData(['showcase-import', ids[0]])).toBeTruthy();
+    expect(
+      client.getQueryData(['showcase-import', ids[VIEWER_BATCH_SIZE]])
+    ).toBeUndefined();
+
+    probeStatus.failingFirstIds = [];
+    await waitFor(
+      () =>
+        expect(
+          client.getQueryData(['showcase-import', ids[VIEWER_BATCH_SIZE]])
+        ).toBeTruthy(),
+      { timeout: 3000 }
+    );
+    const retried = fetchMock.mock.calls
+      .slice(3)
+      .map(([input]) =>
+        (new URL(String(input)).searchParams.get('property_ids') ?? '').split(
+          ','
+        )
+      );
+    expect(retried).toEqual([
+      ids.slice(VIEWER_BATCH_SIZE, VIEWER_BATCH_SIZE * 2),
+    ]);
   });
 
   it('[PRP-053] stops at the first answer that says the visitor is signed out', async () => {

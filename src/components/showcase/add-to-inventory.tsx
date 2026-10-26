@@ -57,13 +57,21 @@ async function fetchViewers(
   onBatch?: (ids: string[], viewers: Record<string, Viewer>) => void
 ): Promise<Viewers> {
   const viewers: Record<string, Viewer> = {};
+  let failure: unknown = null;
   for (let i = 0; i < propertyIds.length; i += VIEWER_BATCH_SIZE) {
     const batch = propertyIds.slice(i, i + VIEWER_BATCH_SIZE);
-    const res = await fetch(showcaseImportUrl(batch), {
-      credentials: 'include',
-    });
+    let res: Response;
+    try {
+      res = await fetch(showcaseImportUrl(batch), { credentials: 'include' });
+    } catch (err) {
+      failure = err;
+      continue;
+    }
     if (res.status === 401 || res.status === 403) return { signedOut: true };
-    if (!res.ok) throw new Error(`Probe failed with ${res.status}`);
+    if (!res.ok) {
+      failure = new Error(`Probe failed with ${res.status}`);
+      continue;
+    }
     const body = (await res.json()) as {
       data?: { viewers?: Record<string, Viewer> };
     };
@@ -71,6 +79,7 @@ async function fetchViewers(
     Object.assign(viewers, answered);
     onBatch?.(batch, answered);
   }
+  if (failure) throw failure;
   return { signedOut: false, viewers };
 }
 
@@ -84,7 +93,8 @@ async function probeViewer(propertyId: string): Promise<Probe> {
  * One probe for every listing the page holds, seeding each listing's
  * cache entry so the grid cards and the open listing read it without a
  * request of their own. Each batch's listings are seeded as soon as it
- * answers, so a later batch that fails leaves the earlier ones offered.
+ * answers, and a batch that fails neither discards nor stops the others;
+ * a retry asks again only about listings still unanswered.
  * A signed-out visitor costs a single request: the first answer that
  * says so stops the rest. The entries live as long as
  * the page, because nothing asks again for a listing whose card was
@@ -104,7 +114,10 @@ export function useShowcaseImportViewers(
         gcTime: Infinity,
         staleTime: Infinity,
       });
-      const result = await fetchViewers(ids, (batch, viewers) => {
+      const unanswered = ids.filter(
+        (id) => queryClient.getQueryData(probeKey(id)) === undefined
+      );
+      const result = await fetchViewers(unanswered, (batch, viewers) => {
         for (const id of batch) {
           if (queryClient.getQueryData(probeKey(id)) === undefined) {
             const entry: Probe = {
