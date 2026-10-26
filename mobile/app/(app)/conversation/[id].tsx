@@ -32,7 +32,10 @@ import {
 } from '@/components/attachment-sheet';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { ContextMenu } from '@/components/context-menu';
-import { botPauseLabel } from '@shared/lib/conversations/bot-pause';
+import {
+  botAutoPausedUntil,
+  botPauseLabel,
+} from '@shared/lib/conversations/bot-pause';
 import { setConversationBotPaused } from '@/lib/conversation-actions';
 import { ConversationMenu } from '@/components/conversation-menu';
 import { ConvoRealLoader } from '@/components/loader';
@@ -180,6 +183,7 @@ export default function ConversationScreen() {
   const headerHeight = useHeaderHeight();
   const [menuOpen, setMenuOpen] = useState(false);
   const [botBusy, setBotBusy] = useState(false);
+  const [, setBotClock] = useState(0);
   // Long-press target, with the press point the floating menu anchors to.
   const [actionsFor, setActionsFor] = useState<{
     message: Message;
@@ -521,6 +525,15 @@ export default function ConversationScreen() {
     }
   }
 
+  const botAutoUntilMs = botAutoPausedUntil(conversation)?.getTime() ?? null;
+  useEffect(() => {
+    if (botAutoUntilMs === null) return;
+    const timer = setTimeout(
+      () => setBotClock((n) => n + 1),
+      Math.max(0, botAutoUntilMs - Date.now()) + 500
+    );
+    return () => clearTimeout(timer);
+  }, [botAutoUntilMs]);
   const botLabel = botPauseLabel(conversation, (at) =>
     at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
   );

@@ -297,7 +297,17 @@ export function MessageThread({
     conversation?.bot_paused_at,
     conversation?.bot_paused_until,
   ]);
+  const [, setBotClock] = useState(0);
   const botAutoUntil = botAutoPausedUntil(botPause);
+  const botAutoUntilMs = botAutoUntil?.getTime() ?? null;
+  useEffect(() => {
+    if (botAutoUntilMs === null) return;
+    const timer = setTimeout(
+      () => setBotClock((n) => n + 1),
+      Math.max(0, botAutoUntilMs - Date.now()) + 500
+    );
+    return () => clearTimeout(timer);
+  }, [botAutoUntilMs]);
   const botOff = Boolean(botPause.bot_paused_at) || botAutoUntil !== null;
   const botLabel = botPauseLabel(botPause, (at) => format(at, 'h:mm a'));
 
