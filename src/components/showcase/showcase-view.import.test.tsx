@@ -13,8 +13,10 @@ import {
   screen,
   fireEvent,
   waitFor,
+  act,
 } from '@testing-library/react';
 import type { Property, ShowcaseSettings } from '@/types';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const IMPORT_URL = 'https://www.convoreal.com/api/inventory/showcase-import';
 
@@ -111,15 +113,20 @@ const settings = {
 } as unknown as ShowcaseSettings;
 
 function renderOpen(agentMode = false) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   render(
-    <ShowcaseView
-      properties={[property, second]}
-      settings={settings}
-      accountId="acct-1"
-      initialPropertyId={property.id}
-      initialAgentMode={agentMode}
-      disableSavedState
-    />
+    <QueryClientProvider client={client}>
+      <ShowcaseView
+        properties={[property, second]}
+        settings={settings}
+        accountId="acct-1"
+        initialPropertyId={property.id}
+        initialAgentMode={agentMode}
+        disableSavedState
+      />
+    </QueryClientProvider>
   );
 }
 
@@ -237,6 +244,9 @@ describe('showcase detail — add to my inventory', () => {
     probe.status = 401;
     renderOpen();
     await waitFor(() => expect(probeCalls()).toHaveLength(1));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(addButton()).toBeNull();
 
     const close = Array.from(document.querySelectorAll('button')).find((b) =>

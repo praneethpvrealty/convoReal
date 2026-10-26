@@ -61,6 +61,7 @@ export function sharedPropertyImportSource(
     latitude: null,
     longitude: null,
     locality_place_id: null,
+    locality_canonical: null,
   };
 }
 

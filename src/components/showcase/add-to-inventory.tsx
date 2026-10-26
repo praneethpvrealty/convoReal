@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { FolderInput, Loader2, PackageCheck } from 'lucide-react';
 import { appOrigin } from '@/lib/showcase/app-origin';
@@ -18,6 +19,8 @@ interface Viewer {
   importedId: string | null;
 }
 
+type Probe = { signedOut: true } | { signedOut: false; viewer: Viewer | null };
+
 export const SHOWCASE_IMPORT_PATH = '/api/inventory/showcase-import';
 
 export function showcaseImportUrl(propertyId?: string): string {
@@ -31,6 +34,43 @@ export function importedPropertyUrl(importedId: string): string {
   return `${appOrigin()}/inventory?propertyId=${encodeURIComponent(importedId)}`;
 }
 
+function probeKey(propertyId: string) {
+  return ['showcase-import', propertyId] as const;
+}
+
+async function probeViewer(propertyId: string): Promise<Probe> {
+  try {
+    const res = await fetch(showcaseImportUrl(propertyId), {
+      credentials: 'include',
+    });
+    if (res.status === 401 || res.status === 403) return { signedOut: true };
+    if (!res.ok) return { signedOut: false, viewer: null };
+    const body = (await res.json()) as { data?: Viewer };
+    return { signedOut: false, viewer: body.data ?? null };
+  } catch {
+    return { signedOut: true };
+  }
+}
+
+async function importListing(
+  propertyId: string
+): Promise<{ id: string; alreadyImported?: boolean }> {
+  const res = await fetch(showcaseImportUrl(), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ property_id: propertyId }),
+  });
+  const body = (await res.json().catch(() => null)) as {
+    data?: { id: string; alreadyImported?: boolean };
+    error?: string;
+  } | null;
+  if (!res.ok || !body?.data) {
+    throw new Error(body?.error || 'Failed to add this property');
+  }
+  return body.data;
+}
+
 const chipClass =
   'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-colors';
 
@@ -39,33 +79,46 @@ export function AddToInventory({
   signedOut,
   onSignedOut,
 }: AddToInventoryProps) {
-  const [viewer, setViewer] = useState<Viewer | null>(null);
-  const [importing, setImporting] = useState(false);
+  const queryClient = useQueryClient();
+  const { data: probe } = useQuery({
+    queryKey: probeKey(propertyId),
+    queryFn: () => probeViewer(propertyId),
+    enabled: !signedOut,
+    retry: false,
+    staleTime: Infinity,
+  });
 
   useEffect(() => {
-    if (signedOut) return;
-    let cancelled = false;
-    setViewer(null);
-    fetch(showcaseImportUrl(propertyId), { credentials: 'include' })
-      .then(async (res) => {
-        if (cancelled) return;
-        if (res.status === 401 || res.status === 403) {
-          onSignedOut();
-          return;
-        }
-        if (!res.ok) return;
-        const body = (await res.json()) as { data?: Viewer };
-        if (!cancelled && body.data) setViewer(body.data);
-      })
-      .catch(() => {
-        if (!cancelled) onSignedOut();
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [propertyId, signedOut, onSignedOut]);
+    if (probe?.signedOut) onSignedOut();
+  }, [probe, onSignedOut]);
 
-  if (signedOut || !viewer || viewer.own) return null;
+  const add = useMutation({
+    mutationFn: () => importListing(propertyId),
+    onSuccess: (copy) => {
+      queryClient.setQueryData<Probe>(probeKey(propertyId), (current) =>
+        current && !current.signedOut && current.viewer
+          ? {
+              signedOut: false,
+              viewer: { ...current.viewer, importedId: copy.id },
+            }
+          : current
+      );
+      toast.success(
+        copy.alreadyImported
+          ? 'This property is already in your inventory'
+          : 'Added to your inventory — review and publish it when ready'
+      );
+    },
+    onError: (err) => {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to add this property'
+      );
+    },
+  });
+
+  if (signedOut || !probe || probe.signedOut) return null;
+  const viewer = probe.viewer;
+  if (!viewer || viewer.own) return null;
 
   if (viewer.importedId) {
     return (
@@ -84,49 +137,16 @@ export function AddToInventory({
 
   if (!viewer.canImport) return null;
 
-  async function handleImport() {
-    setImporting(true);
-    try {
-      const res = await fetch(showcaseImportUrl(), {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ property_id: propertyId }),
-      });
-      const body = (await res.json().catch(() => null)) as {
-        data?: { id: string; alreadyImported?: boolean };
-        error?: string;
-      } | null;
-      if (!res.ok || !body?.data) {
-        throw new Error(body?.error || 'Failed to add this property');
-      }
-      setViewer((current) =>
-        current ? { ...current, importedId: body.data!.id } : current
-      );
-      toast.success(
-        body.data.alreadyImported
-          ? 'This property is already in your inventory'
-          : 'Added to your inventory — review and publish it when ready'
-      );
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to add this property'
-      );
-    } finally {
-      setImporting(false);
-    }
-  }
-
   return (
     <button
       type="button"
-      onClick={handleImport}
-      disabled={importing}
+      onClick={() => add.mutate()}
+      disabled={add.isPending}
       title="Add this property to your inventory"
       aria-label="Add this property to your inventory"
       className={`${chipClass} border-primary/40 bg-primary/10 text-primary hover:border-primary/60 hover:bg-primary/20 cursor-pointer disabled:cursor-default disabled:opacity-60`}
     >
-      {importing ? (
+      {add.isPending ? (
         <Loader2 className="size-3.5 animate-spin" />
       ) : (
         <FolderInput className="size-3.5" />

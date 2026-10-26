@@ -105,6 +105,7 @@ const villa = {
   latitude: 12.97,
   longitude: 77.75,
   locality_place_id: 'place-1',
+  locality_canonical: 'whitefield-bengaluru',
   is_published: true,
   showcase_visibility: null,
   location_privacy: null,
@@ -128,6 +129,7 @@ describe('sharedPropertyImportSource', () => {
     expect(masked.latitude).toBeNull();
     expect(masked.longitude).toBeNull();
     expect(masked.locality_place_id).toBeNull();
+    expect(masked.locality_canonical).toBeNull();
     expect(masked.title).toBe(villa.title);
   });
 
@@ -170,6 +172,7 @@ describe('importSharedProperty', () => {
     expect(row.location).toBe('Whitefield, Bengaluru');
     expect(row.google_map_link).toBeNull();
     expect(row.latitude).toBeNull();
+    expect(row.locality_canonical).toBeNull();
     expect(state.contacts[0]).toMatchObject({
       accountId: 'acct-me',
       phone: '+919900000001',
