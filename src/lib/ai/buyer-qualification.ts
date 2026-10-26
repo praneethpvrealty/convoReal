@@ -1966,17 +1966,19 @@ export async function processBuyerQualificationMessage(
       return true;
     }
 
-    // The extraction above takes seconds, and an agent who wrote in the
+    // Extraction and ranking take seconds, and an agent who wrote in the
     // meantime has taken the thread: the card or shortlist would land
-    // right under their message.
-    if (await agentHandlingThread(db, accountId, conversation.id)) {
+    // right under their message. Asked again at each send.
+    const agentTookOver = async (): Promise<boolean> => {
+      if (!(await agentHandlingThread(db, accountId, conversation.id)))
+        return false;
       void generateMatchEventForContact(db, accountId, contact.id).catch(
         (err) => {
           console.error('[buyer-qualification] radar event failed:', err);
         }
       );
-      return false;
-    }
+      return true;
+    };
 
     // A named project earns a ranking run of its own, before any
     // question is asked — see shouldSendMatchesNow. Everything else
@@ -2035,6 +2037,7 @@ export async function processBuyerQualificationMessage(
         pref_areas: prefs.areas,
         pref_listing_types: prefs.listing_types,
       } as Contact;
+      if (await agentTookOver()) return false;
       // The card is already the latest thing the lead sees, and the
       // brief it shows has not moved: acknowledge rather than repeat it.
       if (requirementReviewAlreadyShown(reviewContact, recentBotTexts)) {
@@ -2077,6 +2080,7 @@ export async function processBuyerQualificationMessage(
         : null
     );
 
+    if (await agentTookOver()) return false;
     await reply(
       outcome.reply,
       contactRecord,

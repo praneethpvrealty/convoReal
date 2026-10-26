@@ -1340,6 +1340,37 @@ describe('[INB-046] no card or shortlist under an agent who is handling the thre
     expect(generateMatchEventForContact).toHaveBeenCalled();
   });
 
+  it('sends no shortlist when the agent writes while it is being ranked', async () => {
+    rankPropertiesForContact.mockResolvedValue([
+      {
+        property: {
+          id: 'p-kora',
+          title: 'Commercial Land in Koramangala',
+          type: 'Commercial Land',
+          price: 19_000_000,
+          location: 'Koramangala',
+          city: 'Bangalore',
+        },
+        score: 90,
+        details: {},
+      },
+    ]);
+    queues.messages = [
+      [
+        {
+          sender_type: 'customer',
+          content_text: 'Commercial land in Koramangala, 2 cr',
+        },
+        { sender_type: 'bot', content_text: 'Here are two more options' },
+      ],
+      { id: 'agent-message' },
+    ];
+
+    expect(await ask()).toBe(false);
+    expect(rankPropertiesForContact).toHaveBeenCalled();
+    expect(sendTextMessage).not.toHaveBeenCalled();
+  });
+
   it('stands down when the agent writes while the brief is being read', async () => {
     queues.messages = [
       [
