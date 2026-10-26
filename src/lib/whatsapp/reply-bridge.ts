@@ -411,6 +411,7 @@ export async function handleBridgedAgentReply(args: {
       kind: 'text',
       senderType: 'agent',
       text: relay.text,
+      pausesBot: true,
     });
 
     if (!sent.success) {

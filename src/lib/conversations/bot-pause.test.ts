@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { botPauseUpdate, isBotPaused, isBotPausedRow } from './bot-pause';
+import {
+  agentReplyBotPauseUpdate,
+  botPauseLabel,
+  botPauseUpdate,
+  isBotPaused,
+  isBotPausedRow,
+} from './bot-pause';
 import {
   INBOUND_STEPS,
   STEPS_WHILE_BOT_PAUSED,
@@ -30,8 +36,12 @@ describe('[INB-044] the per-chat bot switch', () => {
     const now = new Date('2026-10-26T10:36:00.000Z');
     expect(botPauseUpdate(true, now)).toEqual({
       bot_paused_at: '2026-10-26T10:36:00.000Z',
+      bot_paused_until: null,
     });
-    expect(botPauseUpdate(false, now)).toEqual({ bot_paused_at: null });
+    expect(botPauseUpdate(false, now)).toEqual({
+      bot_paused_at: null,
+      bot_paused_until: null,
+    });
   });
 
   it('reads a row as paused only while the pause time is set', () => {
@@ -82,5 +92,47 @@ describe('[INB-044] the per-chat bot switch', () => {
       expect(names.has(replying), replying).toBe(true);
       expect(STEPS_WHILE_BOT_PAUSED.has(replying), replying).toBe(false);
     }
+  });
+});
+
+describe('[INB-046] the bot pauses itself while a person is replying', () => {
+  const now = new Date('2026-10-26T11:00:00.000Z');
+
+  it('holds the bot for four hours from the reply', () => {
+    expect(agentReplyBotPauseUpdate(now)).toEqual({
+      bot_paused_until: '2026-10-26T15:00:00.000Z',
+    });
+  });
+
+  it('counts as paused only until the hold runs out', () => {
+    const row = {
+      bot_paused_at: null,
+      bot_paused_until: '2026-10-26T15:00:00Z',
+    };
+    expect(isBotPausedRow(row, now)).toBe(true);
+    expect(isBotPausedRow(row, new Date('2026-10-26T15:00:01Z'))).toBe(false);
+  });
+
+  it('labels a timed hold with its end and a manual switch as off', () => {
+    const time = (at: Date) => at.toISOString().slice(11, 16);
+    expect(
+      botPauseLabel(
+        { bot_paused_at: null, bot_paused_until: '2026-10-26T15:00:00Z' },
+        time,
+        now
+      )
+    ).toBe('Bot paused till 15:00');
+    expect(
+      botPauseLabel(
+        { bot_paused_at: '2026-10-26T10:00:00Z', bot_paused_until: null },
+        time,
+        now
+      )
+    ).toBe('Bot off');
+    expect(botPauseLabel({}, time, now)).toBeNull();
+  });
+
+  it('switching the bot on ends a timed hold too', () => {
+    expect(botPauseUpdate(false, now).bot_paused_until).toBeNull();
   });
 });

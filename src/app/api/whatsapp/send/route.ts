@@ -461,6 +461,7 @@ export async function POST(request: Request) {
       // contact is still allowed to receive — the composer shows them
       // the notice first. Every automated sender leaves this unset.
       allowDeadContact: true,
+      pausesBot: true,
       customDbClient: supabase,
     });
 

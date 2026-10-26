@@ -32,6 +32,8 @@ import {
 } from '@/components/attachment-sheet';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { ContextMenu } from '@/components/context-menu';
+import { botPauseLabel } from '@shared/lib/conversations/bot-pause';
+import { setConversationBotPaused } from '@/lib/conversation-actions';
 import { ConversationMenu } from '@/components/conversation-menu';
 import { ConvoRealLoader } from '@/components/loader';
 import { MessageBubble, QuotedMessage } from '@/components/message-bubble';
@@ -177,6 +179,7 @@ export default function ConversationScreen() {
   }>();
   const headerHeight = useHeaderHeight();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [botBusy, setBotBusy] = useState(false);
   // Long-press target, with the press point the floating menu anchors to.
   const [actionsFor, setActionsFor] = useState<{
     message: Message;
@@ -518,6 +521,27 @@ export default function ConversationScreen() {
     }
   }
 
+  const botLabel = botPauseLabel(conversation, (at) =>
+    at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  );
+
+  async function toggleBot() {
+    if (!id || botBusy) return;
+    setBotBusy(true);
+    try {
+      await setConversationBotPaused(id, botLabel === null);
+      haptic.success();
+    } catch (e) {
+      haptic.warn();
+      show({
+        title: 'Could not update the bot',
+        message: e instanceof Error ? e.message : 'Please try again.',
+      });
+    } finally {
+      setBotBusy(false);
+    }
+  }
+
   return (
     <KeyboardAvoidingView
       testID="conversation-screen"
@@ -535,7 +559,7 @@ export default function ConversationScreen() {
             <ThreadHeader
               title={title}
               status={conversation?.status}
-              botPaused={Boolean(conversation?.bot_paused_at)}
+              botLabel={botLabel}
               awaiting={Boolean(conversation && needsReply(conversation))}
               silence={conversation ? unanswered(conversation) : null}
               onOpenContact={
@@ -557,19 +581,54 @@ export default function ConversationScreen() {
             />
           ),
           headerRight: () => (
-            <Pressable
-              onPress={() => setMenuOpen(true)}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Manage chat"
-              style={{ paddingHorizontal: 4 }}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.md,
+              }}
             >
-              <Ionicons
-                name="ellipsis-vertical"
-                size={20}
-                color={colors.text}
-              />
-            </Pressable>
+              <Pressable
+                onPress={toggleBot}
+                disabled={botBusy}
+                hitSlop={8}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: botLabel === null }}
+                accessibilityLabel={
+                  botLabel
+                    ? `${botLabel}. Switch the bot back on`
+                    : 'Bot replies are on. Switch them off'
+                }
+                style={[
+                  styles.headerBot,
+                  {
+                    backgroundColor: botLabel
+                      ? colors.warningSoft
+                      : 'transparent',
+                    opacity: botBusy ? 0.5 : 1,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={botLabel ? 'pause-circle' : 'hardware-chip-outline'}
+                  size={19}
+                  color={botLabel ? colors.warning : colors.textMuted}
+                />
+              </Pressable>
+              <Pressable
+                onPress={() => setMenuOpen(true)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Manage chat"
+                style={{ paddingHorizontal: 4 }}
+              >
+                <Ionicons
+                  name="ellipsis-vertical"
+                  size={20}
+                  color={colors.text}
+                />
+              </Pressable>
+            </View>
           ),
         }}
       />
@@ -822,7 +881,6 @@ export default function ConversationScreen() {
         contactId={conversation?.contact?.id}
         status={conversation?.status}
         isArchived={conversation?.is_archived}
-        botPaused={Boolean(conversation?.bot_paused_at)}
       />
       <AppDialog {...dialogProps} />
       <AppDialog {...callLogProps} />
@@ -842,7 +900,7 @@ const STATUS_LABELS: Record<string, string> = {
 function ThreadHeader({
   title,
   status,
-  botPaused,
+  botLabel,
   awaiting,
   silence,
   onCall,
@@ -850,7 +908,7 @@ function ThreadHeader({
 }: {
   title: string;
   status?: string;
-  botPaused?: boolean;
+  botLabel?: string | null;
   awaiting?: boolean;
   silence?: ReturnType<typeof unanswered>;
   onCall?: () => void;
@@ -911,8 +969,8 @@ function ThreadHeader({
               : silence
                 ? unansweredLabel(silence)
                 : (STATUS_LABELS[status] ?? status)}
-            {botPaused ? (
-              <Text style={{ color: colors.warning }}> · Bot off</Text>
+            {botLabel ? (
+              <Text style={{ color: colors.warning }}> · {botLabel}</Text>
             ) : null}
           </Text>
         ) : null}
@@ -1772,6 +1830,13 @@ function Composer({
 }
 
 const styles = StyleSheet.create({
+  headerBot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerCall: {
     width: 26,
     height: 26,

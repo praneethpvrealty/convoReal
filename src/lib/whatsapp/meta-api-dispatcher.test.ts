@@ -297,6 +297,54 @@ describe('sendWhatsAppMessageAndPersist', () => {
     expect(db._inserts.messages).toEqual([]);
   });
 
+  it('[INB-046] pauses the bot for four hours when a person replies', async () => {
+    const db = makeDb({ existingConversation: { id: 'conv-1' } });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+    const before = Date.now();
+
+    await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      conversationId: 'conv-1',
+      kind: 'text',
+      senderType: 'agent',
+      text: 'Adarsh Palm Meadows',
+      pausesBot: true,
+      customDbClient: db,
+    });
+
+    const until = (db._updates.conversations ?? [])
+      .map((u) => u.bot_paused_until)
+      .find(Boolean) as string | undefined;
+    expect(until).toBeDefined();
+    const held = Date.parse(until!) - before;
+    expect(held).toBeGreaterThanOrEqual(4 * 60 * 60 * 1000 - 1000);
+    expect(held).toBeLessThanOrEqual(4 * 60 * 60 * 1000 + 5000);
+  });
+
+  it('[INB-046] leaves the bot alone after an automated agent-labelled send such as a share', async () => {
+    const db = makeDb({ existingConversation: { id: 'conv-1' } });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+
+    await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      conversationId: 'conv-1',
+      kind: 'text',
+      senderType: 'agent',
+      text: 'Here is the listing you asked about',
+      customDbClient: db,
+    });
+
+    expect(
+      (db._updates.conversations ?? []).some((u) => 'bot_paused_until' in u)
+    ).toBe(false);
+  });
+
   it('[INB-044] still sends the agent’s own reply while the bot is off', async () => {
     const db = makeDb({
       existingConversation: {

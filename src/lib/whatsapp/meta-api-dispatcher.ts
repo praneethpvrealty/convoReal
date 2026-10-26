@@ -45,6 +45,7 @@ import { MAX_MERGE_HOPS } from '@/lib/contacts/merge-chain';
 import { phoneMatchKey } from '@/lib/contacts/phone-key';
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle';
 import {
+  agentReplyBotPauseUpdate,
   BOT_PAUSED_BLOCKED_MESSAGE,
   isBotPaused,
 } from '@/lib/conversations/bot-pause';
@@ -202,6 +203,12 @@ export interface SendWhatsAppAndPersistArgs {
    *  automations, digests, Radar, shares — leaves it unset and is
    *  refused. */
   allowDeadContact?: boolean;
+  /** A person wrote this — the inbox composer or a reply bridged from
+   *  the agent's own WhatsApp. Holds the bot back in the thread for
+   *  AGENT_REPLY_BOT_PAUSE_MS. Shares, broadcasts, reminders and every
+   *  other automated agent-labelled send leave it unset, so the listing
+   *  Q&A after a share keeps working. */
+  pausesBot?: boolean;
   /** Marks a contact this call has to CREATE (toPhone with no existing
    *  match) as chain_only. For sends to someone who is a counterparty
    *  of the chain rather than a lead of this account — a location
@@ -1022,6 +1029,9 @@ export async function sendWhatsAppMessageAndPersist(
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         awaiting_reply: false,
+        ...(args.senderType === 'agent' && args.pausesBot
+          ? agentReplyBotPauseUpdate()
+          : {}),
       })
       .eq('id', resolvedConversationId);
 

@@ -187,6 +187,7 @@ describe('POST /api/whatsapp/send — customer window', () => {
     expect(res.status).toBe(200);
     expect(dispatcherCalls).toHaveLength(1);
     expect(dispatcherCalls[0].kind).toBe('text');
+    expect(dispatcherCalls[0].pausesBot).toBe(true);
   });
 
   it("quotes with Meta's wamid but persists our own row id", async () => {
