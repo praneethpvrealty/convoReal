@@ -177,3 +177,18 @@ describe('describedListingAmong', () => {
     );
   });
 });
+
+describe("[INB-045] a requirement floor or the buyer's own purchase points at nothing", () => {
+  it.each([
+    'A. Flat: 6k dimension or above. Plot 1800 sqft',
+    'Plot size 2400 sqft and above',
+    'This all property purchase will be registered on my name. Plot size 1800 sqft to 10k+ sqft',
+  ])('does not read %s as a pointer', (text) => {
+    expect(referencesSharedListing(text)).toBe(false);
+  });
+
+  it('still reads a demonstrative with a figure as a pointer', () => {
+    expect(referencesSharedListing('No this 40,000 sqft one')).toBe(true);
+    expect(referencesSharedListing('the 16 Cr plot above')).toBe(true);
+  });
+});

@@ -179,6 +179,75 @@ export function asksDetailsOfDescribedListing(text?: string | null): boolean {
   );
 }
 
+// "My requirement:\n====\nCOMMERCIAL:\n1. Outer ring road Tech parks…
+// 4. … Not interested in Investment." A buyer wrote their whole
+// brief as a list, and the pointer and rejection readers each found what
+// they look for in it — "this all property purchase", "1800 sqft",
+// "not interested" — so it was answered as a listing turned down, with
+// a menu asking what didn't fit. A message laid out as a brief is a
+// brief, whatever words its lines carry.
+const BRIEF_HEADING =
+  /^\s*(?:(?:my|our|client'?s?|buyer'?s?)\s+)?requirements?\s*(?:[:\-–=]|$)/im;
+const BRIEF_LIST_ITEM = /^\s*(?:\d{1,2}[.)]|[a-z][.)]|[-•*])\s+\S/i;
+const SECTION_HEADING =
+  /^\s*(commercial|residential|rental|lease|plots?|land|agricultur\w*|farm ?land|industrial|retail|office|warehouse)\b[^:\n]{0,24}:\s*$/i;
+
+function requirementFacets(text: string): number {
+  return [
+    PROPERTY_TYPE_SIGNAL.test(text),
+    statesBudget(text),
+    SIZE_SIGNAL.test(text),
+  ].filter(Boolean).length;
+}
+
+/** True when the message is laid out as a requirement brief: under a
+ *  "requirement:" heading, or as a list of two or more items that
+ *  between them name at least two of type, budget and size. */
+export function statesRequirementBrief(text?: string | null): boolean {
+  const clean = (text || '').trim();
+  if (!clean) return false;
+  const facets = requirementFacets(clean);
+  if (BRIEF_HEADING.test(clean)) return facets > 0;
+  const items = clean
+    .split('\n')
+    .filter((line) => BRIEF_LIST_ITEM.test(line)).length;
+  return items >= 2 && facets >= 2;
+}
+
+/**
+ * The separate requirements one brief states, in order: "COMMERCIAL:"
+ * and "RESIDENTIAL:" sections are two searches with their own budgets,
+ * and filed as one they matched neither. A brief with fewer than two
+ * sector headings, or a section that names no type, budget or size, is
+ * one requirement and comes back whole. A line before the first heading
+ * ("Only for rent in Whitefield") holds for every section, so each
+ * carries it; a bare "My requirement:" heading does not.
+ */
+export function splitRequirementSections(text: string): string[] {
+  const lines = text.trim().split('\n');
+  const starts = lines.flatMap((line, i) =>
+    SECTION_HEADING.test(line) ? [i] : []
+  );
+  if (starts.length < 2) return [text.trim()];
+  const sections = starts.map((start, i) =>
+    lines
+      .slice(start, starts[i + 1] ?? lines.length)
+      .join('\n')
+      .trim()
+  );
+  const body = (section: string) => section.split('\n').slice(1).join('\n');
+  if (!sections.every((section) => requirementFacets(body(section)) > 0))
+    return [text.trim()];
+  const preamble = lines
+    .slice(0, starts[0])
+    .filter((line) => !BRIEF_HEADING.test(line) && /[a-z0-9]/i.test(line))
+    .join('\n')
+    .trim();
+  return preamble
+    ? sections.map((section) => `${preamble}\n${section}`)
+    : sections;
+}
+
 /**
  * True when an inbound message plausibly carries requirement detail —
  * a property type, a budget figure, a size, or an explicit "looking for".

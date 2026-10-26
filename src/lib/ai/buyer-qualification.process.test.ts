@@ -1201,3 +1201,99 @@ describe('processBuyerQualificationMessage — a buy-or-rent correction', () => 
     );
   });
 });
+
+describe('[INB-045] a sectioned brief is filed as one requirement per section', () => {
+  const brief =
+    'COMMERCIAL:\nOffice floor inside a tech park in Whitefield\nBudget: 20cr-100 cr+\n\nRESIDENTIAL:\nVilla, plot size 6000 sqft minimum\nBudget: 10cr-100 cr+';
+  const commercialPrefs = {
+    ...EMPTY_PREFERENCES,
+    property_types: ['Office in IT Park/ SEZ'],
+    listing_types: ['Sale' as const],
+    budget_min: 200_000_000,
+    areas: ['Whitefield'],
+  };
+  const residentialPrefs = {
+    ...EMPTY_PREFERENCES,
+    property_types: ['Villa'],
+    listing_types: ['Sale' as const],
+    budget_min: 100_000_000,
+    land_area_min_sqft: 6000,
+  };
+  const file = () =>
+    processBuyerQualificationMessage(
+      brief,
+      { id: 'c1', phone: '919000000000', name: 'Gourishankar' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+  beforeEach(() => {
+    extractContactPreferences.mockImplementation(async (text: string) =>
+      text.startsWith('RESIDENTIAL:') ? residentialPrefs : commercialPrefs
+    );
+  });
+
+  it('files the first section as the primary brief and the next as a profile of its own', async () => {
+    await file();
+
+    const profiles = updates.find((u) => 'requirement_profiles' in u.payload)
+      ?.payload.requirement_profiles as {
+      raw_text: string;
+      budget_min: number | null;
+      property_types: string[];
+    }[];
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0].raw_text).toMatch(/^RESIDENTIAL:/);
+    expect(profiles[0].budget_min).toBe(100_000_000);
+    expect(profiles[0].property_types).toEqual(['Villa']);
+
+    const primary = updates.find((u) => 'requirements' in u.payload)?.payload
+      .requirements as string;
+    expect(primary).toMatch(/^COMMERCIAL:/);
+    expect(primary).not.toContain('RESIDENTIAL');
+  });
+
+  it('files a repeated section once and never a copy of the primary', async () => {
+    await processBuyerQualificationMessage(
+      `${brief}\n\nRESIDENTIAL:\nVilla, plot size 6000 sqft minimum\nBudget: 10cr-100 cr+\n\nCOMMERCIAL:\nOffice floor inside a tech park in Whitefield\nBudget: 20cr-100 cr+`,
+      { id: 'c1', phone: '919000000000', name: 'Gourishankar' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    const profiles = updates.find((u) => 'requirement_profiles' in u.payload)
+      ?.payload.requirement_profiles as { raw_text: string }[];
+    expect(profiles.map((p) => p.raw_text.split('\n')[0])).toEqual([
+      'RESIDENTIAL:',
+    ]);
+  });
+
+  it('does not file a section already on record twice', async () => {
+    queues.contacts = [
+      contactRow({
+        requirement_profiles: [
+          {
+            id: 'p1',
+            raw_text:
+              'RESIDENTIAL:\nVilla, plot size 6000 sqft minimum\nBudget: 10cr-100 cr+',
+          },
+        ],
+      }),
+    ];
+
+    await file();
+
+    expect(updates.some((u) => 'requirement_profiles' in u.payload)).toBe(
+      false
+    );
+    expect(extractContactPreferences).not.toHaveBeenCalledWith(
+      expect.stringMatching(/^RESIDENTIAL:/)
+    );
+  });
+});

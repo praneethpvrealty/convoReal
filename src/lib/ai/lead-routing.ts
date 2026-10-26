@@ -29,6 +29,7 @@ import { referencesSharedListing } from '@/lib/ai/described-listing';
 import {
   asksAboutSharedListing,
   carriesRequirementSignal,
+  statesRequirementBrief,
 } from '@/lib/ai/requirement-signal';
 import { isDirectPropertyInterest } from '@/lib/whatsapp/property-interest';
 import { isPropertyDisinterest } from '@/lib/whatsapp/property-disinterest';
@@ -129,7 +130,10 @@ export function routeLeadMessage(text?: string | null): LeadRoute {
  */
 export function carriesRequirementBrief(text?: string | null): boolean {
   const value = (text || '').trim();
-  return !referencesSharedListing(value) && carriesRequirementSignal(value);
+  return (
+    statesRequirementBrief(value) ||
+    (!referencesSharedListing(value) && carriesRequirementSignal(value))
+  );
 }
 
 /** True when the ladder must stand down and let another handler reply.

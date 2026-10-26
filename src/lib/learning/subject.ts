@@ -408,10 +408,21 @@ export interface ShareEvent {
   at: number;
 }
 
+/** How long after an agent's message the thread counts as theirs. */
+const AGENT_HANDLING_WINDOW_MS = 10 * 60 * 1000;
+
 /**
  * When each listing was really last shared, newest first. The ledger
  * row is a floor: a re-share does not bump it, so every outbound
  * message naming exactly one listing counts as sharing it then.
+ *
+ * Except a bot message sent while an agent is handling the thread. On
+ * 26 October an agent shared an Adarsh Palm Meadows villa, wrote
+ * "Adarsh palm meadows. Let me share the location", and five seconds
+ * later the requirement card linked a Dyavasandra building in passing.
+ * The buyer's next four questions about the villa were answered from
+ * the building. The agent owns that conversation; the card was an
+ * aside, not a change of subject.
  */
 export function shareEvents(args: SubjectThread): ShareEvent[] {
   const sharedAt = new Map<string, number>();
@@ -423,10 +434,19 @@ export function shareEvents(args: SubjectThread): ShareEvent[] {
   };
   for (const share of args.shares)
     noteShare(share.propertyId, Date.parse(share.at));
+  const agentAts = args.messages
+    .filter((message) => message.sender === 'agent')
+    .map((message) => Date.parse(message.at));
+  const agentHandling = (at: number) =>
+    agentAts.some(
+      (agentAt) => agentAt <= at && at - agentAt <= AGENT_HANDLING_WINDOW_MS
+    );
   for (const message of args.messages) {
     if (message.sender === 'customer') continue;
+    const at = Date.parse(message.at);
+    if (message.sender === 'bot' && agentHandling(at)) continue;
     const named = listingsReferencedIn(message.text, args.candidates);
-    if (named.length === 1) noteShare(named[0], Date.parse(message.at));
+    if (named.length === 1) noteShare(named[0], at);
   }
   return [...sharedAt.entries()]
     .map(([propertyId, at]) => ({ propertyId, at }))

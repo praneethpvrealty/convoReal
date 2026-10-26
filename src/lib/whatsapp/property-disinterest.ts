@@ -16,7 +16,8 @@ import type { Property } from '@/types';
  * interested in a property or current options shown to them.
  */
 const DISINTEREST_PATTERNS = [
-  /\b(?:i(?:'m| am)?\s+)?not\s+interested\b/i,
+  // "Not interested in investment" names a purpose, not a listing.
+  /\b(?:i(?:'m| am)?\s+)?not\s+interested\b(?!\s+in\s+(?:invest\w*|rent(?:al|als|ing)?|leas(?:e|ing)|under[\s-]?construction|resale|loans?|financ\w*|pre[\s-]?launch|new\s+launch\w*)\b)/i,
   /\b(?:i(?:'m| am)?\s+)?not\s+(?:for\s+me|for\s+us)\b/i,
   /\b(?:i\s+)?(?:don'?t|dont|do\s+not)\s+(?:like|want|prefer)\s+(?:this|it|the\s+property|these)\b/i,
   /\b(?:not\s+looking\s+for\s+(?:this|that|these)|not\s+what\s+i(?:'m|\s+am)?\s+looking\s+for)\b/i,

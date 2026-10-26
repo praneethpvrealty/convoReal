@@ -32,7 +32,10 @@ import {
 } from '@/lib/radar/engine';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import { isEnquiryBudgetAnchor } from '@/lib/matching';
-import { carriesRequirementSignal } from '@/lib/ai/requirement-signal';
+import {
+  carriesRequirementSignal,
+  splitRequirementSections,
+} from '@/lib/ai/requirement-signal';
 import {
   applySizeAnchor,
   parseRelativeSizeSignal,
@@ -56,12 +59,16 @@ import {
 } from '@/lib/whatsapp/requirement-review';
 import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import { visibleTagSuggestions } from '@/lib/contact-preferences';
-import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import {
+  createRequirementProfile,
+  hasStructuredRequirement,
+  resolveRequirementSource,
+} from '@/lib/requirements/profiles';
 import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import { localityStemsMatch, textNamesLocality } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
-import type { Contact, Property } from '@/types';
+import type { Contact, ContactRequirementProfile, Property } from '@/types';
 import { formatInrCompact } from '@/lib/format/currency';
 
 export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
@@ -1327,7 +1334,7 @@ export function burstRequirements(
     if (!text) return null;
     return isBuyerRequirementMessage(text) ||
       (ladderPrompted && statesIntentOnly(text))
-      ? text
+      ? splitRequirementSections(text)[0]
       : null;
   };
   const older: string[] = [];
@@ -1422,6 +1429,56 @@ async function softBurn(accountId: string): Promise<void> {
   } catch (err) {
     console.error('[buyer-qualification] credit burn failed (non-fatal):', err);
   }
+}
+
+const MAX_REQUIREMENT_PROFILES = 20;
+
+/**
+ * Files each further section of a sectioned brief as a requirement
+ * profile of its own, so "COMMERCIAL: … 20cr-100 cr+" and "RESIDENTIAL:
+ * … 10cr-100 cr+" are matched as the two searches they are rather than
+ * one brief with one budget. A section already on file is not filed
+ * twice.
+ */
+async function fileRequirementSections(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  contact: Contact,
+  primary: string,
+  sections: string[]
+): Promise<void> {
+  const existing = contact.requirement_profiles ?? [];
+  const known = new Set([
+    primary.toLowerCase(),
+    ...existing.map((profile) => profile.raw_text.trim().toLowerCase()),
+  ]);
+  const added: ContactRequirementProfile[] = [];
+  for (const section of sections) {
+    if (known.has(section.toLowerCase())) continue;
+    if (existing.length + added.length >= MAX_REQUIREMENT_PROFILES) break;
+    known.add(section.toLowerCase());
+    await softBurn(accountId);
+    const preferences = await extractContactPreferences(section);
+    if (!hasStructuredRequirement(preferences)) continue;
+    added.push(
+      createRequirementProfile({
+        id: crypto.randomUUID(),
+        rawText: section,
+        source: 'personal_whatsapp',
+        preferences,
+      })
+    );
+  }
+  if (added.length === 0) return;
+  const { error } = await db
+    .from('contacts')
+    .update({
+      requirement_profiles: [...existing, ...added],
+      requirement_active: true,
+    })
+    .eq('id', contact.id)
+    .eq('account_id', accountId);
+  if (error) throw error;
 }
 
 async function reply(
@@ -1699,9 +1756,21 @@ export async function processBuyerQualificationMessage(
       return false;
 
     const resolvedLocation = zoneRefinement || localityRefinement;
+    const sections = resolvedLocation ? [] : splitRequirementSections(text);
     const requirementTurn = resolvedLocation
       ? `Preferred location: ${resolvedLocation}`
-      : text;
+      : sections[0];
+    if (sections.length > 1) {
+      await fileRequirementSections(
+        db,
+        accountId,
+        contact,
+        sections[0],
+        sections.slice(1)
+      ).catch((err) => {
+        console.error('[buyer-qualification] section filing failed:', err);
+      });
+    }
     const burst = burstRequirements(
       thread || [],
       requirementTurn,
