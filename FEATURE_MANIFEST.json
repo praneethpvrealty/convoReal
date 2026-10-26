@@ -812,7 +812,7 @@
         },
         {
           "id": "INB-046",
-          "rule": "A person replying to a lead holds the bot back in that chat for four hours (conversations.bot_paused_until), so the bot never answers over a live conversation: a message sent from the inbox composer on web or mobile, or relayed from an agent's own WhatsApp by the reply bridge, sets the hold, and each later reply restarts it. Agent-labelled sends that are automated or one-tap (property shares, broadcasts, Radar sends, appointment reminders, invites) never set it, so the listing Q&A after a share keeps working. While the hold runs the chat behaves exactly as when the bot is switched off (INB-044), the chat header shows \"Bot paused till <time>\" on web and mobile, and switching the bot on ends the hold at once.",
+          "rule": "A person replying to a lead holds the bot back in that chat for four hours (conversations.bot_paused_until), so the bot never answers over a live conversation: a message an agent types or picks in the chat composer on web or mobile (text, attachment, template, or a resend of one), or relays from their own WhatsApp by the reply bridge, sets the hold, and each later reply restarts it; the composer asks for it explicitly (pauses_bot) and the send route never assumes it. Agent-labelled sends that are automated or one-tap (property shares and shortlists, including the mobile property picker and showcase share sheet, broadcasts, Radar sends, appointment reminders, invites) never set it, so the listing Q&A after a share keeps working. While the hold runs the chat behaves exactly as when the bot is switched off (INB-044), the chat header shows \"Bot paused till <time>\" on web and mobile, and switching the bot on ends the hold at once.",
           "tests": [
             {
               "file": "src/lib/conversations/bot-pause.test.ts",
@@ -820,6 +820,10 @@
             },
             {
               "file": "src/lib/whatsapp/meta-api-dispatcher.test.ts",
+              "case": "[INB-046]"
+            },
+            {
+              "file": "src/app/api/whatsapp/send/route.test.ts",
               "case": "[INB-046]"
             }
           ],

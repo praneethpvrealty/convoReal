@@ -187,6 +187,29 @@ describe('POST /api/whatsapp/send — customer window', () => {
     expect(res.status).toBe(200);
     expect(dispatcherCalls).toHaveLength(1);
     expect(dispatcherCalls[0].kind).toBe('text');
+    expect(dispatcherCalls[0].pausesBot).toBe(false);
+  });
+
+  it('[INB-046] holds the bot only when the composer says a person wrote it', async () => {
+    queues = {
+      conversations: [CONVERSATION],
+      whatsapp_config: [config('meta_cloud')],
+      messages: [
+        {
+          data: { created_at: new Date(Date.now() - 2 * HOURS).toISOString() },
+          error: null,
+        },
+      ],
+    };
+
+    const res = await post({
+      conversation_id: 'conv-1',
+      message_type: 'text',
+      content_text: 'Adarsh palm meadows',
+      pauses_bot: true,
+    });
+
+    expect(res.status).toBe(200);
     expect(dispatcherCalls[0].pausesBot).toBe(true);
   });
 

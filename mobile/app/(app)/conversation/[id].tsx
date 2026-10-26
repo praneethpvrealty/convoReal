@@ -1119,7 +1119,8 @@ function Composer({
   // clear/close.
   async function sendText(
     text: string,
-    replyToMessageId?: string
+    replyToMessageId?: string,
+    pausesBot = false
   ): Promise<boolean> {
     const trimmed = text.trim();
     if (!trimmed || sending) return false;
@@ -1150,7 +1151,12 @@ function Composer({
           replyToMessageId,
         });
       } else {
-        await sendTextMessage(conversationId, trimmed, replyToMessageId);
+        await sendTextMessage(
+          conversationId,
+          trimmed,
+          replyToMessageId,
+          pausesBot
+        );
       }
       // WhatsApp has it. Hold the bubble at one tick rather than
       // dropping it — the real row lands a beat later over realtime and
@@ -1203,7 +1209,7 @@ function Composer({
     haptic.send();
     const submittedDraft = draft;
     setDraft('');
-    const ok = await sendText(submittedDraft, replyTo?.id);
+    const ok = await sendText(submittedDraft, replyTo?.id, true);
     if (ok) {
       onClearReply();
     } else {
@@ -1256,6 +1262,7 @@ function Composer({
           media,
           caption: draft.trim() || undefined,
           replyToMessageId: replyTo?.id,
+          pausesBot: true,
         });
       }
       // Now the bubble can name the file it stands for, which is what
@@ -1408,7 +1415,7 @@ function Composer({
     resentRef.current = resend.id;
     void (async () => {
       haptic.send();
-      await sendText(forwardableText(resend));
+      await sendText(forwardableText(resend), undefined, true);
       resentRef.current = null;
       onResendHandled();
     })();
@@ -1444,6 +1451,7 @@ function Composer({
         templateLanguage: template.language,
         bodyParams,
         renderedText,
+        pausesBot: true,
       });
       onPendingSettled(pendingId, { status: 'sent' });
       setTemplatesOpen(false);

@@ -649,6 +649,7 @@ export function MessageThread({
             message_type: 'text',
             content_text: text,
             reply_to_message_id: replyToId,
+            pauses_bot: true,
           }),
         });
 
@@ -829,6 +830,7 @@ export function MessageThread({
           body: JSON.stringify({
             conversation_id: conversation.id,
             message_type: 'template',
+            pauses_bot: true,
             template_name: template.name,
             template_language: template.language,
             // Structured params drive the new send-builder path
@@ -954,6 +956,7 @@ export function MessageThread({
           body: JSON.stringify({
             conversation_id: conversation.id,
             message_type: 'media',
+            pauses_bot: true,
             media_url: uploaded.media_url,
             media_kind: uploaded.media_kind,
             media_filename: uploaded.filename,
