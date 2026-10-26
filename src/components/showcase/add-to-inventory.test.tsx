@@ -27,6 +27,7 @@ const probeStatus = {
   value: 200,
   failShortBatch: false,
   failingFirstIds: [] as string[],
+  unreadableFirstIds: [] as string[],
 };
 
 const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -44,6 +45,13 @@ const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     probeStatus.failingFirstIds.includes(ids[0])
       ? 500
       : probeStatus.value;
+  if (probeStatus.unreadableFirstIds.includes(ids[0])) {
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.reject(new SyntaxError('Unexpected token <')),
+    } as unknown as Response);
+  }
   return Promise.resolve({
     ok: status < 400,
     status,
@@ -93,6 +101,7 @@ beforeEach(() => {
   probeStatus.value = 200;
   probeStatus.failShortBatch = false;
   probeStatus.failingFirstIds = [];
+  probeStatus.unreadableFirstIds = [];
   fetchMock.mockClear();
 });
 
@@ -289,6 +298,24 @@ describe('AddToInventory', () => {
     expect(retried).toEqual([
       ids.slice(VIEWER_BATCH_SIZE, VIEWER_BATCH_SIZE * 2),
     ]);
+  });
+
+  it('[PRP-053] treats a batch whose answer cannot be read as failed, and still asks the rest', async () => {
+    const ids = Array.from(
+      { length: VIEWER_BATCH_SIZE + 5 },
+      (_, i) => `prop-${String(i).padStart(3, '0')}`
+    );
+    probeStatus.unreadableFirstIds = [ids[0]];
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <Catalog ids={ids} />
+      </QueryClientProvider>
+    );
+    await waitFor(() =>
+      expect(client.getQueryData(['showcase-import', ids.at(-1)])).toBeTruthy()
+    );
+    expect(client.getQueryData(['showcase-import', ids[0]])).toBeUndefined();
   });
 
   it('[PRP-053] stops at the first answer that says the visitor is signed out', async () => {

@@ -60,22 +60,21 @@ async function fetchViewers(
   let failure: unknown = null;
   for (let i = 0; i < propertyIds.length; i += VIEWER_BATCH_SIZE) {
     const batch = propertyIds.slice(i, i + VIEWER_BATCH_SIZE);
-    let res: Response;
+    let answered: Record<string, Viewer>;
     try {
-      res = await fetch(showcaseImportUrl(batch), { credentials: 'include' });
+      const res = await fetch(showcaseImportUrl(batch), {
+        credentials: 'include',
+      });
+      if (res.status === 401 || res.status === 403) return { signedOut: true };
+      if (!res.ok) throw new Error(`Probe failed with ${res.status}`);
+      const body = (await res.json()) as {
+        data?: { viewers?: Record<string, Viewer> };
+      };
+      answered = body.data?.viewers ?? {};
     } catch (err) {
       failure = err;
       continue;
     }
-    if (res.status === 401 || res.status === 403) return { signedOut: true };
-    if (!res.ok) {
-      failure = new Error(`Probe failed with ${res.status}`);
-      continue;
-    }
-    const body = (await res.json()) as {
-      data?: { viewers?: Record<string, Viewer> };
-    };
-    const answered = body.data?.viewers ?? {};
     Object.assign(viewers, answered);
     onBatch?.(batch, answered);
   }
