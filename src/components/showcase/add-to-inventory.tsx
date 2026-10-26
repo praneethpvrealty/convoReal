@@ -93,9 +93,9 @@ export function AddToInventory({
   }, [probe, onSignedOut]);
 
   const add = useMutation({
-    mutationFn: () => importListing(propertyId),
-    onSuccess: (copy) => {
-      queryClient.setQueryData<Probe>(probeKey(propertyId), (current) =>
+    mutationFn: (id: string) => importListing(id),
+    onSuccess: (copy, id) => {
+      queryClient.setQueryData<Probe>(probeKey(id), (current) =>
         current && !current.signedOut && current.viewer
           ? {
               signedOut: false,
@@ -136,17 +136,18 @@ export function AddToInventory({
   }
 
   if (!viewer.canImport) return null;
+  const importing = add.isPending && add.variables === propertyId;
 
   return (
     <button
       type="button"
-      onClick={() => add.mutate()}
-      disabled={add.isPending}
+      onClick={() => add.mutate(propertyId)}
+      disabled={importing}
       title="Add this property to your inventory"
       aria-label="Add this property to your inventory"
       className={`${chipClass} border-primary/40 bg-primary/10 text-primary hover:border-primary/60 hover:bg-primary/20 cursor-pointer disabled:cursor-default disabled:opacity-60`}
     >
-      {add.isPending ? (
+      {importing ? (
         <Loader2 className="size-3.5 animate-spin" />
       ) : (
         <FolderInput className="size-3.5" />

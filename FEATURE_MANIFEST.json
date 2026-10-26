@@ -2653,6 +2653,10 @@
               "case": "[PRP-053]"
             },
             {
+              "file": "src/components/showcase/add-to-inventory.test.tsx",
+              "case": "[PRP-053]"
+            },
+            {
               "file": "src/app/api/inventory/showcase-import/route.test.ts",
               "case": "[PRP-053]"
             },
