@@ -267,14 +267,29 @@ describe('showcase detail — add to my inventory', () => {
     expect(addButton()).toBeNull();
   });
 
-  it('[PRP-053] treats an origin the app will not answer as signed out', async () => {
+  it('[PRP-053] shows nothing when the probe fails, without taking the visitor for signed out', async () => {
     probe.reject = true;
     renderOpen();
     await waitFor(() => expect(probeCalls()).toHaveLength(1));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     expect(addButton()).toBeNull();
     expect(
       screen.queryByRole('link', { name: /in your inventory/i })
     ).toBeNull();
+
+    const close = Array.from(document.querySelectorAll('button')).find((b) =>
+      b.querySelector('svg.lucide-x')
+    );
+    if (!close) throw new Error('open listing has no close button');
+    fireEvent.click(close);
+    probe.reject = false;
+    fireEvent.click(
+      screen.getByRole('heading', { level: 3, name: 'Whitefield Apartment' })
+    );
+    await waitFor(() => expect(addButton()).toBeTruthy());
+    expect(probeCalls()).toHaveLength(2);
   });
 
   it('[PRP-053] shows nothing on the account’s own listing or to a member who cannot write', async () => {

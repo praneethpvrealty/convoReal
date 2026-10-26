@@ -39,17 +39,13 @@ function probeKey(propertyId: string) {
 }
 
 async function probeViewer(propertyId: string): Promise<Probe> {
-  try {
-    const res = await fetch(showcaseImportUrl(propertyId), {
-      credentials: 'include',
-    });
-    if (res.status === 401 || res.status === 403) return { signedOut: true };
-    if (!res.ok) return { signedOut: false, viewer: null };
-    const body = (await res.json()) as { data?: Viewer };
-    return { signedOut: false, viewer: body.data ?? null };
-  } catch {
-    return { signedOut: true };
-  }
+  const res = await fetch(showcaseImportUrl(propertyId), {
+    credentials: 'include',
+  });
+  if (res.status === 401 || res.status === 403) return { signedOut: true };
+  if (!res.ok) throw new Error(`Probe failed with ${res.status}`);
+  const body = (await res.json()) as { data?: Viewer };
+  return { signedOut: false, viewer: body.data ?? null };
 }
 
 async function importListing(
