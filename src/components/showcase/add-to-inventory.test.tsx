@@ -23,7 +23,7 @@ function deferred(): Deferred {
 }
 
 const pending: Deferred[] = [];
-const probeStatus = { value: 200 };
+const probeStatus = { value: 200, failShortBatch: false };
 
 const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
@@ -35,9 +35,13 @@ const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
   const ids = (new URL(url).searchParams.get('property_ids') ?? '')
     .split(',')
     .filter(Boolean);
+  const status =
+    probeStatus.failShortBatch && ids.length < VIEWER_BATCH_SIZE
+      ? 500
+      : probeStatus.value;
   return Promise.resolve({
-    ok: probeStatus.value < 400,
-    status: probeStatus.value,
+    ok: status < 400,
+    status,
     json: () =>
       Promise.resolve({
         data: {
@@ -82,6 +86,7 @@ const addButton = () =>
 beforeEach(() => {
   pending.length = 0;
   probeStatus.value = 200;
+  probeStatus.failShortBatch = false;
   fetchMock.mockClear();
 });
 
@@ -206,6 +211,38 @@ describe('AddToInventory', () => {
         ).length
     );
     expect(sizes).toEqual([VIEWER_BATCH_SIZE, 5]);
+  });
+
+  it('[PRP-053] keeps the listings a batch answered when a later batch fails', async () => {
+    probeStatus.failShortBatch = true;
+    const ids = Array.from(
+      { length: VIEWER_BATCH_SIZE + 5 },
+      (_, i) => `prop-${String(i).padStart(3, '0')}`
+    );
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <Catalog ids={ids} />
+        <AddToInventory
+          propertyId={ids[0]}
+          title="First listing"
+          variant="icon"
+          probe={false}
+          signedOut={false}
+          onSignedOut={() => {}}
+        />
+      </QueryClientProvider>
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', {
+          name: 'Add First listing to my inventory',
+        })
+      ).toBeTruthy()
+    );
+    expect(
+      client.getQueryData(['showcase-import', ids.at(-1)])
+    ).toBeUndefined();
   });
 
   it('[PRP-053] stops at the first answer that says the visitor is signed out', async () => {

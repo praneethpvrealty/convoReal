@@ -52,19 +52,24 @@ function probeKey(propertyId: string) {
   return ['showcase-import', propertyId] as const;
 }
 
-async function fetchViewers(propertyIds: string[]): Promise<Viewers> {
+async function fetchViewers(
+  propertyIds: string[],
+  onBatch?: (ids: string[], viewers: Record<string, Viewer>) => void
+): Promise<Viewers> {
   const viewers: Record<string, Viewer> = {};
   for (let i = 0; i < propertyIds.length; i += VIEWER_BATCH_SIZE) {
-    const res = await fetch(
-      showcaseImportUrl(propertyIds.slice(i, i + VIEWER_BATCH_SIZE)),
-      { credentials: 'include' }
-    );
+    const batch = propertyIds.slice(i, i + VIEWER_BATCH_SIZE);
+    const res = await fetch(showcaseImportUrl(batch), {
+      credentials: 'include',
+    });
     if (res.status === 401 || res.status === 403) return { signedOut: true };
     if (!res.ok) throw new Error(`Probe failed with ${res.status}`);
     const body = (await res.json()) as {
       data?: { viewers?: Record<string, Viewer> };
     };
-    Object.assign(viewers, body.data?.viewers ?? {});
+    const answered = body.data?.viewers ?? {};
+    Object.assign(viewers, answered);
+    onBatch?.(batch, answered);
   }
   return { signedOut: false, viewers };
 }
@@ -78,8 +83,10 @@ async function probeViewer(propertyId: string): Promise<Probe> {
 /**
  * One probe for every listing the page holds, seeding each listing's
  * cache entry so the grid cards and the open listing read it without a
- * request of their own. A signed-out visitor costs a single request: the
- * first answer that says so stops the rest. The entries live as long as
+ * request of their own. Each batch's listings are seeded as soon as it
+ * answers, so a later batch that fails leaves the earlier ones offered.
+ * A signed-out visitor costs a single request: the first answer that
+ * says so stops the rest. The entries live as long as
  * the page, because nothing asks again for a listing whose card was
  * filtered out and later comes back.
  */
@@ -93,22 +100,22 @@ export function useShowcaseImportViewers(
   const { data } = useQuery({
     queryKey: ['showcase-import-batch', ids.join(',')],
     queryFn: async () => {
-      const result = await fetchViewers(ids);
-      if (result.signedOut) return true;
       queryClient.setQueryDefaults(['showcase-import'], {
         gcTime: Infinity,
         staleTime: Infinity,
       });
-      for (const id of ids) {
-        if (queryClient.getQueryData(probeKey(id)) === undefined) {
-          const entry: Probe = {
-            signedOut: false,
-            viewer: result.viewers[id] ?? null,
-          };
-          queryClient.setQueryData(probeKey(id), entry);
+      const result = await fetchViewers(ids, (batch, viewers) => {
+        for (const id of batch) {
+          if (queryClient.getQueryData(probeKey(id)) === undefined) {
+            const entry: Probe = {
+              signedOut: false,
+              viewer: viewers[id] ?? null,
+            };
+            queryClient.setQueryData(probeKey(id), entry);
+          }
         }
-      }
-      return false;
+      });
+      return result.signedOut;
     },
     enabled: !signedOut && ids.length > 0,
     retry: 2,
