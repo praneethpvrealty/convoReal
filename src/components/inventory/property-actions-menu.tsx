@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import type { Property } from '@/types';
 import {
   Archive,
@@ -9,6 +10,7 @@ import {
   Edit,
   ExternalLink,
   Globe,
+  Link2,
   Scale,
   Loader2,
   Mail,
@@ -65,6 +67,28 @@ export function PropertyActionsMenu({
 }: PropertyActionsMenuProps) {
   const router = useRouter();
   const listedOnShowcase = isListedOnShowcase(property);
+
+  async function copyShowcaseLink() {
+    const link = accountShowcaseBase(createClient(), property.account_id).then(
+      (base) => propertyShowcaseUrl(base, property)
+    );
+    try {
+      if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/plain': link.then(
+              (url) => new Blob([url], { type: 'text/plain' })
+            ),
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(await link);
+      }
+      toast.success('Showcase link copied');
+    } catch {
+      toast.error('Could not copy the showcase link');
+    }
+  }
 
   async function openShowcase() {
     const tab = window.open('', '_blank');
@@ -130,6 +154,11 @@ export function PropertyActionsMenu({
           <ExternalLink className="text-primary size-3.5" />
           {listedOnShowcase ? 'View on showcase' : 'Not on showcase'}
         </DropdownMenuItem>
+        {listedOnShowcase && (
+          <DropdownMenuItem onClick={() => void copyShowcaseLink()}>
+            <Link2 className="text-primary size-3.5" /> Copy showcase link
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onClick={() => router.push(`/journey?property=${property.id}`)}
         >
