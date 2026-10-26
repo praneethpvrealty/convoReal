@@ -358,7 +358,8 @@ export function suggestReplies(conversationId: string) {
 export function sendTextMessage(
   conversationId: string,
   text: string,
-  replyToMessageId?: string
+  replyToMessageId?: string,
+  pausesBot = false
 ) {
   return apiFetch<{ message?: unknown; error?: string }>('/api/whatsapp/send', {
     method: 'POST',
@@ -367,6 +368,7 @@ export function sendTextMessage(
       message_type: 'text',
       content_text: text,
       ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
+      ...(pausesBot ? { pauses_bot: true } : {}),
     }),
   });
 }
@@ -676,12 +678,14 @@ export function sendMediaMessage(opts: {
   media: StagedMedia;
   caption?: string;
   replyToMessageId?: string;
+  pausesBot?: boolean;
 }) {
   return apiFetch<{ success: boolean }>('/api/whatsapp/send', {
     method: 'POST',
     body: JSON.stringify({
       conversation_id: opts.conversationId,
       message_type: 'media',
+      ...(opts.pausesBot ? { pauses_bot: true } : {}),
       media_url: opts.media.media_url,
       media_kind: opts.media.media_kind,
       media_filename: opts.media.filename,
@@ -740,12 +744,14 @@ export function sendTemplateMessage(opts: {
   templateLanguage: string;
   bodyParams: string[];
   renderedText: string;
+  pausesBot?: boolean;
 }) {
   return apiFetch<{ message?: unknown; error?: string }>('/api/whatsapp/send', {
     method: 'POST',
     body: JSON.stringify({
       conversation_id: opts.conversationId,
       message_type: 'template',
+      ...(opts.pausesBot ? { pauses_bot: true } : {}),
       template_name: opts.templateName,
       template_language: opts.templateLanguage,
       template_params: opts.bodyParams,

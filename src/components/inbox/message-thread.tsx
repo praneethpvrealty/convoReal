@@ -71,7 +71,12 @@ import {
   conversationStatusUpdate,
   type ConversationCloseReason,
 } from '@/lib/conversations/closure';
-import { botPauseUpdate } from '@/lib/conversations/bot-pause';
+import {
+  botAutoPausedUntil,
+  botPauseLabel,
+  botPauseUpdate,
+  type BotPauseRow,
+} from '@/lib/conversations/bot-pause';
 
 interface ReplyDraft {
   id: string;
@@ -277,17 +282,38 @@ export function MessageThread({
       }
     );
   }, [conversation, onArchive]);
-  const [botPausedAt, setBotPausedAt] = useState<string | null>(
-    conversation?.bot_paused_at ?? null
-  );
+  const [botPause, setBotPause] = useState<BotPauseRow>({
+    bot_paused_at: conversation?.bot_paused_at ?? null,
+    bot_paused_until: conversation?.bot_paused_until ?? null,
+  });
   const [botToggleBusy, setBotToggleBusy] = useState(false);
   useEffect(() => {
-    setBotPausedAt(conversation?.bot_paused_at ?? null);
-  }, [conversation?.id, conversation?.bot_paused_at]);
+    setBotPause({
+      bot_paused_at: conversation?.bot_paused_at ?? null,
+      bot_paused_until: conversation?.bot_paused_until ?? null,
+    });
+  }, [
+    conversation?.id,
+    conversation?.bot_paused_at,
+    conversation?.bot_paused_until,
+  ]);
+  const [, setBotClock] = useState(0);
+  const botAutoUntil = botAutoPausedUntil(botPause);
+  const botAutoUntilMs = botAutoUntil?.getTime() ?? null;
+  useEffect(() => {
+    if (botAutoUntilMs === null) return;
+    const timer = setTimeout(
+      () => setBotClock((n) => n + 1),
+      Math.max(0, botAutoUntilMs - Date.now()) + 500
+    );
+    return () => clearTimeout(timer);
+  }, [botAutoUntilMs]);
+  const botOff = Boolean(botPause.bot_paused_at) || botAutoUntil !== null;
+  const botLabel = botPauseLabel(botPause, (at) => format(at, 'h:mm a'));
 
   const handleBotToggle = useCallback(async () => {
     if (!conversation || botToggleBusy) return;
-    const pause = !botPausedAt;
+    const pause = !botOff;
     const update = botPauseUpdate(pause);
     setBotToggleBusy(true);
     const { data, error } = await createClient()
@@ -302,13 +328,13 @@ export function MessageThread({
       );
       return;
     }
-    setBotPausedAt(update.bot_paused_at);
+    setBotPause(update);
     toast.success(
       pause
         ? 'Bot switched off for this chat'
         : 'Bot switched back on for this chat'
     );
-  }, [conversation, botPausedAt, botToggleBusy]);
+  }, [conversation, botOff, botToggleBusy]);
 
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
   const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
@@ -623,6 +649,7 @@ export function MessageThread({
             message_type: 'text',
             content_text: text,
             reply_to_message_id: replyToId,
+            pauses_bot: true,
           }),
         });
 
@@ -803,6 +830,7 @@ export function MessageThread({
           body: JSON.stringify({
             conversation_id: conversation.id,
             message_type: 'template',
+            pauses_bot: true,
             template_name: template.name,
             template_language: template.language,
             // Structured params drive the new send-builder path
@@ -928,6 +956,7 @@ export function MessageThread({
           body: JSON.stringify({
             conversation_id: conversation.id,
             message_type: 'media',
+            pauses_bot: true,
             media_url: uploaded.media_url,
             media_kind: uploaded.media_kind,
             media_filename: uploaded.filename,
@@ -1268,26 +1297,32 @@ export function MessageThread({
             type="button"
             onClick={handleBotToggle}
             disabled={botToggleBusy}
-            aria-pressed={!botPausedAt}
+            aria-pressed={!botOff}
             aria-label={
-              botPausedAt
-                ? 'Bot is off for this chat. Switch it on'
+              botOff
+                ? `${botLabel} for this chat. Switch the bot on`
                 : 'Bot is on for this chat. Switch it off'
             }
-            title={botPausedAt ? 'Bot off — tap to switch on' : 'Bot on'}
+            title={
+              botAutoUntil && !botPause.bot_paused_at
+                ? 'Paused because you replied — tap to switch the bot back on now'
+                : botOff
+                  ? 'Bot off — tap to switch on'
+                  : 'Bot on'
+            }
             className={cn(
               'inline-flex h-7 items-center justify-center gap-1 rounded-md px-1.5 text-xs transition-colors hover:bg-slate-800 disabled:opacity-60',
-              botPausedAt
+              botOff
                 ? 'bg-amber-500/10 text-amber-400'
                 : 'text-slate-400 hover:text-white'
             )}
           >
-            {botPausedAt ? (
+            {botOff ? (
               <BotOff className="h-3.5 w-3.5" />
             ) : (
               <Bot className="h-3.5 w-3.5" />
             )}
-            {botPausedAt ? <span>Bot off</span> : null}
+            {botLabel ? <span>{botLabel}</span> : null}
           </button>
 
           {/* Archive / Unarchive button */}

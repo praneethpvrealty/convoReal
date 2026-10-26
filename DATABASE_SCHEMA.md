@@ -213,6 +213,7 @@ Metadata tracking active chat threads.
 - `last_message_text` (TEXT) / `last_message_at` (TIMESTAMPTZ).
 - `unread_count` (INTEGER).
 - `bot_paused_at` (TIMESTAMPTZ): set while an agent has switched the bot off for this thread; every automated bot message to it is held back.
+- `bot_paused_until` (TIMESTAMPTZ): a timed hold set for four hours whenever a person replies from the inbox or the reply bridge; the bot stays quiet until it passes.
 
 #### 12. `messages`
 

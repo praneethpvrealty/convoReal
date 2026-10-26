@@ -98,7 +98,7 @@ describe('[CNV-001] sendLeadArrivalReplies', () => {
         const chain = {
           select: () => chain,
           eq: () => chain,
-          not: () => chain,
+          or: () => chain,
           limit: () =>
             Promise.resolve({ data: [{ id: 'conv-1' }], error: null }),
         };
