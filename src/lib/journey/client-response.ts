@@ -97,6 +97,7 @@ import {
   TIMELINE_CHOICES,
   type TimelineChoice,
 } from '@/lib/whatsapp/timeline-ask-template';
+import { isBotPaused } from '@/lib/conversations/bot-pause';
 import { pickApprovedTemplate } from '@/lib/whatsapp/pick-approved-template';
 import { narrowToLanguage } from '@/lib/whatsapp/template-language';
 import {
@@ -604,7 +605,12 @@ export async function sendCheckBackConfirm(args: {
 }
 
 export type ClientAskOutcome =
-  'sent' | 'sent_template' | 'window_closed' | 'no_phone' | 'failed';
+  | 'sent'
+  | 'sent_template'
+  | 'window_closed'
+  | 'no_phone'
+  | 'bot_paused'
+  | 'failed';
 
 /** The line that says a stated requirement was filed, or nothing. */
 export function buildRequirementLine(
@@ -663,6 +669,8 @@ export function buildAgentReply(args: {
     reply += `\n⏳ Couldn't ask ${first} directly — their 24-hour window is closed and the *Enquiry timeline* template isn't approved on this account yet.`;
   } else if (args.askOutcome === 'no_phone') {
     reply += `\n⏳ Couldn't message ${first} — no phone number on their contact.`;
+  } else if (args.askOutcome === 'bot_paused') {
+    reply += `\n⏸️ Didn't ask ${first} — the bot is switched off in their chat.`;
   } else {
     reply += `\n⚠️ Couldn't reach ${first} on WhatsApp just now.`;
   }
@@ -1097,6 +1105,7 @@ async function askClientForTimeline(args: {
     columns: 'id',
   });
   if (!conversation) return 'failed';
+  if (await isBotPaused(db, accountId, conversation.id)) return 'bot_paused';
 
   const { data: lastCustomer } = await db
     .from('messages')

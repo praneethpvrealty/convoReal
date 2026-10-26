@@ -212,6 +212,7 @@ Metadata tracking active chat threads.
 - `contact_phone` (TEXT): Normalized recipient phone.
 - `last_message_text` (TEXT) / `last_message_at` (TIMESTAMPTZ).
 - `unread_count` (INTEGER).
+- `bot_paused_at` (TIMESTAMPTZ): set while an agent has switched the bot off for this thread; every automated bot message to it is held back.
 
 #### 12. `messages`
 

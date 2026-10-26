@@ -257,6 +257,16 @@ export default function ConversationScreen() {
         () =>
           queryClient.invalidateQueries({ queryKey: ['message-reactions', id] })
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversations',
+          filter: `id=eq.${id}`,
+        },
+        () => queryClient.invalidateQueries({ queryKey: ['conversation', id] })
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -525,6 +535,7 @@ export default function ConversationScreen() {
             <ThreadHeader
               title={title}
               status={conversation?.status}
+              botPaused={Boolean(conversation?.bot_paused_at)}
               awaiting={Boolean(conversation && needsReply(conversation))}
               silence={conversation ? unanswered(conversation) : null}
               onOpenContact={
@@ -811,6 +822,7 @@ export default function ConversationScreen() {
         contactId={conversation?.contact?.id}
         status={conversation?.status}
         isArchived={conversation?.is_archived}
+        botPaused={Boolean(conversation?.bot_paused_at)}
       />
       <AppDialog {...dialogProps} />
       <AppDialog {...callLogProps} />
@@ -830,6 +842,7 @@ const STATUS_LABELS: Record<string, string> = {
 function ThreadHeader({
   title,
   status,
+  botPaused,
   awaiting,
   silence,
   onCall,
@@ -837,6 +850,7 @@ function ThreadHeader({
 }: {
   title: string;
   status?: string;
+  botPaused?: boolean;
   awaiting?: boolean;
   silence?: ReturnType<typeof unanswered>;
   onCall?: () => void;
@@ -897,6 +911,9 @@ function ThreadHeader({
               : silence
                 ? unansweredLabel(silence)
                 : (STATUS_LABELS[status] ?? status)}
+            {botPaused ? (
+              <Text style={{ color: colors.warning }}> · Bot off</Text>
+            ) : null}
           </Text>
         ) : null}
       </View>

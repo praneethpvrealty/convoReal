@@ -86,3 +86,14 @@ export const INBOUND_STEPS: InboundStep[] = [
   { name: 'leadQuestion', run: leadQuestion },
   { name: 'automations', run: automations },
 ];
+
+export const STEPS_WHILE_BOT_PAUSED: ReadonlySet<string> = new Set([
+  'controlReply',
+  'bridgedAgentReply',
+  'autoHeat',
+  'leadPing',
+  'broadcastReplyFlag',
+  'ownerDigestCommand',
+  'closeEnquiryTap',
+  'buyerAlertsCommand',
+]);
