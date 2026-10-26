@@ -90,4 +90,30 @@ describe('[CNV-001] sendLeadArrivalReplies', () => {
       expect(autoReply).toHaveBeenCalledTimes(1);
     }
   );
+
+  it('[INB-044] holds the welcome when the lead’s chat could not be resolved but its bot is off', async () => {
+    notice.mockResolvedValue('available');
+    const paused = {
+      from: () => {
+        const chain = {
+          select: () => chain,
+          eq: () => chain,
+          not: () => chain,
+          limit: () =>
+            Promise.resolve({ data: [{ id: 'conv-1' }], error: null }),
+        };
+        return chain;
+      },
+    } as unknown as SupabaseClient;
+
+    const result = await sendLeadArrivalReplies({
+      ...args,
+      supabase: paused,
+      conversationId: null,
+      matchedPropertyId: null,
+    });
+
+    expect(autoReply).not.toHaveBeenCalled();
+    expect(result.autoReply).toMatchObject({ success: false });
+  });
 });

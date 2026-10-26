@@ -960,7 +960,7 @@ describe('[INB-034] resolveSubjectProperties reads the burst from the thread', (
   });
 });
 
-describe('[INB-044] a bot aside while an agent handles the thread keeps the subject', () => {
+describe('[INB-045] a bot aside while an agent handles the thread keeps the subject', () => {
   const VILLA: ListingRef = {
     id: 'prop-1153',
     property_code: 'PROP-1153',

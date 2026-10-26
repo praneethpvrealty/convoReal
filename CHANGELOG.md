@@ -30,7 +30,7 @@ than a written entry. Newest first.
   requirements, each with its own budget. While an agent is handling a
   thread, a listing the bot links in passing no longer replaces the listing
   the agent is discussing, so the buyer's questions are answered about the
-  right property (INB-044).
+  right property (INB-045).
 
 #### 25 October 2026
 

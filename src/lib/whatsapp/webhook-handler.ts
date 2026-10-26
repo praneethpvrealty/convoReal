@@ -58,6 +58,7 @@ import {
   lookupInternalIdByMetaId,
 } from '@/lib/whatsapp/inbound/reactions';
 import { handleInboundChain } from '@/lib/whatsapp/inbound/chain/run';
+import { isBotPaused } from '@/lib/conversations/bot-pause';
 import type { InboundChainPayload } from '@/lib/whatsapp/inbound/chain/context';
 
 export interface WhatsAppMessage {
@@ -1090,6 +1091,7 @@ async function qualifyDeferredLine(
     `[webhook] deferred message ${messageId} carried no payload; ${line ? 'qualifying it only' : 'nothing to rerun'}`
   );
   if (!line) return;
+  if (await isBotPaused(supabaseAdmin(), accountId, conversation.id)) return;
   await processBuyerQualificationMessage(
     line,
     contactRecord,

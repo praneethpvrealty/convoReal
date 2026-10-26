@@ -1838,7 +1838,7 @@ describe('[CNV-011] a two-letter acknowledgement is not a locality', () => {
   });
 });
 
-describe('[INB-044] burstRequirements keeps a sectioned brief apart', () => {
+describe('[INB-045] burstRequirements keeps a sectioned brief apart', () => {
   it('files only the first section of an earlier brief in the burst', () => {
     const brief =
       'COMMERCIAL:\nOffice inside a tech park in Whitefield\nBudget: 20cr-100 cr+\nRESIDENTIAL:\nVilla, plot 6000 sqft\nBudget: 10cr-100 cr+';

@@ -208,7 +208,7 @@ B. Villa: plot size 6k-8k minimum.
 - Individual stand alone residential Building/House. G+1 or Higher.
 - Plot size : Flexible ; 1800 sqft to 10k+ sqft or Higher.`;
 
-describe('[INB-044] statesRequirementBrief', () => {
+describe('[INB-045] statesRequirementBrief', () => {
   it('reads a brief under a requirement heading', () => {
     expect(statesRequirementBrief(SECTIONED_BRIEF)).toBe(true);
     expect(statesRequirementBrief('Requirement - 3 bhk in HSR')).toBe(true);
@@ -234,7 +234,7 @@ describe('[INB-044] statesRequirementBrief', () => {
   });
 });
 
-describe('[INB-044] splitRequirementSections', () => {
+describe('[INB-045] splitRequirementSections', () => {
   it('splits the 26 October brief into its commercial and residential searches', () => {
     const [commercial, residential, ...rest] =
       splitRequirementSections(SECTIONED_BRIEF);

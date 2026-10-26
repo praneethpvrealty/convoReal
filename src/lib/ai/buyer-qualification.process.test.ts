@@ -1202,7 +1202,7 @@ describe('processBuyerQualificationMessage — a buy-or-rent correction', () => 
   });
 });
 
-describe('[INB-044] a sectioned brief is filed as one requirement per section', () => {
+describe('[INB-045] a sectioned brief is filed as one requirement per section', () => {
   const brief =
     'COMMERCIAL:\nOffice floor inside a tech park in Whitefield\nBudget: 20cr-100 cr+\n\nRESIDENTIAL:\nVilla, plot size 6000 sqft minimum\nBudget: 10cr-100 cr+';
   const commercialPrefs = {

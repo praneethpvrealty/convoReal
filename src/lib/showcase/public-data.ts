@@ -16,6 +16,7 @@ import type {
 } from '@/types';
 import type { ShowcaseStyle } from '@/lib/showcase/style';
 import { resolveSellerPage } from '@/lib/showcase/seller-page';
+import { SHOWCASE_LISTED_STATUSES } from '@/lib/showcase/listed-statuses';
 
 export interface ShowcaseData {
   settings: ShowcaseSettings | null;
@@ -49,8 +50,6 @@ export interface ShowcaseData {
   services: AgencyService[];
   articles: AgencyArticle[];
 }
-
-const SHOWCASE_LISTED_STATUSES = ['Available', 'Under Contract'];
 
 export function splitShowcaseListings(rows: Property[]): {
   properties: Property[];

@@ -1,10 +1,11 @@
 import { isBuyerRequirementMessage } from '@/lib/ai/lead-routing';
 import { detailsRequestForSharedListing } from '@/lib/ai/named-share';
 import { isEngineControlReplyId } from '@/lib/whatsapp/control-reply-ids';
+import { isBotPaused } from '@/lib/conversations/bot-pause';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isEarliestCustomerMessage } from '@/lib/whatsapp/serialized-inbound';
 import type { InboundChainContext, InboundChainPayload } from './context';
-import { INBOUND_STEPS } from './steps';
+import { INBOUND_STEPS, STEPS_WHILE_BOT_PAUSED } from './steps';
 
 async function reloadRow<T extends { id: string }>(
   table: 'contacts' | 'conversations',
@@ -131,7 +132,14 @@ export async function handleInboundChain(
     accountId,
     accessToken
   );
-  for (const step of INBOUND_STEPS) {
+  const steps = (await isBotPaused(
+    supabaseAdmin(),
+    accountId,
+    ctx.conversation.id
+  ))
+    ? INBOUND_STEPS.filter((step) => STEPS_WHILE_BOT_PAUSED.has(step.name))
+    : INBOUND_STEPS;
+  for (const step of steps) {
     if ((await step.run(ctx)) === 'handled') return;
   }
 }

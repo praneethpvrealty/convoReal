@@ -218,6 +218,12 @@ describe('buildAgentReply', () => {
     expect(reply).not.toContain('Asked Surya when to expect');
   });
 
+  it('[INB-044] says the client was not asked because the bot is off in their chat', () => {
+    const reply = buildAgentReply({ ...base, askOutcome: 'bot_paused' });
+    expect(reply).toContain('the bot is switched off in their chat');
+    expect(reply).not.toContain('Asked Surya when to expect');
+  });
+
   it('counts a template send as having asked them', () => {
     expect(buildAgentReply({ ...base, askOutcome: 'sent_template' })).toContain(
       'Asked Surya when to expect their update'

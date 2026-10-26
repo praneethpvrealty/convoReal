@@ -366,7 +366,7 @@ describe('handlePropertyDisinterestMessage for a listing owner', () => {
   });
 });
 
-describe('[INB-044] "not interested in" a purpose is not a rejection', () => {
+describe('[INB-045] "not interested in" a purpose is not a rejection', () => {
   it.each([
     'Not interested in Investment.',
     'This all property purchase will be registered on my name. Not interested in Investment, Just Ready to move in.',

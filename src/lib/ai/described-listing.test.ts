@@ -178,7 +178,7 @@ describe('describedListingAmong', () => {
   });
 });
 
-describe("[INB-044] a requirement floor or the buyer's own purchase points at nothing", () => {
+describe("[INB-045] a requirement floor or the buyer's own purchase points at nothing", () => {
   it.each([
     'A. Flat: 6k dimension or above. Plot 1800 sqft',
     'Plot size 2400 sqft and above',

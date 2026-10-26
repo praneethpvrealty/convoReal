@@ -267,6 +267,63 @@ function makeDb(
 }
 
 describe('sendWhatsAppMessageAndPersist', () => {
+  it('[INB-044] holds back a bot message to a chat the agent switched the bot off for', async () => {
+    const db = makeDb({
+      existingConversation: {
+        id: 'conv-1',
+        bot_paused_at: '2026-10-26T10:30:00.000Z',
+      },
+    });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+    const { BOT_PAUSED_BLOCKED_MESSAGE } =
+      await import('@/lib/conversations/bot-pause');
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      conversationId: 'conv-1',
+      kind: 'text',
+      senderType: 'bot',
+      text: 'Nothing live fits this yet',
+      customDbClient: db,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      error: BOT_PAUSED_BLOCKED_MESSAGE,
+    });
+    expect(db._inserts.messages).toEqual([]);
+  });
+
+  it('[INB-044] still sends the agent’s own reply while the bot is off', async () => {
+    const db = makeDb({
+      existingConversation: {
+        id: 'conv-1',
+        bot_paused_at: '2026-10-26T10:30:00.000Z',
+      },
+    });
+    const { sendWhatsAppMessageAndPersist } =
+      await import('./meta-api-dispatcher');
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      userId: 'agent-1',
+      contactId: CONTACT_ID,
+      conversationId: 'conv-1',
+      kind: 'text',
+      senderType: 'agent',
+      text: 'Adarsh Palm Meadows',
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(db._inserts.messages).toEqual([
+      expect.objectContaining({ sender_type: 'agent' }),
+    ]);
+  });
+
   beforeEach(() => {
     writeJourneyEventMock.mockReset();
     vi.stubGlobal(
