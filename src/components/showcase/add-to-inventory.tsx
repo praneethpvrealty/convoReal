@@ -79,7 +79,9 @@ async function probeViewer(propertyId: string): Promise<Probe> {
  * One probe for every listing the page holds, seeding each listing's
  * cache entry so the grid cards and the open listing read it without a
  * request of their own. A signed-out visitor costs a single request: the
- * first answer that says so stops the rest.
+ * first answer that says so stops the rest. The entries live as long as
+ * the page, because nothing asks again for a listing whose card was
+ * filtered out and later comes back.
  */
 export function useShowcaseImportViewers(
   propertyIds: string[],
@@ -93,6 +95,10 @@ export function useShowcaseImportViewers(
     queryFn: async () => {
       const result = await fetchViewers(ids);
       if (result.signedOut) return true;
+      queryClient.setQueryDefaults(['showcase-import'], {
+        gcTime: Infinity,
+        staleTime: Infinity,
+      });
       for (const id of ids) {
         if (queryClient.getQueryData(probeKey(id)) === undefined) {
           const entry: Probe = {
@@ -153,6 +159,7 @@ export function AddToInventory({
     enabled: !signedOut && probe,
     retry: false,
     staleTime: Infinity,
+    gcTime: Infinity,
   });
 
   useEffect(() => {

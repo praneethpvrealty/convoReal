@@ -146,6 +146,42 @@ describe('AddToInventory', () => {
     );
   });
 
+  it('[PRP-053] keeps each listing\u2019s answer while no card shows it, so a card that comes back still offers the control', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { gcTime: 0 } },
+    });
+    const view = render(
+      <QueryClientProvider client={client}>
+        <Catalog ids={['prop-a', 'prop-b']} />
+      </QueryClientProvider>
+    );
+    await waitFor(() =>
+      expect(client.getQueryData(['showcase-import', 'prop-b'])).toBeTruthy()
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <Catalog ids={['prop-a', 'prop-b']} />
+        <AddToInventory
+          propertyId="prop-b"
+          title="Whitefield Apartment"
+          variant="icon"
+          probe={false}
+          signedOut={false}
+          onSignedOut={() => {}}
+        />
+      </QueryClientProvider>
+    );
+    expect(
+      screen.getByRole('button', {
+        name: 'Add Whitefield Apartment to my inventory',
+      })
+    ).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('[PRP-053] splits a large catalog into probes of at most the route\u2019s limit', async () => {
     const ids = Array.from(
       { length: VIEWER_BATCH_SIZE + 5 },
