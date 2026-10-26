@@ -2,13 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { describedListingAmong } from '@/lib/ai/described-listing';
 import { asksDetailsOfDescribedListing } from '@/lib/ai/requirement-signal';
 
-const RECENT_SHARES = 20;
+const RECENT_SHARES = 5;
 
-/**
- * The listing already shared with this contact that a details request
- * names by its price, size or a word of its own, or null. A message
- * that names one is a question about it, never a requirement.
- */
 export async function detailsRequestForSharedListing(
   db: SupabaseClient,
   accountId: string,

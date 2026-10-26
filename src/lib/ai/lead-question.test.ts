@@ -262,9 +262,6 @@ describe('requestsHumanContact', () => {
   });
 
   it('[INB-041] reads a lead asking for an expert or an official as asking for a person', () => {
-    // The reported thread: both were answered by the bot, the first
-    // with two listing pitches and the second with "Yes, I am here to
-    // assist you directly".
     for (const text of [
       'I think I need a expert to guide me ?\n\nI am not able to figure out my requirement in your website?',
       'Any official?',
@@ -310,6 +307,16 @@ describe('requestsHumanContact', () => {
 });
 
 describe('repliesRatherThanOpens', () => {
+  it('[INB-043] keeps a details request about a sent listing out of flow entry', () => {
+    const text = 'Commercial property in hope farm 48 cr, details';
+    expect(repliesRatherThanOpens(text, { listingAlreadySent: true })).toBe(
+      true
+    );
+    expect(repliesRatherThanOpens(text, { listingAlreadySent: false })).toBe(
+      false
+    );
+  });
+
   // The reported bug. A buyer sent a commercial building's card asked
   // four questions about it; `rent`, in "rent received per tenant??",
   // matched the showcase funnel's keyword trigger and the welcome menu

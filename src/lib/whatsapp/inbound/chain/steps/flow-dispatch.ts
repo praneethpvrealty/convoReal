@@ -6,6 +6,7 @@ import {
   repliesRatherThanOpens,
 } from '@/lib/ai/lead-question';
 import {
+  asksDetailsOfDescribedListing,
   asksListingAttribute,
   disputesSharedListing,
 } from '@/lib/ai/requirement-signal';
@@ -46,6 +47,7 @@ export async function flowDispatch(
         listingAlreadySent:
           looksLikeQuestion(inboundText) ||
           asksListingAttribute(inboundText) ||
+          asksDetailsOfDescribedListing(inboundText) ||
           disputesSharedListing(inboundText)
             ? await hasBeenSentAListing(
                 supabaseAdmin(),

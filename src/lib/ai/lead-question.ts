@@ -30,6 +30,7 @@ import {
 } from '@/lib/inventory/location-guard';
 import { PORTALS } from '@/lib/portals/post-kit';
 import {
+  asksDetailsOfDescribedListing,
   asksListingAttribute,
   disputesSharedListing,
 } from '@/lib/ai/requirement-signal';
@@ -318,15 +319,9 @@ const OWN_CALL_OFFER =
 const HUMAN_REQUEST =
   /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/g;
 
-/** "I think I need a expert to guide me", "need someone to help me": a
- *  lead asking for a person to advise them. On 26 October the bot
- *  answered this with two listing pitches, and then "Any official?"
- *  with "Yes, I am here to assist you directly". */
 const ADVISOR_REQUEST =
   /\b(?:need|want|require|looking for)(?: to (?:talk|speak) to)? (?:a |an |some |your |one )?(?:(?:expert|human|real person|executive|representative|advisor|adviser|consultant|official)s?(?=[\s?.!,]*$|[\s,]+(?:to|who|that|for (?:me|us)|from|please|pls|plz|sir|madam|here|now)\b)|(?:someone|somebody|some ?one|a person) (?:to|who can|who could) (?:guide|help|assist|advise|explain)\b)/g;
 
-/** The whole message asking whether a person is there: "Any official?",
- *  "is there a human", "are you a bot?". */
 const BARE_HUMAN_QUESTION =
   /^(?:(?:hi|hello|sir|madam)[\s,]+)*(?:(?:is there|are there|any)(?: an?)? (?:official|human|real person|person|agent|executive|representative|expert|staff|(?:anyone|someone|somebody) from (?:the|your) team)|(?:are (?:you|u)|is this) (?:a |an )?(?:bot|robot|machine|human|real person|automated))\b[\s?.!]*(?:here|there|available|to talk|to help)?[\s?.!]*$/;
 
@@ -585,6 +580,7 @@ export function repliesRatherThanOpens(
     options.listingAlreadySent &&
     (looksLikeQuestion(text) ||
       asksListingAttribute(text) ||
+      asksDetailsOfDescribedListing(text) ||
       disputesSharedListing(text))
   );
 }
