@@ -30,6 +30,7 @@ import {
 } from '@/lib/inventory/location-guard';
 import { PORTALS } from '@/lib/portals/post-kit';
 import {
+  asksDetailsOfDescribedListing,
   asksListingAttribute,
   disputesSharedListing,
 } from '@/lib/ai/requirement-signal';
@@ -46,6 +47,7 @@ import {
   quotesListing,
   shareEvents,
   type InboundSubjectContext,
+  type SubjectThread,
 } from '@/lib/learning/subject';
 import {
   parseOrdinalReferences,
@@ -318,6 +320,12 @@ const OWN_CALL_OFFER =
 const HUMAN_REQUEST =
   /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/g;
 
+const ADVISOR_REQUEST =
+  /\b(?:need|want|require|looking for)(?: to (?:talk|speak) to)? (?:a |an |some |your |one )?(?:(?:expert|human|real person|executive|representative|advisor|adviser|consultant|official)s?(?=[\s?.!,]*$|[\s,]+(?:to|who|that|for (?:me|us)|from|please|pls|plz|sir|madam|here|now)\b)|(?:someone|somebody|some ?one|a person) (?:to|who can|who could) (?:guide|help|assist|advise|explain)\b)/g;
+
+const BARE_HUMAN_QUESTION =
+  /^(?:(?:hi|hello|sir|madam)[\s,]+)*(?:(?:is there|are there|any)(?: an?)? (?:official|human|real person|person|agent|executive|representative|expert|staff|(?:anyone|someone|somebody) from (?:the|your) team)|(?:are (?:you|u)|is this) (?:a |an )?(?:bot|robot|machine|human|real person|automated))\b[\s?.!]*(?:here|there|available|to talk|to help)?[\s?.!]*$/;
+
 /** "Can you arrange a meeting with the owner", "I want to meet the
  *  owner": a meeting is a request only after a request cue, or as a
  *  bare imperative opening the clause. "I had a discussion with the
@@ -539,8 +547,11 @@ export function asksForContactNumber(text?: string | null): boolean {
 export function requestsHumanContact(text?: string | null): boolean {
   return (
     BARE_CALL_MESSAGE.test(normaliseCallText(text).trim()) ||
-    callClauses(text).some((clause) =>
-      unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST)
+    BARE_HUMAN_QUESTION.test(normaliseCallText(text).trim()) ||
+    callClauses(text).some(
+      (clause) =>
+        unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST) ||
+        unrefusedMatch(clause, ADVISOR_REQUEST)
     ) ||
     (!VISIT_OR_TIME.test(normaliseCallText(text)) &&
       callClauses(text).some(
@@ -570,6 +581,7 @@ export function repliesRatherThanOpens(
     options.listingAlreadySent &&
     (looksLikeQuestion(text) ||
       asksListingAttribute(text) ||
+      asksDetailsOfDescribedListing(text) ||
       disputesSharedListing(text))
   );
 }
@@ -654,6 +666,15 @@ async function loadSubjects(
  *  at something sent recently; six covers two shortlists. */
 const DESCRIBED_LOOKBACK_SHARES = 6;
 
+export function recentShareCandidates(
+  thread: SubjectThread
+): DescribedCandidate[] {
+  const recent = shareEvents(thread)
+    .slice(0, DESCRIBED_LOOKBACK_SHARES)
+    .map((event) => event.propertyId);
+  return thread.candidates.filter((candidate) => recent.includes(candidate.id));
+}
+
 /**
  * The listing among the buyer's recent shares that their words describe
  * — "the 40,000 sqft one", "the Chikatogur plot" — or null when they
@@ -732,13 +753,11 @@ export async function questionSubjectProperties(
 
   const propertyIds = decideSubjects(thread);
   if (questionText && !quotesListing(thread)) {
-    const recent = shareEvents(thread)
-      .slice(0, DESCRIBED_LOOKBACK_SHARES)
-      .map((event) => event.propertyId);
-    const candidates: DescribedCandidate[] = thread.candidates.filter(
-      (candidate) => recent.includes(candidate.id)
+    const described = describedSubject(
+      questionText,
+      recentShareCandidates(thread),
+      propertyIds
     );
-    const described = describedSubject(questionText, candidates, propertyIds);
     if (described) return loadSubjects(db, accountId, [described]);
   }
 

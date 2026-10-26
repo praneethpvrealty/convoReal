@@ -316,3 +316,29 @@ describe('isPreferenceFlowRequestText', () => {
     ).toBe(false);
   });
 });
+
+describe('[INB-042] a lead stating a preference is not asking for the form', () => {
+  it('leaves an answer that mentions "my preference" to the agent', () => {
+    for (const text of [
+      'My preference is Property inside tech park .. since that is well maintained..',
+      'my preference would be east facing',
+      'My preferences are Whitefield and Marathahalli',
+      'As per my preference, a corner plot',
+    ]) {
+      expect(isPreferenceFlowRequestText(text), text).toBe(false);
+    }
+  });
+
+  it('still opens the form when asked', () => {
+    for (const text of [
+      'My preferences',
+      'my preference?',
+      'show my preferences',
+      'Update my preferences',
+      'change my preference to villas',
+      'send me the preference form',
+    ]) {
+      expect(isPreferenceFlowRequestText(text), text).toBe(true);
+    }
+  });
+});

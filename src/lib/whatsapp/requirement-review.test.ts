@@ -86,6 +86,16 @@ describe('buildRequirementSummary', () => {
     expect(summary).toContain('no fixed budget');
   });
 
+  it('[INB-043] shows one figure when the budget range has collapsed to it', () => {
+    const summary = buildRequirementSummary({
+      ...aryan,
+      pref_budget_min: 500_000_000,
+      pref_budget_max: 500_000_000,
+    } as Contact)!;
+    expect(summary).toContain('₹50 Cr');
+    expect(summary).not.toContain('₹50 Cr–₹50 Cr');
+  });
+
   it('shows a BHK range when one is on file', () => {
     const summary = buildRequirementSummary({
       ...aryan,

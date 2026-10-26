@@ -160,6 +160,25 @@ export function asksAboutSharedListing(text?: string | null): boolean {
   );
 }
 
+const DETAILS_WORD =
+  '(?:full |complete |more |property |listing )?(?:details?|info|information|specs?|specifications?|brochure)';
+const DETAILS_ASK = new RegExp(
+  `(?:\\b${DETAILS_WORD}\\s*(?:\\?|(?:pls|please|plz|sir|madam)\\b)[\\s?.!]*$|\\b${DETAILS_WORD}[\\s.!]*$|^(?:pls |please |kindly )?(?:send |give |what are |tell me )?(?:the )?${DETAILS_WORD} (?:of|about|for|on)\\b|\\b(?:what are|tell me|send|give)(?: me)? (?:the )?${DETAILS_WORD}\\b|\\btell me (?:more )?about\\b)`,
+  'i'
+);
+const NOT_A_DETAILS_ASK =
+  /\b(?:thanks?|thank (?:you|u)|thx|tnx|ty|got (?:it|the)|received|noted|shared|sent|sending|sharing|here (?:is|are)|attached)\b|\b(?:my|our|his|her|their)\s+(?:\w+\s+)?(?:details?|info|information)\b/i;
+
+export function asksDetailsOfDescribedListing(text?: string | null): boolean {
+  const clean = (text || '').trim();
+  if (!clean || clean.split(/\s+/).length > 16) return false;
+  return (
+    DETAILS_ASK.test(clean) &&
+    !NOT_A_DETAILS_ASK.test(clean) &&
+    !REQUIREMENT_INTENT.test(clean)
+  );
+}
+
 /**
  * True when an inbound message plausibly carries requirement detail —
  * a property type, a budget figure, a size, or an explicit "looking for".

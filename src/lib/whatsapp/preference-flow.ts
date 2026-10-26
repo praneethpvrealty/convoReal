@@ -440,7 +440,7 @@ export function isPreferenceFlowRequestText(
   if (!text) return false;
   const cleaned = text.trim().toLowerCase();
   if (cleaned.length > 80) return false;
-  return /\b(update|change|edit|set|modify)\b.{0,24}\bpreferences?\b|\bmy preferences?\b|\bpreference form\b/.test(
+  return /\b(update|change|edit|set|modify)\b.{0,24}\bpreferences?\b|^(?:(?:show|see|view|check|open|send)(?: me)? )?my preferences?(?: form)?[\s.!?]*$|\bpreference form\b/.test(
     cleaned
   );
 }
