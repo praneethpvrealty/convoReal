@@ -276,6 +276,7 @@ describe('[INB-048] asksWhereListingIs', () => {
     'where is it located',
     'Which part of Whitefield?',
     'Ok, where in Sarjapur?',
+    'Where is the villa?',
   ])('reads %s as a question about where the listing is', (text) => {
     expect(asksWhereListingIs(text)).toBe(true);
     expect(asksAboutSharedListing(text)).toBe(true);
@@ -289,6 +290,11 @@ describe('[INB-048] asksWhereListingIs', () => {
     'Where in Whitefield do you have villas available for purchase?',
     'Where in Whitefield, 2400 sqft plot',
     'Which area is best for a villa?',
+    'Where can I buy a villa?',
+    'Where to buy plots in Whitefield',
+    'Where can I get a 3 bhk?',
+    'Where are 2 bhk flats available?',
+    'Where are villas for rent?',
   ])('does not read %s as one', (text) => {
     expect(asksWhereListingIs(text)).toBe(false);
   });

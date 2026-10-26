@@ -155,6 +155,10 @@ export function disputesSharedListing(text?: string | null): boolean {
 const WHERE_QUESTION =
   /^(?:(?:and|so|but|ok(?:ay)?|sir|pls|please)[,\s]+)?(?:where|whr)\b|^(?:which|what)\s+(?:part|side|area|portion|end|phase|stage|block|sector)\s+(?:of|in)\s+\S/i;
 const MAX_WHERE_QUESTION_WORDS = 8;
+// "Where can I buy a villa?", "Where to buy plots in Whitefield": a
+// where-question that searches.
+const WHERE_SEARCH =
+  /\b(?:buy|buying|purchase|rent|renting|lease|leasing|invest\w*|get|available|availability|sell|selling)\b/i;
 
 /** True when the message is a short question about where the listing
  *  is — "Where in Whitefield?", "Where?", "Which part of HSR?". */
@@ -166,7 +170,9 @@ export function asksWhereListingIs(text?: string | null): boolean {
     WHERE_QUESTION.test(clean) &&
     !statesBudget(clean) &&
     !SIZE_SIGNAL.test(clean) &&
-    !REQUIREMENT_INTENT.test(clean)
+    !REQUIREMENT_INTENT.test(clean) &&
+    !WHERE_SEARCH.test(clean) &&
+    (!PROPERTY_TYPE_SIGNAL.test(clean) || LISTING_REFERENCE.test(clean))
   );
 }
 

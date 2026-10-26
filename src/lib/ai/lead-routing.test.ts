@@ -408,5 +408,9 @@ describe('[INB-048] a where-question about the listing goes to the listing Q&A',
     expect(routeLeadMessage('Where can I find a 2 bhk under 80 lakh?')).toBe(
       'qualification'
     );
+    expect(routeLeadMessage('Where can I buy a villa?')).toBe('qualification');
+    expect(routeLeadMessage('Where to buy plots in Whitefield')).toBe(
+      'qualification'
+    );
   });
 });
