@@ -793,6 +793,10 @@
               "case": "[INB-044]"
             },
             {
+              "file": "src/app/api/leads/email-webhook/lead-replies.test.ts",
+              "case": "[INB-044]"
+            },
+            {
               "file": "src/lib/journey/client-response.test.ts",
               "case": "[INB-044]"
             }

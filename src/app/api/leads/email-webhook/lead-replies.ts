@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { EmailSyncConfig } from '@/types';
+import {
+  BOT_PAUSED_BLOCKED_MESSAGE,
+  isContactBotPaused,
+} from '@/lib/conversations/bot-pause';
 import { sendAutoReply, type SendAutoReplyResult } from './auto-reply';
 import {
   sendUnavailableListingReply,
@@ -52,6 +56,16 @@ export async function sendLeadArrivalReplies(args: {
       `[lead-webhook] Listing status notice (${notice}) greeted contact ${args.contactId}; welcome skipped`
     );
     return { notice, autoReply: null };
+  }
+
+  if (
+    !args.conversationId &&
+    (await isContactBotPaused(args.supabase, args.accountId, args.contactId))
+  ) {
+    return {
+      notice,
+      autoReply: { success: false, error: BOT_PAUSED_BLOCKED_MESSAGE },
+    };
   }
 
   const autoReply = await sendAutoReply({

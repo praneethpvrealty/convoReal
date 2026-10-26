@@ -40,3 +40,25 @@ export async function isBotPaused(
   }
   return isBotPausedRow(data as { bot_paused_at?: string | null } | null);
 }
+
+export async function isContactBotPaused(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('conversations')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .not('bot_paused_at', 'is', null)
+    .limit(1);
+  if (error) {
+    console.error(
+      `[bot-pause] lookup failed for contact ${contactId}; holding the bot back:`,
+      error.message
+    );
+    return true;
+  }
+  return (data?.length ?? 0) > 0;
+}
