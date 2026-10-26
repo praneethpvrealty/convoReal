@@ -68,6 +68,7 @@ import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import { localityStemsMatch, textNamesLocality } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
+import { isBotPaused } from '@/lib/conversations/bot-pause';
 import type { Contact, ContactRequirementProfile, Property } from '@/types';
 import { formatInrCompact } from '@/lib/format/currency';
 
@@ -1687,6 +1688,20 @@ export async function processBuyerQualificationMessage(
         .map((m) => m.content_text as string | null)
     );
 
+    // Extraction and ranking take seconds, and a person who replied in
+    // the meantime has put the bot on hold (INB-046). reply() sends
+    // straight to Meta, past the dispatcher's own hold check, so the
+    // hold is read again at each send.
+    const agentTookOver = async (): Promise<boolean> => {
+      if (!(await isBotPaused(db, accountId, conversation.id))) return false;
+      void generateMatchEventForContact(db, accountId, contact.id).catch(
+        (err) => {
+          console.error('[buyer-qualification] radar event failed:', err);
+        }
+      );
+      return true;
+    };
+
     // "More site": nothing to file and nothing to ask — the next
     // listings this lead has not been sent, or an honest "that's all".
     if (routeLeadMessage(text) === 'more_listings') {
@@ -1708,6 +1723,7 @@ export async function processBuyerQualificationMessage(
             buildMoreListingsOpening(contact.name, shown.length)
           )
         : buildNoMoreListingsReply(contact.name);
+      if (await agentTookOver()) return false;
       await reply(
         moreReply,
         contactRecord,
@@ -2018,6 +2034,7 @@ export async function processBuyerQualificationMessage(
         pref_areas: prefs.areas,
         pref_listing_types: prefs.listing_types,
       } as Contact;
+      if (await agentTookOver()) return false;
       // The card is already the latest thing the lead sees, and the
       // brief it shows has not moved: acknowledge rather than repeat it.
       if (requirementReviewAlreadyShown(reviewContact, recentBotTexts)) {
@@ -2060,6 +2077,7 @@ export async function processBuyerQualificationMessage(
         : null
     );
 
+    if (await agentTookOver()) return false;
     await reply(
       outcome.reply,
       contactRecord,
@@ -2068,7 +2086,11 @@ export async function processBuyerQualificationMessage(
       phoneNumberId
     );
 
-    if (outcome.sentPropertyIds.length > 0 && configOwnerUserId) {
+    if (
+      outcome.sentPropertyIds.length > 0 &&
+      configOwnerUserId &&
+      !(await isBotPaused(db, accountId, conversation.id))
+    ) {
       try {
         const consentAsk = await claimBuyerConsentAsk(
           db,

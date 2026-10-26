@@ -1297,3 +1297,95 @@ describe('[INB-045] a sectioned brief is filed as one requirement per section', 
     );
   });
 });
+
+describe('[INB-047] a hold set while the brief is being read holds the reply back', () => {
+  const held = () => [
+    { bot_paused_until: new Date(Date.now() + 60 * 60_000).toISOString() },
+  ];
+  const ask = (text = 'Commercial land in Koramangala, 2 cr') =>
+    processBuyerQualificationMessage(
+      text,
+      { id: 'c1', phone: '919000000000', name: 'Gourishankar' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+  it('sends no requirement card when the agent replied during extraction', async () => {
+    queues.conversations = held();
+
+    expect(await ask()).toBe(false);
+    expect(recordLearnedFacts).toHaveBeenCalled();
+    expect(sendRequirementReview).not.toHaveBeenCalled();
+    expect(sendTextMessage).not.toHaveBeenCalled();
+    expect(generateMatchEventForContact).toHaveBeenCalled();
+  });
+
+  it('sends no shortlist when the agent replied while it was being ranked', async () => {
+    rankPropertiesForContact.mockResolvedValue([
+      {
+        property: {
+          id: 'p-kora',
+          title: 'Commercial Land in Koramangala',
+          type: 'Commercial Land',
+          price: 19_000_000,
+          location: 'Koramangala',
+          city: 'Bangalore',
+        },
+        score: 90,
+        details: {},
+      },
+    ]);
+    queues.conversations = held();
+
+    expect(await ask()).toBe(false);
+    expect(rankPropertiesForContact).toHaveBeenCalled();
+    expect(sendTextMessage).not.toHaveBeenCalled();
+  });
+
+  it('sends no "more listings" reply when the agent replied while they were ranked', async () => {
+    queues.messages = [
+      [
+        { sender_type: 'customer', content_text: 'More site' },
+        { sender_type: 'bot', content_text: 'Here are 3 that fit' },
+      ],
+    ];
+    queues.conversations = held();
+
+    expect(await ask('More site')).toBe(false);
+    expect(rankPropertiesForContact).toHaveBeenCalled();
+    expect(sendTextMessage).not.toHaveBeenCalled();
+  });
+
+  it('sends the shortlist but holds back and keeps the consent ask when the hold lands after it', async () => {
+    rankPropertiesForContact.mockResolvedValue([
+      {
+        property: {
+          id: 'p-kora',
+          title: 'Commercial Land in Koramangala',
+          type: 'Commercial Land',
+          price: 19_000_000,
+          location: 'Koramangala',
+          city: 'Bangalore',
+        },
+        score: 90,
+        details: {},
+      },
+    ]);
+    queues.conversations = [null, ...held()];
+
+    expect(await ask()).toBe(true);
+    expect(sendTextMessage).toHaveBeenCalledTimes(1);
+    expect(queues.conversations).toEqual([]);
+    expect(
+      updates.some((u) => 'buyer_alerts_consent_requested_at' in u.payload)
+    ).toBe(false);
+  });
+
+  it('still answers when no hold is set', async () => {
+    expect(await ask()).toBe(true);
+    expect(sendRequirementReview).toHaveBeenCalled();
+  });
+});

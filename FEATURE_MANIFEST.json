@@ -871,6 +871,17 @@
             "src/lib/ai/lead-routing.ts",
             "src/lib/learning/subject.ts"
           ]
+        },
+        {
+          "id": "INB-047",
+          "rule": "The bot hold a person sets by replying or by switching the bot off (INB-044, INB-046) also holds back a qualification reply that was already being prepared: the ladder reads the hold again after extraction and ranking, just before each send it makes (the requirement playback card, the brief-unchanged acknowledgement, the shortlist or next question, the alerts-consent ask after a shortlist, and the more-listings reply), and stands down when it is set; a consent ask held back this way is not claimed, so it can still be asked later. The buyer's message is still filed and Match Radar fires, so the agent sees what the brief now matches. Sends the ladder makes straight to Meta are covered as well as those through the dispatcher.",
+          "tests": [
+            {
+              "file": "src/lib/ai/buyer-qualification.process.test.ts",
+              "case": "[INB-047]"
+            }
+          ],
+          "guards": ["src/lib/ai/buyer-qualification.ts"]
         }
       ]
     },

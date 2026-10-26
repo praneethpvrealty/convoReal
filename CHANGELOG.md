@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 26 October 2026
 
+- **A bot reply already in progress waits once you reply too.** When you
+  reply in a chat while the bot is still working out its answer to the
+  buyer's last message, the bot now checks the four-hour hold again just
+  before sending. Its requirement card, shortlist, next question or "more
+  listings" reply is held back. What the buyer said is still saved
+  (INB-047).
 - **Add a listing from another brokerage's showcase to your own inventory.**
   A signed-in agent who opens a listing on another brokerage's public showcase
   now sees "Add to my inventory" beside Share. One tap copies the listing into
