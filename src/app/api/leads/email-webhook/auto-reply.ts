@@ -1,3 +1,7 @@
+import {
+  BOT_PAUSED_BLOCKED_MESSAGE,
+  isBotPaused,
+} from '@/lib/conversations/bot-pause';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
@@ -74,6 +78,11 @@ export async function sendAutoReply({
       `${logPrefix} Skipped: auto_reply not enabled and forceSend=false`
     );
     return { success: false, error: 'auto_reply not enabled' };
+  }
+
+  if (await isBotPaused(supabase, accountId, conversationId)) {
+    console.log(`${logPrefix} Skipped: the bot is switched off for this chat`);
+    return { success: false, error: BOT_PAUSED_BLOCKED_MESSAGE };
   }
 
   const { data: waConfig } = await supabase

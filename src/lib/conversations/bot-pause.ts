@@ -25,11 +25,18 @@ export async function isBotPaused(
   conversationId: string | null | undefined
 ): Promise<boolean> {
   if (!conversationId) return false;
-  const { data } = await db
+  const { data, error } = await db
     .from('conversations')
     .select('bot_paused_at')
     .eq('id', conversationId)
     .eq('account_id', accountId)
     .maybeSingle();
+  if (error) {
+    console.error(
+      `[bot-pause] lookup failed for conversation ${conversationId}; holding the bot back:`,
+      error.message
+    );
+    return true;
+  }
   return isBotPausedRow(data as { bot_paused_at?: string | null } | null);
 }

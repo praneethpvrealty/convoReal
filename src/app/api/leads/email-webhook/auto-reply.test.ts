@@ -21,8 +21,12 @@ interface Write {
   payload: Record<string, unknown>;
 }
 
-function mockSupabase(writes: Write[]) {
+function mockSupabase(
+  writes: Write[],
+  extraRows: Record<string, unknown> = {}
+) {
   const rows: Record<string, unknown> = {
+    ...extraRows,
     whatsapp_config: { phone_number_id: 'pn-1', access_token: 'cipher' },
     message_templates: {
       id: 'tpl-1',
@@ -95,6 +99,26 @@ describe('sendAutoReply conversation bookkeeping', () => {
       (w) => w.table === 'conversations' && w.op === 'update'
     );
     expect(update?.payload.awaiting_reply).toBe(false);
+  });
+
+  it('[INB-044] sends no welcome into a chat the agent switched the bot off for', async () => {
+    const writes: Write[] = [];
+    const result = await sendAutoReply({
+      supabase: mockSupabase(writes, {
+        conversations: { bot_paused_at: '2026-10-26T10:30:00.000Z' },
+      }),
+      accountId: 'acc-1',
+      syncConfig,
+      conversationId: 'conv-1',
+      cleanPhone: '919999999999',
+      leadName: 'Monish',
+      leadSource: 'Housing',
+      forceSend: true,
+    });
+
+    expect(result.success).toBe(false);
+    expect(sendTemplateMessage).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
   });
 
   it('moves the inbox preview onto the message it just sent', async () => {

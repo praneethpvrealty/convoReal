@@ -6,7 +6,10 @@ import {
   STEPS_WHILE_BOT_PAUSED,
 } from '@/lib/whatsapp/inbound/chain/steps';
 
-function fakeDb(row: { bot_paused_at: string | null } | null) {
+function fakeDb(
+  row: { bot_paused_at: string | null } | null,
+  error: { message: string } | null = null
+) {
   const filters: Record<string, unknown> = {};
   const chain = {
     select: () => chain,
@@ -14,7 +17,7 @@ function fakeDb(row: { bot_paused_at: string | null } | null) {
       filters[column] = value;
       return chain;
     },
-    maybeSingle: () => Promise.resolve({ data: row, error: null }),
+    maybeSingle: () => Promise.resolve({ data: row, error }),
   };
   return {
     db: { from: () => chain } as unknown as SupabaseClient,
@@ -54,6 +57,11 @@ describe('[INB-044] the per-chat bot switch', () => {
     ]) {
       expect(STEPS_WHILE_BOT_PAUSED.has(consent), consent).toBe(true);
     }
+  });
+
+  it('holds the bot back when the lookup fails', async () => {
+    const { db } = fakeDb(null, { message: 'transient connection error' });
+    await expect(isBotPaused(db, 'acc-1', 'conv-1')).resolves.toBe(true);
   });
 
   it('keeps only steps that never reply to the lead while the bot is off', () => {
