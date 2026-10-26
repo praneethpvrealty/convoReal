@@ -1,36 +1,39 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describedListingAmong } from '@/lib/ai/described-listing';
+import { recentShareCandidates } from '@/lib/ai/lead-question';
 import { asksDetailsOfDescribedListing } from '@/lib/ai/requirement-signal';
+import {
+  loadSubjectThread,
+  type InboundSubjectContext,
+  type SubjectThread,
+} from '@/lib/learning/subject';
 
-const RECENT_SHARES = 5;
+export function detailsRequestInThread(
+  thread: SubjectThread,
+  text: string | null | undefined
+): string | null {
+  if (!asksDetailsOfDescribedListing(text)) return null;
+  return describedListingAmong(text, recentShareCandidates(thread));
+}
 
 export async function detailsRequestForSharedListing(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
-  text: string | null | undefined
+  conversationId: string,
+  text: string | null | undefined,
+  inbound?: InboundSubjectContext
 ): Promise<string | null> {
   if (!asksDetailsOfDescribedListing(text)) return null;
   try {
-    const { data: shares } = await db
-      .from('property_shares')
-      .select('property_id')
-      .eq('account_id', accountId)
-      .eq('contact_id', contactId)
-      .order('created_at', { ascending: false })
-      .limit(RECENT_SHARES);
-    const ids = [
-      ...new Set((shares ?? []).map((s) => s.property_id as string)),
-    ];
-    if (ids.length === 0) return null;
-    const { data: candidates } = await db
-      .from('properties')
-      .select(
-        'id, title, location, sublocality, project, price, area_sqft, super_built_area, land_area, land_area_unit, bedrooms'
-      )
-      .eq('account_id', accountId)
-      .in('id', ids);
-    return describedListingAmong(text, candidates ?? []);
+    const thread = await loadSubjectThread(
+      db,
+      accountId,
+      contactId,
+      conversationId,
+      inbound
+    );
+    return thread ? detailsRequestInThread(thread, text) : null;
   } catch {
     return null;
   }

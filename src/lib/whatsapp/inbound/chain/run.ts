@@ -78,7 +78,9 @@ async function buildInboundChainContext(
       supabaseAdmin(),
       accountId,
       contactRecord.id,
-      contentText
+      conversation.id,
+      contentText,
+      { messageId: message.id, quotedMessageId: message.context?.id ?? null }
     ));
 
   return {

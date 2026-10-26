@@ -47,6 +47,7 @@ import {
   quotesListing,
   shareEvents,
   type InboundSubjectContext,
+  type SubjectThread,
 } from '@/lib/learning/subject';
 import {
   parseOrdinalReferences,
@@ -665,6 +666,15 @@ async function loadSubjects(
  *  at something sent recently; six covers two shortlists. */
 const DESCRIBED_LOOKBACK_SHARES = 6;
 
+export function recentShareCandidates(
+  thread: SubjectThread
+): DescribedCandidate[] {
+  const recent = shareEvents(thread)
+    .slice(0, DESCRIBED_LOOKBACK_SHARES)
+    .map((event) => event.propertyId);
+  return thread.candidates.filter((candidate) => recent.includes(candidate.id));
+}
+
 /**
  * The listing among the buyer's recent shares that their words describe
  * — "the 40,000 sqft one", "the Chikatogur plot" — or null when they
@@ -743,13 +753,11 @@ export async function questionSubjectProperties(
 
   const propertyIds = decideSubjects(thread);
   if (questionText && !quotesListing(thread)) {
-    const recent = shareEvents(thread)
-      .slice(0, DESCRIBED_LOOKBACK_SHARES)
-      .map((event) => event.propertyId);
-    const candidates: DescribedCandidate[] = thread.candidates.filter(
-      (candidate) => recent.includes(candidate.id)
+    const described = describedSubject(
+      questionText,
+      recentShareCandidates(thread),
+      propertyIds
     );
-    const described = describedSubject(questionText, candidates, propertyIds);
     if (described) return loadSubjects(db, accountId, [described]);
   }
 

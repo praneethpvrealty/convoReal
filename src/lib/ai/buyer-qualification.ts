@@ -1572,7 +1572,9 @@ export async function processBuyerQualificationMessage(
         db,
         accountId,
         contactRecord.id,
-        text
+        conversation.id,
+        text,
+        { messageId: metaMessageId }
       )
     )
       return false;
