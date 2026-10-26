@@ -851,7 +851,7 @@
         },
         {
           "id": "INB-046",
-          "rule": "An agent who wrote in a buyer's thread within the last ten minutes is handling it, even when the bot has answered a question since: the qualification ladder still files what the buyer says but sends no requirement card, shortlist or question, and Match Radar fires instead. The ladder checks again just before it sends, so an agent who writes while a brief is being read is not answered over, and the playback sent after a listing turns out unavailable waits the same way. A failed lookup holds the bot back. An agent message older than ten minutes no longer keeps the bot quiet once the bot has replied (INB-007), and a card the buyer asked for by tapping a form or a tweak button is still sent.",
+          "rule": "An agent who wrote in a buyer's thread within the last ten minutes is handling it, even when the bot has answered a question since: the qualification ladder still files what the buyer says but sends no requirement card, shortlist or question, and Match Radar fires instead. The ladder checks again just before it sends, so an agent who writes while a brief is being read is not answered over. A failed lookup holds the bot back. An agent message older than ten minutes no longer keeps the bot quiet once the bot has replied (INB-007),, and a card that answers the buyer's own question or tap (the requirement playback after an unavailable listing, whose reply text promises it; a form or tweak button) is still sent.",
           "tests": [
             {
               "file": "src/lib/conversations/agent-handling.test.ts",
@@ -864,16 +864,11 @@
             {
               "file": "src/lib/ai/buyer-qualification.process.test.ts",
               "case": "[INB-046]"
-            },
-            {
-              "file": "src/lib/whatsapp/unavailable-brief-followup.test.ts",
-              "case": "[INB-046]"
             }
           ],
           "guards": [
             "src/lib/conversations/agent-handling.ts",
-            "src/lib/ai/buyer-qualification.ts",
-            "src/lib/whatsapp/unavailable-brief-followup.ts"
+            "src/lib/ai/buyer-qualification.ts"
           ]
         }
       ]

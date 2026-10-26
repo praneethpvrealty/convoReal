@@ -25,9 +25,8 @@ than a written entry. Newest first.
   the buyer says, but it no longer sends the "nothing live fits this yet"
   card, a shortlist or a question under the agent's messages. It also checks
   again just before sending, in case the agent replied while it was working.
-  The requirement playback after a "that listing is no longer available"
-  reply waits the same way. Ten minutes after the agent's last message the
-  bot takes over again (INB-046).
+  Ten minutes after the agent's last message the bot takes over again
+  (INB-046).
 - **A buyer's written brief is filed as a requirement, not answered as a
   rejection.** A message laid out as a brief, under a "requirement" heading or
   as a list naming a type, budget or size, now always goes to the

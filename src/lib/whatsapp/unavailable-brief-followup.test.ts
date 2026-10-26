@@ -26,19 +26,13 @@ const ramanathan = {
 
 const recentCards: { content_text: string }[] = [];
 
-function dbWith(
-  contact: Record<string, unknown> | null,
-  agentWroteRecently = false
-) {
+function dbWith(contact: Record<string, unknown> | null) {
   return {
     from: (table: string) => {
       const filters: Record<string, unknown> = {};
       const builder = {
         select: () => builder,
-        eq: (column: string, value: unknown) => {
-          filters[column] = value;
-          return builder;
-        },
+        eq: () => builder,
         neq: () => builder,
         gte: () => builder,
         limit: () => builder,
@@ -50,15 +44,11 @@ function dbWith(
           data:
             table === 'contacts'
               ? contact
-              : filters.sender_type === 'agent'
-                ? agentWroteRecently
-                  ? { id: 'agent-message' }
-                  : null
-                : (recentCards.find((row) =>
-                    row.content_text.includes(
-                      String(filters.content_text).replace(/^%|%$/g, '')
-                    )
-                  ) ?? null),
+              : (recentCards.find((row) =>
+                  row.content_text.includes(
+                    String(filters.content_text).replace(/^%|%$/g, '')
+                  )
+                ) ?? null),
           error: null,
         }),
       };
@@ -161,21 +151,6 @@ describe('[PRP-050] the brief played back after a regret', () => {
         accountId: 'acc-1',
         userId: 'owner-1',
         contactId: 'c-2',
-        conversationId: 'conv-1',
-      })
-    ).toBe(false);
-    expect(sendRequirementReview).not.toHaveBeenCalled();
-  });
-});
-
-describe('[INB-046] the regret playback waits for an agent handling the thread', () => {
-  it('sends no card when an agent wrote in the last few minutes', async () => {
-    expect(
-      await sendRequirementConfirmAfterRegret({
-        db: dbWith(ramanathan, true),
-        accountId: 'acc-1',
-        userId: 'owner-1',
-        contactId: 'c-1',
         conversationId: 'conv-1',
       })
     ).toBe(false);
