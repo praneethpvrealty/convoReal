@@ -81,7 +81,10 @@ export async function sendAutoReply({
   }
 
   if (await isBotPaused(supabase, accountId, conversationId)) {
-    console.log(`${logPrefix} Skipped: the bot is switched off for this chat`);
+    console.log(
+      '[lead-webhook][sendAutoReply] Skipped: the bot is switched off for conversation',
+      conversationId
+    );
     return { success: false, error: BOT_PAUSED_BLOCKED_MESSAGE };
   }
 
