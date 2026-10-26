@@ -19,6 +19,13 @@ than a written entry. Newest first.
 
 #### 26 October 2026
 
+- **"Where in Whitefield?" is answered, not saved as a requirement.** A short
+  question about where a shared listing is ("Where in Whitefield..?",
+  "Where?", "Which part of HSR?") now gets that listing's location. Before
+  this, the bot read the place name as the area the buyer wanted to buy in,
+  re-saved their requirement and could reply with a "nothing live fits" card.
+  A bare area name in reply to the bot's location question still counts as
+  the buyer's preferred area (INB-048).
 - **Add listings to your inventory straight from the showcase grid.** The
   "Add to my inventory" control now also sits among each listing card's
   actions on another brokerage's showcase, so a signed-in agent can collect

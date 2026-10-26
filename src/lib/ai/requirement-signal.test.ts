@@ -6,6 +6,7 @@ import {
   namedListingAttributes,
   carriesRequirementSignal,
   statesBudget,
+  asksWhereListingIs,
   statesRequirementBrief,
   splitRequirementSections,
 } from './requirement-signal';
@@ -263,5 +264,38 @@ describe('[INB-045] splitRequirementSections', () => {
     const empty =
       'Commercial:\nwill tell later\nResidential:\n3 bhk flat, 2 cr';
     expect(splitRequirementSections(empty)).toEqual([empty]);
+  });
+});
+
+describe('[INB-048] asksWhereListingIs', () => {
+  it.each([
+    'Where in Whitefield..?',
+    'Where in Whitefield?',
+    'Where exactly in HSR?',
+    'Where ?',
+    'where is it located',
+    'Which part of Whitefield?',
+    'Ok, where in Sarjapur?',
+    'Where is the villa?',
+  ])('reads %s as a question about where the listing is', (text) => {
+    expect(asksWhereListingIs(text)).toBe(true);
+    expect(asksAboutSharedListing(text)).toBe(true);
+  });
+
+  it.each([
+    'Whitefield',
+    'Whitefield?',
+    'Where can I find a 2 bhk under 80 lakh?',
+    'Where do you have plots?',
+    'Where in Whitefield do you have villas available for purchase?',
+    'Where in Whitefield, 2400 sqft plot',
+    'Which area is best for a villa?',
+    'Where can I buy a villa?',
+    'Where to buy plots in Whitefield',
+    'Where can I get a 3 bhk?',
+    'Where are 2 bhk flats available?',
+    'Where are villas for rent?',
+  ])('does not read %s as one', (text) => {
+    expect(asksWhereListingIs(text)).toBe(false);
   });
 });

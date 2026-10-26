@@ -146,10 +146,41 @@ export function disputesSharedListing(text?: string | null): boolean {
   );
 }
 
+// "Where in Whitefield..?": a buyer who was just sent a villa in
+// Whitefield asking where in Whitefield it is. It names no listing word,
+// so it read as a locality answer and was filed as their brief, and the
+// bot replied with a no-match card about a stale requirement instead of
+// the villa's location. A short where-question, or "which part of X",
+// that states no search is about the listing in hand.
+const WHERE_QUESTION =
+  /^(?:(?:and|so|but|ok(?:ay)?|sir|pls|please)[,\s]+)?(?:where|whr)\b|^(?:which|what)\s+(?:part|side|area|portion|end|phase|stage|block|sector)\s+(?:of|in)\s+\S/i;
+const MAX_WHERE_QUESTION_WORDS = 8;
+// "Where can I buy a villa?", "Where to buy plots in Whitefield": a
+// where-question that searches.
+const WHERE_SEARCH =
+  /\b(?:buy|buying|purchase|rent|renting|lease|leasing|invest\w*|get|available|availability|sell|selling)\b/i;
+
+/** True when the message is a short question about where the listing
+ *  is — "Where in Whitefield?", "Where?", "Which part of HSR?". */
+export function asksWhereListingIs(text?: string | null): boolean {
+  const clean = (text || '').trim();
+  if (!clean || clean.split(/\s+/).length > MAX_WHERE_QUESTION_WORDS)
+    return false;
+  return (
+    WHERE_QUESTION.test(clean) &&
+    !statesBudget(clean) &&
+    !SIZE_SIGNAL.test(clean) &&
+    !REQUIREMENT_INTENT.test(clean) &&
+    !WHERE_SEARCH.test(clean) &&
+    (!PROPERTY_TYPE_SIGNAL.test(clean) || LISTING_REFERENCE.test(clean))
+  );
+}
+
 export function asksAboutSharedListing(text?: string | null): boolean {
   const clean = (text || '').trim();
   if (!clean) return false;
   if (asksListingAttribute(clean)) return true;
+  if (asksWhereListingIs(clean)) return true;
   if (disputesSharedListing(clean)) return true;
   return (
     QUESTION_SHAPE.test(clean) &&
