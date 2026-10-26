@@ -219,7 +219,9 @@ export function statesRequirementBrief(text?: string | null): boolean {
  * and "RESIDENTIAL:" sections are two searches with their own budgets,
  * and filed as one they matched neither. A brief with fewer than two
  * sector headings, or a section that names no type, budget or size, is
- * one requirement and comes back whole.
+ * one requirement and comes back whole. A line before the first heading
+ * ("Only for rent in Whitefield") holds for every section, so each
+ * carries it; a bare "My requirement:" heading does not.
  */
 export function splitRequirementSections(text: string): string[] {
   const lines = text.trim().split('\n');
@@ -234,9 +236,16 @@ export function splitRequirementSections(text: string): string[] {
       .trim()
   );
   const body = (section: string) => section.split('\n').slice(1).join('\n');
-  return sections.every((section) => requirementFacets(body(section)) > 0)
-    ? sections
-    : [text.trim()];
+  if (!sections.every((section) => requirementFacets(body(section)) > 0))
+    return [text.trim()];
+  const preamble = lines
+    .slice(0, starts[0])
+    .filter((line) => !BRIEF_HEADING.test(line) && /[a-z0-9]/i.test(line))
+    .join('\n')
+    .trim();
+  return preamble
+    ? sections.map((section) => `${preamble}\n${section}`)
+    : sections;
 }
 
 /**

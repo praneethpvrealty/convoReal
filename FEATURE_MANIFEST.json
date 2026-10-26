@@ -778,7 +778,7 @@
         },
         {
           "id": "INB-044",
-          "rule": "A message laid out as a requirement brief (under a \"requirement\" heading, or a list of two or more items that between them name at least two of property type, budget and size) goes to the qualification ladder whatever words its lines carry: it is never read as a rejection of a shared listing or as a pointer at one. \"Not interested in\" a purpose (investment, renting, under construction) is not a rejection, while \"not interested in this\" and a rejection that points at a listing by a figure still are, and \"or above\" or \"this all property purchase\" never point at a listing. A brief with two or more sector sections (\"COMMERCIAL:\", \"RESIDENTIAL:\") that each name a type, budget or size files its first section as the primary requirement and each further section as a requirement profile of its own, never filing the same section twice. A bot message sent within ten minutes after an agent's message in the thread never counts as sharing the listing it names, so a card the bot linked in passing does not move the listing an agent is discussing (INB-033).",
+          "rule": "A message laid out as a requirement brief (under a \"requirement\" heading, or a list of two or more items that between them name at least two of property type, budget and size) goes to the qualification ladder whatever words its lines carry: it is never read as a rejection of a shared listing or as a pointer at one. \"Not interested in\" a purpose (investment, renting, under construction) is not a rejection, while \"not interested in this\" and a rejection that points at a listing by a figure still are, and \"or above\" or \"this all property purchase\" never point at a listing. A brief with two or more sector sections (\"COMMERCIAL:\", \"RESIDENTIAL:\") that each name a type, budget or size files its first section as the primary requirement and each further section as a requirement profile of its own, never filing the same section twice; a line stated before the first heading is carried into every section, and a later line of the same burst never folds the further sections back into the primary. A bot message sent within ten minutes after an agent's message in the thread never counts as sharing the listing it names, so a card the bot linked in passing does not move the listing an agent is discussing (INB-033).",
           "tests": [
             {
               "file": "src/lib/ai/lead-routing.test.ts",
@@ -798,6 +798,10 @@
             },
             {
               "file": "src/lib/ai/buyer-qualification.process.test.ts",
+              "case": "[INB-044]"
+            },
+            {
+              "file": "src/lib/ai/buyer-qualification.test.ts",
               "case": "[INB-044]"
             },
             {

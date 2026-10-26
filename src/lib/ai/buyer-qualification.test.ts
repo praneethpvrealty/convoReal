@@ -1837,3 +1837,20 @@ describe('[CNV-011] a two-letter acknowledgement is not a locality', () => {
     );
   });
 });
+
+describe('[INB-044] burstRequirements keeps a sectioned brief apart', () => {
+  it('files only the first section of an earlier brief in the burst', () => {
+    const brief =
+      'COMMERCIAL:\nOffice inside a tech park in Whitefield\nBudget: 20cr-100 cr+\nRESIDENTIAL:\nVilla, plot 6000 sqft\nBudget: 10cr-100 cr+';
+    const burst = burstRequirements(
+      [
+        { sender_type: 'customer', content_text: 'Also Sarjapur road is fine' },
+        { sender_type: 'customer', content_text: brief },
+        { sender_type: 'agent', content_text: 'Ok' },
+      ],
+      'Also Sarjapur road is fine'
+    );
+    expect(burst.join('\n')).not.toContain('RESIDENTIAL');
+    expect(burst[0]).toMatch(/^COMMERCIAL:/);
+  });
+});

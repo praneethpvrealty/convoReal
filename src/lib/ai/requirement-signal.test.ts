@@ -246,6 +246,17 @@ describe('[INB-044] splitRequirementSections', () => {
     expect(residential).toContain('10cr-100 cr+');
   });
 
+  it('carries a line stated before the first heading into every section', () => {
+    expect(
+      splitRequirementSections(
+        'Only for rent in Whitefield, budget 1 lakh per month.\nCOMMERCIAL:\nOffice of 2000 sqft\nRESIDENTIAL:\n3 bhk flat'
+      )
+    ).toEqual([
+      'Only for rent in Whitefield, budget 1 lakh per month.\nCOMMERCIAL:\nOffice of 2000 sqft',
+      'Only for rent in Whitefield, budget 1 lakh per month.\nRESIDENTIAL:\n3 bhk flat',
+    ]);
+  });
+
   it('keeps a brief with one heading, or a section naming nothing, whole', () => {
     const one = 'Residential:\n3 bhk flat, 2 cr';
     expect(splitRequirementSections(one)).toEqual([one]);

@@ -1334,7 +1334,7 @@ export function burstRequirements(
     if (!text) return null;
     return isBuyerRequirementMessage(text) ||
       (ladderPrompted && statesIntentOnly(text))
-      ? text
+      ? splitRequirementSections(text)[0]
       : null;
   };
   const older: string[] = [];
