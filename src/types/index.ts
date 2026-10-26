@@ -482,6 +482,7 @@ export interface Conversation {
   last_message_at?: string;
   unread_count: number;
   is_archived: boolean;
+  bot_paused_at?: string | null;
   awaiting_reply?: boolean;
   last_customer_message_at?: string | null;
   created_at: string;

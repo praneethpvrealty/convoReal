@@ -1,6 +1,7 @@
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import type { ConversationStatus } from '@/lib/types';
+import { botPauseUpdate } from '@shared/lib/conversations/bot-pause';
 import {
   conversationStatusUpdate,
   type ConversationCloseReason,
@@ -44,6 +45,20 @@ export async function setConversationArchived(
   const { data, error } = await supabase
     .from('conversations')
     .update({ is_archived: archived })
+    .eq('id', id)
+    .select('id');
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error('That conversation is no longer there.');
+  refresh(id);
+}
+
+export async function setConversationBotPaused(
+  id: string,
+  paused: boolean
+): Promise<void> {
+  const { data, error } = await supabase
+    .from('conversations')
+    .update(botPauseUpdate(paused))
     .eq('id', id)
     .select('id');
   if (error) throw new Error(error.message);

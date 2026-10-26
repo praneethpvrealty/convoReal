@@ -45,6 +45,10 @@ import { MAX_MERGE_HOPS } from '@/lib/contacts/merge-chain';
 import { phoneMatchKey } from '@/lib/contacts/phone-key';
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle';
 import {
+  BOT_PAUSED_BLOCKED_MESSAGE,
+  isBotPaused,
+} from '@/lib/conversations/bot-pause';
+import {
   isMarketingTemplateSuppressed,
   laterSuppression,
   marketingBlockCode,
@@ -545,6 +549,13 @@ export async function sendWhatsAppMessageAndPersist(
         );
       }
       resolvedConversationId = conversation.id;
+    }
+
+    if (
+      args.senderType === 'bot' &&
+      (await isBotPaused(db, accountId, resolvedConversationId))
+    ) {
+      throw new Error(BOT_PAUSED_BLOCKED_MESSAGE);
     }
 
     // The configuration row and the 24-hour-window lookup below depend

@@ -17,6 +17,7 @@ import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { SectionLabel } from '@/components/ui';
 import {
   setConversationArchived,
+  setConversationBotPaused,
   setConversationStatus,
 } from '@/lib/conversation-actions';
 import {
@@ -54,6 +55,7 @@ export function ConversationMenu({
   contactId,
   status,
   isArchived,
+  botPaused,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -62,6 +64,7 @@ export function ConversationMenu({
   contactId?: string;
   status?: ConversationStatus;
   isArchived?: boolean;
+  botPaused?: boolean;
 }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
@@ -346,6 +349,60 @@ export function ConversationMenu({
             </Pressable>
           );
         })}
+
+        <SectionLabel text="Bot" />
+        <Pressable
+          onPress={() =>
+            run(() => setConversationBotPaused(conversationId, !botPaused))
+          }
+          disabled={busy}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: !botPaused }}
+          accessibilityLabel={
+            botPaused
+              ? 'Bot replies are off for this chat. Switch them on'
+              : 'Bot replies are on for this chat. Switch them off'
+          }
+          style={[
+            styles.row,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          <Ionicons
+            name={botPaused ? 'pause-circle-outline' : 'hardware-chip-outline'}
+            size={18}
+            color={botPaused ? colors.warning : colors.text}
+          />
+          <Text
+            style={{
+              flex: 1,
+              fontSize: 14.5,
+              fontFamily: f.medium,
+              color: colors.text,
+            }}
+          >
+            {botPaused ? 'Turn bot replies on' : 'Turn bot replies off'}
+          </Text>
+          <Text
+            style={{
+              fontSize: 12.5,
+              fontFamily: f.semibold,
+              color: botPaused ? colors.warning : colors.textMuted,
+            }}
+          >
+            {botPaused ? 'Off' : 'On'}
+          </Text>
+        </Pressable>
+        <Text
+          style={{
+            fontSize: 11.5,
+            color: colors.textFaint,
+            textAlign: 'center',
+            marginTop: spacing.xs,
+          }}
+        >
+          While the bot is off, only you and your team reply in this chat.
+        </Text>
 
         <SectionLabel text="Organize" />
         <Pressable

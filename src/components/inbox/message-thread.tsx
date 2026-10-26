@@ -30,6 +30,8 @@ import {
   RefreshCw,
   Archive,
   ArchiveRestore,
+  Bot,
+  BotOff,
   Waypoints,
   Phone,
   Pin,
@@ -69,6 +71,7 @@ import {
   conversationStatusUpdate,
   type ConversationCloseReason,
 } from '@/lib/conversations/closure';
+import { botPauseUpdate } from '@/lib/conversations/bot-pause';
 
 interface ReplyDraft {
   id: string;
@@ -274,6 +277,39 @@ export function MessageThread({
       }
     );
   }, [conversation, onArchive]);
+  const [botPausedAt, setBotPausedAt] = useState<string | null>(
+    conversation?.bot_paused_at ?? null
+  );
+  const [botToggleBusy, setBotToggleBusy] = useState(false);
+  useEffect(() => {
+    setBotPausedAt(conversation?.bot_paused_at ?? null);
+  }, [conversation?.id, conversation?.bot_paused_at]);
+
+  const handleBotToggle = useCallback(async () => {
+    if (!conversation || botToggleBusy) return;
+    const pause = !botPausedAt;
+    const update = botPauseUpdate(pause);
+    setBotToggleBusy(true);
+    const { data, error } = await createClient()
+      .from('conversations')
+      .update(update)
+      .eq('id', conversation.id)
+      .select('id');
+    setBotToggleBusy(false);
+    if (error || !data?.length) {
+      toast.error(
+        pause ? 'Could not switch the bot off' : 'Could not switch the bot on'
+      );
+      return;
+    }
+    setBotPausedAt(update.bot_paused_at);
+    toast.success(
+      pause
+        ? 'Bot switched off for this chat'
+        : 'Bot switched back on for this chat'
+    );
+  }, [conversation, botPausedAt, botToggleBusy]);
+
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
   const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
 
@@ -1227,6 +1263,32 @@ export function MessageThread({
               />
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={handleBotToggle}
+            disabled={botToggleBusy}
+            aria-pressed={!botPausedAt}
+            aria-label={
+              botPausedAt
+                ? 'Bot is off for this chat. Switch it on'
+                : 'Bot is on for this chat. Switch it off'
+            }
+            title={botPausedAt ? 'Bot off — tap to switch on' : 'Bot on'}
+            className={cn(
+              'inline-flex h-7 items-center justify-center gap-1 rounded-md px-1.5 text-xs transition-colors hover:bg-slate-800 disabled:opacity-60',
+              botPausedAt
+                ? 'bg-amber-500/10 text-amber-400'
+                : 'text-slate-400 hover:text-white'
+            )}
+          >
+            {botPausedAt ? (
+              <BotOff className="h-3.5 w-3.5" />
+            ) : (
+              <Bot className="h-3.5 w-3.5" />
+            )}
+            {botPausedAt ? <span>Bot off</span> : null}
+          </button>
 
           {/* Archive / Unarchive button */}
           <button
