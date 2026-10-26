@@ -323,7 +323,7 @@ const HUMAN_REQUEST =
  *  answered this with two listing pitches, and then "Any official?"
  *  with "Yes, I am here to assist you directly". */
 const ADVISOR_REQUEST =
-  /\b(?:need|want|require|looking for)(?: to (?:talk|speak) to)? (?:a |an |some |your |one )?(?:expert|human|real person|executive|representative|advisor|adviser|consultant|official|(?:someone|somebody|some ?one|a person) (?:to|who can|who could) (?:guide|help|assist|advise|explain))\b/g;
+  /\b(?:need|want|require|looking for)(?: to (?:talk|speak) to)? (?:a |an |some |your |one )?(?:(?:expert|human|real person|executive|representative|advisor|adviser|consultant|official)s?(?=[\s?.!,]*$|[\s,]+(?:to|who|that|for (?:me|us)|from|please|pls|plz|sir|madam|here|now)\b)|(?:someone|somebody|some ?one|a person) (?:to|who can|who could) (?:guide|help|assist|advise|explain)\b)/g;
 
 /** The whole message asking whether a person is there: "Any official?",
  *  "is there a human", "are you a bot?". */
