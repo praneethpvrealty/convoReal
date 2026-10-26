@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { Link, Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -1679,26 +1680,41 @@ function ActionRail({ property }: { property: Property }) {
       },
     },
   ];
+  async function showcaseLink(): Promise<string> {
+    const accountId = useAuthStore.getState().profile?.account_id ?? null;
+    const subdomain = await fetchShowcaseSubdomain(accountId);
+    return propertyShareUrl({
+      siteUrl: ENV.apiBaseUrl,
+      subdomain,
+      accountId,
+      property,
+      audience: 'client',
+    });
+  }
+
   async function openShowcase() {
     haptic.tap();
-    const accountId = useAuthStore.getState().profile?.account_id ?? null;
     try {
-      const subdomain = await fetchShowcaseSubdomain(accountId);
-      await Linking.openURL(
-        markInternalView(
-          propertyShareUrl({
-            siteUrl: ENV.apiBaseUrl,
-            subdomain,
-            accountId,
-            property,
-            audience: 'client',
-          })
-        )
-      );
+      await Linking.openURL(markInternalView(await showcaseLink()));
     } catch {
       haptic.warn();
       show({
         title: 'Could not open the showcase',
+        message: 'Try again.',
+      });
+    }
+  }
+
+  async function copyShowcaseLink() {
+    try {
+      const url = await showcaseLink();
+      await Clipboard.setStringAsync(url);
+      haptic.success();
+      show({ title: 'Showcase link copied', message: url });
+    } catch {
+      haptic.warn();
+      show({
+        title: 'Could not copy the showcase link',
         message: 'Try again.',
       });
     }
@@ -1711,6 +1727,11 @@ function ActionRail({ property }: { property: Property }) {
             icon: 'open-outline' as const,
             label: 'View on showcase',
             onPress: () => void openShowcase(),
+          },
+          {
+            icon: 'link-outline' as const,
+            label: 'Copy showcase link',
+            onPress: () => void copyShowcaseLink(),
           },
         ]
       : []),

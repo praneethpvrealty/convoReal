@@ -54,6 +54,7 @@ export async function POST(request: Request) {
       template_params,
       template_message_params,
       reply_to_message_id,
+      pauses_bot,
       product_catalog_id,
       product_retailer_id,
       media_url,
@@ -461,6 +462,7 @@ export async function POST(request: Request) {
       // contact is still allowed to receive — the composer shows them
       // the notice first. Every automated sender leaves this unset.
       allowDeadContact: true,
+      pausesBot: pauses_bot === true,
       customDbClient: supabase,
     });
 

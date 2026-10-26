@@ -46,7 +46,6 @@ import {
   namedLocality,
   nearbyMatchesOpening,
   shortlistOutsideLocality,
-  humanOwnsQualificationThread,
 } from './buyer-qualification';
 import {
   EMPTY_PREFERENCES,
@@ -1853,36 +1852,5 @@ describe('[INB-045] burstRequirements keeps a sectioned brief apart', () => {
     );
     expect(burst.join('\n')).not.toContain('RESIDENTIAL');
     expect(burst[0]).toMatch(/^COMMERCIAL:/);
-  });
-});
-
-describe('[INB-046] humanOwnsQualificationThread', () => {
-  const now = new Date('2026-10-26T10:34:50Z');
-
-  it('keeps the thread with an agent who wrote minutes ago, though the bot answered since', () => {
-    expect(
-      humanOwnsQualificationThread(
-        [
-          { sender_type: 'customer', created_at: '2026-10-26T10:34:50Z' },
-          { sender_type: 'bot', created_at: '2026-10-26T10:34:29Z' },
-          { sender_type: 'customer', created_at: '2026-10-26T10:34:18Z' },
-          { sender_type: 'agent', created_at: '2026-10-26T10:32:33Z' },
-        ],
-        now
-      )
-    ).toBe(true);
-  });
-
-  it('[INB-007] still hands an older agent message back to the bot once it has replied', () => {
-    expect(
-      humanOwnsQualificationThread(
-        [
-          { sender_type: 'customer', created_at: '2026-10-26T10:34:50Z' },
-          { sender_type: 'bot', created_at: '2026-10-26T10:34:29Z' },
-          { sender_type: 'agent', created_at: '2026-10-26T10:10:00Z' },
-        ],
-        now
-      )
-    ).toBe(false);
   });
 });

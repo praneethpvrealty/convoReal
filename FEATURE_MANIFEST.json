@@ -104,7 +104,7 @@
         },
         {
           "id": "INB-007",
-          "rule": "The latest outbound sender owns qualification replies: a later agent message keeps the bot quiet, while a later bot message resumes automation so an older agent message cannot leave a fresh buyer requirement unanswered, unless that agent message is within the last ten minutes (INB-046).",
+          "rule": "The latest outbound sender owns qualification replies: a later agent message keeps the bot quiet, while a later bot message resumes automation so an older agent message cannot leave a fresh buyer requirement unanswered.",
           "tests": [
             {
               "file": "src/lib/ai/buyer-qualification.process.test.ts",
@@ -778,7 +778,7 @@
         },
         {
           "id": "INB-044",
-          "rule": "An agent can switch the bot off and back on for one chat, from the chat header on web and from the chat menu on mobile, and both show when it is off, refreshing when a teammate flips it on the other surface. While it is off (conversations.bot_paused_at is set) no bot message reaches that chat: the inbound chain runs only the steps that never reply to the lead (engine control taps, bridged agent replies, auto-heat, the new-lead ping to the agent and the broadcast-reply flag) and the consent steps, so a STOP, an alerts change or a closed enquiry is still recorded (CNV-007) while its confirmation is held back, the deferred-message rerun skips the qualification ladder, and the dispatcher refuses every bot-sent message to the conversation, including follow-ups and nudges from crons; the portal-lead welcome and the journey timeline ask, which send outside the dispatcher, check the switch themselves, and a failed lookup holds the bot back. Agent and team replies are never held back. Switching it on again resumes the bot from the next inbound message.",
+          "rule": "An agent can switch the bot off and back on for one chat, from the chat header on web and from the header beside the chat menu on mobile, and both show when it is off, refreshing when a teammate flips it on the other surface. While it is off (conversations.bot_paused_at is set) no bot message reaches that chat: the inbound chain runs only the steps that never reply to the lead (engine control taps, bridged agent replies, auto-heat, the new-lead ping to the agent and the broadcast-reply flag) and the consent steps, so a STOP, an alerts change or a closed enquiry is still recorded (CNV-007) while its confirmation is held back, the deferred-message rerun skips the qualification ladder, and the dispatcher refuses every bot-sent message to the conversation, including follow-ups and nudges from crons; the portal-lead welcome and the journey timeline ask, which send outside the dispatcher, check the switch themselves, and a failed lookup holds the bot back. Agent and team replies are never held back. Switching it on again resumes the bot from the next inbound message.",
           "tests": [
             {
               "file": "src/lib/conversations/bot-pause.test.ts",
@@ -807,7 +807,30 @@
             "src/lib/whatsapp/meta-api-dispatcher.ts",
             "src/lib/whatsapp/webhook-handler.ts",
             "src/components/inbox/message-thread.tsx",
-            "mobile/components/conversation-menu.tsx"
+            "mobile/app/(app)/conversation/[id].tsx"
+          ]
+        },
+        {
+          "id": "INB-046",
+          "rule": "A person replying to a lead holds the bot back in that chat for four hours (conversations.bot_paused_until), so the bot never answers over a live conversation: a message an agent types or picks in the chat composer on web or mobile (text, attachment, template, or a resend of one), or relays from their own WhatsApp by the reply bridge, sets the hold, and each later reply restarts it; the composer asks for it explicitly (pauses_bot) and the send route never assumes it. Agent-labelled sends that are automated or one-tap (property shares and shortlists, including the mobile property picker and showcase share sheet, broadcasts, Radar sends, appointment reminders, invites) never set it, so the listing Q&A after a share keeps working. While the hold runs the chat behaves exactly as when the bot is switched off (INB-044), the chat header shows \"Bot paused till <time>\" on web and mobile, and switching the bot on ends the hold at once.",
+          "tests": [
+            {
+              "file": "src/lib/conversations/bot-pause.test.ts",
+              "case": "[INB-046]"
+            },
+            {
+              "file": "src/lib/whatsapp/meta-api-dispatcher.test.ts",
+              "case": "[INB-046]"
+            },
+            {
+              "file": "src/app/api/whatsapp/send/route.test.ts",
+              "case": "[INB-046]"
+            }
+          ],
+          "guards": [
+            "src/app/api/whatsapp/send/route.ts",
+            "src/lib/whatsapp/reply-bridge.ts",
+            "src/lib/whatsapp/meta-api-dispatcher.ts"
           ]
         },
         {
@@ -850,26 +873,15 @@
           ]
         },
         {
-          "id": "INB-046",
-          "rule": "An agent who wrote in a buyer's thread within the last ten minutes is handling it, even when the bot has answered a question since: the qualification ladder still files what the buyer says but sends no requirement card, shortlist or question, and Match Radar fires instead. The ladder checks again just before it sends, so an agent who writes while a brief is being read is not answered over. A failed lookup holds the bot back. An agent message older than ten minutes no longer keeps the bot quiet once the bot has replied (INB-007),, and a card that answers the buyer's own question or tap (the requirement playback after an unavailable listing, whose reply text promises it; a form or tweak button) is still sent.",
+          "id": "INB-047",
+          "rule": "The bot hold a person sets by replying or by switching the bot off (INB-044, INB-046) also holds back a qualification reply that was already being prepared: the ladder reads the hold again after extraction and ranking, just before each send it makes (the requirement playback card, the brief-unchanged acknowledgement, the shortlist or next question, and the more-listings reply), and stands down when it is set. The buyer's message is still filed and Match Radar fires, so the agent sees what the brief now matches. Sends the ladder makes straight to Meta are covered as well as those through the dispatcher.",
           "tests": [
             {
-              "file": "src/lib/conversations/agent-handling.test.ts",
-              "case": "[INB-046]"
-            },
-            {
-              "file": "src/lib/ai/buyer-qualification.test.ts",
-              "case": "[INB-046]"
-            },
-            {
               "file": "src/lib/ai/buyer-qualification.process.test.ts",
-              "case": "[INB-046]"
+              "case": "[INB-047]"
             }
           ],
-          "guards": [
-            "src/lib/conversations/agent-handling.ts",
-            "src/lib/ai/buyer-qualification.ts"
-          ]
+          "guards": ["src/lib/ai/buyer-qualification.ts"]
         }
       ]
     },
@@ -2655,16 +2667,53 @@
         },
         {
           "id": "PRP-052",
-          "rule": "From a property's actions on web (inventory card and table menu) and mobile (the property screen's More menu), an agent can open that listing's page on the account's public showcase in the browser: on the account's own subdomain when it has one, otherwise on the shared site scoped with ?ref=<account>, addressed by the property code. The option is offered only for a published listing that is Available or Under Contract, the same rule the showcase uses to list it; web shows it disabled as Not on showcase otherwise and mobile leaves it out. The link carries no visitor attribution and is marked internal=1, so the showcase tab it opens sends no Showcase Pulse events even where the app's session does not reach the showcase (the phone's browser, or a subdomain the dashboard cookie is not sent to); the tab stays internal as the visitor moves around the showcase, and the marker is removed from the address bar so a link copied from it still tracks the buyer it is sent to.",
+          "rule": "From a property's actions on web (inventory card and table menu) and mobile (the property screen's More menu), an agent can open that listing's page on the account's public showcase in the browser, or copy its link to the clipboard: on the account's own subdomain when it has one, otherwise on the shared site scoped with ?ref=<account>, addressed by the property code. The option is offered only for a published listing that is Available or Under Contract, the same rule the showcase uses to list it; web shows View on showcase disabled as Not on showcase otherwise and mobile leaves both options out; web leaves Copy showcase link out too. A copied link is the plain public link, with no visitor attribution and no internal marker, so whoever it reaches is tracked as a visitor. The opened link carries no visitor attribution and is marked internal=1, so the showcase tab it opens sends no Showcase Pulse events even where the app's session does not reach the showcase (the phone's browser, or a subdomain the dashboard cookie is not sent to); the tab stays internal as the visitor moves around the showcase, and the marker is removed from the address bar so a link copied from it still tracks the buyer it is sent to.",
           "tests": [
             {
               "file": "src/lib/showcase/listed-statuses.test.ts",
               "case": "[PRP-052]"
             },
             { "file": "src/lib/pulse/tracker.test.ts", "case": "[PRP-052]" },
+            {
+              "file": "src/components/inventory/property-actions-menu.test.tsx",
+              "case": "[PRP-052]"
+            },
             { "file": "src/lib/mobile-parity.test.ts", "case": "[PRP-052]" }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "PRP-053",
+          "rule": "A signed-in member of a different brokerage who opens a listing on a public showcase sees \"Add to my inventory\" beside its share control, in the buyer view and the co-broker view alike, and one tap copies the listing into their own inventory through the same import the Import shared dialog uses: unpublished, agent-referred, credited to the sharing brokerage as an Agent contact and linked to the source listing; the control then becomes an \"In your inventory\" link to the copy, which it also is from the start when the account already holds one. The showcase decides who sees the control by asking the app origin with the visitor's credentials, because a tenant showcase runs on its own subdomain and the session cookie is host-only; the app answers that call only for its own showcase origins (https, one label under the base domain, or the app origin itself), a signed-out visitor is asked once per page and sees nothing, and so do the listing's own account, a read-only member and a viewer. Only what the showcase already shows is copied: a teaser-gated listing is withheld from the import (and offered no control), and a location-guarded listing arrives with its locality label in place of the exact address, map link, coordinates and place id. The mobile app has no showcase renderer; the control lives on the public page an agent reaches in a browser.",
+          "tests": [
+            {
+              "file": "src/components/showcase/showcase-view.import.test.tsx",
+              "case": "[PRP-053]"
+            },
+            {
+              "file": "src/components/showcase/add-to-inventory.test.tsx",
+              "case": "[PRP-053]"
+            },
+            {
+              "file": "src/app/api/inventory/showcase-import/route.test.ts",
+              "case": "[PRP-053]"
+            },
+            {
+              "file": "src/lib/inventory/import-shared-property.test.ts",
+              "case": "[PRP-053]"
+            },
+            {
+              "file": "src/lib/showcase/app-origin.test.ts",
+              "case": "[PRP-053]"
+            }
+          ],
+          "guards": [
+            "src/components/showcase/add-to-inventory.tsx",
+            "src/app/api/inventory/showcase-import/route.ts",
+            "src/app/api/inventory/import-shared/route.ts",
+            "src/lib/inventory/import-shared-property.ts",
+            "src/lib/showcase/app-origin.ts"
+          ]
         }
       ]
     },

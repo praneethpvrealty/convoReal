@@ -483,6 +483,7 @@ export interface Conversation {
   unread_count: number;
   is_archived: boolean;
   bot_paused_at?: string | null;
+  bot_paused_until?: string | null;
   awaiting_reply?: boolean;
   last_customer_message_at?: string | null;
   created_at: string;

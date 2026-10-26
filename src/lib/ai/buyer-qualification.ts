@@ -68,10 +68,7 @@ import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import { localityStemsMatch, textNamesLocality } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
-import {
-  agentHandledRecently,
-  agentHandlingThread,
-} from '@/lib/conversations/agent-handling';
+import { isBotPaused } from '@/lib/conversations/bot-pause';
 import type { Contact, ContactRequirementProfile, Property } from '@/types';
 import { formatInrCompact } from '@/lib/format/currency';
 
@@ -110,12 +107,11 @@ const RECENT_CONTEXT_WINDOW = 6;
 const ASKED_WINDOW = 40;
 
 export function humanOwnsQualificationThread(
-  messages: { sender_type?: string | null; created_at?: string | null }[],
-  now: Date = new Date()
+  messages: { sender_type?: string | null }[]
 ): boolean {
   return (
     messages.find((message) => message.sender_type !== 'customer')
-      ?.sender_type === 'agent' || agentHandledRecently(messages, now)
+      ?.sender_type === 'agent'
   );
 }
 
@@ -1664,7 +1660,7 @@ export async function processBuyerQualificationMessage(
     // reply keeps the bot listening without talking over the person.
     const { data: thread } = await db
       .from('messages')
-      .select('sender_type, content_text, message_id, created_at')
+      .select('sender_type, content_text, message_id')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: false })
       .order('ingest_seq', { ascending: false, nullsFirst: false })
@@ -1692,12 +1688,12 @@ export async function processBuyerQualificationMessage(
         .map((m) => m.content_text as string | null)
     );
 
-    // Extraction and ranking take seconds, and an agent who wrote in the
-    // meantime has taken the thread: the card or shortlist would land
-    // right under their message. Asked again at each send.
+    // Extraction and ranking take seconds, and a person who replied in
+    // the meantime has put the bot on hold (INB-046). reply() sends
+    // straight to Meta, past the dispatcher's own hold check, so the
+    // hold is read again at each send.
     const agentTookOver = async (): Promise<boolean> => {
-      if (!(await agentHandlingThread(db, accountId, conversation.id)))
-        return false;
+      if (!(await isBotPaused(db, accountId, conversation.id))) return false;
       void generateMatchEventForContact(db, accountId, contact.id).catch(
         (err) => {
           console.error('[buyer-qualification] radar event failed:', err);

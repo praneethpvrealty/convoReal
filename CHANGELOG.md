@@ -19,14 +19,24 @@ than a written entry. Newest first.
 
 #### 26 October 2026
 
-- **The bot no longer interrupts an agent mid-conversation.** An agent who
-  wrote in a buyer's chat in the last ten minutes is treated as handling it,
-  even if the bot answered a question in between. The bot still saves what
-  the buyer says, but it no longer sends the "nothing live fits this yet"
-  card, a shortlist or a question under the agent's messages. It also checks
-  again just before sending, in case the agent replied while it was working.
-  Ten minutes after the agent's last message the bot takes over again
-  (INB-046).
+- **A bot reply already in progress waits once you reply too.** When you
+  reply in a chat while the bot is still working out its answer to the
+  buyer's last message, the bot now checks the four-hour hold again just
+  before sending. Its requirement card, shortlist, next question or "more
+  listings" reply is held back. What the buyer said is still saved
+  (INB-047).
+- **Add a listing from another brokerage's showcase to your own inventory.**
+  A signed-in agent who opens a listing on another brokerage's public showcase
+  now sees "Add to my inventory" beside Share. One tap copies the listing into
+  their inventory the way the Import shared dialog does: unpublished,
+  agent-referred, credited to the sharing brokerage and linked to the source
+  listing; the control then links to the copy. The showcase checks who is
+  signed in through the app's own origin, so the control works on a
+  brokerage's subdomain as well as on the shared site, and only ever for the
+  app's own showcase origins. Buyers, signed-out visitors, the listing's own
+  team and read-only members see nothing. A confidential (teaser) listing
+  cannot be imported this way, and a location-guarded listing is copied with
+  its locality only, never its exact address or map pin (PRP-053).
 - **A buyer's written brief is filed as a requirement, not answered as a
   rejection.** A message laid out as a brief, under a "requirement" heading or
   as a list naming a type, budget or size, now always goes to the

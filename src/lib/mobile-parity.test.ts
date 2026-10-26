@@ -411,8 +411,11 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(mobile).toContain("label: 'View on showcase'");
     expect(mobile).toContain("audience: 'client'");
     expect(mobile).toContain('markInternalView(');
+    expect(mobile).toContain("label: 'Copy showcase link'");
+    expect(mobile).toContain('Clipboard.setStringAsync(url)');
     expect(web).toContain('isListedOnShowcase(property)');
     expect(web).toContain('markInternalView(');
+    expect(web).toContain('Copy showcase link');
     expect(web).toContain('View on showcase');
     expect(web).toContain('propertyShowcaseUrl(base, property)');
   });
