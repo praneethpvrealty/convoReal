@@ -53,6 +53,21 @@ describe('createShowcaseTracker', () => {
     expect(window.location.search).toBe('?property_id=P1');
   });
 
+  it('[PRP-052] removes the marker and stays silent when session storage is blocked', () => {
+    window.history.replaceState(null, '', '/?property_id=P1&internal=1');
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('blocked');
+      });
+    const tracker = createShowcaseTracker('acc-1', null);
+    setItem.mockRestore();
+    tracker.track('open');
+    tracker.flush();
+    expect(window.location.search).toBe('?property_id=P1');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('[PRP-052] keeps the tab internal after the marker leaves the URL', () => {
     window.history.replaceState(null, '', '/?property_id=P1&internal=1');
     createShowcaseTracker('acc-1', null);

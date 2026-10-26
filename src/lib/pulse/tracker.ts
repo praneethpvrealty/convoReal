@@ -37,20 +37,23 @@ const FLUSH_DELAY_MS = 3000;
 const INTERNAL_VIEW_STORAGE = 'showcase_internal_view';
 
 function stripInternalMarker() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete(INTERNAL_VIEW_PARAM);
-  window.history.replaceState(window.history.state, '', url.toString());
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete(INTERNAL_VIEW_PARAM);
+    window.history.replaceState(window.history.state, '', url.toString());
+  } catch {
+    // a marker left in the address bar beats breaking the showcase
+  }
 }
 
 function isInternalTab(): boolean {
   const marked = isInternalView(window.location.search);
+  if (marked) stripInternalMarker();
   try {
-    if (marked) {
-      window.sessionStorage.setItem(INTERNAL_VIEW_STORAGE, '1');
-      stripInternalMarker();
-      return true;
-    }
-    return window.sessionStorage.getItem(INTERNAL_VIEW_STORAGE) === '1';
+    if (marked) window.sessionStorage.setItem(INTERNAL_VIEW_STORAGE, '1');
+    return (
+      marked || window.sessionStorage.getItem(INTERNAL_VIEW_STORAGE) === '1'
+    );
   } catch {
     return marked;
   }
