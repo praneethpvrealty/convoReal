@@ -343,3 +343,55 @@ describe('[CNV-011] the 24 October Suryanagar thread, line by line', () => {
     }
   );
 });
+
+// The brief a buyer sent on 26 October 2026 at 15:48 IST, verbatim. It
+// was answered with "I've noted that … isn't what you're looking for".
+const SECTIONED_BRIEF = `My requirement:
+==============
+
+COMMERCIAL:
+Do u have any property, building or floor INSIDE Tech park in :
+1. Outer ring road Tech parks, In between Marathalli and  Sarjapur road
+2. Whitefield Tech parks.
+3. Budget: Payment Flexibility (20cr-100 cr+).
+4. This all property purchase will be registered on my name. Not interested in Investment.
+
+RESIDENTIAL:
+1. I need a land piece or plot, where concerned location, per sqft rate is high like 50k per sqft or higher. Example Indiranagar, Koramangala types location..
+
+2. Any property (Flat or villa) , which is bigger in carpet area, not super built up area:
+A. Flat: 6k dimension or above.
+B. Villa: plot size 6k-8k minimum.
+
+3. Budget: Payment Flexibility (10cr-100 cr+).
+
+4. This all property purchase will be registered on my name. Not interested in Investment, Just Ready to move in.
+
+5. Resale / New property:
+- Individual stand alone residential Building/House. G+1 or Higher.
+- Plot size : Flexible ; 1800 sqft to 10k+ sqft or Higher.`;
+
+describe('[INB-044] a brief laid out as a requirement is filed, never read as a rejection', () => {
+  it('routes the 26 October brief to the ladder', () => {
+    expect(carriesRequirementBrief(SECTIONED_BRIEF)).toBe(true);
+    expect(routeLeadMessage(SECTIONED_BRIEF)).toBe('qualification');
+    expect(isBuyerRequirementMessage(SECTIONED_BRIEF)).toBe(true);
+    expect(standsDownFromQualification(SECTIONED_BRIEF)).toBe(false);
+  });
+
+  it('files a listed brief without a heading', () => {
+    const text =
+      'Need:\n1. 3 bhk flat in Whitefield\n2. Budget 2 cr\n3. Not interested in under construction';
+    expect(routeLeadMessage(text)).toBe('qualification');
+  });
+
+  it('still records a rejection that points at a listing by a figure', () => {
+    expect(routeLeadMessage("don't like this 3 bhk one")).toBe(
+      'property_disinterest'
+    );
+    expect(
+      routeLeadMessage('Not interested.\nthis 3 bhk one is too costly')
+    ).toBe('property_disinterest');
+    expect(routeLeadMessage('Not interested')).toBe('property_disinterest');
+  });
+});

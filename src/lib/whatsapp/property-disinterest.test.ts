@@ -365,3 +365,24 @@ describe('handlePropertyDisinterestMessage for a listing owner', () => {
     );
   });
 });
+
+describe('[INB-044] "not interested in" a purpose is not a rejection', () => {
+  it.each([
+    'Not interested in Investment.',
+    'This all property purchase will be registered on my name. Not interested in Investment, Just Ready to move in.',
+    'not interested in renting',
+    'Not interested in under construction projects',
+  ])('does not flag %s as disinterest', (text) => {
+    expect(isPropertyDisinterest(text)).toBe(false);
+  });
+
+  it.each([
+    'not interested in this',
+    'Not interested in the property',
+    'not interested in buying this',
+    'Not interested in it, thanks',
+    'Not interested. Not interested in investment either',
+  ])('still recognises %s as disinterest', (text) => {
+    expect(isPropertyDisinterest(text)).toBe(true);
+  });
+});

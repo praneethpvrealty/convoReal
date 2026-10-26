@@ -6,6 +6,8 @@ import {
   namedListingAttributes,
   carriesRequirementSignal,
   statesBudget,
+  statesRequirementBrief,
+  splitRequirementSections,
 } from './requirement-signal';
 
 describe('[INB-029] statesBudget', () => {
@@ -178,5 +180,77 @@ describe('[CNV-011] a statement disputing the shared listing is about the listin
       expect(asksListingAttribute(text), text).toBe(true);
       expect(carriesRequirementSignal(text), text).toBe(false);
     }
+  });
+});
+
+const SECTIONED_BRIEF = `My requirement:
+==============
+
+COMMERCIAL:
+Do u have any property, building or floor INSIDE Tech park in :
+1. Outer ring road Tech parks, In between Marathalli and  Sarjapur road
+2. Whitefield Tech parks.
+3. Budget: Payment Flexibility (20cr-100 cr+).
+4. This all property purchase will be registered on my name. Not interested in Investment.
+
+RESIDENTIAL:
+1. I need a land piece or plot, where concerned location, per sqft rate is high like 50k per sqft or higher. Example Indiranagar, Koramangala types location..
+
+2. Any property (Flat or villa) , which is bigger in carpet area, not super built up area:
+A. Flat: 6k dimension or above.
+B. Villa: plot size 6k-8k minimum.
+
+3. Budget: Payment Flexibility (10cr-100 cr+).
+
+4. This all property purchase will be registered on my name. Not interested in Investment, Just Ready to move in.
+
+5. Resale / New property:
+- Individual stand alone residential Building/House. G+1 or Higher.
+- Plot size : Flexible ; 1800 sqft to 10k+ sqft or Higher.`;
+
+describe('[INB-044] statesRequirementBrief', () => {
+  it('reads a brief under a requirement heading', () => {
+    expect(statesRequirementBrief(SECTIONED_BRIEF)).toBe(true);
+    expect(statesRequirementBrief('Requirement - 3 bhk in HSR')).toBe(true);
+  });
+
+  it('reads a list naming two of type, budget and size', () => {
+    expect(
+      statesRequirementBrief(
+        '1. Villa in Sarjapur\n2. Budget 5 cr\n3. Ready to move'
+      )
+    ).toBe(true);
+  });
+
+  it('does not read chatter, a rejection or a one-facet list as a brief', () => {
+    expect(statesRequirementBrief("don't like this 3 bhk one")).toBe(false);
+    expect(
+      statesRequirementBrief('Not interested.\nthis 3 bhk one is too costly')
+    ).toBe(false);
+    expect(statesRequirementBrief('1. Call me\n2. Send location')).toBe(false);
+    expect(statesRequirementBrief('My requirement is simple, call me')).toBe(
+      false
+    );
+  });
+});
+
+describe('[INB-044] splitRequirementSections', () => {
+  it('splits the 26 October brief into its commercial and residential searches', () => {
+    const [commercial, residential, ...rest] =
+      splitRequirementSections(SECTIONED_BRIEF);
+    expect(rest).toEqual([]);
+    expect(commercial).toMatch(/^COMMERCIAL:/);
+    expect(commercial).toContain('20cr-100 cr+');
+    expect(commercial).not.toContain('RESIDENTIAL');
+    expect(residential).toMatch(/^RESIDENTIAL:/);
+    expect(residential).toContain('10cr-100 cr+');
+  });
+
+  it('keeps a brief with one heading, or a section naming nothing, whole', () => {
+    const one = 'Residential:\n3 bhk flat, 2 cr';
+    expect(splitRequirementSections(one)).toEqual([one]);
+    const empty =
+      'Commercial:\nwill tell later\nResidential:\n3 bhk flat, 2 cr';
+    expect(splitRequirementSections(empty)).toEqual([empty]);
   });
 });

@@ -17,6 +17,21 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 26 October 2026
+
+- **A buyer's written brief is filed as a requirement, not answered as a
+  rejection.** A message laid out as a brief, under a "requirement" heading or
+  as a list naming a type, budget or size, now always goes to the
+  qualification ladder. Before this, a brief containing "Not interested in
+  investment" and "this all property purchase" got the "what didn't fit?"
+  menu, and the shared listing was recorded as rejected. "Not interested in"
+  a purpose (investment, renting) is no longer read as a rejection. A brief
+  with "COMMERCIAL:" and "RESIDENTIAL:" sections is saved as two
+  requirements, each with its own budget. While an agent is handling a
+  thread, a listing the bot links in passing no longer replaces the listing
+  the agent is discussing, so the buyer's questions are answered about the
+  right property (INB-044).
+
 #### 25 October 2026
 
 - **An owner is no longer asked why they rejected their own listing, and a

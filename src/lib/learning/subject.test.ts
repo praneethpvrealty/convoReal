@@ -959,3 +959,60 @@ describe('[INB-034] resolveSubjectProperties reads the burst from the thread', (
     ).resolves.toEqual([]);
   });
 });
+
+describe('[INB-044] a bot aside while an agent handles the thread keeps the subject', () => {
+  const VILLA: ListingRef = {
+    id: 'prop-1153',
+    property_code: 'PROP-1153',
+    title: 'Adarsh Palm Meadows Villa  in Whitefield',
+  };
+  const BUILDING: ListingRef = {
+    id: 'prop-1010',
+    property_code: 'PROP-1010',
+    title:
+      'Commercial Property for Rent or Sale in Whitefield, Dyavasandra Industrial Area',
+  };
+  const card = (agentAt: string): [string, string, string, string?][] => [
+    [
+      '2026-10-26T10:31:33Z',
+      'agent',
+      `${VILLA.title}\nhttps://x.convoreal.com/?property_id=PROP-1153`,
+    ],
+    [agentAt, 'agent', 'Adarsh palm meadows. Let me share the location'],
+    [
+      '2026-10-26T10:35:16Z',
+      'bot',
+      'Thanks Gourishankar — nothing live fits this yet… 📍 We do have 1 listing in Whitefield, Dyavasandra Industrial Area, at ₹47 Cr — below your budget. Take a look: https://x.convoreal.com/?property_id=PROP-1010',
+    ],
+    ['2026-10-26T10:37:18Z', 'customer', 'What is sqft area ?', 'w'],
+  ];
+  const shares: ShareRecord[] = [
+    { propertyId: 'prop-1153', at: '2026-10-26T10:31:33Z' },
+    { propertyId: 'prop-1010', at: '2026-10-26T02:31:29Z' },
+  ];
+
+  it('answers the 26 October question about the villa the agent shared, not the building the card linked', () => {
+    expect(
+      decideSubject({
+        messages: thread(card('2026-10-26T10:35:11Z')),
+        shares,
+        candidates: [VILLA, BUILDING],
+        currentMessageId: 'w',
+      })
+    ).toBe('prop-1153');
+  });
+
+  it('still lets a bot share move the subject once the agent has gone quiet', () => {
+    expect(
+      decideSubject({
+        messages: thread(card('2026-10-26T10:20:00Z').slice(1)),
+        shares: [
+          { propertyId: 'prop-1153', at: '2026-10-26T10:00:00Z' },
+          shares[1],
+        ],
+        candidates: [VILLA, BUILDING],
+        currentMessageId: 'w',
+      })
+    ).toBe('prop-1010');
+  });
+});

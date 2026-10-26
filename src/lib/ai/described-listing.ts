@@ -41,9 +41,11 @@ const MEASURES = new RegExp(MEASURE_SOURCE, 'gi');
 
 /** "this", "that one", "the other one": the buyer is pointing back.
  *  A bare "one" is a quantity ("I want one 2400 sqft plot"), so it
- *  counts only after "the", as in "the 40,000 sqft one". */
+ *  counts only after "the", as in "the 40,000 sqft one". "6k or above"
+ *  is a floor and "this all property purchase" is the buyer's own
+ *  purchase, so neither points at a listing. */
 const REFERENCE_MARKER =
-  /\b(this|that|these|those|other|same|above|earlier|previous|former|latter|meant)\b|\bthe\s+(?:\S+\s+){1,4}one\b/i;
+  /\b(this(?!\s+all\b)|that|these|those|other|same|(?<!\b(?:or|and)\s+)above|earlier|previous|former|latter|meant)\b|\bthe\s+(?:\S+\s+){1,4}one\b/i;
 
 /** "the Chikatogur one", "that Kothnur one": a listing pointed at by a
  *  word of its own rather than a figure. Only "one" closes it — "this
