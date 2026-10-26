@@ -160,6 +160,23 @@ export function asksAboutSharedListing(text?: string | null): boolean {
   );
 }
 
+const DETAILS_ASK =
+  /\b(?:details?|info|information|specs?|specifications?|brochure|more about|tell me about)\b/i;
+
+/**
+ * True when the message asks for the details of a property it
+ * describes and states no search: "Commercial property in hope farm
+ * 48 cr, details ?". Its price and type made it a requirement, so the
+ * ladder filed ₹48 Cr as a budget and told the lead nothing fit, about
+ * the very listing it had just pitched. Only the caller, which can see
+ * the listings already shared, can tell whether it names one of them.
+ */
+export function asksDetailsOfDescribedListing(text?: string | null): boolean {
+  const clean = (text || '').trim();
+  if (!clean || clean.split(/\s+/).length > 16) return false;
+  return DETAILS_ASK.test(clean) && !REQUIREMENT_INTENT.test(clean);
+}
+
 /**
  * True when an inbound message plausibly carries requirement detail —
  * a property type, a budget figure, a size, or an explicit "looking for".

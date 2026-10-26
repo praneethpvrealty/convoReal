@@ -43,6 +43,7 @@ import {
   routeLeadMessage,
   standsDownFromQualification,
 } from '@/lib/ai/lead-routing';
+import { detailsRequestForSharedListing } from '@/lib/ai/named-share';
 import { propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { burnCredits } from '@/lib/credits/burn';
@@ -1565,6 +1566,16 @@ export async function processBuyerQualificationMessage(
 
   try {
     const db = supabaseAdmin();
+
+    if (
+      await detailsRequestForSharedListing(
+        db,
+        accountId,
+        contactRecord.id,
+        text
+      )
+    )
+      return false;
 
     const { data: config } = await db
       .from('whatsapp_config')

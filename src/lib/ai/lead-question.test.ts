@@ -261,6 +261,37 @@ describe('requestsHumanContact', () => {
     expect(asksForContactNumber('Call me')).toBe(false);
   });
 
+  it('[INB-041] reads a lead asking for an expert or an official as asking for a person', () => {
+    // The reported thread: both were answered by the bot, the first
+    // with two listing pitches and the second with "Yes, I am here to
+    // assist you directly".
+    for (const text of [
+      'I think I need a expert to guide me ?\n\nI am not able to figure out my requirement in your website?',
+      'Any official?',
+      'any official',
+      'Is there a human?',
+      'Is there anyone from your team',
+      'are you a bot?',
+      'Hi, are you a real person',
+      'I need someone to guide me',
+      'want to speak to a consultant',
+      'need an advisor',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(true);
+    }
+    for (const text of [
+      "I don't need an expert",
+      'no need for a consultant',
+      'Any official documents?',
+      'Is the khata official?',
+      'Any approvals?',
+      'I am an expert in this area',
+      'Need a 3 BHK in Whitefield',
+    ]) {
+      expect(requestsHumanContact(text), text).toBe(false);
+    }
+  });
+
   it('leaves ordinary requirement talk to the ladder', () => {
     for (const text of [
       '3 BHK in Whitefield',

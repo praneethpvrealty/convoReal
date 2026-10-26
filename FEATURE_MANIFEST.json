@@ -740,6 +740,39 @@
           "guards": [
             "src/lib/whatsapp/inbound/chain/steps/listing-feedback-tap.ts"
           ]
+        },
+        {
+          "id": "INB-041",
+          "rule": "A lead asking for a person to advise them is handed to a person, never answered by the bot: a message that asks for an expert, an official, a consultant, an advisor, a representative or someone to guide or help them (\"I think I need a expert to guide me\", \"I need someone to guide me\"), or that is only a question whether a person is there (\"Any official?\", \"Is there a human?\", \"are you a bot?\"), takes the callback handover like \"call me\". A refusal (\"I don't need an expert\") and a question about the listing's paperwork (\"Any official documents?\", \"Is the khata official?\") are not requests for a person.",
+          "tests": [
+            { "file": "src/lib/ai/lead-question.test.ts", "case": "[INB-041]" }
+          ]
+        },
+        {
+          "id": "INB-042",
+          "rule": "Only a request for the preference form sends it: \"Update my preferences\", \"change my preference to villas\", \"send me the preference form\" or a message that is nothing but \"My preferences\". A lead stating a preference (\"My preference is Property inside tech park\", \"my preferences are Whitefield and Marathahalli\") is answering, often an agent's own question, and gets neither the no-match playback nor the form.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/preference-flow.test.ts",
+              "case": "[INB-042]"
+            }
+          ]
+        },
+        {
+          "id": "INB-043",
+          "rule": "A lead asking for the details of a listing already shared with them, named by its price, size or a word of its own and stating no search (\"Commercial property in hope farm 48 cr, details ?\"), is answered from that listing by the listing Q&A, with or without a question mark. It is never filed as a requirement, so the figure never becomes a budget and the lead is never told nothing fits. A details request that names no shared listing, or that states a search (\"Looking for commercial property 48 cr, details?\"), stays with the ladder. The requirement playback shows a budget whose ends are equal as one figure (\"₹50 Cr\", never \"₹50 Cr–₹50 Cr\").",
+          "tests": [
+            { "file": "src/lib/ai/named-share.test.ts", "case": "[INB-043]" },
+            {
+              "file": "src/lib/whatsapp/requirement-review.test.ts",
+              "case": "[INB-043]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/inbound/chain/run.ts",
+            "src/lib/ai/buyer-qualification.ts",
+            "src/lib/whatsapp/inbound/chain/steps/lead-question.ts"
+          ]
         }
       ]
     },

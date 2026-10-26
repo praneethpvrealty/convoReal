@@ -318,6 +318,18 @@ const OWN_CALL_OFFER =
 const HUMAN_REQUEST =
   /\b(call me|call back|call-back|callback|give me a (call|ring)|ring me|phone me|(please|pls|plz) call|(talk(?:ing)?|speak(?:ing)?) (to|with) (a |an |the )?(human|person|someone|somebody|agent|executive|team|owner|seller)|connect me)\b/g;
 
+/** "I think I need a expert to guide me", "need someone to help me": a
+ *  lead asking for a person to advise them. On 26 October the bot
+ *  answered this with two listing pitches, and then "Any official?"
+ *  with "Yes, I am here to assist you directly". */
+const ADVISOR_REQUEST =
+  /\b(?:need|want|require|looking for)(?: to (?:talk|speak) to)? (?:a |an |some |your |one )?(?:expert|human|real person|executive|representative|advisor|adviser|consultant|official|(?:someone|somebody|some ?one|a person) (?:to|who can|who could) (?:guide|help|assist|advise|explain))\b/g;
+
+/** The whole message asking whether a person is there: "Any official?",
+ *  "is there a human", "are you a bot?". */
+const BARE_HUMAN_QUESTION =
+  /^(?:(?:hi|hello|sir|madam)[\s,]+)*(?:(?:is there|are there|any)(?: an?)? (?:official|human|real person|person|agent|executive|representative|expert|staff|(?:anyone|someone|somebody) from (?:the|your) team)|(?:are (?:you|u)|is this) (?:a |an )?(?:bot|robot|machine|human|real person|automated))\b[\s?.!]*(?:here|there|available|to talk|to help)?[\s?.!]*$/;
+
 /** "Can you arrange a meeting with the owner", "I want to meet the
  *  owner": a meeting is a request only after a request cue, or as a
  *  bare imperative opening the clause. "I had a discussion with the
@@ -539,8 +551,11 @@ export function asksForContactNumber(text?: string | null): boolean {
 export function requestsHumanContact(text?: string | null): boolean {
   return (
     BARE_CALL_MESSAGE.test(normaliseCallText(text).trim()) ||
-    callClauses(text).some((clause) =>
-      unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST)
+    BARE_HUMAN_QUESTION.test(normaliseCallText(text).trim()) ||
+    callClauses(text).some(
+      (clause) =>
+        unrefusedMatch(clause.replace(OWN_CALL_OFFER, ' '), HUMAN_REQUEST) ||
+        unrefusedMatch(clause, ADVISOR_REQUEST)
     ) ||
     (!VISIT_OR_TIME.test(normaliseCallText(text)) &&
       callClauses(text).some(

@@ -1,4 +1,5 @@
 import { isBuyerRequirementMessage } from '@/lib/ai/lead-routing';
+import { detailsRequestForSharedListing } from '@/lib/ai/named-share';
 import { isEngineControlReplyId } from '@/lib/whatsapp/control-reply-ids';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isEarliestCustomerMessage } from '@/lib/whatsapp/serialized-inbound';
@@ -72,7 +73,13 @@ async function buildInboundChainContext(
   const buyerRequirementMessage =
     !ownerCheck.isOwner &&
     isTextMessage &&
-    isBuyerRequirementMessage(contentText);
+    isBuyerRequirementMessage(contentText) &&
+    !(await detailsRequestForSharedListing(
+      supabaseAdmin(),
+      accountId,
+      contactRecord.id,
+      contentText
+    ));
 
   return {
     accountId,

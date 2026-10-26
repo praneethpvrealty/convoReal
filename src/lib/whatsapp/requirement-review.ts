@@ -28,6 +28,8 @@ function budgetLabel(contact: Contact): string | null {
   if (contact.no_budget) return 'no fixed budget';
   const min = contact.pref_budget_min ?? contact.min_budget ?? null;
   const max = contact.pref_budget_max ?? contact.max_budget ?? null;
+  if (min != null && max != null && Number(min) === Number(max))
+    return formatInrCompact(min);
   if (min != null && max != null)
     return `${formatInrCompact(min)}–${formatInrCompact(max)}`;
   if (max != null) return `up to ${formatInrCompact(max)}`;
