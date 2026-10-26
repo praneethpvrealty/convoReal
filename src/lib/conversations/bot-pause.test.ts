@@ -46,6 +46,16 @@ describe('[INB-044] the per-chat bot switch', () => {
     await expect(isBotPaused(db, 'acc-1', null)).resolves.toBe(false);
   });
 
+  it('still records a stop, an alerts change or a closed enquiry while the bot is off', () => {
+    for (const consent of [
+      'buyerAlertsCommand',
+      'ownerDigestCommand',
+      'closeEnquiryTap',
+    ]) {
+      expect(STEPS_WHILE_BOT_PAUSED.has(consent), consent).toBe(true);
+    }
+  });
+
   it('keeps only steps that never reply to the lead while the bot is off', () => {
     const names = new Set(INBOUND_STEPS.map((step) => step.name));
     for (const name of STEPS_WHILE_BOT_PAUSED) {

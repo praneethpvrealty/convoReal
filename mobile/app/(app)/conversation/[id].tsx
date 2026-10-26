@@ -257,6 +257,16 @@ export default function ConversationScreen() {
         () =>
           queryClient.invalidateQueries({ queryKey: ['message-reactions', id] })
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'conversations',
+          filter: `id=eq.${id}`,
+        },
+        () => queryClient.invalidateQueries({ queryKey: ['conversation', id] })
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);

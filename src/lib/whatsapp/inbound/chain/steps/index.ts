@@ -93,4 +93,7 @@ export const STEPS_WHILE_BOT_PAUSED: ReadonlySet<string> = new Set([
   'autoHeat',
   'leadPing',
   'broadcastReplyFlag',
+  'ownerDigestCommand',
+  'closeEnquiryTap',
+  'buyerAlertsCommand',
 ]);
