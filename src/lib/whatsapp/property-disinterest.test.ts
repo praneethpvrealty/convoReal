@@ -372,6 +372,7 @@ describe('[INB-044] "not interested in" a purpose is not a rejection', () => {
     'This all property purchase will be registered on my name. Not interested in Investment, Just Ready to move in.',
     'not interested in renting',
     'Not interested in under construction projects',
+    'not interested in leasing',
   ])('does not flag %s as disinterest', (text) => {
     expect(isPropertyDisinterest(text)).toBe(false);
   });
@@ -382,6 +383,9 @@ describe('[INB-044] "not interested in" a purpose is not a rejection', () => {
     'not interested in buying this',
     'Not interested in it, thanks',
     'Not interested. Not interested in investment either',
+    'Not interested in Adarsh Palm Meadows',
+    'not interested in Prestige Falcon City',
+    'not interested in anything',
   ])('still recognises %s as disinterest', (text) => {
     expect(isPropertyDisinterest(text)).toBe(true);
   });

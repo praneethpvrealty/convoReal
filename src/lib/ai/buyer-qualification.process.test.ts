@@ -1256,6 +1256,24 @@ describe('[INB-044] a sectioned brief is filed as one requirement per section', 
     expect(primary).not.toContain('RESIDENTIAL');
   });
 
+  it('files a repeated section once and never a copy of the primary', async () => {
+    await processBuyerQualificationMessage(
+      `${brief}\n\nRESIDENTIAL:\nVilla, plot size 6000 sqft minimum\nBudget: 10cr-100 cr+\n\nCOMMERCIAL:\nOffice floor inside a tech park in Whitefield\nBudget: 20cr-100 cr+`,
+      { id: 'c1', phone: '919000000000', name: 'Gourishankar' },
+      { id: 'conv-1' },
+      'acct-1',
+      'token',
+      'phone-id',
+      'owner-1'
+    );
+
+    const profiles = updates.find((u) => 'requirement_profiles' in u.payload)
+      ?.payload.requirement_profiles as { raw_text: string }[];
+    expect(profiles.map((p) => p.raw_text.split('\n')[0])).toEqual([
+      'RESIDENTIAL:',
+    ]);
+  });
+
   it('does not file a section already on record twice', async () => {
     queues.contacts = [
       contactRow({

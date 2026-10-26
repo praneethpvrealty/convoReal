@@ -1444,16 +1444,19 @@ async function fileRequirementSections(
   db: ReturnType<typeof supabaseAdmin>,
   accountId: string,
   contact: Contact,
+  primary: string,
   sections: string[]
 ): Promise<void> {
   const existing = contact.requirement_profiles ?? [];
-  const known = new Set(
-    existing.map((profile) => profile.raw_text.trim().toLowerCase())
-  );
+  const known = new Set([
+    primary.toLowerCase(),
+    ...existing.map((profile) => profile.raw_text.trim().toLowerCase()),
+  ]);
   const added: ContactRequirementProfile[] = [];
   for (const section of sections) {
     if (known.has(section.toLowerCase())) continue;
     if (existing.length + added.length >= MAX_REQUIREMENT_PROFILES) break;
+    known.add(section.toLowerCase());
     await softBurn(accountId);
     const preferences = await extractContactPreferences(section);
     if (!hasStructuredRequirement(preferences)) continue;
@@ -1762,6 +1765,7 @@ export async function processBuyerQualificationMessage(
         db,
         accountId,
         contact,
+        sections[0],
         sections.slice(1)
       ).catch((err) => {
         console.error('[buyer-qualification] section filing failed:', err);
