@@ -19,10 +19,11 @@
  * `internal=1`. The app's session never reaches the showcase in that
  * case (the phone's system browser, or a subdomain the dashboard
  * cookie is not sent to), so the server cannot recognise the member;
- * the tab is remembered as internal and sends nothing.
+ * the tab is remembered as internal and sends nothing, and the marker
+ * leaves the address bar so a copied link does not silence a buyer.
  */
 
-import { isInternalView } from './internal-view';
+import { INTERNAL_VIEW_PARAM, isInternalView } from './internal-view';
 import { getShowcaseSessionKey } from './session-key';
 
 interface PulseEvent {
@@ -35,13 +36,21 @@ const FLUSH_AFTER = 5;
 const FLUSH_DELAY_MS = 3000;
 const INTERNAL_VIEW_STORAGE = 'showcase_internal_view';
 
+function stripInternalMarker() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete(INTERNAL_VIEW_PARAM);
+  window.history.replaceState(window.history.state, '', url.toString());
+}
+
 function isInternalTab(): boolean {
   const marked = isInternalView(window.location.search);
   try {
-    if (marked) window.sessionStorage.setItem(INTERNAL_VIEW_STORAGE, '1');
-    return (
-      marked || window.sessionStorage.getItem(INTERNAL_VIEW_STORAGE) === '1'
-    );
+    if (marked) {
+      window.sessionStorage.setItem(INTERNAL_VIEW_STORAGE, '1');
+      stripInternalMarker();
+      return true;
+    }
+    return window.sessionStorage.getItem(INTERNAL_VIEW_STORAGE) === '1';
   } catch {
     return marked;
   }

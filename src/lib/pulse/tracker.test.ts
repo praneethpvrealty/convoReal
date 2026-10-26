@@ -47,6 +47,12 @@ describe('createShowcaseTracker', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('[PRP-052] removes the marker from the address bar so a copied link tracks the buyer', () => {
+    window.history.replaceState(null, '', '/?property_id=P1&internal=1');
+    createShowcaseTracker('acc-1', null);
+    expect(window.location.search).toBe('?property_id=P1');
+  });
+
   it('[PRP-052] keeps the tab internal after the marker leaves the URL', () => {
     window.history.replaceState(null, '', '/?property_id=P1&internal=1');
     createShowcaseTracker('acc-1', null);
