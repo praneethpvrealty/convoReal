@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { storagePublicUrl } from '@/lib/storage/url';
 import {
@@ -63,6 +63,7 @@ import { AskPropertyChat } from '@/components/showcase/ask-property-chat';
 import { ShowcaseLeadBot } from '@/components/showcase/showcase-lead-bot';
 import { SimilarProperties } from '@/components/showcase/similar-properties';
 import { TeaserGate } from '@/components/showcase/teaser-gate';
+import { AddToInventory } from '@/components/showcase/add-to-inventory';
 import {
   PropertyRatingBar,
   HIGH_INTEREST_RATING,
@@ -440,6 +441,15 @@ export function ShowcaseView({
   // ?mode=view (legacy: agent): clean listing detail view (no forms, buttons, or document requests)
   const [isAgentMode, setIsAgentMode] = useState(initialAgentMode);
   const agentLookups = isAgentMode || agentAudience;
+
+  // A signed-in member of another brokerage can add the open listing to
+  // their own inventory. One probe per page tells a signed-out visitor
+  // apart; the rest never see the control.
+  const [importViewerSignedOut, setImportViewerSignedOut] = useState(false);
+  const markImportViewerSignedOut = useCallback(
+    () => setImportViewerSignedOut(true),
+    []
+  );
 
   // Start fetching the share target's hero image from the document head,
   // before hydration and ahead of the grid's card images.
@@ -3367,6 +3377,11 @@ export function ShowcaseView({
                       {/* lg:mr-8 clears the card's absolute close button,
                         which sat over the tail of the code chip. */}
                       <div className="flex shrink-0 items-center gap-2 lg:mr-8">
+                        <AddToInventory
+                          propertyId={selectedProperty.id}
+                          signedOut={importViewerSignedOut}
+                          onSignedOut={markImportViewerSignedOut}
+                        />
                         {/* Buyers only: a co-broker gets the attributed
                           "Get My Share Link" below instead, and an
                           unattributed link beside it would quietly break

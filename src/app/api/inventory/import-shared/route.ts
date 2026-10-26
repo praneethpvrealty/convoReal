@@ -1,38 +1,24 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase/admin';
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requireWriteRole, toErrorResponse } from '@/lib/auth/account';
 import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
-import { findOrCreateContact } from '@/lib/contacts/find-or-create';
 import {
-  buildSharedPropertyCopy,
-  SHARED_PROPERTY_COLUMNS,
-} from '@/lib/inventory/shared-property-copy';
+  importSharedProperty,
+  UUID_RE,
+} from '@/lib/inventory/import-shared-property';
 
 /**
  * POST /api/inventory/import-shared
  *
  * Imports a co-broker-shared property (the ?property_id=...&mode=view
  * link another brokerage sent on WhatsApp) into the caller's own
- * inventory, preserving cross-account lineage:
- *   - source_property_id → the upstream listing, so the ORIGINAL source
- *     agent's digest can count buyers this copy reaches as indirect.
- *   - owner_contact_id → the sharing brokerage, find-or-created as an
- *     Agent contact (listing_source 'agent'), so the sharer gets their
- *     own reach digest from this account.
- *
- * Only fields the public co-broker showcase already exposes are copied
- * — internal notes, deal remarks, documents, floor tenancies, and deal
- * mode stay behind. The copy lands unpublished for review. Idempotent:
- * re-importing the same source returns the existing copy.
+ * inventory. See importSharedProperty for what is copied and what is
+ * withheld.
  */
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function extractPropertyId(input: unknown): string | null {
   if (typeof input !== 'string') return null;
@@ -50,7 +36,7 @@ function extractPropertyId(input: unknown): string | null {
 
 export async function POST(request: Request) {
   try {
-    const ctx = await requireRole('agent');
+    const ctx = await requireWriteRole('agent');
 
     const limit = await checkRateLimit(
       `agent:importSharedProperty:${ctx.userId}`,
@@ -70,100 +56,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const admin = supabaseAdmin();
-
-    const { data: sourceRow } = await admin
-      .from('properties')
-      .select(SHARED_PROPERTY_COLUMNS)
-      .eq('id', sourceId)
-      .maybeSingle();
-    const source = sourceRow as Record<string, unknown> | null;
-    // Only published listings are reachable via share links — an
-    // unpublished id would let arbitrary UUIDs probe private inventory.
-    if (!source || !source.is_published) {
-      return NextResponse.json(
-        { error: 'Shared property not found' },
-        { status: 404 }
-      );
+    const result = await importSharedProperty(ctx, sourceId);
+    switch (result.kind) {
+      case 'not_found':
+        return NextResponse.json(
+          { error: 'Shared property not found' },
+          { status: 404 }
+        );
+      case 'withheld':
+        return NextResponse.json(
+          { error: 'This listing is confidential and cannot be imported' },
+          { status: 403 }
+        );
+      case 'own_listing':
+        return NextResponse.json(
+          { error: 'This property is already in your inventory' },
+          { status: 409 }
+        );
+      case 'already_imported':
+        return NextResponse.json({
+          data: { id: result.id, alreadyImported: true },
+        });
+      case 'imported':
+        return NextResponse.json(
+          { data: { id: result.id, title: result.title } },
+          { status: 201 }
+        );
     }
-    if (source.account_id === ctx.accountId) {
-      return NextResponse.json(
-        { error: 'This property is already in your inventory' },
-        { status: 409 }
-      );
-    }
-
-    const { data: existing } = await ctx.supabase
-      .from('properties')
-      .select('id')
-      .eq('account_id', ctx.accountId)
-      .eq('source_property_id', source.id)
-      .maybeSingle();
-    if (existing) {
-      return NextResponse.json({
-        data: { id: existing.id, alreadyImported: true },
-      });
-    }
-
-    // The sharing brokerage becomes an Agent contact in the importer's
-    // book — the same card a manual agent-referred listing would use.
-    const [{ data: sourceAccount }, { data: sharerProfiles }] =
-      await Promise.all([
-        admin
-          .from('accounts')
-          .select('name')
-          .eq('id', source.account_id)
-          .maybeSingle(),
-        admin
-          .from('profiles')
-          .select('full_name, phone, org_role')
-          .eq('account_id', source.account_id)
-          .not('phone', 'is', null)
-          .limit(10),
-      ]);
-    const sharer =
-      (sharerProfiles || []).find((p) => p.org_role === 'org_manager') ||
-      (sharerProfiles || [])[0] ||
-      null;
-
-    let sharerContactId: string | null = null;
-    if (sharer?.phone) {
-      const result = await findOrCreateContact(admin, {
-        accountId: ctx.accountId,
-        userId: ctx.userId,
-        phone: sharer.phone,
-        name: sharer.full_name || sourceAccount?.name || null,
-        company: sourceAccount?.name || null,
-        source: 'Shared Inventory',
-        classification: 'Agent',
-      });
-      sharerContactId = result.contactId;
-    }
-
-    const { data: created, error: insertError } = await ctx.supabase
-      .from('properties')
-      .insert(
-        buildSharedPropertyCopy(source, {
-          accountId: ctx.accountId,
-          userId: ctx.userId,
-          ownerContactId: sharerContactId,
-        })
-      )
-      .select('id, title')
-      .single();
-
-    if (insertError || !created) {
-      console.error(
-        '[POST /api/inventory/import-shared] Insert error:',
-        insertError
-      );
-      return NextResponse.json(
-        { error: 'Failed to import property' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ data: created }, { status: 201 });
   } catch (err) {
     return toErrorResponse(err);
   }
