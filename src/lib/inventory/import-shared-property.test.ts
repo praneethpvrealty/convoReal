@@ -14,6 +14,7 @@ function chain(result: Result) {
     'insert',
     'upsert',
     'order',
+    'in',
   ]) {
     query[method] = vi.fn(() => query);
   }
@@ -26,6 +27,8 @@ function chain(result: Result) {
 
 const state = vi.hoisted(() => ({
   source: null as Record<string, unknown> | null,
+  sources: [] as Array<Record<string, unknown>>,
+  sourceLookups: [] as string[][],
   existingCopy: null as { id: string } | null,
   sharers: [] as Array<Record<string, unknown>>,
   inserted: [] as Array<Record<string, unknown>>,
@@ -36,7 +39,15 @@ vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
       if (table === 'properties') {
-        return chain({ data: state.source, error: null });
+        const query = chain({ data: state.sources, error: null });
+        query.maybeSingle = vi.fn(() =>
+          Promise.resolve({ data: state.source, error: null })
+        );
+        query.in = vi.fn((_column: string, ids: string[]) => {
+          state.sourceLookups.push(ids);
+          return query;
+        });
+        return query;
       }
       if (table === 'accounts') {
         return chain({ data: { name: 'Aryavarta Ventures' }, error: null });
@@ -60,7 +71,9 @@ vi.mock('@/lib/contacts/find-or-create', () => ({
 
 import {
   importSharedProperty,
+  MAX_VIEWER_LOOKUP,
   sharedPropertyImportSource,
+  showcaseImportViewers,
 } from './import-shared-property';
 
 function ctx(): AccountContext {
@@ -216,5 +229,101 @@ describe('importSharedProperty', () => {
     expect(await importSharedProperty(ctx(), 'prop-1')).toEqual({
       kind: 'not_found',
     });
+  });
+});
+
+describe('showcaseImportViewers', () => {
+  function viewerCtx(
+    overrides: Partial<AccountContext> = {},
+    copies: Array<{ id: string; source_property_id: string }> = []
+  ) {
+    const copyLookups: string[][] = [];
+    const base = ctx();
+    return {
+      copyLookups,
+      ctx: {
+        ...base,
+        ...overrides,
+        supabase: {
+          from: () => {
+            const query = chain({ data: copies, error: null });
+            query.in = vi.fn((_column: string, ids: string[]) => {
+              copyLookups.push(ids);
+              return query;
+            });
+            return query;
+          },
+        },
+      } as unknown as AccountContext,
+    };
+  }
+
+  beforeEach(() => {
+    state.sourceLookups = [];
+    state.sources = [
+      { id: 'theirs', account_id: 'acct-them', is_published: true },
+      { id: 'copied', account_id: 'acct-them', is_published: true },
+      {
+        id: 'teaser',
+        account_id: 'acct-them',
+        is_published: true,
+        showcase_visibility: 'teaser',
+      },
+      { id: 'mine', account_id: 'acct-me', is_published: true },
+      { id: 'draft', account_id: 'acct-them', is_published: false },
+    ];
+  });
+
+  it('[PRP-053] answers every published listing in one lookup, with the caller\u2019s existing copies', async () => {
+    const { ctx: c, copyLookups } = viewerCtx({}, [
+      { id: 'copy-1', source_property_id: 'copied' },
+    ]);
+    const viewers = await showcaseImportViewers(c, [
+      'theirs',
+      'copied',
+      'teaser',
+      'mine',
+      'draft',
+      'theirs',
+    ]);
+    expect(viewers).toEqual({
+      theirs: { own: false, canImport: true, importedId: null },
+      copied: { own: false, canImport: true, importedId: 'copy-1' },
+      teaser: { own: false, canImport: false, importedId: null },
+      mine: { own: true, canImport: false, importedId: null },
+    });
+    expect(state.sourceLookups).toEqual([
+      ['theirs', 'copied', 'teaser', 'mine', 'draft'],
+    ]);
+    expect(copyLookups).toEqual([['theirs', 'copied', 'teaser']]);
+  });
+
+  it('[PRP-053] lets neither a read-only member nor a viewer import', async () => {
+    for (const overrides of [
+      { isReadOnly: true },
+      { role: 'viewer' as AccountContext['role'] },
+    ]) {
+      const viewers = await showcaseImportViewers(viewerCtx(overrides).ctx, [
+        'theirs',
+      ]);
+      expect(viewers.theirs).toEqual({
+        own: false,
+        canImport: false,
+        importedId: null,
+      });
+    }
+  });
+
+  it('[PRP-053] asks nothing for an empty list and refuses more than the limit', async () => {
+    expect(await showcaseImportViewers(viewerCtx().ctx, [])).toEqual({});
+    expect(state.sourceLookups).toHaveLength(0);
+    const tooMany = Array.from(
+      { length: MAX_VIEWER_LOOKUP + 1 },
+      (_, i) => `p-${i}`
+    );
+    await expect(
+      showcaseImportViewers(viewerCtx().ctx, tooMany)
+    ).rejects.toThrow(/no more than/);
+    expect(state.sourceLookups).toHaveLength(0);
   });
 });

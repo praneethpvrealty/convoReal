@@ -1,16 +1,24 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { FolderInput, Loader2, PackageCheck } from 'lucide-react';
 import { appOrigin } from '@/lib/showcase/app-origin';
+import { cn } from '@/lib/utils';
 
 interface AddToInventoryProps {
   propertyId: string;
   /** The visitor already proved to be signed out on this page; skip the probe. */
   signedOut: boolean;
   onSignedOut: () => void;
+  /** `chip` beside the open listing's Share; `icon` in a grid card's actions. */
+  variant?: 'chip' | 'icon';
+  /** Names the listing in the icon's accessible label. */
+  title?: string;
+  /** Ask about this listing on its own. Off where the page-level
+   *  useShowcaseImportViewers already covers it. */
+  probe?: boolean;
 }
 
 interface Viewer {
@@ -21,12 +29,18 @@ interface Viewer {
 
 type Probe = { signedOut: true } | { signedOut: false; viewer: Viewer | null };
 
+type Viewers =
+  { signedOut: true } | { signedOut: false; viewers: Record<string, Viewer> };
+
 export const SHOWCASE_IMPORT_PATH = '/api/inventory/showcase-import';
 
-export function showcaseImportUrl(propertyId?: string): string {
+/** Matches MAX_VIEWER_LOOKUP on the route. */
+export const VIEWER_BATCH_SIZE = 60;
+
+export function showcaseImportUrl(propertyIds?: string[]): string {
   const base = `${appOrigin()}${SHOWCASE_IMPORT_PATH}`;
-  return propertyId
-    ? `${base}?property_id=${encodeURIComponent(propertyId)}`
+  return propertyIds && propertyIds.length > 0
+    ? `${base}?property_ids=${propertyIds.map(encodeURIComponent).join(',')}`
     : base;
 }
 
@@ -38,14 +52,66 @@ function probeKey(propertyId: string) {
   return ['showcase-import', propertyId] as const;
 }
 
+async function fetchViewers(propertyIds: string[]): Promise<Viewers> {
+  const viewers: Record<string, Viewer> = {};
+  for (let i = 0; i < propertyIds.length; i += VIEWER_BATCH_SIZE) {
+    const res = await fetch(
+      showcaseImportUrl(propertyIds.slice(i, i + VIEWER_BATCH_SIZE)),
+      { credentials: 'include' }
+    );
+    if (res.status === 401 || res.status === 403) return { signedOut: true };
+    if (!res.ok) throw new Error(`Probe failed with ${res.status}`);
+    const body = (await res.json()) as {
+      data?: { viewers?: Record<string, Viewer> };
+    };
+    Object.assign(viewers, body.data?.viewers ?? {});
+  }
+  return { signedOut: false, viewers };
+}
+
 async function probeViewer(propertyId: string): Promise<Probe> {
-  const res = await fetch(showcaseImportUrl(propertyId), {
-    credentials: 'include',
+  const result = await fetchViewers([propertyId]);
+  if (result.signedOut) return result;
+  return { signedOut: false, viewer: result.viewers[propertyId] ?? null };
+}
+
+/**
+ * One probe for every listing the page holds, seeding each listing's
+ * cache entry so the grid cards and the open listing read it without a
+ * request of their own. A signed-out visitor costs a single request: the
+ * first answer that says so stops the rest.
+ */
+export function useShowcaseImportViewers(
+  propertyIds: string[],
+  signedOut: boolean,
+  onSignedOut: () => void
+) {
+  const queryClient = useQueryClient();
+  const ids = useMemo(() => [...new Set(propertyIds)].sort(), [propertyIds]);
+  const { data } = useQuery({
+    queryKey: ['showcase-import-batch', ids.join(',')],
+    queryFn: async () => {
+      const result = await fetchViewers(ids);
+      if (result.signedOut) return true;
+      for (const id of ids) {
+        if (queryClient.getQueryData(probeKey(id)) === undefined) {
+          const entry: Probe = {
+            signedOut: false,
+            viewer: result.viewers[id] ?? null,
+          };
+          queryClient.setQueryData(probeKey(id), entry);
+        }
+      }
+      return false;
+    },
+    enabled: !signedOut && ids.length > 0,
+    retry: 2,
+    staleTime: Infinity,
   });
-  if (res.status === 401 || res.status === 403) return { signedOut: true };
-  if (!res.ok) throw new Error(`Probe failed with ${res.status}`);
-  const body = (await res.json()) as { data?: Viewer };
-  return { signedOut: false, viewer: body.data ?? null };
+
+  useEffect(() => {
+    if (data === true) onSignedOut();
+  }, [data, onSignedOut]);
 }
 
 async function importListing(
@@ -69,24 +135,29 @@ async function importListing(
 
 const chipClass =
   'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-colors';
+const iconClass =
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-md transition-all hover:scale-105';
 
 export function AddToInventory({
   propertyId,
   signedOut,
   onSignedOut,
+  variant = 'chip',
+  title,
+  probe = true,
 }: AddToInventoryProps) {
   const queryClient = useQueryClient();
-  const { data: probe } = useQuery({
+  const { data: viewerProbe } = useQuery({
     queryKey: probeKey(propertyId),
     queryFn: () => probeViewer(propertyId),
-    enabled: !signedOut,
+    enabled: !signedOut && probe,
     retry: false,
     staleTime: Infinity,
   });
 
   useEffect(() => {
-    if (probe?.signedOut) onSignedOut();
-  }, [probe, onSignedOut]);
+    if (viewerProbe?.signedOut) onSignedOut();
+  }, [viewerProbe, onSignedOut]);
 
   const add = useMutation({
     mutationFn: (id: string) => importListing(id),
@@ -112,9 +183,10 @@ export function AddToInventory({
     },
   });
 
-  if (signedOut || !probe || probe.signedOut) return null;
-  const viewer = probe.viewer;
+  if (signedOut || !viewerProbe || viewerProbe.signedOut) return null;
+  const viewer = viewerProbe.viewer;
   if (!viewer || viewer.own) return null;
+  const icon = variant === 'icon';
 
   if (viewer.importedId) {
     return (
@@ -123,10 +195,16 @@ export function AddToInventory({
         target="_blank"
         rel="noopener noreferrer"
         title="Open this listing in your inventory"
-        className={`${chipClass} border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/50 hover:text-emerald-300`}
+        aria-label={
+          icon ? `${title ?? 'This listing'} is in your inventory` : undefined
+        }
+        className={cn(
+          icon ? iconClass : chipClass,
+          'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/50 hover:text-emerald-300'
+        )}
       >
-        <PackageCheck className="size-3.5" />
-        In your inventory
+        <PackageCheck className={icon ? 'size-4' : 'size-3.5'} />
+        {!icon && 'In your inventory'}
       </a>
     );
   }
@@ -139,16 +217,23 @@ export function AddToInventory({
       type="button"
       onClick={() => add.mutate(propertyId)}
       disabled={importing}
-      title="Add this property to your inventory"
-      aria-label="Add this property to your inventory"
-      className={`${chipClass} border-primary/40 bg-primary/10 text-primary hover:border-primary/60 hover:bg-primary/20 cursor-pointer disabled:cursor-default disabled:opacity-60`}
+      title="Add to my inventory"
+      aria-label={
+        icon
+          ? `Add ${title ?? 'this listing'} to my inventory`
+          : 'Add this property to your inventory'
+      }
+      className={cn(
+        icon ? iconClass : chipClass,
+        'border-primary/40 bg-primary/10 text-primary hover:border-primary/60 hover:bg-primary/20 cursor-pointer disabled:cursor-default disabled:opacity-60'
+      )}
     >
       {importing ? (
-        <Loader2 className="size-3.5 animate-spin" />
+        <Loader2 className={cn(icon ? 'size-4' : 'size-3.5', 'animate-spin')} />
       ) : (
-        <FolderInput className="size-3.5" />
+        <FolderInput className={icon ? 'size-4' : 'size-3.5'} />
       )}
-      Add to my inventory
+      {!icon && 'Add to my inventory'}
     </button>
   );
 }

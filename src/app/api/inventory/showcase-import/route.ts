@@ -4,7 +4,6 @@ import {
   requireWriteRole,
   toErrorResponse,
 } from '@/lib/auth/account';
-import { hasMinRole } from '@/lib/auth/roles';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -12,20 +11,21 @@ import {
 } from '@/lib/rate-limit';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import {
-  findImportedCopy,
   importSharedProperty,
-  lookupSharedPropertySource,
+  MAX_VIEWER_LOOKUP,
+  showcaseImportViewers,
   UUID_RE,
 } from '@/lib/inventory/import-shared-property';
-import { isTeaserGated } from '@/lib/inventory/showcase-visibility';
 import { isAppSiteOrigin } from '@/lib/showcase/app-origin';
 
 /**
  * The showcase's "Add to my inventory" control, for a signed-in member
  * of another account browsing a listing.
  *
- *   GET  ?property_id=<uuid>  → who the visitor is to this listing
- *   POST { property_id }      → import it (importSharedProperty)
+ *   GET  ?property_ids=<uuid,…> → who the visitor is to each listing
+ *        (up to MAX_VIEWER_LOOKUP), as { viewers: { [id]: viewer } }
+ *   GET  ?property_id=<uuid>    → the same for one listing, as the viewer
+ *   POST { property_id }        → import it (importSharedProperty)
  *
  * A tenant showcase is served from `<label>.<baseDomain>` while the
  * session cookie is host-only to the app origin, so the showcase calls
@@ -36,15 +36,6 @@ import { isAppSiteOrigin } from '@/lib/showcase/app-origin';
  * cookie is still what authenticates the call; the headers only let a
  * same-site page read the answer.
  */
-
-export interface ShowcaseImportViewer {
-  /** The listing belongs to the visitor's own account. */
-  own: boolean;
-  /** The visitor may write to their inventory (agent or above, not read-only). */
-  canImport: boolean;
-  /** This account's existing copy of the listing, when it has one. */
-  importedId: string | null;
-}
 
 function corsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get('origin');
@@ -72,37 +63,49 @@ export async function OPTIONS(request: Request) {
 export async function GET(request: Request) {
   try {
     const ctx = await getCurrentAccount();
-    const propertyId = new URL(request.url).searchParams.get('property_id');
-    if (!propertyId || !UUID_RE.test(propertyId)) {
+    const params = new URL(request.url).searchParams;
+    const batch = params.get('property_ids');
+    const ids = (batch ?? params.get('property_id') ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (
+      ids.length === 0 ||
+      ids.length > MAX_VIEWER_LOOKUP ||
+      !ids.every((id) => UUID_RE.test(id))
+    ) {
       return withCors(
         request,
-        NextResponse.json({ error: 'property_id is required' }, { status: 400 })
+        NextResponse.json(
+          {
+            error: `property_ids must list 1 to ${MAX_VIEWER_LOOKUP} listing ids`,
+          },
+          { status: 400 }
+        )
       );
     }
 
-    const source = await lookupSharedPropertySource(propertyId);
-    if (!source) {
+    const viewers = await showcaseImportViewers(ctx, ids);
+    if (batch === null) {
+      const viewer = viewers[ids[0]];
+      if (!viewer) {
+        return withCors(
+          request,
+          NextResponse.json({ error: 'Property not found' }, { status: 404 })
+        );
+      }
       return withCors(
         request,
-        NextResponse.json({ error: 'Property not found' }, { status: 404 })
+        NextResponse.json(
+          { data: viewer },
+          { headers: { 'Cache-Control': 'private, no-store' } }
+        )
       );
     }
-
-    const own = source.account_id === ctx.accountId;
-    const imported = own ? null : await findImportedCopy(ctx, source.id);
-    const viewer: ShowcaseImportViewer = {
-      own,
-      canImport:
-        !own &&
-        !ctx.isReadOnly &&
-        hasMinRole(ctx.role, 'agent') &&
-        !isTeaserGated(source),
-      importedId: imported?.id ?? null,
-    };
     return withCors(
       request,
       NextResponse.json(
-        { data: viewer },
+        { data: { viewers } },
         { headers: { 'Cache-Control': 'private, no-store' } }
       )
     );

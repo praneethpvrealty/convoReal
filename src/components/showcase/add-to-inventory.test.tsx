@@ -23,6 +23,7 @@ function deferred(): Deferred {
 }
 
 const pending: Deferred[] = [];
+const probeStatus = { value: 200 };
 
 const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input);
@@ -31,13 +32,22 @@ const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     pending.push(d);
     return d.promise;
   }
-  const id = new URL(url).searchParams.get('property_id');
+  const ids = (new URL(url).searchParams.get('property_ids') ?? '')
+    .split(',')
+    .filter(Boolean);
   return Promise.resolve({
-    ok: true,
-    status: 200,
+    ok: probeStatus.value < 400,
+    status: probeStatus.value,
     json: () =>
       Promise.resolve({
-        data: { own: false, canImport: true, importedId: null, id },
+        data: {
+          viewers: Object.fromEntries(
+            ids.map((id) => [
+              id,
+              { own: false, canImport: true, importedId: null },
+            ])
+          ),
+        },
       }),
   } as unknown as Response);
 });
@@ -46,7 +56,11 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
-import { AddToInventory } from './add-to-inventory';
+import {
+  AddToInventory,
+  useShowcaseImportViewers,
+  VIEWER_BATCH_SIZE,
+} from './add-to-inventory';
 
 function renderControl(propertyId: string, client: QueryClient) {
   return render(
@@ -67,6 +81,7 @@ const addButton = () =>
 
 beforeEach(() => {
   pending.length = 0;
+  probeStatus.value = 200;
   fetchMock.mockClear();
 });
 
@@ -130,4 +145,57 @@ describe('AddToInventory', () => {
       ).toBe('https://www.convoreal.com/inventory?propertyId=copy-a')
     );
   });
+
+  it('[PRP-053] splits a large catalog into probes of at most the route\u2019s limit', async () => {
+    const ids = Array.from(
+      { length: VIEWER_BATCH_SIZE + 5 },
+      (_, i) => `prop-${String(i).padStart(3, '0')}`
+    );
+    const client = new QueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <Catalog ids={ids} />
+      </QueryClientProvider>
+    );
+    await waitFor(() =>
+      expect(client.getQueryData(['showcase-import', ids.at(-1)])).toEqual({
+        signedOut: false,
+        viewer: { own: false, canImport: true, importedId: null },
+      })
+    );
+    const sizes = fetchMock.mock.calls.map(
+      ([input]) =>
+        (new URL(String(input)).searchParams.get('property_ids') ?? '').split(
+          ','
+        ).length
+    );
+    expect(sizes).toEqual([VIEWER_BATCH_SIZE, 5]);
+  });
+
+  it('[PRP-053] stops at the first answer that says the visitor is signed out', async () => {
+    probeStatus.value = 401;
+    const ids = Array.from(
+      { length: VIEWER_BATCH_SIZE * 2 },
+      (_, i) => `prop-${String(i).padStart(3, '0')}`
+    );
+    const onSignedOut = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <Catalog ids={ids} onSignedOut={onSignedOut} />
+      </QueryClientProvider>
+    );
+    await waitFor(() => expect(onSignedOut).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
+
+function Catalog({
+  ids,
+  onSignedOut = () => {},
+}: {
+  ids: string[];
+  onSignedOut?: () => void;
+}) {
+  useShowcaseImportViewers(ids, false, onSignedOut);
+  return null;
+}
