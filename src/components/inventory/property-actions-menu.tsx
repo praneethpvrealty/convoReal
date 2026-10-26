@@ -7,6 +7,7 @@ import {
   ArchiveRestore,
   Copy,
   Edit,
+  ExternalLink,
   Globe,
   Scale,
   Loader2,
@@ -24,6 +25,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { createClient } from '@/lib/supabase/client';
+import { accountShowcaseBase } from '@/lib/showcase/account-showcase-url';
+import { isListedOnShowcase } from '@/lib/showcase/listed-statuses';
+import { propertyShowcaseUrl } from '@/lib/share-message-builder';
+import { markInternalView } from '@/lib/pulse/internal-view';
 
 export interface PropertyActionHandlers {
   onEdit: (property: Property) => void;
@@ -58,6 +64,23 @@ export function PropertyActionsMenu({
   onPortals,
 }: PropertyActionsMenuProps) {
   const router = useRouter();
+  const listedOnShowcase = isListedOnShowcase(property);
+
+  async function openShowcase() {
+    const tab = window.open('', '_blank');
+    if (!tab) return;
+    tab.opener = null;
+    try {
+      const base = await accountShowcaseBase(
+        createClient(),
+        property.account_id
+      );
+      tab.location.href = markInternalView(propertyShowcaseUrl(base, property));
+    } catch {
+      tab.close();
+    }
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -100,6 +123,13 @@ export function PropertyActionsMenu({
             <Globe className="text-primary size-3.5" /> Post to portals
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem
+          disabled={!listedOnShowcase}
+          onClick={() => void openShowcase()}
+        >
+          <ExternalLink className="text-primary size-3.5" />
+          {listedOnShowcase ? 'View on showcase' : 'Not on showcase'}
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => router.push(`/journey?property=${property.id}`)}
         >

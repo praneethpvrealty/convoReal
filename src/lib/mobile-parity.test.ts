@@ -403,6 +403,20 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(web).toContain('mode=view&v=${encodeURIComponent(contactId)}');
   });
 
+  it('[PRP-052] offers each listing showcase page from web and mobile alike', () => {
+    const mobile = mobileSource('app/(app)/property/[id].tsx');
+    const web = webSource('components/inventory/property-actions-menu.tsx');
+
+    expect(mobile).toContain('isListedOnShowcase(property)');
+    expect(mobile).toContain("label: 'View on showcase'");
+    expect(mobile).toContain("audience: 'client'");
+    expect(mobile).toContain('markInternalView(');
+    expect(web).toContain('isListedOnShowcase(property)');
+    expect(web).toContain('markInternalView(');
+    expect(web).toContain('View on showcase');
+    expect(web).toContain('propertyShowcaseUrl(base, property)');
+  });
+
   it('[PRP-010] requires a named contact for personal WhatsApp property shares', () => {
     const mobile = mobileSource('components/property-share-sheet.tsx');
     const webProperty = webSource(
