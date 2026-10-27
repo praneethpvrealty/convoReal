@@ -89,6 +89,7 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import {
   CLASSIFICATIONS,
+  DEFAULT_CONTACT_CLASSIFICATION,
   type Classification,
   type Contact,
 } from '@/lib/types';
@@ -1128,7 +1129,9 @@ function QuickAddContact({
   const [nameTag, setNameTag] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [classification, setClassification] = useState<Classification>('Buyer');
+  const [classification, setClassification] = useState<Classification>(
+    DEFAULT_CONTACT_CLASSIFICATION
+  );
   const countryCode = useAccountCountryCode();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1138,7 +1141,7 @@ function QuickAddContact({
     setNameTag('');
     setPhone('');
     setEmail('');
-    setClassification('Buyer');
+    setClassification(DEFAULT_CONTACT_CLASSIFICATION);
     setError(null);
   }
 

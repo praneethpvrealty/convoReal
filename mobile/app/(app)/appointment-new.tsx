@@ -34,13 +34,24 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AppointmentType, Contact } from '@/lib/types';
 import { voiceHints, type VoicePrefill } from '@/lib/voice-event';
 import { contactHandle } from '@/lib/reachability';
+import {
+  EVENT_TYPE_ORDER,
+  eventTypeFromParam,
+} from '@shared/lib/calendar/event-type-defaults';
 
-const TYPES: { value: AppointmentType; label: string; icon: string }[] = [
-  { value: 'site_visit', label: 'Site visit', icon: 'location-outline' },
-  { value: 'meeting', label: 'Meeting', icon: 'people-outline' },
-  { value: 'call', label: 'Call', icon: 'call-outline' },
-  { value: 'follow_up', label: 'Follow-up', icon: 'repeat-outline' },
-];
+const TYPE_LABELS: Record<AppointmentType, string> = {
+  site_visit: 'Site visit',
+  call: 'Call',
+  follow_up: 'Follow-up',
+  document: 'Document',
+  meeting: 'Meeting',
+  other: 'Other',
+};
+
+const TYPES = EVENT_TYPE_ORDER.map((value) => ({
+  value,
+  label: TYPE_LABELS[value],
+}));
 
 export default function NewAppointmentScreen() {
   const { colors, fonts: f } = useTheme();
@@ -59,7 +70,7 @@ export default function NewAppointmentScreen() {
 
   const [title, setTitle] = useState(params.title ?? '');
   const [eventType, setEventType] = useState<AppointmentType>(
-    params.eventType === 'follow_up' ? 'follow_up' : 'site_visit'
+    eventTypeFromParam(params.eventType)
   );
   const [start, setStart] = useState(() => {
     const d = new Date();
@@ -226,7 +237,9 @@ export default function NewAppointmentScreen() {
           />
         </TourTarget>
 
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <View
+          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        >
           {TYPES.map((t) => {
             const active = eventType === t.value;
             return (
@@ -417,7 +430,8 @@ export default function NewAppointmentScreen() {
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md },
   typeChip: {
-    flex: 1,
+    flexBasis: '30%',
+    flexGrow: 1,
     alignItems: 'center',
     borderRadius: radius.full,
     borderWidth: 1,

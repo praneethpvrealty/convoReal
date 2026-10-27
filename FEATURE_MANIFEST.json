@@ -6044,6 +6044,17 @@
           "tests": [
             { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-002]" }
           ]
+        },
+        {
+          "id": "UIX-003",
+          "rule": "Web and mobile start a new record from the same defaults, read from one web module each: a new contact is classified Others and the classification list (including Owner & Buyer) has one order and one filter set (src/lib/contacts/classifications.ts); a new event is a Meeting and the create picker offers all six types in the web order (src/lib/calendar/event-type-defaults.ts); the properties list opens on every listing except archived ones; the deals Records tab opens on Active with Active / Won / Lost / All filters (src/lib/deals/index-row.ts); a new deal from the deals header starts in the pipeline's first stage; and the greeting composer preselects the first occasion.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-003]" },
+            {
+              "file": "src/lib/calendar/event-type-defaults.test.ts",
+              "case": "[UIX-003]"
+            }
+          ]
         }
       ]
     }

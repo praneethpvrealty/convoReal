@@ -8,6 +8,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { CONTACT_CLASSIFICATIONS } from '@/lib/contacts/classifications';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { resolveConversation } from '@/lib/conversations/resolve';
@@ -1170,9 +1171,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const sortItems = contactSortItems(sortBy);
   const classificationItems = [
     { value: 'All', label: 'All Classifications' },
-    ...['Owner', 'Seller', 'Buyer', 'Agent', 'Developer', 'Others'].map(
-      (value) => ({ value, label: value })
-    ),
+    ...CONTACT_CLASSIFICATIONS.map((value) => ({ value, label: value })),
   ];
   const tagItems = [
     { value: 'All', label: 'All Tags' },

@@ -9,13 +9,17 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { todayDateKey } from '@/lib/deals/deadlines';
 import {
+  DEFAULT_RECORDS_STATUS_FILTER,
   expectedCloseLabel,
   isClosingRecord,
+  matchesRecordsStatus,
   RECORDS_SORTS,
+  RECORDS_STATUS_FILTERS,
   sortIndexRows,
   transactionSubtitle,
   transactionTitle,
   type RecordsSort,
+  type RecordsStatusFilter,
 } from '@/lib/deals/index-row';
 import { CLOSING_RECORDS_LABEL, dealsHref } from '@/lib/deals/routes';
 import { formatDealAmount } from '@/lib/pipelines/deal-money';
@@ -52,15 +56,6 @@ const CLOSE_TONE_CLASS = {
   later: 'border-slate-700 bg-slate-800/60 text-slate-300',
 } as const;
 
-type StatusFilter = 'open' | 'won' | 'lost' | 'all';
-
-const FILTERS: Array<{ id: StatusFilter; label: string }> = [
-  { id: 'open', label: 'Active' },
-  { id: 'won', label: 'Won' },
-  { id: 'lost', label: 'Lost' },
-  { id: 'all', label: 'All' },
-];
-
 export function TransactionWorkspaceIndex({
   embedded = false,
 }: {
@@ -68,7 +63,9 @@ export function TransactionWorkspaceIndex({
 }) {
   const supabase = createClient();
   const { accountId } = useAuth();
-  const [filter, setFilter] = useState<StatusFilter>('open');
+  const [filter, setFilter] = useState<RecordsStatusFilter>(
+    DEFAULT_RECORDS_STATUS_FILTER
+  );
   const [sort, setSort] = useState<RecordsSort>('updated');
   const [query, setQuery] = useState('');
   const today = todayDateKey();
@@ -91,7 +88,7 @@ export function TransactionWorkspaceIndex({
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return sortIndexRows(rows, sort).filter((row) => {
-      if (filter !== 'all' && row.status !== filter) return false;
+      if (!matchesRecordsStatus(row, filter)) return false;
       if (!q) return true;
       return [
         row.title,
@@ -153,7 +150,7 @@ export function TransactionWorkspaceIndex({
           ))}
         </div>
         <div className="flex gap-1 rounded-lg border border-slate-800 bg-slate-900/50 p-1">
-          {FILTERS.map((f) => (
+          {RECORDS_STATUS_FILTERS.map((f) => (
             <button
               key={f.id}
               type="button"

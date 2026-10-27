@@ -380,7 +380,7 @@ function ComposeGreetingSheet({
   const { colors } = useTheme();
   const dialog = useAppDialog();
   const cost = useAppConfig()?.ai_costs.greetings_generate ?? 10;
-  const [occasionId, setOccasionId] = useState<string | null>(null);
+  const [pickedOccasionId, setOccasionId] = useState<string | null>(null);
   const [tone, setTone] = useState<GreetingTone>('warm');
   const [notes, setNotes] = useState('');
   const [withImage, setWithImage] = useState(true);
@@ -398,6 +398,7 @@ function ComposeGreetingSheet({
     if (presetOccasionId) setOccasionId(presetOccasionId);
   }
 
+  const occasionId = pickedOccasionId ?? occasions[0]?.id ?? null;
   const selected = occasions.find((o) => o.id === occasionId);
   const occasionLabel = selected?.label ?? '';
 

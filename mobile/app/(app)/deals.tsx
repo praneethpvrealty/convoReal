@@ -81,6 +81,12 @@ import {
   stageTotals,
   stageTotalsLabel,
 } from '@shared/lib/pipelines/deal-money';
+import {
+  DEFAULT_RECORDS_STATUS_FILTER,
+  matchesRecordsStatus,
+  RECORDS_STATUS_FILTERS,
+  type RecordsStatusFilter,
+} from '@shared/lib/deals/index-row';
 
 import { JourneyBody } from './journey';
 
@@ -467,10 +473,7 @@ export default function DealsScreen() {
                   onPress={() =>
                     router.push({
                       pathname: '/(app)/deal-edit',
-                      params: {
-                        pipelineId: activePipeline,
-                        ...(activeStage ? { stageId: activeStage } : {}),
-                      },
+                      params: { pipelineId: activePipeline },
                     })
                   }
                   hitSlop={10}
@@ -1007,8 +1010,17 @@ function RecordsList({
 }) {
   const { colors, fonts: f } = useTheme();
   const [sort, setSort] = useState<RecordsSort>('updated');
+  const [status, setStatus] = useState<RecordsStatusFilter>(
+    DEFAULT_RECORDS_STATUS_FILTER
+  );
   const today = localDayKey();
-  const sorted = useMemo(() => sortIndexRows(rows, sort), [rows, sort]);
+  const sorted = useMemo(
+    () =>
+      sortIndexRows(rows, sort).filter((row) =>
+        matchesRecordsStatus(row, status)
+      ),
+    [rows, sort, status]
+  );
   if (loading) {
     return (
       <View>
@@ -1027,11 +1039,20 @@ function RecordsList({
         <View
           style={{
             flexDirection: 'row',
+            flexWrap: 'wrap',
             gap: spacing.sm,
             paddingHorizontal: spacing.lg,
             paddingBottom: spacing.sm,
           }}
         >
+          {RECORDS_STATUS_FILTERS.map((option) => (
+            <FilterChip
+              key={option.id}
+              label={option.label}
+              active={status === option.id}
+              onPress={() => setStatus(option.id)}
+            />
+          ))}
           {RECORDS_SORTS.map((option) => (
             <FilterChip
               key={option.id}
@@ -1051,11 +1072,15 @@ function RecordsList({
         />
       }
       ListEmptyComponent={
-        <EmptyState
-          icon="briefcase-outline"
-          title="No records yet"
-          subtitle="A record starts when a deal reaches Negotiation/Token or later, or when a journey is converted."
-        />
+        rows.length === 0 ? (
+          <EmptyState
+            icon="briefcase-outline"
+            title="No records yet"
+            subtitle="A record starts when a deal reaches Negotiation/Token or later, or when a journey is converted."
+          />
+        ) : (
+          <EmptyState icon="briefcase-outline" title="Nothing matches" />
+        )
       }
       renderItem={({ item, index }) => {
         const subtitle = transactionSubtitle(item);
