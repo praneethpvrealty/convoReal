@@ -3987,9 +3987,26 @@ function StakeholdersTab({
                       icon="ban-outline"
                       busy={busy === link.id}
                       onPress={() =>
-                        void run(link.id, () =>
-                          revokeDealShareLink(dealId, link.id)
-                        )
+                        dialog.show({
+                          title: 'Revoke this link?',
+                          message: 'It stops working on the next open.',
+                          actions: [
+                            {
+                              label: 'Revoke',
+                              onPress: () => {
+                                dialog.close();
+                                void run(link.id, () =>
+                                  revokeDealShareLink(dealId, link.id)
+                                );
+                              },
+                            },
+                            {
+                              label: 'Cancel',
+                              variant: 'muted' as const,
+                              onPress: dialog.close,
+                            },
+                          ],
+                        })
                       }
                     />
                   ) : null}
