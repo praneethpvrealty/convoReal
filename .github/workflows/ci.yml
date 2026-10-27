@@ -142,6 +142,9 @@ jobs:
               - 'src/lib/broadcasts/carrier-template.ts'
               - 'src/lib/format/phone.ts'
               - 'src/lib/voice/campaign-settings.ts'
+              - 'src/lib/format/list-time.ts'
+              - 'src/lib/inventory/property-sorts.ts'
+              - 'src/lib/broadcast-status.ts'
               - '.github/workflows/ci.yml'
             go:
               - 'go-ingress/**'

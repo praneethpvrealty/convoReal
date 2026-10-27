@@ -133,6 +133,7 @@ import {
 import { formatAuditDateTime } from '@/lib/audit-timestamps';
 import { splitChips, splitTagChips } from '@/lib/contacts/chip-overflow';
 import { formatInrCompact } from '@/lib/format/currency';
+import { listTime } from '@/lib/format/list-time';
 
 const INTEREST_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -271,7 +272,7 @@ export default function ContactsPage() {
   // merge the matching engine and the Requirements tab use, so a
   // budget typed only into the demands statement still shows here.
   const formatBudget = (contact: Contact) => {
-    if (resolveRequirementSource(contact).no_budget) return 'No Limit';
+    if (resolveRequirementSource(contact).no_budget) return 'No budget limit';
     const budget = effectiveMaxBudget(contact);
     if (!budget) return '-';
     return (
@@ -2098,16 +2099,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </TableCell>
                     <TableCell className="py-3 text-xs text-slate-400">
                       {contact.last_contacted_at ? (
-                        new Date(contact.last_contacted_at).toLocaleString(
-                          'en-US',
-                          {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true,
-                          }
-                        )
+                        listTime(contact.last_contacted_at)
                       ) : (
                         <span className="text-slate-600">Never</span>
                       )}

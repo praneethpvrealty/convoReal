@@ -1361,18 +1361,18 @@ function ContactRow({
           >
             <Ionicons name="call" size={13} color={colors.primary} />
           </Pressable>
-          {contact.last_contacted_at ? (
-            <Text
-              style={{
-                fontSize: 11,
-                color: colors.textFaint,
-                marginLeft: 'auto',
-                flexShrink: 0,
-              }}
-            >
-              {chatListTime(contact.last_contacted_at)}
-            </Text>
-          ) : null}
+          <Text
+            style={{
+              fontSize: 11,
+              color: colors.textFaint,
+              marginLeft: 'auto',
+              flexShrink: 0,
+            }}
+          >
+            {contact.last_contacted_at
+              ? chatListTime(contact.last_contacted_at)
+              : 'Never'}
+          </Text>
         </View>
         <View style={styles.metaRow}>
           {contact.classification ? (

@@ -5570,3 +5570,93 @@ describe('[UIX-003] web and mobile start from the same defaults', () => {
     );
   });
 });
+
+describe('[UIX-005] the same value reads the same way on web and mobile', () => {
+  it('[UIX-005] formats list and clock times through one shared module', () => {
+    const mobileFormat = mobileSource('lib/format.ts');
+    expect(mobileFormat).toContain("from '@shared/lib/format/list-time'");
+    expect(mobileFormat).toContain('return listTime(iso);');
+    expect(mobileFormat).toContain('return clockTime(iso);');
+
+    const webInbox = webSource('components/inbox/conversation-list.tsx');
+    expect(webInbox).toContain('listTime(conversation.last_message_at)');
+    expect(webInbox).not.toContain('formatDistanceToNow');
+    expect(webSource('components/inbox/message-bubble.tsx')).toContain(
+      'clockTime(message.created_at)'
+    );
+
+    expect(
+      webSource('app/(dashboard)/contacts/contacts-content.tsx')
+    ).toContain('listTime(contact.last_contacted_at)');
+    expect(mobileSource('app/(app)/(tabs)/contacts.tsx')).toContain(
+      ": 'Never'"
+    );
+
+    const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+    expect(mobileCalendar).toContain("from '@shared/lib/format/list-time'");
+    expect(mobileCalendar).not.toContain('toLocaleTimeString');
+  });
+
+  it('[UIX-005] reads event type, sort and broadcast status labels from web modules', () => {
+    expect(webSource('components/calendar/event-types.ts')).toContain(
+      'EVENT_TYPE_LABELS'
+    );
+    for (const source of [
+      mobileSource('app/(app)/(tabs)/calendar.tsx'),
+      mobileSource('app/(app)/appointment-new.tsx'),
+    ]) {
+      expect(source).toContain('EVENT_TYPE_LABELS');
+      expect(source).not.toMatch(/label: '(Site visit|Document|Documents)'/);
+    }
+
+    expect(mobileSource('lib/property-filters.ts')).toContain(
+      "from '@shared/lib/inventory/property-sorts'"
+    );
+
+    const mobileBroadcasts = mobileSource('app/(app)/broadcasts.tsx');
+    expect(mobileBroadcasts).toContain(
+      'getBroadcastStatus(broadcast.status).label'
+    );
+    expect(mobileBroadcasts).not.toContain('{broadcast.status}');
+    const mobileBroadcast = mobileSource('app/(app)/broadcast/[id].tsx');
+    expect(mobileBroadcast).toContain('getRecipientStatus(item.status).label');
+    expect(mobileBroadcast).not.toContain('{item.status}');
+  });
+
+  it('[UIX-005] words the remaining shared labels the same on both surfaces', () => {
+    expect(mobileSource('lib/format.ts')).toContain("'No budget limit'");
+    expect(
+      webSource('app/(dashboard)/contacts/contacts-content.tsx')
+    ).toContain("'No budget limit'");
+    expect(webSource('components/contacts/contact-peek-line.tsx')).toContain(
+      "'No budget limit'"
+    );
+
+    expect(webSource('components/inventory/property-actions-menu.tsx')).toMatch(
+      /\bUnarchive\b/
+    );
+    expect(
+      webSource('components/inventory/flyer-creator-dialog.tsx')
+    ).toContain('Show Property Code');
+
+    const board = webSource('app/(dashboard)/pipelines/pipelines-content.tsx');
+    for (const text of [
+      'Enter brokerage details',
+      'starts the closing stretch. Record the brokerage rate or amount',
+      'Fixed amount',
+      "'Brokerage amount'",
+      'Calculated brokerage:',
+      'Save and move',
+    ]) {
+      expect(board).toContain(text);
+    }
+
+    expect(webSource('app/(dashboard)/calendar/page.tsx')).not.toMatch(
+      /(Low|Medium|High) [Pp]riority</
+    );
+
+    expect(mobileSource('app/(app)/greetings.tsx')).toContain(
+      'label={t.charAt(0).toUpperCase() + t.slice(1)}'
+    );
+  });
+});

@@ -8,6 +8,7 @@
  * of this widens the API surface.
  */
 import { BUDGET_STEPS, budgetStepLabel } from '@/lib/money-ladder';
+import { PROPERTY_SORTS as WEB_PROPERTY_SORTS } from '@shared/lib/inventory/property-sorts';
 
 export { BUDGET_STEPS, budgetStepLabel };
 
@@ -55,25 +56,20 @@ export const PROPERTY_STATUSES = [
   'Rejected',
 ];
 
-/** Sort keys mapped onto the route's `sort` + `order` pair. Only fields
- *  in its ALLOWED_SORT_FIELDS list are offered. */
+/** Sort keys mapped onto the route's `sort` + `order` pair, with the
+ *  web inventory's own labels. Only fields in its ALLOWED_SORT_FIELDS
+ *  list are offered. */
 export const PROPERTY_SORTS: {
   key: PropertySort;
   label: string;
   field: string;
   order: 'asc' | 'desc';
-}[] = [
-  { key: 'newest', label: 'Newest', field: 'created_at', order: 'desc' },
-  {
-    key: 'updated',
-    label: 'Recently updated',
-    field: 'updated_at',
-    order: 'desc',
-  },
-  { key: 'price_desc', label: 'Price high', field: 'price', order: 'desc' },
-  { key: 'price_asc', label: 'Price low', field: 'price', order: 'asc' },
-  { key: 'title_asc', label: 'Title A–Z', field: 'title', order: 'asc' },
-];
+}[] = WEB_PROPERTY_SORTS.map((s) => ({
+  key: s.key as PropertySort,
+  label: s.label,
+  field: s.field,
+  order: s.order,
+}));
 
 /** How many narrowing filters are on. Sort orders rather than narrows,
  *  so it stays out of the badge — same rule as the Contacts chip. */

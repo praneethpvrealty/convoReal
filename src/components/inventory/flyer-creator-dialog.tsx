@@ -1028,7 +1028,7 @@ export function FlyerCreatorDialog({
                     onChange={(e) => setShowCode(e.target.checked)}
                     className="text-primary h-4 w-4 rounded border-slate-700 bg-slate-900 focus:ring-0"
                   />
-                  Show Unique ID
+                  Show Property Code
                 </label>
                 <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300 transition-all select-none hover:text-white">
                   <input

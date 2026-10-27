@@ -6065,6 +6065,14 @@
               "case": "[UIX-004]"
             }
           ]
+        },
+        {
+          "id": "UIX-005",
+          "rule": "The same value reads the same way on web and mobile, formatted or labelled by one shared web module. Row timestamps in the inbox and the contacts list's last contacted (and the mobile list helper chatListTime) come from listTime in src/lib/format/list-time.ts: the clock time today, Yesterday, Tomorrow, a short weekday for the past six days only, otherwise 27 Oct or 27 Oct 2025, so a future date never shows a bare weekday; a contact never contacted reads Never on both. Message bubble times and mobile calendar event and to-do times use clockTime from the same module (en-IN 12-hour, 10:30 am). Event type labels come from EVENT_TYPE_LABELS in src/lib/calendar/event-type-defaults.ts (Site visit, Call, Follow-up, Documents, Meeting, Other); mobile property sort labels come from PROPERTY_SORTS in src/lib/inventory/property-sorts.ts; mobile broadcast and recipient statuses read the web labels in src/lib/broadcast-status.ts (Rate Limited, Sending), never the raw uppercased value. The remaining strings match on both surfaces: No budget limit, Unarchive, Property Code on the flyer, the board's Enter brokerage details prompt worded as the deal workspace and mobile board word it, plain Low / Medium / High to-do priorities and capitalised greeting tones.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-005]" },
+            { "file": "src/lib/format/list-time.test.ts", "case": "[UIX-005]" }
+          ]
         }
       ]
     }

@@ -46,10 +46,8 @@ describe('chatListTime', () => {
     expect(chatListTime(new Date(2026, 9, 28, 9, 0).toISOString())).toBe(
       'Tomorrow'
     );
-    const future = chatListTime(new Date(2026, 10, 16, 9, 0).toISOString());
-    expect(future).toMatch(/16/);
-    expect(future).not.toBe(
-      new Date(2026, 10, 16).toLocaleDateString([], { weekday: 'short' })
+    expect(chatListTime(new Date(2026, 10, 16, 9, 0).toISOString())).toBe(
+      '16 Nov'
     );
     expect(chatListTime(new Date(2026, 9, 26, 9, 0).toISOString())).toBe(
       'Yesterday'

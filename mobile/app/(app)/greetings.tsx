@@ -502,7 +502,7 @@ function ComposeGreetingSheet({
           {GREETING_TONES.map((t) => (
             <ChoiceChip
               key={t}
-              label={t}
+              label={t.charAt(0).toUpperCase() + t.slice(1)}
               selected={tone === t}
               onPress={() => setTone(t)}
             />

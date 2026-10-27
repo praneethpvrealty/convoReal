@@ -35,22 +35,14 @@ import type { AppointmentType, Contact } from '@/lib/types';
 import { voiceHints, type VoicePrefill } from '@/lib/voice-event';
 import { contactHandle } from '@/lib/reachability';
 import {
+  EVENT_TYPE_LABELS,
   EVENT_TYPE_ORDER,
   eventTypeFromParam,
 } from '@shared/lib/calendar/event-type-defaults';
 
-const TYPE_LABELS: Record<AppointmentType, string> = {
-  site_visit: 'Site visit',
-  call: 'Call',
-  follow_up: 'Follow-up',
-  document: 'Document',
-  meeting: 'Meeting',
-  other: 'Other',
-};
-
 const TYPES = EVENT_TYPE_ORDER.map((value) => ({
   value,
-  label: TYPE_LABELS[value],
+  label: EVENT_TYPE_LABELS[value],
 }));
 
 export default function NewAppointmentScreen() {

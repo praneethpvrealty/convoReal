@@ -9,6 +9,15 @@ export const EVENT_TYPE_ORDER = [
 
 export type EventTypeValue = (typeof EVENT_TYPE_ORDER)[number];
 
+export const EVENT_TYPE_LABELS: Record<EventTypeValue, string> = {
+  site_visit: 'Site visit',
+  call: 'Call',
+  follow_up: 'Follow-up',
+  document: 'Documents',
+  meeting: 'Meeting',
+  other: 'Other',
+};
+
 export const DEFAULT_EVENT_TYPE: EventTypeValue = 'meeting';
 
 export function eventTypeFromParam(value: string | undefined): EventTypeValue {
