@@ -114,6 +114,7 @@ jobs:
               - 'src/lib/format/ledger-label.ts'
               - 'src/lib/google-calendar/messages.ts'
               - 'src/lib/journey/lead-interest-labels.ts'
+              - 'src/lib/journey/sort.ts'
               - 'src/lib/pipelines/board-layout.ts'
               - 'src/lib/pipelines/brokerage.ts'
               - 'src/lib/pipelines/deal-money.ts'

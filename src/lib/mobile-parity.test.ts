@@ -1061,18 +1061,22 @@ describe('mobile journey lifecycle mirrors the web overview', () => {
     const helpers = mobileSource('lib/journey-overview.ts');
     const webShared = webSource('components/journey/shared.ts');
     const webOverview = webSource('components/journey/journey-overview.tsx');
+    const sortSource = webSource('lib/journey/sort.ts');
+    expect(sortSource).toContain("enquiries: 'Most enquired'");
+    expect(sortSource).toContain("enquired: 'Recently enquired'");
+    expect(sortSource).toContain(
+      "export const DEFAULT_JOURNEY_SORT: JourneySort = 'enquiries';"
+    );
+    expect(sortSource).toContain(
+      'enquiries: [byEnquiries, byEnquired, byRecent, byStage]'
+    );
+    expect(sortSource).toContain(
+      'enquired: [byEnquired, byEnquiries, byRecent, byStage]'
+    );
+    expect(helpers).toContain("} from '@shared/lib/journey/sort';");
+    expect(webShared).toContain("} from '@/lib/journey/sort';");
     for (const source of [helpers, webShared]) {
-      expect(source).toContain("enquiries: 'Most enquired'");
-      expect(source).toContain("enquired: 'Recently enquired'");
-      expect(source).toContain(
-        "export const DEFAULT_JOURNEY_SORT: JourneySort = 'enquiries';"
-      );
-      expect(source).toContain(
-        'enquiries: [byEnquiries, byEnquired, byRecent, byStage]'
-      );
-      expect(source).toContain(
-        'enquired: [byEnquired, byEnquiries, byRecent, byStage]'
-      );
+      expect(source).not.toContain('export function sortJourneys');
     }
     for (const source of [screen, webOverview]) {
       expect(source).toContain("rpc('journey_overview_enquiries'");
@@ -5740,5 +5744,99 @@ describe('[UIX-007] Broadcasts and Deals show the same information and actions o
     expect(mobileSource('lib/format.ts')).toContain(
       'export function dateOnlyLabel('
     );
+  });
+});
+
+describe('[UIX-008] to-dos and journeys show the same labels and actions on web and mobile', () => {
+  const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
+  const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+  const mobileJourney = mobileSource('app/(app)/journey.tsx');
+  const mobileSheets = mobileSource('components/journey-reason-sheets.tsx');
+
+  it('[UIX-008] labels to-do priority, overdue and deal tasks from one shared module', () => {
+    expect(webCalendar).toContain("} from '@/lib/calendar/todo-groups';");
+    expect(mobileCalendar).toContain(
+      "} from '@shared/lib/calendar/todo-groups';"
+    );
+    for (const source of [webCalendar, mobileCalendar]) {
+      expect(source).toContain('isTodoOverdue(');
+      expect(source).toContain('TODO_PRIORITY_LABELS[todo.priority]');
+      expect(source).toContain('OVERDUE_TODO_LABEL');
+      expect(source).toContain('DEAL_TASK_LABEL');
+      expect(source).not.toContain("'Deal task'");
+    }
+    expect(webCalendar).not.toMatch(/>\s*Deal\s*</);
+    expect(webCalendar).not.toContain('{todo.priority}');
+    expect(mobileCalendar).not.toContain('due.getTime() < now.getTime()');
+  });
+
+  it('[UIX-008] sorts journeys through one shared module with priority', () => {
+    expect(mobileSource('lib/journey-overview.ts')).toContain(
+      "} from '@shared/lib/journey/sort';"
+    );
+    expect(webSource('components/journey/shared.ts')).toContain(
+      "} from '@/lib/journey/sort';"
+    );
+    expect(mobileJourney).toContain(
+      '(Object.keys(JOURNEY_SORT_LABELS) as JourneySort[]).map'
+    );
+    expect(mobileJourney).toContain(
+      'priority: priorityBySubject.get(row.subject_id) ?? null,'
+    );
+    for (const source of [
+      mobileJourney,
+      webSource('components/journey/journey-overview.tsx'),
+    ]) {
+      expect(source).toContain(".from('journey_priorities')");
+      expect(source).toContain("{ onConflict: 'account_id,mode,subject_id' }");
+      expect(source).toContain('JOURNEY_PRIORITY_ORDER.map((priority) =>');
+      expect(source).toContain('Clear priority');
+    }
+    expect(mobileJourney).toContain(
+      '{JOURNEY_PRIORITY_LABELS[group.priority]}'
+    );
+  });
+
+  it('[UIX-008] closes a journey with a chosen or typed reason as web does', () => {
+    const webDialog = webSource('components/journey/close-journey-dialog.tsx');
+    for (const source of [webDialog, mobileSheets]) {
+      expect(source).toContain(
+        'placeholder="Add the specific context for future reference"'
+      );
+      expect(source).toContain('JOURNEY_CLOSURE_REASONS[status].map(');
+    }
+    expect(webDialog).toContain('maxLength={500}');
+    expect(mobileSheets).toContain('maxLength={JOURNEY_REASON_MAX_LENGTH}');
+    expect(mobileJourney).toContain('<CloseJourneySheet');
+    expect(mobileJourney).toContain("action: 'close',");
+    expect(mobileJourney).not.toContain('function chooseClosure');
+  });
+
+  it('[UIX-008] drops and reactivates a journey branch through the web route', () => {
+    const webSheet = webSource('components/journey/journey-item-sheet.tsx');
+    for (const source of [webSheet, mobileSheets]) {
+      expect(source).toContain('Why is this being dropped?');
+      expect(source).toContain('QUICK_DROP_REASONS.map(');
+      expect(source).toContain('placeholder="Reason (shown on the map)"');
+    }
+    expect(mobileSheets).toContain('`Drop at ${stageName}…`');
+    expect(mobileSource('lib/api.ts')).toContain("'/api/journey/status'");
+    expect(webSource('components/journey/journey-section.tsx')).toContain(
+      "fetch('/api/journey/status'"
+    );
+    expect(mobileJourney).toContain('<DropBranchSheet');
+    expect(mobileJourney).toContain(
+      "void changeBranchStatus(item, 'reactivate');"
+    );
+    const route = webSource('app/api/journey/status/route.ts');
+    expect(route).toContain(".from('journey_events')");
+    expect(route).toContain(
+      "event_type: action === 'drop' ? 'dropped' : 'reactivated',"
+    );
+    expect(mobileJourney).not.toContain("from('journey_events')");
+    expect(webSource('components/journey/journey-section.tsx')).not.toMatch(
+      /logEvent\(item\.id, '(dropped|reactivated)'/
+    );
+    expect(mobileJourney).toContain("error.code === 'LISTING_SYNC_FAILED'");
   });
 });

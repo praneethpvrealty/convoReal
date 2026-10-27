@@ -411,6 +411,21 @@ export function removeJourneyItems(
   });
 }
 
+export function setJourneyBranchStatus(body: {
+  itemId: string;
+  action: 'drop' | 'reactivate';
+  reason?: string;
+}) {
+  return apiFetch<{ data: { item_id: string } }>('/api/journey/status', {
+    method: 'POST',
+    body: JSON.stringify({
+      item_id: body.itemId,
+      action: body.action,
+      reason: body.reason,
+    }),
+  });
+}
+
 export function updateJourneyOverview(body: Record<string, unknown>) {
   return apiFetch<{ ok: boolean }>('/api/journey/overview', {
     method: 'POST',

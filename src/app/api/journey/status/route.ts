@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       )
       .eq('id', itemId)
       .eq('account_id', ctx.accountId)
-      .select('id');
+      .select('id, stage_id');
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
@@ -53,6 +53,22 @@ export async function POST(request: Request) {
         { error: 'That item is no longer there' },
         { status: 404 }
       );
+    }
+
+    const stageId = (updated[0] as { stage_id: string | null }).stage_id;
+    const { error: eventError } = await ctx.supabase
+      .from('journey_events')
+      .insert({
+        account_id: ctx.accountId,
+        item_id: itemId,
+        event_type: action === 'drop' ? 'dropped' : 'reactivated',
+        from_stage_id: stageId,
+        to_stage_id: stageId,
+        reason: action === 'drop' ? reason : null,
+        created_by: ctx.userId,
+      });
+    if (eventError) {
+      console.error('Failed to log journey event:', eventError.message);
     }
 
     const { data: deals, error: dealsError } = await ctx.supabase

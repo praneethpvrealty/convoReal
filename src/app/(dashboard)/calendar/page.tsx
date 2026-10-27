@@ -100,9 +100,13 @@ import {
 } from '@/lib/calendar/tasks-view';
 import {
   CLEAR_COMPLETED_LABEL,
+  DEAL_TASK_LABEL,
   DONE_TODOS_LABEL,
+  OVERDUE_TODO_LABEL,
+  TODO_PRIORITY_LABELS,
   clearCompletedPrompt,
   completedTodoIds,
+  isTodoOverdue,
   splitTodosByCompletion,
 } from '@/lib/calendar/todo-groups';
 import {
@@ -515,6 +519,17 @@ export default function CalendarPage() {
     () => splitTodosByCompletion(visibleTodos),
     [visibleTodos]
   );
+  const [overdueClock, setOverdueClock] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setOverdueClock(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const overdueTodoIds = useMemo(() => {
+    const now = new Date(overdueClock);
+    return new Set(
+      openTodos.filter((t) => isTodoOverdue(t, now)).map((t) => t.id)
+    );
+  }, [openTodos, overdueClock]);
 
   const calendarAppointments = useMemo(
     () =>
@@ -1897,10 +1912,15 @@ export default function CalendarPage() {
                         </p>
                       )}
                       <span className="mt-1 flex flex-wrap items-center gap-1">
+                        {overdueTodoIds.has(todo.id) && (
+                          <span className="inline-block rounded border border-rose-500/30 bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-bold text-rose-400">
+                            {OVERDUE_TODO_LABEL}
+                          </span>
+                        )}
                         {todo.priority && !todo.completed && (
                           <span
                             className={cn(
-                              'inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase',
+                              'inline-block rounded px-1.5 py-0.5 text-[10px] font-bold',
                               todo.priority === 'high'
                                 ? 'border border-rose-500/20 bg-rose-500/10 text-rose-400'
                                 : todo.priority === 'medium'
@@ -1908,20 +1928,20 @@ export default function CalendarPage() {
                                   : 'bg-slate-800 text-slate-400'
                             )}
                           >
-                            {todo.priority}
+                            {TODO_PRIORITY_LABELS[todo.priority]}
                           </span>
                         )}
                         {todo.deal_id && (
                           <Link
                             href={dealDateHref(todo.deal_id)}
                             className={cn(
-                              'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase',
+                              'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-bold',
                               DEAL_DATE_META.chip
                             )}
                             title="Open the deal this task belongs to"
                           >
                             <Briefcase className="h-2.5 w-2.5" />
-                            Deal
+                            {DEAL_TASK_LABEL}
                           </Link>
                         )}
                       </span>
