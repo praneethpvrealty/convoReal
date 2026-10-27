@@ -62,6 +62,10 @@ import {
   type PendingDial,
 } from '@/components/contacts/log-call-prompt';
 import { contactFullName } from '@/lib/contacts/full-name';
+import {
+  LEAD_TEMP_NONE_LABEL,
+  LEAD_TEMP_OPTIONS,
+} from '@/lib/contacts/lead-temp';
 import { hasPhone } from '@/lib/contacts/reachability';
 import { formatAuditDateTime } from '@/lib/audit-timestamps';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
@@ -2516,13 +2520,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         onChange={(e) => setEditLeadTemp(e.target.value)}
                         className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none"
                       >
-                        <option value="">None</option>
-                        <option value="HOT">🔥 HOT</option>
-                        <option value="COLD">❄️ COLD</option>
-                        <option value="Not Responding">
-                          ⏳ Not Responding
-                        </option>
-                        <option value="Dead">💀 Dead</option>
+                        <option value="">{LEAD_TEMP_NONE_LABEL}</option>
+                        {LEAD_TEMP_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
 

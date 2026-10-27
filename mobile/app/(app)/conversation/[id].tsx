@@ -65,6 +65,11 @@ import {
 } from '@/lib/attachments';
 import { useAuthStore } from '@/lib/auth-store';
 import { isReengagementError } from '@/lib/customer-window';
+import {
+  CUSTOMER_WINDOW_COMPOSER_PLACEHOLDER,
+  CUSTOMER_WINDOW_COMPOSER_NOTICE,
+  customerSessionInfo,
+} from '@shared/lib/conversations/customer-session';
 import { needsReply, unanswered, unansweredLabel } from '@/lib/reply-state';
 import { haptic } from '@/lib/haptics';
 import {
@@ -227,6 +232,11 @@ export default function ConversationScreen() {
     queryFn: () => fetchMessages(id),
     enabled: Boolean(id),
   });
+  const sessionExpired =
+    Boolean(conversation) &&
+    !conversation?.group?.id &&
+    !isLoading &&
+    customerSessionInfo(messages ?? []).expired;
 
   const { data: reactions } = useQuery({
     queryKey: ['message-reactions', id],
@@ -781,6 +791,7 @@ export default function ConversationScreen() {
       <Composer
         conversationId={id}
         groupId={conversation?.group?.id}
+        sessionExpired={sessionExpired}
         contactName={contactName}
         contactPhone={conversation?.contact?.phone || undefined}
         contact={conversation?.contact}
@@ -1027,11 +1038,13 @@ function Composer({
   onResendHandled,
   onPending,
   onPendingSettled,
+  sessionExpired,
 }: {
   conversationId: string;
   /** Set when this thread is a group. Group sends take a different
    *  route entirely: no contact to resolve, no 24-hour window. */
   groupId?: string;
+  sessionExpired: boolean;
   contactName?: string;
   contactPhone?: string;
   /** For the invite out of a closed window — the sheet edits and sends
@@ -1198,10 +1211,12 @@ function Composer({
    *  number, so the Engine never records it — the draft stays put so
    *  nothing is lost if the agent backs out. */
   function sendFromOwnWhatsApp() {
-    if (!blockedText || !contactPhone) return;
+    const text = blockedText ?? draft.trim();
+    const digits = contactPhone?.replace(/\D/g, '');
+    if (!digits) return;
     haptic.tap();
     void Linking.openURL(
-      `https://wa.me/${contactPhone.replace(/\D/g, '')}?text=${encodeURIComponent(blockedText)}`
+      `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ''}`
     );
   }
 
@@ -1533,26 +1548,44 @@ function Composer({
           </Pressable>
         </View>
       ) : null}
-      {error ? (
+      {error || sessionExpired ? (
         <View
-          style={[styles.errorBlock, { backgroundColor: colors.dangerSoft }]}
+          style={[
+            styles.errorBlock,
+            {
+              backgroundColor: error ? colors.dangerSoft : colors.warningSoft,
+            },
+          ]}
         >
           <View style={styles.errorBar}>
-            <Ionicons name="warning-outline" size={14} color={colors.danger} />
-            <Text style={{ flex: 1, fontSize: 12.5, color: colors.danger }}>
-              {error}
-            </Text>
-            <Pressable
-              onPress={() => {
-                setError(null);
-                setBlockedText(null);
+            <Ionicons
+              name="warning-outline"
+              size={14}
+              color={error ? colors.danger : colors.warning}
+            />
+            <Text
+              testID={error ? undefined : 'composer-session-expired'}
+              style={{
+                flex: 1,
+                fontSize: 12.5,
+                color: error ? colors.danger : colors.warning,
               }}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss error"
             >
-              <Ionicons name="close" size={14} color={colors.danger} />
-            </Pressable>
+              {error ?? CUSTOMER_WINDOW_COMPOSER_NOTICE}
+            </Text>
+            {error ? (
+              <Pressable
+                onPress={() => {
+                  setError(null);
+                  setBlockedText(null);
+                }}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss error"
+              >
+                <Ionicons name="close" size={14} color={colors.danger} />
+              </Pressable>
+            ) : null}
           </View>
           {/* A refused send is a dead end unless the way out is right
               here. Three of them, in the order that costs least: a
@@ -1561,7 +1594,7 @@ function Composer({
               message now but off the record; the invite fixes the cause
               — the window is shut because they have never written, and
               one reply from them opens it for good. */}
-          {windowBlocked ? (
+          {windowBlocked || sessionExpired ? (
             <View style={styles.errorActions}>
               <Pressable
                 onPress={() => {
@@ -1588,7 +1621,7 @@ function Composer({
                   Template
                 </Text>
               </Pressable>
-              {blockedText ? (
+              {blockedText || (sessionExpired && contactPhone) ? (
                 <Pressable
                   onPress={sendFromOwnWhatsApp}
                   hitSlop={8}
@@ -1743,11 +1776,13 @@ function Composer({
             haptic.tap();
             setAttachOpen(true);
           }}
-          disabled={attaching !== null}
+          disabled={sessionExpired || attaching !== null}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel="Attach a photo, video or document"
-          accessibilityState={{ disabled: attaching !== null }}
+          accessibilityState={{
+            disabled: sessionExpired || attaching !== null,
+          }}
         >
           <Ionicons name="attach-outline" size={20} color={colors.primary} />
         </Pressable>
@@ -1809,10 +1844,15 @@ function Composer({
               color: colors.text,
             },
           ]}
-          placeholder="Type a message"
+          placeholder={
+            sessionExpired
+              ? CUSTOMER_WINDOW_COMPOSER_PLACEHOLDER
+              : 'Type a message'
+          }
           placeholderTextColor={colors.textFaint}
           value={draft}
           onChangeText={setDraft}
+          editable={!sessionExpired}
           multiline
         />
         {/* Mic until there is something to send, as WhatsApp does — the
@@ -1823,17 +1863,20 @@ function Composer({
             styles.sendButton,
             {
               backgroundColor: colors.primary,
-              opacity: sending || attaching !== null ? 0.5 : 1,
+              opacity:
+                sessionExpired || sending || attaching !== null ? 0.5 : 1,
             },
           ]}
           onPress={draft.trim() ? send : startRecording}
-          disabled={sending || attaching !== null}
+          disabled={sessionExpired || sending || attaching !== null}
           hitSlop={8}
           accessibilityRole="button"
           accessibilityLabel={
             draft.trim() ? 'Send message' : 'Record a voice note'
           }
-          accessibilityState={{ disabled: sending || attaching !== null }}
+          accessibilityState={{
+            disabled: sessionExpired || sending || attaching !== null,
+          }}
         >
           {sending || attaching !== null ? (
             <ActivityIndicator size="small" color={colors.onPrimary} />

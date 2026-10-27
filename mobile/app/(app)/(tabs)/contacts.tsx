@@ -78,10 +78,12 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import {
   classificationColors,
+  leadTempColors,
   radius,
   spacing,
   useTheme,
   fonts,
+  vipColors,
 } from '@/lib/theme';
 import { useCallLog } from '@/lib/use-call-log';
 import { useDebounced } from '@/lib/use-debounced';
@@ -94,6 +96,11 @@ import {
   type Contact,
 } from '@/lib/types';
 import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';
+import {
+  isVipTag,
+  leadTempLabel,
+  VIP_BADGE_LABEL,
+} from '@shared/lib/contacts/lead-temp';
 
 /** Web parity quick filters (contacts-content.tsx). */
 const SEGMENTS = [
@@ -102,6 +109,7 @@ const SEGMENTS = [
   { key: 'favorites', label: 'Favourites' },
   { key: 'transacted', label: 'Transacted' },
   { key: 'market_active', label: 'Active Buyers' },
+  { key: 'archived', label: 'Archived' },
 ] as const;
 type SegmentKey = (typeof SEGMENTS)[number]['key'];
 
@@ -316,7 +324,7 @@ async function fetchContacts(
     // soft-deleted half of a duplicate — its winner is the row to show.
     .eq('chain_only', false)
     .eq('is_merged', false)
-    .eq('is_archived', false)
+    .eq('is_archived', segment === 'archived')
     .order(order.column, { ascending: order.ascending, nullsFirst: false })
     .limit(150);
 
@@ -347,7 +355,7 @@ async function fetchContacts(
     // Unscoped by status, matching the web tab — a starred contact in
     // pending_review is the main thing this segment exists to hold.
     query = query.eq('is_favorite', true);
-  } else {
+  } else if (segment !== 'archived') {
     query = query.eq('status', 'active');
     if (segment === 'transacted') {
       const { data: wonDeals } = await supabase
@@ -503,6 +511,7 @@ async function fetchSegmentCounts(
     favorites: data?.favorites ?? 0,
     transacted: data?.transacted ?? 0,
     market_active: data?.market_active ?? 0,
+    archived: data?.archived ?? 0,
   };
 }
 
@@ -843,7 +852,9 @@ export default function ContactsScreen() {
                       ? 'Searched names, phones, tags, notes, company and requirements.'
                       : segment === 'active'
                         ? 'Contacts arrive automatically from WhatsApp conversations and portal leads — or add one with the + button.'
-                        : 'No contacts in this segment yet.'
+                        : segment === 'archived'
+                          ? 'No archived contacts.'
+                          : 'No contacts in this segment yet.'
               }
             />
           }
@@ -1316,6 +1327,9 @@ function ContactRow({
   const clsColor = contact.classification
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
     : undefined;
+  const leadTemp = leadTempLabel(contact.lead_temp);
+  const vip = tags.some(isVipTag);
+  const otherTags = tags.filter((t) => !isVipTag(t));
 
   return (
     <PressScale
@@ -1378,7 +1392,23 @@ function ContactRow({
           {contact.classification ? (
             <Tag label={contact.classification} color={clsColor} />
           ) : null}
-          {tags.slice(0, 2).map((t) => (
+          {vip ? (
+            <Tag
+              label={VIP_BADGE_LABEL}
+              color={vipColors[dark ? 'dark' : 'light']}
+            />
+          ) : null}
+          {leadTemp ? (
+            <Tag
+              label={leadTemp}
+              color={
+                leadTempColors[contact.lead_temp ?? '']?.[
+                  dark ? 'dark' : 'light'
+                ]
+              }
+            />
+          ) : null}
+          {otherTags.slice(0, 2).map((t) => (
             <Tag key={t} label={t} />
           ))}
           {contact.name ? (

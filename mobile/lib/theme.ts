@@ -433,3 +433,12 @@ export const classificationColors: Record<
   'Owner & Buyer': { light: '#0369a1', dark: '#7dd3fc' },
   Others: { light: '#57534e', dark: '#d6d3d1' },
 };
+
+export const leadTempColors: Record<string, { light: string; dark: string }> = {
+  HOT: { light: '#be123c', dark: '#fda4af' },
+  COLD: { light: '#0369a1', dark: '#7dd3fc' },
+  'Not Responding': { light: '#a16207', dark: '#fcd34d' },
+  Dead: { light: '#57534e', dark: '#a8a29e' },
+};
+
+export const vipColors = { light: '#b45309', dark: '#fbbf24' };

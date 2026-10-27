@@ -10,10 +10,14 @@
  *
  * `mobile/lib/customer-window.ts` mirrors this module; the mobile app is
  * a separate Expo project and cannot import from src/. Divergence is
- * caught by `@/lib/mobile-parity.test.ts`.
+ * caught by `@/lib/mobile-parity.test.ts`. The composer's up-front view
+ * of the window lives in `@/lib/conversations/customer-session.ts`, which
+ * mobile imports directly.
  */
 
-export const CUSTOMER_WINDOW_MS = 24 * 60 * 60 * 1000;
+import { CUSTOMER_WINDOW_MS } from '@/lib/conversations/customer-session';
+
+export { CUSTOMER_WINDOW_MS };
 
 /**
  * Whether free-form text is still allowed, given when the contact last

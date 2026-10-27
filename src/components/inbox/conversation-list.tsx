@@ -44,6 +44,11 @@ import {
 } from '@/lib/conversations/inbox-search';
 import { conversationPreview } from '@/lib/conversations/text-format';
 import { listTime } from '@/lib/format/list-time';
+import {
+  INBOX_FILTERS,
+  isInboxFilterValue,
+  type InboxFilterValue,
+} from '@/lib/conversations/inbox-filters';
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -65,25 +70,6 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
   pending: 'bg-amber-500',
   closed: 'bg-slate-500',
 };
-
-type FilterValue =
-  | ConversationStatus
-  | 'all'
-  | 'needs_reply'
-  | 'unanswered'
-  | 'active'
-  | 'archived';
-
-const FILTER_OPTIONS: { label: string; value: FilterValue }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Needs reply', value: 'needs_reply' },
-  { label: 'Unanswered', value: 'unanswered' },
-  { label: 'Active', value: 'active' },
-  { label: 'Open', value: 'open' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Closed', value: 'closed' },
-  { label: 'Archived', value: 'archived' },
-];
 
 // ============================================================
 // Assignment-scope filter (migration 082/083 org hierarchy) — a
@@ -158,26 +144,24 @@ export function ConversationList({
   resyncToken = 0,
 }: ConversationListProps) {
   const searchParams = useSearchParams();
-  const initialFilter = (searchParams.get('filter') as FilterValue) || 'all';
+  const initialFilter = searchParams.get('filter') as InboxFilterValue;
   const initialSearch = searchParams.get('search') || '';
   const { orgRole, accountId, user, profile } = useAuth();
 
   const [search, setSearch] = useState(initialSearch);
-  const [filter, setFilter] = useState<FilterValue>(
-    FILTER_OPTIONS.some((o) => o.value === initialFilter)
-      ? initialFilter
-      : 'all'
+  const [filter, setFilter] = useState<InboxFilterValue>(
+    INBOX_FILTERS.some((o) => o.value === initialFilter) ? initialFilter : 'all'
   );
   const [scopeFilter, setScopeFilter] = useState<ScopeFilterValue>('all');
   const [teams, setTeams] = useState<Team[]>([]);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const filterParam = searchParams.get('filter') as FilterValue;
+    const filterParam = searchParams.get('filter');
     const searchParam = searchParams.get('search');
 
     const timer = setTimeout(() => {
-      if (filterParam && FILTER_OPTIONS.some((o) => o.value === filterParam)) {
+      if (isInboxFilterValue(filterParam)) {
         setFilter(filterParam);
       }
       if (searchParam !== null) {
@@ -368,7 +352,9 @@ export function ConversationList({
     } else {
       // Hide archived conversations from all non-archived views
       result = result.filter((c) => !c.is_archived);
-      if (filter === 'needs_reply') {
+      if (filter === 'unread') {
+        result = result.filter((c) => c.unread_count > 0);
+      } else if (filter === 'needs_reply') {
         // Longest-waiting first: the closer a thread is to losing its
         // 24-hour window, the higher it sits.
         result = result
@@ -503,7 +489,7 @@ export function ConversationList({
     [onArchiveChange]
   );
 
-  const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
+  const activeFilter = INBOX_FILTERS.find((o) => o.value === filter);
   const activeScope =
     scopeOptions.find((o) => o.value === effectiveScope) ?? scopeOptions[0];
 
@@ -537,7 +523,7 @@ export function ConversationList({
               align="start"
               className="border-slate-900 bg-slate-950/95 backdrop-blur-xl"
             >
-              {FILTER_OPTIONS.map((opt) => (
+              {INBOX_FILTERS.map((opt) => (
                 <DropdownMenuItem
                   key={opt.value}
                   onClick={() => setFilter(opt.value)}

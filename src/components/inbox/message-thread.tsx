@@ -37,7 +37,7 @@ import {
   Pin,
   UserRound,
 } from 'lucide-react';
-import { format, isToday, isYesterday, differenceInHours } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -62,6 +62,7 @@ import { MessageThreadSkeleton } from '@/components/inbox/message-thread-skeleto
 import { Skeleton } from '@/components/dashboard/skeleton';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
+import { customerSessionInfo } from '@/lib/conversations/customer-session';
 import { stageChatAttachment } from '@/lib/storage/stage-attachment';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { toast } from 'sonner';
@@ -363,37 +364,13 @@ export function MessageThread({
   }, []);
 
   // 24-hour session timer
-  const sessionInfo = useMemo(() => {
-    if (loading) return { expired: false, remaining: null };
-    if (!messages.length)
-      return { expired: true, remaining: 'No customer messages' };
-
-    // Find last customer message
-    const lastCustomerMsg = [...messages]
-      .reverse()
-      .find((m) => m.sender_type === 'customer');
-
-    if (!lastCustomerMsg)
-      return { expired: true, remaining: 'No customer messages' };
-
-    const hoursSince = differenceInHours(
-      new Date(),
-      new Date(lastCustomerMsg.created_at)
-    );
-    const expired = hoursSince >= 24;
-
-    if (expired) {
-      return { expired: true, remaining: 'Expired' };
-    }
-
-    const hoursLeft = 24 - hoursSince;
-    const remaining =
-      hoursLeft >= 1
-        ? `${Math.floor(hoursLeft)}h remaining`
-        : `${Math.floor(hoursLeft * 60)}m remaining`;
-
-    return { expired, remaining };
-  }, [messages, loading]);
+  const sessionInfo = useMemo<{ expired: boolean; remaining: string | null }>(
+    () =>
+      loading
+        ? { expired: false, remaining: null }
+        : customerSessionInfo(messages),
+    [messages, loading]
+  );
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause

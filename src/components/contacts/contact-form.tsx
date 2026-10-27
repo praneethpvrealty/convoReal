@@ -16,6 +16,10 @@ import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
 import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
+import {
+  LEAD_TEMP_NONE_LABEL,
+  LEAD_TEMP_OPTIONS,
+} from '@/lib/contacts/lead-temp';
 import { contactHandle } from '@/lib/contacts/reachability';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import { LANGUAGE_CODES, languageDisplay } from '@/lib/languages';
@@ -806,11 +810,12 @@ export function ContactForm({
                 onChange={(e) => setLeadTemp(e.target.value)}
                 className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
               >
-                <option value="">None</option>
-                <option value="HOT">🔥 HOT</option>
-                <option value="COLD">❄️ COLD</option>
-                <option value="Not Responding">⏳ Not Responding</option>
-                <option value="Dead">💀 Dead</option>
+                <option value="">{LEAD_TEMP_NONE_LABEL}</option>
+                {LEAD_TEMP_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
 
