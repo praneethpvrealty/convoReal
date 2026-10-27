@@ -5910,7 +5910,12 @@ describe('[UIX-006] contacts and inbox show the same things on web and mobile', 
     expect(mobileThread).toContain(
       "from '@shared/lib/conversations/customer-session'"
     );
-    expect(mobileThread).toContain('customerSessionInfo(messages ?? [])');
+    expect(mobileThread).toContain(
+      'customerSessionInfo([...messages, ...lastCustomerMessage])'
+    );
+    expect(mobileThread).toMatch(
+      /\.eq\('sender_type', 'customer'\)\s*\.order\('created_at', \{ ascending: false \}\)\s*\.limit\(1\)/
+    );
     expect(mobileThread).toContain('editable={!sessionExpired}');
     expect(mobileThread).toContain('CUSTOMER_WINDOW_COMPOSER_PLACEHOLDER');
     expect(mobileThread).toContain('CUSTOMER_WINDOW_COMPOSER_NOTICE');

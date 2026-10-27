@@ -148,6 +148,20 @@ async function fetchMessages(conversationId: string): Promise<Message[]> {
   return (data ?? []) as Message[];
 }
 
+async function fetchLastCustomerMessage(
+  conversationId: string
+): Promise<Pick<Message, 'sender_type' | 'created_at'>[]> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('sender_type, created_at')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'customer')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return data ?? [];
+}
+
 /** Every reaction in the thread — one bounded read, split per bubble in
  *  memory rather than a query per message. */
 async function fetchReactions(
@@ -232,11 +246,17 @@ export default function ConversationScreen() {
     queryFn: () => fetchMessages(id),
     enabled: Boolean(id),
   });
+  const { data: lastCustomerMessage } = useQuery({
+    queryKey: ['messages', id, 'last-customer'],
+    queryFn: () => fetchLastCustomerMessage(id),
+    enabled: Boolean(id),
+  });
   const sessionExpired =
     Boolean(conversation) &&
     !conversation?.group?.id &&
-    !isLoading &&
-    customerSessionInfo(messages ?? []).expired;
+    messages !== undefined &&
+    lastCustomerMessage !== undefined &&
+    customerSessionInfo([...messages, ...lastCustomerMessage]).expired;
 
   const { data: reactions } = useQuery({
     queryKey: ['message-reactions', id],
