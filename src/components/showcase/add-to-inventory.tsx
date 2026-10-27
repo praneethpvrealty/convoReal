@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { FolderInput, Loader2, PackageCheck } from 'lucide-react';
@@ -128,18 +128,7 @@ export function useShowcaseImportViewers(
           }
         }
       });
-      if (result.signedOut) return { signedOut: true, offersImport: false };
-      const offersImport = ids.some((id) => {
-        const entry = queryClient.getQueryData<Probe>(probeKey(id));
-        return (
-          !!entry &&
-          !entry.signedOut &&
-          !!entry.viewer &&
-          !entry.viewer.own &&
-          (entry.viewer.canImport || !!entry.viewer.importedId)
-        );
-      });
-      return { signedOut: false, offersImport };
+      return result.signedOut;
     },
     enabled: !signedOut && ids.length > 0,
     retry: 2,
@@ -147,10 +136,29 @@ export function useShowcaseImportViewers(
   });
 
   useEffect(() => {
-    if (data?.signedOut) onSignedOut();
+    if (data === true) onSignedOut();
   }, [data, onSignedOut]);
 
-  return { offersImport: !signedOut && data?.offersImport === true };
+  const [offersImport, setOffersImport] = useState(false);
+  useEffect(() => {
+    const check = () =>
+      setOffersImport(
+        ids.some((id) => {
+          const entry = queryClient.getQueryData<Probe>(probeKey(id));
+          return (
+            !!entry &&
+            !entry.signedOut &&
+            !!entry.viewer &&
+            !entry.viewer.own &&
+            (entry.viewer.canImport || !!entry.viewer.importedId)
+          );
+        })
+      );
+    check();
+    return queryClient.getQueryCache().subscribe(check);
+  }, [queryClient, ids]);
+
+  return { offersImport: !signedOut && offersImport };
 }
 
 async function importListing(
