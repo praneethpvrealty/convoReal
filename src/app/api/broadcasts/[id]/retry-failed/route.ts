@@ -139,6 +139,9 @@ export async function POST(
               'Content-Type': 'application/json',
               // Forward session cookie so the broadcast route can authenticate
               cookie: request.headers.get('cookie') ?? '',
+              ...(request.headers.get('authorization')
+                ? { authorization: request.headers.get('authorization')! }
+                : {}),
             },
             body: JSON.stringify({
               recipients: apiRecipients,

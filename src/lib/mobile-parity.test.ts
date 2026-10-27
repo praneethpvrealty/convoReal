@@ -5693,9 +5693,11 @@ describe('[UIX-007] Broadcasts and Deals show the same information and actions o
     expect(mobile).toContain('!profile.is_read_only');
     expect(mobile).toContain('disabled={retryMutation.isPending || sending}');
     expect(mobile).toContain('disabled={deleteMutation.isPending || sending}');
-    expect(
-      webSource('app/api/broadcasts/[id]/retry-failed/route.ts')
-    ).toContain("requireRole('agent')");
+    const retryRoute = webSource(
+      'app/api/broadcasts/[id]/retry-failed/route.ts'
+    );
+    expect(retryRoute).toContain("requireRole('agent')");
+    expect(retryRoute).toContain("request.headers.get('authorization')");
 
     expect(mobileSource('app/(app)/broadcasts.tsx')).toContain(
       '<Stat label="Replied" value={broadcast.replied_count} />'
