@@ -18,7 +18,6 @@ const CLOSED_STATUSES: ClosedJourneyStatus[] = [
   'not_proceeding',
 ];
 
-/** Web parity: `CloseJourneyDialog` in src/components/journey/close-journey-dialog.tsx. */
 export function CloseJourneySheet({
   journeyName,
   onSubmit,
@@ -116,7 +115,6 @@ function CloseJourneyForm({
   );
 }
 
-/** Web parity: the drop form in src/components/journey/journey-item-sheet.tsx. */
 export function DropBranchSheet({
   stageName,
   onSubmit,
