@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 27 October 2026
 
+- **Add to my inventory from the map side panel.** On a map-discovery
+  showcase, a signed-in agent from another brokerage now sees the listings in
+  the current map view listed under the map: the selected area's listings, or
+  the pinned ones. Each row has its title, which opens the listing, and the
+  "Add to my inventory" icon. Buyers, signed-out visitors and the brokerage's
+  own team see the panel unchanged (PRP-053).
 - **Add to my inventory in the Deal Floor Quick Picks deck.** A signed-in
   agent swiping through Quick Picks on another brokerage's Deal Floor showcase
   now sees "Add to my inventory" on the current card, under its locality. It
