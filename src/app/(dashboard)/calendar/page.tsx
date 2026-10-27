@@ -519,12 +519,17 @@ export default function CalendarPage() {
     () => splitTodosByCompletion(visibleTodos),
     [visibleTodos]
   );
+  const [overdueClock, setOverdueClock] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setOverdueClock(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const overdueTodoIds = useMemo(() => {
-    const now = new Date();
+    const now = new Date(overdueClock);
     return new Set(
       openTodos.filter((t) => isTodoOverdue(t, now)).map((t) => t.id)
     );
-  }, [openTodos]);
+  }, [openTodos, overdueClock]);
 
   const calendarAppointments = useMemo(
     () =>

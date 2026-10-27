@@ -157,7 +157,9 @@ export function JourneyBody() {
   const userId = useAuthStore((state) => state.session?.user.id ?? null);
   const accountCurrency = useAccountCurrency();
   const accountId = profile?.account_id;
-  const canEdit = Boolean(profile && profile.account_role !== 'viewer');
+  const canEdit = Boolean(
+    profile && profile.account_role !== 'viewer' && !profile.is_read_only
+  );
   const { show, close, dialogProps } = useAppDialog();
   const [trayGroup, setTrayGroup] = useState<JourneyGroup | null>(null);
   const [enquiryGroup, setEnquiryGroup] = useState<JourneyGroup | null>(null);
@@ -732,7 +734,7 @@ export function JourneyBody() {
           .eq('mode', mode)
           .eq('subject_id', group.subjectId)
           .select('id');
-    if (error || (priority && !data?.length)) {
+    if (error || !data?.length) {
       queryClient.setQueryData(key, previous);
       haptic.warn();
       show({
@@ -809,6 +811,7 @@ export function JourneyBody() {
     }
     await Promise.all([
       summariesQuery.refetch(),
+      statesQuery.refetch(),
       queryClient.invalidateQueries({ queryKey: ['journey-branch-items'] }),
       queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
     ]);

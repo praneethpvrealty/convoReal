@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { ChoiceChip, PrimaryButton, TextField } from '@/components/ui';
 import {
   CLOSED_JOURNEY_STATUS_LABELS,
@@ -62,7 +62,11 @@ function CloseJourneyForm({
   }
 
   return (
-    <View style={styles.form}>
+    <ScrollView
+      style={sheetScrollArea}
+      contentContainerStyle={styles.form}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={{ fontSize: 13, color: colors.textMuted }}>
         Record the outcome without losing the properties, progress, notes, or
         timeline. You can reopen it later.
@@ -108,7 +112,7 @@ function CloseJourneyForm({
         disabled={!reason.trim()}
         onPress={() => void submit()}
       />
-    </View>
+    </ScrollView>
   );
 }
 
@@ -155,7 +159,11 @@ function DropBranchForm({
   }
 
   return (
-    <View style={styles.form}>
+    <ScrollView
+      style={sheetScrollArea}
+      contentContainerStyle={styles.form}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text
         style={{ fontSize: 12, fontFamily: f.bold, color: colors.textMuted }}
       >
@@ -185,7 +193,7 @@ function DropBranchForm({
         disabled={!reason.trim()}
         onPress={() => void submit()}
       />
-    </View>
+    </ScrollView>
   );
 }
 
