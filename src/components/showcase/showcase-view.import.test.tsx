@@ -16,6 +16,7 @@ import {
   fireEvent,
   waitFor,
   act,
+  within,
 } from '@testing-library/react';
 import type { Property, ShowcaseSettings } from '@/types';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -128,7 +129,8 @@ const settings = {
 function renderShowcase({
   open = true,
   agentMode = false,
-}: { open?: boolean; agentMode?: boolean } = {}) {
+  dealFloor = false,
+}: { open?: boolean; agentMode?: boolean; dealFloor?: boolean } = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -140,6 +142,7 @@ function renderShowcase({
         accountId="acct-1"
         initialPropertyId={open ? property.id : undefined}
         initialAgentMode={agentMode}
+        showcaseStyle={dealFloor ? 'deal-floor' : undefined}
         disableSavedState
       />
     </QueryClientProvider>
@@ -352,5 +355,70 @@ describe('showcase — add to my inventory', () => {
     expect(cardButton('Whitefield Apartment')).toBeNull();
     expect(chipLink()).toBeNull();
     expect(cardLink('Whitefield Apartment')).toBeNull();
+  });
+
+  it('[PRP-053] offers the control on the current Quick Picks card and moves it to the next card', async () => {
+    renderShowcase({ open: false, dealFloor: true });
+    await waitFor(() => expect(probeCalls()).toHaveLength(1));
+    fireEvent.click(
+      screen.getByRole('button', { name: /or play Quick Picks/ })
+    );
+    const deck = () =>
+      within(screen.getByRole('region', { name: 'Quick Picks' }));
+    const first = deck().getByRole('heading', { level: 3 }).textContent;
+    const firstId = first === property.title ? 'prop-1' : 'prop-2';
+
+    await waitFor(() =>
+      expect(
+        deck().getByRole('button', {
+          name: /add this property to your inventory/i,
+        })
+      ).toBeTruthy()
+    );
+    fireEvent.click(
+      deck().getByRole('button', {
+        name: /add this property to your inventory/i,
+      })
+    );
+    await waitFor(() =>
+      expect(
+        deck().getByRole('link', { name: 'In your inventory' })
+      ).toBeTruthy()
+    );
+    expect(JSON.parse(String(importCalls()[0][1]?.body))).toEqual({
+      property_id: firstId,
+    });
+
+    fireEvent.click(deck().getByRole('button', { name: `Skip ${first}` }));
+    expect(deck().getByRole('heading', { level: 3 }).textContent).not.toBe(
+      first
+    );
+    expect(
+      deck().getByRole('button', {
+        name: /add this property to your inventory/i,
+      })
+    ).toBeTruthy();
+    expect(
+      deck().queryByRole('link', { name: 'In your inventory' })
+    ).toBeNull();
+    expect(probeCalls()).toHaveLength(1);
+  });
+
+  it('[PRP-053] shows a signed-out visitor nothing on the Quick Picks card', async () => {
+    probe.status = 401;
+    renderShowcase({ open: false, dealFloor: true });
+    await waitFor(() => expect(probeCalls()).toHaveLength(1));
+    await settle();
+    fireEvent.click(
+      screen.getByRole('button', { name: /or play Quick Picks/ })
+    );
+    const deck = within(screen.getByRole('region', { name: 'Quick Picks' }));
+    await settle();
+    expect(
+      deck.queryByRole('button', {
+        name: /add this property to your inventory/i,
+      })
+    ).toBeNull();
+    expect(probeCalls()).toHaveLength(1);
   });
 });

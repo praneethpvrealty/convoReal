@@ -17,6 +17,14 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 27 October 2026
+
+- **Add to my inventory in the Deal Floor Quick Picks deck.** A signed-in
+  agent swiping through Quick Picks on another brokerage's Deal Floor showcase
+  now sees "Add to my inventory" on the current card, under its locality. It
+  works like the grid card and the open listing, and adding from any of them
+  updates the others (PRP-053).
+
 #### 26 October 2026
 
 - **"Where in Whitefield?" is answered, not saved as a requirement.** A short
