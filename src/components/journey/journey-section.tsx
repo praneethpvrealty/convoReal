@@ -501,10 +501,9 @@ export function JourneySection({
       );
       if (error) toast.error(committed ? error : `Failed to drop: ${error}`);
       if (!committed) return;
-      await logEvent(item.id, 'dropped', item.stage_id, item.stage_id, reason);
       await refresh();
     },
-    [logEvent, refresh]
+    [refresh]
   );
 
   const handleReactivate = useCallback(
@@ -514,10 +513,9 @@ export function JourneySection({
         toast.error(committed ? error : `Failed to reactivate: ${error}`);
       }
       if (!committed) return;
-      await logEvent(item.id, 'reactivated', item.stage_id, item.stage_id);
       await refresh();
     },
-    [logEvent, refresh]
+    [refresh]
   );
 
   const handleRemove = useCallback(

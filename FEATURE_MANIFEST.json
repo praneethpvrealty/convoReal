@@ -3034,7 +3034,7 @@
         },
         {
           "id": "JRN-012",
-          "rule": "Journeys inside each group are ordered by most enquired by default — the buyer's or listing's enquiry count, the newest enquiry breaking ties — and can instead be ordered by the most recent enquiry, manual order, or furthest stage on both web and mobile (web also offers priority and recent activity). Journeys with no enquiry follow, most recently touched first. Drag handles appear only under manual order. Every journey row with enquiries shows the same count label on web and mobile with the latest enquiry's source and date (\"3 enquiries · Housing · 12 Sep\"): the source is the newest enquiry that has one, followed by \"+N\" when the enquiries came from N other sources, and the year is added only when it is not the current one; a journey with none shows no label. Journeys can be filtered by enquiry source on web and mobile: the filter offers every source the journeys in view have, each with how many journeys have it, most common first, keeps a journey when any of its enquiries came from the chosen source, keeps a chosen source offered while no journey in view has it, shows a clear button beside the filter while a source is chosen that returns to all sources, counts only journeys from the chosen source in the Active, Closed and Archived view tabs (the totals return when the filter is cleared), shows the chosen source first on the mobile chip row, followed by the clear chip, and scrolls that row back to its start whenever the chosen source, the buyer/property tab or the active/closed/archived view changes, so a chosen or remembered filter is always visible without scrolling, and remembers the chosen source across visits on the same browser or device, separately for each account and for buyer and property journeys, so another account signed in on that device never inherits it; a stored value that is blank or not text is ignored. Tapping the label lists the enquiries newest first — the enquired properties on a buyer journey, the enquiring buyers on a property journey — each with its source and date, opening that property or contact.",
+          "rule": "Journeys inside each group are ordered by most enquired by default — the buyer's or listing's enquiry count, the newest enquiry breaking ties — and can instead be ordered by the most recent enquiry, manual order, furthest stage, priority or recent activity on both web and mobile. Journeys with no enquiry follow, most recently touched first. Drag handles appear only under manual order. Every journey row with enquiries shows the same count label on web and mobile with the latest enquiry's source and date (\"3 enquiries · Housing · 12 Sep\"): the source is the newest enquiry that has one, followed by \"+N\" when the enquiries came from N other sources, and the year is added only when it is not the current one; a journey with none shows no label. Journeys can be filtered by enquiry source on web and mobile: the filter offers every source the journeys in view have, each with how many journeys have it, most common first, keeps a journey when any of its enquiries came from the chosen source, keeps a chosen source offered while no journey in view has it, shows a clear button beside the filter while a source is chosen that returns to all sources, counts only journeys from the chosen source in the Active, Closed and Archived view tabs (the totals return when the filter is cleared), shows the chosen source first on the mobile chip row, followed by the clear chip, and scrolls that row back to its start whenever the chosen source, the buyer/property tab or the active/closed/archived view changes, so a chosen or remembered filter is always visible without scrolling, and remembers the chosen source across visits on the same browser or device, separately for each account and for buyer and property journeys, so another account signed in on that device never inherits it; a stored value that is blank or not text is ignored. Tapping the label lists the enquiries newest first — the enquired properties on a buyer journey, the enquiring buyers on a property journey — each with its source and date, opening that property or contact.",
           "tests": [
             {
               "file": "src/components/journey/shared.test.ts",
@@ -6083,6 +6083,22 @@
             {
               "file": "src/lib/pipelines/deal-money.test.ts",
               "case": "[UIX-007]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-008",
+          "rule": "To-dos and journeys show the same information and actions on web and mobile. Every open to-do shows a High, Medium or Low priority label and, once its due time has passed, an Overdue marker, both decided by isTodoOverdue and TODO_PRIORITY_LABELS in src/lib/calendar/todo-groups.ts, and a to-do linked to a deal reads Deal task on both. Journeys show their High, Medium or Low priority, editors set or clear it from the journey's actions on both surfaces (stored in journey_priorities), and the overview offers the same six sorts (Most enquired, Recently enquired, Manual order, Priority, Recent activity, Furthest stage) with the same tie-break chains from src/lib/journey/sort.ts. Closing a journey offers the outcome, the preset reasons and an editable reason of up to 500 characters on both, sent as the same close action. A journey branch can be dropped at its stage with the quick drop reasons or free text and a dropped branch reactivated on both surfaces, through POST /api/journey/status, which also logs the dropped or reactivated timeline event so neither surface writes it itself.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-008]" },
+            {
+              "file": "src/lib/calendar/todo-groups.test.ts",
+              "case": "[UIX-008]"
+            },
+            { "file": "src/lib/journey/sort.test.ts", "case": "[UIX-008]" },
+            {
+              "file": "mobile/lib/journey-overview.test.ts",
+              "case": "[UIX-008]"
             }
           ]
         }

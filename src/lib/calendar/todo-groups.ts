@@ -37,3 +37,25 @@ export function clearCompletedPrompt(count: number): string {
     ? 'Delete the one done to-do? This cannot be undone.'
     : `Delete all ${count} done to-dos? This cannot be undone.`;
 }
+
+export type TodoPriorityLevel = 'low' | 'medium' | 'high';
+
+export const TODO_PRIORITY_LABELS: Record<TodoPriorityLevel, string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+};
+
+export const OVERDUE_TODO_LABEL = 'Overdue';
+export const DEAL_TASK_LABEL = 'Deal task';
+
+export interface DueTodoLike {
+  completed: boolean;
+  due_date?: string | null;
+}
+
+export function isTodoOverdue(todo: DueTodoLike, now: Date): boolean {
+  if (todo.completed || !todo.due_date) return false;
+  const due = new Date(todo.due_date).getTime();
+  return Number.isFinite(due) && due < now.getTime();
+}

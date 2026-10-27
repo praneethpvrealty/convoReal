@@ -115,8 +115,12 @@ import {
   CLEAR_COMPLETED_LABEL,
   clearCompletedPrompt,
   completedTodoIds,
+  DEAL_TASK_LABEL,
   DONE_TODOS_LABEL,
+  isTodoOverdue,
+  OVERDUE_TODO_LABEL,
   splitTodosByCompletion,
+  TODO_PRIORITY_LABELS,
 } from '@shared/lib/calendar/todo-groups';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { useDebounced } from '@/lib/use-debounced';
@@ -1271,8 +1275,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
   );
   const [editPicker, setEditPicker] = useState<'date' | 'time' | null>(null);
   const due = todo.due_date ? new Date(todo.due_date) : null;
-  const overdue =
-    due !== null && !todo.completed && due.getTime() < now.getTime();
+  const overdue = isTodoOverdue(todo, now);
 
   async function toggle() {
     haptic.tap();
@@ -1355,7 +1358,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
       : null,
     todo.contact ? todo.contact.name || todo.contact.phone : null,
     todo.property?.title ?? null,
-    todo.deal_id ? 'Deal task' : null,
+    todo.deal_id ? DEAL_TASK_LABEL : null,
   ].filter(Boolean);
 
   return (
@@ -1407,9 +1410,17 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
               }}
               numberOfLines={1}
             >
-              {overdue ? 'Overdue · ' : ''}
+              {overdue ? `${OVERDUE_TODO_LABEL} · ` : ''}
               {meta.join(' · ')}
             </Text>
+          ) : null}
+          {!todo.completed ? (
+            <View style={{ flexDirection: 'row', gap: 4 }}>
+              <Tag
+                label={TODO_PRIORITY_LABELS[todo.priority]}
+                color={priorityColor(todo.priority, colors)}
+              />
+            </View>
           ) : null}
           {error ? (
             <Text style={{ fontSize: 11.5, color: colors.danger }}>

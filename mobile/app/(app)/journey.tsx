@@ -22,6 +22,10 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import {
+  CloseJourneySheet,
+  DropBranchSheet,
+} from '@/components/journey-reason-sheets';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   ChoiceChip,
@@ -39,6 +43,7 @@ import {
   loadJourneyOverview,
   logPersonalWhatsAppJourneySend,
   removeJourneyItems,
+  setJourneyBranchStatus,
   updateJourneyOverview,
   setJourneyCompartment,
 } from '@/lib/api';
@@ -63,9 +68,11 @@ import {
 import {
   CLOSED_JOURNEY_STATUS_LABELS,
   DEFAULT_JOURNEY_SORT,
-  JOURNEY_CLOSURE_REASONS,
+  JOURNEY_PRIORITY_LABELS,
+  JOURNEY_PRIORITY_ORDER,
   JOURNEY_SORT_LABELS,
   focusBuckets,
+  isJourneyPriority,
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
   journeyRaceLabel,
@@ -78,6 +85,7 @@ import {
   splitJourneysByCompartment,
   type ClosedJourneyStatus,
   type JourneyLifecycleStatus,
+  type JourneyPriority,
   type JourneySort,
 } from '@/lib/journey-overview';
 import { useRememberedJourneySource } from '@/lib/journey-source-preference';
@@ -121,6 +129,7 @@ interface JourneyGroup {
   closureReason: string | null;
   archivedAt: string | null;
   sortOrder: number;
+  priority: JourneyPriority | null;
 }
 
 interface JourneyBucket {
@@ -145,6 +154,7 @@ export function JourneyBody() {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const profile = useAuthStore((state) => state.profile);
+  const userId = useAuthStore((state) => state.session?.user.id ?? null);
   const accountCurrency = useAccountCurrency();
   const accountId = profile?.account_id;
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
@@ -155,6 +165,8 @@ export function JourneyBody() {
   const [trayError, setTrayError] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [moveTarget, setMoveTarget] = useState<JourneyItem | null>(null);
+  const [dropTarget, setDropTarget] = useState<JourneyItem | null>(null);
+  const [closeTarget, setCloseTarget] = useState<JourneyGroup | null>(null);
   const [brokeragePrompt, setBrokeragePrompt] = useState<{
     item: JourneyItem;
     stage: JourneyStage;
@@ -304,6 +316,31 @@ export function JourneyBody() {
     },
   });
 
+  const prioritiesQuery = useQuery({
+    queryKey: ['journey-priorities', accountId, mode],
+    enabled: Boolean(accountId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('journey_priorities')
+        .select('subject_id, priority')
+        .eq('account_id', accountId!)
+        .eq('mode', mode);
+      if (error) throw error;
+      return (data ?? []) as { subject_id: string; priority: string }[];
+    },
+  });
+  const priorityBySubject = useMemo(
+    () =>
+      new Map(
+        (prioritiesQuery.data ?? []).flatMap((row) =>
+          isJourneyPriority(row.priority)
+            ? [[row.subject_id, row.priority] as const]
+            : []
+        )
+      ),
+    [prioritiesQuery.data]
+  );
+
   const statesQuery = useQuery({
     queryKey: ['journey-overview-states', mode],
     enabled: Boolean(accountId),
@@ -356,6 +393,7 @@ export function JourneyBody() {
       summariesQuery.refetch(),
       enquiriesQuery.refetch(),
       statesQuery.refetch(),
+      prioritiesQuery.refetch(),
       compartmentsQuery.refetch(),
       queryClient.invalidateQueries({ queryKey: ['journey-branch-items'] }),
     ]);
@@ -432,6 +470,7 @@ export function JourneyBody() {
             orderOverrides.get(row.subject_id) ??
             state?.sort_order ??
             Number.MAX_SAFE_INTEGER,
+          priority: priorityBySubject.get(row.subject_id) ?? null,
         };
       });
     return sortJourneys(summaries, sort);
@@ -440,6 +479,7 @@ export function JourneyBody() {
     enquiryBySubject,
     mode,
     orderOverrides,
+    priorityBySubject,
     propertyId,
     sort,
     stageIndexById,
@@ -632,27 +672,11 @@ export function JourneyBody() {
     }
   }
 
-  function chooseClosure(group: JourneyGroup, status: ClosedJourneyStatus) {
-    show({
-      title: CLOSED_JOURNEY_STATUS_LABELS[status],
-      message:
-        'Choose the clearest reason. It remains searchable in Closed journeys.',
-      actions: [
-        ...JOURNEY_CLOSURE_REASONS[status].map((reason) => ({
-          label: reason,
-          onPress: () => void closeGroup(group, status, reason),
-        })),
-        { label: 'Cancel', variant: 'muted', onPress: close },
-      ],
-    });
-  }
-
   async function closeGroup(
     group: JourneyGroup,
     status: ClosedJourneyStatus,
     reason: string
   ) {
-    close();
     try {
       await updateJourneyOverview({
         action: 'close',
@@ -662,6 +686,7 @@ export function JourneyBody() {
         reason,
       });
       haptic.success();
+      setCloseTarget(null);
       await statesQuery.refetch();
     } catch (error) {
       haptic.warn();
@@ -670,6 +695,143 @@ export function JourneyBody() {
         message: error instanceof Error ? error.message : 'Please try again.',
       });
     }
+  }
+
+  async function setPriority(
+    group: JourneyGroup,
+    priority: JourneyPriority | null
+  ) {
+    close();
+    if (!canEdit || !accountId) return;
+    const key = ['journey-priorities', accountId, mode];
+    await queryClient.cancelQueries({ queryKey: key });
+    const previous =
+      queryClient.getQueryData<{ subject_id: string; priority: string }[]>(key);
+    queryClient.setQueryData(key, [
+      ...(previous ?? []).filter((row) => row.subject_id !== group.subjectId),
+      ...(priority ? [{ subject_id: group.subjectId, priority }] : []),
+    ]);
+    const { data, error } = priority
+      ? await supabase
+          .from('journey_priorities')
+          .upsert(
+            {
+              account_id: accountId,
+              mode,
+              subject_id: group.subjectId,
+              priority,
+              created_by: userId,
+            },
+            { onConflict: 'account_id,mode,subject_id' }
+          )
+          .select('id')
+      : await supabase
+          .from('journey_priorities')
+          .delete()
+          .eq('account_id', accountId)
+          .eq('mode', mode)
+          .eq('subject_id', group.subjectId)
+          .select('id');
+    if (error || (priority && !data?.length)) {
+      queryClient.setQueryData(key, previous);
+      haptic.warn();
+      show({
+        title: 'Could not set priority',
+        message: error?.message ?? 'Please try again.',
+      });
+      return;
+    }
+    haptic.success();
+  }
+
+  function choosePriority(group: JourneyGroup) {
+    show({
+      title: 'Priority',
+      actions: [
+        ...JOURNEY_PRIORITY_ORDER.map((priority) => ({
+          label: JOURNEY_PRIORITY_LABELS[priority],
+          variant:
+            group.priority === priority
+              ? ('primary' as const)
+              : ('default' as const),
+          onPress: () => void setPriority(group, priority),
+        })),
+        ...(group.priority
+          ? [
+              {
+                label: 'Clear priority',
+                onPress: () => void setPriority(group, null),
+              },
+            ]
+          : []),
+        { label: 'Cancel', variant: 'muted' as const, onPress: close },
+      ],
+    });
+  }
+
+  const priorityAction = (group: JourneyGroup) => ({
+    label: group.priority
+      ? `Priority: ${JOURNEY_PRIORITY_LABELS[group.priority]}`
+      : 'Set priority',
+    onPress: () => choosePriority(group),
+  });
+
+  async function changeBranchStatus(
+    item: JourneyItem,
+    action: 'drop' | 'reactivate',
+    reason?: string
+  ) {
+    let warning: string | null = null;
+    try {
+      await setJourneyBranchStatus({ itemId: item.id, action, reason });
+    } catch (error) {
+      if (!(
+        error instanceof ApiError && error.code === 'LISTING_SYNC_FAILED'
+      )) {
+        haptic.warn();
+        show({
+          title: action === 'drop' ? 'Could not drop' : 'Could not reactivate',
+          message: error instanceof Error ? error.message : 'Please try again.',
+        });
+        return;
+      }
+      warning = error.message;
+    }
+    setDropTarget(null);
+    if (warning) {
+      haptic.warn();
+      show({
+        title: action === 'drop' ? 'Branch dropped' : 'Branch reactivated',
+        message: warning,
+      });
+    } else {
+      haptic.success();
+    }
+    await Promise.all([
+      summariesQuery.refetch(),
+      queryClient.invalidateQueries({ queryKey: ['journey-branch-items'] }),
+      queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
+    ]);
+  }
+
+  function askReactivateItem(item: JourneyItem) {
+    if (!canEdit) return;
+    const stageName = stageById.get(item.stage_id)?.name ?? 'current stage';
+    show({
+      title: `Reactivate at ${stageName}?`,
+      message: item.drop_reason ?? undefined,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: `Reactivate at ${stageName}`,
+          variant: 'primary',
+          onPress: () => {
+            close();
+            void changeBranchStatus(item, 'reactivate');
+          },
+        },
+      ],
+    });
   }
 
   async function removeItems(
@@ -758,6 +920,7 @@ export function JourneyBody() {
             variant: 'primary',
             onPress: () => void mutateGroup(group, 'restore'),
           },
+          priorityAction(group),
           removeJourneyAction(group),
           { label: 'Cancel', variant: 'muted', onPress: close },
         ],
@@ -778,6 +941,7 @@ export function JourneyBody() {
             label: 'Archive',
             onPress: () => void mutateGroup(group, 'archive'),
           },
+          priorityAction(group),
           removeJourneyAction(group),
           { label: 'Cancel', variant: 'muted', onPress: close },
         ],
@@ -802,26 +966,12 @@ export function JourneyBody() {
         {
           label: 'Close with outcome',
           variant: 'primary',
-          onPress: () =>
-            show({
-              title: 'How did this journey end?',
-              actions: [
-                {
-                  label: 'Completed successfully',
-                  onPress: () => chooseClosure(group, 'completed'),
-                },
-                {
-                  label: 'Paused — may return',
-                  onPress: () => chooseClosure(group, 'paused'),
-                },
-                {
-                  label: 'Not proceeding',
-                  onPress: () => chooseClosure(group, 'not_proceeding'),
-                },
-                { label: 'Cancel', variant: 'muted', onPress: close },
-              ],
-            }),
+          onPress: () => {
+            close();
+            setCloseTarget(group);
+          },
         },
+        priorityAction(group),
         {
           label: 'Archive',
           onPress: () => void mutateGroup(group, 'archive'),
@@ -1371,6 +1521,8 @@ export function JourneyBody() {
                 onMoveItem={(item) => canEdit && setMoveTarget(item)}
                 onOpenDeal={(dealId) => router.push(`/deal/${dealId}`)}
                 onRemoveItem={askRemoveItem}
+                onDropItem={(item) => canEdit && setDropTarget(item)}
+                onReactivateItem={askReactivateItem}
                 onAddNote={(item, stage) => {
                   setNoteTarget({ item, stage });
                   setNoteText('');
@@ -2170,6 +2322,30 @@ export function JourneyBody() {
         </View>
       </BottomSheet>
 
+      <CloseJourneySheet
+        journeyName={closeTarget ? groupTitle(closeTarget, mode) : null}
+        onClose={() => setCloseTarget(null)}
+        onSubmit={(status, reason) =>
+          closeTarget
+            ? closeGroup(closeTarget, status, reason)
+            : Promise.resolve()
+        }
+      />
+
+      <DropBranchSheet
+        stageName={
+          dropTarget
+            ? (stageById.get(dropTarget.stage_id)?.name ?? 'current stage')
+            : null
+        }
+        onClose={() => setDropTarget(null)}
+        onSubmit={(reason) =>
+          dropTarget
+            ? changeBranchStatus(dropTarget, 'drop', reason)
+            : Promise.resolve()
+        }
+      />
+
       <AppDialog {...dialogProps} />
     </ScrollView>
   );
@@ -2200,6 +2376,8 @@ function DraggableJourneyCard({
   onMoveItem,
   onOpenDeal,
   onRemoveItem,
+  onDropItem,
+  onReactivateItem,
   onAddNote,
 }: {
   group: JourneyGroup;
@@ -2226,6 +2404,8 @@ function DraggableJourneyCard({
   onMoveItem: (item: JourneyItem) => void;
   onOpenDeal: (dealId: string) => void;
   onRemoveItem: (item: JourneyItem) => void;
+  onDropItem: (item: JourneyItem) => void;
+  onReactivateItem: (item: JourneyItem) => void;
   onAddNote: (item: JourneyItem, stage: JourneyStage) => void;
 }) {
   const { colors, fonts: f } = useTheme();
@@ -2257,6 +2437,12 @@ function DraggableJourneyCard({
       ? null
       : CLOSED_JOURNEY_STATUS_LABELS[group.lifecycleStatus];
   const enquiryLabel = journeyEnquiryLabel(group);
+  const priorityColor =
+    group.priority === 'high'
+      ? colors.danger
+      : group.priority === 'medium'
+        ? colors.warning
+        : colors.textMuted;
   const statusLabel = stageInHeader
     ? journeyRaceLabel(group.active)
     : [stage?.name, lifecycleLabel].filter(Boolean).join(' · ');
@@ -2392,6 +2578,25 @@ function DraggableJourneyCard({
         ) : null}
         {canEdit ? (
           <Pressable
+            onPress={() =>
+              dropped ? onReactivateItem(item) : onDropItem(item)
+            }
+            accessibilityLabel={
+              dropped
+                ? `Reactivate at ${itemStage?.name ?? 'current stage'}`
+                : `Drop at ${itemStage?.name ?? 'current stage'}`
+            }
+            hitSlop={8}
+          >
+            <Ionicons
+              name={dropped ? 'refresh-outline' : 'ban-outline'}
+              size={17}
+              color={dropped ? colors.primary : colors.textMuted}
+            />
+          </Pressable>
+        ) : null}
+        {canEdit ? (
+          <Pressable
             onPress={() => onRemoveItem(item)}
             accessibilityLabel="Remove branch and its deal"
             hitSlop={8}
@@ -2445,6 +2650,29 @@ function DraggableJourneyCard({
                 {groupSubtitle(group, mode)}
                 {group.closureReason ? ` · ${group.closureReason}` : ''}
               </Text>
+              {group.priority ? (
+                <View
+                  accessibilityLabel={`${JOURNEY_PRIORITY_LABELS[group.priority]} priority`}
+                  style={[
+                    styles.capturedChip,
+                    {
+                      borderColor: `${priorityColor}66`,
+                      backgroundColor: `${priorityColor}14`,
+                    },
+                  ]}
+                >
+                  <Ionicons name="flag" size={11} color={priorityColor} />
+                  <Text
+                    style={{
+                      fontSize: 10.5,
+                      fontFamily: f.bold,
+                      color: priorityColor,
+                    }}
+                  >
+                    {JOURNEY_PRIORITY_LABELS[group.priority]}
+                  </Text>
+                </View>
+              ) : null}
               {enquiryLabel ? (
                 <Pressable
                   onPress={onEnquiries}

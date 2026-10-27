@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_JOURNEY_SORT,
+  JOURNEY_SORT_LABELS,
   focusBuckets,
   journeyEnquiryLabel,
   journeyEnquirySourceOptions,
@@ -81,6 +82,7 @@ describe('sortJourneys', () => {
     sortOrder = Number.MAX_SAFE_INTEGER
   ) => ({
     id,
+    priority: null,
     furthestStageIdx: 0,
     lastUpdated,
     enquiryCount,
@@ -116,6 +118,32 @@ describe('sortJourneys', () => {
 
   it('[JRN-003] keeps the saved manual order when chosen', () => {
     expect(sortJourneys(input, 'manual')[0].id).toBe('once-old');
+  });
+
+  it('[UIX-008] offers the web sorts, ranking priority with the web tie-breaks', () => {
+    expect(Object.keys(JOURNEY_SORT_LABELS)).toEqual([
+      'enquiries',
+      'enquired',
+      'manual',
+      'priority',
+      'recent',
+      'stage',
+    ]);
+    const ranked = [
+      { ...j('unrated', 0, null, '2026-01-09'), priority: null },
+      { ...j('low', 0, null, '2026-01-08'), priority: 'low' as const },
+      { ...j('high', 0, null, '2026-01-01'), priority: 'high' as const },
+    ];
+    expect(sortJourneys(ranked, 'priority').map((x) => x.id)).toEqual([
+      'high',
+      'low',
+      'unrated',
+    ]);
+    expect(sortJourneys(ranked, 'recent').map((x) => x.id)).toEqual([
+      'unrated',
+      'low',
+      'high',
+    ]);
   });
 });
 
