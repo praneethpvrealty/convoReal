@@ -328,7 +328,7 @@ export function DateTimePicker({
                       isToday &&
                         'text-primary border-slate-800 bg-slate-900/30 font-bold',
                       isSelected &&
-                        'from-primary hover:bg-primary/90 border-transparent bg-gradient-to-tr to-violet-600 font-bold text-white'
+                        'border-primary/60 bg-primary/20 text-primary hover:bg-primary/25 hover:text-primary font-bold'
                     )}
                   >
                     {cell.day}
@@ -357,7 +357,7 @@ export function DateTimePicker({
                     className={cn(
                       'h-7 w-full shrink-0 cursor-pointer rounded-md text-center text-xs transition-colors',
                       currentHourSelected === hour
-                        ? 'bg-primary text-primary-foreground font-semibold'
+                        ? 'bg-primary/20 text-primary ring-primary/50 font-semibold ring-1'
                         : 'text-slate-350 hover:bg-slate-900 hover:text-white'
                     )}
                   >
@@ -376,7 +376,7 @@ export function DateTimePicker({
                     className={cn(
                       'h-7 w-full shrink-0 cursor-pointer rounded-md text-center text-xs transition-colors',
                       currentMinuteSelected === minute
-                        ? 'bg-primary text-primary-foreground font-semibold'
+                        ? 'bg-primary/20 text-primary ring-primary/50 font-semibold ring-1'
                         : 'text-slate-350 hover:bg-slate-900 hover:text-white'
                     )}
                   >
@@ -398,7 +398,7 @@ export function DateTimePicker({
                       className={cn(
                         'h-7 w-full shrink-0 cursor-pointer rounded-md text-center text-xs transition-colors',
                         isActive
-                          ? 'bg-primary text-primary-foreground font-semibold'
+                          ? 'bg-primary/20 text-primary ring-primary/50 font-semibold ring-1'
                           : 'text-slate-350 hover:bg-slate-900 hover:text-white'
                       )}
                     >

@@ -33,6 +33,7 @@ import { Label } from '@/components/ui/label';
 import { PriceHint } from '@/components/ui/price-hint';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Search, Plus, Trash2, ArrowUp } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   Tooltip,
   TooltipContent,
@@ -467,8 +468,12 @@ export function ContactForm({
                     <Button
                       key={option}
                       type="button"
-                      variant={salutation === option ? 'default' : 'outline'}
+                      variant="outline"
                       size="sm"
+                      className={cn(
+                        salutation === option &&
+                          'border-primary/60 bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary'
+                      )}
                       aria-pressed={salutation === option}
                       onClick={() =>
                         setSalutation(salutation === option ? '' : option)

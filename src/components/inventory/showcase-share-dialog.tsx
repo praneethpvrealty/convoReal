@@ -1005,7 +1005,7 @@ Best regards`;
                     onClick={() => setShareCategory(cat)}
                     className={`cursor-pointer rounded-lg border px-2.5 py-2 text-center text-xs font-semibold transition-all select-none ${
                       shareCategory === cat
-                        ? 'border-primary bg-primary text-primary-foreground shadow-primary/20 font-bold shadow-md'
+                        ? 'border-primary/60 bg-primary/15 text-primary font-bold'
                         : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-white'
                     }`}
                   >

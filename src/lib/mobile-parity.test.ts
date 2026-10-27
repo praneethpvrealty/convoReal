@@ -5502,3 +5502,31 @@ describe('[UIX-001] form choices never look like the submit button', () => {
     );
   });
 });
+
+describe('[UIX-002] web form choices never look like the submit button', () => {
+  it('[UIX-002] draws selected options as a tint, not a solid fill', () => {
+    expect(
+      webSource('components/inventory/showcase-share-dialog.tsx')
+    ).not.toContain(
+      "'border-primary bg-primary text-primary-foreground shadow-primary/20 font-bold shadow-md'"
+    );
+    const picker = webSource('components/ui/date-time-picker.tsx');
+    expect(picker).not.toContain(
+      "? 'bg-primary text-primary-foreground font-semibold'"
+    );
+    expect(picker).not.toContain(
+      'bg-gradient-to-tr to-violet-600 font-bold text-white'
+    );
+    expect(webSource('components/showcase/showcase-view.tsx')).toContain(
+      "? 'border-primary/60 bg-primary/15 text-primary'"
+    );
+    for (const file of [
+      'components/contacts/contact-form.tsx',
+      'app/(dashboard)/broadcasts/greetings-content.tsx',
+    ]) {
+      expect(webSource(file), file).not.toMatch(
+        /variant=\{(salutation|sendChannel|audienceType) === [^}]*\? 'default' : 'outline'\}/
+      );
+    }
+  });
+});
