@@ -5687,6 +5687,9 @@ describe('[UIX-007] Broadcasts and Deals show the same information and actions o
     expect(web).not.toContain('const RECIPIENT_STATUSES');
     expect(mobile).not.toContain('const STATUS_FILTERS');
     expect(mobile).toContain("from '@shared/lib/broadcast-status'");
+    expect(mobile).toContain(
+      ".in('status', [...RETRYABLE_RECIPIENT_STATUSES])"
+    );
     expect(mobile).toContain('useAppDialog()');
     expect(mobile).toContain('title: BROADCAST_DELETE_CONFIRM');
     expect(mobile).toContain('canSendMessages(profile.account_role)');

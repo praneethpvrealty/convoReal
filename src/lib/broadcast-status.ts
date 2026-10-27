@@ -107,12 +107,17 @@ export const RECIPIENT_STATUS_FILTERS: readonly RecipientStatus[] = [
 
 export const BROADCAST_DELETE_CONFIRM = 'Delete this broadcast?';
 
+export const RETRYABLE_RECIPIENT_STATUSES: readonly RecipientStatus[] = [
+  'failed',
+  'rate_limited',
+];
+
 /** Retry failed is offered while any recipient failed or was rate-limited. */
 export function hasRetryableRecipients(
   recipients: readonly { status: string }[]
 ): boolean {
-  return recipients.some(
-    (r) => r.status === 'failed' || r.status === 'rate_limited'
+  return recipients.some((r) =>
+    (RETRYABLE_RECIPIENT_STATUSES as readonly string[]).includes(r.status)
   );
 }
 

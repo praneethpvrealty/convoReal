@@ -27,6 +27,7 @@ import {
   getRecipientStatus,
   hasRetryableRecipients,
   RECIPIENT_STATUS_FILTERS,
+  RETRYABLE_RECIPIENT_STATUSES,
   retryFailedSummary,
   type RetryFailedResult,
 } from '@shared/lib/broadcast-status';
@@ -107,11 +108,29 @@ export default function BroadcastDetailScreen() {
     refetchInterval: sending ? 15_000 : false,
   });
 
+  const { data: retryableCount = 0, refetch: refetchRetryable } = useQuery({
+    queryKey: ['broadcast-retryable', id],
+    enabled: Boolean(id) && canManage,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('broadcast_recipients')
+        .select('id', { count: 'exact', head: true })
+        .eq('broadcast_id', id)
+        .in('status', [...RETRYABLE_RECIPIENT_STATUSES]);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    refetchInterval: sending ? 15_000 : false,
+  });
+
   const wasSending = useRef(false);
   useEffect(() => {
-    if (wasSending.current && !sending) void refetchRecipients();
+    if (wasSending.current && !sending) {
+      void refetchRecipients();
+      void refetchRetryable();
+    }
     wasSending.current = sending;
-  }, [sending, refetchRecipients]);
+  }, [sending, refetchRecipients, refetchRetryable]);
 
   const retryMutation = useMutation({
     mutationFn: () =>
@@ -119,7 +138,11 @@ export default function BroadcastDetailScreen() {
         method: 'POST',
       }),
     onSuccess: async (result) => {
-      await Promise.all([refetchBroadcast(), refetchRecipients()]);
+      await Promise.all([
+        refetchBroadcast(),
+        refetchRecipients(),
+        refetchRetryable(),
+      ]);
       queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
       dialog.show({
         title: 'Retry complete',
@@ -175,8 +198,7 @@ export default function BroadcastDetailScreen() {
     filter === 'all' ? all : all.filter((r) => r.status === filter);
   const total = broadcast?.total_recipients ?? 0;
   const showRetry =
-    canManage &&
-    (hasRetryableRecipients(all) || (broadcast?.failed_count ?? 0) > 0);
+    canManage && (hasRetryableRecipients(all) || retryableCount > 0);
 
   const header = (
     <View style={{ gap: spacing.md, paddingTop: spacing.md }}>
