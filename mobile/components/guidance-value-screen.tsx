@@ -6,8 +6,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import {
+  ChoiceChip,
   Banner,
-  FilterChip,
   PrimaryButton,
   SectionLabel,
   TextField,
@@ -254,10 +254,10 @@ export function GuidanceValueScreen({
           <SectionLabel text="Property type" />
           <View style={styles.chips}>
             {KIND_OPTIONS.map((o) => (
-              <FilterChip
+              <ChoiceChip
                 key={o.value}
                 label={o.label}
-                active={draft.kind === o.value}
+                selected={draft.kind === o.value}
                 onPress={() =>
                   set('kind', draft.kind === o.value ? '' : o.value)
                 }
@@ -267,10 +267,10 @@ export function GuidanceValueScreen({
           <SectionLabel text="Usage" />
           <View style={styles.chips}>
             {USAGE_OPTIONS.map((o) => (
-              <FilterChip
+              <ChoiceChip
                 key={o.value}
                 label={o.label}
-                active={draft.usage === o.value}
+                selected={draft.usage === o.value}
                 onPress={() =>
                   set('usage', draft.usage === o.value ? '' : o.value)
                 }
@@ -285,10 +285,10 @@ export function GuidanceValueScreen({
           />
           <View style={styles.chips}>
             {AREA_UNIT_OPTIONS.map((o) => (
-              <FilterChip
+              <ChoiceChip
                 key={o.value}
                 label={o.label}
-                active={draft.land_unit === o.value}
+                selected={draft.land_unit === o.value}
                 onPress={() => set('land_unit', o.value)}
               />
             ))}
@@ -301,10 +301,10 @@ export function GuidanceValueScreen({
           />
           <View style={styles.chips}>
             {AREA_UNIT_OPTIONS.map((o) => (
-              <FilterChip
+              <ChoiceChip
                 key={o.value}
                 label={o.label}
-                active={draft.built_unit === o.value}
+                selected={draft.built_unit === o.value}
                 onPress={() => set('built_unit', o.value)}
               />
             ))}

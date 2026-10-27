@@ -15,8 +15,8 @@ import {
 } from 'react-native';
 
 import {
+  ChoiceChip,
   Banner,
-  FilterChip,
   PrimaryButton,
   SectionLabel,
   TextField,
@@ -398,25 +398,25 @@ export default function NewBroadcastScreen() {
                 gap: spacing.sm,
               }}
             >
-              <FilterChip
+              <ChoiceChip
                 label="All contacts"
-                active={audienceType === 'all'}
+                selected={audienceType === 'all'}
                 onPress={() => {
                   haptic.tap();
                   setAudienceType('all');
                 }}
               />
-              <FilterChip
+              <ChoiceChip
                 label="By tag"
-                active={audienceType === 'tags'}
+                selected={audienceType === 'tags'}
                 onPress={() => {
                   haptic.tap();
                   setAudienceType('tags');
                 }}
               />
-              <FilterChip
+              <ChoiceChip
                 label="CSV / pasted numbers"
-                active={audienceType === 'csv'}
+                selected={audienceType === 'csv'}
                 onPress={() => {
                   haptic.tap();
                   setAudienceType('csv');
@@ -433,10 +433,11 @@ export default function NewBroadcastScreen() {
                 }}
               >
                 {(tags ?? []).map((tag) => (
-                  <FilterChip
+                  <ChoiceChip
+                    multi
                     key={tag.id}
                     label={tag.name}
-                    active={tagIds.includes(tag.id)}
+                    selected={tagIds.includes(tag.id)}
                     onPress={() => toggle(tagIds, setTagIds, tag.id)}
                   />
                 ))}
@@ -527,10 +528,11 @@ export default function NewBroadcastScreen() {
               }}
             >
               {(tags ?? []).map((tag) => (
-                <FilterChip
+                <ChoiceChip
+                  multi
                   key={tag.id}
                   label={tag.name}
-                  active={excludeTagIds.includes(tag.id)}
+                  selected={excludeTagIds.includes(tag.id)}
                   onPress={() =>
                     toggle(excludeTagIds, setExcludeTagIds, tag.id)
                   }

@@ -2582,16 +2582,16 @@ function BudgetUnitPicker({
               paddingHorizontal: spacing.sm,
               paddingVertical: spacing.xs,
               borderRadius: radius.sm,
-              backgroundColor: active ? colors.primary : colors.surface,
-              borderWidth: active ? 0 : StyleSheet.hairlineWidth,
-              borderColor: colors.border,
+              backgroundColor: active ? colors.primarySoft : colors.surface,
+              borderWidth: active ? 1 : StyleSheet.hairlineWidth,
+              borderColor: active ? colors.primary : colors.border,
             }}
           >
             <Text
               style={{
                 fontSize: 12.5,
-                fontFamily: f.medium,
-                color: active ? colors.onPrimary : colors.textMuted,
+                fontFamily: active ? f.bold : f.medium,
+                color: active ? colors.primary : colors.textMuted,
               }}
             >
               {option.label}

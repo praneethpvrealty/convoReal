@@ -18,9 +18,9 @@ import { InlineDateTimePicker } from '@/components/datetime-field';
 import { DealInvoices } from '@/components/deal-invoices';
 import { ConvoRealLoader } from '@/components/loader';
 import {
+  ChoiceChip,
   Avatar,
   Banner,
-  FilterChip,
   PriceHint,
   PrimaryButton,
   Tag,
@@ -449,10 +449,10 @@ function DealForm({
           style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
         >
           {(stages ?? []).map((s) => (
-            <FilterChip
+            <ChoiceChip
               key={s.id}
               label={s.name}
-              active={s.id === activeStageId}
+              selected={s.id === activeStageId}
               onPress={() => {
                 haptic.tap();
                 setStageId(s.id);

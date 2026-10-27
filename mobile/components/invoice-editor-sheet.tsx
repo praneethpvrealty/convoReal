@@ -184,19 +184,23 @@ function InvoiceForm({
               <Pressable
                 key={option.value}
                 onPress={() => setSide(option.value)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active, checked: active }}
                 style={[
                   styles.sideChip,
                   {
-                    backgroundColor: active ? colors.primary : colors.surface,
+                    backgroundColor: active
+                      ? colors.primarySoft
+                      : colors.surface,
                     borderColor: active ? colors.primary : colors.border,
                   },
                 ]}
               >
                 <Text
                   style={{
-                    fontFamily: f.semibold,
+                    fontFamily: active ? f.bold : f.semibold,
                     fontSize: 13,
-                    color: active ? colors.onPrimary : colors.text,
+                    color: active ? colors.primary : colors.text,
                   }}
                 >
                   {option.label}

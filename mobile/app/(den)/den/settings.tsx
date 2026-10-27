@@ -13,8 +13,8 @@ import {
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { DeleteAccountRow } from '@/components/delete-account-row';
 import {
+  ChoiceChip,
   Banner,
-  FilterChip,
   PrimaryButton,
   SectionLabel,
   TextField,
@@ -138,10 +138,10 @@ export default function DenSettingsScreen() {
       <SectionLabel text="Activity digest" />
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         {DIGESTS.map((d) => (
-          <FilterChip
+          <ChoiceChip
             key={d}
             label={d === 'off' ? 'Off' : d === 'daily' ? 'Daily' : 'Weekly'}
-            active={digest === d}
+            selected={digest === d}
             onPress={() => setDigest(d)}
           />
         ))}

@@ -30,7 +30,7 @@ import {
 import { CatalogProductShare } from '@/components/catalog-product-share';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
-import { FilterChip, PrimaryButton, SectionLabel } from '@/components/ui';
+import { ChoiceChip, PrimaryButton, SectionLabel } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { ENV } from '@/lib/env';
@@ -730,10 +730,10 @@ export function PropertyShareSheet({
               }}
             >
               {TONES.map((t) => (
-                <FilterChip
+                <ChoiceChip
                   key={t.value}
                   label={t.label}
-                  active={tone === t.value}
+                  selected={tone === t.value}
                   onPress={() => setTone(t.value)}
                 />
               ))}
@@ -744,10 +744,10 @@ export function PropertyShareSheet({
         <SectionLabel text="How much detail?" />
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {DETAILS.map((d) => (
-            <FilterChip
+            <ChoiceChip
               key={d.value}
               label={d.label}
-              active={detail === d.value}
+              selected={detail === d.value}
               onPress={() => setDetail(d.value)}
             />
           ))}

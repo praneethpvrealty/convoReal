@@ -20,7 +20,7 @@ import {
   useSheetFrame,
 } from '@/components/sheet';
 import {
-  FilterChip,
+  ChoiceChip,
   PrimaryButton,
   SectionLabel,
   TextField,
@@ -364,19 +364,19 @@ export function FlyerSheet({
           style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
         >
           {hasOriginal ? (
-            <FilterChip
+            <ChoiceChip
               label="Original photo"
-              active={!useAi}
+              selected={!useAi}
               onPress={() => setImageSource('original')}
             />
           ) : null}
-          <FilterChip
+          <ChoiceChip
             label={
               aiImageUrl
                 ? '✨ AI image'
                 : `✨ Generate with AI (${aiCredits} cr)`
             }
-            active={useAi}
+            selected={useAi}
             onPress={() => {
               if (aiImageUrl) setImageSource('ai');
               else generateAiImage();
@@ -422,10 +422,10 @@ export function FlyerSheet({
           style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
         >
           {TEMPLATES.map((t) => (
-            <FilterChip
+            <ChoiceChip
               key={t.value}
               label={t.label}
-              active={template === t.value}
+              selected={template === t.value}
               onPress={() => setTemplate(t.value)}
             />
           ))}
@@ -436,10 +436,11 @@ export function FlyerSheet({
           style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
         >
           {toggles.map((t) => (
-            <FilterChip
+            <ChoiceChip
+              multi
               key={t.label}
               label={t.label}
-              active={t.active}
+              selected={t.active}
               onPress={() => t.set(!t.active)}
             />
           ))}
