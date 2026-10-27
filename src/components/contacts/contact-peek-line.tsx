@@ -18,7 +18,7 @@ function budgetRange(
   max: number | null | undefined,
   noBudget: boolean | null | undefined
 ): string | null {
-  if (noBudget) return 'No budget constraint';
+  if (noBudget) return 'No budget limit';
   if (min && max) return `${formatInrCompact(min)} – ${formatInrCompact(max)}`;
   if (max) return `Up to ${formatInrCompact(max)}`;
   if (min) return `${formatInrCompact(min)}+`;

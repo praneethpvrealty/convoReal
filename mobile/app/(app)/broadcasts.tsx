@@ -21,6 +21,7 @@ import { TourTarget } from '@/components/copilot-tour';
 import { AnimatedCounter } from '@/components/motion';
 import { EmptyState } from '@/components/ui';
 import { chatListTime } from '@/lib/format';
+import { getBroadcastStatus } from '@shared/lib/broadcast-status';
 import { supabase } from '@/lib/supabase';
 import {
   radius,
@@ -148,11 +149,10 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
             style={{
               fontSize: 11.5,
               fontFamily: f.bold,
-              textTransform: 'uppercase',
               color: statusColor(broadcast.status, colors),
             }}
           >
-            {broadcast.status}
+            {getBroadcastStatus(broadcast.status).label}
           </Text>
         </View>
         <Text

@@ -23,7 +23,6 @@ import {
   ArchiveRestore,
   Users,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -44,6 +43,7 @@ import {
   type InboxMessageHit,
 } from '@/lib/conversations/inbox-search';
 import { conversationPreview } from '@/lib/conversations/text-format';
+import { listTime } from '@/lib/format/list-time';
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -658,11 +658,7 @@ function ConversationItem({
     onSelect(conversation);
   }, [onSelect, conversation]);
 
-  const timeAgo = conversation.last_message_at
-    ? formatDistanceToNow(new Date(conversation.last_message_at), {
-        addSuffix: false,
-      })
-    : '';
+  const timeAgo = listTime(conversation.last_message_at);
 
   const isUnread = conversation.unread_count > 0;
 

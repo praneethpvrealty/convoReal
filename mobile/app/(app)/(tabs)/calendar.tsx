@@ -121,17 +121,19 @@ import {
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { useDebounced } from '@/lib/use-debounced';
 import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';
+import { EVENT_TYPE_LABELS } from '@shared/lib/calendar/event-type-defaults';
+import { clockTime } from '@shared/lib/format/list-time';
 
 const TYPE_META: Record<
   AppointmentType,
   { icon: keyof typeof Ionicons.glyphMap; label: string }
 > = {
-  site_visit: { icon: 'location', label: 'Site visit' },
-  call: { icon: 'call', label: 'Call' },
-  follow_up: { icon: 'repeat', label: 'Follow-up' },
-  document: { icon: 'document-text', label: 'Document' },
-  meeting: { icon: 'people', label: 'Meeting' },
-  other: { icon: 'ellipse', label: 'Other' },
+  site_visit: { icon: 'location', label: EVENT_TYPE_LABELS.site_visit },
+  call: { icon: 'call', label: EVENT_TYPE_LABELS.call },
+  follow_up: { icon: 'repeat', label: EVENT_TYPE_LABELS.follow_up },
+  document: { icon: 'document-text', label: EVENT_TYPE_LABELS.document },
+  meeting: { icon: 'people', label: EVENT_TYPE_LABELS.meeting },
+  other: { icon: 'ellipse', label: EVENT_TYPE_LABELS.other },
 };
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -1093,7 +1095,7 @@ function TodoQuickAdd() {
                 }}
               >
                 {dueDate
-                  ? `${dueDate.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  ? `${dueDate.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${clockTime(dueDate.toISOString())}`
                   : 'Due date'}
               </Text>
               {dueDate ? (
@@ -1349,7 +1351,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
 
   const meta = [
     due
-      ? `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      ? `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${clockTime(due.toISOString())}`
       : null,
     todo.contact ? todo.contact.name || todo.contact.phone : null,
     todo.property?.title ?? null,
@@ -1580,10 +1582,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
                     color: colors.text,
                   }}
                 >
-                  {editDue.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
+                  {clockTime(editDue.toISOString())}
                 </Text>
               </Pressable>
             ) : null}
@@ -1754,10 +1753,7 @@ function AppointmentCard({
 }) {
   const { colors, fonts: f } = useTheme();
   const meta = TYPE_META[appointment.event_type] ?? TYPE_META.other;
-  const time = new Date(appointment.start_time).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const time = clockTime(appointment.start_time);
   const date = new Date(appointment.start_time).toLocaleDateString([], {
     weekday: 'short',
     day: 'numeric',
@@ -2353,11 +2349,7 @@ function AppointmentDetail({
                 day: 'numeric',
                 month: 'short',
               })}{' '}
-              ·{' '}
-              {effectiveStart.toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+              · {clockTime(effectiveStart.toISOString())}
             </Text>
           </View>
         </View>
@@ -2450,10 +2442,7 @@ function AppointmentDetail({
                     color: colors.text,
                   }}
                 >
-                  {editStart.toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
+                  {clockTime(editStart.toISOString())}
                 </Text>
               </Pressable>
             </View>
@@ -2951,10 +2940,7 @@ function AppointmentDetail({
                       color: colors.text,
                     }}
                   >
-                    {effectiveStart.toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    {clockTime(effectiveStart.toISOString())}
                   </Text>
                 </Pressable>
               </View>

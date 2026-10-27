@@ -9,6 +9,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
+import { EVENT_TYPE_LABELS } from '@/lib/calendar/event-type-defaults';
+
 export type EventTypeKey =
   'site_visit' | 'call' | 'follow_up' | 'document' | 'meeting' | 'other';
 
@@ -25,42 +27,42 @@ export interface EventTypeMeta {
 export const EVENT_TYPES: Record<EventTypeKey, EventTypeMeta> = {
   site_visit: {
     key: 'site_visit',
-    label: 'Site Visit',
+    label: EVENT_TYPE_LABELS.site_visit,
     icon: MapPin,
     chip: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20',
     dot: 'bg-emerald-400',
   },
   call: {
     key: 'call',
-    label: 'Call',
+    label: EVENT_TYPE_LABELS.call,
     icon: Phone,
     chip: 'bg-sky-500/10 border-sky-500/30 text-sky-400 hover:bg-sky-500/20',
     dot: 'bg-sky-400',
   },
   follow_up: {
     key: 'follow_up',
-    label: 'Follow-up',
+    label: EVENT_TYPE_LABELS.follow_up,
     icon: Repeat,
     chip: 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20',
     dot: 'bg-amber-400',
   },
   document: {
     key: 'document',
-    label: 'Documents',
+    label: EVENT_TYPE_LABELS.document,
     icon: FileText,
     chip: 'bg-violet-500/10 border-violet-500/30 text-violet-400 hover:bg-violet-500/20',
     dot: 'bg-violet-400',
   },
   meeting: {
     key: 'meeting',
-    label: 'Meeting',
+    label: EVENT_TYPE_LABELS.meeting,
     icon: Users,
     chip: 'bg-fuchsia-500/10 border-fuchsia-500/30 text-fuchsia-400 hover:bg-fuchsia-500/20',
     dot: 'bg-fuchsia-400',
   },
   other: {
     key: 'other',
-    label: 'Other',
+    label: EVENT_TYPE_LABELS.other,
     icon: CircleDot,
     chip: 'bg-slate-500/10 border-slate-600/40 text-slate-300 hover:bg-slate-500/20',
     dot: 'bg-slate-400',

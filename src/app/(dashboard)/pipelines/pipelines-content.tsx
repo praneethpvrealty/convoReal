@@ -880,17 +880,18 @@ export default function PipelinesPage() {
         <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white">
-              Enter Brokerage Details
+              Enter brokerage details
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-3">
             <p className="text-xs text-slate-400">
-              This deal is entering{' '}
+              Moving to{' '}
               <span className="text-primary font-semibold">
                 {stages.find((s) => s.id === pendingStageId)?.name ??
                   'a closing stage'}
-              </span>
-              . Please specify the brokerage rate or amount.
+              </span>{' '}
+              starts the closing stretch. Record the brokerage rate or amount
+              first.
             </p>
             {brokeragePromptDeal && (
               <div className="space-y-1 rounded-lg border border-slate-800 bg-slate-950/40 p-3 text-xs">
@@ -910,7 +911,7 @@ export default function PipelinesPage() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-2">
-                <Label className="text-slate-300">Brokerage Type</Label>
+                <Label className="text-slate-300">Brokerage type</Label>
                 <select
                   value={modalBrokerageType}
                   onChange={(e) =>
@@ -921,14 +922,14 @@ export default function PipelinesPage() {
                   className="focus:border-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm font-medium text-white outline-none"
                 >
                   <option value="percentage">Percentage (%)</option>
-                  <option value="fixed">Fixed Value</option>
+                  <option value="fixed">Fixed amount</option>
                 </select>
               </div>
               <div className="grid gap-2">
                 <Label className="text-slate-300">
                   {modalBrokerageType === 'percentage'
                     ? 'Brokerage (%)'
-                    : 'Brokerage Amount'}
+                    : 'Brokerage amount'}
                 </Label>
                 <Input
                   type="number"
@@ -943,7 +944,7 @@ export default function PipelinesPage() {
               !isNaN(Number(modalBrokerageValue)) &&
               Number(modalBrokerageValue) > 0 && (
                 <p className="text-primary mt-1 text-[11px] font-semibold">
-                  Calculated Brokerage: {formatCalculatedModalBrokerage()}
+                  Calculated brokerage: {formatCalculatedModalBrokerage()}
                 </p>
               )}
           </div>
@@ -964,7 +965,7 @@ export default function PipelinesPage() {
               }
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              Save & Move Deal
+              Save and move
             </Button>
           </DialogFooter>
         </DialogContent>

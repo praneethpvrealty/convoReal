@@ -190,7 +190,7 @@ export function PropertyActionsMenu({
                 {property.status === 'Archived' ? (
                   <>
                     <ArchiveRestore className="size-3.5 text-amber-400" />{' '}
-                    Restore
+                    Unarchive
                   </>
                 ) : (
                   <>

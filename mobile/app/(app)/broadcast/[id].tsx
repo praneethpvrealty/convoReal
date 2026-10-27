@@ -8,6 +8,7 @@ import { Avatar, FilterChip } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { spacing, useTheme, type ThemeColors } from '@/lib/theme';
 import type { Broadcast, BroadcastRecipient } from '@/lib/types';
+import { getRecipientStatus } from '@shared/lib/broadcast-status';
 
 const STATUS_FILTERS = [
   'All',
@@ -164,11 +165,10 @@ export default function BroadcastDetailScreen() {
                   style={{
                     fontSize: 11.5,
                     fontFamily: f.bold,
-                    textTransform: 'uppercase',
                     color: recipientColor(item.status, colors),
                   }}
                 >
-                  {item.status}
+                  {getRecipientStatus(item.status).label}
                 </Text>
               </View>
             );

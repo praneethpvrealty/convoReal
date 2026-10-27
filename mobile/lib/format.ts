@@ -1,4 +1,5 @@
 import { formatInrCompact } from '@shared/lib/format/currency';
+import { clockTime, listTime } from '@shared/lib/format/list-time';
 
 /** Formatting helpers shared across screens. */
 
@@ -10,31 +11,13 @@ function startOfDay(d: Date): number {
   return c.getTime();
 }
 
-/** WhatsApp-style list timestamp: time today, "Yesterday", weekday within 6 days, else date. */
+/** WhatsApp-style list timestamp, shared with the web inbox and contacts list. */
 export function chatListTime(iso: string | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const today = startOfDay(new Date());
-  const day = startOfDay(d);
-  if (day === today) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-  if (day - today === DAY_MS) return 'Tomorrow';
-  if (today - day === DAY_MS) return 'Yesterday';
-  if (day < today && today - day < 7 * DAY_MS) {
-    return d.toLocaleDateString([], { weekday: 'short' });
-  }
-  return d.toLocaleDateString([], {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-  });
+  return listTime(iso);
 }
 
 export function bubbleTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return clockTime(iso);
 }
 
 const AUDIT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
@@ -108,7 +91,7 @@ export function formatBudgetRange(
   max: number | null | undefined,
   noBudget?: boolean | null
 ): string | null {
-  if (noBudget) return 'No budget constraint';
+  if (noBudget) return 'No budget limit';
   if (min && max) return `${formatInr(min)} – ${formatInr(max)}`;
   if (max) return `Up to ${formatInr(max)}`;
   if (min) return `${formatInr(min)}+`;

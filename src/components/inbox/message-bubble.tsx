@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { clockTime } from '@/lib/format/list-time';
 import { FormattedText } from '@/components/inbox/formatted-text';
 import type { Message, MessageReaction } from '@/types';
 import {
@@ -299,7 +300,7 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const isAgent =
     message.sender_type === 'agent' || message.sender_type === 'bot';
-  const time = format(new Date(message.created_at), 'HH:mm');
+  const time = clockTime(message.created_at);
   const failure = deliveryFailurePresentation(message);
 
   // An internal note never reached WhatsApp. Rendering it as an
