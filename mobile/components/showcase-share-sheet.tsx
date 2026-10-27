@@ -17,8 +17,8 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
+  ChoiceChip,
   EmptyState,
-  FilterChip,
   PrimaryButton,
   SearchBar,
   SectionLabel,
@@ -775,14 +775,14 @@ export function ShowcaseShareSheet({
       >
         <SectionLabel text="1 · Who is it for" />
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <FilterChip
+          <ChoiceChip
             label="Clients"
-            active={audience === 'client'}
+            selected={audience === 'client'}
             onPress={() => setAudience('client')}
           />
-          <FilterChip
+          <ChoiceChip
             label="Co-brokers"
-            active={audience === 'agent'}
+            selected={audience === 'agent'}
             onPress={() => setAudience('agent')}
           />
         </View>
@@ -796,21 +796,21 @@ export function ShowcaseShareSheet({
         <View
           style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}
         >
-          <FilterChip
+          <ChoiceChip
             label="Whole showcase"
-            active={scope === 'all'}
+            selected={scope === 'all'}
             onPress={() => setScope('all')}
           />
           {hasActiveSearch ? (
-            <FilterChip
+            <ChoiceChip
               label="Search results"
-              active={scope === 'search'}
+              selected={scope === 'search'}
               onPress={() => setScope('search')}
             />
           ) : null}
-          <FilterChip
+          <ChoiceChip
             label="Hand-picked"
-            active={scope === 'pick'}
+            selected={scope === 'pick'}
             onPress={() => setScope('pick')}
           />
         </View>
@@ -820,10 +820,10 @@ export function ShowcaseShareSheet({
             style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}
           >
             {CATEGORIES.map((value) => (
-              <FilterChip
+              <ChoiceChip
                 key={value}
                 label={value === 'All' ? 'All properties' : value}
-                active={category === value}
+                selected={category === value}
                 onPress={() => setCategory(value)}
               />
             ))}
@@ -936,14 +936,14 @@ export function ShowcaseShareSheet({
 
         <SectionLabel text="3 · How it goes out" />
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <FilterChip
+          <ChoiceChip
             label="Short pitch"
-            active={messageMode === 'pitch'}
+            selected={messageMode === 'pitch'}
             onPress={() => setMessageMode('pitch')}
           />
-          <FilterChip
+          <ChoiceChip
             label="Full list"
-            active={messageMode === 'list'}
+            selected={messageMode === 'list'}
             onPress={() => setMessageMode('list')}
           />
         </View>

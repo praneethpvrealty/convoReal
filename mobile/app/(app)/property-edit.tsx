@@ -26,8 +26,8 @@ import {
 import { PropertyPhotoEditor } from '@/components/property-photo-editor';
 import { PropertyVideoEditor } from '@/components/property-video-editor';
 import {
+  ChoiceChip,
   Banner,
-  FilterChip,
   PriceHint,
   PrimaryButton,
   SectionLabel,
@@ -606,10 +606,10 @@ function EditForm({ property }: { property: Property }) {
         <SectionLabel text="Listing type" />
         <View style={styles.chips}>
           {LISTING_TYPES.map((lt) => (
-            <FilterChip
+            <ChoiceChip
               key={lt.value}
               label={lt.label}
-              active={listingType === lt.value}
+              selected={listingType === lt.value}
               onPress={() => setListingType(lt.value)}
             />
           ))}
@@ -651,10 +651,10 @@ function EditForm({ property }: { property: Property }) {
         <SectionLabel text="Status" />
         <View style={styles.chips}>
           {STATUSES.map((s) => (
-            <FilterChip
+            <ChoiceChip
               key={s}
               label={s}
-              active={status === s}
+              selected={status === s}
               onPress={() => setStatus(s)}
             />
           ))}
@@ -713,10 +713,10 @@ function EditForm({ property }: { property: Property }) {
             </View>
             <View style={styles.chips}>
               {AREA_UNITS.map((u) => (
-                <FilterChip
+                <ChoiceChip
                   key={u}
                   label={u}
-                  active={landAreaUnit === u}
+                  selected={landAreaUnit === u}
                   onPress={() => setLandAreaUnit(u)}
                 />
               ))}
@@ -759,10 +759,10 @@ function EditForm({ property }: { property: Property }) {
                 </View>
                 <View style={styles.chips}>
                   {AREA_UNITS.map((u) => (
-                    <FilterChip
+                    <ChoiceChip
                       key={u}
                       label={u}
-                      active={landAreaUnit === u}
+                      selected={landAreaUnit === u}
                       onPress={() => setLandAreaUnit(u)}
                     />
                   ))}
@@ -849,10 +849,10 @@ function EditForm({ property }: { property: Property }) {
         <SectionLabel text="Facing" />
         <View style={styles.chips}>
           {FACING_DIRECTIONS.map((d) => (
-            <FilterChip
+            <ChoiceChip
               key={d}
               label={d}
-              active={facing === d}
+              selected={facing === d}
               onPress={() => setFacing(facing === d ? '' : d)}
             />
           ))}
@@ -873,10 +873,10 @@ function EditForm({ property }: { property: Property }) {
         />
         <View style={styles.chips}>
           {(['A', 'B'] as const).map((form) => (
-            <FilterChip
+            <ChoiceChip
               key={form}
               label={`Form-${form}`}
-              active={khataForm === form}
+              selected={khataForm === form}
               onPress={() => setKhataForm(khataForm === form ? '' : form)}
             />
           ))}
@@ -1385,10 +1385,10 @@ function ChipRow({
       <SectionLabel text={label} style={{ color: colors.textMuted }} />
       <View style={styles.chips}>
         {options.map((o) => (
-          <FilterChip
+          <ChoiceChip
             key={o}
             label={o}
-            active={value === o}
+            selected={value === o}
             onPress={() => onSelect(value === o ? '' : o)}
           />
         ))}

@@ -5431,7 +5431,6 @@ describe('[CAL-016] the participant picker tells same-name contacts apart', () =
   it('[CAL-016] keeps edit-sheet choices visually apart from Save event', () => {
     const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
     expect(mobileCalendar).toContain('WHATSAPP AFTER SAVING');
-    expect(mobileCalendar).toContain('accessibilityRole="radio"');
     expect(mobileCalendar).toMatch(
       /<ChoiceChip\s+label="Inform new participants"/
     );
@@ -5460,5 +5459,46 @@ describe('[CAL-016] the participant picker tells same-name contacts apart', () =
       );
       expect(source).toContain('previewable');
     }
+  });
+});
+
+describe('[UIX-001] form choices never look like the submit button', () => {
+  it('[UIX-001] renders the selected ChoiceChip as a tint, not a solid fill', () => {
+    const ui = mobileSource('components/ui.tsx');
+    const chip = ui.slice(
+      ui.indexOf('export function ChoiceChip'),
+      ui.indexOf('export function Tag')
+    );
+    expect(chip).toContain(
+      'backgroundColor: selected ? colors.primarySoft : colors.surface'
+    );
+    expect(chip).toContain("accessibilityRole={multi ? 'checkbox' : 'radio'}");
+    expect(chip).not.toContain('colors.onPrimary');
+  });
+
+  it('[UIX-001] uses ChoiceChip, not FilterChip, in forms with a submit button', () => {
+    for (const file of [
+      'app/(app)/broadcast-new.tsx',
+      'app/(app)/deal-edit.tsx',
+      'app/(app)/greetings.tsx',
+      'app/(app)/journey.tsx',
+      'app/(app)/property-edit.tsx',
+      'app/(den)/den/settings.tsx',
+      'components/flyer-sheet.tsx',
+      'components/guidance-value-screen.tsx',
+      'components/lost-reason-sheet.tsx',
+      'components/property-share-sheet.tsx',
+      'components/showcase-share-sheet.tsx',
+    ]) {
+      const source = mobileSource(file);
+      expect(source, file).toContain('<ChoiceChip');
+      expect(source, file).not.toContain('<FilterChip');
+    }
+    const deal = mobileSource('app/(app)/deal/[id].tsx');
+    expect(deal).toMatch(/<ChoiceChip\s+label="Percentage \(%\)"/);
+    expect(deal).toMatch(/<ChoiceChip\s+label="Fixed amount"/);
+    expect(mobileSource('app/(app)/(tabs)/calendar.tsx')).toMatch(
+      /<ChoiceChip\s+label="Inform new participants"/
+    );
   });
 });

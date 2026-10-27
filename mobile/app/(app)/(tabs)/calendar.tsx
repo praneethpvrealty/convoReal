@@ -34,7 +34,13 @@ import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { ContactPeekCard } from '@/components/contact-peek-card';
-import { EmptyState, FilterChip, Tag, nameTagCap } from '@/components/ui';
+import {
+  ChoiceChip,
+  EmptyState,
+  FilterChip,
+  Tag,
+  nameTagCap,
+} from '@/components/ui';
 import { useUndoBar, type UndoBarHandle } from '@/components/undo-bar';
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
@@ -1049,10 +1055,10 @@ function TodoQuickAdd() {
             style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
           >
             {PRIORITIES.map((p) => (
-              <FilterChip
+              <ChoiceChip
                 key={p}
                 label={p === 'low' ? 'Low' : p === 'medium' ? 'Medium' : 'High'}
-                active={priority === p}
+                selected={priority === p}
                 onPress={() => {
                   haptic.tap();
                   setPriority(p);
@@ -1485,7 +1491,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
             style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
           >
             {PRIORITIES.map((priority) => (
-              <FilterChip
+              <ChoiceChip
                 key={priority}
                 label={
                   priority === 'low'
@@ -1494,20 +1500,20 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
                       ? 'Medium'
                       : 'High'
                 }
-                active={editPriority === priority}
+                selected={editPriority === priority}
                 onPress={() => setEditPriority(priority)}
               />
             ))}
           </View>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <FilterChip
+            <ChoiceChip
               label="Open"
-              active={!editCompleted}
+              selected={!editCompleted}
               onPress={() => setEditCompleted(false)}
             />
-            <FilterChip
+            <ChoiceChip
               label="Completed"
-              active={editCompleted}
+              selected={editCompleted}
               onPress={() => setEditCompleted(true)}
             />
           </View>
@@ -1971,47 +1977,6 @@ function postFieldLabel(eventType: Appointment['event_type']): string {
     (field) => field.phase === 'post'
   );
   return post ? `Add ${post.label.toLowerCase()}` : 'Add notes';
-}
-
-function ChoiceChip({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  const { colors, fonts: f } = useTheme();
-  return (
-    <Pressable
-      onPress={onPress}
-      hitSlop={6}
-      accessibilityRole="radio"
-      accessibilityLabel={label}
-      accessibilityState={{ selected, checked: selected }}
-      style={[
-        styles.choiceChip,
-        {
-          backgroundColor: selected ? colors.primarySoft : colors.surface,
-          borderColor: selected ? colors.primary : colors.border,
-        },
-      ]}
-    >
-      {selected ? (
-        <Ionicons name="checkmark" size={14} color={colors.primary} />
-      ) : null}
-      <Text
-        style={{
-          fontSize: 13,
-          fontFamily: selected ? f.bold : f.semibold,
-          color: selected ? colors.primary : colors.text,
-        }}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
 }
 
 function ParticipantMeta({
@@ -3258,15 +3223,6 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     fontSize: 14,
     fontFamily: fonts.regular,
-  },
-  choiceChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    borderRadius: radius.full,
-    borderWidth: 1,
   },
   participantNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   participantMeta: {

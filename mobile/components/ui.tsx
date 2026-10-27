@@ -206,6 +206,58 @@ export function FilterChip({
   );
 }
 
+export function ChoiceChip({
+  label,
+  selected,
+  onPress,
+  multi = false,
+  testID,
+  accessibilityLabel,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  multi?: boolean;
+  testID?: string;
+  accessibilityLabel?: string;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <Pressable
+      testID={testID}
+      onPress={onPress}
+      hitSlop={6}
+      accessibilityRole={multi ? 'checkbox' : 'radio'}
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ selected, checked: selected }}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 13,
+        paddingVertical: 8,
+        borderRadius: radius.full,
+        borderWidth: 1,
+        backgroundColor: selected ? colors.primarySoft : colors.surface,
+        borderColor: selected ? colors.primary : colors.border,
+      }}
+    >
+      {selected ? (
+        <Ionicons name="checkmark" size={14} color={colors.primary} />
+      ) : null}
+      <Text
+        style={{
+          fontSize: 13,
+          fontFamily: selected ? f.bold : f.semibold,
+          color: selected ? colors.primary : colors.text,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 /** Tiny labeled tag (Name Tag, classification). */
 export function Tag({ label, color }: { label: string; color?: string }) {
   const { colors, fonts: f } = useTheme();

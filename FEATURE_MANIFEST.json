@@ -6006,6 +6006,20 @@
           ]
         }
       ]
+    },
+    {
+      "id": "mobile-form-choices",
+      "name": "Mobile form choices — a selected option never looks like the submit button",
+      "surfaces": ["mobile"],
+      "invariants": [
+        {
+          "id": "UIX-001",
+          "rule": "In a mobile form or sheet that is submitted by a solid primary button, a pick-one or pick-many option is a ChoiceChip (components/ui.tsx): selected reads as a light primary tint with a primary outline and a tick, unselected as an outlined option, and neither is the solid primary fill the submit button uses. FilterChip, whose selected state is solid, stays for list filters, view switches and tabs.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-001]" }
+          ]
+        }
+      ]
     }
   ]
 }

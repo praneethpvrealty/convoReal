@@ -28,6 +28,7 @@ import { InvoiceEditorSheet } from '@/components/invoice-editor-sheet';
 import { LostReasonSheet } from '@/components/lost-reason-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
+  ChoiceChip,
   EmptyState,
   FilterChip,
   PrimaryButton,
@@ -540,14 +541,14 @@ export default function DealWorkspaceScreen() {
             the brokerage rate or amount first, as the pipeline board does.
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <FilterChip
+            <ChoiceChip
               label="Percentage (%)"
-              active={brokerageType === 'percentage'}
+              selected={brokerageType === 'percentage'}
               onPress={() => setBrokerageType('percentage')}
             />
-            <FilterChip
+            <ChoiceChip
               label="Fixed amount"
-              active={brokerageType === 'fixed'}
+              selected={brokerageType === 'fixed'}
               onPress={() => setBrokerageType('fixed')}
             />
           </View>
@@ -1539,10 +1540,10 @@ function FinancialsForm({
       <Text style={[styles.cardMeta, { color: colors.textMuted }]}>TDS</Text>
       <View style={styles.chipRow}>
         {(Object.keys(TDS_STATUS_LABELS) as TdsStatus[]).map((status) => (
-          <FilterChip
+          <ChoiceChip
             key={status}
             label={TDS_STATUS_LABELS[status]}
-            active={draft.tds_status === status}
+            selected={draft.tds_status === status}
             onPress={() =>
               canEdit &&
               setDraft((d) => ({
@@ -1807,10 +1808,10 @@ function TranchesSection({
             <>
               <View style={styles.chipRow}>
                 {TRANCHE_LABEL_SUGGESTIONS.map((s) => (
-                  <FilterChip
+                  <ChoiceChip
                     key={s}
                     label={s}
-                    active={label === s}
+                    selected={label === s}
                     onPress={() => setLabel(s)}
                   />
                 ))}
@@ -2099,24 +2100,24 @@ function CoBrokingSection({
               </Text>
               {data.brokers.length > 0 || paidFor.stakeholder_id ? (
                 <View style={styles.chipRow}>
-                  <FilterChip
+                  <ChoiceChip
                     label="Not linked"
-                    active={editStakeholder === null}
+                    selected={editStakeholder === null}
                     onPress={() => setEditStakeholder(null)}
                   />
                   {paidFor.stakeholder_id &&
                   !data.brokers.some((b) => b.id === paidFor.stakeholder_id) ? (
-                    <FilterChip
+                    <ChoiceChip
                       label={`${paidFor.payee_name} (no longer a broker)`}
-                      active={editStakeholder === paidFor.stakeholder_id}
+                      selected={editStakeholder === paidFor.stakeholder_id}
                       onPress={() => setEditStakeholder(paidFor.stakeholder_id)}
                     />
                   ) : null}
                   {data.brokers.map((b) => (
-                    <FilterChip
+                    <ChoiceChip
                       key={b.id}
                       label={b.name}
-                      active={editStakeholder === b.id}
+                      selected={editStakeholder === b.id}
                       onPress={() => {
                         if (editStakeholder === b.id) {
                           setEditStakeholder(null);
@@ -2139,10 +2140,10 @@ function CoBrokingSection({
               />
               <View style={styles.chipRow}>
                 {(['buyer', 'seller'] as const).map((s) => (
-                  <FilterChip
+                  <ChoiceChip
                     key={s}
                     label={PAYOUT_SIDE_LABELS[s]}
-                    active={editSide === s}
+                    selected={editSide === s}
                     onPress={() => setEditSide(editSide === s ? null : s)}
                   />
                 ))}
@@ -2235,10 +2236,10 @@ function CoBrokingSection({
               {data.brokers.length > 0 ? (
                 <View style={styles.chipRow}>
                   {data.brokers.map((b) => (
-                    <FilterChip
+                    <ChoiceChip
                       key={b.id}
                       label={b.name}
-                      active={payee === b.id}
+                      selected={payee === b.id}
                       onPress={() => pickPayee(payee === b.id ? null : b.id)}
                     />
                   ))}
@@ -2260,10 +2261,10 @@ function CoBrokingSection({
               />
               <View style={styles.chipRow}>
                 {(['buyer', 'seller'] as const).map((s) => (
-                  <FilterChip
+                  <ChoiceChip
                     key={s}
                     label={PAYOUT_SIDE_LABELS[s]}
-                    active={side === s}
+                    selected={side === s}
                     onPress={() => setSide(side === s ? null : s)}
                   />
                 ))}
@@ -2822,10 +2823,10 @@ function TasksTab({
           />
           <View style={styles.chipRow}>
             {(['low', 'medium', 'high'] as const).map((p) => (
-              <FilterChip
+              <ChoiceChip
                 key={p}
                 label={p}
-                active={priority === p}
+                selected={priority === p}
                 onPress={() => setPriority(p)}
               />
             ))}
@@ -3358,10 +3359,10 @@ function DocumentsTab({
         contentContainerStyle={styles.chipRow}
       >
         {DEAL_DOCUMENT_CATEGORIES.map((option) => (
-          <FilterChip
+          <ChoiceChip
             key={option.value}
             label={option.label}
-            active={category === option.value}
+            selected={category === option.value}
             onPress={() => setCategory(option.value)}
           />
         ))}
@@ -3601,10 +3602,10 @@ function VisibilityChips({
   return (
     <View style={styles.chipRow}>
       {(Object.keys(DEAL_VISIBILITY_LABELS) as DealVisibility[]).map((v) => (
-        <FilterChip
+        <ChoiceChip
           key={v}
           label={DEAL_VISIBILITY_LABELS[v]}
-          active={value === v}
+          selected={value === v}
           onPress={() => onChange(v)}
         />
       ))}
@@ -3716,10 +3717,10 @@ function StakeholdersTab({
       <View style={styles.chipRow}>
         {(Object.keys(STAKEHOLDER_ROLE_LABELS) as StakeholderRole[]).map(
           (r) => (
-            <FilterChip
+            <ChoiceChip
               key={r}
               label={STAKEHOLDER_ROLE_LABELS[r]}
-              active={role === r}
+              selected={role === r}
               onPress={() => {
                 setRole(r);
                 setSide(defaultSideForRole(r));
@@ -3731,10 +3732,10 @@ function StakeholdersTab({
       <Text style={[styles.cardMeta, { color: colors.textMuted }]}>Side</Text>
       <View style={styles.chipRow}>
         {(Object.keys(STAKEHOLDER_SIDE_LABELS) as DealSide[]).map((sd) => (
-          <FilterChip
+          <ChoiceChip
             key={sd}
             label={STAKEHOLDER_SIDE_LABELS[sd]}
-            active={side === sd}
+            selected={side === sd}
             onPress={() => setSide(sd)}
           />
         ))}
@@ -3922,10 +3923,10 @@ function StakeholdersTab({
                 </Text>
                 <View style={styles.chipRow}>
                   {DEAL_SHARE_TTL_CHOICES.map((c) => (
-                    <FilterChip
+                    <ChoiceChip
                       key={c.key}
                       label={c.label}
-                      active={ttl === c.key}
+                      selected={ttl === c.key}
                       onPress={() => setTtl(c.key)}
                     />
                   ))}
@@ -4411,10 +4412,10 @@ function UpdateComposer({
         </Text>
         <View style={styles.chipRow}>
           {DEAL_UPDATE_VISIBILITIES.map((v) => (
-            <FilterChip
+            <ChoiceChip
               key={v}
               label={DEAL_VISIBILITY_LABELS[v]}
-              active={visibility === v}
+              selected={visibility === v}
               onPress={() => setVisibility(v)}
             />
           ))}
@@ -4424,10 +4425,11 @@ function UpdateComposer({
         </Text>
         <View style={styles.chipRow}>
           {quotable.map((m) => (
-            <FilterChip
+            <ChoiceChip
+              multi
               key={m.id}
               label={m.title}
-              active={milestoneIds.includes(m.id)}
+              selected={milestoneIds.includes(m.id)}
               onPress={() =>
                 setMilestoneIds((ids) =>
                   ids.includes(m.id)
@@ -4450,10 +4452,11 @@ function UpdateComposer({
             </Text>
             <View style={styles.chipRow}>
               {quotableEvents.map((e) => (
-                <FilterChip
+                <ChoiceChip
+                  multi
                   key={e.id}
                   label={e.title}
-                  active={eventIds.includes(e.id)}
+                  selected={eventIds.includes(e.id)}
                   onPress={() =>
                     setEventIds((ids) =>
                       ids.includes(e.id)
@@ -4495,10 +4498,10 @@ function UpdateComposer({
                 {UPDATE_CHANNELS.filter(
                   (c) => c === 'portal_only' || Boolean(s.phone)
                 ).map((c) => (
-                  <FilterChip
+                  <ChoiceChip
                     key={c}
                     label={UPDATE_CHANNEL_LABELS[c]}
-                    active={recipients[s.id] === c}
+                    selected={recipients[s.id] === c}
                     onPress={() => setRecipients((r) => ({ ...r, [s.id]: c }))}
                   />
                 ))}
@@ -4516,10 +4519,10 @@ function UpdateComposer({
         </Text>
         <View style={styles.chipRow}>
           {DEAL_SHARE_TTL_CHOICES.map((c) => (
-            <FilterChip
+            <ChoiceChip
               key={c.key}
               label={c.label}
-              active={ttl === c.key}
+              selected={ttl === c.key}
               onPress={() => setTtl(c.key)}
             />
           ))}

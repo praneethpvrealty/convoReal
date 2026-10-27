@@ -20,8 +20,8 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { BottomSheet } from '@/components/sheet';
 import {
+  ChoiceChip,
   EmptyState,
-  FilterChip,
   PrimaryButton,
   SectionLabel,
   TextField,
@@ -487,10 +487,10 @@ function ComposeGreetingSheet({
           style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
         >
           {occasions.map((o) => (
-            <FilterChip
+            <ChoiceChip
               key={o.id}
               label={`${o.emoji} ${o.label}`}
-              active={occasionId === o.id}
+              selected={occasionId === o.id}
               onPress={() => setOccasionId(o.id)}
             />
           ))}
@@ -499,10 +499,10 @@ function ComposeGreetingSheet({
         <SectionLabel text="Tone" style={{ color: colors.textMuted }} />
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           {GREETING_TONES.map((t) => (
-            <FilterChip
+            <ChoiceChip
               key={t}
               label={t}
-              active={tone === t}
+              selected={tone === t}
               onPress={() => setTone(t)}
             />
           ))}
@@ -943,14 +943,14 @@ function SendGreetingSheet({
           <View
             style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
           >
-            <FilterChip
+            <ChoiceChip
               label="ConvoReal WhatsApp"
-              active={sendChannel === 'engine'}
+              selected={sendChannel === 'engine'}
               onPress={() => setSendChannel('engine')}
             />
-            <FilterChip
+            <ChoiceChip
               label="Personal WhatsApp"
-              active={sendChannel === 'personal'}
+              selected={sendChannel === 'personal'}
               onPress={() => {
                 setSendChannel('personal');
                 setAudienceType('contacts');
@@ -1011,25 +1011,25 @@ function SendGreetingSheet({
           >
             {sendChannel === 'engine' ? (
               <>
-                <FilterChip
+                <ChoiceChip
                   label="All contacts"
-                  active={audienceType === 'all'}
+                  selected={audienceType === 'all'}
                   onPress={() => setAudienceType('all')}
                 />
-                <FilterChip
+                <ChoiceChip
                   label="By tag"
-                  active={audienceType === 'tags'}
+                  selected={audienceType === 'tags'}
                   onPress={() => setAudienceType('tags')}
                 />
               </>
             ) : null}
-            <FilterChip
+            <ChoiceChip
               label={
                 sendChannel === 'personal'
                   ? 'Choose contact'
                   : 'Select contacts'
               }
-              active={audienceType === 'contacts'}
+              selected={audienceType === 'contacts'}
               onPress={() => {
                 setAudienceType('contacts');
                 setContactPickerOpen(true);
@@ -1045,10 +1045,11 @@ function SendGreetingSheet({
               }}
             >
               {(tags ?? []).map((tag) => (
-                <FilterChip
+                <ChoiceChip
+                  multi
                   key={tag.id}
                   label={tag.name}
-                  active={tagIds.includes(tag.id)}
+                  selected={tagIds.includes(tag.id)}
                   onPress={() =>
                     setTagIds((prev) =>
                       prev.includes(tag.id)

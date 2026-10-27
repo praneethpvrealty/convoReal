@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
-import { FilterChip } from '@/components/ui';
+import { ChoiceChip, FilterChip } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -131,10 +131,11 @@ export function NotAFitPanel({
             {STAFF_PROPERTY_TYPE_OPTIONS.map((o) => {
               const on = types.includes(o.id);
               return (
-                <FilterChip
+                <ChoiceChip
+                  multi
                   key={o.id}
                   label={o.title}
-                  active={on}
+                  selected={on}
                   accessibilityLabel={o.description ?? o.title}
                   onPress={() =>
                     setTypes((prev) =>

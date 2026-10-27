@@ -24,10 +24,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
+  ChoiceChip,
   Avatar,
   ConversationSkeleton,
   EmptyState,
-  FilterChip,
   PrimaryButton,
   TextField,
 } from '@/components/ui';
@@ -2114,14 +2114,14 @@ export function JourneyBody() {
             Record the brokerage rate or amount first.
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <FilterChip
+            <ChoiceChip
               label="Percentage (%)"
-              active={brokerageType === 'percentage'}
+              selected={brokerageType === 'percentage'}
               onPress={() => setBrokerageType('percentage')}
             />
-            <FilterChip
+            <ChoiceChip
               label="Fixed amount"
-              active={brokerageType === 'fixed'}
+              selected={brokerageType === 'fixed'}
               onPress={() => setBrokerageType('fixed')}
             />
           </View>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet';
-import { FilterChip, PrimaryButton, TextField } from '@/components/ui';
+import { ChoiceChip, PrimaryButton, TextField } from '@/components/ui';
 import {
   LOST_REASONS,
   lostReasonNeedsNote,
@@ -53,10 +53,10 @@ export function LostReasonPicker({
     <View style={{ gap: spacing.md }}>
       <View style={styles.chips}>
         {LOST_REASONS.map((option) => (
-          <FilterChip
+          <ChoiceChip
             key={option}
             label={option}
-            active={reason === option}
+            selected={reason === option}
             onPress={() => onReason(option)}
           />
         ))}

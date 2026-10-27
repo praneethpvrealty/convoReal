@@ -21,6 +21,7 @@ import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { LostReasonSheet } from '@/components/lost-reason-sheet';
 import { StageWheel } from '@/components/stage-wheel';
 import {
+  ChoiceChip,
   Avatar,
   ConversationSkeleton,
   EmptyState,
@@ -861,14 +862,14 @@ export default function DealsScreen() {
             Record the brokerage rate or amount first.
           </Text>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-            <FilterChip
+            <ChoiceChip
               label="Percentage (%)"
-              active={brokerageType === 'percentage'}
+              selected={brokerageType === 'percentage'}
               onPress={() => setBrokerageType('percentage')}
             />
-            <FilterChip
+            <ChoiceChip
               label="Fixed amount"
-              active={brokerageType === 'fixed'}
+              selected={brokerageType === 'fixed'}
               onPress={() => setBrokerageType('fixed')}
             />
           </View>
