@@ -53,6 +53,27 @@ export const RECORDS_SORTS: ReadonlyArray<{ id: RecordsSort; label: string }> =
     { id: 'close', label: 'Close date' },
   ];
 
+export type RecordsStatusFilter = 'open' | 'won' | 'lost' | 'all';
+
+export const RECORDS_STATUS_FILTERS: ReadonlyArray<{
+  id: RecordsStatusFilter;
+  label: string;
+}> = [
+  { id: 'open', label: 'Active' },
+  { id: 'won', label: 'Won' },
+  { id: 'lost', label: 'Lost' },
+  { id: 'all', label: 'All' },
+];
+
+export const DEFAULT_RECORDS_STATUS_FILTER: RecordsStatusFilter = 'open';
+
+export function matchesRecordsStatus(
+  row: { status: string },
+  filter: RecordsStatusFilter
+): boolean {
+  return filter === 'all' || row.status === filter;
+}
+
 export interface TransactionIndexDates {
   expected_close_date: string | null;
   actual_close_date: string | null;

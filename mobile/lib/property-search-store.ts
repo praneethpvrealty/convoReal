@@ -53,7 +53,7 @@ export const usePropertySearch = create<PropertySearchState>((set) => ({
   listing: 'All',
   near: null,
   locations: [],
-  includeUnavailable: false,
+  includeUnavailable: true,
   filters: EMPTY_PROPERTY_FILTERS,
   setSearch: (search) => set({ search }),
   setListing: (listing) => set({ listing }),

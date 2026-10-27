@@ -5530,3 +5530,41 @@ describe('[UIX-002] web form choices never look like the submit button', () => {
     }
   });
 });
+
+describe('[UIX-003] web and mobile start from the same defaults', () => {
+  it('[UIX-003] reads every shared default from one web module', () => {
+    const mobileContacts = mobileSource('app/(app)/(tabs)/contacts.tsx');
+    expect(mobileContacts).toContain('DEFAULT_CONTACT_CLASSIFICATION');
+    expect(mobileSource('lib/types.ts')).toContain(
+      "from '@shared/lib/contacts/classifications'"
+    );
+    expect(webSource('components/contacts/contact-form.tsx')).toContain(
+      'DEFAULT_CONTACT_CLASSIFICATION'
+    );
+    expect(
+      webSource('app/(dashboard)/contacts/contacts-content.tsx')
+    ).toContain('CONTACT_CLASSIFICATIONS.map(');
+
+    expect(mobileSource('app/(app)/appointment-new.tsx')).toContain(
+      'eventTypeFromParam(params.eventType)'
+    );
+    expect(webSource('app/(dashboard)/calendar/page.tsx')).toContain(
+      'useState<EventTypeKey>(DEFAULT_EVENT_TYPE)'
+    );
+
+    expect(mobileSource('lib/property-search-store.ts')).toContain(
+      'includeUnavailable: true,'
+    );
+
+    const mobileDeals = mobileSource('app/(app)/deals.tsx');
+    expect(mobileDeals).toContain('DEFAULT_RECORDS_STATUS_FILTER');
+    expect(mobileDeals).not.toContain('stageId: activeStage');
+    expect(
+      webSource('components/deals/transaction-workspace-index.tsx')
+    ).toContain('DEFAULT_RECORDS_STATUS_FILTER');
+
+    expect(mobileSource('app/(app)/greetings.tsx')).toContain(
+      'pickedOccasionId ?? occasions[0]?.id'
+    );
+  });
+});

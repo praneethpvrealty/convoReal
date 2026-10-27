@@ -40,16 +40,11 @@ export type ConversationCloseReason =
   | 'duplicate_or_invalid'
   | 'other';
 
-export const CLASSIFICATIONS = [
-  'Owner',
-  'Seller',
-  'Buyer',
-  'Agent',
-  'Developer',
-  'Owner & Buyer',
-  'Others',
-] as const;
-export type Classification = (typeof CLASSIFICATIONS)[number];
+export {
+  CONTACT_CLASSIFICATIONS as CLASSIFICATIONS,
+  DEFAULT_CONTACT_CLASSIFICATION,
+  type ContactClassification as Classification,
+} from '@shared/lib/contacts/classifications';
 
 /** Coordinates for one area of interest, resolved via Google Places.
  *  `name` matches the entry in areas_of_interest (web parity). */

@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { DEFAULT_EVENT_TYPE } from '@/lib/calendar/event-type-defaults';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -229,7 +230,8 @@ export default function CalendarPage() {
   const [apptStatus, setApptStatus] = useState<
     'scheduled' | 'completed' | 'cancelled'
   >('scheduled');
-  const [apptEventType, setApptEventType] = useState<EventTypeKey>('meeting');
+  const [apptEventType, setApptEventType] =
+    useState<EventTypeKey>(DEFAULT_EVENT_TYPE);
   const [apptAssignedTo, setApptAssignedTo] = useState('');
   const [apptNotificationScope, setApptNotificationScope] = useState<
     'none' | 'new' | 'all'
@@ -852,7 +854,7 @@ export default function CalendarPage() {
     setApptPropertyId('');
     setApptLocation('');
     setApptStatus('scheduled');
-    setApptEventType('meeting');
+    setApptEventType(DEFAULT_EVENT_TYPE);
     setApptAssignedTo(assignedTo || user?.id || '');
     setApptNotificationScope('none');
     setApptExtras({ ...EMPTY_EXTRAS });
@@ -881,7 +883,7 @@ export default function CalendarPage() {
     setApptPropertyId(appt.property_id || '');
     setApptLocation(appt.location || '');
     setApptStatus(appt.status);
-    setApptEventType(appt.event_type || 'meeting');
+    setApptEventType(appt.event_type || DEFAULT_EVENT_TYPE);
     setApptAssignedTo(appt.assigned_to || appt.user_id || '');
     setApptNotificationScope('new');
     setApptExtras({

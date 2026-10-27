@@ -41,6 +41,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { contactPhone } from '@/lib/format/phone';
+import {
+  CONTACT_CLASSIFICATIONS,
+  DEFAULT_CONTACT_CLASSIFICATION,
+} from '@/lib/contacts/classifications';
 import { AlertsConsentControl } from '@/components/contacts/alerts-consent-control';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { formatCurrency } from '@/lib/format/currency';
@@ -72,7 +76,9 @@ export function ContactForm({
   const [secondaryPhones, setSecondaryPhones] = useState<string[]>([]);
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
-  const [classification, setClassification] = useState('Others');
+  const [classification, setClassification] = useState<string>(
+    DEFAULT_CONTACT_CLASSIFICATION
+  );
   const [leadTemp, setLeadTemp] = useState('');
   const [updateChannel, setUpdateChannel] = useState('');
   const [preferredLanguage, setPreferredLanguage] = useState('');
@@ -191,7 +197,9 @@ export function ContactForm({
       setSecondaryPhones(contact?.secondary_phones ?? []);
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
-      setClassification(contact?.classification ?? 'Others');
+      setClassification(
+        contact?.classification ?? DEFAULT_CONTACT_CLASSIFICATION
+      );
       setLeadTemp(contact?.lead_temp ?? '');
       setUpdateChannel(contact?.preferred_update_channel ?? '');
       setLastInquiredPropertyId(contact?.last_inquired_property_id ?? null);
@@ -745,13 +753,11 @@ export function ContactForm({
                 onChange={(e) => setClassification(e.target.value)}
                 className="focus:border-primary w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none"
               >
-                <option value="Others">Others</option>
-                <option value="Owner">Owner</option>
-                <option value="Seller">Seller</option>
-                <option value="Buyer">Buyer</option>
-                <option value="Agent">Agent</option>
-                <option value="Developer">Developer</option>
-                <option value="Owner & Buyer">Owner & Buyer</option>
+                {CONTACT_CLASSIFICATIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
               </select>
             </div>
 
