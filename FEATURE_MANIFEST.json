@@ -6009,14 +6009,21 @@
     },
     {
       "id": "mobile-form-choices",
-      "name": "Mobile form choices — a selected option never looks like the submit button",
-      "surfaces": ["mobile"],
+      "name": "Form choices — a selected option never looks like the submit button",
+      "surfaces": ["web", "mobile"],
       "invariants": [
         {
           "id": "UIX-001",
           "rule": "In a mobile form or sheet that is submitted by a solid primary button, a pick-one or pick-many option is a ChoiceChip (components/ui.tsx): selected reads as a light primary tint with a primary outline and a tick, unselected as an outlined option, and neither is the solid primary fill the submit button uses. FilterChip, whose selected state is solid, stays for list filters, view switches and tabs.",
           "tests": [
             { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-001]" }
+          ]
+        },
+        {
+          "id": "UIX-002",
+          "rule": "On web, a pick-one or pick-many option in a form, dialog or picker that has a solid primary submit or confirm button shows its selected state as a primary tint with a primary outline (bg-primary/15 or /20), never the solid bg-primary fill or a default-variant Button: the showcase share dialog's category, the contact form's title, the greeting send dialog's channel and audience, the public showcase requirement categories and the shared date-time picker's day, hour, minute and AM/PM cells.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-002]" }
           ]
         }
       ]

@@ -4477,7 +4477,7 @@ export function ShowcaseView({
                         onClick={() => toggleCategory(cat)}
                         className={`cursor-pointer rounded-full border px-3 py-1.5 text-[10px] font-bold transition-all ${
                           selected
-                            ? 'bg-primary border-primary shadow-primary/20 text-white shadow-md'
+                            ? 'border-primary/60 bg-primary/15 text-primary'
                             : 'border-slate-850 bg-slate-950 text-slate-400 hover:text-white'
                         }`}
                       >

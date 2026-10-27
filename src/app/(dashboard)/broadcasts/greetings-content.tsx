@@ -1012,7 +1012,11 @@ function SendGreetingDialog({
               <Button
                 type="button"
                 size="sm"
-                variant={sendChannel === 'engine' ? 'default' : 'outline'}
+                variant="outline"
+                className={cn(
+                  sendChannel === 'engine' &&
+                    'border-primary/60 bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary'
+                )}
                 onClick={() => setSendChannel('engine')}
               >
                 ConvoReal WhatsApp
@@ -1020,7 +1024,11 @@ function SendGreetingDialog({
               <Button
                 type="button"
                 size="sm"
-                variant={sendChannel === 'personal' ? 'default' : 'outline'}
+                variant="outline"
+                className={cn(
+                  sendChannel === 'personal' &&
+                    'border-primary/60 bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary'
+                )}
                 onClick={() => {
                   setSendChannel('personal');
                   setAudienceType('contacts');
@@ -1096,7 +1104,11 @@ function SendGreetingDialog({
                   <Button
                     type="button"
                     size="sm"
-                    variant={audienceType === 'all' ? 'default' : 'outline'}
+                    variant="outline"
+                    className={cn(
+                      audienceType === 'all' &&
+                        'border-primary/60 bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary'
+                    )}
                     onClick={() => setAudienceType('all')}
                   >
                     All contacts
@@ -1104,7 +1116,11 @@ function SendGreetingDialog({
                   <Button
                     type="button"
                     size="sm"
-                    variant={audienceType === 'tags' ? 'default' : 'outline'}
+                    variant="outline"
+                    className={cn(
+                      audienceType === 'tags' &&
+                        'border-primary/60 bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary'
+                    )}
                     onClick={() => setAudienceType('tags')}
                   >
                     By tags
@@ -1114,7 +1130,11 @@ function SendGreetingDialog({
               <Button
                 type="button"
                 size="sm"
-                variant={audienceType === 'contacts' ? 'default' : 'outline'}
+                variant="outline"
+                className={cn(
+                  audienceType === 'contacts' &&
+                    'border-primary/60 bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary'
+                )}
                 onClick={() => setAudienceType('contacts')}
               >
                 {sendChannel === 'personal'
