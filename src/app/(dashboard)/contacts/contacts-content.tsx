@@ -9,6 +9,11 @@ import {
 } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CONTACT_CLASSIFICATIONS } from '@/lib/contacts/classifications';
+import {
+  isVipTag,
+  leadTempLabel,
+  VIP_BADGE_LABEL,
+} from '@/lib/contacts/lead-temp';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { resolveConversation } from '@/lib/conversations/resolve';
@@ -220,11 +225,7 @@ export default function ContactsPage() {
       <span
         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${styles}`}
       >
-        {leadTemp === 'HOT' && '🔥 '}
-        {leadTemp === 'COLD' && '❄️ '}
-        {leadTemp === 'Not Responding' && '⏳ '}
-        {leadTemp === 'Dead' && '💀 '}
-        {leadTemp}
+        {leadTempLabel(leadTemp)}
       </span>
     );
   };
@@ -2016,11 +2017,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                               {contact.name_tag}
                             </span>
                           )}
-                          {contact.tags?.some(
-                            (t) => t.name.toUpperCase() === 'VIP'
-                          ) && (
+                          {contact.tags?.some((t) => isVipTag(t.name)) && (
                             <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-bold tracking-wider text-amber-400 uppercase select-none">
-                              ⭐ VIP
+                              {VIP_BADGE_LABEL}
                             </span>
                           )}
                           {renderLeadTempBadge(contact.lead_temp)}

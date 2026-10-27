@@ -43,6 +43,7 @@ import { OptionSheet } from '@/components/option-sheet';
 import {
   Avatar,
   Banner,
+  ChoiceChip,
   PrimaryButton,
   SectionLabel,
   Tag,
@@ -60,6 +61,11 @@ import { contactFullName } from '@/lib/contact-name';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { useAccountCountryCode } from '@/lib/use-account-currency';
 import { contactPhone } from '@shared/lib/format/phone';
+import {
+  LEAD_TEMP_NONE_LABEL,
+  LEAD_TEMP_OPTIONS,
+  leadTempLabel,
+} from '@shared/lib/contacts/lead-temp';
 import { auditDateTime, formatBudgetRange, formatInr } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { mapPortalAd } from '@/lib/portal-ad-map';
@@ -76,6 +82,7 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import {
   classificationColors,
+  leadTempColors,
   radius,
   spacing,
   useTheme,
@@ -588,9 +595,11 @@ function ContactCard({ contact }: { contact: Contact }) {
             {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
             {contact.lead_temp ? (
               <Tag
-                label={contact.lead_temp}
+                label={leadTempLabel(contact.lead_temp) ?? contact.lead_temp}
                 color={
-                  contact.lead_temp === 'HOT' ? colors.danger : colors.textMuted
+                  leadTempColors[contact.lead_temp]?.[
+                    dark ? 'dark' : 'light'
+                  ] ?? colors.textMuted
                 }
               />
             ) : null}
@@ -1676,6 +1685,9 @@ function ContactEditor({
   const [classification, setClassification] = useState<
     Classification | undefined
   >(CLASSIFICATIONS.find((value) => value === contact.classification));
+  const [leadTemp, setLeadTemp] = useState<string | null>(
+    contact.lead_temp ?? null
+  );
   const initialMinBudget = rupeesToBudgetAmount(source.pref_budget_min);
   const initialMaxBudget = rupeesToBudgetAmount(source.pref_budget_max);
   const [minBudget, setMinBudget] = useState(initialMinBudget.amount);
@@ -1785,6 +1797,7 @@ function ContactEditor({
         ...referrerFields(contact, referrer),
         requirements: requirements.trim() || null,
         classification: classification ?? null,
+        lead_temp: leadTemp,
         min_budget: minBudgetValue,
         max_budget: maxBudgetValue,
         no_budget: noBudget,
@@ -2137,6 +2150,31 @@ function ContactEditor({
                 </Pressable>
               );
             })}
+          </View>
+        </View>
+
+        <View style={{ gap: spacing.sm }}>
+          <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>
+            Lead Temperature / Status
+          </Text>
+          <View
+            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+          >
+            <ChoiceChip
+              testID="contact-lead-temp-none"
+              label={LEAD_TEMP_NONE_LABEL}
+              selected={!leadTemp}
+              onPress={() => setLeadTemp(null)}
+            />
+            {LEAD_TEMP_OPTIONS.map((option) => (
+              <ChoiceChip
+                key={option.value}
+                testID={`contact-lead-temp-${option.value.toLowerCase().replace(/ /g, '-')}`}
+                label={option.label}
+                selected={leadTemp === option.value}
+                onPress={() => setLeadTemp(option.value)}
+              />
+            ))}
           </View>
         </View>
 

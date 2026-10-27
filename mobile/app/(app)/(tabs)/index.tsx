@@ -75,18 +75,12 @@ import { useCredits } from '@/lib/use-credits';
 import { useDebounced } from '@/lib/use-debounced';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { contactHandle, hasPhone } from '@/lib/reachability';
-
-const FILTERS = [
-  'All',
-  'Needs reply',
-  'Unanswered',
-  'Unread',
-  'Active',
-  'Closed',
-  'Archived',
-] as const;
-type Filter = (typeof FILTERS)[number];
-const PRIMARY_FILTERS: readonly Filter[] = ['All', 'Needs reply', 'Unread'];
+import {
+  INBOX_FILTERS,
+  PRIMARY_INBOX_FILTERS,
+  inboxFilterTestId,
+  type InboxFilterValue,
+} from '@shared/lib/conversations/inbox-filters';
 
 interface ActivityRow {
   conversation_id: string;
@@ -118,9 +112,9 @@ export default function InboxScreen() {
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const userId = useAuthStore((s) => s.session?.user.id);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<Filter>('All');
+  const [filter, setFilter] = useState<InboxFilterValue>('all');
   const [showAllFilters, setShowAllFilters] = useState(false);
-  const archived = filter === 'Archived';
+  const archived = filter === 'archived';
   const { show, dialogProps } = useAppDialog();
   const undo = useUndoBar({ bottomOffset: TAB_BAR_CLEARANCE });
 
@@ -134,7 +128,7 @@ export default function InboxScreen() {
   // instead of shipping a day of message rows to the phone.
   const { data: activity } = useQuery({
     queryKey: ['conversation-activity', accountId],
-    enabled: Boolean(accountId) && filter === 'Active',
+    enabled: Boolean(accountId) && filter === 'active',
     staleTime: 60_000,
     queryFn: async () => {
       const { data: rows, error } = await supabase.rpc(
@@ -214,8 +208,8 @@ export default function InboxScreen() {
 
   const filtered = useMemo(() => {
     let list = data ?? [];
-    if (filter === 'Unread') list = list.filter((c) => c.unread_count > 0);
-    else if (filter === 'Needs reply')
+    if (filter === 'unread') list = list.filter((c) => c.unread_count > 0);
+    else if (filter === 'needs_reply')
       // Longest-waiting first: the closer a thread is to losing its
       // 24-hour window, the higher it sits.
       list = list
@@ -229,7 +223,7 @@ export default function InboxScreen() {
               b.last_customer_message_at ?? b.last_message_at ?? 0
             ).getTime()
         );
-    else if (filter === 'Unanswered')
+    else if (filter === 'unanswered')
       // Longest silence first: the lead who has ignored us for a week
       // is the one worth another approach.
       list = list
@@ -239,15 +233,15 @@ export default function InboxScreen() {
             new Date(a.last_message_at ?? 0).getTime() -
             new Date(b.last_message_at ?? 0).getTime()
         );
-    else if (filter === 'Active')
+    else if (filter === 'active')
       list = list
         .filter((c) => activityById.has(c.id))
         .sort(
           (a, b) =>
             (activityById.get(b.id) ?? 0) - (activityById.get(a.id) ?? 0)
         );
-    else if (filter === 'Closed')
-      list = list.filter((c) => c.status === 'closed');
+    else if (filter === 'open' || filter === 'pending' || filter === 'closed')
+      list = list.filter((c) => c.status === filter);
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((c) => {
@@ -266,9 +260,10 @@ export default function InboxScreen() {
   }, [data, filter, search, activityById, messageHits]);
 
   const visibleFilters = useMemo(() => {
-    if (wide || showAllFilters) return FILTERS;
-    return FILTERS.filter(
-      (item) => PRIMARY_FILTERS.includes(item) || item === filter
+    if (wide || showAllFilters) return INBOX_FILTERS;
+    return INBOX_FILTERS.filter(
+      (item) =>
+        PRIMARY_INBOX_FILTERS.includes(item.value) || item.value === filter
     );
   }, [filter, showAllFilters, wide]);
 
@@ -292,11 +287,11 @@ export default function InboxScreen() {
         >
           {visibleFilters.map((f) => (
             <FilterChip
-              key={f}
-              testID={`inbox-filter-${f.toLowerCase().replace(/ /g, '-')}`}
-              label={f}
-              active={filter === f}
-              onPress={() => setFilter(f)}
+              key={f.value}
+              testID={inboxFilterTestId(f.value)}
+              label={f.label}
+              active={filter === f.value}
+              onPress={() => setFilter(f.value)}
             />
           ))}
           {!wide ? (
@@ -355,7 +350,7 @@ export default function InboxScreen() {
             />
           }
           ListEmptyComponent={
-            search || filter !== 'All' ? (
+            search || filter !== 'all' ? (
               <EmptyState
                 icon="search-outline"
                 title="No matches"
@@ -375,7 +370,7 @@ export default function InboxScreen() {
                 conversation={item}
                 archived={archived}
                 activityCount={
-                  filter === 'Active' ? activityById.get(item.id) : undefined
+                  filter === 'active' ? activityById.get(item.id) : undefined
                 }
                 showDialog={show}
                 showUndo={undo.show}

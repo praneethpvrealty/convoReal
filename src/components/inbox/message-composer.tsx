@@ -19,6 +19,10 @@ import {
   UserX,
 } from 'lucide-react';
 import { DEAD_CONTACT_NOTICE } from '@/lib/contacts/lifecycle';
+import {
+  CUSTOMER_WINDOW_COMPOSER_NOTICE,
+  CUSTOMER_WINDOW_COMPOSER_PLACEHOLDER,
+} from '@/lib/conversations/customer-session';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { GatedButton } from '@/components/ui/gated-button';
@@ -276,7 +280,7 @@ export function MessageComposer({
       {sessionExpired && (
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">
-            24-hour session expired. Reach them another way:
+            {CUSTOMER_WINDOW_COMPOSER_NOTICE}
           </p>
           {/* Three routes, cheapest first. A template keeps the thread
               on the business number; the agent's own WhatsApp delivers
@@ -402,7 +406,7 @@ export function MessageComposer({
               readOnly
                 ? 'Read-only — viewers can browse but not reply'
                 : sessionExpired
-                  ? 'Session expired - use a template'
+                  ? CUSTOMER_WINDOW_COMPOSER_PLACEHOLDER
                   : 'Type a message... (Shift+Enter for new line)'
             }
             disabled={sessionExpired || readOnly}

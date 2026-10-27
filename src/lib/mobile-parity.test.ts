@@ -5840,3 +5840,86 @@ describe('[UIX-008] to-dos and journeys show the same labels and actions on web 
     expect(mobileJourney).toContain("error.code === 'LISTING_SYNC_FAILED'");
   });
 });
+
+describe('[UIX-006] contacts and inbox show the same things on web and mobile', () => {
+  it('[UIX-006] labels lead temperature and VIP from one shared module', () => {
+    const webList = webSource('app/(dashboard)/contacts/contacts-content.tsx');
+    expect(webList).toContain("from '@/lib/contacts/lead-temp'");
+    expect(webList).toContain('leadTempLabel(leadTemp)');
+    expect(webList).toContain('VIP_BADGE_LABEL');
+
+    const mobileList = mobileSource('app/(app)/(tabs)/contacts.tsx');
+    expect(mobileList).toContain("from '@shared/lib/contacts/lead-temp'");
+    expect(mobileList).toContain('leadTempLabel(contact.lead_temp)');
+    expect(mobileList).toContain('label={VIP_BADGE_LABEL}');
+
+    for (const source of [
+      webSource('components/contacts/contact-detail-view.tsx'),
+      webSource('components/contacts/contact-form.tsx'),
+    ]) {
+      expect(source).toContain('LEAD_TEMP_OPTIONS.map');
+      expect(source).not.toContain('<option value="HOT">');
+    }
+
+    const mobileDetail = mobileSource('app/(app)/contact/[id].tsx');
+    expect(mobileDetail).toContain("from '@shared/lib/contacts/lead-temp'");
+    expect(mobileDetail).toContain('LEAD_TEMP_OPTIONS.map');
+    expect(mobileDetail).toContain('<ChoiceChip');
+    expect(mobileDetail).toContain('lead_temp: leadTemp,');
+    expect(mobileDetail).toContain('leadTempLabel(contact.lead_temp)');
+  });
+
+  it('[UIX-006] lists archived contacts in their own mobile segment', () => {
+    const mobileList = mobileSource('app/(app)/(tabs)/contacts.tsx');
+    expect(mobileList).toContain("{ key: 'archived', label: 'Archived' }");
+    expect(mobileList).toContain(".eq('is_archived', segment === 'archived')");
+    expect(mobileList).not.toContain(".eq('is_archived', false)");
+    expect(mobileList).toContain('archived: data?.archived ?? 0');
+    expect(webSource('lib/contacts/list-queries.ts')).toContain(
+      "query.eq('is_archived', true)"
+    );
+  });
+
+  it('[UIX-006] offers one inbox filter list on both surfaces', () => {
+    const webInbox = webSource('components/inbox/conversation-list.tsx');
+    expect(webInbox).toContain("from '@/lib/conversations/inbox-filters'");
+    expect(webInbox).toContain('INBOX_FILTERS.map');
+    expect(webInbox).toContain("filter === 'unread'");
+    expect(webInbox).toContain('c.unread_count > 0');
+
+    const mobileInbox = mobileSource('app/(app)/(tabs)/index.tsx');
+    expect(mobileInbox).toContain(
+      "from '@shared/lib/conversations/inbox-filters'"
+    );
+    expect(mobileInbox).toContain('PRIMARY_INBOX_FILTERS');
+    expect(mobileInbox).toContain(
+      "filter === 'open' || filter === 'pending' || filter === 'closed'"
+    );
+    expect(mobileInbox).not.toMatch(/const FILTERS = \[/);
+  });
+
+  it('[UIX-006] blocks the mobile composer up front once the window closes', () => {
+    expect(webSource('components/inbox/message-thread.tsx')).toContain(
+      'customerSessionInfo(messages)'
+    );
+    const webComposer = webSource('components/inbox/message-composer.tsx');
+    expect(webComposer).toContain('CUSTOMER_WINDOW_COMPOSER_PLACEHOLDER');
+    expect(webComposer).toContain('CUSTOMER_WINDOW_COMPOSER_NOTICE');
+
+    const mobileThread = mobileSource('app/(app)/conversation/[id].tsx');
+    expect(mobileThread).toContain(
+      "from '@shared/lib/conversations/customer-session'"
+    );
+    expect(mobileThread).toContain(
+      'customerSessionInfo([...messages, ...lastCustomerMessage])'
+    );
+    expect(mobileThread).toMatch(
+      /\.eq\('sender_type', 'customer'\)\s*\.order\('created_at', \{ ascending: false \}\)\s*\.limit\(1\)/
+    );
+    expect(mobileThread).toContain('editable={!sessionExpired}');
+    expect(mobileThread).toContain('CUSTOMER_WINDOW_COMPOSER_PLACEHOLDER');
+    expect(mobileThread).toContain('CUSTOMER_WINDOW_COMPOSER_NOTICE');
+    expect(mobileThread).toContain('windowBlocked || sessionExpired');
+    expect(mobileThread).toContain('isReengagementError(');
+  });
+});

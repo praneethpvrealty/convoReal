@@ -146,6 +146,9 @@ jobs:
               - 'src/lib/format/list-time.ts'
               - 'src/lib/inventory/property-sorts.ts'
               - 'src/lib/broadcast-status.ts'
+              - 'src/lib/contacts/lead-temp.ts'
+              - 'src/lib/conversations/inbox-filters.ts'
+              - 'src/lib/conversations/customer-session.ts'
               - '.github/workflows/ci.yml'
             go:
               - 'go-ingress/**'

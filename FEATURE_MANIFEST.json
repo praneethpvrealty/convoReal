@@ -6101,6 +6101,25 @@
               "case": "[UIX-008]"
             }
           ]
+        },
+        {
+          "id": "UIX-006",
+          "rule": "Contacts and the inbox show the same information and actions on web and mobile. A contact row shows the ⭐ VIP badge for a VIP tag and the lead-temperature badge (🔥 HOT, ❄️ COLD, ⏳ Not Responding, 💀 Dead), labelled by src/lib/contacts/lead-temp.ts, which also lists the None / 🔥 HOT / ❄️ COLD / ⏳ Not Responding / 💀 Dead choices the web contact detail editor and the mobile contact editor (ChoiceChip) offer and save as lead_temp. Both contact lists have an Archived segment listing is_archived contacts regardless of status, and every other segment excludes them. Both inboxes offer All, Needs reply, Unanswered, Unread, Active, Open, Pending, Closed, Archived in that order from src/lib/conversations/inbox-filters.ts (Unread is unread_count > 0; Open and Pending match the conversation status), with mobile showing All / Needs reply / Unread until More. Both composers compute the 24-hour window up front from the thread's newest customer message with customerSessionInfo in src/lib/conversations/customer-session.ts and, once it has closed, disable free-form text with the placeholder Session expired - use a template and show the 24-hour session expired notice with Templates, My WhatsApp and Invite to Engine; mobile keeps its post-failure handling of Meta's rejection as a fallback.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-006]" },
+            {
+              "file": "src/lib/contacts/lead-temp.test.ts",
+              "case": "[UIX-006]"
+            },
+            {
+              "file": "src/lib/conversations/inbox-filters.test.ts",
+              "case": "[UIX-006]"
+            },
+            {
+              "file": "src/lib/conversations/customer-session.test.ts",
+              "case": "[UIX-006]"
+            }
+          ]
         }
       ]
     }
