@@ -455,7 +455,7 @@ export function ShowcaseView({
   );
   const catalogIds = useMemo(() => properties.map((p) => p.id), [properties]);
   const catalogIdSet = useMemo(() => new Set(catalogIds), [catalogIds]);
-  useShowcaseImportViewers(
+  const { offersImport } = useShowcaseImportViewers(
     catalogIds,
     importViewerSignedOut,
     markImportViewerSignedOut
@@ -3074,6 +3074,20 @@ export function ShowcaseView({
                   setMapPanelOpen(false);
                   setMapView(false);
                 }}
+                renderListingAction={
+                  offersImport
+                    ? (property) => (
+                        <AddToInventory
+                          propertyId={property.id}
+                          title={property.title}
+                          variant="icon"
+                          probe={!catalogIdSet.has(property.id)}
+                          signedOut={importViewerSignedOut}
+                          onSignedOut={markImportViewerSignedOut}
+                        />
+                      )
+                    : undefined
+                }
               />
             </aside>
           )}

@@ -130,19 +130,29 @@ function renderShowcase({
   open = true,
   agentMode = false,
   dealFloor = false,
-}: { open?: boolean; agentMode?: boolean; dealFloor?: boolean } = {}) {
+  mapDiscovery = false,
+  extra = [],
+}: {
+  open?: boolean;
+  agentMode?: boolean;
+  dealFloor?: boolean;
+  mapDiscovery?: boolean;
+  extra?: Property[];
+} = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
       <ShowcaseView
-        properties={[property, second]}
+        properties={[property, second, ...extra]}
         settings={settings}
         accountId="acct-1"
         initialPropertyId={open ? property.id : undefined}
         initialAgentMode={agentMode}
-        showcaseStyle={dealFloor ? 'deal-floor' : undefined}
+        showcaseStyle={
+          dealFloor ? 'deal-floor' : mapDiscovery ? 'map-discovery' : undefined
+        }
         disableSavedState
       />
     </QueryClientProvider>
@@ -420,5 +430,103 @@ describe('showcase — add to my inventory', () => {
       })
     ).toBeNull();
     expect(probeCalls()).toHaveLength(1);
+  });
+
+  it('[PRP-053] lists the selected area\u2019s listings in the map panel with the control on each', async () => {
+    const elsewhere = {
+      ...property,
+      id: 'prop-3',
+      title: 'Hebbal Plot',
+      sublocality: 'Hebbal',
+      property_code: 'CR-003',
+    } as unknown as Property;
+    renderShowcase({ open: false, mapDiscovery: true, extra: [elsewhere] });
+    const list = await screen.findByRole('list', {
+      name: 'Listings on this map',
+    });
+    const rows = () =>
+      within(screen.getByRole('list', { name: 'Listings on this map' }));
+    expect(
+      rows().getByRole('button', { name: 'Sarjapur JV Land' })
+    ).toBeTruthy();
+    expect(
+      rows().getByRole('button', { name: 'Whitefield Apartment' })
+    ).toBeTruthy();
+    expect(rows().queryByRole('button', { name: 'Hebbal Plot' })).toBeNull();
+    expect(list).toBeTruthy();
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Area on map' }), {
+      target: { value: 'Hebbal, Bangalore' },
+    });
+    await waitFor(() =>
+      expect(rows().getByRole('button', { name: 'Hebbal Plot' })).toBeTruthy()
+    );
+    expect(
+      rows().queryByRole('button', { name: 'Sarjapur JV Land' })
+    ).toBeNull();
+    expect(probeCalls()).toHaveLength(1);
+  });
+
+  it('[PRP-053] adds a listing from the map panel and updates its grid card too', async () => {
+    probe.importBody = {
+      data: { id: 'copy-2', title: 'Whitefield Apartment' },
+    };
+    renderShowcase({ open: false, mapDiscovery: true });
+    const list = await screen.findByRole('list', {
+      name: 'Listings on this map',
+    });
+    await waitFor(() =>
+      expect(
+        within(list).getByRole('button', {
+          name: 'Add Whitefield Apartment to my inventory',
+        })
+      ).toBeTruthy()
+    );
+
+    fireEvent.click(
+      within(list).getByRole('button', {
+        name: 'Add Whitefield Apartment to my inventory',
+      })
+    );
+
+    await waitFor(() =>
+      expect(
+        within(list).getByRole('link', {
+          name: 'Whitefield Apartment is in your inventory',
+        })
+      ).toBeTruthy()
+    );
+    expect(
+      screen.getAllByRole('link', {
+        name: 'Whitefield Apartment is in your inventory',
+      })
+    ).toHaveLength(2);
+    expect(JSON.parse(String(importCalls()[0][1]?.body))).toEqual({
+      property_id: 'prop-2',
+    });
+  });
+
+  it('[PRP-053] adds no listing list to the map panel for a signed-out visitor or on the account\u2019s own showcase', async () => {
+    probe.status = 401;
+    renderShowcase({ open: false, mapDiscovery: true });
+    await waitFor(() => expect(probeCalls()).toHaveLength(1));
+    await settle();
+    expect(
+      screen.getByRole('region', { name: 'Property locations' })
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole('list', { name: 'Listings on this map' })
+    ).toBeNull();
+    cleanup();
+    fetchMock.mockClear();
+
+    probe.status = 200;
+    probe.viewer = { own: true, canImport: false, importedId: null };
+    renderShowcase({ open: false, mapDiscovery: true });
+    await waitFor(() => expect(probeCalls()).toHaveLength(1));
+    await settle();
+    expect(
+      screen.queryByRole('list', { name: 'Listings on this map' })
+    ).toBeNull();
   });
 });

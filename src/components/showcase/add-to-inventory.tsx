@@ -128,7 +128,18 @@ export function useShowcaseImportViewers(
           }
         }
       });
-      return result.signedOut;
+      if (result.signedOut) return { signedOut: true, offersImport: false };
+      const offersImport = ids.some((id) => {
+        const entry = queryClient.getQueryData<Probe>(probeKey(id));
+        return (
+          !!entry &&
+          !entry.signedOut &&
+          !!entry.viewer &&
+          !entry.viewer.own &&
+          (entry.viewer.canImport || !!entry.viewer.importedId)
+        );
+      });
+      return { signedOut: false, offersImport };
     },
     enabled: !signedOut && ids.length > 0,
     retry: 2,
@@ -136,8 +147,10 @@ export function useShowcaseImportViewers(
   });
 
   useEffect(() => {
-    if (data === true) onSignedOut();
+    if (data?.signedOut) onSignedOut();
   }, [data, onSignedOut]);
+
+  return { offersImport: !signedOut && data?.offersImport === true };
 }
 
 async function importListing(
