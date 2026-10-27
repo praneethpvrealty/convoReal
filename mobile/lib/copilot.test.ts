@@ -36,6 +36,13 @@ describe('mobile Copilot actions', () => {
     );
   });
 
+  it('[CPL-004] maps a WhatsApp thread link to the native conversation screen', () => {
+    expect(
+      appHrefForWebRoute('/inbox?c=44444444-4444-4444-8444-444444444444')
+    ).toBe('/(app)/conversation/44444444-4444-4444-8444-444444444444');
+    expect(appHrefForWebRoute('/inbox')).toBe('/(app)/(tabs)');
+  });
+
   it('[CPL-004] maps a listing link and its audience picker to native screens', () => {
     expect(
       appHrefForWebRoute(

@@ -147,6 +147,12 @@ export function appHrefForWebRoute(route: string | undefined): string | null {
         .join('&')}`;
     }
   }
+  if (route?.startsWith('/inbox?')) {
+    const conversationId = new URLSearchParams(route.split('?')[1]).get('c');
+    if (conversationId) {
+      return `/(app)/conversation/${encodeURIComponent(conversationId)}`;
+    }
+  }
   if (route?.startsWith('/calendar?')) {
     const eventId = new URLSearchParams(route.split('?')[1]).get('eventId');
     if (eventId) {

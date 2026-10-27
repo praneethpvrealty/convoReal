@@ -16,6 +16,9 @@ const QUESTION =
   "List out all the buyers who had showed interest in Adithi's property";
 const PROPERTY_ID = '22222222-2222-4222-8222-222222222222';
 const CONTACT_ID = '11111111-1111-4111-8111-111111111111';
+const CONVERSATION_ID = '44444444-4444-4444-8444-444444444444';
+const TYPED_QUESTION =
+  'Get me all interested buyers for the #KHB Plot for sale in Suryanagar phase 2 property.';
 
 const result = {
   properties: [
@@ -44,6 +47,7 @@ const result = {
       journeyStage: 'Shortlist',
       journeyStatus: 'dropped',
       lastAt: '2026-10-08T10:00:00Z',
+      conversationId: CONVERSATION_ID,
     },
   ],
   total: 1,
@@ -82,7 +86,7 @@ describe('Copilot property interest intent', () => {
           "1 contact showed interest in Prime Corner Commercial Plot for Sale (Adithi's listing):",
           '• Ramesh — Buyer · Enquired · 2 views · Dropped after Shortlist · 8 Oct',
           '',
-          'Tap a name to open the contact.',
+          'Tap a name to open the contact, or Message to open their WhatsApp thread.',
         ].join('\n')
       );
       expect(answer.links).toEqual([
@@ -92,6 +96,11 @@ describe('Copilot property interest intent', () => {
           navigateTo: `/contacts?contactId=${CONTACT_ID}`,
         },
         {
+          label: 'Message Ramesh',
+          subtitle: 'Open the WhatsApp thread',
+          navigateTo: `/inbox?c=${CONVERSATION_ID}`,
+        },
+        {
           label: 'Open Prime Corner Commercial Plot for Sale',
           subtitle: 'PROP-1023',
           navigateTo: `/inventory?propertyId=${PROPERTY_ID}`,
@@ -99,6 +108,39 @@ describe('Copilot property interest intent', () => {
       ]);
       expect(answer.tourId).toBeUndefined();
       expect(answer.cached).toBeUndefined();
+      expect(answer.coverage).toBe(platform === 'mobile' ? 'full' : undefined);
+      expect(generateJson).not.toHaveBeenCalled();
+      expect(embedText).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(['web', 'mobile'] as const)(
+    '[CPL-004] answers the typed # question inline on %s when the selected property never reached the server',
+    async (platform) => {
+      const propertyInterest = vi.fn().mockResolvedValue(result);
+      const contactSearch = vi.fn();
+      const answer = await answerQuestion({
+        audience: 'agent',
+        message: TYPED_QUESTION,
+        pathname: '/inbox',
+        history: [],
+        accountId: 'account-1',
+        platform,
+        contactSearch,
+        propertyInterest,
+      });
+      const query = propertyInterest.mock.calls[0][0] as PropertyInterestQuery;
+      expect(query.direction).toBe('contacts');
+      expect(query.propertyIds).toEqual([]);
+      expect(query.propertyProbe).toBe(
+        'KHB Plot for sale in Suryanagar phase 2'
+      );
+      expect(contactSearch).not.toHaveBeenCalled();
+      expect(answer.links?.map((link) => link.navigateTo)).toEqual([
+        `/contacts?contactId=${CONTACT_ID}`,
+        `/inbox?c=${CONVERSATION_ID}`,
+        `/inventory?propertyId=${PROPERTY_ID}`,
+      ]);
       expect(answer.coverage).toBe(platform === 'mobile' ? 'full' : undefined);
       expect(generateJson).not.toHaveBeenCalled();
       expect(embedText).not.toHaveBeenCalled();

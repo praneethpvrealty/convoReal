@@ -32,6 +32,7 @@ interface InterestRow {
   journey_stage: string | null;
   journey_status: string | null;
   last_at: string | null;
+  conversation_id: string | null;
   total: number | string | null;
 }
 
@@ -246,7 +247,7 @@ export async function findCopilotPropertyInterest(
   if (query.direction === 'properties' && !contacts.length) return empty;
 
   const { data, error } = await ctx.supabase.rpc(
-    'copilot_property_interest_v2',
+    'copilot_property_interest_v3',
     {
       p_account_id: ctx.accountId,
       p_property_ids: properties.map((property) => property.id),
@@ -274,6 +275,7 @@ export async function findCopilotPropertyInterest(
     journeyStage: row.journey_stage,
     journeyStatus: row.journey_status,
     lastAt: row.last_at,
+    conversationId: row.conversation_id ?? null,
   }));
   return {
     properties,
