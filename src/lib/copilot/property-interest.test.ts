@@ -124,6 +124,16 @@ describe('parsePropertyInterestQuestion', () => {
     ],
     ['who viewed #Prime Corner this week', 'Prime Corner', 'this week'],
     [
+      'who viewed #Prime Corner in the last 7 days',
+      'Prime Corner',
+      'in the last 7 days',
+    ],
+    [
+      'who enquired about #Tower 2 Phase 1 in the last 24 hours',
+      'Tower 2 Phase 1',
+      'in the last 24 hours',
+    ],
+    [
       'which buyers enquired about #Prime Corner, today',
       'Prime Corner',
       'today',

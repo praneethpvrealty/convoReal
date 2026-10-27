@@ -288,7 +288,10 @@ function readPropertyProbe(
 function readHashProbe(text: string): string | null {
   const match = HASH_TOKEN.exec(text);
   if (!match) return null;
-  const words = match[1]
+  const words = SINCE_FORMS.reduce(
+    (token, form) => token.replace(form.pattern, ' '),
+    match[1]
+  )
     .replace(/[.\s]+$/u, '')
     .split(/\s+/)
     .filter(Boolean);
