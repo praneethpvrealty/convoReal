@@ -5559,6 +5559,7 @@ describe('[UIX-003] web and mobile start from the same defaults', () => {
 
     const mobileDeals = mobileSource('app/(app)/deals.tsx');
     expect(mobileDeals).toContain('DEFAULT_RECORDS_STATUS_FILTER');
+    expect(mobileDeals).toContain('title="Nothing matches"');
     expect(mobileDeals).not.toContain('stageId: activeStage');
     expect(
       webSource('components/deals/transaction-workspace-index.tsx')

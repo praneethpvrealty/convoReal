@@ -1072,11 +1072,15 @@ function RecordsList({
         />
       }
       ListEmptyComponent={
-        <EmptyState
-          icon="briefcase-outline"
-          title="No records yet"
-          subtitle="A record starts when a deal reaches Negotiation/Token or later, or when a journey is converted."
-        />
+        rows.length === 0 ? (
+          <EmptyState
+            icon="briefcase-outline"
+            title="No records yet"
+            subtitle="A record starts when a deal reaches Negotiation/Token or later, or when a journey is converted."
+          />
+        ) : (
+          <EmptyState icon="briefcase-outline" title="Nothing matches" />
+        )
       }
       renderItem={({ item, index }) => {
         const subtitle = transactionSubtitle(item);
