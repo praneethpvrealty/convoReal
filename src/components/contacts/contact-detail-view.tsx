@@ -155,7 +155,7 @@ import {
   isReengagementError,
 } from '@/lib/whatsapp/customer-window';
 import { BRANDING } from '@/config/branding';
-import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { contactPhone } from '@/lib/format/phone';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
@@ -1263,20 +1263,27 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       showcaseSettings?.default_country_code ||
       BRANDING.defaultCountryCode ||
       '91';
-    const normalizedPrimary = normalizePhoneWithCountryCode(
-      editPhone.trim(),
-      defaultCc
-    );
+    const normalizedPrimary = contactPhone(editPhone.trim(), defaultCc);
     if (!normalizedPrimary) {
       toast.error('Invalid primary phone number format');
       setSavingDetails(false);
       return;
     }
 
-    const normalizedSecondary = editSecondaryPhones
-      .filter((p) => p.trim().length > 0)
-      .map((p) => normalizePhoneWithCountryCode(p.trim(), defaultCc))
-      .filter(Boolean);
+    const typedSecondary = editSecondaryPhones
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+    const invalidSecondary = typedSecondary.find(
+      (p) => !contactPhone(p, defaultCc)
+    );
+    if (invalidSecondary) {
+      toast.error(`Invalid phone number: ${invalidSecondary}`);
+      setSavingDetails(false);
+      return;
+    }
+    const normalizedSecondary = typedSecondary.map(
+      (p) => contactPhone(p, defaultCc) as string
+    );
 
     const { data, error } = await supabase
       .from('contacts')
