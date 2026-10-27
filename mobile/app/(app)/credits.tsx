@@ -25,6 +25,7 @@ import {
 import { apiFetch } from '@/lib/api';
 import { ENV } from '@/lib/env';
 import { chatListTime } from '@/lib/format';
+import { daysUntil } from '@shared/lib/format/days-until';
 import { queryClient } from '@/lib/query';
 import { SHOW_PURCHASE_LINKS } from '@/lib/store-policy';
 import { supabase } from '@/lib/supabase';
@@ -184,7 +185,7 @@ export default function CreditsScreen() {
         />
         {w?.monthly_reset_at ? (
           <Text style={styles.heroSub}>
-            Monthly credits refresh {chatListTime(w.monthly_reset_at)}
+            Monthly credits reset in {daysUntil(w.monthly_reset_at)}d
           </Text>
         ) : null}
       </GradientHero>

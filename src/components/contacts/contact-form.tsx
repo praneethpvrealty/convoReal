@@ -40,7 +40,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { contactPhone } from '@/lib/format/phone';
 import { AlertsConsentControl } from '@/components/contacts/alerts-consent-control';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { formatCurrency } from '@/lib/format/currency';
@@ -361,7 +361,7 @@ export function ContactForm({
       // Email-only contacts (company mailboxes) keep a null phone —
       // a number, once given, still has to be a valid one.
       const normalizedPrimary = phone.trim()
-        ? normalizePhoneWithCountryCode(phone.trim(), defaultCountryCode)
+        ? contactPhone(phone.trim(), defaultCountryCode)
         : null;
       if (phone.trim() && !normalizedPrimary) {
         toast.error('Invalid primary phone number format');
@@ -369,10 +369,20 @@ export function ContactForm({
         return;
       }
 
-      const normalizedSecondary = secondaryPhones
-        .filter((p) => p.trim().length > 0)
-        .map((p) => normalizePhoneWithCountryCode(p.trim(), defaultCountryCode))
-        .filter(Boolean);
+      const typedSecondary = secondaryPhones
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+      const invalidSecondary = typedSecondary.find(
+        (p) => !contactPhone(p, defaultCountryCode)
+      );
+      if (invalidSecondary) {
+        toast.error(`Invalid phone number: ${invalidSecondary}`);
+        setSaving(false);
+        return;
+      }
+      const normalizedSecondary = typedSecondary.map(
+        (p) => contactPhone(p, defaultCountryCode) as string
+      );
 
       const payload = {
         name: name.trim() || null,

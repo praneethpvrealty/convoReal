@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { auditDate, auditDateTime, parseDateOnly } from './format';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  auditDate,
+  auditDateTime,
+  chatListTime,
+  parseDateOnly,
+} from './format';
 
 describe('audit timestamps', () => {
   it('formats valid dates for record metadata', () => {
@@ -27,5 +32,27 @@ describe('parseDateOnly', () => {
     expect(parseDateOnly(null)).toBeNull();
     expect(parseDateOnly('')).toBeNull();
     expect(parseDateOnly('not a date')).toBeNull();
+  });
+});
+
+describe('chatListTime', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('never shows a bare weekday for a future date', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 27, 10, 0));
+    expect(chatListTime(new Date(2026, 9, 28, 9, 0).toISOString())).toBe(
+      'Tomorrow'
+    );
+    const future = chatListTime(new Date(2026, 10, 16, 9, 0).toISOString());
+    expect(future).toMatch(/16/);
+    expect(future).not.toBe(
+      new Date(2026, 10, 16).toLocaleDateString([], { weekday: 'short' })
+    );
+    expect(chatListTime(new Date(2026, 9, 26, 9, 0).toISOString())).toBe(
+      'Yesterday'
+    );
   });
 });

@@ -76,6 +76,7 @@ import type { Property } from '@/lib/types';
 // The row shape the server sanitizes into. Type-only, so nothing from
 // the web lib reaches the bundle.
 import type { FloorTenancy } from '@shared/lib/inventory/floor-tenancies';
+import { validateListingCore } from '@shared/lib/inventory/listing-core-validation';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 
 const STATUSES = [
@@ -441,8 +442,21 @@ function EditForm({ property }: { property: Property }) {
   );
 
   async function save() {
-    if (!title.trim()) {
-      setError('Give the listing a title.');
+    const invalid = validateListingCore({
+      title,
+      type,
+      listingType,
+      price,
+      rentPerMonth: rent,
+      maintenance,
+      sublocality,
+      searchQuery: location,
+      city,
+      stateVal,
+      landArea,
+    });
+    if (invalid) {
+      setError(invalid);
       return;
     }
     setSaving(true);

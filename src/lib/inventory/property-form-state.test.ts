@@ -10,6 +10,7 @@ import {
   validatePropertyForm,
   type PropertyFormValues,
 } from './property-form-state';
+import { validateListingCore } from './listing-core-validation';
 
 const saleFlat = {
   id: 'prop-1',
@@ -507,5 +508,43 @@ describe('propertyFormReducer', () => {
     expect(propertyFormReducer(edited, { type: 'reset', values: next })).toBe(
       next
     );
+  });
+});
+
+describe('[PRP-054] validateListingCore matches the web form on the shared fields', () => {
+  const cases: Array<Partial<PropertyFormValues>> = [
+    {},
+    { title: '' },
+    { price: '' },
+    { price: '-5' },
+    { listingType: 'Rent', price: '' },
+    { listingType: 'Rent', rentPerMonth: '45000', maintenance: '-1' },
+    { listingType: 'Built to Suit', price: '' },
+    { listingType: 'JV/JD', price: '-1' },
+    { city: '' },
+    { stateVal: '' },
+    { sublocality: '', searchQuery: '' },
+    { sublocality: '', searchQuery: 'Indiranagar' },
+    { type: 'Residential Land', landArea: '' },
+    { type: 'Residential Land', landArea: '2400' },
+  ];
+
+  it.each(cases)('agrees with validatePropertyForm for %o', (overrides) => {
+    const values = validValues(overrides);
+    expect(
+      validateListingCore({
+        title: values.title,
+        type: values.type,
+        listingType: values.listingType,
+        price: values.price,
+        rentPerMonth: values.rentPerMonth,
+        maintenance: values.maintenance,
+        sublocality: values.sublocality,
+        searchQuery: values.searchQuery,
+        city: values.city,
+        stateVal: values.stateVal,
+        landArea: values.landArea,
+      })
+    ).toBe(validatePropertyForm(values));
   });
 });

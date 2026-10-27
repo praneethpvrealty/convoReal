@@ -36,6 +36,13 @@ describe('quickAddContactPayload', () => {
     expect('payload' in blank && blank.payload.name_tag).toBeNull();
   });
 
+  it('accepts the same phone spellings as the web form', () => {
+    for (const phone of ['09900277111', '919900277111', '+91 99002-77111']) {
+      const result = quickAddContactPayload({ ...base, phone });
+      expect('payload' in result && result.payload.phone).toBe('+919900277111');
+    }
+  });
+
   it('still needs a phone or an email, and a valid one', () => {
     expect(quickAddContactPayload({ ...base, phone: '' })).toEqual({
       error: 'Add a phone number or an email',

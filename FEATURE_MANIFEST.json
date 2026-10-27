@@ -2751,6 +2751,16 @@
             "src/lib/inventory/import-shared-property.ts",
             "src/lib/showcase/app-origin.ts"
           ]
+        },
+        {
+          "id": "PRP-054",
+          "rule": "Web and mobile refuse to save a listing on the same shared fields through validateListingCore (src/lib/inventory/listing-core-validation.ts): a title; a non-negative sale price, monthly rent for Rent and Built to Suit, or a non-negative project value for JV/JD; a locality, city and state; and a positive land area for land types, with the same error text as the web form. The mobile list card prices a listing the way its detail screen and the web card do: rent per month for Rent and Built to Suit, the owner:builder share for JV/JD, and the land area for land types.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/property-form-state.test.ts",
+              "case": "[PRP-054]"
+            }
+          ]
         }
       ]
     },

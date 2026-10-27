@@ -3,19 +3,10 @@
 import { useEffect, useState } from 'react';
 import { Coins, TrendingDown, TrendingUp, CalendarClock } from 'lucide-react';
 import { useCredits } from '@/hooks/useCredits';
+import { daysUntil } from '@/lib/format/days-until';
 
 interface SummaryResponse {
   totalSpent: number;
-}
-
-function daysUntil(dateString: string | null): number | null {
-  if (!dateString) return null;
-  return Math.max(
-    0,
-    Math.ceil(
-      (new Date(dateString).getTime() - Date.now()) / (24 * 60 * 60 * 1000)
-    )
-  );
 }
 
 export function CreditBreakdown() {

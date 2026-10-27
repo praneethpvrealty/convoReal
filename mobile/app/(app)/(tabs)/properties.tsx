@@ -51,7 +51,8 @@ import {
   sessionToken,
   type PlaceSuggestion,
 } from '@/lib/api';
-import { formatInr } from '@/lib/format';
+import { listingPrice } from '@/lib/listing-price';
+import { isLandType } from '@/lib/property-options';
 import { useDebounced } from '@/lib/use-debounced';
 import { BulkTagBar } from '@/components/bulk-tag-bar';
 import { haptic } from '@/lib/haptics';
@@ -1055,14 +1056,16 @@ function PropertyCard({
   // is all that survives, and is what tells the empty tile apart from a
   // listing nobody photographed.
   const withheldPhotos = property.private_images_count ?? 0;
-  const price =
-    property.listing_type === 'Rent'
-      ? property.rent_per_month
-        ? `${formatInr(property.rent_per_month)}/mo`
-        : null
-      : property.price
-        ? formatInr(property.price)
-        : null;
+  const cardPrice = listingPrice(property, '/mo').value;
+  const price = cardPrice === '—' ? null : cardPrice;
+  const isLand = isLandType(property.type ?? '');
+  const area = isLand
+    ? property.land_area
+      ? `${property.land_area.toLocaleString('en-IN')} ${property.land_area_unit || 'Sq.Ft.'}`
+      : null
+    : property.area_sqft
+      ? `${property.area_sqft.toLocaleString('en-IN')} ${property.area_unit || 'Sq.Ft.'}`
+      : null;
   const place = [property.sublocality, property.city]
     .filter(Boolean)
     .join(', ');
@@ -1317,12 +1320,7 @@ function PropertyCard({
           {property.bedrooms ? (
             <SpecPill icon="bed-outline" label={`${property.bedrooms} Beds`} />
           ) : null}
-          {property.area_sqft ? (
-            <SpecPill
-              icon="resize-outline"
-              label={`${property.area_sqft} ${property.area_unit || 'Sqft'}`}
-            />
-          ) : null}
+          {area ? <SpecPill icon="resize-outline" label={area} /> : null}
           {property.type ? (
             <SpecPill icon="business-outline" label={property.type} />
           ) : null}

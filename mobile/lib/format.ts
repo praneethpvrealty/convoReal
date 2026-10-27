@@ -20,8 +20,9 @@ export function chatListTime(iso: string | undefined): string {
   if (day === today) {
     return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
+  if (day - today === DAY_MS) return 'Tomorrow';
   if (today - day === DAY_MS) return 'Yesterday';
-  if (today - day < 7 * DAY_MS) {
+  if (day < today && today - day < 7 * DAY_MS) {
     return d.toLocaleDateString([], { weekday: 'short' });
   }
   return d.toLocaleDateString([], {
@@ -68,6 +69,7 @@ export function dayLabel(iso: string): string {
   const today = startOfDay(new Date());
   const day = startOfDay(d);
   if (day === today) return 'Today';
+  if (day - today === DAY_MS) return 'Tomorrow';
   if (today - day === DAY_MS) return 'Yesterday';
   return d.toLocaleDateString([], {
     day: 'numeric',

@@ -70,3 +70,18 @@ describe('listingPrice', () => {
     expect(p.note).toBe('Est. ₹12 Cr');
   });
 });
+
+describe('listingPrice on a list card', () => {
+  it('prices Built to Suit by its monthly rent, like a rental', () => {
+    expect(
+      listingPrice(
+        make({
+          listing_type: 'Built to Suit',
+          price: 450000000,
+          rent_per_month: 2500000,
+        }),
+        '/mo'
+      ).value
+    ).toBe('₹25 L/mo');
+  });
+});

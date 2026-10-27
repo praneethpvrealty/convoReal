@@ -49,7 +49,7 @@ import {
 } from '@/lib/deal-workspace';
 import { moveDealStage } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
-import { formatInr } from '@/lib/format';
+import { useAccountCurrency } from '@/lib/use-account-currency';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import {
@@ -77,6 +77,7 @@ import {
   dealCardCopy,
   dealFee,
   dealFeeLabel,
+  formatDealAmount,
   stageTotals,
   stageTotalsLabel,
 } from '@shared/lib/pipelines/deal-money';
@@ -148,6 +149,7 @@ export default function DealsScreen() {
   );
   const profile = useAuthStore((s) => s.profile);
   const accountId = profile?.account_id ?? null;
+  const accountCurrency = useAccountCurrency();
 
   const recordsQuery = useQuery({
     queryKey: ['transaction-index', accountId],
@@ -508,6 +510,7 @@ export default function DealsScreen() {
           loading={recordsQuery.isLoading}
           refreshing={recordsQuery.isRefetching}
           onRefresh={() => void recordsQuery.refetch()}
+          currency={accountCurrency}
         />
       ) : null}
 
@@ -652,6 +655,7 @@ export default function DealsScreen() {
           {stageDeals.length} deal{stageDeals.length === 1 ? '' : 's'} ·{' '}
           {stageTotalsLabel(stageTotals(stageDeals), {
             paid: selectedStage ? isBrokeragePaidStage(selectedStage) : false,
+            currency: accountCurrency,
           })}
         </Text>
       ) : null}
@@ -722,6 +726,7 @@ export default function DealsScreen() {
           renderSectionHeader={({ section }) => {
             const totals = stageTotalsLabel(stageTotals(section.data), {
               paid: isBrokeragePaidStage(section.stage),
+              currency: accountCurrency,
             });
             return (
               <View
@@ -784,6 +789,7 @@ export default function DealsScreen() {
             <EnterRow index={index}>
               <DealCard
                 deal={item}
+                accountCurrency={accountCurrency}
                 stage={section.stage}
                 onMove={() => setMovingDeal(item)}
                 onReopen={() => void reopenDeal(item)}
@@ -821,6 +827,7 @@ export default function DealsScreen() {
             <EnterRow index={index}>
               <DealCard
                 deal={item}
+                accountCurrency={accountCurrency}
                 stage={selectedStage ?? null}
                 onMove={() => setMovingDeal(item)}
                 onReopen={() => void reopenDeal(item)}
@@ -897,12 +904,13 @@ export default function DealsScreen() {
               }}
             >
               Calculated brokerage:{' '}
-              {formatInr(
+              {formatDealAmount(
                 brokeragePreview(
                   brokeragePrompt?.deal.value ?? null,
                   brokerageType,
                   brokerageValue
-                )
+                ),
+                brokeragePrompt?.deal.currency || accountCurrency
               )}
             </Text>
           ) : null}
@@ -989,8 +997,10 @@ function RecordsList({
   loading,
   refreshing,
   onRefresh,
+  currency,
 }: {
   rows: TransactionIndexRow[];
+  currency: string;
   loading: boolean;
   refreshing: boolean;
   onRefresh: () => void;
@@ -1094,7 +1104,7 @@ function RecordsList({
                     color: colors.primary,
                   }}
                 >
-                  {formatInr(item.value)}
+                  {formatDealAmount(item.value, item.currency || currency)}
                 </Text>
               </View>
               <Text style={{ fontSize: 12, color: colors.textMuted }}>
@@ -1131,14 +1141,17 @@ function DealCard({
   onMove,
   onReopen,
   onEdit,
+  accountCurrency,
 }: {
   deal: Deal;
   stage: PipelineStage | null;
+  accountCurrency: string;
   onMove: () => void;
   onReopen: () => void;
   onEdit: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
+  const currency = deal.currency || accountCurrency;
   const fullName = deal.contact ? contactFullName(deal.contact) : '';
   const contactName = fullName || deal.contact?.phone;
   const brokeragePaid = stage ? isBrokeragePaidStage(stage) : false;
@@ -1184,7 +1197,7 @@ function DealCard({
                   dealFee(deal) === null ? colors.textFaint : colors.textMuted,
               }}
             >
-              {dealFeeLabel(deal)}
+              {dealFeeLabel(deal, { currency })}
             </Text>
           )}
         </View>
@@ -1195,7 +1208,7 @@ function DealCard({
             color: colors.primary,
           }}
         >
-          {formatInr(deal.value)}
+          {formatDealAmount(deal.value, currency)}
         </Text>
         <Ionicons name="chevron-forward" size={15} color={colors.textFaint} />
       </Pressable>
@@ -1230,7 +1243,7 @@ function DealCard({
         <View style={styles.receiptRow}>
           <Ionicons name="checkmark-circle" size={15} color={colors.success} />
           <Text style={{ fontSize: 12.5, color: colors.success }}>
-            {dealFeeLabel(deal, { paid: true })}
+            {dealFeeLabel(deal, { paid: true, currency })}
             {deal.brokerage_paid_at
               ? ` · ${new Date(deal.brokerage_paid_at).toLocaleDateString([], {
                   day: 'numeric',

@@ -9,3 +9,12 @@ export function phoneWithCountryCode(
   if (digits.length === 10) digits = defaultCountryCode + digits;
   return digits ? '+' + digits : '';
 }
+
+export function contactPhone(
+  phone: unknown,
+  defaultCountryCode: string
+): string | null {
+  const e164 = phoneWithCountryCode(phone, defaultCountryCode);
+  const digits = e164.replace(/\D/g, '').length;
+  return digits >= 11 && digits <= 15 ? e164 : null;
+}
