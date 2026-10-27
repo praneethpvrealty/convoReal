@@ -33,7 +33,8 @@ import { TourTarget } from '@/components/copilot-tour';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
-import { EmptyState, FilterChip } from '@/components/ui';
+import { ContactPeekCard } from '@/components/contact-peek-card';
+import { EmptyState, FilterChip, Tag, nameTagCap } from '@/components/ui';
 import { useUndoBar, type UndoBarHandle } from '@/components/undo-bar';
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
@@ -83,7 +84,13 @@ import { openContactChat } from '@/lib/open-chat';
 import { queryClient } from '@/lib/query';
 import { buildTodoParticipantCheckIn } from '@/lib/todo-check-in';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme, fonts } from '@/lib/theme';
+import {
+  classificationColors,
+  radius,
+  spacing,
+  useTheme,
+  fonts,
+} from '@/lib/theme';
 import { eventTypeFields, type EventFieldKey } from '@/lib/event-fields';
 import {
   addTodo,
@@ -107,6 +114,7 @@ import {
 } from '@shared/lib/calendar/todo-groups';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { useDebounced } from '@/lib/use-debounced';
+import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';
 
 const TYPE_META: Record<
   AppointmentType,
@@ -1965,6 +1973,41 @@ function postFieldLabel(eventType: Appointment['event_type']): string {
   return post ? `Add ${post.label.toLowerCase()}` : 'Add notes';
 }
 
+/** Classification, phone and the first tags — enough to tell two
+ *  contacts with the same name apart in the participant picker. */
+function ParticipantMeta({
+  contact,
+  tags,
+}: {
+  contact: Contact;
+  tags: string[];
+}) {
+  const { colors, dark } = useTheme();
+  const clsColor = contact.classification
+    ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
+    : undefined;
+  if (!contact.classification && !contact.name && tags.length === 0)
+    return null;
+  return (
+    <View style={styles.participantMeta}>
+      {contact.classification ? (
+        <Tag label={contact.classification} color={clsColor} />
+      ) : null}
+      {tags.slice(0, 2).map((tag) => (
+        <Tag key={tag} label={tag} />
+      ))}
+      {contact.name && contact.phone ? (
+        <Text
+          style={{ fontSize: 12, color: colors.textMuted }}
+          numberOfLines={1}
+        >
+          {contact.phone}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 /** Bottom sheet: full info + complete / cancel / reschedule. */
 function AppointmentDetail({
   appointment,
@@ -2024,7 +2067,7 @@ function AppointmentDetail({
     queryFn: async () => {
       const { data, error: queryError } = await supabase
         .from('contacts')
-        .select('id, name, phone, name_tag')
+        .select('id, name, phone, name_tag, classification')
         .in('id', editContactIds);
       if (queryError) throw queryError;
       return (data ?? []) as Contact[];
@@ -2040,14 +2083,33 @@ function AppointmentDetail({
       const term = `%${debouncedContactSearch.trim()}%`;
       const { data, error: queryError } = await supabase
         .from('contacts')
-        .select('id, name, phone, name_tag')
+        .select(CONTACT_LIST_COLUMNS)
         .eq('is_merged', false)
         .or(`name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term}`)
         .limit(8);
       if (queryError) throw queryError;
-      return (data ?? []) as Contact[];
+      const contacts = (data ?? []) as unknown as Contact[];
+      const tags: Record<string, string[]> = {};
+      if (contacts.length) {
+        const { data: tagRows } = await supabase
+          .from('contact_tags')
+          .select('contact_id, tag:tags(name)')
+          .in(
+            'contact_id',
+            contacts.map((contact) => contact.id)
+          );
+        for (const row of (tagRows ?? []) as {
+          contact_id: string;
+          tag: { name: string } | { name: string }[] | null;
+        }[]) {
+          const tag = Array.isArray(row.tag) ? row.tag[0] : row.tag;
+          if (tag?.name) (tags[row.contact_id] ??= []).push(tag.name);
+        }
+      }
+      return { contacts, tags };
     },
   });
+  const [peekContactId, setPeekContactId] = useState<string | null>(null);
 
   if (!appointment) return null;
   const meta = TYPE_META[appointment.event_type] ?? TYPE_META.other;
@@ -2455,12 +2517,26 @@ function AppointmentDetail({
                   size={16}
                   color={colors.primary}
                 />
-                <Text
-                  style={{ flex: 1, fontSize: 14, color: colors.text }}
-                  numberOfLines={1}
-                >
-                  {contact.name || contact.phone}
-                </Text>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <View style={styles.participantNameRow}>
+                    <Text
+                      style={{
+                        flexShrink: 1,
+                        fontSize: 14,
+                        color: colors.text,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {contact.name || contact.phone}
+                    </Text>
+                    {contact.name_tag ? (
+                      <View style={nameTagCap}>
+                        <Tag label={contact.name_tag} />
+                      </View>
+                    ) : null}
+                  </View>
+                  <ParticipantMeta contact={contact} tags={[]} />
+                </View>
                 <Pressable
                   onPress={() =>
                     setEditContactIds((ids) =>
@@ -2494,36 +2570,89 @@ function AppointmentDetail({
                 },
               ]}
             />
-            {(contactOptionsQuery.data ?? [])
+            {(contactOptionsQuery.data?.contacts ?? [])
               .filter((contact) => !editContactIds.includes(contact.id))
-              .map((contact) => (
-                <Pressable
-                  key={contact.id}
-                  onPress={() => {
-                    setEditContactIds((ids) => [...ids, contact.id]);
-                    setContactSearch('');
-                  }}
-                  style={[
-                    styles.participantRow,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="person-add-outline"
-                    size={16}
-                    color={colors.primary}
-                  />
-                  <Text
-                    style={{ flex: 1, fontSize: 14, color: colors.text }}
-                    numberOfLines={1}
-                  >
-                    {contact.name || contact.phone}
-                  </Text>
-                </Pressable>
-              ))}
+              .map((contact) => {
+                const label = contact.name || contact.phone;
+                const contactTags =
+                  contactOptionsQuery.data?.tags[contact.id] ?? [];
+                const peeking = peekContactId === contact.id;
+                return (
+                  <View key={contact.id} style={{ gap: spacing.sm }}>
+                    <Pressable
+                      onPress={() => {
+                        setEditContactIds((ids) => [...ids, contact.id]);
+                        setContactSearch('');
+                        setPeekContactId(null);
+                      }}
+                      onLongPress={() => {
+                        haptic.tap();
+                        setPeekContactId(contact.id);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Add ${label}. Long press for a quick preview.`}
+                      style={[
+                        styles.participantRow,
+                        {
+                          backgroundColor: colors.surface,
+                          borderColor: peeking ? colors.primary : colors.border,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="person-add-outline"
+                        size={16}
+                        color={colors.primary}
+                      />
+                      <View style={{ flex: 1, gap: 3 }}>
+                        <View style={styles.participantNameRow}>
+                          <Text
+                            style={{
+                              flexShrink: 1,
+                              fontSize: 14,
+                              color: colors.text,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {label}
+                          </Text>
+                          {contact.name_tag ? (
+                            <View style={nameTagCap}>
+                              <Tag label={contact.name_tag} />
+                            </View>
+                          ) : null}
+                        </View>
+                        <ParticipantMeta contact={contact} tags={contactTags} />
+                      </View>
+                      <Pressable
+                        onPress={() =>
+                          setPeekContactId(peeking ? null : contact.id)
+                        }
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          peeking
+                            ? `Hide preview of ${label}`
+                            : `Preview ${label}`
+                        }
+                      >
+                        <Ionicons
+                          name={peeking ? 'eye-off-outline' : 'eye-outline'}
+                          size={18}
+                          color={colors.textMuted}
+                        />
+                      </Pressable>
+                    </Pressable>
+                    {peeking ? (
+                      <ContactPeekCard
+                        contact={contact}
+                        tags={contactTags}
+                        inset={0}
+                      />
+                    ) : null}
+                  </View>
+                );
+              })}
             {editContactIds.length > 0 ? (
               <View
                 style={{
@@ -3079,6 +3208,13 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     fontSize: 14,
     fontFamily: fonts.regular,
+  },
+  participantNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  participantMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
   },
   participantRow: {
     flexDirection: 'row',

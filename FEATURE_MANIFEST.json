@@ -1489,6 +1489,13 @@
             "supabase/migrations/20261025131500_google_calendar_sync.sql",
             "supabase/migrations/20261025144500_google_calendar_sync_attempts.sql"
           ]
+        },
+        {
+          "id": "CAL-016",
+          "rule": "The appointment participant picker tells contacts with the same name apart on web and mobile: every search result shows the contact's internal name tag, classification and phone, and an eye button (or a long press on mobile) opens a preview of budget, areas, tags and last contact before the contact is added; mobile also lists the first two tags on each result. Mobile searches with the shared CONTACT_LIST_COLUMNS so the preview reads the same fields as the Contacts tab's hold-to-peek card, which both screens render from one component.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[CAL-016]" }
+          ]
         }
       ]
     },
