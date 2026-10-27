@@ -35,7 +35,7 @@ vi.mock('@/components/showcase/similar-properties', () => ({
 }));
 vi.mock('@/components/showcase/add-to-inventory', () => ({
   AddToInventory: () => null,
-  useShowcaseImportViewers: () => {},
+  useShowcaseImportViewers: () => ({ offersImport: false }),
 }));
 
 import { ShowcaseView } from './showcase-view';

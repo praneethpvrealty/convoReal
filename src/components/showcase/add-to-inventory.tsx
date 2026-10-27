@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { FolderInput, Loader2, PackageCheck } from 'lucide-react';
@@ -138,6 +138,27 @@ export function useShowcaseImportViewers(
   useEffect(() => {
     if (data === true) onSignedOut();
   }, [data, onSignedOut]);
+
+  const [offersImport, setOffersImport] = useState(false);
+  useEffect(() => {
+    const check = () =>
+      setOffersImport(
+        ids.some((id) => {
+          const entry = queryClient.getQueryData<Probe>(probeKey(id));
+          return (
+            !!entry &&
+            !entry.signedOut &&
+            !!entry.viewer &&
+            !entry.viewer.own &&
+            (entry.viewer.canImport || !!entry.viewer.importedId)
+          );
+        })
+      );
+    check();
+    return queryClient.getQueryCache().subscribe(check);
+  }, [queryClient, ids]);
+
+  return { offersImport: !signedOut && offersImport };
 }
 
 async function importListing(

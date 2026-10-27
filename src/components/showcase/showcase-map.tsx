@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { MapPin, X } from 'lucide-react';
 import type { Property } from '@/types';
 import {
@@ -25,12 +25,14 @@ export function ShowcaseMap({
   onOpen,
   shortlistedPropertyIds,
   onClose,
+  renderListingAction,
 }: {
   properties: Property[];
   currency: string;
   onOpen: (property: Property) => void;
   shortlistedPropertyIds: string[];
   onClose: () => void;
+  renderListingAction?: (property: Property) => ReactNode;
 }) {
   const mapped = useMemo(() => publicMapProperties(properties), [properties]);
   const areas = useMemo(() => publicMapAreas(properties), [properties]);
@@ -82,6 +84,21 @@ export function ShowcaseMap({
   const focused = showArea
     ? undefined
     : (mapped.find((property) => property.id === focusedId) ?? mapped[0]);
+  const interactive = !!process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
+  const areaKey = area?.label.toLocaleLowerCase('en-IN');
+  const listed = !renderListingAction
+    ? []
+    : focused
+      ? interactive
+        ? mapped
+        : [focused]
+      : area
+        ? properties.filter(
+            (property) =>
+              publicMapAreaLabel(property).toLocaleLowerCase('en-IN') ===
+              areaKey
+          )
+        : [];
   return (
     <section
       aria-label="Property locations"
@@ -180,7 +197,7 @@ export function ShowcaseMap({
           No public area information is available for these listings. Explore
           the property cards to enquire about a location.
         </div>
-      ) : process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ? (
+      ) : interactive ? (
         <PropertyMapView
           properties={mapped}
           loading={false}
@@ -224,6 +241,28 @@ export function ShowcaseMap({
             </Button>
           </div>
         </>
+      )}
+      {listed.length > 0 && renderListingAction && (
+        <ul
+          aria-label="Listings on this map"
+          className="max-h-60 divide-y overflow-y-auto border-t"
+        >
+          {listed.map((property) => (
+            <li
+              key={property.id}
+              className="flex items-center justify-between gap-3 px-4 py-2"
+            >
+              <button
+                type="button"
+                className="min-w-0 truncate text-left text-sm font-medium hover:underline"
+                onClick={() => onOpen(property)}
+              >
+                {property.title}
+              </button>
+              {renderListingAction(property)}
+            </li>
+          ))}
+        </ul>
       )}
       <p className="border-t p-3 text-xs">
         {focused

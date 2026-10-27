@@ -318,6 +318,34 @@ describe('AddToInventory', () => {
     expect(client.getQueryData(['showcase-import', ids[0]])).toBeUndefined();
   });
 
+  it('[PRP-053] reports the page as offering imports from the batches that answered, even when another keeps failing', async () => {
+    probeStatus.failShortBatch = true;
+    const ids = Array.from(
+      { length: VIEWER_BATCH_SIZE + 5 },
+      (_, i) => `prop-${String(i).padStart(3, '0')}`
+    );
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <OffersImport ids={ids} />
+      </QueryClientProvider>
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('offers').textContent).toBe('offers')
+    );
+  });
+
+  it('[PRP-053] reports no import offer for a signed-out visitor', async () => {
+    probeStatus.value = 401;
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <OffersImport ids={['prop-a']} />
+      </QueryClientProvider>
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByTestId('offers').textContent).toBe('none');
+  });
+
   it('[PRP-053] stops at the first answer that says the visitor is signed out', async () => {
     probeStatus.value = 401;
     const ids = Array.from(
@@ -344,4 +372,9 @@ function Catalog({
 }) {
   useShowcaseImportViewers(ids, false, onSignedOut);
   return null;
+}
+
+function OffersImport({ ids }: { ids: string[] }) {
+  const { offersImport } = useShowcaseImportViewers(ids, false, () => {});
+  return <span data-testid="offers">{offersImport ? 'offers' : 'none'}</span>;
 }
