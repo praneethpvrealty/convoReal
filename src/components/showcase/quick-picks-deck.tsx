@@ -25,8 +25,6 @@ interface QuickPicksDeckProps {
   onSendReport: () => void;
   onRequirements: () => void;
   onExit: () => void;
-  /** Extra control shown on the current card, such as a signed-in
-   *  agent's "Add to my inventory". */
   renderCardAction?: (property: Property) => ReactNode;
 }
 
