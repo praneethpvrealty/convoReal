@@ -86,6 +86,7 @@ describe('findCopilotPropertyInterest', () => {
             owner: { name: 'Adithi', second_name: null },
           },
         ],
+        conversations: [{ id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }],
       },
       [interestRow]
     );
@@ -147,6 +148,35 @@ describe('findCopilotPropertyInterest', () => {
       journeyStatus: 'dropped',
       conversationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     });
+    expect(stubs.get('conversations')?.calls).toContainEqual([
+      'eq',
+      ['account_id', 'acct-1'],
+    ]);
+    expect(stubs.get('conversations')?.calls).toContainEqual([
+      'in',
+      ['id', ['cccccccc-cccc-4ccc-8ccc-cccccccccccc']],
+    ]);
+  });
+
+  it('[CPL-004] drops a thread the caller cannot read under the conversations policy, and skips the lookup when no row has one', async () => {
+    const hidden = clientWith({ conversations: [] }, [interestRow]);
+    const hiddenResult = await findCopilotPropertyInterest(
+      { supabase: hidden.client, accountId: 'acct-1' },
+      parsePropertyInterestQuestion('who enquired today', [], NOW)!
+    );
+    expect(hiddenResult.matches[0]?.conversationId).toBeNull();
+    expect(hidden.stubs.get('conversations')?.calls).toContainEqual([
+      'in',
+      ['id', ['cccccccc-cccc-4ccc-8ccc-cccccccccccc']],
+    ]);
+
+    const none = clientWith({}, [{ ...interestRow, conversation_id: null }]);
+    const noneResult = await findCopilotPropertyInterest(
+      { supabase: none.client, accountId: 'acct-1' },
+      parsePropertyInterestQuestion('who enquired today', [], NOW)!
+    );
+    expect(noneResult.matches[0]?.conversationId).toBeNull();
+    expect(none.stubs.has('conversations')).toBe(false);
   });
 
   it('[CPL-004] returns no matches without a database call when no listing is found', async () => {

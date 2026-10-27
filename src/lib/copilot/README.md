@@ -74,7 +74,10 @@ own owner, each row with the contact's WhatsApp thread (`conversations`,
 one per contact per account since migration 229). The answer carries one
 `links[]` entry per contact (or per listing in the reverse form), a
 `Message …` link into that thread (`/inbox?c=…` on web, the native
-conversation screen on mobile) for every contact that has one, the
+conversation screen on mobile) for every contact whose thread the caller
+can open — the function is `SECURITY DEFINER`, so the query layer re-reads
+the returned thread ids through the caller's RLS client and keeps only the
+ones `conversations_select` (migration 162) lets that agent see — the
 listing itself, and the listing-audience picker when more engaged than it
 can show — no phone numbers, no model call, and nothing enters the shared
 cache. The contact and thread links are how staff act on the answer
