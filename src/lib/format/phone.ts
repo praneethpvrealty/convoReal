@@ -14,7 +14,13 @@ export function contactPhone(
   phone: unknown,
   defaultCountryCode: string
 ): string | null {
-  const e164 = phoneWithCountryCode(phone, defaultCountryCode);
+  if (phone === null || phone === undefined) return null;
+  const raw = String(phone).trim();
+  if (raw.startsWith('+')) {
+    const digits = raw.replace(/\D/g, '');
+    return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null;
+  }
+  const e164 = phoneWithCountryCode(raw, defaultCountryCode);
   const digits = e164.replace(/\D/g, '').length;
   return digits >= 11 && digits <= 15 ? e164 : null;
 }

@@ -31,6 +31,12 @@ describe('contactPhone', () => {
     }
   });
 
+  it('keeps the country code of a number written with a plus', () => {
+    expect(contactPhone('+65 8123 4567', '91')).toBe('+6581234567');
+    expect(contactPhone('+298 211234', '91')).toBe('+298211234');
+    expect(contactPhone('+91 1234', '91')).toBeNull();
+  });
+
   it('rejects input too short or too long to be a reachable number', () => {
     expect(contactPhone('12', '91')).toBeNull();
     expect(contactPhone('99002771', '91')).toBeNull();

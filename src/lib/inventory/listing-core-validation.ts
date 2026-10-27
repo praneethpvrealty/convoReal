@@ -18,7 +18,12 @@ function isNonNegative(value: string): boolean {
   return !isNaN(Number(value)) && Number(value) >= 0;
 }
 
-export function validateListingCore(values: ListingCoreValues): string | null {
+export function validateListingAmounts(
+  values: Pick<
+    ListingCoreValues,
+    'title' | 'listingType' | 'price' | 'rentPerMonth' | 'maintenance'
+  >
+): string | null {
   if (!values.title.trim()) return 'Title is required';
 
   const isBTS = values.listingType === 'Built to Suit';
@@ -38,7 +43,15 @@ export function validateListingCore(values: ListingCoreValues): string | null {
   } else if (!values.price.trim() || !isNonNegative(values.price)) {
     return 'Price must be a valid non-negative number';
   }
+  return null;
+}
 
+export function validateListingPlace(
+  values: Pick<
+    ListingCoreValues,
+    'type' | 'sublocality' | 'searchQuery' | 'city' | 'stateVal' | 'landArea'
+  >
+): string | null {
   const sublocality = values.sublocality.trim() || values.searchQuery.trim();
   if (!sublocality || !values.city.trim() || !values.stateVal.trim()) {
     return 'Location search query, City, and State are required';
@@ -52,6 +65,9 @@ export function validateListingCore(values: ListingCoreValues): string | null {
   ) {
     return 'Land Area is required and must be a valid positive number';
   }
-
   return null;
+}
+
+export function validateListingCore(values: ListingCoreValues): string | null {
+  return validateListingAmounts(values) ?? validateListingPlace(values);
 }

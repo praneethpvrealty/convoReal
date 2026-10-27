@@ -8,6 +8,10 @@ import {
   isLandType,
   isRawLandType,
 } from '@/lib/inventory/property-options';
+import {
+  validateListingAmounts,
+  validateListingPlace,
+} from '@/lib/inventory/listing-core-validation';
 import type { Contact, Property } from '@/types';
 
 export type PropertyFormListingType =
@@ -572,52 +576,26 @@ function finalSublocalityOf(values: PropertyFormValues): string {
 export function validatePropertyForm(
   values: PropertyFormValues
 ): string | null {
+  const amounts = validateListingAmounts(values);
+  if (amounts) return amounts;
+
   const {
-    title,
     listingType,
-    rentPerMonth,
-    maintenance,
     advance,
     gst,
-    price,
     ownerSharePercent,
     builderSharePercent,
     goodwillAmount,
     btsLeaseYears,
     btsLockInYears,
     btsEscalationPercent,
-    city,
-    stateVal,
-    landArea,
   } = values;
-  const isLand = isLandType(values.type);
-
-  if (!title.trim()) {
-    return 'Title is required';
-  }
-
-  const isRent = listingType === 'Rent';
   const isJV = listingType === 'JV/JD';
   const isBTS = listingType === 'Built to Suit';
   // BTS is leased out like Rent — same rent/maintenance/advance/gst fields.
-  const isRentLike = isRent || isBTS;
+  const isRentLike = listingType === 'Rent' || isBTS;
 
   if (isRentLike) {
-    if (
-      !rentPerMonth.trim() ||
-      isNaN(Number(rentPerMonth)) ||
-      Number(rentPerMonth) < 0
-    ) {
-      return isBTS
-        ? 'Expected rent must be a valid non-negative number'
-        : 'Rent per month must be a valid non-negative number';
-    }
-    if (
-      maintenance &&
-      (isNaN(Number(maintenance)) || Number(maintenance) < 0)
-    ) {
-      return 'Maintenance must be a valid non-negative number';
-    }
     if (advance && (isNaN(Number(advance)) || Number(advance) < 0)) {
       return 'Advance must be a valid non-negative number';
     }
@@ -625,9 +603,6 @@ export function validatePropertyForm(
       return 'GST must be a valid non-negative number';
     }
   } else if (isJV) {
-    if (price && (isNaN(Number(price)) || Number(price) < 0)) {
-      return 'Expected project value must be a valid non-negative number';
-    }
     if (
       !ownerSharePercent.trim() ||
       isNaN(Number(ownerSharePercent)) ||
@@ -659,10 +634,6 @@ export function validatePropertyForm(
     if (advance && (isNaN(Number(advance)) || Number(advance) < 0)) {
       return 'Advance must be a valid non-negative number';
     }
-  } else {
-    if (!price.trim() || isNaN(Number(price)) || Number(price) < 0) {
-      return 'Price must be a valid non-negative number';
-    }
   }
 
   if (isBTS) {
@@ -690,20 +661,7 @@ export function validatePropertyForm(
     }
   }
 
-  const finalSublocality = finalSublocalityOf(values);
-
-  if (!finalSublocality || !city.trim() || !stateVal.trim()) {
-    return 'Location search query, City, and State are required';
-  }
-
-  if (
-    isLand &&
-    (!landArea.trim() || isNaN(Number(landArea)) || Number(landArea) <= 0)
-  ) {
-    return 'Land Area is required and must be a valid positive number';
-  }
-
-  return null;
+  return validateListingPlace(values);
 }
 
 export interface PropertyPayloadContext {

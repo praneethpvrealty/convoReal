@@ -187,13 +187,13 @@ function EditForm({ property }: { property: Property }) {
     property.listing_type ?? 'Sale'
   );
   const [price, setPrice] = useState(
-    property.price ? String(property.price) : ''
+    property.price != null ? String(property.price) : ''
   );
   const [rent, setRent] = useState(
-    property.rent_per_month ? String(property.rent_per_month) : ''
+    property.rent_per_month != null ? String(property.rent_per_month) : ''
   );
   const [maintenance, setMaintenance] = useState(
-    property.maintenance ? String(property.maintenance) : ''
+    property.maintenance != null ? String(property.maintenance) : ''
   );
   const [status, setStatus] = useState(property.status ?? 'Available');
   const [soldPrice, setSoldPrice] = useState(
