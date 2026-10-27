@@ -5495,11 +5495,8 @@ describe('[UIX-001] form choices never look like the submit button', () => {
       expect(source, file).not.toContain('<FilterChip');
     }
     const deal = mobileSource('app/(app)/deal/[id].tsx');
-    for (const label of ['label="Percentage (%)"', 'label="Fixed amount"']) {
-      expect(deal).toMatch(
-        new RegExp(`<ChoiceChip\\s+${label.replace(/[()%]/g, '\\$&')}`)
-      );
-    }
+    expect(deal).toMatch(/<ChoiceChip\s+label="Percentage \(%\)"/);
+    expect(deal).toMatch(/<ChoiceChip\s+label="Fixed amount"/);
     expect(mobileSource('app/(app)/(tabs)/calendar.tsx')).toMatch(
       /<ChoiceChip\s+label="Inform new participants"/
     );
