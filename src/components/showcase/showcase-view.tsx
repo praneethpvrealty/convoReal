@@ -2631,6 +2631,15 @@ export function ShowcaseView({
               onSendReport={() => setShortlistOpenRequest((n) => n + 1)}
               onRequirements={openRequirementsModal}
               onExit={() => setDeckMode(false)}
+              renderCardAction={(property) => (
+                <AddToInventory
+                  propertyId={property.id}
+                  className="self-start"
+                  probe={!catalogIdSet.has(property.id)}
+                  signedOut={importViewerSignedOut}
+                  onSignedOut={markImportViewerSignedOut}
+                />
+              )}
             />
           ) : filteredProperties.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-900 bg-slate-900/10 py-20 text-center">

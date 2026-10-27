@@ -19,6 +19,7 @@ interface AddToInventoryProps {
   /** Ask about this listing on its own. Off where the page-level
    *  useShowcaseImportViewers already covers it. */
   probe?: boolean;
+  className?: string;
 }
 
 interface Viewer {
@@ -170,6 +171,7 @@ export function AddToInventory({
   variant = 'chip',
   title,
   probe = true,
+  className,
 }: AddToInventoryProps) {
   const queryClient = useQueryClient();
   const { data: viewerProbe } = useQuery({
@@ -226,6 +228,7 @@ export function AddToInventory({
         }
         className={cn(
           icon ? iconClass : chipClass,
+          className,
           'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/50 hover:text-emerald-300'
         )}
       >
@@ -251,6 +254,7 @@ export function AddToInventory({
       }
       className={cn(
         icon ? iconClass : chipClass,
+        className,
         'border-primary/40 bg-primary/10 text-primary hover:border-primary/60 hover:bg-primary/20 cursor-pointer disabled:cursor-default disabled:opacity-60'
       )}
     >

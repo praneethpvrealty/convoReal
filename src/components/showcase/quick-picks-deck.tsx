@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Bookmark, MapPin, MessageCircle, X } from 'lucide-react';
 import type { Property } from '@/types';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -25,6 +25,9 @@ interface QuickPicksDeckProps {
   onSendReport: () => void;
   onRequirements: () => void;
   onExit: () => void;
+  /** Extra control shown on the current card, such as a signed-in
+   *  agent's "Add to my inventory". */
+  renderCardAction?: (property: Property) => ReactNode;
 }
 
 type Verdict = 'like' | 'skip';
@@ -40,6 +43,7 @@ export function QuickPicksDeck({
   onSendReport,
   onRequirements,
   onExit,
+  renderCardAction,
 }: QuickPicksDeckProps) {
   const [deck] = useState(() =>
     quickPickOrder(properties)
@@ -253,6 +257,7 @@ export function QuickPicksDeck({
               <MapPin className="size-3.5" />
               {dealFloorLocality(current)}
             </p>
+            {renderCardAction?.(current)}
             <p className="df-deck-hint">
               Shortlist it if you would visit. Skip if not.{' '}
               {MATCH_REPORT_SHORTLIST} picks unlock your match report.
