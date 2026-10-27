@@ -6055,6 +6055,16 @@
               "case": "[UIX-003]"
             }
           ]
+        },
+        {
+          "id": "UIX-004",
+          "rule": "A destructive action asks first on both surfaces with the same wording: revoking a stakeholder's share link (\"Revoke this link? It stops working on the next open.\"), removing a payment tranche, a co-broker payout or a deal invoice, and archiving or duplicating a property. Archiving a chat offers Undo on both surfaces.",
+          "tests": [
+            {
+              "file": "src/lib/destructive-confirm-parity.test.ts",
+              "case": "[UIX-004]"
+            }
+          ]
         }
       ]
     }

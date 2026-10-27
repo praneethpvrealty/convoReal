@@ -235,6 +235,12 @@ export function DealCoBrokingPanel({
   }
 
   function remove(p: DealCoBrokerPayout) {
+    if (
+      !window.confirm(
+        `Remove the payout to ${p.payee_name}? Only a payout with nothing paid can be removed.`
+      )
+    )
+      return;
     void run(
       p.id,
       () =>

@@ -36,6 +36,7 @@ import {
   nameTagCap,
 } from '@/components/ui';
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { useUndoBar, type UndoBarHandle } from '@/components/undo-bar';
 import {
   inboxMessageHitMap,
   inboxSearchTerm,
@@ -121,6 +122,7 @@ export default function InboxScreen() {
   const [showAllFilters, setShowAllFilters] = useState(false);
   const archived = filter === 'Archived';
   const { show, dialogProps } = useAppDialog();
+  const undo = useUndoBar({ bottomOffset: TAB_BAR_CLEARANCE });
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['conversations', archived],
@@ -376,6 +378,7 @@ export default function InboxScreen() {
                   filter === 'Active' ? activityById.get(item.id) : undefined
                 }
                 showDialog={show}
+                showUndo={undo.show}
                 searchMatch={searchMatches.get(item.id)}
               />
             </EnterRow>
@@ -384,6 +387,7 @@ export default function InboxScreen() {
       )}
 
       <AppDialog {...dialogProps} />
+      {undo.element}
     </View>
   );
 }
@@ -581,10 +585,12 @@ function ConversationRow({
   archived,
   activityCount,
   showDialog,
+  showUndo,
   searchMatch,
 }: {
   conversation: Conversation;
   archived: boolean;
+  showUndo: UndoBarHandle['show'];
   searchMatch?: string;
   /** Messages in the last 24h — set only while the Active filter is on. */
   activityCount?: number;
@@ -632,6 +638,10 @@ function ConversationRow({
     swipeRef.current?.close();
     try {
       await setConversationArchived(conversation.id, !archived);
+      showUndo(
+        archived ? 'Conversation unarchived' : 'Conversation archived',
+        () => setConversationArchived(conversation.id, archived)
+      );
     } catch (e) {
       haptic.warn();
       showDialog({

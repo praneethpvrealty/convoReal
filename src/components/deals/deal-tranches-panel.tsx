@@ -163,6 +163,12 @@ export function DealTranchesPanel({
   }
 
   function remove(t: DealPaymentTranche) {
+    if (
+      !window.confirm(
+        `Remove "${t.label}"? Only a tranche with nothing received can be removed.`
+      )
+    )
+      return;
     void run(
       t.id,
       () =>

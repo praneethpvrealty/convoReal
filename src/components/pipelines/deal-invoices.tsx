@@ -63,7 +63,13 @@ export function DealInvoices({ dealId }: DealInvoicesProps) {
     }
   }
 
-  async function handleRemove(docId: string) {
+  async function handleRemove(docId: string, title: string) {
+    if (
+      !window.confirm(
+        `Remove this invoice? “${title}” stops being attached to this deal, and the file is deleted.`
+      )
+    )
+      return;
     setRemoving(docId);
     try {
       const res = await fetch(`/api/deals/${dealId}/documents/${docId}`, {
@@ -117,7 +123,7 @@ export function DealInvoices({ dealId }: DealInvoicesProps) {
               )}
               <button
                 type="button"
-                onClick={() => handleRemove(invoice.id)}
+                onClick={() => handleRemove(invoice.id, invoice.title)}
                 disabled={removing === invoice.id}
                 aria-label={`Remove ${invoice.title}`}
                 className="shrink-0 text-slate-500 hover:text-red-400 disabled:opacity-50"

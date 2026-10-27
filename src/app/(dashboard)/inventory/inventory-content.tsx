@@ -691,6 +691,12 @@ export default function InventoryPage() {
   }
 
   async function handleDuplicateClick(property: Property) {
+    if (
+      !window.confirm(
+        'Duplicate this listing? Creates an unpublished copy of the details — useful for another unit in the same society. Photos, documents and videos are not copied.'
+      )
+    )
+      return;
     try {
       const response = await fetch(`/api/properties/${property.id}/duplicate`, {
         method: 'POST',
@@ -1085,6 +1091,14 @@ export default function InventoryPage() {
   async function handleArchive(property: Property) {
     const newStatus = property.status === 'Archived' ? 'Available' : 'Archived';
     const label = newStatus === 'Archived' ? 'archived' : 'unarchived';
+    if (
+      !window.confirm(
+        newStatus === 'Archived'
+          ? 'Archive this property? Archived listings are hidden from searches and the showcase.'
+          : 'Unarchive this property? It becomes Available and shows in searches again.'
+      )
+    )
+      return;
     try {
       const response = await fetch(`/api/properties/${property.id}`, {
         method: 'PUT',
