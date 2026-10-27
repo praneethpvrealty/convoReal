@@ -5018,7 +5018,7 @@
         },
         {
           "id": "CPL-004",
-          "rule": "A staff question asking who showed interest in a listing — named by a # reference, a PROP code, its owner (\"Adithi's property\", \"property where Adithi is the owner\", an @ contact), a quoted or described title, or a time window alone — or which listings one contact engaged with, is answered from the account's own enquiries, identified showcase views, deals, site visits, journey items, likes and the lead's own Interested answers (listing_feedback, shown as Said interested and filterable by \"tapped interested\"), ahead of the preference-based contact search and without a model call: a bounded, latest-first list of contact-card or listing links on web and mobile, with the matching listing or contact links, no phone numbers, and never stored in the shared answer cache.",
+          "rule": "A staff question asking who showed interest in a listing — named by a # reference, a PROP code, its owner (\"Adithi's property\", \"property where Adithi is the owner\", an @ contact), a quoted or described title, or a time window alone — or which listings one contact engaged with, is answered from the account's own enquiries, identified showcase views, deals, site visits, journey items, likes and the lead's own Interested answers (listing_feedback, shown as Said interested and filterable by \"tapped interested\"), ahead of the preference-based contact search and without a model call: a bounded, latest-first list of contact-card or listing links on web and mobile, a Message link into the contact's WhatsApp thread beside each contact whose thread the caller can read under the conversations RLS policy (thread ids a SECURITY DEFINER function returns are re-checked through the caller's client, never handed out unfiltered), with the matching listing or contact links, no phone numbers, and never stored in the shared answer cache. A # or @ typed into the question is read even when the client sent no selected reference for it, so the answer never falls through to the model because a picker chip was lost.",
           "tests": [
             {
               "file": "src/lib/copilot/property-interest.test.ts",
@@ -5036,11 +5036,16 @@
             {
               "file": "src/lib/migrations/journey-lead-interest.test.ts",
               "case": "[CPL-004]"
+            },
+            {
+              "file": "src/lib/migrations/copilot-property-interest-thread.test.ts",
+              "case": "[CPL-004]"
             }
           ],
           "guards": [
             "supabase/migrations/20261010114941_copilot_property_interest.sql",
-            "supabase/migrations/20261024163200_copilot_property_interest_said_interested.sql"
+            "supabase/migrations/20261024163200_copilot_property_interest_said_interested.sql",
+            "supabase/migrations/20261027110000_copilot_property_interest_thread.sql"
           ]
         },
         {

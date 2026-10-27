@@ -13,6 +13,7 @@ import { isContactSearchQuestion } from './contact-search';
 const NOW = new Date('2026-10-10T06:00:00Z');
 const PROPERTY_ID = '22222222-2222-4222-8222-222222222222';
 const CONTACT_ID = '11111111-1111-4111-8111-111111111111';
+const CONVERSATION_ID = '44444444-4444-4444-8444-444444444444';
 
 function query(
   overrides: Partial<PropertyInterestQuery> = {}
@@ -52,6 +53,7 @@ function match(
     journeyStage: null,
     journeyStatus: null,
     lastAt: '2026-10-08T10:00:00Z',
+    conversationId: null,
     ...overrides,
   };
 }
@@ -112,6 +114,58 @@ describe('parsePropertyInterestQuestion', () => {
         NOW
       )
     ).toBeNull();
+  });
+
+  it.each([
+    [
+      'Get me all interested buyers for the #KHB Plot for sale in Suryanagar phase 2 property.',
+      'KHB Plot for sale in Suryanagar phase 2',
+      null,
+    ],
+    ['who viewed #Prime Corner this week', 'Prime Corner', 'this week'],
+    [
+      'who viewed #Prime Corner in the last 7 days',
+      'Prime Corner',
+      'in the last 7 days',
+    ],
+    [
+      'who enquired about #Tower 2 Phase 1 in the last 24 hours',
+      'Tower 2 Phase 1',
+      'in the last 24 hours',
+    ],
+    [
+      'which buyers enquired about #Prime Corner, today',
+      'Prime Corner',
+      'today',
+    ],
+  ])(
+    '[CPL-004] reads the typed # reference out of "%s" when the selected property never reached the server',
+    (message, probe, sinceLabel) => {
+      const parsed = parsePropertyInterestQuestion(message, [], NOW);
+      expect(parsed?.direction).toBe('contacts');
+      expect(parsed?.propertyIds).toEqual([]);
+      expect(parsed?.propertyProbe).toBe(probe);
+      expect(parsed?.ownerName).toBeNull();
+      expect(parsed?.sinceLabel).toBe(sinceLabel);
+    }
+  );
+
+  it('[CPL-004] reads typed @ references when the selected contact never reached the server', () => {
+    const owner = parsePropertyInterestQuestion(
+      "who enquired about @Adithi's property",
+      [],
+      NOW
+    );
+    expect(owner?.direction).toBe('contacts');
+    expect(owner?.ownerName).toBe('Adithi');
+    const subject = parsePropertyInterestQuestion(
+      'which listings did @Ramesh view?',
+      [],
+      NOW
+    );
+    expect(subject?.direction).toBe('properties');
+    expect(subject?.contactName).toBe('Ramesh');
+    expect(subject?.signal).toBe('viewed');
   });
 
   it('[CPL-004] prefers a selected # property over any name in the text', () => {
@@ -334,6 +388,84 @@ describe('buildPropertyInterestAnswer', () => {
       },
     ]);
     expect(JSON.stringify({ reply, links })).not.toMatch(/phone|\+91/i);
+  });
+
+  it('[CPL-004] adds a Message link into the WhatsApp thread beside each contact that has one', () => {
+    const { reply, links } = buildPropertyInterestAnswer(query(), {
+      properties: [property],
+      contacts: [],
+      matches: [
+        match({ conversationId: CONVERSATION_ID }),
+        match({
+          contactId: '33333333-3333-4333-8333-333333333333',
+          label: 'Suresh',
+          classification: null,
+          enquired: false,
+          viewsCount: 1,
+          lastAt: '2026-10-07T10:00:00Z',
+        }),
+      ],
+      total: 2,
+    });
+    expect(reply.split('\n').at(-1)).toBe(
+      'Tap a name to open the contact, or Message to open their WhatsApp thread.'
+    );
+    expect(links).toEqual([
+      {
+        label: 'Ramesh',
+        subtitle: 'Buyer · Enquired · 2 views',
+        navigateTo: `/contacts?contactId=${CONTACT_ID}`,
+      },
+      {
+        label: 'Message Ramesh',
+        subtitle: 'Open the WhatsApp thread',
+        navigateTo: `/inbox?c=${CONVERSATION_ID}`,
+      },
+      {
+        label: 'Suresh',
+        subtitle: 'Viewed',
+        navigateTo: '/contacts?contactId=33333333-3333-4333-8333-333333333333',
+      },
+      {
+        label: 'Open Prime Corner Commercial Plot for Sale',
+        subtitle: 'PROP-1023',
+        navigateTo: `/inventory?propertyId=${PROPERTY_ID}`,
+      },
+    ]);
+    expect(JSON.stringify({ reply, links })).not.toMatch(/phone|\+91/i);
+  });
+
+  it('[CPL-004] offers the thread on the reverse question too', () => {
+    const { reply, links } = buildPropertyInterestAnswer(
+      query({
+        direction: 'properties',
+        ownerName: null,
+        contactName: 'Ramesh',
+      }),
+      {
+        properties: [],
+        contacts: [
+          { id: CONTACT_ID, label: 'Ramesh', classification: 'Buyer' },
+        ],
+        matches: [match({ conversationId: CONVERSATION_ID })],
+        total: 1,
+      }
+    );
+    expect(reply.split('\n').at(-1)).toBe(
+      'Tap a listing to open it, or Message to open the WhatsApp thread.'
+    );
+    expect(links.slice(1)).toEqual([
+      {
+        label: 'Open Ramesh',
+        subtitle: 'Buyer',
+        navigateTo: `/contacts?contactId=${CONTACT_ID}`,
+      },
+      {
+        label: 'Message Ramesh',
+        subtitle: 'Open the WhatsApp thread',
+        navigateTo: `/inbox?c=${CONVERSATION_ID}`,
+      },
+    ]);
   });
 
   it('[CPL-004] points at the listing audience when more engaged than it can show', () => {

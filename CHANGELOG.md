@@ -19,12 +19,25 @@ than a written entry. Newest first.
 
 #### 27 October 2026
 
+- **The Helper answers "interested buyers for #…" inline, with a Message
+  link per contact.** Asking who showed interest in a listing typed as a `#`
+  reference ("Get me all interested buyers for the #KHB Plot for sale in
+  Suryanagar phase 2 property") used to fall through to the model and come
+  back as directions to Match Radar when the picker's selected chip did not
+  reach the server. The Helper now reads the typed `#` title (and a typed
+  `@` name) itself, lists the contacts in the thread, and puts a Message link
+  into each contact's WhatsApp thread beside their name on web and in the
+  app, so the agent can act on them from the answer. **Migration required**
+  (additive): `20261027110000_copilot_property_interest_thread.sql`
+  (CPL-004).
+
 - **Add to my inventory from the map side panel.** On a map-discovery
   showcase, a signed-in agent from another brokerage now sees the listings in
   the current map view listed under the map: the selected area's listings, or
   the pinned ones. Each row has its title, which opens the listing, and the
   "Add to my inventory" icon. Buyers, signed-out visitors and the brokerage's
   own team see the panel unchanged (PRP-053).
+
 - **Add to my inventory in the Deal Floor Quick Picks deck.** A signed-in
   agent swiping through Quick Picks on another brokerage's Deal Floor showcase
   now sees "Add to my inventory" on the current card, under its locality. It

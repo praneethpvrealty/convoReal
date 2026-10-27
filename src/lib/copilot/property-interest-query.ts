@@ -32,6 +32,7 @@ interface InterestRow {
   journey_stage: string | null;
   journey_status: string | null;
   last_at: string | null;
+  conversation_id: string | null;
   total: number | string | null;
 }
 
@@ -231,6 +232,21 @@ async function resolveContacts(
   }));
 }
 
+async function visibleConversationIds(
+  ctx: SearchContext,
+  ids: Array<string | null>
+): Promise<Set<string>> {
+  const wanted = [...new Set(ids.filter((id): id is string => !!id))];
+  if (!wanted.length) return new Set();
+  const { data, error } = await ctx.supabase
+    .from('conversations')
+    .select('id')
+    .eq('account_id', ctx.accountId)
+    .in('id', wanted.slice(0, PROPERTY_INTEREST_LIMIT));
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((row) => row.id as string));
+}
+
 export async function findCopilotPropertyInterest(
   ctx: SearchContext,
   query: PropertyInterestQuery
@@ -246,7 +262,7 @@ export async function findCopilotPropertyInterest(
   if (query.direction === 'properties' && !contacts.length) return empty;
 
   const { data, error } = await ctx.supabase.rpc(
-    'copilot_property_interest_v2',
+    'copilot_property_interest_v3',
     {
       p_account_id: ctx.accountId,
       p_property_ids: properties.map((property) => property.id),
@@ -258,6 +274,10 @@ export async function findCopilotPropertyInterest(
   );
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as InterestRow[];
+  const visibleThreads = await visibleConversationIds(
+    ctx,
+    rows.map((row) => row.conversation_id)
+  );
   const matches: PropertyInterestMatch[] = rows.map((row) => ({
     propertyId: row.property_id,
     propertyTitle: row.property_title,
@@ -274,6 +294,10 @@ export async function findCopilotPropertyInterest(
     journeyStage: row.journey_stage,
     journeyStatus: row.journey_status,
     lastAt: row.last_at,
+    conversationId:
+      row.conversation_id && visibleThreads.has(row.conversation_id)
+        ? row.conversation_id
+        : null,
   }));
   return {
     properties,

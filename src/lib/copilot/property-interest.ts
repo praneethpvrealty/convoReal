@@ -62,6 +62,8 @@ export interface PropertyInterestMatch {
   journeyStage: string | null;
   journeyStatus: string | null;
   lastAt: string | null;
+  /** The contact's WhatsApp thread, when one exists. */
+  conversationId: string | null;
 }
 
 export interface PropertyInterestResult {
@@ -131,6 +133,12 @@ const SUBJECT_WORDS =
   /\b(?:who|whom|which|what|list|find|any|how\s+many|contacts?|buyers?|leads?|clients?|customers?|people|tenants?|investors?|enquir(?:y|ies)|inquir(?:y|ies)|interests?|shortlist|propert(?:y|ies)|listings?|kaun|kon|koi|kisne|jisne)\b/i;
 const NAVIGATION_COMMAND =
   /^\s*(?:please\s+)?(?:open|show|view|take\s+me\s+to|go\s+to)\s+(?:me\s+)?(?:the\s+)?[#@&]/i;
+const HASH_TOKEN = /(?:^|\s)#([^#@&\n?!;,]{2,100})/u;
+const PROBE_TAIL = new RegExp(
+  String.raw`^(?:${PROPERTY_NOUN.slice(3, -1)}|the|a|an|this|that|these|those|my|our|your|today|yesterday|week|month|days?|hours?|last|past|previous|recently|lately|please|now|again|all|in|for|about|on|of|to|and|or|from|at|with|since|during|aaj|kal)$`,
+  'iu'
+);
+const MENTION_SYMBOL = /(^|[\s(])[@&](?=\S)/gu;
 const CONTACT_SUBJECT_FORMS: RegExp[] = [
   new RegExp(
     String.raw`\b(?:what|which)\s+(?:all\s+)?(?:has|have|had|did|does|do|is|was|are|were)\s+${NAME}\s+(?:been\s+)?(?:enquired|enquiring|enquire|inquired|inquiring|inquire|viewed|viewing|view|visited|visiting|visit|shortlisted|shortlisting|shortlist|liked|likes|seen|see|saw|asked|asking|ask|responded|engaged|showed|shown|show|expressed|looked|looking|opened|open|checked|check|interested)\b`,
@@ -277,6 +285,23 @@ function readPropertyProbe(
   return /[\p{L}\p{N}]/u.test(probe) ? probe.slice(0, 80) : null;
 }
 
+function readHashProbe(text: string): string | null {
+  const match = HASH_TOKEN.exec(text);
+  if (!match) return null;
+  const words = SINCE_FORMS.reduce(
+    (token, form) => token.replace(form.pattern, ' '),
+    match[1]
+  )
+    .replace(/[.\s]+$/u, '')
+    .split(/\s+/)
+    .filter(Boolean);
+  while (words.length && PROBE_TAIL.test(words[words.length - 1])) {
+    words.pop();
+  }
+  const probe = words.join(' ').slice(0, 80);
+  return /[\p{L}\p{N}]/u.test(probe) ? probe : null;
+}
+
 function readContactSubject(text: string): string | null {
   for (const form of CONTACT_SUBJECT_FORMS) {
     const match = form.exec(text);
@@ -296,9 +321,10 @@ export function parsePropertyInterestQuestion(
   if (!text || text.length > 500) return null;
   if (looksLikeNonSearchRequest(text)) return null;
   if (!SUBJECT_WORDS.test(text) || NAVIGATION_COMMAND.test(text)) return null;
+  const plain = text.replace(MENTION_SYMBOL, '$1');
   const engaged = ENGAGEMENT.test(text);
   if (OWNER_QUESTION.test(text)) return null;
-  if (!engaged && !(SUBJECT_WORDS.test(text) && readOwnerName(text))) {
+  if (!engaged && !(SUBJECT_WORDS.test(text) && readOwnerName(plain))) {
     return null;
   }
 
@@ -314,13 +340,13 @@ export function parsePropertyInterestQuestion(
     across: false,
   };
 
-  const contactSubject = readContactSubject(text);
+  const contactSubject = readContactSubject(plain);
   if (
     contactSubject ||
     (contactEntities.length === 1 &&
       propertyEntities.length === 0 &&
       hasPropertyNoun &&
-      !OWNER_POSSESSIVE.test(text))
+      !OWNER_POSSESSIVE.test(plain))
   ) {
     return {
       direction: 'properties',
@@ -373,16 +399,30 @@ export function parsePropertyInterestQuestion(
     };
   }
 
-  const ownerName = readOwnerName(text);
+  const hashProbe = readHashProbe(text);
+  if (hashProbe) {
+    return {
+      direction: 'contacts',
+      propertyIds: [],
+      ownerContactIds: [],
+      ownerName: null,
+      propertyProbe: hashProbe,
+      contactIds: [],
+      contactName: null,
+      ...base,
+    };
+  }
+
+  const ownerName = readOwnerName(plain);
   const propertyProbe = ownerName
     ? null
-    : readPropertyProbe(text, PAST_ENGAGEMENT.test(text));
+    : readPropertyProbe(plain, PAST_ENGAGEMENT.test(text));
   const unresolved =
     !ownerName &&
     !propertyProbe &&
     engaged &&
     SUBJECT_WORDS.test(text) &&
-    (base.since != null || UNNAMED_PROPERTY.test(text));
+    (base.since != null || UNNAMED_PROPERTY.test(plain));
   if (!ownerName && !propertyProbe && !unresolved) return null;
   return {
     direction: 'contacts',
@@ -393,7 +433,7 @@ export function parsePropertyInterestQuestion(
     contactIds: [],
     contactName: null,
     ...base,
-    across: unresolved && base.since != null && !UNNAMED_PROPERTY.test(text),
+    across: unresolved && base.since != null && !UNNAMED_PROPERTY.test(plain),
   };
 }
 
@@ -508,6 +548,29 @@ function describeSubject(query: PropertyInterestQuery): string {
   return 'that listing';
 }
 
+function messageLink(
+  label: string,
+  conversationId: string | null
+): CopilotNavigationLink | null {
+  if (!conversationId) return null;
+  return {
+    label: `Message ${label}`,
+    subtitle: 'Open the WhatsApp thread',
+    navigateTo: `/inbox?c=${encodeURIComponent(conversationId)}`,
+  };
+}
+
+function footer(noun: 'name' | 'listing', canMessage: boolean): string {
+  if (noun === 'listing') {
+    return canMessage
+      ? 'Tap a listing to open it, or Message to open the WhatsApp thread.'
+      : 'Tap a listing to open it.';
+  }
+  return canMessage
+    ? 'Tap a name to open the contact, or Message to open their WhatsApp thread.'
+    : 'Tap a name to open the contact.';
+}
+
 function audienceLink(propertyId: string): CopilotNavigationLink {
   return {
     label: 'Listing audience',
@@ -604,13 +667,16 @@ function contactsAnswer(
       ...(subtitle ? { subtitle } : {}),
       navigateTo: entityHref('contact', match.contactId),
     });
+    const message = messageLink(match.label, match.conversationId);
+    if (message) links.push(message);
   }
   if (result.total > shown && result.properties.length === 1) {
     links.push(audienceLink(result.properties[0].id));
   }
   links.push(...propertyLinks);
+  const canMessage = result.matches.some((match) => match.conversationId);
   return {
-    reply: `${headline}\n${lines.join('\n')}\n\nTap a name to open the contact.`,
+    reply: `${headline}\n${lines.join('\n')}\n\n${footer('name', canMessage)}`,
     links,
   };
 }
@@ -630,13 +696,25 @@ function propertiesAnswer(
     result.contacts.length === 1
       ? result.contacts[0].label
       : `${result.contacts.length} contacts named ${query.contactName ?? 'that'}`;
+  const threads = new Map<string, string>(
+    result.matches.flatMap((match) =>
+      match.conversationId ? [[match.contactId, match.conversationId]] : []
+    )
+  );
   const contactLinks: CopilotNavigationLink[] = result.contacts
     .slice(0, 3)
-    .map((contact) => ({
-      label: `Open ${contact.label}`,
-      subtitle: contact.classification ?? undefined,
-      navigateTo: entityHref('contact', contact.id),
-    }));
+    .flatMap((contact) => {
+      const open: CopilotNavigationLink = {
+        label: `Open ${contact.label}`,
+        subtitle: contact.classification ?? undefined,
+        navigateTo: entityHref('contact', contact.id),
+      };
+      const message = messageLink(
+        contact.label,
+        threads.get(contact.id) ?? null
+      );
+      return message ? [open, message] : [open];
+    });
   if (result.total === 0 || !result.matches.length) {
     return {
       reply: `${who} has not ${perfectSignalVerb(query.signal)} any listing${when} yet.`,
@@ -678,7 +756,7 @@ function propertiesAnswer(
   }
   links.push(...contactLinks);
   return {
-    reply: `${headline}\n${lines.join('\n')}\n\nTap a listing to open it.`,
+    reply: `${headline}\n${lines.join('\n')}\n\n${footer('listing', threads.size > 0)}`,
     links,
   };
 }

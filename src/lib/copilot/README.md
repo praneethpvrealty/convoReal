@@ -52,7 +52,12 @@ property" as a locality — and names the listing from a `#` reference, a
 `PROP-…` code, its owner (a possessive, "property where X is the owner",
 "owned by X", an `@` contact), a quoted or `called …` title, a described
 one ("the Banashankari commercial plot"), or nothing but a time window
-("who enquired today" reads every listing since IST midnight). The verb
+("who enquired today" reads every listing since IST midnight). A `#` or
+`@` typed into the text is read even when the client sent no selected
+reference for it — "interested buyers for the #KHB Plot for sale in
+Suryanagar phase 2 property" looks the title up, and "@Ramesh" is read
+as the name — so the answer never falls through to the model because a
+picker chip was lost. The verb
 narrows the signal (enquired, viewed, shortlisted, site visit, liked) and
 "this week" / "last 7 days" the window. The reverse form — "what has
 Ramesh enquired about?", "which listings did @Ramesh view?" — lists the
@@ -65,10 +70,19 @@ function guarded by `is_account_member()` that unions
 `contact_property_inquiries`, identified `showcase_events` views, `deals`,
 site-visit `appointments`, `journey_items` (with stage and drop state) and
 `property_likes` per (listing, contact), latest first, never the listing's
-own owner. The answer carries one `links[]` entry per contact (or per
-listing in the reverse form), the listing itself, and the listing-audience
-picker when more engaged than it can show — no phone numbers, no model
-call, and nothing enters the shared cache. A question that names no
+own owner, each row with the contact's WhatsApp thread (`conversations`,
+one per contact per account since migration 229). The answer carries one
+`links[]` entry per contact (or per listing in the reverse form), a
+`Message …` link into that thread (`/inbox?c=…` on web, the native
+conversation screen on mobile) for every contact whose thread the caller
+can open — the function is `SECURITY DEFINER`, so the query layer re-reads
+the returned thread ids through the caller's RLS client and keeps only the
+ones `conversations_select` (migration 162) lets that agent see — the
+listing itself, and the listing-audience picker when more engaged than it
+can show — no phone numbers, no model call, and nothing enters the shared
+cache. The contact and thread links are how staff act on the answer
+without leaving the Helper's context: tap the name for the card, Message
+to reply on WhatsApp. A question that names no
 listing ("who viewed my property") asks for one rather than guessing.
 
 ## Confirmed actions
