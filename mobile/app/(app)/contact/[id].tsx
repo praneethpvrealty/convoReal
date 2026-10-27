@@ -58,12 +58,9 @@ import {
 import { noteWrite, referrerFields } from '@/lib/contact-form';
 import { contactFullName } from '@/lib/contact-name';
 import { storagePublicUrl } from '@/lib/storage-url';
-import {
-  auditDateTime,
-  cleanPhoneInput,
-  formatBudgetRange,
-  formatInr,
-} from '@/lib/format';
+import { useAccountCountryCode } from '@/lib/use-account-currency';
+import { contactPhone } from '@shared/lib/format/phone';
+import { auditDateTime, formatBudgetRange, formatInr } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { mapPortalAd } from '@/lib/portal-ad-map';
 import { haptic } from '@/lib/haptics';
@@ -1719,6 +1716,7 @@ function ContactEditor({
   const [askedChannel, setAskedChannel] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const countryCode = useAccountCountryCode();
 
   const showPrefs = Boolean(
     classification && BUYER_PREF_CLASSIFICATIONS.includes(classification)
@@ -1746,7 +1744,7 @@ function ContactEditor({
     const typedPhones = secondaryPhones.map((p) => p.trim()).filter(Boolean);
     const normalizedPhones: string[] = [];
     for (const entry of typedPhones) {
-      const normalized = cleanPhoneInput(entry);
+      const normalized = contactPhone(entry, countryCode);
       if (!normalized) {
         setError(
           `"${entry}" doesn\u2019t look like a phone number \u2014 use 10 digits, or include the country code.`
@@ -1987,7 +1985,7 @@ function ContactEditor({
               <Pressable
                 hitSlop={10}
                 onPress={() => {
-                  const candidate = cleanPhoneInput(value);
+                  const candidate = contactPhone(value, countryCode);
                   if (!candidate) {
                     setError(
                       `"${value}" doesn\u2019t look like a phone number \u2014 use 10 digits, or include the country code.`

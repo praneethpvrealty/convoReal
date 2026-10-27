@@ -36,6 +36,8 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Deal, PipelineStage } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
+import { useAccountCurrency } from '@/lib/use-account-currency';
+import { CURRENCY_SYMBOLS } from '@shared/lib/format/currency';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import { dealStatusForStage, isLostStage } from '@/lib/stage-semantics';
 import {
@@ -133,6 +135,8 @@ function DealForm({
 }) {
   const { colors, fonts: f } = useTheme();
   const dialog = useAppDialog();
+  const accountCurrency = useAccountCurrency();
+  const dealCurrency = deal?.currency || accountCurrency;
 
   const [title, setTitle] = useState(deal?.title ?? '');
   const [value, setValue] = useState(deal?.value ? String(deal.value) : '');
@@ -229,7 +233,7 @@ function DealForm({
         body: JSON.stringify({
           title: title.trim(),
           value: parseFloat(value) || 0,
-          currency: deal?.currency || 'INR',
+          currency: dealCurrency,
           contact_id: contact.id,
           pipeline_id: pipelineId,
           stage_id: selectedStage.id,
@@ -327,7 +331,7 @@ function DealForm({
         />
 
         <TextField
-          placeholder="Deal value (₹)"
+          placeholder={`Deal value (${CURRENCY_SYMBOLS[dealCurrency] ?? dealCurrency})`}
           keyboardType="numeric"
           value={value}
           onChangeText={setValue}

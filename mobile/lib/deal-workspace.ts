@@ -994,6 +994,7 @@ export interface TransactionIndexRow
   id: string;
   status: 'open' | 'won' | 'lost';
   value: number | null;
+  currency: string | null;
   stage_name: string | null;
   stage_color: string | null;
   group_name: string | null;

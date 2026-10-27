@@ -1,4 +1,4 @@
-import { cleanPhoneInput } from './format';
+import { contactPhone } from '@shared/lib/format/phone';
 import type { Classification } from './types';
 
 export interface QuickAddInput {
@@ -18,11 +18,14 @@ export interface QuickAddPayload {
 }
 
 export function quickAddContactPayload(
-  input: QuickAddInput
+  input: QuickAddInput,
+  countryCode = '91'
 ): { error: string } | { payload: QuickAddPayload } {
   const name = input.name.trim();
   if (!name) return { error: 'Enter the contact’s name' };
-  const cleanPhone = input.phone.trim() ? cleanPhoneInput(input.phone) : null;
+  const cleanPhone = input.phone.trim()
+    ? contactPhone(input.phone, countryCode)
+    : null;
   const cleanEmail = input.email.trim().toLowerCase();
   if (input.phone.trim() && !cleanPhone) {
     return {

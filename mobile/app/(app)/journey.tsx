@@ -46,7 +46,9 @@ import { useAuthStore } from '@/lib/auth-store';
 import { buildCheckInMessage } from '@/lib/checkin-message';
 import { copilotFabClearance } from '@/lib/copilot-fab';
 import { moveJourneyItem } from '@/lib/deal-workspace-api';
-import { auditDate, formatInr } from '@/lib/format';
+import { auditDate } from '@/lib/format';
+import { useAccountCurrency } from '@/lib/use-account-currency';
+import { formatDealAmount } from '@shared/lib/pipelines/deal-money';
 import { haptic } from '@/lib/haptics';
 import {
   JOURNEY_ITEM_SOURCE_LABELS,
@@ -143,6 +145,7 @@ export function JourneyBody() {
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const profile = useAuthStore((state) => state.profile);
+  const accountCurrency = useAccountCurrency();
   const accountId = profile?.account_id;
   const canEdit = Boolean(profile && profile.account_role !== 'viewer');
   const { show, close, dialogProps } = useAppDialog();
@@ -2145,10 +2148,11 @@ export function JourneyBody() {
               }}
             >
               Calculated brokerage:{' '}
-              {formatInr(
+              {formatDealAmount(
                 brokerageType === 'fixed'
                   ? Number(brokerageValue)
-                  : (brokeragePrompt.dealValue * Number(brokerageValue)) / 100
+                  : (brokeragePrompt.dealValue * Number(brokerageValue)) / 100,
+                accountCurrency
               )}
             </Text>
           ) : null}

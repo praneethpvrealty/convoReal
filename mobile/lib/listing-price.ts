@@ -19,7 +19,10 @@ export interface ListingPrice {
   note: string | null;
 }
 
-export function listingPrice(property: Property): ListingPrice {
+export function listingPrice(
+  property: Property,
+  period = '/month'
+): ListingPrice {
   if (
     property.listing_type === 'Rent' ||
     property.listing_type === 'Built to Suit'
@@ -27,7 +30,7 @@ export function listingPrice(property: Property): ListingPrice {
     const rent = property.rent_per_month;
     return {
       label: 'RENT',
-      value: rent ? `${formatInr(rent)}/month` : '—',
+      value: rent ? `${formatInr(rent)}${period}` : '—',
       note: null,
     };
   }

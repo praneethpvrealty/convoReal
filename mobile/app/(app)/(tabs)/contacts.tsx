@@ -68,6 +68,7 @@ import {
 } from '@/lib/contact-filters';
 import { interestChipLabel, type InterestFilter } from '@/lib/contact-interest';
 import { quickAddContactPayload } from '@/lib/contact-form';
+import { useAccountCountryCode } from '@/lib/use-account-currency';
 import { friendlyError } from '@/lib/errors';
 import { splitImportedName } from '@/lib/name-tag-split';
 import { chatListTime, cleanPhoneInput } from '@/lib/format';
@@ -1128,6 +1129,7 @@ function QuickAddContact({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [classification, setClassification] = useState<Classification>('Buyer');
+  const countryCode = useAccountCountryCode();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -1141,13 +1143,16 @@ function QuickAddContact({
   }
 
   async function save() {
-    const result = quickAddContactPayload({
-      name,
-      nameTag,
-      phone,
-      email,
-      classification,
-    });
+    const result = quickAddContactPayload(
+      {
+        name,
+        nameTag,
+        phone,
+        email,
+        classification,
+      },
+      countryCode
+    );
     if ('error' in result) {
       setError(result.error);
       return;

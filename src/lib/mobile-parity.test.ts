@@ -2751,7 +2751,7 @@ describe('the mobile deals screen uses the shared brokerage rule', () => {
     // The screen used to carry its own copy of brokerageAmount. It now
     // imports the web rule at runtime, so there is no copy left to drift.
     expect(mobile).toContain("from '@shared/lib/pipelines/deal-money'");
-    expect(mobile).toContain('dealFeeLabel(deal)');
+    expect(mobile).toContain('dealFeeLabel(deal, { currency })');
     expect(mobile).toContain('stageTotalsLabel(stageTotals(stageDeals)');
     expect(mobile).not.toContain('function dealBrokerage');
     expect(webSource('lib/pipelines/deal-money.ts')).toContain(
