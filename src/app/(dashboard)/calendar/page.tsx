@@ -2087,6 +2087,7 @@ export default function CalendarPage() {
                       Link Contacts (buyer, agent…)
                     </label>
                     <SearchableContactMultiSelect
+                      previewable
                       contacts={contacts}
                       value={apptContactIds}
                       onChange={handleApptContactsChange}

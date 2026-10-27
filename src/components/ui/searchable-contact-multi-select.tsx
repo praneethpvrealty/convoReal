@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronDown, X, Check } from 'lucide-react';
+import { Search, ChevronDown, X, Check, Eye, EyeOff } from 'lucide-react';
+import { ContactPeekLine } from '@/components/contacts/contact-peek-line';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { useAnchoredDropdown } from '@/hooks/useAnchoredDropdown';
@@ -22,6 +23,7 @@ interface SearchableContactMultiSelectProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  previewable?: boolean;
 }
 
 /** Multi-pick variant of SearchableContactSelect — attach every party
@@ -34,9 +36,11 @@ export function SearchableContactMultiSelect({
   placeholder = 'Select contacts...',
   className = '',
   disabled = false,
+  previewable = false,
 }: SearchableContactMultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [peekId, setPeekId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -163,35 +167,59 @@ export function SearchableContactMultiSelect({
           ) : (
             filteredContacts.map((contact) => {
               const isSelected = value.includes(contact.id);
+              const peeking = previewable && peekId === contact.id;
               return (
-                <div
-                  key={contact.id}
-                  onClick={() => toggleContact(contact.id)}
-                  className={`flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-xs transition-colors select-none hover:bg-slate-800 ${
-                    isSelected
-                      ? 'bg-primary/10 text-primary hover:bg-primary/15 font-bold'
-                      : 'text-slate-200 hover:text-white'
-                  }`}
-                >
-                  <div className="min-w-0 flex-1 pr-3">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <span className="block min-w-0 flex-1 truncate font-bold">
-                        {contactFullName(contact)}
-                      </span>
-                      <NameTagBadge tag={contact.name_tag} />
-                    </div>
-                    <p className="text-slate-450 mt-0.5 truncate text-[10px] font-medium">
-                      {contact.classification && (
-                        <span className="mr-1.5 rounded border border-slate-700 px-1 py-px text-slate-300">
-                          {contact.classification}
+                <div key={contact.id} className="space-y-1">
+                  <div
+                    onClick={() => toggleContact(contact.id)}
+                    className={`flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-xs transition-colors select-none hover:bg-slate-800 ${
+                      isSelected
+                        ? 'bg-primary/10 text-primary hover:bg-primary/15 font-bold'
+                        : 'text-slate-200 hover:text-white'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1 pr-3">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <span className="block min-w-0 flex-1 truncate font-bold">
+                          {contactFullName(contact)}
                         </span>
-                      )}
-                      📞 {contact.phone ?? '—'}
-                    </p>
+                        <NameTagBadge tag={contact.name_tag} />
+                      </div>
+                      <p className="text-slate-450 mt-0.5 truncate text-[10px] font-medium">
+                        {contact.classification && (
+                          <span className="mr-1.5 rounded border border-slate-700 px-1 py-px text-slate-300">
+                            {contact.classification}
+                          </span>
+                        )}
+                        📞 {contact.phone ?? '—'}
+                      </p>
+                    </div>
+                    {previewable && (
+                      <button
+                        type="button"
+                        aria-label={
+                          peeking
+                            ? `Hide preview of ${contactFullName(contact)}`
+                            : `Preview ${contactFullName(contact)}`
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPeekId(peeking ? null : contact.id);
+                        }}
+                        className="mr-2 shrink-0 text-slate-500 hover:text-white"
+                      >
+                        {peeking ? (
+                          <EyeOff className="size-3.5" />
+                        ) : (
+                          <Eye className="size-3.5" />
+                        )}
+                      </button>
+                    )}
+                    {isSelected && (
+                      <Check className="text-primary mt-0.5 size-3.5 shrink-0" />
+                    )}
                   </div>
-                  {isSelected && (
-                    <Check className="text-primary mt-0.5 size-3.5 shrink-0" />
-                  )}
+                  {peeking && <ContactPeekLine contactId={contact.id} />}
                 </div>
               );
             })

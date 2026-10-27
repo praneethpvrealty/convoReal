@@ -261,6 +261,7 @@ export function ScheduleDialog({
                 Link Contacts (buyer, agent…)
               </Label>
               <SearchableContactMultiSelect
+                previewable
                 contacts={contacts}
                 value={selectedContactIds}
                 onChange={handleContactsChange}

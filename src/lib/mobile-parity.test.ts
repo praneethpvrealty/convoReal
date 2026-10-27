@@ -5435,6 +5435,10 @@ describe('[CAL-016] the participant picker tells same-name contacts apart', () =
     expect(picker).toContain('<NameTagBadge tag={contact.name_tag} />');
     expect(picker).toContain('{contact.classification}');
     expect(picker).toContain('{contact.phone ??');
+    expect(picker).toContain('<ContactPeekLine contactId={contact.id} />');
+    expect(webSource('components/contacts/contact-peek-line.tsx')).toContain(
+      '.select(CONTACT_LIST_COLUMNS)'
+    );
     for (const source of [
       webSource('app/(dashboard)/calendar/page.tsx'),
       webSource('components/calendar/schedule-dialog.tsx'),
@@ -5442,6 +5446,7 @@ describe('[CAL-016] the participant picker tells same-name contacts apart', () =
       expect(source).toContain(
         "'id, name, phone, last_inquired_property_id, name_tag, classification'"
       );
+      expect(source).toContain('previewable');
     }
   });
 });
