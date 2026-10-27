@@ -5415,3 +5415,33 @@ describe('[CAL-015] Google Calendar sync is connected and managed the same way o
     }
   });
 });
+
+describe('[CAL-016] the participant picker tells same-name contacts apart', () => {
+  it('[CAL-016] shows name tag, classification, phone and a preview on mobile', () => {
+    const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+    expect(mobileCalendar).toContain('.select(CONTACT_LIST_COLUMNS)');
+    expect(mobileCalendar).toContain('<ParticipantMeta');
+    expect(mobileCalendar).toContain('<ContactPeekCard');
+    expect(mobileCalendar).toContain('<Tag label={contact.name_tag} />');
+    expect(mobileSource('app/(app)/(tabs)/contacts.tsx')).toContain(
+      "import { ContactPeekCard } from '@/components/contact-peek-card';"
+    );
+  });
+
+  it('[CAL-016] shows name tag, classification and phone in the web picker', () => {
+    const picker = webSource(
+      'components/ui/searchable-contact-multi-select.tsx'
+    );
+    expect(picker).toContain('<NameTagBadge tag={contact.name_tag} />');
+    expect(picker).toContain('{contact.classification}');
+    expect(picker).toContain('{contact.phone ??');
+    for (const source of [
+      webSource('app/(dashboard)/calendar/page.tsx'),
+      webSource('components/calendar/schedule-dialog.tsx'),
+    ]) {
+      expect(source).toContain(
+        "'id, name, phone, last_inquired_property_id, name_tag, classification'"
+      );
+    }
+  });
+});

@@ -12,6 +12,7 @@ interface Contact {
   name: string;
   phone: string | null;
   name_tag?: string | null;
+  classification?: string | null;
 }
 
 interface SearchableContactMultiSelectProps {
@@ -57,7 +58,10 @@ export function SearchableContactMultiSelect({
     return contacts.filter((c) => {
       const name = contactFullName(c).toLowerCase();
       const phone = (c.phone || '').toLowerCase();
-      return name.includes(query) || phone.includes(query);
+      const tag = (c.name_tag || '').toLowerCase();
+      return (
+        name.includes(query) || phone.includes(query) || tag.includes(query)
+      );
     });
   }, [search, contacts]);
 
@@ -177,6 +181,11 @@ export function SearchableContactMultiSelect({
                       <NameTagBadge tag={contact.name_tag} />
                     </div>
                     <p className="text-slate-450 mt-0.5 truncate text-[10px] font-medium">
+                      {contact.classification && (
+                        <span className="mr-1.5 rounded border border-slate-700 px-1 py-px text-slate-300">
+                          {contact.classification}
+                        </span>
+                      )}
                       📞 {contact.phone ?? '—'}
                     </p>
                   </div>
