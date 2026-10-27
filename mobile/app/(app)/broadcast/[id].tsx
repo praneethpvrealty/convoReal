@@ -174,7 +174,9 @@ export default function BroadcastDetailScreen() {
   const filtered =
     filter === 'all' ? all : all.filter((r) => r.status === filter);
   const total = broadcast?.total_recipients ?? 0;
-  const showRetry = canManage && hasRetryableRecipients(all);
+  const showRetry =
+    canManage &&
+    (hasRetryableRecipients(all) || (broadcast?.failed_count ?? 0) > 0);
 
   const header = (
     <View style={{ gap: spacing.md, paddingTop: spacing.md }}>
