@@ -54,6 +54,43 @@ export function dealFee(deal: DealMoneyInput): number | null {
   return netOfPayouts(gross, toNumber(deal.co_broker_payout_total));
 }
 
+export interface DealBrokerageShare {
+  /** What the brokerage collects on the deal; 0 when none is recorded. */
+  brokerage: number;
+  /** `12% of the deal` for a percentage brokerage, else null. */
+  rateHint: string | null;
+  /** The sum owed to co-brokers. */
+  payouts: number;
+  /** The brokerage's own share, or null while no co-broker is paid. */
+  share: number | null;
+}
+
+/**
+ * The Brokerage and Your share rows of the deal overview's Money card,
+ * computed once so web and mobile print the same figures.
+ */
+export function dealBrokerageShare(deal: DealMoneyInput): DealBrokerageShare {
+  const brokerage =
+    deal.brokerage_amount !== null && deal.brokerage_amount !== undefined
+      ? toNumber(deal.brokerage_amount)
+      : brokerageAmount({
+          dealValue: deal.value,
+          type: deal.brokerage_type,
+          value: deal.brokerage_value,
+        });
+  const rate = toNumber(deal.brokerage_value);
+  const payouts = toNumber(deal.co_broker_payout_total);
+  return {
+    brokerage,
+    rateHint:
+      deal.brokerage_type === 'percentage' && rate
+        ? `${rate}% of the deal`
+        : null,
+    payouts,
+    share: payouts > 0 ? netOfPayouts(brokerage, payouts) : null,
+  };
+}
+
 export interface StageTotals {
   count: number;
   value: number;

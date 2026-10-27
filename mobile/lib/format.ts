@@ -124,3 +124,9 @@ export function parseDateOnly(value: string | null | undefined): Date | null {
   if (!match) return null;
   return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 }
+
+/** A `YYYY-MM-DD` column in the same day-month-year form as `auditDate`. */
+export function dateOnlyLabel(value: string | null | undefined): string {
+  const date = parseDateOnly(value);
+  return date ? date.toLocaleDateString('en-IN', AUDIT_DATE_OPTIONS) : '—';
+}

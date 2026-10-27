@@ -172,6 +172,7 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
           <Stat label="Sent" value={broadcast.sent_count} />
           <Stat label="Delivered" value={delivered} />
           <Stat label="Read" value={broadcast.read_count} />
+          <Stat label="Replied" value={broadcast.replied_count} />
           <Stat
             label="Failed"
             value={broadcast.failed_count}

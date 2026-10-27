@@ -6073,6 +6073,18 @@
             { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-005]" },
             { "file": "src/lib/format/list-time.test.ts", "case": "[UIX-005]" }
           ]
+        },
+        {
+          "id": "UIX-007",
+          "rule": "Broadcasts and Deals show the same information and actions on web and mobile. A broadcast's detail shows six counts (Total Recipients, Sent, Delivered, Read, Replied, Failed), a recipient status filter listing RECIPIENT_STATUS_FILTERS from src/lib/broadcast-status.ts (Pending, Sent, Delivered, Read, Replied, Failed, Rate Limited), Retry failed through POST /api/broadcasts/[id]/retry-failed while any recipient failed or was rate-limited (hasRetryableRecipients), summarised by retryFailedSummary, and Delete confirmed with Delete this broadcast?; neither runs while the broadcast is sending, and mobile offers them only to an agent or above who is not read-only, the members the route and the broadcasts RLS accept. The mobile broadcast list card shows the Replied count. The deal overview's Money card reads dealBrokerageShare from src/lib/pipelines/deal-money.ts on both surfaces: Brokerage as an amount (₹0 when none is recorded) with the N% of the deal hint, Your share After ₹X to co-brokers while payouts exist, Token Not yet when none is recorded, and Payment schedule No tranches yet when it is empty; its empty states read Nothing to do on this deal and Nobody on this deal yet. A deals board card shows the expected close date and a Won or Lost label, never the raw uppercased status.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-007]" },
+            { "file": "src/lib/broadcast-status.test.ts", "case": "[UIX-007]" },
+            {
+              "file": "src/lib/pipelines/deal-money.test.ts",
+              "case": "[UIX-007]"
+            }
+          ]
         }
       ]
     }

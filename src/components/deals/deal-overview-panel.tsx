@@ -7,7 +7,6 @@ import { ArrowRight, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { netOfPayouts } from '@/lib/deals/co-broking';
 import {
   DEAL_EVENT_LABELS,
   timelineActorLabel,
@@ -27,8 +26,10 @@ import {
   type DealStakeholder,
 } from '@/lib/deals/stakeholders';
 import type { TrancheSummary } from '@/lib/deals/tranches';
-import { brokerageAmount } from '@/lib/pipelines/brokerage';
-import { formatDealAmount } from '@/lib/pipelines/deal-money';
+import {
+  dealBrokerageShare,
+  formatDealAmount,
+} from '@/lib/pipelines/deal-money';
 import { cn } from '@/lib/utils';
 
 import type { FinancialsResponse } from './deal-financials-panel';
@@ -235,14 +236,12 @@ export function DealOverviewPanel({
   const latestEvent = events.data?.[0] ?? null;
   const people = stakeholders.data ?? [];
 
-  const totalBrokerage =
-    deal.brokerage_amount ??
-    brokerageAmount({
-      dealValue: deal.value,
-      type: deal.brokerage_type,
-      value: deal.brokerage_value,
-    });
-  const coBrokerPayouts = Number(deal.co_broker_payout_total ?? 0);
+  const {
+    brokerage: totalBrokerage,
+    rateHint,
+    payouts: coBrokerPayouts,
+    share: yourShare,
+  } = dealBrokerageShare(deal);
   const collected = Number(financials.data?.brokerage_received_amount ?? 0);
   const token = financials.data?.token;
   const tokenSafe = financials.data?.token_source === 'token_safe';
@@ -445,19 +444,12 @@ export function DealOverviewPanel({
           <MoneyRow
             label="Brokerage"
             value={formatDealAmount(totalBrokerage, currency)}
-            hint={
-              deal.brokerage_type === 'percentage' && deal.brokerage_value
-                ? `${deal.brokerage_value}% of the deal`
-                : undefined
-            }
+            hint={rateHint ?? undefined}
           />
-          {coBrokerPayouts > 0 && (
+          {yourShare !== null && (
             <MoneyRow
               label="Your share"
-              value={formatDealAmount(
-                netOfPayouts(totalBrokerage, coBrokerPayouts),
-                currency
-              )}
+              value={formatDealAmount(yourShare, currency)}
               hint={`After ${formatDealAmount(coBrokerPayouts, currency)} to co-brokers`}
             />
           )}
