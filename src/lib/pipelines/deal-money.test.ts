@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  dealBrokerageShare,
   dealCardCopy,
   dealFee,
   dealFeeLabel,
@@ -147,5 +148,68 @@ describe('[PIPE-004] a card names the contact and the property once', () => {
     expect(
       dealCardCopy({ title: 'Walk-in enquiry', contact: null, property: null })
     ).toEqual({ headline: 'Walk-in enquiry', subline: null });
+  });
+});
+
+describe('[UIX-007] the overview Money card reads one brokerage and share rule', () => {
+  it('nets the co-broker payouts off the brokerage for Your share', () => {
+    expect(
+      dealBrokerageShare({
+        value: 10000000,
+        brokerage_amount: 200000,
+        co_broker_payout_total: 50000,
+      })
+    ).toEqual({
+      brokerage: 200000,
+      rateHint: null,
+      payouts: 50000,
+      share: 150000,
+    });
+  });
+
+  it('has no share while no co-broker is owed anything', () => {
+    expect(
+      dealBrokerageShare({ value: 10000000, brokerage_amount: 200000 }).share
+    ).toBeNull();
+    expect(
+      dealBrokerageShare({
+        value: 10000000,
+        brokerage_amount: 200000,
+        co_broker_payout_total: 0,
+      }).share
+    ).toBeNull();
+  });
+
+  it('applies a percentage rate to the value and names the rate', () => {
+    expect(
+      dealBrokerageShare({
+        value: 10000000,
+        brokerage_type: 'percentage',
+        brokerage_value: 2,
+      })
+    ).toEqual({
+      brokerage: 200000,
+      rateHint: '2% of the deal',
+      payouts: 0,
+      share: null,
+    });
+  });
+
+  it('reports a deal with no brokerage as 0 rather than not set', () => {
+    expect(dealBrokerageShare({ value: 10000000 })).toEqual({
+      brokerage: 0,
+      rateHint: null,
+      payouts: 0,
+      share: null,
+    });
+  });
+
+  it('never reports a share below zero', () => {
+    expect(
+      dealBrokerageShare({
+        brokerage_amount: 100000,
+        co_broker_payout_total: 150000,
+      }).share
+    ).toBe(0);
   });
 });

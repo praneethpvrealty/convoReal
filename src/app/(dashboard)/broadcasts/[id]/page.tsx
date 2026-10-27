@@ -41,7 +41,14 @@ import {
 import { toast } from 'sonner';
 import { ReengagementOutcome } from '@/components/reengagement/reengagement-outcome';
 import { isReengagementTemplate } from '@/lib/reengagement/funnel';
-import { getBroadcastStatus, getRecipientStatus } from '@/lib/broadcast-status';
+import {
+  BROADCAST_DELETE_CONFIRM,
+  getBroadcastStatus,
+  getRecipientStatus,
+  hasRetryableRecipients,
+  RECIPIENT_STATUS_FILTERS,
+  retryFailedSummary,
+} from '@/lib/broadcast-status';
 
 interface StatCardProps {
   label: string;
@@ -119,16 +126,6 @@ function FunnelChart({ steps, total }: { steps: FunnelStep[]; total: number }) {
 
 const POLL_INTERVAL_MS = 5_000;
 const RECIPIENTS_POLL_INTERVAL_MS = 15_000;
-
-const RECIPIENT_STATUSES: readonly RecipientStatus[] = [
-  'pending',
-  'sent',
-  'delivered',
-  'read',
-  'replied',
-  'failed',
-  'rate_limited',
-];
 
 /**
  * CSV export helper — RFC 4180 quoting. Quote every field so
@@ -280,13 +277,7 @@ export default function BroadcastDetailPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Retry failed');
 
-      toast.success(
-        `Retried ${data.retried} recipient${data.retried !== 1 ? 's' : ''}: ` +
-          `${data.succeeded} sent, ${data.failed} failed` +
-          (data.rateLimited > 0
-            ? `, ${data.rateLimited} rate-limited (will retry again)`
-            : '')
-      );
+      toast.success(retryFailedSummary(data));
 
       await Promise.all([broadcastQuery.refetch(), recipientsQuery.refetch()]);
     } catch (err) {
@@ -391,9 +382,7 @@ export default function BroadcastDetailPage() {
 
         <div className="flex items-center gap-2">
           {/* Retry failed — shown when there are failed or rate-limited recipients */}
-          {recipients.some(
-            (r) => r.status === 'failed' || r.status === 'rate_limited'
-          ) && (
+          {hasRetryableRecipients(recipients) && (
             <Button
               variant="outline"
               size="sm"
@@ -416,7 +405,7 @@ export default function BroadcastDetailPage() {
             funnel inconsistent. */}
           {confirmDelete ? (
             <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm">
-              <span className="text-red-300">Delete this broadcast?</span>
+              <span className="text-red-300">{BROADCAST_DELETE_CONFIRM}</span>
               <Button
                 variant="outline"
                 size="sm"
@@ -552,7 +541,7 @@ export default function BroadcastDetailPage() {
                 >
                   All statuses
                 </DropdownMenuItem>
-                {RECIPIENT_STATUSES.map((s) => (
+                {RECIPIENT_STATUS_FILTERS.map((s) => (
                   <DropdownMenuItem
                     key={s}
                     onClick={() => setStatusFilter(s)}

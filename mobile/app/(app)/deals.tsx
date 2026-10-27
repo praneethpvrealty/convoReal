@@ -49,6 +49,7 @@ import {
 } from '@/lib/deal-workspace';
 import { moveDealStage } from '@/lib/deal-workspace-api';
 import { friendlyError } from '@/lib/errors';
+import { dateOnlyLabel } from '@/lib/format';
 import { useAccountCurrency } from '@/lib/use-account-currency';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -1252,6 +1253,19 @@ function DealCard({
         </Link>
       ) : null}
 
+      {deal.expected_close_date ? (
+        <View style={styles.receiptRow}>
+          <Ionicons
+            name="calendar-outline"
+            size={14}
+            color={colors.textFaint}
+          />
+          <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+            {dateOnlyLabel(deal.expected_close_date)}
+          </Text>
+        </View>
+      ) : null}
+
       {deal.status === 'lost' && lostReasonLabel(deal) ? (
         <View style={styles.receiptRow}>
           <Ionicons name="close-circle" size={15} color={colors.danger} />
@@ -1287,10 +1301,9 @@ function DealCard({
               fontSize: 12,
               fontFamily: f.bold,
               color: deal.status === 'won' ? colors.success : colors.danger,
-              textTransform: 'uppercase',
             }}
           >
-            {deal.status}
+            {deal.status === 'won' ? 'Won' : 'Lost'}
           </Text>
         ) : (
           <View />

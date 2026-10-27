@@ -5660,3 +5660,80 @@ describe('[UIX-005] the same value reads the same way on web and mobile', () => 
     );
   });
 });
+
+describe('[UIX-007] Broadcasts and Deals show the same information and actions on both surfaces', () => {
+  it('[UIX-007] gives the mobile broadcast detail the web counts, actions and filter', () => {
+    const web = webSource('app/(dashboard)/broadcasts/[id]/page.tsx');
+    const mobile = mobileSource('app/(app)/broadcast/[id].tsx');
+    for (const label of [
+      'Total Recipients',
+      'Sent',
+      'Delivered',
+      'Read',
+      'Replied',
+      'Failed',
+    ]) {
+      expect(web).toContain(`label="${label}"`);
+      expect(mobile).toContain(`label="${label}"`);
+    }
+    for (const source of [web, mobile]) {
+      expect(source).toContain('RECIPIENT_STATUS_FILTERS.map(');
+      expect(source).toContain('hasRetryableRecipients(');
+      expect(source).toContain('retryFailedSummary(');
+      expect(source).toContain('BROADCAST_DELETE_CONFIRM');
+      expect(source).toContain('/retry-failed`');
+      expect(source).toMatch(/\.from\('broadcasts'\)\s*\.delete\(\)/);
+    }
+    expect(web).not.toContain('const RECIPIENT_STATUSES');
+    expect(mobile).not.toContain('const STATUS_FILTERS');
+    expect(mobile).toContain("from '@shared/lib/broadcast-status'");
+    expect(mobile).toContain('useAppDialog()');
+    expect(mobile).toContain('title: BROADCAST_DELETE_CONFIRM');
+    expect(mobile).toContain('canSendMessages(profile.account_role)');
+    expect(mobile).toContain('!profile.is_read_only');
+    expect(mobile).toContain('disabled={retryMutation.isPending || sending}');
+    expect(mobile).toContain('disabled={deleteMutation.isPending || sending}');
+    expect(
+      webSource('app/api/broadcasts/[id]/retry-failed/route.ts')
+    ).toContain("requireRole('agent')");
+
+    expect(mobileSource('app/(app)/broadcasts.tsx')).toContain(
+      '<Stat label="Replied" value={broadcast.replied_count} />'
+    );
+  });
+
+  it('[UIX-007] computes the deal overview Money card with one shared rule', () => {
+    const web = webSource('components/deals/deal-overview-panel.tsx');
+    const mobile = mobileSource('app/(app)/deal/[id].tsx');
+    for (const source of [web, mobile]) {
+      expect(source).toContain('dealBrokerageShare(');
+      expect(source).toContain('label="Your share"');
+      expect(source).toContain('to co-brokers`}');
+      expect(source).toContain("'Not yet'");
+      expect(source).toContain("'No tranches yet'");
+      expect(source).toContain('label="Payment schedule"');
+      expect(source).toContain('Nothing to do on this deal');
+      expect(source).toContain('Nobody on this deal yet');
+    }
+    expect(mobile).toContain("from '@shared/lib/pipelines/deal-money'");
+    expect(mobile).toContain('co_broker_payout_total');
+    expect(mobile).not.toContain("'Not set'");
+    expect(mobile).not.toContain('Nothing open');
+    expect(web).not.toContain('netOfPayouts(');
+  });
+
+  it('[UIX-007] shows the expected close date and a Won or Lost label on the board card', () => {
+    const web = webSource('components/pipelines/deal-card.tsx');
+    const mobile = mobileSource('app/(app)/deals.tsx');
+    expect(web).toContain('deal.expected_close_date &&');
+    expect(mobile).toContain('dateOnlyLabel(deal.expected_close_date)');
+    expect(mobile).toContain('name="calendar-outline"');
+    expect(web).toMatch(/Won\s*<\/span>/);
+    expect(web).toMatch(/Lost\s*<\/span>/);
+    expect(mobile).toContain("{deal.status === 'won' ? 'Won' : 'Lost'}");
+    expect(mobile).not.toContain('{deal.status}');
+    expect(mobileSource('lib/format.ts')).toContain(
+      'export function dateOnlyLabel('
+    );
+  });
+});

@@ -93,3 +93,43 @@ export function getRecipientStatus(status: string): StatusDisplay {
     recipientStatusConfig.pending
   );
 }
+
+/** The recipient status filter, in the order both surfaces list it. */
+export const RECIPIENT_STATUS_FILTERS: readonly RecipientStatus[] = [
+  'pending',
+  'sent',
+  'delivered',
+  'read',
+  'replied',
+  'failed',
+  'rate_limited',
+];
+
+export const BROADCAST_DELETE_CONFIRM = 'Delete this broadcast?';
+
+/** Retry failed is offered while any recipient failed or was rate-limited. */
+export function hasRetryableRecipients(
+  recipients: readonly { status: string }[]
+): boolean {
+  return recipients.some(
+    (r) => r.status === 'failed' || r.status === 'rate_limited'
+  );
+}
+
+export interface RetryFailedResult {
+  retried: number;
+  succeeded?: number;
+  failed?: number;
+  rateLimited?: number;
+}
+
+/** What POST /api/broadcasts/[id]/retry-failed did, in one sentence. */
+export function retryFailedSummary(result: RetryFailedResult): string {
+  if (!result.retried) return 'No retryable recipients found';
+  const rateLimited = result.rateLimited ?? 0;
+  return (
+    `Retried ${result.retried} recipient${result.retried !== 1 ? 's' : ''}: ` +
+    `${result.succeeded ?? 0} sent, ${result.failed ?? 0} failed` +
+    (rateLimited > 0 ? `, ${rateLimited} rate-limited (will retry again)` : '')
+  );
+}

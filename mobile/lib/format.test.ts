@@ -3,6 +3,7 @@ import {
   auditDate,
   auditDateTime,
   chatListTime,
+  dateOnlyLabel,
   parseDateOnly,
 } from './format';
 
@@ -32,6 +33,26 @@ describe('parseDateOnly', () => {
     expect(parseDateOnly(null)).toBeNull();
     expect(parseDateOnly('')).toBeNull();
     expect(parseDateOnly('not a date')).toBeNull();
+  });
+});
+
+describe('dateOnlyLabel', () => {
+  it('prints the calendar day a date column names', () => {
+    const label = dateOnlyLabel('2026-09-14');
+    expect(label).toContain('14');
+    expect(label).toContain('2026');
+    expect(label).toBe(
+      new Date(2026, 8, 14).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    );
+  });
+
+  it('uses the audit fallback for a missing value', () => {
+    expect(dateOnlyLabel(null)).toBe('—');
+    expect(dateOnlyLabel('soon')).toBe('—');
   });
 });
 

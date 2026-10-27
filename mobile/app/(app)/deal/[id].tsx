@@ -164,6 +164,7 @@ import { friendlyError } from '@/lib/errors';
 import {
   auditDate,
   auditDateTime,
+  dateOnlyLabel,
   formatInr,
   priceInWords,
 } from '@/lib/format';
@@ -182,7 +183,10 @@ import {
   withMilestoneRow,
 } from '@shared/lib/deals/milestones';
 import { CLOSING_RECORD_LABEL } from '@shared/lib/deals/routes';
-import { dealFee, formatDealAmount } from '@shared/lib/pipelines/deal-money';
+import {
+  dealBrokerageShare,
+  formatDealAmount,
+} from '@shared/lib/pipelines/deal-money';
 
 /** `friendlyError` takes the message text, and a rejected fetch can throw
  *  anything — so narrow it once here rather than at every call site. */
@@ -202,6 +206,7 @@ interface DealHead {
   brokerage_type: 'percentage' | 'fixed' | null;
   brokerage_value: number | null;
   brokerage_amount: number | null;
+  co_broker_payout_total: number | null;
   deal_group_id: string | null;
   status: 'open' | 'won' | 'lost' | null;
   lost_reason: string | null;
@@ -266,7 +271,7 @@ export default function DealWorkspaceScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          'id, title, contact_id, property_id, pipeline_id, stage_id, value, currency, brokerage_type, brokerage_value, brokerage_amount, deal_group_id, status, lost_reason, lost_note, ' +
+          'id, title, contact_id, property_id, pipeline_id, stage_id, value, currency, brokerage_type, brokerage_value, brokerage_amount, co_broker_payout_total, deal_group_id, status, lost_reason, lost_note, ' +
             'stage:pipeline_stages(name), contact:contacts(name, second_name), group:deal_groups(id, name)'
         )
         .eq('id', dealId)
@@ -1001,18 +1006,27 @@ function OverviewSection({
 function OverviewFigure({
   label,
   value,
+  hint,
   strong,
 }: {
   label: string;
   value: string;
+  hint?: string | null;
   strong?: boolean;
 }) {
   const { colors } = useTheme();
   return (
     <View style={styles.figureRow}>
-      <Text style={[styles.cardMeta, { color: colors.textMuted, flex: 1 }]}>
-        {label}
-      </Text>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+          {label}
+        </Text>
+        {hint ? (
+          <Text style={[styles.cardMeta, { color: colors.textFaint }]}>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
       <Text
         style={{
           fontFamily: strong ? fonts.bold : fonts.semibold,
@@ -1119,23 +1133,24 @@ function OverviewTab({
     .filter((group) => group.people.length > 0);
 
   const financials = financialsQuery.data ?? null;
-  const brokerage = head
-    ? dealFee({
-        value: head.value,
-        brokerage_type: head.brokerage_type,
-        brokerage_value: head.brokerage_value,
-        brokerage_amount: head.brokerage_amount,
-      })
-    : null;
-  const collected = financials?.brokerage_received_amount ?? null;
+  const {
+    brokerage,
+    rateHint,
+    payouts: coBrokerPayouts,
+    share: yourShare,
+  } = dealBrokerageShare(head ?? {});
+  const collected = Number(financials?.brokerage_received_amount ?? 0);
   const tokenSafe = financials?.token_source === 'token_safe';
   const tokenAmount = tokenSafe
     ? (financials?.token.amount ?? null)
     : (financials?.token_amount ?? null);
+  const tokenReceived = tokenSafe
+    ? (financials?.token.received_at ?? null)
+    : (financials?.token_received_at ?? null);
   const tranches = tranchesQuery.data?.summary ?? null;
   const currency = head?.currency ?? 'INR';
   const money = (amount: number | null | undefined) =>
-    amount ? formatDealAmount(amount, currency) : '—';
+    formatDealAmount(amount, currency);
 
   return (
     <ScrollView contentContainerStyle={styles.list}>
@@ -1218,7 +1233,7 @@ function OverviewTab({
           <ActivityIndicator color={colors.primary} />
         ) : openTasks.length === 0 ? (
           <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
-            Nothing open
+            Nothing to do on this deal
           </Text>
         ) : (
           <>
@@ -1303,7 +1318,7 @@ function OverviewTab({
           <ActivityIndicator color={colors.primary} />
         ) : sides.length === 0 ? (
           <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
-            No stakeholders yet
+            Nobody on this deal yet
           </Text>
         ) : (
           sides.map((group) => (
@@ -1342,38 +1357,62 @@ function OverviewTab({
         <OverviewFigure label="Deal value" value={money(head?.value)} />
         <OverviewFigure
           label="Brokerage"
-          value={brokerage === null ? 'Not set' : money(brokerage)}
+          value={money(brokerage)}
+          hint={rateHint}
         />
-        <OverviewFigure label="Collected" value={money(collected)} />
-        {brokerage !== null ? (
+        {yourShare !== null ? (
           <OverviewFigure
-            label="Outstanding"
-            value={money(Math.max(0, brokerage - (collected ?? 0)))}
-            strong
+            label="Your share"
+            value={money(yourShare)}
+            hint={`After ${money(coBrokerPayouts)} to co-brokers`}
           />
         ) : null}
-        <OverviewFigure
-          label={tokenSafe ? 'Token (Token Safe)' : 'Token'}
-          value={
-            tokenAmount != null
-              ? money(tokenAmount)
-              : tokenSafe && financials?.token.status
-                ? `Escrow ${financials.token.status}`
-                : '—'
-          }
-        />
-        {tranches && tranches.count > 0 ? (
+        {financialsQuery.isLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
           <>
+            <OverviewFigure label="Collected" value={money(collected)} />
             <OverviewFigure
-              label="Payment schedule received"
-              value={money(tranches.received)}
+              label="Outstanding"
+              value={money(Math.max(0, brokerage - collected))}
+              strong
             />
             <OverviewFigure
-              label="Payment schedule outstanding"
-              value={money(tranches.outstanding)}
+              label="Token"
+              value={
+                tokenAmount != null
+                  ? money(tokenAmount)
+                  : tokenSafe && financials?.token.status
+                    ? `Escrow ${financials.token.status}`
+                    : 'Not yet'
+              }
+              hint={
+                tokenReceived
+                  ? `Received ${dateOnlyLabel(tokenReceived)}${tokenSafe ? ' · Token Safe' : ''}`
+                  : tokenSafe
+                    ? 'Token Safe'
+                    : null
+              }
             />
           </>
-        ) : null}
+        )}
+        {tranchesQuery.isLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <OverviewFigure
+            label="Payment schedule"
+            value={
+              tranches && tranches.count > 0
+                ? `${money(tranches.received)} received`
+                : 'No tranches yet'
+            }
+            hint={
+              tranches && tranches.count > 0
+                ? `${money(tranches.outstanding)} outstanding`
+                : null
+            }
+          />
+        )}
       </OverviewSection>
       <AppDialog {...dialog.dialogProps} />
     </ScrollView>
