@@ -1973,6 +1973,50 @@ function postFieldLabel(eventType: Appointment['event_type']): string {
   return post ? `Add ${post.label.toLowerCase()}` : 'Add notes';
 }
 
+/** One answer to a pick-one question in the edit sheet. Selected reads
+ *  as a tinted, ticked option rather than a solid fill, so it is never
+ *  mistaken for the sheet's Save button. */
+function ChoiceChip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="radio"
+      accessibilityLabel={label}
+      accessibilityState={{ selected, checked: selected }}
+      style={[
+        styles.choiceChip,
+        {
+          backgroundColor: selected ? colors.primarySoft : colors.surface,
+          borderColor: selected ? colors.primary : colors.border,
+        },
+      ]}
+    >
+      {selected ? (
+        <Ionicons name="checkmark" size={14} color={colors.primary} />
+      ) : null}
+      <Text
+        style={{
+          fontSize: 13,
+          fontFamily: selected ? f.bold : f.semibold,
+          color: selected ? colors.primary : colors.text,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 /** Classification, phone and the first tags — enough to tell two
  *  contacts with the same name apart in the participant picker. */
 function ParticipantMeta({
@@ -2383,10 +2427,10 @@ function AppointmentDetail({
               }}
             >
               {(Object.keys(TYPE_META) as AppointmentType[]).map((type) => (
-                <FilterChip
+                <ChoiceChip
                   key={type}
                   label={TYPE_META[type].label}
-                  active={editType === type}
+                  selected={editType === type}
                   onPress={() => setEditType(type)}
                 />
               ))}
@@ -2654,29 +2698,40 @@ function AppointmentDetail({
                 );
               })}
             {editContactIds.length > 0 ? (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  flexWrap: 'wrap',
-                  gap: spacing.sm,
-                }}
-              >
-                <FilterChip
-                  label="Inform new participants"
-                  active={notificationScope === 'new'}
-                  onPress={() => setNotificationScope('new')}
-                />
-                <FilterChip
-                  label="Notify everyone"
-                  active={notificationScope === 'all'}
-                  onPress={() => setNotificationScope('all')}
-                />
-                <FilterChip
-                  label="No message"
-                  active={notificationScope === 'none'}
-                  onPress={() => setNotificationScope('none')}
-                />
-              </View>
+              <>
+                <Text
+                  style={{
+                    fontSize: 11.5,
+                    fontFamily: f.bold,
+                    color: colors.textMuted,
+                  }}
+                >
+                  WHATSAPP AFTER SAVING
+                </Text>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    gap: spacing.sm,
+                  }}
+                >
+                  <ChoiceChip
+                    label="Inform new participants"
+                    selected={notificationScope === 'new'}
+                    onPress={() => setNotificationScope('new')}
+                  />
+                  <ChoiceChip
+                    label="Notify everyone"
+                    selected={notificationScope === 'all'}
+                    onPress={() => setNotificationScope('all')}
+                  />
+                  <ChoiceChip
+                    label="No message"
+                    selected={notificationScope === 'none'}
+                    onPress={() => setNotificationScope('none')}
+                  />
+                </View>
+              </>
             ) : null}
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <SheetButton
@@ -3208,6 +3263,15 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     fontSize: 14,
     fontFamily: fonts.regular,
+  },
+  choiceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    borderRadius: radius.full,
+    borderWidth: 1,
   },
   participantNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   participantMeta: {

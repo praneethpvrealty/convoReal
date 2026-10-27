@@ -5428,6 +5428,18 @@ describe('[CAL-016] the participant picker tells same-name contacts apart', () =
     );
   });
 
+  it('[CAL-016] keeps edit-sheet choices visually apart from Save event', () => {
+    const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+    expect(mobileCalendar).toContain('WHATSAPP AFTER SAVING');
+    expect(mobileCalendar).toContain('accessibilityRole="radio"');
+    expect(mobileCalendar).toMatch(
+      /<ChoiceChip\s+label="Inform new participants"/
+    );
+    expect(mobileCalendar).not.toMatch(
+      /<FilterChip\s+label="Inform new participants"/
+    );
+  });
+
   it('[CAL-016] shows name tag, classification and phone in the web picker', () => {
     const picker = webSource(
       'components/ui/searchable-contact-multi-select.tsx'
