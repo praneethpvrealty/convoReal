@@ -5535,6 +5535,7 @@ describe('[UIX-003] web and mobile start from the same defaults', () => {
   it('[UIX-003] reads every shared default from one web module', () => {
     const mobileContacts = mobileSource('app/(app)/(tabs)/contacts.tsx');
     expect(mobileContacts).toContain('DEFAULT_CONTACT_CLASSIFICATION');
+    expect(mobileContacts).not.toContain("setClassification('Buyer')");
     expect(mobileSource('lib/types.ts')).toContain(
       "from '@shared/lib/contacts/classifications'"
     );

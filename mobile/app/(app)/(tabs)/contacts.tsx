@@ -1141,7 +1141,7 @@ function QuickAddContact({
     setNameTag('');
     setPhone('');
     setEmail('');
-    setClassification('Buyer');
+    setClassification(DEFAULT_CONTACT_CLASSIFICATION);
     setError(null);
   }
 
