@@ -1973,9 +1973,6 @@ function postFieldLabel(eventType: Appointment['event_type']): string {
   return post ? `Add ${post.label.toLowerCase()}` : 'Add notes';
 }
 
-/** One answer to a pick-one question in the edit sheet. Selected reads
- *  as a tinted, ticked option rather than a solid fill, so it is never
- *  mistaken for the sheet's Save button. */
 function ChoiceChip({
   label,
   selected,
@@ -2017,8 +2014,6 @@ function ChoiceChip({
   );
 }
 
-/** Classification, phone and the first tags — enough to tell two
- *  contacts with the same name apart in the participant picker. */
 function ParticipantMeta({
   contact,
   tags,
