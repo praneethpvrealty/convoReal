@@ -162,6 +162,7 @@ export async function lastOwnerTemplateAt(
     .select('created_at')
     .eq('conversation_id', conversationId)
     .in('template_name', OWNER_TEMPLATE_NAMES)
+    .neq('status', 'failed')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
