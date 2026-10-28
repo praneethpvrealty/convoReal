@@ -62,7 +62,11 @@ function RootLayout() {
           backgroundColor: colors.background,
         }}
       >
-        <ConvoRealLoader size={26} shimmer={false} />
+        <ConvoRealLoader
+          key={fontsLoaded ? 'fonts' : 'system'}
+          size={26}
+          shimmer={false}
+        />
       </View>
     );
   }
