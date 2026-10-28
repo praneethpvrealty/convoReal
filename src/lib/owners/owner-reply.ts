@@ -18,6 +18,11 @@ import {
   hasUpdates,
   type OwnerDigest,
 } from '@/lib/owners/owner-digest';
+import {
+  decideSubjects,
+  shareEvents,
+  type SubjectThread,
+} from '@/lib/learning/subject';
 
 /**
  * Contextual replies to PROPERTY OWNERS on WhatsApp.
@@ -98,6 +103,31 @@ function listingLocation(listing: OwnedListing): string {
     listing.location ||
     ''
   );
+}
+
+/** How long a listing sent to an owner as a buyer keeps the thread
+ *  about that listing rather than about their own. */
+export const BUYER_CONTEXT_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether an owner is writing as a buyer. Natarajan owns a Koramangala
+ * flat and enquired about IVC Road land; asked "pls send me site google
+ * location" right under the IVC Road photos template, he was answered
+ * about the Koramangala flat as its owner. An owner who was last sent
+ * somebody else's listing is asking about that listing, so the buyer
+ * Q&A answers them; a thread whose latest listing is their own, or that
+ * has none, stays with the owner reply.
+ */
+export function speaksAsBuyer(
+  thread: SubjectThread,
+  ownedIds: string[],
+  now: number = Date.now()
+): boolean {
+  const subjects = decideSubjects(thread);
+  if (subjects.length === 0) return false;
+  if (subjects.some((id) => ownedIds.includes(id))) return false;
+  const latest = shareEvents(thread)[0];
+  return !!latest && now - latest.at <= BUYER_CONTEXT_WINDOW_MS;
 }
 
 /** The digest template's "Tell me more" quick reply. */
