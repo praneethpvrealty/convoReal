@@ -157,7 +157,7 @@ export const OWNER_TEMPLATE_NAMES = [
 export async function lastOwnerTemplateAt(
   conversationId: string
 ): Promise<number | null> {
-  const { data } = await supabaseAdmin()
+  const { data, error } = await supabaseAdmin()
     .from('messages')
     .select('created_at')
     .eq('conversation_id', conversationId)
@@ -166,6 +166,10 @@ export async function lastOwnerTemplateAt(
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (error) {
+    console.error('[owner-reply] owner template lookup failed:', error);
+    return Date.now();
+  }
   const at = data ? Date.parse(data.created_at as string) : NaN;
   return Number.isFinite(at) ? at : null;
 }
