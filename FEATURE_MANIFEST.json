@@ -5830,6 +5830,17 @@
               "case": "[CNV-011]"
             }
           ]
+        },
+        {
+          "id": "CNV-012",
+          "rule": "A contact who owns a listing and was last sent somebody else's listing as a buyer (a share, photos or enquiry template naming it, within 14 days, and not superseded since by a message naming their own listing, an agent message naming it among others, an owner digest or consent template, or a quote of one) is answered by the buyer Q&A about that listing, never by the owner reply about their own; a thread whose latest listing is their own, or that names none, stays with the owner reply.",
+          "tests": [
+            {
+              "file": "src/lib/owners/owner-reply.test.ts",
+              "case": "[CNV-012]"
+            }
+          ],
+          "guards": ["src/lib/whatsapp/inbound/chain/steps/owner-listings.ts"]
         }
       ]
     },

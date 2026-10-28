@@ -18,6 +18,16 @@ import {
   hasUpdates,
   type OwnerDigest,
 } from '@/lib/owners/owner-digest';
+import {
+  decideSubjects,
+  listingsReferencedIn,
+  shareEvents,
+  type SubjectThread,
+} from '@/lib/learning/subject';
+import {
+  OWNER_DIGEST_CONSENT_TEMPLATE_NAME,
+  OWNER_DIGEST_TEMPLATE_NAME,
+} from '@/lib/whatsapp/owner-digest-template';
 
 /**
  * Contextual replies to PROPERTY OWNERS on WhatsApp.
@@ -98,6 +108,70 @@ function listingLocation(listing: OwnedListing): string {
     listing.location ||
     ''
   );
+}
+
+/** How long a listing sent to an owner as a buyer keeps the thread
+ *  about that listing rather than about their own. */
+export const BUYER_CONTEXT_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether an owner is writing as a buyer. Natarajan owns a Koramangala
+ * flat and enquired about IVC Road land; asked "pls send me site google
+ * location" right under the IVC Road photos template, he was answered
+ * about the Koramangala flat as its owner. An owner who was last sent
+ * somebody else's listing is asking about that listing, so the buyer
+ * Q&A answers them; a thread whose latest listing is their own, or that
+ * has none, stays with the owner reply. So does one written to as an
+ * owner since that share: the digest or consent template, which name
+ * "your 2 listings" rather than any one of them, or an agent naming
+ * one of their listings.
+ */
+export function speaksAsBuyer(
+  thread: SubjectThread,
+  ownedIds: string[],
+  now: number = Date.now(),
+  ownerAddressedAt: number | null = null
+): boolean {
+  const subjects = decideSubjects(thread);
+  if (subjects.length === 0) return false;
+  if (subjects.some((id) => ownedIds.includes(id))) return false;
+  const latest = shareEvents(thread)[0];
+  if (!latest || now - latest.at > BUYER_CONTEXT_WINDOW_MS) return false;
+  if (ownerAddressedAt !== null && ownerAddressedAt >= latest.at) return false;
+  return !thread.messages.some(
+    (message) =>
+      message.sender === 'agent' &&
+      Date.parse(message.at) > latest.at &&
+      listingsReferencedIn(message.text, thread.candidates).some((id) =>
+        ownedIds.includes(id)
+      )
+  );
+}
+
+export const OWNER_TEMPLATE_NAMES = [
+  OWNER_DIGEST_TEMPLATE_NAME,
+  OWNER_DIGEST_CONSENT_TEMPLATE_NAME,
+];
+
+/** When the conversation last carried an owner digest or consent ask. */
+export async function lastOwnerTemplateAt(
+  conversationId: string
+): Promise<number | null> {
+  const { data, error } = await supabaseAdmin()
+    .from('messages')
+    .select('created_at')
+    .eq('conversation_id', conversationId)
+    .in('template_name', OWNER_TEMPLATE_NAMES)
+    .neq('status', 'failed')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error('[owner-reply] owner template lookup failed:', error);
+    return Date.now();
+  }
+  const at = data ? Date.parse(data.created_at as string) : NaN;
+  return Number.isFinite(at) ? at : null;
 }
 
 /** The digest template's "Tell me more" quick reply. */

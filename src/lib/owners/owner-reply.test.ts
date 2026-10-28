@@ -8,7 +8,10 @@ import {
   resolveOwnerReplyLanguage,
   type OwnedListing,
   claimsSubscriptionChange,
+  speaksAsBuyer,
+  BUYER_CONTEXT_WINDOW_MS,
 } from './owner-reply';
+import type { SubjectThread } from '@/lib/learning/subject';
 import type { OwnerDigest } from './owner-digest';
 
 function listing(overrides?: Partial<OwnedListing>): OwnedListing {
@@ -196,6 +199,98 @@ describe('[CNV-007] claimsSubscriptionChange', () => {
     expect(
       claimsSubscriptionChange(
         'Your listing is live on our showcase. Reply STOP UPDATES to pause these updates.'
+      )
+    ).toBe(false);
+  });
+});
+
+describe('[CNV-012] speaksAsBuyer', () => {
+  const ivcRoad = {
+    id: 'ivc',
+    title: '26 Gunta Corner Commercial Land on IVC Road',
+    property_code: 'PROP-1290',
+    status: 'Available',
+  };
+  const koramangala = {
+    id: 'kor',
+    title: '2 BHK Fully Furnished Apartment for Rent',
+    property_code: 'PROP-1213',
+    status: 'Available',
+  };
+  const now = Date.parse('2026-10-28T04:52:00Z');
+
+  function photosThread(overrides?: Partial<SubjectThread>): SubjectThread {
+    return {
+      messages: [
+        {
+          sender: 'customer',
+          text: 'pls send me site google location',
+          at: '2026-10-28T04:52:00Z',
+          messageId: 'in-1',
+        },
+        {
+          sender: 'bot',
+          text: 'Hi Natarajan, sharing the photos you requested for your property enquiry with Aryavarta Ventures:\n\nProperty: 26 Gunta Corner Commercial Land on IVC Road\nDetails: ₹11.05 Cr · 26 Gunta\nLocation: IVC Road, Bengaluru',
+          at: '2026-10-28T04:49:00Z',
+        },
+      ],
+      shares: [{ propertyId: 'ivc', at: '2026-10-28T04:49:00Z' }],
+      candidates: [ivcRoad, koramangala],
+      currentMessageId: 'in-1',
+      ...overrides,
+    };
+  }
+
+  it('hands an owner asking about a listing they enquired on to the buyer Q&A', () => {
+    expect(speaksAsBuyer(photosThread(), ['kor'], now)).toBe(true);
+  });
+
+  it('keeps the owner reply when the latest listing in the thread is their own', () => {
+    const thread = photosThread();
+    thread.messages.splice(1, 0, {
+      sender: 'bot',
+      text: 'Weekly update on 2 BHK Fully Furnished Apartment for Rent (PROP-1213): 3 new enquiries.',
+      at: '2026-10-28T04:50:00Z',
+    });
+    expect(speaksAsBuyer(thread, ['kor'], now)).toBe(false);
+  });
+
+  it('keeps the owner reply when no listing was ever sent to them', () => {
+    expect(
+      speaksAsBuyer(photosThread({ messages: [], shares: [] }), ['kor'], now)
+    ).toBe(false);
+  });
+
+  it('keeps the owner reply after a digest that names none of the listings', () => {
+    const digestAt = Date.parse('2026-10-28T04:50:00Z');
+    const thread = photosThread();
+    thread.messages.splice(1, 0, {
+      sender: 'bot',
+      text: '📊 *Your Property Update*\n\nHi Natarajan, here is the latest activity on your 2 listings (this week):',
+      at: '2026-10-28T04:50:00Z',
+    });
+    expect(speaksAsBuyer(thread, ['kor'], now, digestAt)).toBe(false);
+    expect(
+      speaksAsBuyer(photosThread(), ['kor'], now, digestAt - 2 * 60 * 1000)
+    ).toBe(true);
+  });
+
+  it('keeps the owner reply after an agent names their listing among others', () => {
+    const thread = photosThread();
+    thread.messages.splice(1, 0, {
+      sender: 'agent',
+      text: 'Natarajan, about PROP-1213 and the IVC Road land, let us talk today.',
+      at: '2026-10-28T04:50:00Z',
+    });
+    expect(speaksAsBuyer(thread, ['kor'], now)).toBe(false);
+  });
+
+  it('lets a buyer context lapse after the window', () => {
+    expect(
+      speaksAsBuyer(
+        photosThread(),
+        ['kor'],
+        Date.parse('2026-10-28T04:49:00Z') + BUYER_CONTEXT_WINDOW_MS + 1
       )
     ).toBe(false);
   });
