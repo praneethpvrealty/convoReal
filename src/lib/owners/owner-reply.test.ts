@@ -261,6 +261,30 @@ describe('[CNV-012] speaksAsBuyer', () => {
     ).toBe(false);
   });
 
+  it('keeps the owner reply after a digest that names none of the listings', () => {
+    const digestAt = Date.parse('2026-10-28T04:50:00Z');
+    const thread = photosThread();
+    thread.messages.splice(1, 0, {
+      sender: 'bot',
+      text: '📊 *Your Property Update*\n\nHi Natarajan, here is the latest activity on your 2 listings (this week):',
+      at: '2026-10-28T04:50:00Z',
+    });
+    expect(speaksAsBuyer(thread, ['kor'], now, digestAt)).toBe(false);
+    expect(
+      speaksAsBuyer(photosThread(), ['kor'], now, digestAt - 2 * 60 * 1000)
+    ).toBe(true);
+  });
+
+  it('keeps the owner reply after an agent names their listing among others', () => {
+    const thread = photosThread();
+    thread.messages.splice(1, 0, {
+      sender: 'agent',
+      text: 'Natarajan, about PROP-1213 and the IVC Road land, let us talk today.',
+      at: '2026-10-28T04:50:00Z',
+    });
+    expect(speaksAsBuyer(thread, ['kor'], now)).toBe(false);
+  });
+
   it('lets a buyer context lapse after the window', () => {
     expect(
       speaksAsBuyer(

@@ -1,6 +1,7 @@
 import {
   isOwnerContact,
   findOwnedListings,
+  lastOwnerTemplateAt,
   speaksAsBuyer,
   type OwnedListing,
 } from '@/lib/owners/owner-reply';
@@ -26,18 +27,23 @@ export async function ownerListings(
   }
   let isPropertyOwnerSender = ownedListings.length > 0;
   if (isPropertyOwnerSender) {
-    const thread = await loadSubjectThread(
-      supabaseAdmin(),
-      accountId,
-      contactRecord.id,
-      conversation.id,
-      { messageId: message.id, quotedMessageId: message.context?.id ?? null }
-    );
+    const [thread, ownerAddressedAt] = await Promise.all([
+      loadSubjectThread(
+        supabaseAdmin(),
+        accountId,
+        contactRecord.id,
+        conversation.id,
+        { messageId: message.id, quotedMessageId: message.context?.id ?? null }
+      ),
+      lastOwnerTemplateAt(conversation.id),
+    ]);
     if (
       thread &&
       speaksAsBuyer(
         thread,
-        ownedListings.map((listing) => listing.id)
+        ownedListings.map((listing) => listing.id),
+        Date.now(),
+        ownerAddressedAt
       )
     ) {
       isPropertyOwnerSender = false;
