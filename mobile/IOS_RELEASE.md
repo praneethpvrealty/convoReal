@@ -40,7 +40,8 @@ External Purchase Link entitlement — a "Top up on the web" button and an
 badge and ledger all still render — only the top-up button, its
 "checkout opens in your browser" line and the plan card's upgrade CTA
 are gone, which is what Guideline 3.1.3(b) allows for a multiplatform
-service. Android is unchanged.
+service. Android follows the same rule for the Google Play Payments
+policy (see `ANDROID_RELEASE.md`).
 
 **2. No in-app account deletion (Guideline 5.1.1(v)).** Owners Den
 signup happens inside the app, so the app must be able to delete an

@@ -73,7 +73,7 @@ async function publishMobileUpdate(github, core, owner, repo, pullNumber) {
     repo,
     workflow_id: 'eas-update.yml',
     ref: 'main',
-    inputs: { channel: 'preview' },
+    inputs: { channel: 'all' },
   });
   await github.rest.issues.removeLabel({
     owner,

@@ -46,7 +46,7 @@ secrets for source-map upload.
 | Command                                     | Output               | Use                                                    |
 | ------------------------------------------- | -------------------- | ------------------------------------------------------ |
 | `eas build -p android --profile preview`    | installable APK link | fastest "live" for the team                            |
-| `eas build -p android --profile production` | .aab                 | Play Store                                             |
+| `eas build -p android --profile production` | .aab                 | Play Store — see `ANDROID_RELEASE.md`                  |
 | `eas build -p ios --profile production`     | .ipa                 | TestFlight / App Store (needs Apple Developer, $99/yr) |
 | `eas submit -p android` / `-p ios`          | —                    | store upload                                           |
 
@@ -81,11 +81,11 @@ checks all three; if you publish by hand, you are the check.
 
 **The channel must be the one the installed apps were built on.** A
 channel maps to the same-named branch, and an app only ever receives
-updates on the channel baked into its binary. Every recent build is
-`preview`. `production` is not an alias for "the real one": its only
-build predates the fingerprint runtime policy, so nothing published
-there today can ever match it, and two updates already sit on that
-branch having reached nobody.
+updates on the channel baked into its binary. Sideloaded team APKs
+are `preview`; Google Play builds are `production` (see
+`ANDROID_RELEASE.md`). The workflow publishes to both and skips a
+channel with no build at the current runtime, so `production` starts
+receiving updates the moment the first Play build exists.
 
 **The runtime version must match a real build.** `runtimeVersion` is on
 the `fingerprint` policy, so a JS-only change keeps it — nothing under

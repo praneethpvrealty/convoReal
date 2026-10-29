@@ -16,17 +16,18 @@ name: EAS Update
 # successful publish either way and the apps stay on their old bundle:
 #
 #   - Wrong channel. An app only receives updates on the channel baked
-#     into its binary. `production` looks plausible and has a branch,
-#     but its newest build predates the fingerprint runtime policy, so
-#     nothing published there today can ever match it.
+#     into its binary: sideloaded team APKs are on `preview`, Google Play
+#     installs on `production`. Both are published to, and each is
+#     checked for a build at this runtime before anything goes out.
 #   - Native change. A new dependency, an app.json plugin or a
 #     permission moves the fingerprint runtime version, and no installed
 #     build carries the new one. That needs `eas build`, not an update.
 #
-# The verdict is per platform. At the time of writing iOS has only ever
-# had a simulator build, on a runtime the project has since moved past,
-# so iOS is skipped with a warning while Android publishes normally.
-# When a real iOS build exists it starts publishing with no change here.
+# The verdict is per channel and platform. At the time of writing iOS
+# has only ever had a simulator build, on a runtime the project has
+# since moved past, so iOS is skipped with a warning while Android
+# publishes normally. When a real iOS build or a new Play build exists
+# it starts receiving updates with no change here.
 
 on:
   push:
@@ -109,9 +110,9 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: 'EAS channel to publish to. Must already have a build whose runtime version matches this project.'
+        description: "EAS channel to publish to, or 'all' for preview and production. A channel with no build at this project's runtime version is skipped."
         required: true
-        default: preview
+        default: all
 
 concurrency:
   # Serialize, never cancel: a cancelled publish can leave one platform's
@@ -123,10 +124,11 @@ permissions:
   contents: read
 
 env:
-  # Every build the installed apps came from is on this channel. The
-  # gate below fails loudly rather than let a wrong value publish into
-  # the void, so this does not have to be trusted on faith.
-  CHANNEL: ${{ inputs.channel || 'preview' }}
+  # Sideloaded team builds are on preview; Google Play builds are on
+  # production. Each channel is judged on its own by the gate below, so
+  # one with no matching build is skipped rather than published into the
+  # void, and the run fails only when no channel can receive anything.
+  CHANNELS: ${{ (inputs.channel == '' || inputs.channel == 'all') && 'preview production' || inputs.channel }}
   # Pinned rather than @latest so a CLI release cannot change publishing
   # behaviour without a commit. eas.json requires >= 16.
   EAS_VERSION: 21.8.0
@@ -198,10 +200,10 @@ jobs:
           # version is always 40 hex characters. Retried because a
           # network hiccup here should not fail a merge.
           fingerprint() {
-            local platform=$1 out=$2 attempt hash
+            local platform=$1 channel=$2 out=$3 attempt hash
             for attempt in 1 2 3; do
               if eas fingerprint:generate --platform "$platform" \
-                   --environment "$CHANNEL" --json --non-interactive > "$out"; then
+                   --environment "$channel" --json --non-interactive > "$out"; then
                 hash=$(python3 -c 'import json,sys; t=open(sys.argv[1]).read(); i=t.find("{"); print(json.loads(t[i:]).get("hash","") if i>=0 else "")' "$out" 2>/dev/null || true)
                 if printf '%s' "$hash" | grep -qE '^[0-9a-f]{40}$'; then
                   printf '%s' "$hash"
@@ -213,41 +215,46 @@ jobs:
             return 1
           }
 
-          # Judged per platform, not for the run as a whole. iOS has
-          # never had a non-simulator build, so a single verdict would
-          # either block every Android update on that or wave both
-          # through. A platform nothing can receive is skipped and
-          # reported; the job fails only when that is true of both.
-          publishable=()
-          for platform in android ios; do
-            # --json writes megabytes of fingerprint sources to stdout;
-            # a file keeps it out of the log and off a pipe.
-            if ! runtime=$(fingerprint "$platform" "$RUNNER_TEMP/fingerprint-$platform.json"); then
-              echo "::error::Could not compute a $platform fingerprint after 3 attempts. Publishing without it would risk an update no device can receive, so this is a hard stop rather than a skipped check."
-              exit 1
-            fi
+          # Judged per channel and platform, not for the run as a whole.
+          # iOS has never had a non-simulator build and production had no
+          # current Android build until the Play Store release, so a single
+          # verdict would either block every update on that or wave all of
+          # them through. A pair nothing can receive is skipped and
+          # reported; the job fails only when that is true of every pair.
+          : > "$RUNNER_TEMP/publish-targets"
+          for channel in $CHANNELS; do
+            publishable=()
+            for platform in android ios; do
+              # --json writes megabytes of fingerprint sources to stdout;
+              # a file keeps it out of the log and off a pipe.
+              if ! runtime=$(fingerprint "$platform" "$channel" "$RUNNER_TEMP/fingerprint-$channel-$platform.json"); then
+                echo "::error::Could not compute a $platform fingerprint for '$channel' after 3 attempts. Publishing without it would risk an update no device can receive, so this is a hard stop rather than a skipped check."
+                exit 1
+              fi
 
-            builds=$(eas build:list --channel "$CHANNEL" \
-              --platform "$platform" --runtime-version "$runtime" \
-              --status finished --limit 1 --json --non-interactive)
-            if [ "$(printf '%s' "$builds" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')" = "0" ]; then
-              echo "::warning::Skipping $platform: no finished build on channel '$CHANNEL' carries runtime $runtime, so an update would reach no device. Either a native change moved the fingerprint, or that platform has no current build — run 'eas build -p $platform --profile $CHANNEL'."
-              echo "- \`$platform\` runtime \`$runtime\` — **skipped, no build can receive it**" >> "$GITHUB_STEP_SUMMARY"
-              continue
+              builds=$(eas build:list --channel "$channel" \
+                --platform "$platform" --runtime-version "$runtime" \
+                --status finished --limit 1 --json --non-interactive)
+              if [ "$(printf '%s' "$builds" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')" = "0" ]; then
+                echo "::warning::Skipping $platform on '$channel': no finished build on that channel carries runtime $runtime, so an update would reach no device. Either a native change moved the fingerprint, or that platform has no current build — run 'eas build -p $platform --profile $channel'."
+                echo "- \`$channel\` \`$platform\` runtime \`$runtime\` — **skipped, no build can receive it**" >> "$GITHUB_STEP_SUMMARY"
+                continue
+              fi
+              echo "$platform runtime $runtime matches an installed build on '$channel'."
+              echo "- \`$channel\` \`$platform\` runtime \`$runtime\` — published" >> "$GITHUB_STEP_SUMMARY"
+              publishable+=("$platform")
+            done
+
+            if [ ${#publishable[@]} -eq 2 ]; then
+              echo "$channel all" >> "$RUNNER_TEMP/publish-targets"
+            elif [ ${#publishable[@]} -eq 1 ]; then
+              echo "$channel ${publishable[0]}" >> "$RUNNER_TEMP/publish-targets"
             fi
-            echo "$platform runtime $runtime matches an installed build."
-            echo "- \`$platform\` runtime \`$runtime\` — published" >> "$GITHUB_STEP_SUMMARY"
-            publishable+=("$platform")
           done
 
-          if [ ${#publishable[@]} -eq 0 ]; then
-            echo "::error::Neither platform has a build that could receive this update on channel '$CHANNEL'. Nothing was published."
+          if [ ! -s "$RUNNER_TEMP/publish-targets" ]; then
+            echo "::error::No channel in '$CHANNELS' has a build that could receive this update. Nothing was published."
             exit 1
-          fi
-          if [ ${#publishable[@]} -eq 2 ]; then
-            echo "PUBLISH_PLATFORM=all" >> "$GITHUB_ENV"
-          else
-            echo "PUBLISH_PLATFORM=${publishable[0]}" >> "$GITHUB_ENV"
           fi
 
       - name: Publish update
@@ -257,9 +264,13 @@ jobs:
           # bundle. This project's environments are named after its
           # channels; a mismatch ships the app pointing at another
           # backend, which nothing here would catch.
-          eas update \
-            --channel "$CHANNEL" \
-            --environment "$CHANNEL" \
-            --platform "$PUBLISH_PLATFORM" \
-            --message "${subject} (${GITHUB_SHA:0:7})" \
-            --non-interactive
+          mapfile -t targets < "$RUNNER_TEMP/publish-targets"
+          for target in "${targets[@]}"; do
+            read -r channel platform <<< "$target"
+            eas update \
+              --channel "$channel" \
+              --environment "$channel" \
+              --platform "$platform" \
+              --message "${subject} (${GITHUB_SHA:0:7})" \
+              --non-interactive
+          done
