@@ -3,6 +3,7 @@ import {
   auditDate,
   auditDateTime,
   chatListTime,
+  cleanPhoneInput,
   dateOnlyLabel,
   parseDateOnly,
 } from './format';
@@ -73,5 +74,21 @@ describe('chatListTime', () => {
     expect(chatListTime(new Date(2026, 9, 26, 9, 0).toISOString())).toBe(
       'Yesterday'
     );
+  });
+});
+
+describe('cleanPhoneInput', () => {
+  it('[ACC-009] sends the web auth phone for every spelling of one number', () => {
+    for (const raw of [
+      '9900277111',
+      '+91-99002-77111',
+      '+91 99002 77111',
+      '919900277111',
+      '09900277111',
+    ]) {
+      expect(cleanPhoneInput(raw)).toBe('+919900277111');
+    }
+    expect(cleanPhoneInput('+1 415 555 2671')).toBe('+14155552671');
+    expect(cleanPhoneInput('12345')).toBeNull();
   });
 });

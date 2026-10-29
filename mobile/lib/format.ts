@@ -1,5 +1,6 @@
 import { formatInrCompact } from '@shared/lib/format/currency';
 import { clockTime, listTime } from '@shared/lib/format/list-time';
+import { authPhone } from '@shared/lib/format/phone';
 
 /** Formatting helpers shared across screens. */
 
@@ -98,19 +99,11 @@ export function formatBudgetRange(
   return null;
 }
 
-/**
- * Same normalization as the web's WhatsappPhoneVerify: bare 10-digit
- * numbers get +91 (the product's home market); anything else must
- * already be E.164.
- */
+export const AUTH_DEFAULT_COUNTRY_CODE =
+  process.env.EXPO_PUBLIC_DEFAULT_COUNTRY_CODE?.replace(/\D/g, '') || '91';
+
 export function cleanPhoneInput(raw: string): string | null {
-  let phone = raw.trim().replace(/\s+/g, '');
-  if (!phone.startsWith('+')) {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length === 10) phone = `+91${digits}`;
-    else return null;
-  }
-  return phone;
+  return authPhone(raw, AUTH_DEFAULT_COUNTRY_CODE);
 }
 
 /** Parse a `YYYY-MM-DD` column value as a LOCAL calendar day.

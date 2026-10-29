@@ -1,5 +1,5 @@
 import { BRANDING } from '@/config/branding';
-import { phoneWithCountryCode } from '@/lib/format/phone';
+import { authPhone, phoneWithCountryCode } from '@/lib/format/phone';
 
 export const DEFAULT_COUNTRY_CODE = BRANDING.defaultCountryCode || '91';
 
@@ -50,13 +50,7 @@ export function normalizePhoneWithCountryCode(
  * "+91-99002-77111" reached Supabase with its dashes.
  */
 export function toAuthPhone(raw: unknown): string | null {
-  const e164 = normalizePhoneWithCountryCode(raw);
-  const digits = e164.replace(/\D/g, '');
-  // E.164 caps at 15 digits; below 11 cannot carry a country code and a
-  // subscriber number, and normalizePhoneWithCountryCode has already
-  // added the default code to a bare 10-digit local number.
-  if (digits.length < 11 || digits.length > 15) return null;
-  return e164;
+  return authPhone(raw, DEFAULT_COUNTRY_CODE);
 }
 
 /**
