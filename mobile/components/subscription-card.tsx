@@ -12,9 +12,9 @@ import { useSubscription } from '@/lib/use-subscription';
 /**
  * The account's subscription level, shown as a premium gradient badge on
  * the More screen. Owner-only (RLS), so it quietly hides for other roles.
- * Tapping opens Billing to manage or upgrade — on iOS the upgrade call to
- * action is dropped and the card becomes a plain status badge
- * (SHOW_PURCHASE_LINKS).
+ * Tapping opens Billing to manage or upgrade — in the store apps the
+ * upgrade call to action is dropped and the card becomes a plain status
+ * badge (SHOW_PURCHASE_LINKS).
  */
 export function SubscriptionCard() {
   const { plan, status, isLoading, canView } = useSubscription();

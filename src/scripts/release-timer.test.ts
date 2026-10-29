@@ -464,7 +464,7 @@ describe('run', () => {
       repo: 'repo',
       workflow_id: 'eas-update.yml',
       ref: 'main',
-      inputs: { channel: 'preview' },
+      inputs: { channel: 'all' },
     });
   });
 
@@ -550,7 +550,7 @@ describe('run', () => {
       repo: 'repo',
       workflow_id: 'eas-update.yml',
       ref: 'main',
-      inputs: { channel: 'preview' },
+      inputs: { channel: 'all' },
     });
     expect(rest.issues.removeLabel).toHaveBeenCalledWith(
       expect.objectContaining({ issue_number: 49 })
@@ -1065,11 +1065,13 @@ describe('the mobile update the timer dispatches', () => {
     expect(touchesMobileBundle([], paths)).toBe(false);
   });
 
-  it('accepts a manual run on the channel the installed apps follow', () => {
+  it('accepts a manual run that reaches every channel installed apps follow', () => {
     expect(workflow).toMatch(
       /\n  workflow_dispatch:\n {4}inputs:\n {6}channel:/
     );
-    expect(workflow).toContain("CHANNEL: ${{ inputs.channel || 'preview' }}");
+    expect(workflow).toContain(
+      "CHANNELS: ${{ (inputs.channel == '' || inputs.channel == 'all') && 'preview production' || inputs.channel }}"
+    );
   });
 });
 

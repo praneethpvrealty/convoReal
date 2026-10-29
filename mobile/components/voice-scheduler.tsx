@@ -18,6 +18,7 @@ import {
 
 import { ApiError, apiFetch } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
+import { SHOW_PURCHASE_LINKS } from '@/lib/store-policy';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import {
   formatRecordingDuration,
@@ -107,7 +108,9 @@ export function VoiceScheduler({
       haptic.warn();
       if (err instanceof ApiError && err.status === 402) {
         onError(
-          "You're out of AI credits — top up from the web app to keep using voice."
+          SHOW_PURCHASE_LINKS
+            ? "You're out of AI credits — top up from the web app to keep using voice."
+            : "You're out of AI credits, so voice scheduling is paused."
         );
       } else {
         onError(

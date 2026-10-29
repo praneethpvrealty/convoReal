@@ -34,7 +34,7 @@ export default function PrivacyPage() {
           <div className="space-y-2 border-b border-slate-800/50 pb-4">
             <h2 className="text-xl font-bold text-white">Privacy Policy</h2>
             <p className="text-xs text-slate-400">
-              Last updated: July 12, 2026
+              Last updated: October 29, 2026
             </p>
           </div>
 
@@ -161,6 +161,55 @@ export default function PrivacyPage() {
               </ul>
             </section>
 
+            <section id="mobile-app" className="space-y-2">
+              <h3 className="text-base font-bold text-white">
+                6. The {BRANDING.name} Mobile App
+              </h3>
+              <p>
+                The Android and iOS apps are for real-estate teams and the
+                owners and buyers they work with. Each device permission is
+                asked for only when you use the feature that needs it, and you
+                can refuse or revoke it in your phone&apos;s settings:
+              </p>
+              <ul className="list-inside list-disc space-y-1 pl-2 text-slate-400">
+                <li>
+                  <strong className="text-slate-300">Contacts:</strong> only the
+                  contacts you pick are uploaded to your workspace as leads.
+                  Your address book is never read in the background or uploaded
+                  whole.
+                </li>
+                <li>
+                  <strong className="text-slate-300">Location:</strong> used
+                  while the app is open to show listings near you. It is not
+                  tracked in the background.
+                </li>
+                <li>
+                  <strong className="text-slate-300">Microphone:</strong> used
+                  only while you hold the record button, to send a voice note or
+                  schedule an appointment by voice.
+                </li>
+                <li>
+                  <strong className="text-slate-300">Camera and photos:</strong>{' '}
+                  only the photos you take or choose are uploaded, to your
+                  property listings and conversations.
+                </li>
+                <li>
+                  <strong className="text-slate-300">Notifications:</strong> a
+                  device token is stored so we can alert you to new messages,
+                  appointments and matches.
+                </li>
+                <li>
+                  <strong className="text-slate-300">Diagnostics:</strong> crash
+                  reports and performance data are sent to our error-monitoring
+                  provider to fix bugs. They are not used for advertising.
+                </li>
+              </ul>
+              <p>
+                All data is encrypted in transit. The app shows no ads and
+                shares no data with advertising networks.
+              </p>
+            </section>
+
             {/* Crucial Data Deletion Section for Meta App Review */}
             <section
               id="data-deletion"
@@ -178,12 +227,29 @@ export default function PrivacyPage() {
                 stored within our application.
               </p>
               <p className="text-slate-300">
-                If you want to delete your activities or request data erasure
-                for your contact details, phone numbers, or metadata, you can do
-                so at any time by following these steps:
+                <strong className="text-slate-200">In the app:</strong> open
+                More (or Settings in the owner portal) and tap Delete account.
+                Your login is deleted at once. If you own a workspace, every
+                contact, property, conversation and deal in it is deleted with
+                you; teammates keep their own logins.
+              </p>
+              <p className="text-slate-300">
+                <strong className="text-slate-200">Without the app:</strong> if
+                you want to delete your account, your activities, or request
+                data erasure for your contact details, phone numbers, or
+                metadata, you can do so at any time by following these steps:
               </p>
               <ol className="list-inside list-decimal space-y-1.5 pl-2 text-slate-400">
-                <li>Send an email request to our support desk.</li>
+                <li>
+                  Send an email request to{' '}
+                  <a
+                    href={`mailto:${BRANDING.supportEmail}?subject=Delete%20my%20account`}
+                    className="text-primary underline"
+                  >
+                    {BRANDING.supportEmail}
+                  </a>
+                  .
+                </li>
                 <li>
                   Clearly specify your registered phone number and/or name.
                 </li>
