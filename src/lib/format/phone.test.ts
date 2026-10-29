@@ -61,6 +61,13 @@ describe('authPhone', () => {
     }
   });
 
+  it('[ACC-009] keeps the country code of a number written with a plus', () => {
+    expect(authPhone('+6581234567', '91')).toBe('+6581234567');
+    expect(authPhone('+65 8123 4567', '91')).toBe('+6581234567');
+    expect(authPhone('+298 211234', '91')).toBe('+298211234');
+    expect(authPhone('+1 415 555 2671', '91')).toBe('+14155552671');
+  });
+
   it('[ACC-009] rejects what cannot be an E.164 number', () => {
     expect(authPhone('', '91')).toBeNull();
     expect(authPhone('12345', '91')).toBeNull();

@@ -89,6 +89,8 @@ describe('cleanPhoneInput', () => {
       expect(cleanPhoneInput(raw)).toBe('+919900277111');
     }
     expect(cleanPhoneInput('+1 415 555 2671')).toBe('+14155552671');
+    expect(cleanPhoneInput('+6581234567')).toBe('+6581234567');
+    expect(cleanPhoneInput('+298211234')).toBe('+298211234');
     expect(cleanPhoneInput('12345')).toBeNull();
   });
 });

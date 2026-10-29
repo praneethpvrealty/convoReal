@@ -5459,7 +5459,7 @@
         },
         {
           "id": "ACC-009",
-          "rule": "Every Supabase Auth phone (signInWithOtp, verifyOtp, updateUser) is the one string authPhone in src/lib/format/phone.ts returns for the deployment's default country code: on web through toAuthPhone in src/lib/whatsapp/phone-utils.ts, on mobile through cleanPhoneInput in mobile/lib/format.ts, which the staff login, the Portfolio owner login and the phone verification screens all use. Spaces, dashes, brackets, a leading 0 or 00 and a missing + never reach Supabase, so one number keys one auth identity whichever surface signed it in.",
+          "rule": "Every Supabase Auth phone (signInWithOtp, verifyOtp, updateUser) is the one string authPhone in src/lib/format/phone.ts returns for the deployment's default country code: on web through toAuthPhone in src/lib/whatsapp/phone-utils.ts, on mobile through cleanPhoneInput in mobile/lib/format.ts, which the staff login, the Portfolio owner login and the phone verification screens all use. A number written with a + keeps its own country code; one without gets the default code. Spaces, dashes, brackets, a leading 0 or 00 and a missing + never reach Supabase, so one number keys one auth identity whichever surface signed it in.",
           "tests": [
             {
               "file": "src/lib/format/phone.test.ts",
