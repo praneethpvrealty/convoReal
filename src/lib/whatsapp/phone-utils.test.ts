@@ -223,5 +223,7 @@ describe('toAuthPhone', () => {
   it('keeps non-Indian numbers that already carry a country code', () => {
     expect(toAuthPhone('+1 415 555 2671')).toBe('+14155552671');
     expect(toAuthPhone('+44 7911 123456')).toBe('+447911123456');
+    expect(toAuthPhone('+6581234567')).toBe('+6581234567');
+    expect(toAuthPhone('+298211234')).toBe('+298211234');
   });
 });

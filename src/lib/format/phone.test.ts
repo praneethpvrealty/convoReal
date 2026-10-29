@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contactPhone, phoneWithCountryCode } from './phone';
+import { authPhone, contactPhone, phoneWithCountryCode } from './phone';
 
 describe('phoneWithCountryCode', () => {
   it('prefixes a local ten-digit number with the country code it is given', () => {
@@ -42,5 +42,35 @@ describe('contactPhone', () => {
     expect(contactPhone('99002771', '91')).toBeNull();
     expect(contactPhone('1234567890123456', '91')).toBeNull();
     expect(contactPhone('', '91')).toBeNull();
+  });
+});
+
+describe('authPhone', () => {
+  it('[ACC-009] keys every spelling of one number to the same auth phone', () => {
+    for (const raw of [
+      '9900277111',
+      '+919900277111',
+      '919900277111',
+      '+91 99002 77111',
+      '+91-99002-77111',
+      '(+91) 99002 77111',
+      '09900277111',
+      '00919900277111',
+    ]) {
+      expect(authPhone(raw, '91')).toBe('+919900277111');
+    }
+  });
+
+  it('[ACC-009] keeps the country code of a number written with a plus', () => {
+    expect(authPhone('+6581234567', '91')).toBe('+6581234567');
+    expect(authPhone('+65 8123 4567', '91')).toBe('+6581234567');
+    expect(authPhone('+298 211234', '91')).toBe('+298211234');
+    expect(authPhone('+1 415 555 2671', '91')).toBe('+14155552671');
+  });
+
+  it('[ACC-009] rejects what cannot be an E.164 number', () => {
+    expect(authPhone('', '91')).toBeNull();
+    expect(authPhone('12345', '91')).toBeNull();
+    expect(authPhone('9900277111000000', '91')).toBeNull();
   });
 });

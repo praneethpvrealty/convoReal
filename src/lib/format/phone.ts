@@ -14,6 +14,13 @@ export function contactPhone(
   phone: unknown,
   defaultCountryCode: string
 ): string | null {
+  return authPhone(phone, defaultCountryCode);
+}
+
+export function authPhone(
+  phone: unknown,
+  defaultCountryCode: string
+): string | null {
   if (phone === null || phone === undefined) return null;
   const raw = String(phone).trim();
   if (raw.startsWith('+')) {

@@ -5923,3 +5923,29 @@ describe('[UIX-006] contacts and inbox show the same things on web and mobile', 
     expect(mobileThread).toContain('isReengagementError(');
   });
 });
+
+describe('[ACC-009] mobile sign-in sends the same auth phone as web', () => {
+  it('[ACC-009] routes every mobile auth phone through the shared authPhone rule', () => {
+    const format = mobileSource('lib/format.ts');
+    expect(format).toContain(
+      "import { authPhone } from '@shared/lib/format/phone';"
+    );
+    expect(format).toMatch(
+      /export function cleanPhoneInput\(raw: string\): string \| null \{\s*return authPhone\(raw, AUTH_DEFAULT_COUNTRY_CODE\);/
+    );
+    expect(webSource('lib/whatsapp/phone-utils.ts')).toContain(
+      'return authPhone(raw, DEFAULT_COUNTRY_CODE);'
+    );
+    for (const screen of [
+      'app/(auth)/login.tsx',
+      'app/(auth)/den-login.tsx',
+      'app/(app)/verify-phone.tsx',
+    ]) {
+      const source = mobileSource(screen);
+      expect(source).toContain(
+        "import { cleanPhoneInput } from '@/lib/format';"
+      );
+      expect(source).toContain('phone: cleanPhone,');
+    }
+  });
+});
