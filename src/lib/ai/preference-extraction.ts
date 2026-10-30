@@ -241,7 +241,7 @@ const SITE_DIMENSION = /\b\d{2,3}\s*(?:x|×|\*|by)\s*\d{2,3}\b/i;
 const PINNED_BEFORE = String.raw`(?:exact(?:ly)?|only|just|max(?:imum)?(?:\s+of)?|up\s*to|upto|under|below|(?:not|no)\s+more\s+than|less\s+than|at\s+most)`;
 const PINNED_AFTER = String.raw`(?:exact(?:ly)?|only|max(?:imum)?|at\s+most|or\s+(?:less|smaller|under|below))`;
 const PINNED_SIZE = new RegExp(
-  String.raw`\b${PINNED_BEFORE}\s+${SIZE_FIGURE}\s*${SIZE_UNIT}\b|\b${SIZE_FIGURE}\s*${SIZE_UNIT}\b(?:\s+[^\s.,;\n]+)?\s+${PINNED_AFTER}\b(?!\s*(?:₹|rs\b|\d))`,
+  String.raw`\b${PINNED_BEFORE}\s+${SIZE_FIGURE}\s*${SIZE_UNIT}\b|\b${SIZE_FIGURE}\s*${SIZE_UNIT}\b\.?(?:\s+[^\s.,;\n]+)?\s+${PINNED_AFTER}\b(?!\s*(?:₹|rs\b|\d))`,
   'i'
 );
 const PLOT_TYPE = /plot|land/i;

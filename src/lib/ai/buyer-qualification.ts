@@ -1240,15 +1240,17 @@ export function mergeKnownPreferences(
     values.length ? values : fallback;
   let sizeMin = extracted.land_area_min_sqft ?? known.land_area_min_sqft;
   let sizeMax = extracted.land_area_max_sqft ?? known.land_area_max_sqft;
-  if (sizeMin != null && sizeMax != null && sizeMax < sizeMin) {
+  if (sizeMin != null && sizeMax != null) {
     if (
       extracted.land_area_min_sqft != null &&
-      extracted.land_area_max_sqft == null
+      extracted.land_area_max_sqft == null &&
+      sizeMax <= sizeMin
     )
       sizeMax = null;
     else if (
       extracted.land_area_max_sqft != null &&
-      extracted.land_area_min_sqft == null
+      extracted.land_area_min_sqft == null &&
+      sizeMax < sizeMin
     )
       sizeMin = null;
   }

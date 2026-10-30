@@ -155,6 +155,12 @@ describe('floorBarePlotSize', () => {
     expect(
       floorBarePlotSize('not more than 4000 sqft plot', plot(4000, 4000))
     ).toMatchObject({ land_area_max_sqft: 4000 });
+    expect(
+      floorBarePlotSize('4000 sq.ft. only plot', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: 4000 });
+    expect(
+      floorBarePlotSize('4000 sq. ft. only', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: 4000 });
   });
 
   it('[CTM-016] leaves built-up sizes and stated bands alone', () => {
