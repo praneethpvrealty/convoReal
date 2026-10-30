@@ -52,6 +52,10 @@ function RootLayout() {
   // Session still being restored from secure storage — hold rendering so
   // the (app) guard doesn't flash the login screen for signed-in users.
   // Fonts load from the bundle (no network) — a frame or two at most.
+  // The wordmark waits for them: Fabric caches a text measurement by the
+  // string and its style, font family name included, so a wordmark
+  // measured with the fallback typeface keeps that narrower width once
+  // the ExtraBold font arrives and reads "ConvoRea".
   if (session === undefined || !fontsLoaded) {
     return (
       <View
@@ -62,11 +66,7 @@ function RootLayout() {
           backgroundColor: colors.background,
         }}
       >
-        <ConvoRealLoader
-          key={fontsLoaded ? 'fonts' : 'system'}
-          size={26}
-          shimmer={false}
-        />
+        {fontsLoaded ? <ConvoRealLoader size={26} shimmer={false} /> : null}
       </View>
     );
   }
