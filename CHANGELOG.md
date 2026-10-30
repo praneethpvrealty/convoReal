@@ -17,6 +17,18 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 30 October 2026
+
+- **A bare plot size is the smallest the buyer will take.** "Residential
+  plot 4000 sqft" used to be read as exactly 4,000 sq.ft., so Match Radar
+  admitted sites up to about 5,400 sq.ft. and dropped every larger plot.
+  The extractor now stores such a size as the floor with no cap, on web, in
+  the app and in the WhatsApp qualification thread; site dimensions
+  ("30x40"), a size qualified with "exactly", "around", "only" or "up to",
+  and built-up sizes keep the stated figure. A floor-only size reads
+  "4,000 sq.ft.+" in the brief title and the structured summary. Existing
+  contacts re-extract on their next requirement sync (CTM-016).
+
 #### 27 October 2026
 
 - **The Helper answers "interested buyers for #…" inline, with a Message

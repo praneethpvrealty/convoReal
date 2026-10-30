@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bhkRangeFromRequirement,
   budgetFromPerSqftRequirement,
+  floorBarePlotSize,
   listingTypesFromCurrentTurn,
   mergedListingTypes,
   preferenceSourceHash,
@@ -58,8 +59,81 @@ describe('budgetFromPerSqftRequirement', () => {
 });
 
 describe('preferenceSourceHash', () => {
-  it('invalidates earlier extraction results after the rate fix', () => {
-    expect(preferenceSourceHash('same requirement')).toMatch(/^v4:/);
+  it('invalidates earlier extraction results after the plot-size floor', () => {
+    expect(preferenceSourceHash('same requirement')).toMatch(/^v5:/);
+  });
+});
+
+describe('floorBarePlotSize', () => {
+  const plot = (
+    min: number | null,
+    max: number | null,
+    types = ['Residential Plot']
+  ) => ({
+    property_types: types,
+    property_categories: [] as string[],
+    land_area_min_sqft: min,
+    land_area_max_sqft: max,
+  });
+
+  it('[CTM-016] reads a bare plot size as the floor', () => {
+    expect(
+      floorBarePlotSize('Residential plot 4000 sqft in HSR', plot(4000, 4000))
+    ).toMatchObject({ land_area_min_sqft: 4000, land_area_max_sqft: null });
+    expect(
+      floorBarePlotSize('1 acre land near Sarjapur', plot(43_560, 43_560, []))
+    ).toMatchObject({ land_area_min_sqft: 43_560, land_area_max_sqft: null });
+    expect(
+      floorBarePlotSize('site of 2,400 sq. ft.', {
+        ...plot(2400, 2400, []),
+        property_categories: ['plot'],
+      })
+    ).toMatchObject({ land_area_max_sqft: null });
+  });
+
+  it('[CTM-016] keeps site dimensions and a pinned size as a point', () => {
+    expect(
+      floorBarePlotSize('30x40 site in JP Nagar', plot(1200, 1200))
+    ).toMatchObject({ land_area_max_sqft: 1200 });
+    expect(floorBarePlotSize('50 by 80 plot', plot(4000, 4000))).toMatchObject({
+      land_area_max_sqft: 4000,
+    });
+    expect(
+      floorBarePlotSize('exactly 4000 sqft plot', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: 4000 });
+    expect(
+      floorBarePlotSize('plot around 4000 sqft', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: 4000 });
+    expect(
+      floorBarePlotSize('4000 sqft plot only', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: 4000 });
+    expect(
+      floorBarePlotSize('plot up to 4000 sqft, budget 2 Cr', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: 4000 });
+  });
+
+  it('[CTM-016] ignores a qualifier that belongs to the budget', () => {
+    expect(
+      floorBarePlotSize('Budget up to 2 Cr. 4000 sqft plot.', plot(4000, 4000))
+    ).toMatchObject({ land_area_min_sqft: 4000, land_area_max_sqft: null });
+    expect(
+      floorBarePlotSize('Budget upto 2 Cr. 4000 sqft plot.', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: null });
+    expect(
+      floorBarePlotSize('4000 sqft plot, budget around 2 Cr', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: null });
+  });
+
+  it('[CTM-016] leaves built-up sizes and stated bands alone', () => {
+    expect(
+      floorBarePlotSize('1200 sqft flat', plot(1200, 1200, ['Flat/ Apartment']))
+    ).toMatchObject({ land_area_max_sqft: 1200 });
+    expect(
+      floorBarePlotSize('2000 to 2400 sqft plot', plot(2000, 2400))
+    ).toMatchObject({ land_area_max_sqft: 2400 });
+    expect(
+      floorBarePlotSize('minimum 4000 sqft plot', plot(4000, null))
+    ).toMatchObject({ land_area_min_sqft: 4000, land_area_max_sqft: null });
   });
 });
 

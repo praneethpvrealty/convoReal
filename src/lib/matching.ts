@@ -1347,8 +1347,9 @@ function matchContactsSingleProfile(
           const nearMin = sizeMin === null || propAreaSqft >= sizeMin * 0.9;
           const nearMax = sizeMax === null || propAreaSqft <= sizeMax * 1.1;
           const sizeNear = nearMin && nearMax;
-          // A single figure ("60x40", "2400 sqft") is the size the buyer
-          // has in mind, not a band. The larger corner sites in the same
+          // A single figure ("60x40", "exactly 2400 sqft") is the size the
+          // buyer has in mind, not a band; a bare plot size is stored as
+          // a floor (floorBarePlotSize) and never reaches this rung. The larger corner sites in the same
           // layout are the alternatives an agent would mention; a smaller
           // plot is not. The anchors above never produce a single figure,
           // so the feedback guarantee stands.
