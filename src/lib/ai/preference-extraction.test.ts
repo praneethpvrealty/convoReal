@@ -133,6 +133,30 @@ describe('floorBarePlotSize', () => {
     ).toMatchObject({ land_area_max_sqft: null });
   });
 
+  it('[CTM-016] reads a qualifier only when it sits beside the figure', () => {
+    expect(
+      floorBarePlotSize(
+        '4000 sqft plot within 5 km of airport',
+        plot(4000, 4000)
+      )
+    ).toMatchObject({ land_area_max_sqft: null });
+    expect(
+      floorBarePlotSize('budget under 2cr 4000 sqft plot', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: null });
+    expect(
+      floorBarePlotSize('4000 sqft plot max 2 Cr', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: null });
+    expect(
+      floorBarePlotSize('under 4000 sqft plot', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: 4000 });
+    expect(
+      floorBarePlotSize('plot 4000 sqft max', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: 4000 });
+    expect(
+      floorBarePlotSize('not more than 4000 sqft plot', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: 4000 });
+  });
+
   it('[CTM-016] leaves built-up sizes and stated bands alone', () => {
     expect(
       floorBarePlotSize('1200 sqft flat', plot(1200, 1200, ['Flat/ Apartment']))

@@ -237,13 +237,13 @@ export function budgetFromPerSqftRequirement(
 
 const SIZE_UNIT = String.raw`(?:sq\.?\s*(?:ft|feet|yards?|yds?)|sqft|sqyds?|square\s+(?:feet|yards?)|acres?|guntas?|cents?|grounds?)`;
 const SIZE_FIGURE = String.raw`(?:\d[\d,]*(?:\.\d+)?\s*k?|half|quarter|one|two|three|four|five|six|seven|eight|nine|ten)(?:\s+an?)?`;
-const SIZE_MENTION = new RegExp(
-  String.raw`((?:[^\s.,;\n]+\s+){0,3})${SIZE_FIGURE}\s*${SIZE_UNIT}\b((?:\s+[^\s.,;\n]+){0,3})`,
-  'gi'
-);
 const SITE_DIMENSION = /\b\d{2,3}\s*(?:x|×|\*|by)\s*\d{2,3}\b/i;
-const PINNED_SIZE =
-  /\b(?:exact(?:ly)?|only|just|max(?:imum)?|up\s*to|upto|under|below|within|not\s+more\s+than|no\s+more\s+than|less\s+than|at\s+most|or\s+less|or\s+smaller)\b/i;
+const PINNED_BEFORE = String.raw`(?:exact(?:ly)?|only|just|max(?:imum)?(?:\s+of)?|up\s*to|upto|under|below|(?:not|no)\s+more\s+than|less\s+than|at\s+most)`;
+const PINNED_AFTER = String.raw`(?:exact(?:ly)?|only|max(?:imum)?|at\s+most|or\s+(?:less|smaller|under|below))`;
+const PINNED_SIZE = new RegExp(
+  String.raw`\b${PINNED_BEFORE}\s+${SIZE_FIGURE}\s*${SIZE_UNIT}\b|\b${SIZE_FIGURE}\s*${SIZE_UNIT}\b(?:\s+[^\s.,;\n]+)?\s+${PINNED_AFTER}\b(?!\s*(?:₹|rs\b|\d))`,
+  'i'
+);
 const PLOT_TYPE = /plot|land/i;
 const LAND_TEXT = /\b(?:plots?|sites?|land)\b/i;
 
@@ -253,7 +253,9 @@ const LAND_TEXT = /\b(?:plots?|sites?|land)\b/i;
  * above. The model is told so, and this backstop drops the cap it
  * still returns for that case. Site dimensions ("30x40") name a
  * layout's standard site and stay a point, as does a size pinned by
- * its own words ("exactly", "only", "up to") or any built-up size.
+ * its own words ("exactly", "only", "up to") written right beside the
+ * figure, or any built-up size. A qualifier elsewhere in the message
+ * ("within 5 km", "budget under 2 Cr") is about something else.
  * "Around 4k sqft" is a floor too: a plot buyer who says it will look
  * at a bigger site, and the matcher's near-miss band already covers the
  * slightly smaller one.
@@ -275,10 +277,7 @@ export function floorBarePlotSize<
     prefs.property_types.some((t) => PLOT_TYPE.test(t)) ||
     (prefs.property_types.length === 0 && LAND_TEXT.test(text));
   if (!plot) return prefs;
-  if (SITE_DIMENSION.test(text)) return prefs;
-  for (const mention of text.matchAll(SIZE_MENTION)) {
-    if (PINNED_SIZE.test(`${mention[1]} ${mention[2]}`)) return prefs;
-  }
+  if (SITE_DIMENSION.test(text) || PINNED_SIZE.test(text)) return prefs;
   return { ...prefs, land_area_max_sqft: null };
 }
 

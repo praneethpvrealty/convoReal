@@ -157,6 +157,18 @@ describe('portal enquiry context', () => {
     expect(merged.land_area_max_sqft).toBeNull();
   });
 
+  it('[CTM-016] drops a known floor a newly stated cap falls under', () => {
+    const known = prefs({
+      property_types: ['Residential Plot'],
+      land_area_min_sqft: 4000,
+    });
+    const extracted = prefs({ land_area_max_sqft: 2400 });
+    const merged = mergeKnownPreferences(extracted, known);
+
+    expect(merged.land_area_min_sqft).toBeNull();
+    expect(merged.land_area_max_sqft).toBe(2400);
+  });
+
   it('keeps the known Villa type when the buyer only adds budget and area', () => {
     const known = prefs({ property_types: ['Villa'], listing_types: ['Sale'] });
     const extracted = prefs({
