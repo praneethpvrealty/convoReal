@@ -1211,6 +1211,28 @@
             ".github/workflows/ci.yml",
             ".github/workflows/eas-update.yml"
           ]
+        },
+        {
+          "id": "CTM-016",
+          "rule": "A single size on a plot, site or land requirement that is unqualified or approximate (\"4000 sqft plot\", \"around 4k sqft site\", \"1 acre land\") is saved as the floor of the size band with no cap, so every larger plot matches; site dimensions (\"30x40\"), a size pinned by its own words (exactly, only, up to, max) and any built-up size keep the stated figure as both bounds. A floor a buyer states later drops a known cap it has passed rather than storing a band nothing satisfies. A floor-only band is shown as \"4,000 sq.ft.+\" in the brief title and the structured summary on web and mobile.",
+          "tests": [
+            {
+              "file": "src/lib/ai/preference-extraction.test.ts",
+              "case": "[CTM-016]"
+            },
+            {
+              "file": "src/lib/ai/preference-extraction.size.test.ts",
+              "case": "[CTM-016]"
+            },
+            {
+              "file": "src/lib/ai/buyer-qualification.test.ts",
+              "case": "[CTM-016]"
+            },
+            {
+              "file": "src/lib/requirements/profiles.test.ts",
+              "case": "[CTM-016]"
+            }
+          ]
         }
       ]
     },

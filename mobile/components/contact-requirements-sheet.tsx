@@ -40,6 +40,20 @@ function inr(value: number): string {
   return `₹${value.toLocaleString('en-IN')}`;
 }
 
+function sizeSummary(
+  minSqft: number | null | undefined,
+  maxSqft: number | null | undefined
+): string | null {
+  const sqft = (n: number) => `${Math.round(n).toLocaleString('en-IN')} sq.ft.`;
+  if (minSqft && maxSqft)
+    return minSqft === maxSqft
+      ? sqft(minSqft)
+      : `${sqft(minSqft)}–${sqft(maxSqft)}`;
+  if (minSqft) return `${sqft(minSqft)}+`;
+  if (maxSqft) return `Up to ${sqft(maxSqft)}`;
+  return null;
+}
+
 function primarySummary(contact: Contact): string {
   const source = resolveRequirementSource(contact);
   const types = source.pref_property_types?.length
@@ -62,7 +76,12 @@ function primarySummary(contact: Contact): string {
         : min
           ? `Above ${inr(min)}`
           : null;
-  return [types.slice(0, 2).join(' / '), areas.slice(0, 3).join(', '), budget]
+  return [
+    types.slice(0, 2).join(' / '),
+    areas.slice(0, 3).join(', '),
+    sizeSummary(source.pref_land_area_min_sqft, source.pref_land_area_max_sqft),
+    budget,
+  ]
     .filter(Boolean)
     .join(' · ');
 }

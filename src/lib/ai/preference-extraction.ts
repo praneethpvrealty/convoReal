@@ -235,6 +235,52 @@ export function budgetFromPerSqftRequirement(
   };
 }
 
+const SIZE_UNIT = String.raw`(?:sq\.?\s*(?:ft|feet|yards?|yds?)|sqft|sqyds?|square\s+(?:feet|yards?)|acres?|guntas?|cents?|grounds?)`;
+const SIZE_FIGURE = String.raw`(?:\d[\d,]*(?:\.\d+)?\s*k?|half|quarter|one|two|three|four|five|six|seven|eight|nine|ten)(?:\s+an?)?`;
+const SITE_DIMENSION = /\b\d{2,3}\s*(?:x|×|\*|by)\s*\d{2,3}\b/i;
+const PINNED_BEFORE = String.raw`(?:exact(?:ly)?|only|just|max(?:imum)?(?:\s+of)?|up\s*to|upto|under|below|(?:not|no)\s+more\s+than|less\s+than|at\s+most)`;
+const PINNED_AFTER = String.raw`(?:exact(?:ly)?|only|max(?:imum)?|at\s+most|or\s+(?:less|smaller|under|below))`;
+const PINNED_SIZE = new RegExp(
+  String.raw`\b${PINNED_BEFORE}\s+${SIZE_FIGURE}\s*${SIZE_UNIT}\b|\b${SIZE_FIGURE}\s*${SIZE_UNIT}\b\.?(?:\s+[^\s.,;\n]+)?\s+${PINNED_AFTER}\b(?!\s*(?:₹|rs\b|\d))`,
+  'i'
+);
+const PLOT_TYPE = /plot|land/i;
+const LAND_TEXT = /\b(?:plots?|sites?|land)\b/i;
+
+/**
+ * A bare size on a plot brief is the smallest the buyer will take, not
+ * the only size they will look at: "4000 sqft plot" means 4,000 and
+ * above. The model is told so, and this backstop drops the cap it
+ * still returns for that case. Site dimensions ("30x40") name a
+ * layout's standard site and stay a point, as does a size pinned by
+ * its own words ("exactly", "only", "up to") written right beside the
+ * figure, or any built-up size. A qualifier elsewhere in the message
+ * ("within 5 km", "budget under 2 Cr") is about something else.
+ * "Around 4k sqft" is a floor too: a plot buyer who says it will look
+ * at a bigger site, and the matcher's near-miss band already covers the
+ * slightly smaller one.
+ */
+export function floorBarePlotSize<
+  T extends {
+    property_types: string[];
+    property_categories: string[];
+    land_area_min_sqft: number | null;
+    land_area_max_sqft: number | null;
+  },
+>(text: string, prefs: T): T {
+  const { land_area_min_sqft: min, land_area_max_sqft: max } = prefs;
+  if (min == null || max == null || min !== max) return prefs;
+  const plot =
+    prefs.property_categories.some(
+      (c) => c === 'plot' || c === 'agricultural'
+    ) ||
+    prefs.property_types.some((t) => PLOT_TYPE.test(t)) ||
+    (prefs.property_types.length === 0 && LAND_TEXT.test(text));
+  if (!plot) return prefs;
+  if (SITE_DIMENSION.test(text) || PINNED_SIZE.test(text)) return prefs;
+  return { ...prefs, land_area_max_sqft: null };
+}
+
 /**
  * Extracts structured real estate preferences from a contact's free-text
  * requirements and notes. Throws on API/parse failure — callers decide
@@ -256,8 +302,8 @@ export async function extractContactPreferences(
     '  "bhk_max": Maximum bedroom count wanted (e.g. "2 or 3 BHK" -> 3, "3BHK" -> 3) or null,\n' +
     '  "budget_min": Minimum budget in INR (e.g. "above 1 Cr" -> 10000000, "80L to 1.2Cr" -> 8000000) or null,\n' +
     '  "budget_max": Maximum budget in INR (e.g. "under 1.2 Cr" -> 12000000, "budget 90 lakhs" -> 9000000) or null,\n' +
-    '  "land_area_min_sqft": Minimum plot/land or built-up size wanted, converted to SQUARE FEET (e.g. "30x40 site" -> 1200, "at least 1 acre" -> 43560, "2400 sqft plot" -> 2400) or null,\n' +
-    '  "land_area_max_sqft": Maximum plot/land or built-up size wanted in SQUARE FEET (e.g. "30x40 site" -> 1200, "up to 4000 sqft" -> 4000, "not more than half acre" -> 21780) or null,\n' +
+    '  "land_area_min_sqft": Minimum plot/land or built-up size wanted, converted to SQUARE FEET (e.g. "30x40 site" -> 1200, "at least 1 acre" -> 43560, "4000 sqft plot" -> 4000) or null,\n' +
+    '  "land_area_max_sqft": Maximum plot/land or built-up size wanted in SQUARE FEET (e.g. "30x40 site" -> 1200, "up to 4000 sqft" -> 4000, "not more than half acre" -> 21780, "4000 sqft plot" -> null) or null,\n' +
     '  "areas": Array of localities/neighbourhoods/cities the contact WANTS (e.g. ["HSR Layout", "Koramangala"]). Empty array if none or "any location".,\n' +
     '  "excluded_areas": Array of localities the contact explicitly does NOT want (e.g. "not Jayanagar" -> ["Jayanagar"]). Empty array if none.,\n' +
     '  "projects": Array of SPECIFIC named projects/apartments/societies/buildings the contact wants (e.g. ["Purva Vantage", "DSR Rainbow Heights", "Meenakshi Classic"]). These are proper names of developments, NOT localities — put neighbourhoods/areas in "areas" instead. Keep the name as written; drop qualifiers like "(Sector 1)" or "last choice". Empty array if none named.,\n' +
@@ -272,7 +318,7 @@ export async function extractContactPreferences(
     "2b. A bare number with NO unit means different things for rent and for purchase, and you must use the surrounding context to decide. For a RENTAL (monthly rent, 'rent', 'lease', 'to let'): a bare figure under 1000 is thousands per month — 'Budget 35 to 40' -> budget_min 35000, budget_max 40000; 'rent 18000' is already rupees -> 18000. For a PURCHASE: a bare figure up to 60 means crores — '1-2' -> 10000000 to 20000000, '60' -> 600000000; a bare figure between 61 and 999 means lakh — 'budget 80' -> 8000000. Use ONE unit for the whole range, chosen from the larger figure: '55 to 65' is 5500000 to 6500000, never 55 crore to 65 lakh. Never read a bare number as literal rupees when it is plainly a budget: nobody is buying a house for 35 rupees.\n" +
     "2c. A price stated per square foot is a RATE, never the total budget. When both rate and area are stated, derive total budget_min as minimum rate × minimum area and budget_max as maximum rate × maximum area. Example: '3000 to 4000 sqft at 40k to 45k per sqft' -> budget_min 120000000 and budget_max 180000000. If the area is missing, leave both budget fields null.\n" +
     "3. 'X BHK' means bhk_min = bhk_max = X unless a range is given.\n" +
-    "3b. Plot sizes: 'AxB' or 'A by B' site dimensions multiply to square feet ('30x40' -> 1200, '50x80' -> 4000). Convert units: 1 acre = 43560 sqft, 1 gunta = 1089 sqft, 1 cent = 435.6 sqft, 1 sq yard = 9 sqft. A single stated size ('30x40 site', '1200 sqft') means land_area_min_sqft = land_area_max_sqft = that size. Relative words with no figure ('smaller', 'lesser dimensions', 'bigger plot') stay null — do NOT invent a number.\n" +
+    "3b. Plot sizes: 'AxB' or 'A by B' site dimensions multiply to square feet ('30x40' -> 1200, '50x80' -> 4000). Convert units: 1 acre = 43560 sqft, 1 gunta = 1089 sqft, 1 cent = 435.6 sqft, 1 sq yard = 9 sqft. A single plot/land/site size with no qualifier or with 'around'/'about'/'approx' ('4000 sqft plot', 'around 4k sqft site', '1 acre land') is the smallest the buyer will take: land_area_min_sqft = that size, land_area_max_sqft = null. Site dimensions ('30x40 site', '50 by 80') and a size qualified with 'exactly', 'only', 'max' or 'up to' keep land_area_min_sqft = land_area_max_sqft = that size, and so does a single built-up size ('1200 sqft flat'). Relative words with no figure ('smaller', 'lesser dimensions', 'bigger plot') stay null — do NOT invent a number.\n" +
     '4. Only extract what the CONTACT wants. Ignore details about properties they already own or sold, meeting logistics, or agent chatter.\n' +
     "5. Distinguish wanted vs rejected: 'not interested in commercial' must NOT add 'commercial' to property_categories; 'avoid Whitefield' goes to excluded_areas.\n" +
     '6. Set fields to null / empty array when genuinely not stated. Do NOT guess.\n' +
@@ -303,8 +349,13 @@ export async function extractContactPreferences(
       (LISTING_TYPE_VALUES as readonly string[]).includes(t)
   );
 
-  const areaMin = toNumberOrNull(parsed.land_area_min_sqft);
-  const areaMax = toNumberOrNull(parsed.land_area_max_sqft);
+  const { land_area_min_sqft: areaMin, land_area_max_sqft: areaMax } =
+    floorBarePlotSize(text, {
+      property_types: propertyTypes,
+      property_categories: categories,
+      land_area_min_sqft: toNumberOrNull(parsed.land_area_min_sqft),
+      land_area_max_sqft: toNumberOrNull(parsed.land_area_max_sqft),
+    });
   const derivedBudget = budgetFromPerSqftRequirement(text, areaMin, areaMax);
   const fallbackBhk = bhkRangeFromRequirement(text);
   const parsedBhkMin = toNumberOrNull(parsed.bhk_min);
@@ -346,7 +397,7 @@ export function preferenceSourceHash(sourceText: string): string {
   for (let i = 0; i < sourceText.length; i++) {
     hash = ((hash << 5) + hash + sourceText.charCodeAt(i)) | 0;
   }
-  return `v4:${(hash >>> 0).toString(36)}:${sourceText.length}`;
+  return `v5:${(hash >>> 0).toString(36)}:${sourceText.length}`;
 }
 
 /**

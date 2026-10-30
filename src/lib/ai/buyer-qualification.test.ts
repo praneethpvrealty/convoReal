@@ -144,6 +144,50 @@ describe('portal enquiry context', () => {
     ).toBeNull();
   });
 
+  it('[CTM-016] drops a known size cap the new floor has passed', () => {
+    const known = prefs({
+      property_types: ['Residential Plot'],
+      land_area_min_sqft: 2400,
+      land_area_max_sqft: 2400,
+    });
+    const extracted = prefs({ land_area_min_sqft: 4000 });
+    const merged = mergeKnownPreferences(extracted, known);
+
+    expect(merged.land_area_min_sqft).toBe(4000);
+    expect(merged.land_area_max_sqft).toBeNull();
+  });
+
+  it('[CTM-016] lets a re-extracted floor shed the point cap stored before the floor rule', () => {
+    const known = prefs({
+      property_types: ['Residential Plot'],
+      land_area_min_sqft: 4000,
+      land_area_max_sqft: 4000,
+    });
+    const extracted = prefs({ land_area_min_sqft: 4000 });
+    const merged = mergeKnownPreferences(extracted, known);
+
+    expect(merged.land_area_min_sqft).toBe(4000);
+    expect(merged.land_area_max_sqft).toBeNull();
+    expect(
+      mergeKnownPreferences(
+        prefs({ land_area_min_sqft: 4000 }),
+        prefs({ land_area_min_sqft: 2000, land_area_max_sqft: 6000 })
+      ).land_area_max_sqft
+    ).toBe(6000);
+  });
+
+  it('[CTM-016] drops a known floor a newly stated cap falls under', () => {
+    const known = prefs({
+      property_types: ['Residential Plot'],
+      land_area_min_sqft: 4000,
+    });
+    const extracted = prefs({ land_area_max_sqft: 2400 });
+    const merged = mergeKnownPreferences(extracted, known);
+
+    expect(merged.land_area_min_sqft).toBeNull();
+    expect(merged.land_area_max_sqft).toBe(2400);
+  });
+
   it('keeps the known Villa type when the buyer only adds budget and area', () => {
     const known = prefs({ property_types: ['Villa'], listing_types: ['Sale'] });
     const extracted = prefs({

@@ -25,6 +25,25 @@ describe('requirement profiles', () => {
     );
   });
 
+  it('[CTM-016] titles a floor-only size with a plus and a cap-only size with "up to"', () => {
+    expect(
+      requirementProfileTitle({
+        ...dabaspetePreferences,
+        property_types: ['Residential Plot'],
+        areas: [],
+        land_area_min_sqft: 4000,
+        land_area_max_sqft: null,
+      })
+    ).toBe('Any area · 4,000 sq.ft.+ · Residential Plot');
+    expect(
+      requirementProfileTitle({
+        ...dabaspetePreferences,
+        land_area_min_sqft: null,
+        land_area_max_sqft: 2 * 43_560,
+      })
+    ).toBe('Dabaspete · up to 2 acres · Industrial Land');
+  });
+
   it('maps a profile into an isolated matching contact', () => {
     const contact = {
       id: 'sidharth',

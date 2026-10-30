@@ -47,6 +47,20 @@ interface RequirementResult {
 
 type View = 'overview' | 'add' | 'ask';
 
+function sizeSummary(
+  minSqft: number | null | undefined,
+  maxSqft: number | null | undefined
+): string | null {
+  const sqft = (n: number) => `${Math.round(n).toLocaleString('en-IN')} sq.ft.`;
+  if (minSqft && maxSqft)
+    return minSqft === maxSqft
+      ? sqft(minSqft)
+      : `${sqft(minSqft)}–${sqft(maxSqft)}`;
+  if (minSqft) return `${sqft(minSqft)}+`;
+  if (maxSqft) return `Up to ${sqft(maxSqft)}`;
+  return null;
+}
+
 function primarySummary(contact: Contact): string {
   const source = resolveRequirementSource(contact);
   const types = source.pref_property_types?.length
@@ -72,6 +86,7 @@ function primarySummary(contact: Contact): string {
   return [
     types.slice(0, 2).join(' / '),
     areas.slice(0, 3).join(', '),
+    sizeSummary(source.pref_land_area_min_sqft, source.pref_land_area_max_sqft),
     budget,
     (source.requires_tenanted ?? source.pref_requires_tenanted)
       ? 'Pre-leased only'
@@ -82,12 +97,10 @@ function primarySummary(contact: Contact): string {
 }
 
 function profileSummary(profile: ContactRequirementProfile): string {
-  const size =
-    profile.land_area_min_sqft && profile.land_area_max_sqft
-      ? `${Math.round(profile.land_area_min_sqft).toLocaleString('en-IN')}–${Math.round(profile.land_area_max_sqft).toLocaleString('en-IN')} sq.ft.`
-      : profile.land_area_min_sqft || profile.land_area_max_sqft
-        ? `${Math.round(profile.land_area_min_sqft || profile.land_area_max_sqft || 0).toLocaleString('en-IN')} sq.ft.`
-        : null;
+  const size = sizeSummary(
+    profile.land_area_min_sqft,
+    profile.land_area_max_sqft
+  );
   const budget =
     profile.budget_min && profile.budget_max
       ? `${formatInrCompact(profile.budget_min)}–${formatInrCompact(profile.budget_max)}`

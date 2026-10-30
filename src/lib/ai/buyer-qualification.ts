@@ -1238,6 +1238,22 @@ export function mergeKnownPreferences(
 ): ExtractedPreferences {
   const arrayOrKnown = <T>(values: T[], fallback: T[]): T[] =>
     values.length ? values : fallback;
+  let sizeMin = extracted.land_area_min_sqft ?? known.land_area_min_sqft;
+  let sizeMax = extracted.land_area_max_sqft ?? known.land_area_max_sqft;
+  if (sizeMin != null && sizeMax != null) {
+    if (
+      extracted.land_area_min_sqft != null &&
+      extracted.land_area_max_sqft == null &&
+      sizeMax <= sizeMin
+    )
+      sizeMax = null;
+    else if (
+      extracted.land_area_max_sqft != null &&
+      extracted.land_area_min_sqft == null &&
+      sizeMax < sizeMin
+    )
+      sizeMin = null;
+  }
 
   return {
     ...extracted,
@@ -1253,10 +1269,8 @@ export function mergeKnownPreferences(
     bhk_max: extracted.bhk_max ?? known.bhk_max,
     budget_min: extracted.budget_min ?? known.budget_min,
     budget_max: extracted.budget_max ?? known.budget_max,
-    land_area_min_sqft:
-      extracted.land_area_min_sqft ?? known.land_area_min_sqft,
-    land_area_max_sqft:
-      extracted.land_area_max_sqft ?? known.land_area_max_sqft,
+    land_area_min_sqft: sizeMin,
+    land_area_max_sqft: sizeMax,
     areas: arrayOrKnown(extracted.areas, known.areas),
     excluded_areas: arrayOrKnown(
       extracted.excluded_areas,

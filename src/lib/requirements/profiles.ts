@@ -22,7 +22,16 @@ export function requirementProfileTitle(
     'Property';
   const min = areaLabel(preferences.land_area_min_sqft);
   const max = areaLabel(preferences.land_area_max_sqft);
-  const size = min && max && min !== max ? `${min}–${max}` : min || max;
+  const size =
+    min && max
+      ? min === max
+        ? min
+        : `${min}–${max}`
+      : min
+        ? `${min}+`
+        : max
+          ? `up to ${max}`
+          : null;
   return [location, size, propertyType].filter(Boolean).join(' · ');
 }
 
