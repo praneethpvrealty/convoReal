@@ -236,14 +236,14 @@ export function budgetFromPerSqftRequirement(
 }
 
 const SIZE_UNIT = String.raw`(?:sq\.?\s*(?:ft|feet|yards?|yds?)|sqft|sqyds?|square\s+(?:feet|yards?)|acres?|guntas?|cents?|grounds?)`;
-const SIZE_FIGURE = String.raw`(?:\d[\d,]*(?:\.\d+)?|half|quarter|one|two|three|four|five|six|seven|eight|nine|ten)(?:\s+an?)?`;
+const SIZE_FIGURE = String.raw`(?:\d[\d,]*(?:\.\d+)?\s*k?|half|quarter|one|two|three|four|five|six|seven|eight|nine|ten)(?:\s+an?)?`;
 const SIZE_MENTION = new RegExp(
   String.raw`((?:[^\s.,;\n]+\s+){0,3})${SIZE_FIGURE}\s*${SIZE_UNIT}\b((?:\s+[^\s.,;\n]+){0,3})`,
   'gi'
 );
 const SITE_DIMENSION = /\b\d{2,3}\s*(?:x|×|\*|by)\s*\d{2,3}\b/i;
 const PINNED_SIZE =
-  /\b(?:exact(?:ly)?|only|just|around|about|approx(?:imately)?|roughly|max(?:imum)?|up\s*to|upto|under|below|within|not\s+more\s+than|no\s+more\s+than|less\s+than|at\s+most|or\s+less|or\s+smaller)\b|~/i;
+  /\b(?:exact(?:ly)?|only|just|max(?:imum)?|up\s*to|upto|under|below|within|not\s+more\s+than|no\s+more\s+than|less\s+than|at\s+most|or\s+less|or\s+smaller)\b/i;
 const PLOT_TYPE = /plot|land/i;
 const LAND_TEXT = /\b(?:plots?|sites?|land)\b/i;
 
@@ -253,7 +253,10 @@ const LAND_TEXT = /\b(?:plots?|sites?|land)\b/i;
  * above. The model is told so, and this backstop drops the cap it
  * still returns for that case. Site dimensions ("30x40") name a
  * layout's standard site and stay a point, as does a size pinned by
- * its own words ("exactly", "around", "up to") or any built-up size.
+ * its own words ("exactly", "only", "up to") or any built-up size.
+ * "Around 4k sqft" is a floor too: a plot buyer who says it will look
+ * at a bigger site, and the matcher's near-miss band already covers the
+ * slightly smaller one.
  */
 export function floorBarePlotSize<
   T extends {
@@ -316,7 +319,7 @@ export async function extractContactPreferences(
     "2b. A bare number with NO unit means different things for rent and for purchase, and you must use the surrounding context to decide. For a RENTAL (monthly rent, 'rent', 'lease', 'to let'): a bare figure under 1000 is thousands per month — 'Budget 35 to 40' -> budget_min 35000, budget_max 40000; 'rent 18000' is already rupees -> 18000. For a PURCHASE: a bare figure up to 60 means crores — '1-2' -> 10000000 to 20000000, '60' -> 600000000; a bare figure between 61 and 999 means lakh — 'budget 80' -> 8000000. Use ONE unit for the whole range, chosen from the larger figure: '55 to 65' is 5500000 to 6500000, never 55 crore to 65 lakh. Never read a bare number as literal rupees when it is plainly a budget: nobody is buying a house for 35 rupees.\n" +
     "2c. A price stated per square foot is a RATE, never the total budget. When both rate and area are stated, derive total budget_min as minimum rate × minimum area and budget_max as maximum rate × maximum area. Example: '3000 to 4000 sqft at 40k to 45k per sqft' -> budget_min 120000000 and budget_max 180000000. If the area is missing, leave both budget fields null.\n" +
     "3. 'X BHK' means bhk_min = bhk_max = X unless a range is given.\n" +
-    "3b. Plot sizes: 'AxB' or 'A by B' site dimensions multiply to square feet ('30x40' -> 1200, '50x80' -> 4000). Convert units: 1 acre = 43560 sqft, 1 gunta = 1089 sqft, 1 cent = 435.6 sqft, 1 sq yard = 9 sqft. A single plot/land/site size with no qualifier ('4000 sqft plot', '1 acre land', 'site of 2400 sqft') is the smallest the buyer will take: land_area_min_sqft = that size, land_area_max_sqft = null. Site dimensions ('30x40 site', '50 by 80') and a size qualified with 'exactly', 'only', 'around', 'max' or 'up to' keep land_area_min_sqft = land_area_max_sqft = that size, and so does a single built-up size ('1200 sqft flat'). Relative words with no figure ('smaller', 'lesser dimensions', 'bigger plot') stay null — do NOT invent a number.\n" +
+    "3b. Plot sizes: 'AxB' or 'A by B' site dimensions multiply to square feet ('30x40' -> 1200, '50x80' -> 4000). Convert units: 1 acre = 43560 sqft, 1 gunta = 1089 sqft, 1 cent = 435.6 sqft, 1 sq yard = 9 sqft. A single plot/land/site size with no qualifier or with 'around'/'about'/'approx' ('4000 sqft plot', 'around 4k sqft site', '1 acre land') is the smallest the buyer will take: land_area_min_sqft = that size, land_area_max_sqft = null. Site dimensions ('30x40 site', '50 by 80') and a size qualified with 'exactly', 'only', 'max' or 'up to' keep land_area_min_sqft = land_area_max_sqft = that size, and so does a single built-up size ('1200 sqft flat'). Relative words with no figure ('smaller', 'lesser dimensions', 'bigger plot') stay null — do NOT invent a number.\n" +
     '4. Only extract what the CONTACT wants. Ignore details about properties they already own or sold, meeting logistics, or agent chatter.\n' +
     "5. Distinguish wanted vs rejected: 'not interested in commercial' must NOT add 'commercial' to property_categories; 'avoid Whitefield' goes to excluded_areas.\n" +
     '6. Set fields to null / empty array when genuinely not stated. Do NOT guess.\n' +

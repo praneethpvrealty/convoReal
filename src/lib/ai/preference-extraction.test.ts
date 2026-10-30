@@ -102,13 +102,22 @@ describe('floorBarePlotSize', () => {
       floorBarePlotSize('exactly 4000 sqft plot', plot(4000, 4000))
     ).toMatchObject({ land_area_max_sqft: 4000 });
     expect(
-      floorBarePlotSize('plot around 4000 sqft', plot(4000, 4000))
-    ).toMatchObject({ land_area_max_sqft: 4000 });
-    expect(
       floorBarePlotSize('4000 sqft plot only', plot(4000, 4000))
     ).toMatchObject({ land_area_max_sqft: 4000 });
     expect(
       floorBarePlotSize('plot up to 4000 sqft, budget 2 Cr', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: 4000 });
+  });
+
+  it('[CTM-016] reads "around" and "4k" on a plot as a floor too', () => {
+    expect(
+      floorBarePlotSize('plot around 4000 sqft', plot(4000, 4000))
+    ).toMatchObject({ land_area_min_sqft: 4000, land_area_max_sqft: null });
+    expect(
+      floorBarePlotSize('around 4k sqft site in HSR', plot(4000, 4000))
+    ).toMatchObject({ land_area_max_sqft: null });
+    expect(
+      floorBarePlotSize('approx 4k sq ft plot only', plot(4000, 4000))
     ).toMatchObject({ land_area_max_sqft: 4000 });
   });
 
