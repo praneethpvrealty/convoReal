@@ -21,8 +21,6 @@ interface AuthState {
   session: Session | null | undefined;
   /** Loaded right after sign-in; carries account_id for realtime channel names. */
   profile: Profile | null;
-  /** Why the app last signed the user out without being asked, shown on
-   *  the login screen until the next sign-in. */
   signOutReason: SignOutReason | null;
   setSession: (session: Session | null) => void;
   setProfile: (profile: Profile | null) => void;

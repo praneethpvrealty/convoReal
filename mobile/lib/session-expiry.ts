@@ -20,13 +20,6 @@ const STALE_SESSION_CODES = new Set([
   'user_banned',
 ]);
 
-/**
- * Whether a failed `refreshSession()` means the session is gone for good.
- * Only GoTrue refusing the refresh token (a 4xx answer, or no session
- * stored at all) is definitive. A network failure, a timeout, a 5xx or a
- * 429 is supabase-js's AuthRetryableFetchError or AuthUnknownError: the
- * session may well still be valid, so the user stays signed in.
- */
 export function isDefinitiveAuthFailure(error: unknown): boolean {
   if (error === null || error === undefined) return true;
   if (typeof error !== 'object') return false;
