@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/card';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { reloadTo } from '@/lib/navigation';
+import { markDeliberateSignOut } from '@/lib/auth/deliberate-sign-out';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -232,6 +233,7 @@ function ProfileSetupPageInner() {
                 type="button"
                 onClick={async () => {
                   const supabase = createClient();
+                  markDeliberateSignOut();
                   await supabase.auth.signOut();
                   reloadTo('/login');
                 }}

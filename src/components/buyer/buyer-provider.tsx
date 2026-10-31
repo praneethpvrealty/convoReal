@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/client';
 import { reloadTo } from '@/lib/navigation';
+import { markDeliberateSignOut } from '@/lib/auth/deliberate-sign-out';
 
 export interface BuyerLink {
   account_id: string;
@@ -75,6 +76,7 @@ export function BuyerProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     const supabase = createClient();
+    markDeliberateSignOut();
     await supabase.auth.signOut();
     reloadTo('/buyer/login');
   }, []);

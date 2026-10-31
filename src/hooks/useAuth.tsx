@@ -33,6 +33,11 @@ import {
 } from '@/lib/auth/session-profile';
 import { reloadTo } from '@/lib/navigation';
 import { SIGN_OUT_REASON_STORAGE_KEY } from '@/lib/auth/sign-out-reason';
+import {
+  clearDeliberateSignOut,
+  isDeliberateSignOut,
+  markDeliberateSignOut,
+} from '@/lib/auth/deliberate-sign-out';
 
 type Profile = SessionProfile;
 type AccountSummary = SessionAccount;
@@ -149,7 +154,6 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const hadUserRef = useRef(false);
-  const manualSignOutRef = useRef(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [account, setAccount] = useState<AccountSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -385,13 +389,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (
         event === 'SIGNED_OUT' &&
         hadUserRef.current &&
-        !manualSignOutRef.current
+        !isDeliberateSignOut()
       ) {
         try {
           sessionStorage.setItem(SIGN_OUT_REASON_STORAGE_KEY, 'expired');
         } catch {}
       }
       hadUserRef.current = Boolean(currentUser);
+      if (currentUser) clearDeliberateSignOut();
       setUser(currentUser);
 
       if (currentUser) {
@@ -414,7 +419,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const signOut = useCallback(async () => {
-    manualSignOutRef.current = true;
+    markDeliberateSignOut();
     const supabase = createClient();
     try {
       // Fire-and-forget/timeout the network call to avoid blocking the user redirect

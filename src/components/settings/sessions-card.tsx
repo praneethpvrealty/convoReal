@@ -22,6 +22,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { reloadTo } from '@/lib/navigation';
+import { markDeliberateSignOut } from '@/lib/auth/deliberate-sign-out';
 
 export function SessionsCard() {
   const supabase = createClient();
@@ -34,6 +35,7 @@ export function SessionsCard() {
       // scope: 'global' revokes every refresh token for this user
       // across all devices; the next auth-state change on this tab
       // triggers the usual redirect.
+      markDeliberateSignOut();
       const { error } = await supabase.auth.signOut({ scope: 'global' });
       if (error) {
         toast.error(`Sign-out failed: ${error.message}`);

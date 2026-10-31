@@ -6403,7 +6403,19 @@ describe('[ACC-010] mobile signs out only on a definitive auth failure and says 
       "if (hasAuthCookie) url.searchParams.set(SIGN_OUT_REASON_PARAM, 'expired');"
     );
     const auth = webSource('hooks/useAuth.tsx');
-    expect(auth).toContain('!manualSignOutRef.current');
+    expect(auth).toContain('!isDeliberateSignOut()');
+    expect(auth).toContain('markDeliberateSignOut();');
+    for (const path of [
+      'components/settings/sessions-card.tsx',
+      'app/profile-setup/page.tsx',
+      'components/buyer/buyer-provider.tsx',
+      'components/den/den-provider.tsx',
+      'app/join/[token]/page.tsx',
+    ]) {
+      expect(webSource(path)).toMatch(
+        /markDeliberateSignOut\(\);\s*(?:const \{ error \} = )?await (?:supabase|createClient\(\))\.auth\.signOut\(/
+      );
+    }
     expect(auth).toContain('SIGN_OUT_REASON_STORAGE_KEY');
     const login = webSource('app/(auth)/login/page.tsx');
     expect(login).toContain('SIGN_OUT_REASON_NOTICES[signOutReason]');

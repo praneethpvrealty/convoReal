@@ -54,6 +54,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { reloadTo } from '@/lib/navigation';
+import { markDeliberateSignOut } from '@/lib/auth/deliberate-sign-out';
 
 interface PeekOk {
   ok: true;
@@ -208,6 +209,7 @@ export default function JoinPage() {
   const handleSignOutAndRetry = useCallback(async () => {
     setSigningOut(true);
     try {
+      markDeliberateSignOut();
       await createClient().auth.signOut();
       // Hard reload so the new auth state propagates everywhere
       // (middleware, AuthProvider). Preserves the invite token in
