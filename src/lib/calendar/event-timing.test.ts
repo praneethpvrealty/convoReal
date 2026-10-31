@@ -6,7 +6,7 @@ import {
   eventDurationMs,
   movedEventEnd,
   startsInPast,
-} from '@/lib/event-timing';
+} from './event-timing';
 
 describe('[UIX-010] moving an event keeps its length', () => {
   it('keeps the original duration when the start moves', () => {

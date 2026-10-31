@@ -40,6 +40,12 @@ import {
   type RetryFailedResult,
 } from '@shared/lib/broadcast-status';
 import { LoadErrorState } from '@/components/load-error';
+import {
+  type KeysetCursor,
+  nextKeysetCursor,
+  olderThanCursor,
+  uniqueById,
+} from '@/lib/list-paging';
 
 type StatusFilter = BroadcastRecipient['status'] | 'all';
 
@@ -109,23 +115,23 @@ export default function BroadcastDetailScreen() {
   } = useInfiniteQuery({
     queryKey: ['broadcast-recipients', id, filter],
     enabled: Boolean(id),
-    initialPageParam: 0,
+    initialPageParam: null as KeysetCursor | null,
     queryFn: async ({ pageParam }) => {
-      const from = pageParam * RECIPIENT_PAGE_SIZE;
       let query = supabase
         .from('broadcast_recipients')
         .select('*, contact:contacts(id, name, phone)')
         .eq('broadcast_id', id);
       if (filter !== 'all') query = query.eq('status', filter);
+      if (pageParam) query = query.or(olderThanCursor(pageParam));
       const { data, error } = await query
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
-        .range(from, from + RECIPIENT_PAGE_SIZE - 1);
+        .limit(RECIPIENT_PAGE_SIZE);
       if (error) throw error;
       return (data ?? []) as BroadcastRecipient[];
     },
-    getNextPageParam: (last, pages) =>
-      last.length === RECIPIENT_PAGE_SIZE ? pages.length : undefined,
+    getNextPageParam: (last) =>
+      nextKeysetCursor(last, RECIPIENT_PAGE_SIZE) ?? null,
     placeholderData: keepPreviousData,
     refetchInterval: sending ? 15_000 : false,
   });
@@ -221,7 +227,7 @@ export default function BroadcastDetailScreen() {
       ],
     });
 
-  const filtered = recipientPages?.pages.flat() ?? [];
+  const filtered = recipientPages ? uniqueById(recipientPages.pages) : [];
   const total = broadcast?.total_recipients ?? 0;
   const showRetry =
     canManage && (hasRetryableRecipients(filtered) || retryableCount > 0);

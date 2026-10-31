@@ -300,6 +300,7 @@ export interface Broadcast {
 
 export interface BroadcastRecipient {
   id: string;
+  created_at: string;
   status:
     | 'pending'
     | 'sent'

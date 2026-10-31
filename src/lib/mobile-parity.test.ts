@@ -6217,6 +6217,32 @@ describe('[UIX-009] mobile lists page, failed loads retry and edits are not lost
 });
 
 describe('[UIX-010] mobile screens say when something failed and guard unsaved work', () => {
+  it('[UIX-010] pages broadcast recipients by keyset so status changes skip nobody', () => {
+    const detail = mobileSource('app/(app)/broadcast/[id].tsx');
+    expect(detail).toContain('query.or(olderThanCursor(pageParam))');
+    expect(detail).toContain('nextKeysetCursor(last, RECIPIENT_PAGE_SIZE)');
+    expect(detail).toContain('uniqueById(recipientPages.pages)');
+    expect(detail).not.toContain(
+      '.range(from, from + RECIPIENT_PAGE_SIZE - 1)'
+    );
+  });
+
+  it('[UIX-010] asks before saving a past start on web too', () => {
+    for (const path of [
+      'app/(dashboard)/calendar/page.tsx',
+      'components/calendar/schedule-dialog.tsx',
+    ]) {
+      const source = webSource(path);
+      expect(source).toContain(
+        "import { PAST_START_CONFIRM, startsInPast } from '@/lib/calendar/event-timing';"
+      );
+      expect(source).toContain('startsInPast(');
+    }
+    expect(mobileSource('lib/event-timing.ts')).toContain(
+      "export * from '@shared/lib/calendar/event-timing';"
+    );
+  });
+
   it('[UIX-010] shows a retryable error instead of an empty state when a load fails', () => {
     const calendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
     expect(calendar).toContain('isError && !data ? (');
@@ -6250,7 +6276,7 @@ describe('[UIX-010] mobile screens say when something failed and guard unsaved w
   it('[UIX-010] pages broadcast recipients instead of stopping at 500', () => {
     const detail = mobileSource('app/(app)/broadcast/[id].tsx');
     expect(detail).toContain('useInfiniteQuery({');
-    expect(detail).toContain('.range(from, from + RECIPIENT_PAGE_SIZE - 1)');
+    expect(detail).toContain('.limit(RECIPIENT_PAGE_SIZE)');
     expect(detail).toContain('onEndReached={');
     expect(detail).not.toContain('.limit(500)');
     expect(detail).toContain(

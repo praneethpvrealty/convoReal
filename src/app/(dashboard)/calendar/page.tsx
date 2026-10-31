@@ -114,6 +114,7 @@ import {
   resolveInitialView,
   type CalendarViewMode,
 } from '@/lib/calendar/default-view';
+import { PAST_START_CONFIRM, startsInPast } from '@/lib/calendar/event-timing';
 
 const EMPTY_EXTRAS: Record<EventFieldKey, string> = {
   agenda: '',
@@ -949,6 +950,19 @@ export default function CalendarPage() {
 
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         throw new Error('Invalid start or end date selection.');
+      }
+
+      const startMoved =
+        !selectedAppt ||
+        startDate.getTime() !== new Date(selectedAppt.start_time).getTime();
+      if (
+        startMoved &&
+        startsInPast(startDate) &&
+        !window.confirm(
+          `${PAST_START_CONFIRM.title}\n\n${PAST_START_CONFIRM.message}`
+        )
+      ) {
+        return;
       }
 
       // Only persist the note fields that apply to the chosen event

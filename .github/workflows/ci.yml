@@ -87,6 +87,7 @@ jobs:
               - 'src/lib/automations/trigger-meta.ts'
               - 'src/lib/calendar/archive-sort.ts'
               - 'src/lib/calendar/todo-groups.ts'
+              - 'src/lib/calendar/event-timing.ts'
               - 'src/lib/contacts/list-columns.ts'
               - 'src/lib/contacts/phone-key.ts'
               - 'src/lib/contacts/search-filter.ts'
