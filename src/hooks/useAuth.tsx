@@ -395,8 +395,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionStorage.setItem(SIGN_OUT_REASON_STORAGE_KEY, 'expired');
         } catch {}
       }
+      if (event === 'SIGNED_IN' && currentUser && !hadUserRef.current) {
+        clearDeliberateSignOut();
+      }
       hadUserRef.current = Boolean(currentUser);
-      if (currentUser) clearDeliberateSignOut();
       setUser(currentUser);
 
       if (currentUser) {

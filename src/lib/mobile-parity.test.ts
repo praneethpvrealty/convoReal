@@ -6405,6 +6405,10 @@ describe('[ACC-010] mobile signs out only on a definitive auth failure and says 
     const auth = webSource('hooks/useAuth.tsx');
     expect(auth).toContain('!isDeliberateSignOut()');
     expect(auth).toContain('markDeliberateSignOut();');
+    expect(auth).toContain(
+      "if (event === 'SIGNED_IN' && currentUser && !hadUserRef.current) {"
+    );
+    expect(auth).not.toContain('if (currentUser) clearDeliberateSignOut();');
     for (const path of [
       'components/settings/sessions-card.tsx',
       'app/profile-setup/page.tsx',
