@@ -441,7 +441,7 @@ export function DealForm({
 
   function formatCalculatedBrokerage() {
     const amt = brokerageAmount({
-      dealValue: value,
+      dealValue: parseAmountInput(value) ?? 0,
       type: brokerageType,
       value: brokerageValue,
     });
@@ -549,14 +549,19 @@ export function DealForm({
                       'absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500',
                   })}
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
                     placeholder="0"
                     className="border-slate-700 bg-slate-800 pl-7 text-white"
                   />
                 </div>
-                <PriceHint value={value} currency={currency} className="mt-1" />
+                <PriceHint
+                  value={parseAmountInput(value) ?? ''}
+                  currency={currency}
+                  className="mt-1"
+                />
               </div>
               <div className="grid gap-2">
                 <Label className="text-slate-300">Currency</Label>

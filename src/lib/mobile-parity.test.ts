@@ -5982,6 +5982,16 @@ describe('[UIX-011] property and deal screens never strand or silently drop work
       '...DEAL_SAVED_QUERY_KEYS.map((queryKey) =>'
     );
   });
+  it('[UIX-011] web deal value and photo removal match mobile', () => {
+    const form = webSource('components/pipelines/deal-form.tsx');
+    expect(form).toContain('inputMode="decimal"');
+    expect(form).toContain('dealValue: parseAmountInput(value) ?? 0,');
+    const media = webSource(
+      'components/inventory/property-form/media-section.tsx'
+    );
+    expect(media).toContain("toast('Photo removed', {");
+    expect(media).toContain("label: 'Undo',");
+  });
 });
 
 describe('[UIX-006] contacts and inbox show the same things on web and mobile', () => {
