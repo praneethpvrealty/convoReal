@@ -9,6 +9,10 @@ import {
   inboxContactSearchFilter,
   inboxFilterPlan,
   inboxSearchFilter,
+  activeIdsPage,
+  nextActiveOffset,
+  matchesLoadedSearch,
+  INBOX_PAGE_SIZE,
 } from './inbox-query';
 import { needsReply, unanswered } from './reply-state';
 
@@ -92,11 +96,13 @@ describe('[UIX-009] inbox search', () => {
 
   it('combines every branch and caps the id lists', () => {
     const ids = Array.from({ length: INBOX_ID_CAP + 5 }, (_, i) => `c${i}`);
-    const filter = inboxSearchFilter('villa', ids, ['m1']);
+    const filter = inboxSearchFilter('villa', ids, ['m1', 'c0']);
     expect(filter).toContain('last_message_text.ilike."%villa%"');
     expect(filter).toContain('close_note.ilike."%villa%"');
-    expect(filter).toContain('id.in.(m1)');
-    expect(filter).not.toContain(`c${INBOX_ID_CAP}`);
+    expect(filter).toContain(',m1)');
+    expect(filter).not.toContain('contact_id.in');
+    expect(filter?.match(/\bc0\b/g)).toHaveLength(1);
+    expect(filter).not.toContain(`c${INBOX_ID_CAP},`);
     expect(inboxSearchFilter('()', [], [])).toBeNull();
   });
 
@@ -107,5 +113,27 @@ describe('[UIX-009] inbox search', () => {
         { conversation_id: 'b', message_count: 9 },
       ])
     ).toEqual(['b', 'a']);
+  });
+});
+
+describe('[UIX-009] inbox paging and short searches', () => {
+  it('pages the Active chip in ranked order', () => {
+    const ids = Array.from({ length: 90 }, (_, i) => `t${i}`);
+    expect(activeIdsPage(ids, 0)).toEqual(ids.slice(0, INBOX_PAGE_SIZE));
+    expect(activeIdsPage(ids, INBOX_PAGE_SIZE)[0]).toBe(`t${INBOX_PAGE_SIZE}`);
+    expect(nextActiveOffset(ids, 1)).toBe(INBOX_PAGE_SIZE);
+    expect(nextActiveOffset(ids, 3)).toBeUndefined();
+  });
+
+  it('filters loaded threads for a one-character search', () => {
+    const row = {
+      last_message_text: 'Site visit tomorrow',
+      close_note: null,
+      contact: { name: 'Ravi', phone: '+919900277111' },
+    };
+    expect(matchesLoadedSearch(row, 'r')).toBe(true);
+    expect(matchesLoadedSearch(row, '7')).toBe(true);
+    expect(matchesLoadedSearch(row, 'z')).toBe(false);
+    expect(matchesLoadedSearch(row, ' ')).toBe(true);
   });
 });

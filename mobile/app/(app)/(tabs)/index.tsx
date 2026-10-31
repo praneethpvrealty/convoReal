@@ -29,7 +29,7 @@ import { EnterRow, PressScale } from '@/components/motion';
 import { NotificationBell } from '@/components/notification-bell';
 import { SetupChecklist } from '@/components/setup-checklist';
 import { TourTarget } from '@/components/copilot-tour';
-import { LoadErrorState } from '@/components/load-error';
+import { InlineLoadError, LoadErrorState } from '@/components/load-error';
 import {
   Avatar,
   ConversationSkeleton,
@@ -74,6 +74,9 @@ import {
   inboxContactSearchFilter,
   inboxFilterPlan,
   inboxSearchFilter,
+  matchesLoadedSearch,
+  nextActiveOffset,
+  activeIdsPage,
 } from '@/lib/inbox-query';
 import { nextOffset, uniqueById } from '@/lib/list-paging';
 import { needsReply, needsReplyLabel, unanswered } from '@/lib/reply-state';
@@ -139,26 +142,36 @@ async function fetchConversations(
   if (plan.lastMessageBefore) {
     query = query.lt('last_message_at', plan.lastMessageBefore);
   }
-  if (scope.activeIds) query = query.in('id', scope.activeIds);
+  if (scope.activeIds) {
+    query = query.in('id', activeIdsPage(scope.activeIds, offset));
+  }
   if (scope.searchFilter) query = query.or(scope.searchFilter);
-  const { data, error } = await query
+  const ordered = query
     .order(plan.order.column, {
       ascending: plan.order.ascending,
       nullsFirst: false,
     })
-    .order('id', { ascending: false })
-    .range(offset, offset + INBOX_PAGE_SIZE - 1);
+    .order('id', { ascending: false });
+  const { data, error } = await (scope.activeIds
+    ? ordered
+    : ordered.range(offset, offset + INBOX_PAGE_SIZE - 1));
   if (error) throw error;
   return (data ?? []) as Conversation[];
 }
 
-async function fetchSearchContactIds(search: string): Promise<string[]> {
+async function fetchSearchContactThreadIds(
+  search: string,
+  archived: boolean
+): Promise<string[]> {
   const filter = inboxContactSearchFilter(search);
   if (!filter) return [];
   const { data, error } = await supabase
-    .from('contacts')
-    .select('id')
-    .or(filter)
+    .from('conversations')
+    .select('id, contacts!inner(id)')
+    .eq('is_archived', archived)
+    .not('last_message_at', 'is', null)
+    .or(filter, { referencedTable: 'contacts' })
+    .order('last_message_at', { ascending: false })
     .limit(INBOX_ID_CAP);
   if (error) throw error;
   return (data ?? []).map((row: { id: string }) => row.id);
@@ -233,7 +246,12 @@ export default function InboxScreen() {
   }, [accountId, userId]);
 
   const searchTerm = inboxSearchTerm(useDebounced(search));
-  const { data: messageHits, isPending: messageHitsPending } = useQuery({
+  const {
+    data: messageHits,
+    isPending: messageHitsPending,
+    isError: messageSearchFailed,
+    refetch: refetchMessageSearch,
+  } = useQuery({
     queryKey: ['inbox-message-search', accountId, searchTerm, archived],
     enabled: Boolean(accountId) && searchTerm !== '',
     staleTime: 30_000,
@@ -263,14 +281,19 @@ export default function InboxScreen() {
     [activity]
   );
 
-  const { data: searchContactIds, isPending: searchContactsPending } = useQuery(
-    {
-      queryKey: ['inbox-contact-search', accountId, searchTerm],
-      enabled: Boolean(accountId) && searchTerm !== '',
-      staleTime: 30_000,
-      queryFn: () => fetchSearchContactIds(searchTerm),
-    }
-  );
+  const {
+    data: searchContactIds,
+    isPending: searchContactsPending,
+    isError: contactSearchFailed,
+    refetch: refetchContactSearch,
+  } = useQuery({
+    queryKey: ['inbox-contact-search', accountId, searchTerm, archived],
+    enabled: Boolean(accountId) && searchTerm !== '',
+    staleTime: 30_000,
+    queryFn: () => fetchSearchContactThreadIds(searchTerm, archived),
+  });
+  const searchFailed =
+    searchTerm !== '' && (messageSearchFailed || contactSearchFailed);
 
   const searchReady =
     searchTerm === '' || (!messageHitsPending && !searchContactsPending);
@@ -305,6 +328,7 @@ export default function InboxScreen() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isFetchNextPageError,
   } = useInfiniteQuery({
     queryKey: [
       'conversations',
@@ -316,22 +340,38 @@ export default function InboxScreen() {
     ],
     queryFn: ({ pageParam }) => fetchConversations(scope, pageParam),
     initialPageParam: 0,
-    getNextPageParam: (_last, all) => nextOffset(all, INBOX_PAGE_SIZE),
-    enabled: searchReady && (filter !== 'active' || activity !== undefined),
+    getNextPageParam: (_last, all) =>
+      activeIds
+        ? nextActiveOffset(activeIds, all.length)
+        : nextOffset(all, INBOX_PAGE_SIZE),
+    enabled:
+      searchReady &&
+      !searchFailed &&
+      (filter !== 'active' || activity !== undefined),
     placeholderData: keepPreviousData,
   });
   const data = useMemo(
     () => (pages ? uniqueById(pages.pages) : undefined),
     [pages]
   );
-  const loadFailed = isError || (filter === 'active' && activityFailed);
+  const loadFailed =
+    isError || searchFailed || (filter === 'active' && activityFailed);
   const isLoading = pagesLoading || (!data && !loadFailed);
   const pull = usePullRefresh(() =>
-    Promise.all([refetch(), filter === 'active' ? refetchActivity() : null])
+    Promise.all([
+      searchTerm ? refetchMessageSearch() : null,
+      searchTerm ? refetchContactSearch() : null,
+      refetch(),
+      filter === 'active' ? refetchActivity() : null,
+    ])
   );
 
+  const shortSearch = searchTerm === '' ? search.trim() : '';
   const filtered = useMemo(() => {
+    if (searchFailed) return [];
     let list = data ?? [];
+    if (shortSearch)
+      list = list.filter((c) => matchesLoadedSearch(c, shortSearch));
     if (filter === 'unread') list = list.filter((c) => c.unread_count > 0);
     else if (filter === 'needs_reply')
       // Longest-waiting first: the closer a thread is to losing its
@@ -367,7 +407,7 @@ export default function InboxScreen() {
     else if (filter === 'open' || filter === 'pending' || filter === 'closed')
       list = list.filter((c) => c.status === filter);
     return list;
-  }, [data, filter, activityById]);
+  }, [data, filter, activityById, searchFailed, shortSearch]);
 
   const loadMore = () => {
     if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
@@ -480,6 +520,11 @@ export default function InboxScreen() {
               <ActivityIndicator
                 color={colors.primary}
                 style={{ marginVertical: spacing.lg }}
+              />
+            ) : isFetchNextPageError ? (
+              <InlineLoadError
+                label="Couldn’t load more conversations"
+                onRetry={() => void fetchNextPage()}
               />
             ) : null
           }

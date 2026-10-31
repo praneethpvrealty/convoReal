@@ -6128,9 +6128,7 @@ describe('[UIX-009] mobile lists page, failed loads retry and edits are not lost
 
   it('[UIX-009] pages the inbox and searches it on the server', () => {
     expect(inbox).toContain('useInfiniteQuery({');
-    expect(inbox).toContain(
-      'getNextPageParam: (_last, all) => nextOffset(all, INBOX_PAGE_SIZE)'
-    );
+    expect(inbox).toContain(': nextOffset(all, INBOX_PAGE_SIZE)');
     expect(inbox).toContain('.range(offset, offset + INBOX_PAGE_SIZE - 1)');
     expect(inbox).not.toContain('.limit(200)');
     expect(inbox).toContain('onEndReached={loadMore}');
@@ -6149,6 +6147,17 @@ describe('[UIX-009] mobile lists page, failed loads retry and edits are not lost
     expect(webSource('lib/contacts/list-queries.ts')).toContain(
       "import { contactTextSearchFilters } from '@/lib/contacts/search-filter';"
     );
+  });
+
+  it('[UIX-009] offers Retry when a later page fails to load', () => {
+    for (const source of [thread, inbox, contacts]) {
+      expect(source).toContain('isFetchNextPageError');
+      expect(source).toContain('<InlineLoadError');
+    }
+    expect(inbox).toContain('const searchFailed =');
+    expect(inbox).toContain("select('id, contacts!inner(id)')");
+    expect(inbox).toContain('matchesLoadedSearch(c, shortSearch)');
+    expect(inbox).toContain('nextActiveOffset(activeIds, all.length)');
   });
 
   it('[UIX-009] says a failed load failed and offers to try again', () => {

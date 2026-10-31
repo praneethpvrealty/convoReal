@@ -36,7 +36,7 @@ import { OwnerDetailsRequestSheet } from '@/components/owner-details-request-she
 import { ContactRequirementsSheet } from '@/components/contact-requirements-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { TourTarget } from '@/components/copilot-tour';
-import { LoadErrorState } from '@/components/load-error';
+import { InlineLoadError, LoadErrorState } from '@/components/load-error';
 import {
   Avatar,
   Banner,
@@ -601,6 +601,7 @@ export default function ContactsScreen() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isFetchNextPageError,
   } = useInfiniteQuery({
     queryKey: [
       'contacts',
@@ -868,6 +869,11 @@ export default function ContactsScreen() {
               <ActivityIndicator
                 color={colors.primary}
                 style={{ marginVertical: spacing.lg }}
+              />
+            ) : isFetchNextPageError ? (
+              <InlineLoadError
+                label="Couldn’t load more contacts"
+                onRetry={() => void fetchNextPage()}
               />
             ) : null
           }

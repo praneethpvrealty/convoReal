@@ -43,7 +43,7 @@ import { MessageBubble, QuotedMessage } from '@/components/message-bubble';
 import { PropertyPickerSheet } from '@/components/property-picker-sheet';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { TemplatePicker } from '@/components/template-picker';
-import { LoadErrorState } from '@/components/load-error';
+import { InlineLoadError, LoadErrorState } from '@/components/load-error';
 import { Avatar } from '@/components/ui';
 import {
   ApiError,
@@ -263,6 +263,7 @@ export default function ConversationScreen() {
     fetchNextPage: fetchOlderMessages,
     hasNextPage: hasOlderMessages,
     isFetchingNextPage: fetchingOlderMessages,
+    isFetchNextPageError: olderMessagesFailed,
   } = useInfiniteQuery({
     queryKey: ['messages', id],
     queryFn: ({ pageParam }) => fetchMessages(id, pageParam),
@@ -786,6 +787,11 @@ export default function ConversationScreen() {
                 <ActivityIndicator
                   color={colors.primary}
                   style={{ marginVertical: spacing.md }}
+                />
+              ) : olderMessagesFailed ? (
+                <InlineLoadError
+                  label="Couldn’t load earlier messages"
+                  onRetry={() => void fetchOlderMessages()}
                 />
               ) : null
             }

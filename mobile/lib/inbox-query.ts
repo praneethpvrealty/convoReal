@@ -74,7 +74,7 @@ export function inboxContactSearchFilter(search: string): string | null {
 
 export function inboxSearchFilter(
   search: string,
-  contactIds: readonly string[],
+  contactThreadIds: readonly string[],
   messageHitIds: readonly string[]
 ): string | null {
   const branches: string[] = [];
@@ -88,11 +88,13 @@ export function inboxSearchFilter(
   const reasons = closeReasonsMatching(search);
   if (reasons.length > 0)
     branches.push(`close_reason.in.(${reasons.join(',')})`);
-  const contacts = contactIds.slice(0, INBOX_ID_CAP);
-  if (contacts.length > 0)
-    branches.push(`contact_id.in.(${contacts.join(',')})`);
-  const hits = messageHitIds.slice(0, INBOX_ID_CAP);
-  if (hits.length > 0) branches.push(`id.in.(${hits.join(',')})`);
+  const ids = [
+    ...new Set([
+      ...contactThreadIds.slice(0, INBOX_ID_CAP),
+      ...messageHitIds.slice(0, INBOX_ID_CAP),
+    ]),
+  ];
+  if (ids.length > 0) branches.push(`id.in.(${ids.join(',')})`);
   return branches.length > 0 ? branches.join(',') : null;
 }
 
@@ -103,4 +105,37 @@ export function activeConversationIds(
     .sort((a, b) => b.message_count - a.message_count)
     .slice(0, INBOX_ID_CAP)
     .map((row) => row.conversation_id);
+}
+
+export function activeIdsPage(
+  ids: readonly string[],
+  offset: number
+): string[] {
+  return ids.slice(offset, offset + INBOX_PAGE_SIZE);
+}
+
+export function nextActiveOffset(
+  ids: readonly string[],
+  pageCount: number
+): number | undefined {
+  const next = pageCount * INBOX_PAGE_SIZE;
+  return next < ids.length ? next : undefined;
+}
+
+export function matchesLoadedSearch(
+  conversation: {
+    last_message_text?: string | null;
+    close_note?: string | null;
+    contact?: { name?: string | null; phone?: string | null } | null;
+  },
+  raw: string
+): boolean {
+  const q = raw.trim().toLowerCase();
+  if (!q) return true;
+  return [
+    conversation.contact?.name,
+    conversation.contact?.phone,
+    conversation.last_message_text,
+    conversation.close_note,
+  ].some((value) => value?.toLowerCase().includes(q));
 }
