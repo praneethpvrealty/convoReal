@@ -476,7 +476,6 @@ export function EmptyState({
   );
 }
 
-/** A load that failed, said as such rather than as an empty list. */
 export function LoadErrorState({
   title = 'Could not load this',
   subtitle = 'Check your connection and try again.',

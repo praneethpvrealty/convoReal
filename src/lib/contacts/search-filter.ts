@@ -1,12 +1,5 @@
 import { ilikeAcross, ilikeTerm } from '../postgrest-search';
 
-/**
- * The free-text branch of a contacts search, as PostgREST `.or()` filters.
- * Web (`list-queries.ts`) and the mobile Contacts tab both build their
- * search from this, through `@shared/` on mobile, so it must stay free of
- * package imports.
- */
-
 export const CONTACT_SEARCH_COLUMNS = [
   'name',
   'second_name',

@@ -6,16 +6,8 @@ import { UNANSWERED_GRACE_MS } from '@/lib/reply-state';
 
 export const INBOX_PAGE_SIZE = 40;
 
-/** Ceiling on the ids a search or the Active chip feeds into `.in()`, so
- *  the inbox query never builds an unbounded URL. */
 export const INBOX_ID_CAP = 100;
 
-/**
- * How the server narrows the inbox for each filter chip. The chips keep
- * their client-side rules (`needsReply`, `unanswered`) as the final word;
- * this only moves the same population to the database so the list pages
- * through every matching thread instead of filtering the first page.
- */
 export interface InboxFilterPlan {
   status?: 'open' | 'pending' | 'closed';
   excludeClosed?: boolean;
@@ -61,8 +53,6 @@ export function inboxFilterPlan(
   }
 }
 
-/** Close reasons whose label contains the search, so "not responding"
- *  finds the threads closed for it. */
 export function closeReasonsMatching(search: string): string[] {
   const q = search.trim().toLowerCase();
   if (!q) return [];
@@ -71,8 +61,6 @@ export function closeReasonsMatching(search: string): string[] {
   ).map((option) => option.value);
 }
 
-/** PostgREST `.or()` filter for a name or phone search, matching the
- *  contacts table — the conversation itself only carries `contact_id`. */
 export function inboxContactSearchFilter(search: string): string | null {
   const term = ilikeTerm(search);
   if (!term) return null;
@@ -84,10 +72,6 @@ export function inboxContactSearchFilter(search: string): string | null {
   return branches.join(',');
 }
 
-/** PostgREST `.or()` filter for the conversations a search matches:
- *  the contact by name or phone, the last message, the close note and
- *  reason, or any message the full-text search found. Null when the
- *  search can match nothing at all. */
 export function inboxSearchFilter(
   search: string,
   contactIds: readonly string[],
@@ -112,7 +96,6 @@ export function inboxSearchFilter(
   return branches.length > 0 ? branches.join(',') : null;
 }
 
-/** The busiest threads of the day, most messages first, capped for `.in()`. */
 export function activeConversationIds(
   activity: readonly { conversation_id: string; message_count: number }[]
 ): string[] {

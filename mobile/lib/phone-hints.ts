@@ -1,9 +1,3 @@
-/**
- * Placeholder and error copy for phone fields, in the account's own
- * country code rather than a hard-coded Indian number. A 10-digit local
- * number gets the account code prepended (`contactPhone`), so the rule
- * the copy states holds in every country.
- */
 export interface PhoneHints {
   international: string;
   quickAdd: string;
