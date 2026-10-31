@@ -1,19 +1,28 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, router } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
 import { EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { chatListTime } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
+import { notificationTarget } from '@/lib/notification-target';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 import {
   markAllNotificationsRead,
   useNotifications,
-  type NotificationRow,
 } from '@/lib/use-notifications';
+import { LoadErrorState } from '@/components/load-error';
 
 const TYPE_ICONS: Record<
   string,
@@ -32,50 +41,11 @@ const TYPE_ICONS: Record<
   requirement_response: 'home-outline',
 };
 
-/** Map a web deep link stored on the row to the mobile route. */
-function openTarget(n: NotificationRow) {
-  if (n.entity_type === 'requirement_account_share' && n.entity_id) {
-    router.push({
-      pathname: '/(app)/shared-requirement/[id]',
-      params: {
-        id: n.entity_id,
-        box: n.type === 'requirement_response' ? 'sent' : 'received',
-      },
-    });
-    return;
-  }
-  if (n.type === 'location_request' || n.type === 'document_request') {
-    router.push('/(app)/dashboard');
-    return;
-  }
-  if (n.type === 'portal_listing_expiry') {
-    if (n.entity_type === 'property' && n.entity_id) {
-      router.push(`/(app)/property/${n.entity_id}`);
-    } else {
-      router.push('/(app)/(tabs)/properties');
-    }
-    return;
-  }
-  if (n.entity_type === 'conversation' && n.entity_id) {
-    router.push(`/(app)/conversation/${n.entity_id}`);
-    return;
-  }
-  if (n.entity_type === 'contact' && n.entity_id) {
-    router.push(`/(app)/contact/${n.entity_id}`);
-    return;
-  }
-  if (n.link?.startsWith('/calendar')) {
-    router.push('/(app)/(tabs)/calendar');
-    return;
-  }
-  const conv = n.link?.match(/conversation=([0-9a-f-]+)/i)?.[1];
-  if (conv) router.push(`/(app)/conversation/${conv}`);
-}
-
 export default function NotificationsScreen() {
   const { colors, fonts: f } = useTheme();
   const userId = useAuthStore((s) => s.session?.user.id);
-  const { items, unread, isLoading } = useNotifications();
+  const { items, unread, isLoading, isError, refetch } = useNotifications();
+  const pull = usePullRefresh(refetch);
 
   // Opening the screen marks everything read (web-bell parity) — once
   // per mount, after the first load has shown the unread styling.
@@ -95,26 +65,47 @@ export default function NotificationsScreen() {
         >
           <ConvoRealLoader />
         </View>
-      ) : items.length === 0 ? (
-        <EmptyState
-          icon="notifications-off-outline"
-          title="No notifications"
-          subtitle="New leads, replies and bookings will show up here."
-        />
       ) : (
         <FlatList
           data={items}
           keyExtractor={(n) => n.id}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[
+            styles.list,
+            items.length === 0 && { flexGrow: 1 },
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
+              tintColor={colors.primary}
+            />
+          }
+          ListEmptyComponent={
+            isError ? (
+              <LoadErrorState
+                title="Couldn’t load notifications"
+                onRetry={() => void refetch()}
+              />
+            ) : (
+              <EmptyState
+                icon="notifications-off-outline"
+                title="No notifications"
+                subtitle="New leads, replies and bookings will show up here."
+              />
+            )
+          }
           renderItem={({ item }) => {
             const fresh = !item.read_at;
+            const target = notificationTarget(item);
             return (
               <Pressable
+                disabled={!target}
                 onPress={() => {
+                  if (!target) return;
                   haptic.tap();
-                  openTarget(item);
+                  router.push(target);
                 }}
-                accessibilityRole="button"
+                accessibilityRole={target ? 'button' : 'text'}
                 accessibilityLabel={item.title}
                 style={[
                   styles.row,

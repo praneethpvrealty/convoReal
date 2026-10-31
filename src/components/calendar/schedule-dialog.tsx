@@ -24,6 +24,7 @@ import {
   linkedContactForProperty,
   linkedPropertyForContacts,
 } from '@/lib/calendar/auto-link';
+import { PAST_START_CONFIRM, startsInPast } from '@/lib/calendar/event-timing';
 
 interface SimpleContact {
   id: string;
@@ -188,6 +189,14 @@ export function ScheduleDialog({
     }
     if (!startTime || !endTime) {
       toast.error('Start and End times are required');
+      return;
+    }
+    if (
+      startsInPast(new Date(startTime)) &&
+      !window.confirm(
+        `${PAST_START_CONFIRM.title}\n\n${PAST_START_CONFIRM.message}`
+      )
+    ) {
       return;
     }
 

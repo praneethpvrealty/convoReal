@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +20,7 @@ import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
+import { useResendCooldown } from '@/lib/use-resend-cooldown';
 import {
   onGradient,
   radius,
@@ -30,8 +31,6 @@ import {
 } from '@/lib/theme';
 
 type Mode = 'whatsapp' | 'email';
-
-const RESEND_SECONDS = 30;
 
 /**
  * WhatsApp-first sign-in. Every staff account has an OTP-verified
@@ -185,13 +184,7 @@ function WhatsappLogin() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [resendIn, setResendIn] = useState(0);
-
-  useEffect(() => {
-    if (resendIn <= 0) return;
-    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [resendIn]);
+  const { resendIn, startCooldown } = useResendCooldown();
 
   async function sendCode() {
     setError(null);
@@ -222,7 +215,7 @@ function WhatsappLogin() {
     setInfo('Code sent to your WhatsApp!');
     setStage('code');
     setOtp('');
-    setResendIn(RESEND_SECONDS);
+    startCooldown();
   }
 
   async function verify(code: string) {

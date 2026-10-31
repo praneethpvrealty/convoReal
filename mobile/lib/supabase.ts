@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { AppState } from 'react-native';
 
 import { ENV } from './env';
+import { trackedFetch } from './tracked-fetch';
 import { LargeSecureStore } from './secure-store';
 
 /**
@@ -21,6 +22,7 @@ export const supabase = createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, {
     // No OAuth redirect URLs on native.
     detectSessionInUrl: false,
   },
+  global: { fetch: trackedFetch },
 });
 
 /**

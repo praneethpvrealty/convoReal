@@ -1,10 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+} from '@tanstack/react-query';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -20,6 +27,7 @@ import { friendlyError } from '@/lib/errors';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 import type { Broadcast, BroadcastRecipient } from '@/lib/types';
 import { canSendMessages, isAccountRole } from '@shared/lib/auth/roles';
 import {
@@ -31,8 +39,17 @@ import {
   retryFailedSummary,
   type RetryFailedResult,
 } from '@shared/lib/broadcast-status';
+import { LoadErrorState } from '@/components/load-error';
+import {
+  type KeysetCursor,
+  nextKeysetCursor,
+  olderThanCursor,
+  uniqueById,
+} from '@/lib/list-paging';
 
 type StatusFilter = BroadcastRecipient['status'] | 'all';
+
+const RECIPIENT_PAGE_SIZE = 100;
 
 function recipientColor(
   status: BroadcastRecipient['status'],
@@ -88,23 +105,34 @@ export default function BroadcastDetailScreen() {
   const sending = broadcast?.status === 'sending';
 
   const {
-    data: recipients,
+    data: recipientPages,
     isLoading,
+    isError: recipientsFailed,
     refetch: refetchRecipients,
-  } = useQuery({
-    queryKey: ['broadcast-recipients', id],
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['broadcast-recipients', id, filter],
     enabled: Boolean(id),
-    queryFn: async () => {
-      // Same detail query as the web (broadcasts/[id]/page.tsx).
-      const { data, error } = await supabase
+    initialPageParam: null as KeysetCursor | null,
+    queryFn: async ({ pageParam }) => {
+      let query = supabase
         .from('broadcast_recipients')
         .select('*, contact:contacts(id, name, phone)')
-        .eq('broadcast_id', id)
+        .eq('broadcast_id', id);
+      if (filter !== 'all') query = query.eq('status', filter);
+      if (pageParam) query = query.or(olderThanCursor(pageParam));
+      const { data, error } = await query
         .order('created_at', { ascending: false })
-        .limit(500);
+        .order('id', { ascending: false })
+        .limit(RECIPIENT_PAGE_SIZE);
       if (error) throw error;
       return (data ?? []) as BroadcastRecipient[];
     },
+    getNextPageParam: (last) =>
+      nextKeysetCursor(last, RECIPIENT_PAGE_SIZE) ?? null,
+    placeholderData: keepPreviousData,
     refetchInterval: sending ? 15_000 : false,
   });
 
@@ -123,6 +151,10 @@ export default function BroadcastDetailScreen() {
     refetchInterval: sending ? 15_000 : false,
   });
 
+  const pull = usePullRefresh(() =>
+    Promise.all([refetchBroadcast(), refetchRecipients(), refetchRetryable()])
+  );
+
   const wasSending = useRef(false);
   useEffect(() => {
     if (wasSending.current && !sending) {
@@ -140,7 +172,9 @@ export default function BroadcastDetailScreen() {
     onSuccess: async (result) => {
       await Promise.all([
         refetchBroadcast(),
-        refetchRecipients(),
+        queryClient.invalidateQueries({
+          queryKey: ['broadcast-recipients', id],
+        }),
         refetchRetryable(),
       ]);
       queryClient.invalidateQueries({ queryKey: ['broadcasts'] });
@@ -193,12 +227,10 @@ export default function BroadcastDetailScreen() {
       ],
     });
 
-  const all = recipients ?? [];
-  const filtered =
-    filter === 'all' ? all : all.filter((r) => r.status === filter);
+  const filtered = recipientPages ? uniqueById(recipientPages.pages) : [];
   const total = broadcast?.total_recipients ?? 0;
   const showRetry =
-    canManage && (hasRetryableRecipients(all) || retryableCount > 0);
+    canManage && (hasRetryableRecipients(filtered) || retryableCount > 0);
 
   const header = (
     <View style={{ gap: spacing.md, paddingTop: spacing.md }}>
@@ -286,16 +318,42 @@ export default function BroadcastDetailScreen() {
           data={filtered}
           keyExtractor={(r) => r.id}
           ListHeaderComponent={header}
+          refreshControl={
+            <RefreshControl
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
+              tintColor={colors.primary}
+            />
+          }
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <ActivityIndicator
+                color={colors.primary}
+                style={{ paddingVertical: spacing.lg }}
+              />
+            ) : null
+          }
           ListEmptyComponent={
-            <Text
-              style={{
-                textAlign: 'center',
-                marginTop: 40,
-                color: colors.textMuted,
-              }}
-            >
-              No recipients with this status.
-            </Text>
+            recipientsFailed ? (
+              <LoadErrorState
+                title="Couldn’t load recipients"
+                onRetry={() => void refetchRecipients()}
+              />
+            ) : (
+              <Text
+                style={{
+                  textAlign: 'center',
+                  marginTop: 40,
+                  color: colors.textMuted,
+                }}
+              >
+                No recipients with this status.
+              </Text>
+            )
           }
           renderItem={({ item }) => {
             const name =

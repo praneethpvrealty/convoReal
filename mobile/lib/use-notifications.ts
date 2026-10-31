@@ -68,7 +68,13 @@ export function useNotifications() {
 
   const items = query.data ?? [];
   const unread = items.filter((n) => !n.read_at).length;
-  return { items, unread, isLoading: query.isLoading };
+  return {
+    items,
+    unread,
+    isLoading: query.isLoading,
+    isError: query.isError && !query.data,
+    refetch: query.refetch,
+  };
 }
 
 /** Mark every unread notification read (fire-and-forget from the

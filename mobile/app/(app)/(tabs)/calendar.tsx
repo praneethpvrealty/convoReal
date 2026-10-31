@@ -122,11 +122,22 @@ import {
   splitTodosByCompletion,
   TODO_PRIORITY_LABELS,
 } from '@shared/lib/calendar/todo-groups';
+import {
+  hasUnsavedChanges,
+  todoEditDraft,
+  type TodoEditDraft,
+} from '@/lib/unsaved-changes';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { useDebounced } from '@/lib/use-debounced';
 import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';
 import { EVENT_TYPE_LABELS } from '@shared/lib/calendar/event-type-defaults';
 import { clockTime } from '@shared/lib/format/list-time';
+import {
+  movedEventEnd,
+  PAST_START_CONFIRM,
+  startsInPast,
+} from '@/lib/event-timing';
+import { LoadErrorState } from '@/components/load-error';
 
 const TYPE_META: Record<
   AppointmentType,
@@ -275,7 +286,7 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
   const [detail, setDetail] = useState<Appointment | null>(null);
   const [dismissedEventId, setDismissedEventId] = useState<string | null>(null);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['appointments', month.getFullYear(), month.getMonth()],
     queryFn: () => fetchMonth(month),
   });
@@ -855,6 +866,11 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
           <ConvoRealLoader
             style={{ alignSelf: 'center', paddingVertical: 20 }}
           />
+        ) : isError && !data ? (
+          <LoadErrorState
+            title="Couldn’t load this month"
+            onRetry={() => void refetch()}
+          />
         ) : dayAppointments.length === 0 && dayDealDates.length === 0 ? (
           dealOnly ? (
             <EmptyState
@@ -892,6 +908,18 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
         {upcomingAppointmentsQuery.isLoading || todosQuery.isLoading ? (
           <ConvoRealLoader
             style={{ alignSelf: 'center', paddingVertical: 20 }}
+          />
+        ) : (upcomingAppointmentsQuery.isError &&
+            !upcomingAppointmentsQuery.data) ||
+          (todosQuery.isError && !todosQuery.data) ? (
+          <LoadErrorState
+            title="Couldn’t load what’s coming up"
+            onRetry={() =>
+              Promise.all([
+                upcomingAppointmentsQuery.refetch(),
+                todosQuery.refetch(),
+              ])
+            }
           />
         ) : upcomingItems.length === 0 ? (
           <Text style={{ fontSize: 13, color: colors.textMuted }}>
@@ -932,6 +960,11 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
         {todosQuery.isLoading ? (
           <ConvoRealLoader
             style={{ alignSelf: 'center', paddingVertical: 20 }}
+          />
+        ) : todosQuery.isError && !todosQuery.data ? (
+          <LoadErrorState
+            title="Couldn’t load your tasks"
+            onRetry={() => void todosQuery.refetch()}
           />
         ) : (
           <>
@@ -994,10 +1027,12 @@ function TodoQuickAdd() {
   const [picker, setPicker] = useState<'date' | 'time' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const saving = useRef(false);
 
   async function save() {
     const trimmed = title.trim();
-    if (!trimmed || !accountId) return;
+    if (!trimmed || !accountId || saving.current) return;
+    saving.current = true;
     haptic.tap();
     setBusy(true);
     setError(null);
@@ -1013,6 +1048,7 @@ function TodoQuickAdd() {
       haptic.warn();
       setError('Could not add this task. Check your connection and try again.');
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   }
@@ -1274,8 +1310,16 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
     todo.due_date ? new Date(todo.due_date) : null
   );
   const [editPicker, setEditPicker] = useState<'date' | 'time' | null>(null);
+  const { show: showDialog, close: closeDialog, dialogProps } = useAppDialog();
   const due = todo.due_date ? new Date(todo.due_date) : null;
   const overdue = isTodoOverdue(todo, now);
+  const editDraft: TodoEditDraft = {
+    title: editTitle,
+    description: editDescription,
+    priority: editPriority,
+    completed: editCompleted,
+    due: editDue ? editDue.toISOString() : null,
+  };
 
   async function toggle() {
     haptic.tap();
@@ -1341,7 +1385,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
     }
   }
 
-  function cancelEdit() {
+  function loadEdit() {
     setEditTitle(todo.title);
     setEditDescription(todo.description ?? '');
     setEditPriority(todo.priority);
@@ -1349,7 +1393,39 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
     setEditDue(todo.due_date ? new Date(todo.due_date) : null);
     setEditPicker(null);
     setError(null);
+  }
+
+  function openEdit() {
+    haptic.tap();
+    loadEdit();
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    loadEdit();
     setEditing(false);
+  }
+
+  function requestCloseEdit() {
+    if (busy || !hasUnsavedChanges(todoEditDraft(todo), editDraft)) {
+      cancelEdit();
+      return;
+    }
+    showDialog({
+      title: 'Discard changes?',
+      message: 'Your edits to this task have not been saved.',
+      actions: [
+        { label: 'Keep editing', variant: 'muted', onPress: closeDialog },
+        {
+          label: 'Discard',
+          variant: 'destructive',
+          onPress: () => {
+            closeDialog();
+            cancelEdit();
+          },
+        },
+      ],
+    });
   }
 
   const meta = [
@@ -1429,12 +1505,9 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
           ) : null}
         </View>
         <Pressable
-          onPress={() => {
-            haptic.tap();
-            setEditing(true);
-          }}
+          onPress={openEdit}
           disabled={busy}
-          hitSlop={8}
+          style={styles.todoIconButton}
           accessibilityRole="button"
           accessibilityLabel={`Edit ${todo.title}`}
         >
@@ -1443,7 +1516,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
         <Pressable
           onPress={remove}
           disabled={busy}
-          hitSlop={8}
+          style={styles.todoIconButton}
           accessibilityRole="button"
           accessibilityLabel="Delete task"
         >
@@ -1452,7 +1525,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
       </View>
       <BottomSheet
         visible={editing}
-        onClose={cancelEdit}
+        onClose={requestCloseEdit}
         contentStyle={styles.sheet}
       >
         <ScrollView
@@ -1748,6 +1821,7 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
             />
           </View>
         </ScrollView>
+        <AppDialog {...dialogProps} />
       </BottomSheet>
     </>
   );
@@ -2121,6 +2195,7 @@ function AppointmentDetail({
     },
   });
   const [peekContactId, setPeekContactId] = useState<string | null>(null);
+  const { show: showDialog, close: closeDialog, dialogProps } = useAppDialog();
 
   if (!appointment) return null;
   const meta = TYPE_META[appointment.event_type] ?? TYPE_META.other;
@@ -2142,16 +2217,111 @@ function AppointmentDetail({
     setError(null);
   }
 
+  const savedContactIds = appointment.contact_ids?.length
+    ? appointment.contact_ids
+    : appointment.contact_id
+      ? [appointment.contact_id]
+      : [];
+  const detailsDirty =
+    editingDetails &&
+    hasUnsavedChanges(
+      {
+        title: appointment.title,
+        description: appointment.description ?? '',
+        location: appointment.location ?? '',
+        type: appointment.event_type,
+        start: start.toISOString(),
+        contacts: savedContactIds,
+      },
+      {
+        title: editTitle,
+        description: editDescription,
+        location: editLocation,
+        type: editType,
+        start: editStart.toISOString(),
+        contacts: editContactIds,
+      }
+    );
+  const notesDirty =
+    editingNotes &&
+    hasUnsavedChanges(
+      {
+        agenda: appointment.agenda ?? '',
+        minutes: appointment.minutes ?? '',
+        outcome: appointment.outcome ?? '',
+      },
+      notes
+    );
+  const rescheduleDirty =
+    rescheduling && newStart !== null && newStart.getTime() !== start.getTime();
+
+  function close() {
+    reset();
+    onClose();
+  }
+
+  function requestClose() {
+    if (busy || !(detailsDirty || notesDirty || rescheduleDirty)) {
+      close();
+      return;
+    }
+    showDialog({
+      title: 'Discard changes?',
+      message: 'Your edits to this event have not been saved.',
+      actions: [
+        { label: 'Keep editing', variant: 'muted', onPress: closeDialog },
+        {
+          label: 'Discard',
+          variant: 'destructive',
+          onPress: () => {
+            closeDialog();
+            close();
+          },
+        },
+      ],
+    });
+  }
+
+  function confirmPastStart(next: Date, run: () => void) {
+    if (!startsInPast(next)) {
+      run();
+      return;
+    }
+    showDialog({
+      title: PAST_START_CONFIRM.title,
+      message: PAST_START_CONFIRM.message,
+      actions: [
+        { label: 'Change time', variant: 'muted', onPress: closeDialog },
+        {
+          label: PAST_START_CONFIRM.confirmLabel,
+          variant: 'primary',
+          onPress: () => {
+            closeDialog();
+            run();
+          },
+        },
+      ],
+    });
+  }
+
+  function requestSaveDetails() {
+    if (editStart.getTime() === start.getTime()) {
+      void saveDetails();
+      return;
+    }
+    confirmPastStart(editStart, () => void saveDetails());
+  }
+
+  function requestSaveReschedule() {
+    if (!newStart) return;
+    confirmPastStart(newStart, () => void saveReschedule());
+  }
+
   async function saveDetails() {
     if (!appointment || !editTitle.trim()) return;
     setBusy(true);
     setError(null);
     try {
-      const oldStart = new Date(appointment.start_time).getTime();
-      const oldEnd = appointment.end_time
-        ? new Date(appointment.end_time).getTime()
-        : oldStart + 60 * 60 * 1000;
-      const duration = Math.max(oldEnd - oldStart, 15 * 60 * 1000);
       const result = await apiFetch<{
         notifications: {
           sent: number;
@@ -2166,7 +2336,11 @@ function AppointmentDetail({
           location: editLocation.trim() || null,
           event_type: editType,
           start_time: editStart.toISOString(),
-          end_time: new Date(editStart.getTime() + duration).toISOString(),
+          end_time: movedEventEnd(
+            appointment.start_time,
+            appointment.end_time,
+            editStart
+          ).toISOString(),
           contact_id: editContactIds[0] ?? null,
           contact_ids: editContactIds,
           notify_participants: notificationScope !== 'none',
@@ -2295,7 +2469,11 @@ function AppointmentDetail({
     setBusy(true);
     setError(null);
     try {
-      const end = new Date(newStart.getTime() + 60 * 60 * 1000);
+      const end = movedEventEnd(
+        appointment.start_time,
+        appointment.end_time,
+        newStart
+      );
       // The PUT route re-arms WhatsApp reminders when the time moves —
       // that's why this is not a direct table update.
       await apiFetch(`/api/appointments/${appointment.id}`, {
@@ -2318,14 +2496,7 @@ function AppointmentDetail({
   }
 
   return (
-    <BottomSheet
-      visible
-      onClose={() => {
-        reset();
-        onClose();
-      }}
-      contentStyle={styles.sheet}
-    >
+    <BottomSheet visible onClose={requestClose} contentStyle={styles.sheet}>
       <ScrollView
         style={sheetScrollArea}
         keyboardShouldPersistTaps="handled"
@@ -2700,7 +2871,7 @@ function AppointmentDetail({
                 textColor={colors.onPrimary}
                 disabled={busy || !editTitle.trim()}
                 busy={busy}
-                onPress={saveDetails}
+                onPress={requestSaveDetails}
               />
               <SheetButton
                 label="Back"
@@ -2970,7 +3141,7 @@ function AppointmentDetail({
                   textColor={colors.onPrimary}
                   disabled={!newStart || busy}
                   busy={busy}
-                  onPress={saveReschedule}
+                  onPress={requestSaveReschedule}
                 />
                 <SheetButton
                   label="Back"
@@ -3044,6 +3215,7 @@ function AppointmentDetail({
           </View>
         ) : null}
       </ScrollView>
+      <AppDialog {...dialogProps} />
     </BottomSheet>
   );
 }
@@ -3248,6 +3420,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   todoAddRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  todoIconButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   todoInput: {
     flex: 1,
     borderWidth: StyleSheet.hairlineWidth,
