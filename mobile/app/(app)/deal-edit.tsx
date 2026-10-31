@@ -37,7 +37,12 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Deal, PipelineStage } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 import { useAccountCurrency } from '@/lib/use-account-currency';
-import { CURRENCY_SYMBOLS } from '@shared/lib/format/currency';
+import {
+  CURRENCY_SYMBOLS,
+  parseAmountInput,
+} from '@shared/lib/format/currency';
+import { dealFormMissing } from '@/lib/deal-form';
+import { useDiscardGuard } from '@/lib/use-discard-guard';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import { dealStatusForStage, isLostStage } from '@/lib/stage-semantics';
 import {
@@ -164,6 +169,24 @@ function DealForm({
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const draft = JSON.stringify([
+    title,
+    value,
+    stageId,
+    contact?.id ?? null,
+    property?.id ?? null,
+    closeDate?.getTime() ?? null,
+    actualCloseDate?.getTime() ?? null,
+    notes,
+    lostReason,
+    lostNote,
+  ]);
+  const [initialDraft] = useState(draft);
+  const allowLeave = useDiscardGuard(
+    draft !== initialDraft && !deleting,
+    dialog
+  );
+
   const debouncedContactSearch = useDebounced(contactSearch);
   const debouncedPropertySearch = useDebounced(propertySearch);
 
@@ -186,6 +209,13 @@ function DealForm({
   const lostReasonMissing =
     lostStageSelected &&
     (!lostReason || (lostReasonNeedsNote(lostReason) && !lostNote.trim()));
+  const missing = dealFormMissing({
+    title,
+    hasContact: Boolean(contact),
+    hasStage: Boolean(activeStageId),
+    lostReasonMissing,
+    creating: !deal,
+  });
   const isClosedStage = activeStage
     ? dealStatusForStage(activeStage) !== 'open'
     : false;
@@ -232,7 +262,7 @@ function DealForm({
         method: deal ? 'PUT' : 'POST',
         body: JSON.stringify({
           title: title.trim(),
-          value: parseFloat(value) || 0,
+          value: parseAmountInput(value) ?? 0,
           currency: dealCurrency,
           contact_id: contact.id,
           pipeline_id: pipelineId,
@@ -252,6 +282,7 @@ function DealForm({
         }),
       });
       haptic.success();
+      allowLeave();
       for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
         queryClient.invalidateQueries({ queryKey });
       }
@@ -279,6 +310,7 @@ function DealForm({
       // The route also resets a linked property back to Available.
       await apiFetch(`/api/deals/${deal.id}`, { method: 'DELETE' });
       haptic.success();
+      allowLeave();
       for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
         queryClient.invalidateQueries({ queryKey });
       }
@@ -325,18 +357,20 @@ function DealForm({
         {error ? <Banner kind="error" text={error} /> : null}
 
         <TextField
-          placeholder="Deal title · e.g. 3BHK Prestige Lakeview — Ravi"
+          label="Title"
+          placeholder="e.g. 3BHK Prestige Lakeview — Ravi"
           value={title}
           onChangeText={setTitle}
         />
 
         <TextField
-          placeholder={`Deal value (${CURRENCY_SYMBOLS[dealCurrency] ?? dealCurrency})`}
+          label={`Deal value (${CURRENCY_SYMBOLS[dealCurrency] ?? dealCurrency})`}
+          placeholder="e.g. 1,50,00,000"
           keyboardType="numeric"
           value={value}
           onChangeText={setValue}
         />
-        <PriceHint value={value} />
+        <PriceHint value={parseAmountInput(value)} currency={dealCurrency} />
 
         {contact ? (
           <SelectedRow
@@ -348,7 +382,8 @@ function DealForm({
         ) : (
           <View style={{ gap: spacing.sm }}>
             <TextField
-              placeholder="Contact — search name or phone (required)"
+              label="Contact"
+              placeholder="Search name or phone (required)"
               value={contactSearch}
               onChangeText={setContactSearch}
             />
@@ -395,7 +430,8 @@ function DealForm({
         ) : (
           <View style={{ gap: spacing.sm }}>
             <TextField
-              placeholder="Link a property — search title or code (optional)"
+              label="Property"
+              placeholder="Search title or code (optional)"
               value={propertySearch}
               onChangeText={setPropertySearch}
             />
@@ -606,7 +642,8 @@ function DealForm({
         {deal ? <DealInvoices dealId={deal.id} /> : null}
 
         <TextField
-          placeholder="Notes (optional)"
+          label="Notes"
+          placeholder="Optional"
           multiline
           value={notes}
           onChangeText={setNotes}
@@ -616,15 +653,21 @@ function DealForm({
           <PrimaryButton
             label={deal ? 'Save changes' : 'Create deal'}
             busy={saving}
-            disabled={
-              !title.trim() ||
-              !contact ||
-              !activeStageId ||
-              deleting ||
-              lostReasonMissing
-            }
+            disabled={missing !== null || deleting}
             onPress={save}
           />
+          {missing && !saving ? (
+            <Text
+              style={{
+                marginTop: spacing.sm,
+                fontSize: 12.5,
+                color: colors.textMuted,
+                textAlign: 'center',
+              }}
+            >
+              {missing}
+            </Text>
+          ) : null}
         </View>
 
         {deal ? (

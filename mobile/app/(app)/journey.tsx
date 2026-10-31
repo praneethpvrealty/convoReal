@@ -26,6 +26,7 @@ import {
   CloseJourneySheet,
   DropBranchSheet,
 } from '@/components/journey-reason-sheets';
+import { LoadErrorState } from '@/components/load-error';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   ChoiceChip,
@@ -92,7 +93,10 @@ import { useRememberedJourneySource } from '@/lib/journey-source-preference';
 import { openContactChat } from '@/lib/open-chat';
 import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import { supabase } from '@/lib/supabase';
-import { BOARD_FOCUS_QUERY_KEY } from '@/lib/deal-workspace';
+import {
+  BOARD_FOCUS_QUERY_KEY,
+  DEAL_SAVED_QUERY_KEYS,
+} from '@/lib/deal-workspace';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type {
   JourneyItem,
@@ -858,7 +862,9 @@ export function JourneyBody() {
         summariesQuery.refetch(),
         statesQuery.refetch(),
         queryClient.invalidateQueries({ queryKey: ['journey-branch-items'] }),
-        queryClient.invalidateQueries({ queryKey: ['transaction-index'] }),
+        ...DEAL_SAVED_QUERY_KEYS.map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey })
+        ),
       ]);
     } catch (error) {
       haptic.warn();
@@ -1198,6 +1204,14 @@ export function JourneyBody() {
     summariesQuery.isLoading ||
     statesQuery.isLoading ||
     compartmentsQuery.isLoading;
+  const loadFailed =
+    stagesQuery.isError || summariesQuery.isError || statesQuery.isError;
+  const retryLoad = () => {
+    void stagesQuery.refetch();
+    void summariesQuery.refetch();
+    void statesQuery.refetch();
+    void compartmentsQuery.refetch();
+  };
 
   return (
     <ScrollView
@@ -1438,7 +1452,9 @@ export function JourneyBody() {
         </ScrollView>
       ) : null}
 
-      {isLoading && buckets.length === 0 ? (
+      {loadFailed && buckets.length === 0 ? (
+        <LoadErrorState title="Couldn’t load journeys" onRetry={retryLoad} />
+      ) : isLoading && buckets.length === 0 ? (
         <View style={{ marginHorizontal: -spacing.lg }}>
           {Array.from({ length: 5 }, (_, i) => (
             <ConversationSkeleton key={i} />

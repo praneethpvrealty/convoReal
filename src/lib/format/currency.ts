@@ -109,6 +109,11 @@ export function priceInWords(
   return `${CURRENCY_SYMBOLS[currency] ?? ''}${amount.toLocaleString()}`;
 }
 
+export function parseAmountInput(value: string): number | null {
+  const n = Number(value.replace(/[^\d.]/g, ''));
+  return value.trim() && Number.isFinite(n) ? n : null;
+}
+
 /** `priceInWords` as the hint under an input: "Equivalent to: ₹16 Crore". */
 export function equivalentPriceLabel(
   value: string | number | null | undefined,

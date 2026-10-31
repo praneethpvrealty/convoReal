@@ -1134,6 +1134,9 @@ export const DEAL_SAVED_QUERY_KEYS: readonly (readonly string[])[] = [
   ['transaction-index'],
   ['overview'],
   [HOME_WIDGET_QUERY_KEY],
+  ['properties'],
+  ['property'],
+  ['property-edit'],
 ];
 
 export function boardDeals<T extends { id: string }>(

@@ -2864,7 +2864,9 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     expect(mobileVocab).toContain(
       "{ id: 'overview', label: 'Overview' },\n  { id: 'money', label: 'Money' },"
     );
-    expect(mobileScreen).toContain("{tab === 'money' && <FinancialsTab");
+    expect(mobileScreen).toContain(
+      "{tab === 'money' && (\n          <FinancialsTab"
+    );
     expect(mobileScreen).toContain('<OverviewTab');
     expect(mobileScreen).toContain('stage_id, value, currency,');
     expect(mobileScreen).toContain("const currency = head?.currency ?? 'INR';");
@@ -5838,6 +5840,142 @@ describe('[UIX-008] to-dos and journeys show the same labels and actions on web 
       /logEvent\(item\.id, '(dropped|reactivated)'/
     );
     expect(mobileJourney).toContain("error.code === 'LISTING_SYNC_FAILED'");
+  });
+});
+
+describe('[UIX-011] property and deal screens never strand or silently drop work', () => {
+  it('[UIX-011] tells a missing property apart from a failed load on detail and edit', () => {
+    for (const screen of [
+      'app/(app)/property/[id].tsx',
+      'app/(app)/property-edit.tsx',
+    ]) {
+      const source = mobileSource(screen);
+      expect(source).toContain('<LoadErrorState');
+      expect(source).toContain('onRetry={() => void refetch()}');
+      expect(source).toContain('<NotFoundState');
+      expect(source).toContain('title="Property not found"');
+    }
+    expect(mobileSource('components/load-error.tsx')).toContain(
+      '<PrimaryButton label="Back" onPress={() => router.back()} />'
+    );
+  });
+
+  it('[UIX-011] holds Save while photos upload and keeps going past a failed photo', () => {
+    const edit = mobileSource('app/(app)/property-edit.tsx');
+    expect(edit).toContain('onBusyChange={setPhotosBusy}');
+    expect(edit).toContain(
+      "label={photosBusy ? 'Uploading photos…' : 'Save changes'}"
+    );
+    expect(edit).toContain('disabled={photosBusy}');
+    const photos = mobileSource('components/property-photo-editor.tsx');
+    expect(photos).toContain('uploadEach(');
+    expect(photos).toContain(
+      'uploadProgressLabel(progress.done, progress.total)'
+    );
+    expect(photos).toContain("label: 'Retry failed'");
+    expect(photos).toContain('onChange((prev) => [...prev, path])');
+    expect(photos).toContain('accessibilityLabel="Undo remove photo"');
+    expect(photos.match(/hitSlop=\{11\}/g)).toHaveLength(2);
+  });
+
+  it('[UIX-011] asks before discarding unsaved property and deal edits, never after a save', () => {
+    const guard = mobileSource('lib/use-discard-guard.ts');
+    expect(guard).toContain(
+      "import { usePreventRemove } from 'expo-router/react-navigation';"
+    );
+    expect(guard).toContain("title: 'Discard changes?'");
+    expect(mobileSource('app/(app)/property-edit.tsx')).toContain(
+      'useDiscardGuard(draft !== initialDraft, dialog)'
+    );
+    expect(mobileSource('app/(app)/deal-edit.tsx')).toContain(
+      'useDiscardGuard(\n    draft !== initialDraft && !deleting,'
+    );
+    for (const screen of [
+      'app/(app)/property-edit.tsx',
+      'app/(app)/deal-edit.tsx',
+    ]) {
+      expect(mobileSource(screen)).toContain('allowLeave();');
+    }
+  });
+
+  it('[UIX-011] scrolls to a property form error, buzzes, and clears it on any field change', () => {
+    const source = mobileSource('app/(app)/property-edit.tsx');
+    expect(source).toContain(
+      'scrollRef.current?.scrollTo({ y: 0, animated: true });'
+    );
+    expect(source).toContain('showError(invalid);');
+    expect(source).toContain(
+      'errorState && errorState.draft === draft ? errorState.text : null'
+    );
+  });
+
+  it('[UIX-011] reads a deal value with commas through the shared parser on both surfaces', () => {
+    const mobile = mobileSource('app/(app)/deal-edit.tsx');
+    expect(mobile).toContain('value: parseAmountInput(value) ?? 0,');
+    expect(mobile).toContain(
+      '<PriceHint value={parseAmountInput(value)} currency={dealCurrency} />'
+    );
+    expect(mobile).not.toContain('parseFloat(value)');
+    const web = webSource('components/pipelines/deal-form.tsx');
+    expect(web).toContain('const dealValue = parseAmountInput(value) ?? 0;');
+    expect(mobileSource('app/(app)/property-edit.tsx')).toContain(
+      'const num = parseAmountInput;'
+    );
+  });
+
+  it('[UIX-011] labels the deal form and says why Create is disabled', () => {
+    const source = mobileSource('app/(app)/deal-edit.tsx');
+    for (const label of ['"Title"', '"Contact"', '"Property"', '"Notes"']) {
+      expect(source).toContain(`label=${label}`);
+    }
+    expect(source).toContain('const missing = dealFormMissing({');
+    expect(source).toContain('disabled={missing !== null || deleting}');
+  });
+
+  it('[UIX-011] keeps the Money draft across tabs and refetches and says when nothing changed', () => {
+    const source = mobileSource('app/(app)/deal/[id].tsx');
+    expect(source).not.toContain('key={JSON.stringify(data)}');
+    expect(source).toContain('onDraftChange={setMoneyDraft}');
+    expect(source).toContain('const draft = storedDraft ?? toDraft(data);');
+    expect(source).toContain(
+      "label={dirty ? 'Save financials' : 'No changes'}"
+    );
+    expect(source).toContain('disabled={!dirty}');
+  });
+
+  it('[UIX-011] shows a retry instead of an empty or endless state when a load fails', () => {
+    const workspace = mobileSource('app/(app)/deal/[id].tsx');
+    expect(workspace.match(/<TabLoadError /g)).toHaveLength(7);
+    expect(workspace).toContain('label="Couldn’t load the money details"');
+    const deals = mobileSource('app/(app)/deals.tsx');
+    expect(deals).toContain('<LoadErrorState title="Couldn’t load deals"');
+    expect(deals).toContain('pipelinesQuery.isLoading ||');
+    expect(mobileSource('app/(app)/journey.tsx')).toContain(
+      'loadFailed && buckets.length === 0'
+    );
+    const list = mobileSource('app/(app)/(tabs)/properties.tsx');
+    expect(list).toContain('error && properties.length === 0 && !isLoading');
+    expect(list).toContain('isFetchingNextPage ? (');
+  });
+
+  it('[UIX-011] confirms Reopen on a paid deal', () => {
+    expect(mobileSource('app/(app)/deals.tsx')).toContain(
+      "title: 'Move back to Brokerage Pending?'"
+    );
+  });
+
+  it('[UIX-011] refreshes property status after deal saves and the board after a journey removal', () => {
+    const keys = mobileSource('lib/deal-workspace.ts');
+    for (const line of [
+      "['properties'],",
+      "['property'],",
+      "['property-edit'],",
+    ]) {
+      expect(keys).toContain(line);
+    }
+    expect(mobileSource('app/(app)/journey.tsx')).toContain(
+      '...DEAL_SAVED_QUERY_KEYS.map((queryKey) =>'
+    );
   });
 });
 

@@ -18,6 +18,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { TourTarget } from '@/components/copilot-tour';
 import { Confetti, EnterRow } from '@/components/motion';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
+import { LoadErrorState } from '@/components/load-error';
 import { LostReasonSheet } from '@/components/lost-reason-sheet';
 import { StageWheel } from '@/components/stage-wheel';
 import {
@@ -173,7 +174,7 @@ export default function DealsScreen() {
     },
   });
 
-  const { data: pipelines } = useQuery({
+  const pipelinesQuery = useQuery({
     queryKey: ['pipelines'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -184,9 +185,10 @@ export default function DealsScreen() {
       return (data ?? []) as Pipeline[];
     },
   });
+  const pipelines = pipelinesQuery.data;
   const activePipeline = pipelineId ?? pipelines?.[0]?.id ?? null;
 
-  const { data: stages } = useQuery({
+  const stagesQuery = useQuery({
     queryKey: ['pipeline-stages', activePipeline],
     enabled: Boolean(activePipeline),
     queryFn: async () => {
@@ -199,10 +201,12 @@ export default function DealsScreen() {
       return (data ?? []) as PipelineStage[];
     },
   });
+  const stages = stagesQuery.data;
 
   const {
     data: deals,
     isLoading,
+    isError: dealsError,
     refetch,
   } = useQuery({
     queryKey: ['deals', activePipeline],
@@ -242,7 +246,16 @@ export default function DealsScreen() {
   const pull = usePullRefresh(() =>
     Promise.all([refetch(), focusQuery.refetch()])
   );
-  const { show, dialogProps } = useAppDialog();
+  const { show, close, dialogProps } = useAppDialog();
+  const boardLoadFailed =
+    pipelinesQuery.isError || stagesQuery.isError || dealsError;
+  const retryBoard = () => {
+    void pipelinesQuery.refetch();
+    if (activePipeline) {
+      void stagesQuery.refetch();
+      void refetch();
+    }
+  };
 
   const stageById = useMemo(
     () => new Map((stages ?? []).map((stage) => [stage.id, stage])),
@@ -457,7 +470,21 @@ export default function DealsScreen() {
       });
       return;
     }
-    await moveDeal(deal, target);
+    show({
+      title: 'Move back to Brokerage Pending?',
+      message: `“${deal.title}” leaves Brokerage Paid and moves to ${target.name}.`,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Reopen',
+          variant: 'primary',
+          onPress: () => {
+            close();
+            void moveDeal(deal, target);
+          },
+        },
+      ],
+    });
   }
 
   return (
@@ -664,7 +691,11 @@ export default function DealsScreen() {
         </Text>
       ) : null}
 
-      {segment !== 'board' ? null : isLoading ||
+      {segment !== 'board' ? null : boardLoadFailed ? (
+        <LoadErrorState title="Couldn’t load deals" onRetry={retryBoard} />
+      ) : pipelinesQuery.isLoading ||
+        stagesQuery.isLoading ||
+        isLoading ||
         (boardScope === 'focus' && focusQuery.isLoading) ? (
         <View>
           {Array.from({ length: 5 }, (_, i) => (

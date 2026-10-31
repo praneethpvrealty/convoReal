@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { PriceHint } from '@/components/ui/price-hint';
+import { parseAmountInput } from '@/lib/format/currency';
 import { DealInvoices } from '@/components/pipelines/deal-invoices';
 import {
   Check,
@@ -228,7 +229,7 @@ export function DealForm({
       ? shouldCaptureBrokerage(selectedStage)
       : false;
 
-    const dealValue = parseFloat(value) || 0;
+    const dealValue = parseAmountInput(value) ?? 0;
     const brokValue = isNegotiationOrLater
       ? parseFloat(brokerageValue) || 0
       : null;
