@@ -5501,6 +5501,30 @@
             "src/lib/whatsapp/phone-utils.ts",
             "mobile/lib/format.ts"
           ]
+        },
+        {
+          "id": "ACC-010",
+          "rule": "The mobile app signs a user out on its own only when GoTrue definitively refuses the session: an API call that still answers 401 after a forced refreshSession() signs out only when isDefinitiveAuthFailure in mobile/lib/session-expiry.ts reads the refresh error as final (a 4xx AuthApiError other than 408 or 429, a stale refresh-token code, or no stored session). A refresh that failed on the network, timed out, hit a 5xx or 429 keeps the user signed in and the call fails as an ordinary error. Whenever the app signs the user out without being asked (that 401 path, or Supabase ending the session with SIGNED_OUT while one was showing), the auth store records the reason and the login screen shows Your session expired — sign in again until the next sign-in clears it; signing out from the app records no reason. Web shows the same notice from src/lib/auth/sign-out-reason.ts: the proxy adds reason=expired when it sends a request whose auth cookie no longer resolves to /login, and a SIGNED_OUT event the user did not ask for while a tab is open records the reason for the login page. Every web sign-out the user asks for (the menu, Sign out of all devices, profile setup, the Portfolio portals, invitation hand-off) marks itself in localStorage first, so neither that tab nor any other open tab shows the notice.",
+          "tests": [
+            {
+              "file": "src/lib/auth/deliberate-sign-out.test.ts",
+              "case": "[ACC-010]"
+            },
+            {
+              "file": "src/lib/auth/sign-out-reason.test.ts",
+              "case": "[ACC-010]"
+            },
+            { "file": "src/proxy.test.ts", "case": "[ACC-010]" },
+            {
+              "file": "mobile/lib/session-expiry.test.ts",
+              "case": "[ACC-010]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[ACC-010]"
+            }
+          ],
+          "guards": ["mobile/lib/session-expiry.ts", "mobile/lib/api.ts"]
         }
       ]
     },

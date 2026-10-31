@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { SIGN_OUT_REASON_PARAM } from '@/lib/auth/sign-out-reason';
 
 const SUPABASE_COOKIE_PREFIXES = [
   'sb-access-token',
@@ -195,6 +196,7 @@ export async function proxy(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    if (hasAuthCookie) url.searchParams.set(SIGN_OUT_REASON_PARAM, 'expired');
     return finalize(NextResponse.redirect(url));
   }
 

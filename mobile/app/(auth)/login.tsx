@@ -18,7 +18,9 @@ import { GlassCard } from '@/components/glass-card';
 import { HelpCentreLink } from '@/components/help-centre-link';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
+import { useAuthStore } from '@/lib/auth-store';
 import { cleanPhoneInput } from '@/lib/format';
+import { SIGN_OUT_REASON_NOTICES } from '@/lib/session-expiry';
 import { supabase } from '@/lib/supabase';
 import { useResendCooldown } from '@/lib/use-resend-cooldown';
 import {
@@ -43,6 +45,7 @@ export default function LoginScreen() {
   const { colors, fonts: f } = useTheme();
   const gradient = useBrandGradient();
   const [mode, setMode] = useState<Mode>('whatsapp');
+  const signOutReason = useAuthStore((s) => s.signOutReason);
 
   return (
     <SafeAreaView style={{ flex: 1 }}>
@@ -78,6 +81,12 @@ export default function LoginScreen() {
           </View>
 
           <GlassCard style={styles.formCard}>
+            {signOutReason ? (
+              <Banner
+                kind="info"
+                text={SIGN_OUT_REASON_NOTICES[signOutReason]}
+              />
+            ) : null}
             <View
               style={[
                 styles.segment,

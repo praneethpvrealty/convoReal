@@ -201,6 +201,13 @@ describe('proxy — stale refresh token', () => {
     expect(res.cookies.get(SESSION_COOKIE)?.value).toBe('');
   });
 
+  it('[ACC-010] tells the login page the session expired', async () => {
+    const res = await proxy(signedInReq('/dashboard'));
+    const location = new URL(res.headers.get('location') ?? '');
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.get('reason')).toBe('expired');
+  });
+
   it('still 401s an auth-gated /api/whatsapp/* route, and clears the cookie', async () => {
     const res = await proxy(signedInReq('/api/whatsapp/config'));
     expect(res.status).toBe(401);
@@ -228,6 +235,13 @@ describe('proxy — skips the auth round-trip when no session cookie is present'
   it('does not call getUser for a cookieless request carrying only non-auth cookies', async () => {
     await proxy(req('/', { cookie: 'theme=violet' }));
     expect(getUserCalls).toBe(0);
+  });
+
+  it('[ACC-010] sends a never-signed-in visitor to /login without an expiry notice', async () => {
+    const res = await proxy(req('/dashboard'));
+    const location = new URL(res.headers.get('location') ?? '');
+    expect(location.pathname).toBe('/login');
+    expect(location.searchParams.has('reason')).toBe(false);
   });
 
   it('still calls getUser when a session cookie is present', async () => {

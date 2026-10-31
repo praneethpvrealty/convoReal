@@ -10,6 +10,7 @@ import {
 } from '@shared/lib/auth/session-profile';
 
 import { clearComposerDrafts } from './composer-drafts';
+import type { SignOutReason } from './session-expiry';
 import { toMobileProfile } from './session-profile';
 import { asyncStoragePersister, queryClient } from './query';
 import { supabase } from './supabase';
@@ -20,6 +21,7 @@ interface AuthState {
   session: Session | null | undefined;
   /** Loaded right after sign-in; carries account_id for realtime channel names. */
   profile: Profile | null;
+  signOutReason: SignOutReason | null;
   setSession: (session: Session | null) => void;
   setProfile: (profile: Profile | null) => void;
 }
@@ -27,7 +29,9 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   session: undefined,
   profile: null,
-  setSession: (session) => set({ session }),
+  signOutReason: null,
+  setSession: (session) =>
+    set(session ? { session, signOutReason: null } : { session }),
   setProfile: (profile) => set({ profile }),
 }));
 
@@ -62,7 +66,10 @@ export function useAuthListener() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' && useAuthStore.getState().session) {
+        useAuthStore.setState({ signOutReason: 'expired' });
+      }
       setSession(session);
       if (!session) {
         setProfile(null);
@@ -186,8 +193,12 @@ export function isPhoneVerified(session: Session): boolean {
  * phone numbers, message bodies, deals) never outlives the signed-in user
  * on the device.
  */
-export async function signOut(): Promise<void> {
-  useAuthStore.setState({ session: null, profile: null });
+export async function signOut(reason?: SignOutReason): Promise<void> {
+  useAuthStore.setState({
+    session: null,
+    profile: null,
+    signOutReason: reason ?? null,
+  });
   try {
     await supabase.auth.signOut();
   } finally {

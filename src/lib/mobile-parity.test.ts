@@ -6396,3 +6396,66 @@ describe('[UIX-010] mobile screens say when something failed and guard unsaved w
     expect(greetings).toContain('Tap + to write one');
   });
 });
+
+describe('[ACC-010] mobile signs out only on a definitive auth failure and says why', () => {
+  it('[ACC-010] web says why too, from the same shared notice', () => {
+    expect(webSource('proxy.ts')).toContain(
+      "if (hasAuthCookie) url.searchParams.set(SIGN_OUT_REASON_PARAM, 'expired');"
+    );
+    const auth = webSource('hooks/useAuth.tsx');
+    expect(auth).toContain('!isDeliberateSignOut()');
+    expect(auth).toContain('markDeliberateSignOut();');
+    expect(auth).toContain(
+      "if (event === 'SIGNED_IN' && currentUser && !hadUserRef.current) {"
+    );
+    expect(auth).not.toContain('if (currentUser) clearDeliberateSignOut();');
+    for (const path of [
+      'components/settings/sessions-card.tsx',
+      'app/profile-setup/page.tsx',
+      'components/buyer/buyer-provider.tsx',
+      'components/den/den-provider.tsx',
+      'app/join/[token]/page.tsx',
+    ]) {
+      expect(webSource(path)).toMatch(
+        /markDeliberateSignOut\(\);\s*(?:const \{ error \} = )?await (?:supabase|createClient\(\))\.auth\.signOut\(/
+      );
+    }
+    expect(auth).toContain('SIGN_OUT_REASON_STORAGE_KEY');
+    const login = webSource('app/(auth)/login/page.tsx');
+    expect(login).toContain('SIGN_OUT_REASON_NOTICES[signOutReason]');
+    expect(mobileSource('lib/session-expiry.ts')).toContain(
+      "from '@shared/lib/auth/sign-out-reason'"
+    );
+  });
+
+  it('[ACC-010] keeps the session through a refresh that failed on the network', () => {
+    const api = mobileSource('lib/api.ts');
+    expect(api).toContain(
+      "import { isDefinitiveAuthFailure } from './session-expiry';"
+    );
+    expect(api).toContain(
+      'refreshDied = isDefinitiveAuthFailure(refreshError);'
+    );
+    expect(api).toMatch(
+      /if \(res\.status === 401 && refreshDied\) \{\s*await signOut\('expired'\);/
+    );
+  });
+
+  it('[ACC-010] records the sign-out reason and shows it on the login screen', () => {
+    const store = mobileSource('lib/auth-store.ts');
+    expect(store).toContain('signOutReason: SignOutReason | null;');
+    expect(store).toContain(
+      "if (event === 'SIGNED_OUT' && useAuthStore.getState().session)"
+    );
+    expect(store).toContain('signOutReason: reason ?? null,');
+    expect(store).toContain(
+      'set(session ? { session, signOutReason: null } : { session })'
+    );
+    const login = mobileSource('app/(auth)/login.tsx');
+    expect(login).toContain('useAuthStore((s) => s.signOutReason)');
+    expect(login).toContain('SIGN_OUT_REASON_NOTICES[signOutReason]');
+    expect(webSource('lib/auth/sign-out-reason.ts')).toContain(
+      "expired: 'Your session expired — sign in again.'"
+    );
+  });
+});
