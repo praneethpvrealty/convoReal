@@ -89,6 +89,62 @@ describe('rankProperties enquiry budget gating', () => {
   });
 });
 
+describe('[RDR-003] rankProperties type-and-size brief', () => {
+  const plot = (id: string, land_area: number): Property =>
+    ({
+      id,
+      account_id: 'acc-1',
+      title: `${land_area} sqft residential plot`,
+      price: 60_000_000,
+      type: 'Residential Plot',
+      land_area,
+      land_area_unit: 'sqft',
+      status: 'Available',
+      listing_type: 'Sale',
+      is_published: true,
+    }) as unknown as Property;
+  const inventory = [
+    plot('exact', 4000),
+    plot('bigger', 9545),
+    plot('near', 3750),
+    plot('small', 1200),
+  ];
+
+  it('reaches the Radar floor on every exact size fit with no area or budget stated', () => {
+    const contact = {
+      id: 'c-1',
+      account_id: 'acc-1',
+      name: 'Karthik',
+      classification: 'Buyer',
+      pref_property_types: ['Residential Plot'],
+      pref_property_categories: ['residential', 'plot'],
+      pref_land_area_min_sqft: 4000,
+      pref_extracted_at: new Date().toISOString(),
+    } as unknown as Contact;
+
+    const matches = rankProperties(contact, inventory);
+    expect(matches.map((m) => m.property.id).sort()).toEqual([
+      'bigger',
+      'exact',
+    ]);
+    expect(matches.every((m) => m.score >= 60)).toBe(true);
+  });
+
+  it('keeps a type-only brief below the floor', () => {
+    const contact = {
+      id: 'c-1',
+      account_id: 'acc-1',
+      name: 'Karthik',
+      classification: 'Buyer',
+      pref_property_types: ['Residential Plot'],
+      pref_property_categories: ['residential', 'plot'],
+      pref_extracted_at: new Date().toISOString(),
+    } as unknown as Contact;
+
+    expect(rankProperties(contact, inventory)).toHaveLength(0);
+  });
+});
+
 describe('[CNV-002] rankPropertiesForContact strictArea', () => {
   const jpNagarPlot = {
     id: 'p-2nd',

@@ -5647,6 +5647,24 @@
               "case": "[RDR-002]"
             }
           ]
+        },
+        {
+          "id": "RDR-003",
+          "rule": "A brief that states only a property type and a size (\"Residential plot 4000 sqft\", any area, no budget) is matched on every listing of that type whose size fits the stated band exactly: a type match (45) plus an exact size fit (15) meets the floor of 60 that Match Radar, buyer alerts, the buyer portal, buyer digests, bot shortlist replies and the Deal Mode sweep all read from the one shared scorer, so the buyer sees the same listings on every surface. A near-miss size, a larger alternative, or a type-only brief stays below the floor, so a brief with no size still surfaces nothing by itself.",
+          "tests": [
+            {
+              "file": "src/lib/radar/engine.test.ts",
+              "case": "[RDR-003]"
+            },
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[RDR-003]"
+            },
+            {
+              "file": "src/lib/buyer/matches-ranking.test.ts",
+              "case": "[RDR-003]"
+            }
+          ]
         }
       ]
     },

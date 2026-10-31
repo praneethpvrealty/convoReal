@@ -2197,6 +2197,24 @@ describe('getMatchingContacts', () => {
       ]);
     });
 
+    it('[RDR-003] scores an exact size fit at 15 and a near miss at 4', () => {
+      const floor = createTestContact({
+        pref_property_types: ['Residential Plot'],
+        pref_land_area_min_sqft: 4000,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const site = (land_area: number) =>
+        createTestProperty({
+          type: 'Residential Plot',
+          land_area,
+          land_area_unit: 'sqft',
+        });
+      expect(getMatchingContacts(site(4000), [floor])[0]?.score).toBe(60);
+      expect(getMatchingContacts(site(9545), [floor])[0]?.score).toBe(60);
+      expect(getMatchingContacts(site(3750), [floor])[0]?.score).toBe(49);
+      expect(getMatchingContacts(site(1200), [floor])).toHaveLength(0);
+    });
+
     it('keeps a stated band strict above its cap', () => {
       const banded = seeker({
         pref_land_area_min_sqft: 2000,
