@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useSyncExternalStore } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { HelpCentreLink } from '@/components/auth/help-centre-link';
@@ -18,6 +18,13 @@ import {
 } from '@/components/ui/card';
 import { MessageSquare, UsersRound, Phone, ArrowLeft } from 'lucide-react';
 import { reloadTo } from '@/lib/navigation';
+import {
+  SIGN_OUT_REASON_NOTICES,
+  SIGN_OUT_REASON_PARAM,
+  SIGN_OUT_REASON_STORAGE_KEY,
+  parseSignOutReason,
+  type SignOutReason,
+} from '@/lib/auth/sign-out-reason';
 
 export default function LoginPage() {
   return (
@@ -33,6 +40,14 @@ function LoginPageInner() {
   // account. After a successful sign-in we send them to the join
   // page to accept rather than to /dashboard.
   const inviteToken = searchParams.get('invite');
+  const storedSignOutReason = useSyncExternalStore(
+    subscribeNever,
+    storedSignOutReasonSnapshot,
+    () => null
+  );
+  const signOutReason =
+    parseSignOutReason(searchParams.get(SIGN_OUT_REASON_PARAM)) ??
+    storedSignOutReason;
 
   const [activeTab, setActiveTab] = useState<'email' | 'phone'>('email');
   const [email, setEmail] = useState('');
@@ -332,6 +347,11 @@ function LoginPageInner() {
           </div>
 
           {/* Status alerts */}
+          {signOutReason && !error && (
+            <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-300">
+              {SIGN_OUT_REASON_NOTICES[signOutReason]}
+            </div>
+          )}
           {error && (
             <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-400">
               {error}
@@ -590,4 +610,27 @@ function LoginPageInner() {
       </Card>
     </div>
   );
+}
+
+let storedSignOutReasonCache: SignOutReason | null | undefined;
+
+function subscribeNever() {
+  return () => {};
+}
+
+function storedSignOutReasonSnapshot(): SignOutReason | null {
+  if (storedSignOutReasonCache === undefined) {
+    storedSignOutReasonCache = readStoredSignOutReason();
+  }
+  return storedSignOutReasonCache;
+}
+
+function readStoredSignOutReason(): SignOutReason | null {
+  try {
+    const stored = sessionStorage.getItem(SIGN_OUT_REASON_STORAGE_KEY);
+    sessionStorage.removeItem(SIGN_OUT_REASON_STORAGE_KEY);
+    return parseSignOutReason(stored);
+  } catch {
+    return null;
+  }
 }

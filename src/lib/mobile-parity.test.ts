@@ -6398,6 +6398,20 @@ describe('[UIX-010] mobile screens say when something failed and guard unsaved w
 });
 
 describe('[ACC-010] mobile signs out only on a definitive auth failure and says why', () => {
+  it('[ACC-010] web says why too, from the same shared notice', () => {
+    expect(webSource('proxy.ts')).toContain(
+      "if (hasAuthCookie) url.searchParams.set(SIGN_OUT_REASON_PARAM, 'expired');"
+    );
+    const auth = webSource('hooks/useAuth.tsx');
+    expect(auth).toContain('!manualSignOutRef.current');
+    expect(auth).toContain('SIGN_OUT_REASON_STORAGE_KEY');
+    const login = webSource('app/(auth)/login/page.tsx');
+    expect(login).toContain('SIGN_OUT_REASON_NOTICES[signOutReason]');
+    expect(mobileSource('lib/session-expiry.ts')).toContain(
+      "from '@shared/lib/auth/sign-out-reason'"
+    );
+  });
+
   it('[ACC-010] keeps the session through a refresh that failed on the network', () => {
     const api = mobileSource('lib/api.ts');
     expect(api).toContain(
@@ -6424,7 +6438,7 @@ describe('[ACC-010] mobile signs out only on a definitive auth failure and says 
     const login = mobileSource('app/(auth)/login.tsx');
     expect(login).toContain('useAuthStore((s) => s.signOutReason)');
     expect(login).toContain('SIGN_OUT_REASON_NOTICES[signOutReason]');
-    expect(mobileSource('lib/session-expiry.ts')).toContain(
+    expect(webSource('lib/auth/sign-out-reason.ts')).toContain(
       "expired: 'Your session expired — sign in again.'"
     );
   });

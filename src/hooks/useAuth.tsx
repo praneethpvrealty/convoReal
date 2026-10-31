@@ -7,6 +7,7 @@ import {
   useState,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -31,6 +32,7 @@ import {
   type SessionProfileRow,
 } from '@/lib/auth/session-profile';
 import { reloadTo } from '@/lib/navigation';
+import { SIGN_OUT_REASON_STORAGE_KEY } from '@/lib/auth/sign-out-reason';
 
 type Profile = SessionProfile;
 type AccountSummary = SessionAccount;
@@ -146,6 +148,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const hadUserRef = useRef(false);
+  const manualSignOutRef = useRef(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [account, setAccount] = useState<AccountSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -347,6 +351,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!mounted) return;
         const currentUser = session?.user ?? null;
+        hadUserRef.current = Boolean(currentUser);
         setUser(currentUser);
 
         if (currentUser) {
@@ -374,9 +379,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
       const currentUser = session?.user ?? null;
+      if (
+        event === 'SIGNED_OUT' &&
+        hadUserRef.current &&
+        !manualSignOutRef.current
+      ) {
+        try {
+          sessionStorage.setItem(SIGN_OUT_REASON_STORAGE_KEY, 'expired');
+        } catch {}
+      }
+      hadUserRef.current = Boolean(currentUser);
       setUser(currentUser);
 
       if (currentUser) {
@@ -399,6 +414,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const signOut = useCallback(async () => {
+    manualSignOutRef.current = true;
     const supabase = createClient();
     try {
       // Fire-and-forget/timeout the network call to avoid blocking the user redirect
