@@ -7,6 +7,7 @@ import {
 } from './attachments';
 import { signOut } from './auth-store';
 import { ENV } from './env';
+import { isDefinitiveAuthFailure } from './session-expiry';
 import { trackedFetch } from './tracked-fetch';
 import { supabase } from './supabase';
 
@@ -200,12 +201,12 @@ export async function apiResponse(
   let token = session.access_token;
   let refreshDied = false;
   if (res.status === 401) {
-    const { data } = await supabase.auth.refreshSession();
+    const { data, error: refreshError } = await supabase.auth.refreshSession();
     if (data.session) {
       token = data.session.access_token;
       res = await doFetch(apiBase(), token);
     } else {
-      refreshDied = true;
+      refreshDied = isDefinitiveAuthFailure(refreshError);
     }
   }
 
@@ -230,7 +231,7 @@ export async function apiResponse(
   // switching). Reads keep working until the cached token expires,
   // which hides the breakage — recover by forcing a clean sign-in.
   if (res.status === 401 && refreshDied) {
-    await signOut();
+    await signOut('expired');
     throw new ApiError(401, 'Session expired — please sign in again.');
   }
 

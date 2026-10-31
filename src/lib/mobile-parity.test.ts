@@ -6396,3 +6396,36 @@ describe('[UIX-010] mobile screens say when something failed and guard unsaved w
     expect(greetings).toContain('Tap + to write one');
   });
 });
+
+describe('[ACC-010] mobile signs out only on a definitive auth failure and says why', () => {
+  it('[ACC-010] keeps the session through a refresh that failed on the network', () => {
+    const api = mobileSource('lib/api.ts');
+    expect(api).toContain(
+      "import { isDefinitiveAuthFailure } from './session-expiry';"
+    );
+    expect(api).toContain(
+      'refreshDied = isDefinitiveAuthFailure(refreshError);'
+    );
+    expect(api).toMatch(
+      /if \(res\.status === 401 && refreshDied\) \{\s*await signOut\('expired'\);/
+    );
+  });
+
+  it('[ACC-010] records the sign-out reason and shows it on the login screen', () => {
+    const store = mobileSource('lib/auth-store.ts');
+    expect(store).toContain('signOutReason: SignOutReason | null;');
+    expect(store).toContain(
+      "if (event === 'SIGNED_OUT' && useAuthStore.getState().session)"
+    );
+    expect(store).toContain('signOutReason: reason ?? null,');
+    expect(store).toContain(
+      'set(session ? { session, signOutReason: null } : { session })'
+    );
+    const login = mobileSource('app/(auth)/login.tsx');
+    expect(login).toContain('useAuthStore((s) => s.signOutReason)');
+    expect(login).toContain('SIGN_OUT_REASON_NOTICES[signOutReason]');
+    expect(mobileSource('lib/session-expiry.ts')).toContain(
+      "expired: 'Your session expired — sign in again.'"
+    );
+  });
+});
