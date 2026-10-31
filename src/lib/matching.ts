@@ -1425,7 +1425,10 @@ function matchContactsSingleProfile(
     if (bhkVerdict === 'match') score += 10;
     else if (bhkVerdict === 'mismatch') score -= bhkDistance >= 2 ? 15 : 5;
 
-    if (sizeVerdict === 'match') score += 10;
+    // An exact size fit lifts a brief that states only a type and a
+    // size ("Residential plot 4000 sqft, any area") to the Radar floor
+    // of 60; a near miss or a larger alternative stays below it.
+    if (sizeVerdict === 'match') score += 15;
     else if (sizeVerdict === 'partial') score += sizeFit === 'near' ? 4 : 2;
 
     if (roiVerdict === 'match') score += 5;

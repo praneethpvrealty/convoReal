@@ -5647,6 +5647,20 @@
               "case": "[RDR-002]"
             }
           ]
+        },
+        {
+          "id": "RDR-003",
+          "rule": "A brief that states only a property type and a size (\"Residential plot 4000 sqft\", any area, no budget) reaches Match Radar on every listing of that type whose size fits the stated band exactly: a type match (45) plus an exact size fit (15) meets the Radar floor of 60. A near-miss size, a larger alternative, or a type-only brief stays below the floor, so a brief with no size still raises no card by itself.",
+          "tests": [
+            {
+              "file": "src/lib/radar/engine.test.ts",
+              "case": "[RDR-003]"
+            },
+            {
+              "file": "src/lib/matching.test.ts",
+              "case": "[RDR-003]"
+            }
+          ]
         }
       ]
     },

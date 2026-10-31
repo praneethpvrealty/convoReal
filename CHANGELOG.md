@@ -17,6 +17,15 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 31 October 2026
+
+- **A type-and-size brief now reaches Match Radar.** "Residential plot
+  4000 sqft" with no area and no budget scored 55 against an exactly fitting
+  plot, under the Radar floor of 60, so such a buyer never got a card even
+  though the inventory had two dozen fits. An exact size fit now scores 15
+  instead of 10, which puts a type-plus-size brief at the floor; a near-miss
+  size or a type-only brief still stays below it (RDR-003).
+
 #### 30 October 2026
 
 - **A bare plot size is the smallest the buyer will take.** "Residential
