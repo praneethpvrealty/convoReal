@@ -9,6 +9,7 @@ import {
   parseSessionProfileResponse,
 } from '@shared/lib/auth/session-profile';
 
+import { clearComposerDrafts } from './composer-drafts';
 import { toMobileProfile } from './session-profile';
 import { asyncStoragePersister, queryClient } from './query';
 import { supabase } from './supabase';
@@ -191,6 +192,7 @@ export async function signOut(): Promise<void> {
     await supabase.auth.signOut();
   } finally {
     queryClient.clear();
+    clearComposerDrafts();
     await asyncStoragePersister.removeClient();
     await AsyncStorage.removeItem('convoreal-query-cache');
     await import('./media-cache')

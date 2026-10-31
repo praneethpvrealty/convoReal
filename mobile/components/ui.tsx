@@ -226,7 +226,7 @@ export function ChoiceChip({
     <Pressable
       testID={testID}
       onPress={onPress}
-      hitSlop={6}
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
       accessibilityRole={multi ? 'checkbox' : 'radio'}
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ selected, checked: selected }}
@@ -234,6 +234,7 @@ export function ChoiceChip({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
+        minHeight: 36,
         paddingHorizontal: 13,
         paddingVertical: 8,
         borderRadius: radius.full,
