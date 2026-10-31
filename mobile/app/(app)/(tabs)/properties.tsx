@@ -9,6 +9,7 @@ import * as Location from 'expo-location';
 import { Link, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   Keyboard,
@@ -24,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { LoadErrorState } from '@/components/load-error';
 import { GateRequestsSheet } from '@/components/gate-requests-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
 import { PortalDriftPanel } from '@/components/portal-drift-panel';
@@ -230,6 +232,7 @@ export default function PropertiesScreen() {
     refetch,
     fetchNextPage,
     hasNextPage,
+    isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: [
       'properties',
@@ -509,7 +512,7 @@ export default function PropertiesScreen() {
           {geoError}
         </Text>
       ) : null}
-      {error ? (
+      {error && properties.length > 0 ? (
         <Text
           style={{
             fontSize: 12,
@@ -522,7 +525,13 @@ export default function PropertiesScreen() {
         </Text>
       ) : null}
 
-      {isLoading ? (
+      {error && properties.length === 0 && !isLoading ? (
+        <LoadErrorState
+          title="Couldn’t load properties"
+          subtitle={error instanceof Error ? error.message : undefined}
+          onRetry={() => void refetch()}
+        />
+      ) : isLoading ? (
         <View style={columnCount > 1 ? styles.loadingGrid : undefined}>
           {Array.from({ length: 4 }, (_, i) => (
             <View
@@ -563,7 +572,18 @@ export default function PropertiesScreen() {
               />
             </>
           }
-          onEndReached={() => hasNextPage && fetchNextPage()}
+          onEndReached={() =>
+            hasNextPage && !isFetchingNextPage && fetchNextPage()
+          }
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <ActivityIndicator
+                color={colors.primary}
+                style={{ paddingVertical: spacing.lg }}
+                accessibilityLabel="Loading more properties"
+              />
+            ) : null
+          }
           onEndReachedThreshold={0.4}
           refreshControl={
             <RefreshControl

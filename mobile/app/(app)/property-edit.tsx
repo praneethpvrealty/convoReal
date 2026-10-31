@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -15,8 +15,10 @@ import {
   View,
 } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { InlineDateTimePicker } from '@/components/datetime-field';
+import { LoadErrorState, NotFoundState } from '@/components/load-error';
 import { ConvoRealLoader } from '@/components/loader';
 import { OptionSheet } from '@/components/option-sheet';
 import {
@@ -78,6 +80,8 @@ import type { Property } from '@/lib/types';
 import type { FloorTenancy } from '@shared/lib/inventory/floor-tenancies';
 import { validateListingCore } from '@shared/lib/inventory/listing-core-validation';
 import { contactHandle, hasPhone } from '@/lib/reachability';
+import { useDiscardGuard } from '@/lib/use-discard-guard';
+import { parseAmountInput } from '@shared/lib/format/currency';
 
 const STATUSES = [
   'Available',
@@ -87,6 +91,7 @@ const STATUSES = [
   'Archived',
 ] as const;
 const ROAD_WIDTH_UNITS = ['Feet', 'Meters'];
+const num = parseAmountInput;
 
 // String drafts of lib/inventory/floor-tenancies rows (web parity).
 interface TenancyDraft {
@@ -155,7 +160,12 @@ async function fetchProperty(id: string): Promise<Property | null> {
 export default function PropertyEditScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const { data: property, isLoading } = useQuery({
+  const {
+    data: property,
+    isPending,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['property-edit', id],
     queryFn: () => fetchProperty(id),
     enabled: Boolean(id),
@@ -164,14 +174,24 @@ export default function PropertyEditScreen() {
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: true, title: 'Edit property' }} />
-      {isLoading || !property ? (
+      {property ? (
+        <EditForm property={property} />
+      ) : isError ? (
+        <LoadErrorState
+          title="Couldn’t load this property"
+          onRetry={() => void refetch()}
+        />
+      ) : isPending && id ? (
         <View
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
         >
           <ConvoRealLoader />
         </View>
       ) : (
-        <EditForm property={property} />
+        <NotFoundState
+          title="Property not found"
+          subtitle="It may have been deleted, or you no longer have access to it."
+        />
       )}
     </View>
   );
@@ -179,6 +199,9 @@ export default function PropertyEditScreen() {
 
 function EditForm({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
+  const dialog = useAppDialog();
+  const scrollRef = useRef<ScrollView>(null);
+  const [photosBusy, setPhotosBusy] = useState(false);
 
   const [images, setImages] = useState<string[]>(property.images ?? []);
   const [title, setTitle] = useState(property.title);
@@ -301,7 +324,10 @@ function EditForm({ property }: { property: Property }) {
   const [ownerLabel, setOwnerLabel] = useState(
     property.owner?.name || property.owner?.phone || ''
   );
-  const [error, setError] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<{
+    text: string;
+    draft: string;
+  } | null>(null);
   const [planBusyIdx, setPlanBusyIdx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [sheet, setSheet] = useState<
@@ -316,13 +342,66 @@ function EditForm({ property }: { property: Property }) {
   const showTotalFloors = hasTotalFloors(type);
   const showBedsBaths = hasBedsBaths(type);
 
-  useEffect(() => {
-    setError(null);
-  }, [title, price, rent, status]);
+  const draft = JSON.stringify([
+    images,
+    title,
+    type,
+    listingType,
+    price,
+    rent,
+    maintenance,
+    status,
+    soldPrice,
+    bedrooms,
+    bathrooms,
+    area,
+    areaUnit,
+    landArea,
+    landAreaUnit,
+    superBuilt,
+    totalFloors,
+    ownershipStatus,
+    landZone,
+    legalStatus,
+    conversionType,
+    dimensions,
+    roadWidth,
+    roadWidthUnit,
+    facing,
+    khataEpid,
+    khataForm,
+    yearBuilt,
+    pin,
+    location,
+    sublocality,
+    city,
+    stateVal,
+    mapLink,
+    confidential,
+    buyersOnly,
+    features,
+    nearby,
+    tenancies,
+    floorPlans,
+    description,
+    tags,
+    published,
+    ownerContactId,
+  ]);
+  const [initialDraft] = useState(draft);
+  const allowLeave = useDiscardGuard(draft !== initialDraft, dialog);
 
-  function num(value: string): number | null {
-    const n = Number(value.replace(/[^\d.]/g, ''));
-    return value.trim() && Number.isFinite(n) ? n : null;
+  const error =
+    errorState && errorState.draft === draft ? errorState.text : null;
+
+  function setError(text: string | null) {
+    setErrorState(text ? { text, draft } : null);
+  }
+
+  function showError(message: string) {
+    haptic.warn();
+    setError(message);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
   }
 
   function updateTenancy(idx: number, key: keyof TenancyDraft, value: string) {
@@ -456,9 +535,10 @@ function EditForm({ property }: { property: Property }) {
       landArea,
     });
     if (invalid) {
-      setError(invalid);
+      showError(invalid);
       return;
     }
+    if (photosBusy) return;
     setSaving(true);
     setError(null);
     const body: Record<string, unknown> = {
@@ -560,8 +640,7 @@ function EditForm({ property }: { property: Property }) {
       });
     } catch (e) {
       setSaving(false);
-      haptic.warn();
-      setError(
+      showError(
         friendlyError(
           e instanceof ApiError ? e.message : 'Could not save changes.'
         )
@@ -570,6 +649,7 @@ function EditForm({ property }: { property: Property }) {
     }
     setSaving(false);
     haptic.success();
+    allowLeave();
     queryClient.invalidateQueries({ queryKey: ['property', property.id] });
     queryClient.invalidateQueries({ queryKey: ['property-edit', property.id] });
     queryClient.invalidateQueries({ queryKey: ['properties'] });
@@ -582,13 +662,18 @@ function EditForm({ property }: { property: Property }) {
       behavior={propertyEditKeyboardBehavior(Platform.OS)}
     >
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
         {error ? <Banner kind="error" text={error} /> : null}
 
-        <PropertyPhotoEditor images={images} onChange={setImages} />
+        <PropertyPhotoEditor
+          images={images}
+          onChange={setImages}
+          onBusyChange={setPhotosBusy}
+        />
 
         <PropertyVideoEditor
           propertyId={property.id}
@@ -1310,7 +1395,12 @@ function EditForm({ property }: { property: Property }) {
           />
         </View>
 
-        <PrimaryButton label="Save changes" busy={saving} onPress={save} />
+        <PrimaryButton
+          label={photosBusy ? 'Uploading photos…' : 'Save changes'}
+          busy={saving}
+          disabled={photosBusy}
+          onPress={save}
+        />
         <Text
           style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}
         >
@@ -1376,6 +1466,7 @@ function EditForm({ property }: { property: Property }) {
             : undefined
         }
       />
+      <AppDialog {...dialog.dialogProps} />
     </KeyboardAvoidingView>
   );
 }

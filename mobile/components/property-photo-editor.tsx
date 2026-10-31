@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -15,6 +15,11 @@ import { SectionLabel } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
+import {
+  restorePhoto,
+  uploadEach,
+  uploadProgressLabel,
+} from '@/lib/photo-upload';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -75,13 +80,66 @@ async function uploadAsset(base64: string): Promise<string> {
 export function PropertyPhotoEditor({
   images,
   onChange,
+  onBusyChange,
 }: {
   images: string[];
-  onChange: (next: string[]) => void;
+  onChange: Dispatch<SetStateAction<string[]>>;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { colors, fonts: f } = useTheme();
-  const [busy, setBusy] = useState(false);
-  const { show, dialogProps } = useAppDialog();
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const [removed, setRemoved] = useState<{
+    photo: string;
+    index: number;
+  } | null>(null);
+  const { show, close, dialogProps } = useAppDialog();
+  const busy = progress !== null;
+
+  useEffect(() => {
+    if (!removed) return;
+    const timer = setTimeout(() => setRemoved(null), 6000);
+    return () => clearTimeout(timer);
+  }, [removed]);
+
+  async function uploadBase64s(items: string[]) {
+    setProgress({ done: 0, total: items.length });
+    onBusyChange?.(true);
+    haptic.tap();
+    const result = await uploadEach(
+      items,
+      uploadAsset,
+      (done, total) => setProgress({ done, total }),
+      (path) => onChange((prev) => [...prev, path])
+    );
+    setProgress(null);
+    onBusyChange?.(false);
+    if (result.failed.length === 0) {
+      haptic.success();
+      return;
+    }
+    haptic.warn();
+    show({
+      title:
+        result.uploaded.length > 0
+          ? 'Some photos did not upload'
+          : 'Upload failed',
+      message: `${result.uploaded.length} of ${items.length} added. ${result.lastError ?? 'Please try again.'}`,
+      actions: [
+        { label: 'Dismiss', variant: 'muted', onPress: close },
+        {
+          label: 'Retry failed',
+          variant: 'primary',
+          onPress: () => {
+            close();
+            void uploadBase64s(result.failed);
+          },
+        },
+      ],
+    });
+  }
 
   async function addPhotos() {
     if (busy) return;
@@ -113,42 +171,30 @@ export function PropertyPhotoEditor({
       base64: true,
     });
     if (result.canceled) return;
-    setBusy(true);
-    haptic.tap();
-    const uploaded: string[] = [];
-    try {
-      for (const asset of result.assets) {
-        if (!asset.base64) continue;
-        uploaded.push(await uploadAsset(asset.base64));
-      }
-      haptic.success();
-    } catch (e) {
-      haptic.warn();
-      show({
-        title:
-          uploaded.length > 0 ? 'Some photos did not upload' : 'Upload failed',
-        message:
-          uploaded.length > 0
-            ? `${uploaded.length} of ${result.assets.length} added. ${e instanceof Error ? e.message : 'Please try again.'}`
-            : e instanceof Error
-              ? e.message
-              : 'Please try again.',
-      });
-    } finally {
-      if (uploaded.length > 0) onChange([...images, ...uploaded]);
-      setBusy(false);
-    }
+    const items = result.assets
+      .map((asset) => asset.base64)
+      .filter((b64): b64 is string => Boolean(b64));
+    if (items.length === 0) return;
+    await uploadBase64s(items);
   }
 
   function remove(index: number) {
     haptic.tap();
-    onChange(images.filter((_, i) => i !== index));
+    setRemoved({ photo: images[index], index });
+    onChange((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function undoRemove() {
+    if (!removed) return;
+    haptic.tap();
+    onChange((prev) => restorePhoto(prev, removed.photo, removed.index));
+    setRemoved(null);
   }
 
   function setCover(index: number) {
     if (index === 0) return;
     haptic.tap();
-    onChange([images[index], ...images.filter((_, i) => i !== index)]);
+    onChange((prev) => [prev[index], ...prev.filter((_, i) => i !== index)]);
   }
 
   return (
@@ -182,6 +228,7 @@ export function PropertyPhotoEditor({
                 onPress={() => setCover(i)}
                 accessibilityRole="button"
                 accessibilityLabel="Set as cover photo"
+                hitSlop={11}
                 style={styles.starBtn}
               >
                 <Ionicons name="star-outline" size={13} color="#fff" />
@@ -191,6 +238,7 @@ export function PropertyPhotoEditor({
               onPress={() => remove(i)}
               accessibilityRole="button"
               accessibilityLabel="Remove photo"
+              hitSlop={11}
               style={styles.removeBtn}
             >
               <Ionicons name="close" size={14} color="#fff" />
@@ -210,8 +258,20 @@ export function PropertyPhotoEditor({
             },
           ]}
         >
-          {busy ? (
-            <ActivityIndicator color={colors.primary} />
+          {progress ? (
+            <>
+              <ActivityIndicator color={colors.primary} />
+              <Text
+                style={{
+                  fontSize: 10.5,
+                  fontFamily: f.semibold,
+                  color: colors.primary,
+                  textAlign: 'center',
+                }}
+              >
+                {uploadProgressLabel(progress.done, progress.total)}
+              </Text>
+            </>
           ) : (
             <>
               <Ionicons name="camera" size={22} color={colors.primary} />
@@ -228,6 +288,32 @@ export function PropertyPhotoEditor({
           )}
         </Pressable>
       </ScrollView>
+      {removed ? (
+        <View
+          style={[styles.undoRow, { backgroundColor: colors.surface }]}
+          accessibilityLiveRegion="polite"
+        >
+          <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>
+            Photo removed
+          </Text>
+          <Pressable
+            onPress={undoRemove}
+            accessibilityRole="button"
+            accessibilityLabel="Undo remove photo"
+            hitSlop={12}
+          >
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: f.semibold,
+                color: colors.primary,
+              }}
+            >
+              Undo
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
       <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
         Tap ☆ to make a photo the cover — the first photo leads the listing and
         shares.
@@ -269,6 +355,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     borderRadius: radius.full,
     padding: 4,
+  },
+  undoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   addTile: {
     width: 96,

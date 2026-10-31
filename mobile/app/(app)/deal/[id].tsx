@@ -10,7 +10,13 @@ import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import * as Sharing from 'expo-sharing';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState, type ReactNode } from 'react';
+import {
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -25,6 +31,7 @@ import {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { InvoiceEditorSheet } from '@/components/invoice-editor-sheet';
+import { InlineLoadError } from '@/components/load-error';
 import { LostReasonSheet } from '@/components/lost-reason-sheet';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
@@ -250,6 +257,9 @@ export default function DealWorkspaceScreen() {
     profile && profile.account_role !== 'viewer' && !profile.is_read_only
   );
   const [tab, setTab] = useState<DealWorkspaceTab>('overview');
+  const [moneyDraft, setMoneyDraft] = useState<Record<string, string> | null>(
+    null
+  );
   const [pickingStage, setPickingStage] = useState(false);
   const [movingStage, setMovingStage] = useState(false);
   const [lostPrompt, setLostPrompt] = useState<PipelineStage | null>(null);
@@ -453,7 +463,14 @@ export default function DealWorkspaceScreen() {
             onOpenTab={setTab}
           />
         )}
-        {tab === 'money' && <FinancialsTab dealId={dealId} canEdit={canEdit} />}
+        {tab === 'money' && (
+          <FinancialsTab
+            dealId={dealId}
+            canEdit={canEdit}
+            draft={moneyDraft}
+            onDraftChange={setMoneyDraft}
+          />
+        )}
         {tab === 'timeline' && (
           <TimelineTab dealId={dealId} canEdit={canEdit} />
         )}
@@ -1464,29 +1481,45 @@ function toDraft(f: DealFinancialsRow): Record<string, string> {
   return out;
 }
 
+type MoneyDraft = Record<string, string> | null;
+
 function FinancialsTab({
   dealId,
   canEdit,
+  draft,
+  onDraftChange,
 }: {
   dealId: string;
   canEdit: boolean;
+  draft: MoneyDraft;
+  onDraftChange: Dispatch<SetStateAction<MoneyDraft>>;
 }) {
-  const { data, isLoading } = useQuery({
+  const { data, isError, refetch } = useQuery({
     queryKey: ['deal-financials', dealId],
     queryFn: () => fetchDealFinancials(dealId),
     enabled: Boolean(dealId),
   });
 
-  if (isLoading || !data) return <Loading />;
+  if (!data) {
+    return isError ? (
+      <View style={styles.list}>
+        <InlineLoadError
+          label="Couldn’t load the money details"
+          onRetry={() => void refetch()}
+        />
+      </View>
+    ) : (
+      <Loading />
+    );
+  }
 
-  // Keyed on the server row so a save (which replaces the query data)
-  // remounts the form with the fresh values — no effect needed.
   return (
     <FinancialsForm
-      key={JSON.stringify(data)}
       dealId={dealId}
       canEdit={canEdit}
       data={data}
+      storedDraft={draft}
+      onDraftChange={onDraftChange}
     />
   );
 }
@@ -1495,20 +1528,37 @@ function FinancialsForm({
   dealId,
   canEdit,
   data,
+  storedDraft,
+  onDraftChange,
 }: {
   dealId: string;
   canEdit: boolean;
   data: DealFinancialsRow;
+  storedDraft: MoneyDraft;
+  onDraftChange: Dispatch<SetStateAction<MoneyDraft>>;
 }) {
   const { colors } = useTheme();
   const queryClient = useQueryClient();
   const dialog = useAppDialog();
-  const [draft, setDraft] = useState<Record<string, string>>(() =>
-    toDraft(data)
-  );
+  const draft = { ...toDraft(data), ...storedDraft };
+  const setDraft = (
+    update: (current: Record<string, string>) => Record<string, string>
+  ) =>
+    onDraftChange((edited) => {
+      const base = { ...toDraft(data), ...edited };
+      const next = update(base);
+      const touched: Record<string, string> = { ...edited };
+      for (const key of Object.keys(next)) {
+        if (next[key] !== base[key]) touched[key] = next[key];
+      }
+      return touched;
+    });
   const [saving, setSaving] = useState(false);
 
   const tokenSafe = data.token_source === 'token_safe';
+  const dirty =
+    Object.keys(financialsPatch(toDraft(data), draft, data.token_source))
+      .length > 0;
 
   async function save() {
     const patch = financialsPatch(toDraft(data), draft, data.token_source);
@@ -1517,6 +1567,7 @@ function FinancialsForm({
     try {
       const next = await updateDealFinancials(dealId, patch);
       queryClient.setQueryData(['deal-financials', dealId], next);
+      onDraftChange(null);
       await queryClient.invalidateQueries({
         queryKey: ['deal-events', dealId],
       });
@@ -1595,9 +1646,10 @@ function FinancialsForm({
       </View>
       {canEdit ? (
         <PrimaryButton
-          label="Save financials"
+          label={dirty ? 'Save financials' : 'No changes'}
           onPress={() => void save()}
           busy={saving}
+          disabled={!dirty}
         />
       ) : null}
       <TranchesSection dealId={dealId} canEdit={canEdit} />
@@ -2367,7 +2419,12 @@ function TimelineTab({
   const [saving, setSaving] = useState(false);
   const [composerOpen, setComposerOpen] = useState<boolean | null>(null);
 
-  const { data: events = [], isLoading } = useQuery({
+  const {
+    data: events = [],
+    isLoading,
+    isLoadingError,
+    refetch,
+  } = useQuery({
     queryKey: ['deal-events', dealId],
     queryFn: () => fetchDealEvents(dealId),
     enabled: Boolean(dealId),
@@ -2396,6 +2453,9 @@ function TimelineTab({
   }
 
   if (isLoading) return <Loading />;
+  if (isLoadingError) {
+    return <TabLoadError what="the timeline" onRetry={() => void refetch()} />;
+  }
 
   const showComposer = composerOpen ?? events.length === 0;
 
@@ -2557,7 +2617,12 @@ function MilestonesTab({
   const { busy, lock, release } = useBusyIds();
   const [title, setTitle] = useState('');
 
-  const { data: milestones = [], isLoading } = useQuery({
+  const {
+    data: milestones = [],
+    isLoading,
+    isLoadingError,
+    refetch,
+  } = useQuery({
     queryKey: ['deal-milestones', dealId],
     queryFn: () => fetchDealMilestones(dealId),
     enabled: Boolean(dealId),
@@ -2639,6 +2704,9 @@ function MilestonesTab({
   }
 
   if (isLoading) return <Loading />;
+  if (isLoadingError) {
+    return <TabLoadError what="milestones" onRetry={() => void refetch()} />;
+  }
 
   const done = milestones.filter(
     (m) => m.status === 'completed' || m.status === 'skipped'
@@ -2815,7 +2883,12 @@ function TasksTab({
   const [busy, setBusy] = useState<string | null>(null);
   const titleInput = useRef<TextInput>(null);
 
-  const { data: tasks = [], isLoading } = useQuery({
+  const {
+    data: tasks = [],
+    isLoading,
+    isLoadingError,
+    refetch,
+  } = useQuery({
     queryKey: ['deal-tasks', dealId],
     queryFn: () => fetchDealTasks(dealId),
     enabled: Boolean(dealId),
@@ -2841,6 +2914,9 @@ function TasksTab({
   }
 
   if (isLoading) return <Loading />;
+  if (isLoadingError) {
+    return <TabLoadError what="tasks" onRetry={() => void refetch()} />;
+  }
 
   const ordered = [
     ...tasks.filter((t) => !t.completed),
@@ -2963,7 +3039,12 @@ function InvoicesTab({ dealId }: { dealId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const { data: invoices = [], isLoading } = useQuery({
+  const {
+    data: invoices = [],
+    isLoading,
+    isLoadingError,
+    refetch,
+  } = useQuery({
     queryKey: ['deal-invoices', dealId],
     queryFn: () => fetchInvoices(dealId),
     enabled: Boolean(dealId),
@@ -3041,6 +3122,9 @@ function InvoicesTab({ dealId }: { dealId: string }) {
 
   if (isLoading) {
     return <Loading />;
+  }
+  if (isLoadingError) {
+    return <TabLoadError what="invoices" onRetry={() => void refetch()} />;
   }
 
   return (
@@ -3202,7 +3286,12 @@ function DocumentsTab({
   const [expiryFor, setExpiryFor] = useState<string | null>(null);
   const [expiryText, setExpiryText] = useState('');
 
-  const { data: documents = [], isLoading } = useQuery({
+  const {
+    data: documents = [],
+    isLoading,
+    isLoadingError,
+    refetch,
+  } = useQuery({
     queryKey: ['deal-documents', dealId],
     queryFn: () => fetchDealDocuments(dealId),
     enabled: Boolean(dealId),
@@ -3389,6 +3478,9 @@ function DocumentsTab({
   }
 
   if (isLoading) return <Loading />;
+  if (isLoadingError) {
+    return <TabLoadError what="documents" onRetry={() => void refetch()} />;
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.list}>
@@ -3675,7 +3767,12 @@ function StakeholdersTab({
   const [otp, setOtp] = useState(false);
   const [formOpen, setFormOpen] = useState<boolean | null>(null);
 
-  const { data: stakeholders = [], isLoading } = useQuery({
+  const {
+    data: stakeholders = [],
+    isLoading,
+    isLoadingError,
+    refetch,
+  } = useQuery({
     queryKey: ['deal-stakeholders', dealId],
     queryFn: () => fetchDealStakeholders(dealId),
     enabled: Boolean(dealId),
@@ -3867,6 +3964,9 @@ function StakeholdersTab({
   }
 
   if (isLoading) return <Loading />;
+  if (isLoadingError) {
+    return <TabLoadError what="stakeholders" onRetry={() => void refetch()} />;
+  }
 
   return (
     <ScrollView
@@ -4082,7 +4182,12 @@ function UpdatesTab({ dealId, canEdit }: { dealId: string; canEdit: boolean }) {
   const [handoffs, setHandoffs] = useState<DealUpdateRecipientRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const { data: updates = [], isLoading } = useQuery({
+  const {
+    data: updates = [],
+    isLoading,
+    isLoadingError,
+    refetch,
+  } = useQuery({
     queryKey: ['deal-updates', dealId],
     queryFn: () => fetchDealUpdates(dealId),
     enabled: Boolean(dealId),
@@ -4147,6 +4252,9 @@ function UpdatesTab({ dealId, canEdit }: { dealId: string; canEdit: boolean }) {
   }
 
   if (isLoading) return <Loading />;
+  if (isLoadingError) {
+    return <TabLoadError what="updates" onRetry={() => void refetch()} />;
+  }
 
   if (composing !== false) {
     return (
@@ -4643,6 +4751,20 @@ function ActionButton({
       )}
       <Text style={[styles.actionLabel, { color: colors.text }]}>{label}</Text>
     </Pressable>
+  );
+}
+
+function TabLoadError({
+  what,
+  onRetry,
+}: {
+  what: string;
+  onRetry: () => void;
+}) {
+  return (
+    <View style={styles.list}>
+      <InlineLoadError label={`Couldn’t load ${what}`} onRetry={onRetry} />
+    </View>
   );
 }
 

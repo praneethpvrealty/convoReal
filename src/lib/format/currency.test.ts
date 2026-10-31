@@ -5,8 +5,31 @@ import {
   formatCurrencyShort,
   formatInrCompact,
   formatInrPlain,
+  parseAmountInput,
   priceInWords,
 } from './currency';
+
+describe('[UIX-011] parseAmountInput', () => {
+  it.each([
+    ['1,50,00,000', 15_000_000],
+    ['₹45,00,000', 4_500_000],
+    ['45.5', 45.5],
+    [' 2500000 ', 2_500_000],
+    ['Rs. 45,00,000', 4_500_000],
+    ['INR 45,00,000', 4_500_000],
+    ['.5', 0.5],
+    ['1e7', 10_000_000],
+    ['2.5e6', 2_500_000],
+  ])('reads %s as %d', (input, expected) => {
+    expect(parseAmountInput(input)).toBe(expected);
+  });
+
+  it('returns null for an empty or non-numeric field', () => {
+    expect(parseAmountInput('')).toBeNull();
+    expect(parseAmountInput('   ')).toBeNull();
+    expect(parseAmountInput('1.2.3')).toBeNull();
+  });
+});
 
 describe('formatInrCompact', () => {
   it.each([

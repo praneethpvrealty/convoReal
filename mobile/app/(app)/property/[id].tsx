@@ -34,6 +34,7 @@ import {
 } from '@/components/match-not-a-fit';
 import { PortalExpirySheet } from '@/components/portal-expiry-sheet';
 import { PropertyInterestFollowUpSheet } from '@/components/property-interest-follow-up-sheet';
+import { LoadErrorState, NotFoundState } from '@/components/load-error';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { FilterChip, SectionLabel, Tag, nameTagCap } from '@/components/ui';
@@ -149,7 +150,12 @@ export default function PropertyDetailScreen() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [selectedMatchIds, setSelectedMatchIds] = useState<string[]>([]);
   const [shareTo, setShareTo] = useState<Contact[] | null>(null);
-  const { data: property, isLoading } = useQuery({
+  const {
+    data: property,
+    isPending,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['property', id],
     queryFn: () => fetchProperty(id),
     enabled: Boolean(id),
@@ -192,11 +198,23 @@ export default function PropertyDetailScreen() {
         : []
     ) ?? [];
 
-  if (isLoading || !property) {
+  if (!property) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, justifyContent: 'center' }}>
         <Stack.Screen options={{ headerShown: true, title: 'Property' }} />
-        <ConvoRealLoader />
+        {isError ? (
+          <LoadErrorState
+            title="Couldn’t load this property"
+            onRetry={() => void refetch()}
+          />
+        ) : isPending && id ? (
+          <ConvoRealLoader style={{ alignSelf: 'center' }} />
+        ) : (
+          <NotFoundState
+            title="Property not found"
+            subtitle="It may have been deleted, or you no longer have access to it."
+          />
+        )}
       </View>
     );
   }

@@ -615,11 +615,13 @@ export const TextField = forwardRef<
  */
 export function PriceHint({
   value,
+  currency = 'INR',
 }: {
   value: string | number | null | undefined;
+  currency?: string;
 }) {
   const { colors, fonts: f } = useTheme();
-  const label = priceInWords(value);
+  const label = priceInWords(value, currency);
   if (!label) return null;
   return (
     <Text

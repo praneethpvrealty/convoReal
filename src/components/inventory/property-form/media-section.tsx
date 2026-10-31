@@ -330,11 +330,26 @@ export function MediaSection({
   }
 
   function handleRemoveImageUrl(index: number) {
+    const removed = images[index];
     if (images.length === 1) {
       set('images', ['']);
     } else {
       set('images', (prev) => prev.filter((_, i) => i !== index));
     }
+    if (!removed) return;
+    toast('Photo removed', {
+      duration: 6000,
+      action: {
+        label: 'Undo',
+        onClick: () =>
+          set('images', (prev) => {
+            if (prev.length === 1 && !prev[0]) return [removed];
+            const next = [...prev];
+            next.splice(Math.min(index, next.length), 0, removed);
+            return next;
+          }),
+      },
+    });
   }
 
   function handleImageUrlChange(index: number, value: string) {
