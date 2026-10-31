@@ -5936,7 +5936,12 @@ describe('[UIX-011] property and deal screens never strand or silently drop work
     const source = mobileSource('app/(app)/deal/[id].tsx');
     expect(source).not.toContain('key={JSON.stringify(data)}');
     expect(source).toContain('onDraftChange={setMoneyDraft}');
-    expect(source).toContain('const draft = storedDraft ?? toDraft(data);');
+    expect(source).toContain(
+      'const draft = { ...toDraft(data), ...storedDraft };'
+    );
+    expect(source).toContain(
+      'if (next[key] !== base[key]) touched[key] = next[key];'
+    );
     expect(source).toContain(
       "label={dirty ? 'Save financials' : 'No changes'}"
     );

@@ -15,6 +15,9 @@ describe('[UIX-011] parseAmountInput', () => {
     ['₹45,00,000', 4_500_000],
     ['45.5', 45.5],
     [' 2500000 ', 2_500_000],
+    ['Rs. 45,00,000', 4_500_000],
+    ['INR 45,00,000', 4_500_000],
+    ['.5', 0.5],
   ])('reads %s as %d', (input, expected) => {
     expect(parseAmountInput(input)).toBe(expected);
   });

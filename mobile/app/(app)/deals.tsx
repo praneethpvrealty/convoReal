@@ -206,7 +206,7 @@ export default function DealsScreen() {
   const {
     data: deals,
     isLoading,
-    isError: dealsError,
+    isLoadingError: dealsError,
     refetch,
   } = useQuery({
     queryKey: ['deals', activePipeline],
@@ -248,7 +248,7 @@ export default function DealsScreen() {
   );
   const { show, close, dialogProps } = useAppDialog();
   const boardLoadFailed =
-    pipelinesQuery.isError || stagesQuery.isError || dealsError;
+    pipelinesQuery.isLoadingError || stagesQuery.isLoadingError || dealsError;
   const retryBoard = () => {
     void pipelinesQuery.refetch();
     if (activePipeline) {

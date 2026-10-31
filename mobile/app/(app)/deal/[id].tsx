@@ -1540,10 +1540,19 @@ function FinancialsForm({
   const { colors } = useTheme();
   const queryClient = useQueryClient();
   const dialog = useAppDialog();
-  const draft = storedDraft ?? toDraft(data);
+  const draft = { ...toDraft(data), ...storedDraft };
   const setDraft = (
     update: (current: Record<string, string>) => Record<string, string>
-  ) => onDraftChange((current) => update(current ?? toDraft(data)));
+  ) =>
+    onDraftChange((edited) => {
+      const base = { ...toDraft(data), ...edited };
+      const next = update(base);
+      const touched: Record<string, string> = { ...edited };
+      for (const key of Object.keys(next)) {
+        if (next[key] !== base[key]) touched[key] = next[key];
+      }
+      return touched;
+    });
   const [saving, setSaving] = useState(false);
 
   const tokenSafe = data.token_source === 'token_safe';
