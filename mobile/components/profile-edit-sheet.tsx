@@ -99,7 +99,7 @@ export function ProfileEditSheet({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
   const setProfile = useAuthStore((s) => s.setProfile);
@@ -110,6 +110,8 @@ export function ProfileEditSheet({
   const [fullName, setFullName] = useState('');
   const [accountName, setAccountName] = useState('');
   const [savedAccountName, setSavedAccountName] = useState<string | null>(null);
+  const [accountLoadFailed, setAccountLoadFailed] = useState(false);
+  const [accountLoadAttempt, setAccountLoadAttempt] = useState(0);
   const [compartmentScope, setCompartmentScope] = useState<
     'team' | 'agent' | null
   >(null);
@@ -150,19 +152,25 @@ export function ProfileEditSheet({
     setEditedShowcase(null);
     setCompartmentScope(null);
     setFullName(profile?.full_name ?? '');
-    if (!canRenameAccount) return;
+  }, [visible, profile?.full_name]);
+
+  useEffect(() => {
+    if (!visible || !canRenameAccount) return;
     let cancelled = false;
     apiFetch<{ account: { id: string; name: string } }>('/api/account')
       .then(({ account }) => {
         if (cancelled) return;
+        setAccountLoadFailed(false);
         setSavedAccountName(account.name);
         setAccountName(account.name);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setAccountLoadFailed(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [visible, profile?.full_name, canRenameAccount]);
+  }, [visible, canRenameAccount, accountLoadAttempt]);
 
   const save = async () => {
     if (!userId || !profile) return;
@@ -278,11 +286,48 @@ export function ProfileEditSheet({
               value={accountName}
               onChangeText={setAccountName}
               placeholder={
-                savedAccountName === null ? 'Loading…' : 'Workspace name'
+                savedAccountName !== null
+                  ? 'Workspace name'
+                  : accountLoadFailed
+                    ? 'Couldn’t load'
+                    : 'Loading…'
               }
               maxLength={MAX_ACCOUNT_NAME_LEN}
               editable={!saving && savedAccountName !== null}
             />
+            {savedAccountName === null && accountLoadFailed ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: spacing.md,
+                }}
+              >
+                <Text style={{ flex: 1, fontSize: 12.5, color: colors.danger }}>
+                  Couldn’t load the workspace name.
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    setAccountLoadFailed(false);
+                    setAccountLoadAttempt((n) => n + 1);
+                  }}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading the workspace name"
+                  style={{ minHeight: 44, justifyContent: 'center' }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: f.semibold,
+                      color: colors.primary,
+                    }}
+                  >
+                    Retry
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
             <Text
               style={{ fontSize: 12, lineHeight: 17, color: colors.textFaint }}
             >

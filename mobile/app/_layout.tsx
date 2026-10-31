@@ -18,6 +18,7 @@ import { AppDialogHost } from '@/components/app-dialog';
 import { AuroraBackground } from '@/components/aurora-background';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { ConvoRealLoader } from '@/components/loader';
+import { OfflineBar } from '@/components/offline-bar';
 import { useAuthListener, useAuthStore } from '@/lib/auth-store';
 import { usePushRegistration } from '@/lib/push';
 import {
@@ -27,6 +28,7 @@ import {
 } from '@/lib/query';
 import { useTheme } from '@/lib/theme';
 import { Sentry } from '@/lib/monitoring';
+import { useOnlineTracking } from '@/lib/online';
 
 // Expo Router renders this instead of blanking the whole navigator when
 // a screen throws while rendering (see components/error-boundary).
@@ -38,6 +40,7 @@ export function ErrorBoundary(
 
 function RootLayout() {
   useAuthListener();
+  useOnlineTracking();
   const { colors, dark } = useTheme();
   const session = useAuthStore((s) => s.session);
   usePushRegistration(!!session);
@@ -97,6 +100,7 @@ function RootLayout() {
             <Stack.Screen name="(auth)" />
             <Stack.Screen name="(app)" />
           </Stack>
+          <OfflineBar />
         </View>
         <StatusBar style={dark ? 'light' : 'dark'} />
         <AppDialogHost />

@@ -16,7 +16,11 @@ import {
   View,
 } from 'react-native';
 
-import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import {
+  AppDialog,
+  showAppDialog,
+  useAppDialog,
+} from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { BottomSheet } from '@/components/sheet';
 import {
@@ -223,7 +227,13 @@ export default function GreetingsScreen() {
             <EmptyState
               icon="sparkles-outline"
               title="No greetings yet"
-              subtitle="Pick an occasion above — the AI writes the greeting in your agency's name and designs the card, ready to send."
+              subtitle={
+                !canManage
+                  ? 'Greetings your team writes appear here, ready to send to your clients.'
+                  : upcoming.length > 0
+                    ? "Pick an occasion above — the AI writes the greeting in your agency's name and designs the card, ready to send."
+                    : "Tap + to write one — the AI writes the greeting in your agency's name and designs the card, ready to send."
+              }
             />
           )
         }
@@ -392,6 +402,7 @@ function ComposeGreetingSheet({
   );
   const [cardExpanded, setCardExpanded] = useState(false);
   const [lastPreset, setLastPreset] = useState<string | null>(null);
+  const [composedText, setComposedText] = useState('');
 
   if (visible && presetOccasionId !== lastPreset) {
     setLastPreset(presetOccasionId);
@@ -404,6 +415,7 @@ function ComposeGreetingSheet({
 
   const reset = () => {
     setMessage('');
+    setComposedText('');
     setImagePath(null);
     setImageUrl(null);
     setCardStatus('loading');
@@ -431,6 +443,7 @@ function ComposeGreetingSheet({
       }),
     onSuccess: ({ data }) => {
       setMessage(data.text);
+      setComposedText(data.text);
       // Always replace, never merge: a second compose with images off —
       // or one whose image failed — would otherwise keep the previous
       // occasion's card and attach it to the new greeting.
@@ -470,15 +483,62 @@ function ComposeGreetingSheet({
       dialog.show({ title: 'Could not save', message: err.message }),
   });
 
+  const hasDraft =
+    message.trim().length > 0 || imagePath !== null || notes.trim().length > 0;
+
+  const discard = () => {
+    onClose();
+    reset();
+  };
+
+  const requestClose = () => {
+    if (!hasDraft || saveMutation.isPending) {
+      discard();
+      return;
+    }
+    dialog.show({
+      title: 'Discard draft?',
+      message: composedText
+        ? `The greeting you composed is lost. Composing it again costs ${cost} credits.`
+        : 'The greeting you started is lost.',
+      actions: [
+        { label: 'Keep editing', variant: 'muted', onPress: dialog.close },
+        {
+          label: 'Discard',
+          variant: 'destructive',
+          onPress: () => {
+            dialog.close();
+            discard();
+          },
+        },
+      ],
+    });
+  };
+
+  const compose = () => {
+    if (!message.trim() || message === composedText) {
+      generateMutation.mutate();
+      return;
+    }
+    dialog.show({
+      title: 'Replace your text?',
+      message: `Composing again replaces the greeting you edited and costs ${cost} credits again.`,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: dialog.close },
+        {
+          label: 'Compose again',
+          variant: 'primary',
+          onPress: () => {
+            dialog.close();
+            generateMutation.mutate();
+          },
+        },
+      ],
+    });
+  };
+
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={() => {
-        onClose();
-        reset();
-      }}
-      title="New greeting"
-    >
+    <BottomSheet visible={visible} onClose={requestClose} title="New greeting">
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.lg }}
@@ -539,7 +599,7 @@ function ComposeGreetingSheet({
           icon="sparkles-outline"
           disabled={!occasionLabel}
           busy={generateMutation.isPending}
-          onPress={() => generateMutation.mutate()}
+          onPress={compose}
         />
 
         <TextField
@@ -830,7 +890,7 @@ function SendGreetingSheet({
       setSelectedContacts([]);
       setContactPickerOpen(false);
       onClose();
-      dialog.show({
+      showAppDialog({
         title: 'Greeting on its way',
         message: `Going out to ${data.recipientsCount} contact${data.recipientsCount === 1 ? '' : 's'}.`,
       });

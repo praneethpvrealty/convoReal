@@ -6221,6 +6221,24 @@
               "case": "[UIX-009]"
             }
           ]
+        },
+        {
+          "id": "UIX-010",
+          "rule": "Mobile screens say when something failed and never lose work silently. A failed load on the calendar (month, upcoming, to-dos), credits (balance and history), broadcasts (list and recipients), notifications and the workspace name in the profile sheet shows a Couldn't load message with Retry instead of an empty state or a zero balance; the broadcast detail and notifications screens refresh on pull, and broadcast recipients load in pages of 100 as the list scrolls, filtered by status on the server, with Retry failed still offered whenever the separate retryable count is above zero. Closing the new-greeting sheet with a draft asks Discard draft?, and Compose again over edited text asks first and says it costs the credits again; closing a to-do or event edit with unsaved changes, or leaving New appointment with entries, asks Discard changes. Opening a to-do's edit copies its current values; the quick-add field cannot add the same task twice; the edit and delete icons each take a 44 by 44 point target. Saving or rescheduling an event to a start more than a minute in the past asks first, noting no reminders will be sent, and a rescheduled event keeps its original duration. Greeting on its way shows after its sheet closes, a broadcast send error shows next to Send, Sign out asks first, verify-phone offers Resend code on the login screen's 30-second cooldown and says so when the session cannot be refreshed, and notification rows with no destination are not pressable. When an app request fails before reaching a server, a global Offline - showing saved data bar shows until the next response or a probe of the API base succeeds (every 15 seconds while offline and on returning to the foreground), with no native module; the indicator never pauses queries or held-back writes, which keep failing or succeeding on their own. The broadcasts copy names the audiences compose offers (everyone, a tag, a pasted list of numbers) and the greetings empty state only points at occasions to users who can see them.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-010]" },
+            { "file": "mobile/lib/event-timing.test.ts", "case": "[UIX-010]" },
+            {
+              "file": "mobile/lib/unsaved-changes.test.ts",
+              "case": "[UIX-010]"
+            },
+            {
+              "file": "mobile/lib/notification-target.test.ts",
+              "case": "[UIX-010]"
+            },
+            { "file": "mobile/lib/online-state.test.ts", "case": "[UIX-010]" },
+            { "file": "mobile/lib/tracked-fetch.test.ts", "case": "[UIX-010]" }
+          ]
         }
       ]
     }

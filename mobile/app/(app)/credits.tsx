@@ -32,6 +32,7 @@ import { supabase } from '@/lib/supabase';
 import { onGradient, radius, spacing, useTheme, fonts } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { ledgerLabel } from '@shared/lib/format/ledger-label';
+import { LoadErrorState } from '@/components/load-error';
 
 interface WalletRow {
   total_credits: number;
@@ -179,10 +180,25 @@ export default function CreditsScreen() {
 
       <GradientHero style={{ gap: 4 }}>
         <Text style={styles.heroLabel}>AI CREDITS</Text>
-        <AnimatedCounter
-          value={w?.total_credits ?? 0}
-          style={styles.heroValue}
-        />
+        {wallet.isError && !w ? (
+          <View style={{ gap: spacing.sm, alignItems: 'flex-start' }}>
+            <Text style={styles.heroError}>Couldn’t load balance</Text>
+            <Pressable
+              onPress={() => wallet.refetch()}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading the credit balance"
+              style={styles.heroRetry}
+            >
+              <Ionicons name="refresh" size={14} color={onGradient.text} />
+              <Text style={styles.heroRetryText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <AnimatedCounter
+            value={w?.total_credits ?? 0}
+            style={styles.heroValue}
+          />
+        )}
         {w?.monthly_reset_at ? (
           <Text style={styles.heroSub}>
             Monthly credits reset in {daysUntil(w.monthly_reset_at)}d
@@ -267,6 +283,11 @@ export default function CreditsScreen() {
 
       {history.isLoading ? (
         <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 24 }} />
+      ) : history.isError && transactions.length === 0 ? (
+        <LoadErrorState
+          title="Couldn’t load your credit history"
+          onRetry={() => void history.refetch()}
+        />
       ) : transactions.length === 0 ? (
         <Text
           style={{
@@ -435,6 +456,26 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   heroSub: { color: onGradient.faint, fontSize: 12.5 },
+  heroError: {
+    color: onGradient.text,
+    fontSize: 20,
+    fontFamily: fonts.extrabold,
+  },
+  heroRetry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: onGradient.faint,
+  },
+  heroRetryText: {
+    color: onGradient.text,
+    fontSize: 13.5,
+    fontFamily: fonts.bold,
+  },
   card: {
     borderWidth: 1,
     borderRadius: radius.lg,

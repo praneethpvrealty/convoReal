@@ -75,6 +75,7 @@ export default function NewBroadcastScreen() {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dialog = useAppDialog();
+  const scrollRef = useRef<ScrollView>(null);
 
   // The template every hand-written broadcast rides on. An account
   // with no row yet gets one submitted to Meta here, on its own, and a
@@ -285,6 +286,9 @@ export default function NewBroadcastScreen() {
           ? err.message
           : 'Could not start this broadcast. Check your connection and try again.'
       );
+      requestAnimationFrame(() =>
+        scrollRef.current?.scrollToEnd({ animated: true })
+      );
     }
   }
 
@@ -296,6 +300,7 @@ export default function NewBroadcastScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={{
             padding: spacing.lg,
             gap: spacing.lg,
@@ -304,8 +309,6 @@ export default function NewBroadcastScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         >
-          {error ? <Banner kind="error" text={error} /> : null}
-
           <TourTarget id="broadcast-compose">
             <View style={{ gap: spacing.sm }}>
               <TextField
@@ -610,6 +613,7 @@ export default function NewBroadcastScreen() {
             </Text>
           </View>
 
+          {error ? <Banner kind="error" text={error} /> : null}
           <PrimaryButton
             label={
               sending

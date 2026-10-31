@@ -32,6 +32,7 @@ import {
 } from '@/lib/theme';
 import type { Broadcast } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { LoadErrorState } from '@/components/load-error';
 
 function statusColor(status: Broadcast['status'], colors: ThemeColors): string {
   switch (status) {
@@ -49,7 +50,7 @@ function statusColor(status: Broadcast['status'], colors: ThemeColors): string {
 
 export default function BroadcastsScreen() {
   const { colors } = useTheme();
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['broadcasts'],
     queryFn: async () => {
       // Same direct read as the web list; counts are trigger-maintained
@@ -102,16 +103,21 @@ export default function BroadcastsScreen() {
         }
         ListHeaderComponent={
           <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-            Campaigns you created. Tap + to send a new one; CSV uploads and
-            custom-field audiences are still web-only.
+            Campaigns you created. Tap + to send a new one to everyone, a tag or
+            a pasted list of numbers; custom-field audiences are on the web.
           </Text>
         }
         ListEmptyComponent={
-          isLoading ? null : (
+          isLoading ? null : isError ? (
+            <LoadErrorState
+              title="Couldn’t load your campaigns"
+              onRetry={() => void refetch()}
+            />
+          ) : (
             <EmptyState
               icon="megaphone-outline"
               title="No campaigns yet"
-              subtitle="Tap + to send an approved template to a tag or your whole list. Delivery stats land here as it sends."
+              subtitle="Tap + to write a message and send it to everyone, a tag or a pasted list of numbers. Delivery stats land here as it sends."
             />
           )
         }

@@ -55,6 +55,24 @@ export default function MoreScreen() {
   const credits = useCredits();
   const t = useT();
   const [editOpen, setEditOpen] = useState(false);
+  const signOutDialog = useAppDialog();
+
+  const confirmSignOut = () =>
+    signOutDialog.show({
+      title: 'Sign out?',
+      message: 'You’ll need your WhatsApp code or password to sign back in.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: signOutDialog.close },
+        {
+          label: 'Sign out',
+          variant: 'destructive',
+          onPress: () => {
+            signOutDialog.close();
+            void signOut();
+          },
+        },
+      ],
+    });
 
   const displayName = resolveDisplayName(
     profile?.full_name,
@@ -249,7 +267,9 @@ export default function MoreScreen() {
             opacity: pressed ? 0.7 : 1,
           },
         ]}
-        onPress={() => signOut()}
+        onPress={confirmSignOut}
+        accessibilityRole="button"
+        accessibilityLabel="Sign out"
       >
         <Ionicons name="log-out-outline" size={18} color={colors.danger} />
         <Text
@@ -276,6 +296,7 @@ export default function MoreScreen() {
       </Text>
 
       <ProfileEditSheet visible={editOpen} onClose={() => setEditOpen(false)} />
+      <AppDialog {...signOutDialog.dialogProps} />
     </ScrollView>
   );
 }

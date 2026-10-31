@@ -18,6 +18,7 @@ import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { signOut, useAuthStore } from '@/lib/auth-store';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
+import { useResendCooldown } from '@/lib/use-resend-cooldown';
 import { spacing, useTheme, fonts } from '@/lib/theme';
 
 /**
@@ -36,6 +37,7 @@ export default function VerifyPhoneScreen() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { resendIn, startCooldown } = useResendCooldown();
 
   async function sendCode() {
     setError(null);
@@ -59,6 +61,7 @@ export default function VerifyPhoneScreen() {
     setInfo('Code sent to your WhatsApp!');
     setStage('code');
     setOtp('');
+    startCooldown();
   }
 
   async function verify(code: string) {
@@ -79,9 +82,17 @@ export default function VerifyPhoneScreen() {
     }
     // Refresh so phone_confirmed_at is in the session; the layout
     // guard re-evaluates and routes into the app.
-    const { data } = await supabase.auth.refreshSession();
+    const { data, error: refreshError } = await supabase.auth.refreshSession();
     setBusy(false);
-    if (data.session) setSession(data.session);
+    if (data.session) {
+      setSession(data.session);
+      return;
+    }
+    setError(
+      refreshError
+        ? `Your number is verified, but we couldn’t refresh your session: ${refreshError.message}. Check your connection, then sign out and sign in again.`
+        : 'Your number is verified, but we couldn’t refresh your session. Sign out and sign in again to continue.'
+    );
   }
 
   return (
@@ -152,22 +163,48 @@ export default function VerifyPhoneScreen() {
                   disabled={otp.length < 6}
                   onPress={() => verify(otp)}
                 />
-                <Pressable
-                  onPress={() => setStage('phone')}
-                  hitSlop={10}
-                  accessibilityRole="button"
-                  style={{ alignItems: 'center', paddingVertical: 10 }}
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'center',
+                    gap: spacing.xl,
+                  }}
                 >
-                  <Text
-                    style={{
-                      color: colors.textMuted,
-                      fontSize: 13.5,
-                      fontFamily: f.semibold,
-                    }}
+                  <Pressable
+                    onPress={() => setStage('phone')}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    style={{ paddingVertical: 10 }}
                   >
-                    Change number
-                  </Text>
-                </Pressable>
+                    <Text
+                      style={{
+                        color: colors.textMuted,
+                        fontSize: 13.5,
+                        fontFamily: f.semibold,
+                      }}
+                    >
+                      Change number
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    disabled={resendIn > 0 || busy}
+                    onPress={sendCode}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: resendIn > 0 || busy }}
+                    style={{ paddingVertical: 10 }}
+                  >
+                    <Text
+                      style={{
+                        color: resendIn > 0 ? colors.textFaint : colors.primary,
+                        fontSize: 13.5,
+                        fontFamily: f.semibold,
+                      }}
+                    >
+                      {resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
+                    </Text>
+                  </Pressable>
+                </View>
               </>
             )}
           </GlassCard>
