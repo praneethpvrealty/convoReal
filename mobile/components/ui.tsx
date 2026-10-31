@@ -476,50 +476,6 @@ export function EmptyState({
   );
 }
 
-export function LoadErrorState({
-  title = 'Could not load this',
-  subtitle = 'Check your connection and try again.',
-  onRetry,
-}: {
-  title?: string;
-  subtitle?: string;
-  onRetry: () => void;
-}) {
-  const { colors, fonts: f } = useTheme();
-  return (
-    <EmptyState
-      icon="cloud-offline-outline"
-      title={title}
-      subtitle={subtitle}
-      action={
-        <Pressable
-          onPress={onRetry}
-          accessibilityRole="button"
-          accessibilityLabel="Try again"
-          style={{
-            backgroundColor: colors.primary,
-            borderRadius: radius.full,
-            paddingHorizontal: 18,
-            paddingVertical: 11,
-            minHeight: 44,
-            justifyContent: 'center',
-          }}
-        >
-          <Text
-            style={{
-              color: colors.onPrimary,
-              fontSize: 13.5,
-              fontFamily: f.bold,
-            }}
-          >
-            Try again
-          </Text>
-        </Pressable>
-      }
-    />
-  );
-}
-
 /** Uppercase micro-label above a section of content. */
 export function SectionLabel({
   text,

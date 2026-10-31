@@ -43,7 +43,8 @@ import { MessageBubble, QuotedMessage } from '@/components/message-bubble';
 import { PropertyPickerSheet } from '@/components/property-picker-sheet';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { TemplatePicker } from '@/components/template-picker';
-import { Avatar, LoadErrorState } from '@/components/ui';
+import { LoadErrorState } from '@/components/load-error';
+import { Avatar } from '@/components/ui';
 import {
   ApiError,
   forwardMessage,

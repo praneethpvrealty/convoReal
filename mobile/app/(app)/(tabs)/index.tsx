@@ -29,12 +29,12 @@ import { EnterRow, PressScale } from '@/components/motion';
 import { NotificationBell } from '@/components/notification-bell';
 import { SetupChecklist } from '@/components/setup-checklist';
 import { TourTarget } from '@/components/copilot-tour';
+import { LoadErrorState } from '@/components/load-error';
 import {
   Avatar,
   ConversationSkeleton,
   EmptyState,
   FilterChip,
-  LoadErrorState,
   SearchBar,
   Tag,
   UnreadBadge,

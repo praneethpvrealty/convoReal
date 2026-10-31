@@ -6155,7 +6155,10 @@ describe('[UIX-009] mobile lists page, failed loads retry and edits are not lost
     for (const source of [thread, inbox, contacts, contact]) {
       expect(source).toContain('<LoadErrorState');
     }
-    expect(mobileSource('components/ui.tsx')).toContain('Try again');
+    for (const source of [thread, inbox, contacts, contact]) {
+      expect(source).toContain("from '@/components/load-error'");
+    }
+    expect(mobileSource('components/load-error.tsx')).toContain('Retry');
     expect(contact).toContain('title="Contact not found"');
     expect(contact).not.toContain('{isLoading || !contact ? (');
   });

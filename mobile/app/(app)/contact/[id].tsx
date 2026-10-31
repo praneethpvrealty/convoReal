@@ -47,12 +47,12 @@ import { ContactMergeSheet } from '@/components/contact-merge-sheet';
 import { ShowcaseShareSheet } from '@/components/showcase-share-sheet';
 import { PulseRing } from '@/components/motion';
 import { OptionSheet } from '@/components/option-sheet';
+import { LoadErrorState } from '@/components/load-error';
 import {
   Avatar,
   Banner,
   ChoiceChip,
   EmptyState,
-  LoadErrorState,
   PrimaryButton,
   SectionLabel,
   Tag,
