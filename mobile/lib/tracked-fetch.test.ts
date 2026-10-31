@@ -1,11 +1,14 @@
-import { onlineManager } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { trackedFetch } from '@/lib/tracked-fetch';
+import {
+  isConnected,
+  reportConnectivity,
+  trackedFetch,
+} from '@/lib/tracked-fetch';
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  onlineManager.setOnline(true);
+  reportConnectivity({ kind: 'response' });
 });
 
 describe('[UIX-010] app requests drive the online state', () => {
@@ -17,16 +20,29 @@ describe('[UIX-010] app requests drive the online state', () => {
       })
     );
     await expect(trackedFetch('https://api.test/x')).rejects.toThrow();
-    expect(onlineManager.isOnline()).toBe(false);
+    expect(isConnected()).toBe(false);
   });
 
   it('comes back online on the next response of any status', async () => {
-    onlineManager.setOnline(false);
+    reportConnectivity({ kind: 'probe', reachable: false });
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({ status: 500 }) as Response)
     );
     await trackedFetch('https://api.test/x');
+    expect(isConnected()).toBe(true);
+  });
+
+  it('never pauses react-query while showing offline', async () => {
+    const { onlineManager } = await import('@tanstack/react-query');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Network request failed');
+      })
+    );
+    await expect(trackedFetch('https://api.test/x')).rejects.toThrow();
+    expect(isConnected()).toBe(false);
     expect(onlineManager.isOnline()).toBe(true);
   });
 
@@ -40,6 +56,6 @@ describe('[UIX-010] app requests drive the online state', () => {
       })
     );
     await expect(trackedFetch('https://api.test/x')).rejects.toBe(abort);
-    expect(onlineManager.isOnline()).toBe(true);
+    expect(isConnected()).toBe(true);
   });
 });

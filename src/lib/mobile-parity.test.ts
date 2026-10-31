@@ -6331,9 +6331,8 @@ describe('[UIX-010] mobile screens say when something failed and guard unsaved w
     expect(mobileSource('lib/api.ts')).toContain(
       'await trackedFetch(url, { ...init, signal: controller.signal })'
     );
-    expect(mobileSource('lib/tracked-fetch.ts')).toContain(
-      'onlineManager.setOnline(next)'
-    );
+    expect(mobileSource('lib/tracked-fetch.ts')).not.toContain('onlineManager');
+    expect(mobileSource('lib/online.ts')).not.toContain('onlineManager');
     const layout = mobileSource('app/_layout.tsx');
     expect(layout).toContain('useOnlineTracking();');
     expect(layout).toContain('<OfflineBar />');

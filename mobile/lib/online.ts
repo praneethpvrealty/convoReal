@@ -1,4 +1,3 @@
-import { onlineManager } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
@@ -7,7 +6,11 @@ import {
   OFFLINE_PROBE_INTERVAL_MS,
   OFFLINE_PROBE_TIMEOUT_MS,
 } from './online-state';
-import { reportConnectivity } from './tracked-fetch';
+import {
+  isConnected,
+  reportConnectivity,
+  subscribeConnectivity,
+} from './tracked-fetch';
 
 async function probe() {
   const controller = new AbortController();
@@ -33,11 +36,11 @@ export function useOnlineTracking() {
         timer = setInterval(() => void probe(), OFFLINE_PROBE_INTERVAL_MS);
       }
     };
-    const unsubscribe = onlineManager.subscribe(sync);
+    const unsubscribe = subscribeConnectivity(sync);
     const appState = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && !onlineManager.isOnline()) void probe();
+      if (state === 'active' && !isConnected()) void probe();
     });
-    sync(onlineManager.isOnline());
+    sync(isConnected());
     return () => {
       unsubscribe();
       appState.remove();
@@ -46,10 +49,6 @@ export function useOnlineTracking() {
   }, []);
 }
 
-const subscribeOnline = (onChange: () => void) =>
-  onlineManager.subscribe(onChange);
-const getOnline = () => onlineManager.isOnline();
-
 export function useIsOnline(): boolean {
-  return useSyncExternalStore(subscribeOnline, getOnline, getOnline);
+  return useSyncExternalStore(subscribeConnectivity, isConnected, isConnected);
 }

@@ -1,18 +1,26 @@
-import { onlineManager } from '@tanstack/react-query';
-
 import { nextOnline, type ConnectivityEvent } from './online-state';
 
-/**
- * Connectivity without a native module: the app is offline when one of
- * its own requests fails before reaching a server, and online again on
- * the next response or a successful probe (see ./online). react-query's
- * onlineManager carries the state, so paused queries resume by
- * themselves once it flips back.
- */
+let online = true;
+const listeners = new Set<(online: boolean) => void>();
+
+export function isConnected(): boolean {
+  return online;
+}
+
+export function subscribeConnectivity(
+  listener: (online: boolean) => void
+): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function reportConnectivity(event: ConnectivityEvent) {
-  const current = onlineManager.isOnline();
-  const next = nextOnline(current, event);
-  if (next !== current) onlineManager.setOnline(next);
+  const next = nextOnline(online, event);
+  if (next === online) return;
+  online = next;
+  for (const listener of listeners) listener(next);
 }
 
 export const trackedFetch: typeof fetch = async (input, init) => {
