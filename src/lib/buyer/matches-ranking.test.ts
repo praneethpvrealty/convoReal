@@ -118,6 +118,42 @@ describe('curateForBuyer', () => {
     expect(matches[1].score).toBeLessThan(MIN_BUYER_MATCH_SCORE);
   });
 
+  it('[RDR-003] puts a type-and-size brief in front of the buyer on every exact size fit, nothing else', () => {
+    const plotBuyer = buyer({
+      pref_property_types: ['Residential Plot'],
+      pref_property_categories: ['residential', 'plot'],
+      pref_land_area_min_sqft: 4000,
+      pref_extracted_at: '2026-10-31T00:00:00Z',
+    });
+    const site = (id: string, land_area: number) =>
+      property({
+        id,
+        type: 'Residential Plot',
+        land_area,
+        land_area_unit: 'sqft',
+        price: 60_000_000,
+      });
+    const pool = [
+      site('exact', 4000),
+      site('bigger', 9545),
+      site('near', 3750),
+      site('small', 1200),
+    ];
+
+    const matches = curateForBuyer(pool, plotBuyer);
+    expect(matches.map((m) => m.property.id).sort()).toEqual([
+      'bigger',
+      'exact',
+    ]);
+    expect(matches.every((m) => m.score >= MIN_BUYER_MATCH_SCORE)).toBe(true);
+    expect(
+      curateForBuyer(
+        pool,
+        buyer({ ...plotBuyer, pref_land_area_min_sqft: null })
+      )
+    ).toHaveLength(0);
+  });
+
   it('honours the limit', () => {
     const pool = Array.from({ length: 6 }, (_, i) =>
       property({ id: `p${i}`, sublocality: 'Whitefield', price: 9_000_000 + i })
