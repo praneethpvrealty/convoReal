@@ -7,6 +7,7 @@ import {
 } from './attachments';
 import { signOut } from './auth-store';
 import { ENV } from './env';
+import { trackedFetch } from './tracked-fetch';
 import { supabase } from './supabase';
 
 export class ApiError extends Error {
@@ -77,7 +78,7 @@ async function fetchWithTimeout(
   callerSignal?.addEventListener?.('abort', abortFromCaller);
 
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await trackedFetch(url, { ...init, signal: controller.signal });
   } catch (err) {
     if (callerSignal?.aborted) {
       throw new ApiError(API_CANCELLED_STATUS, 'Cancelled');

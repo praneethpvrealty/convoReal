@@ -19,7 +19,7 @@ import Animated, {
 
 import { TourTarget } from '@/components/copilot-tour';
 import { AnimatedCounter } from '@/components/motion';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, PrimaryButton } from '@/components/ui';
 import { chatListTime } from '@/lib/format';
 import { getBroadcastStatus } from '@shared/lib/broadcast-status';
 import { supabase } from '@/lib/supabase';
@@ -49,7 +49,7 @@ function statusColor(status: Broadcast['status'], colors: ThemeColors): string {
 
 export default function BroadcastsScreen() {
   const { colors } = useTheme();
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['broadcasts'],
     queryFn: async () => {
       // Same direct read as the web list; counts are trigger-maintained
@@ -102,16 +102,29 @@ export default function BroadcastsScreen() {
         }
         ListHeaderComponent={
           <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-            Campaigns you created. Tap + to send a new one; CSV uploads and
-            custom-field audiences are still web-only.
+            Campaigns you created. Tap + to send a new one to everyone, a tag or
+            a pasted list of numbers; custom-field audiences are on the web.
           </Text>
         }
         ListEmptyComponent={
-          isLoading ? null : (
+          isLoading ? null : isError ? (
+            <EmptyState
+              icon="cloud-offline-outline"
+              title="Couldn’t load your campaigns"
+              subtitle="Check your connection and try again."
+              action={
+                <PrimaryButton
+                  label="Retry"
+                  icon="refresh"
+                  onPress={() => refetch()}
+                />
+              }
+            />
+          ) : (
             <EmptyState
               icon="megaphone-outline"
               title="No campaigns yet"
-              subtitle="Tap + to send an approved template to a tag or your whole list. Delivery stats land here as it sends."
+              subtitle="Tap + to write a message and send it to everyone, a tag or a pasted list of numbers. Delivery stats land here as it sends."
             />
           )
         }

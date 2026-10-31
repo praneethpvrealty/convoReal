@@ -1,6 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import {
+  Stack,
+  router,
+  useLocalSearchParams,
+  useNavigation,
+} from 'expo-router';
+import { usePreventRemove } from 'expo-router/react-navigation';
 import { useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -13,6 +19,7 @@ import {
   type TextInput,
 } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { TourTarget } from '@/components/copilot-tour';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import {
@@ -34,6 +41,8 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AppointmentType, Contact } from '@/lib/types';
 import { voiceHints, type VoicePrefill } from '@/lib/voice-event';
 import { contactHandle } from '@/lib/reachability';
+import { hasUnsavedChanges } from '@/lib/unsaved-changes';
+import { PAST_START_CONFIRM, startsInPast } from '@/lib/event-timing';
 import {
   EVENT_TYPE_LABELS,
   EVENT_TYPE_ORDER,
@@ -90,6 +99,47 @@ export default function NewAppointmentScreen() {
     description: string | null;
   } | null>(null);
   const [saving, setSaving] = useState(false);
+  const navigation = useNavigation();
+  const dialog = useAppDialog();
+  const saved = useRef(false);
+  const [initialDraft] = useState(() => ({
+    title: params.title ?? '',
+    type: eventTypeFromParam(params.eventType),
+    start: start.toISOString(),
+    location: '',
+    contact: contact?.id ?? '',
+  }));
+  const dirty =
+    voice !== null ||
+    hasUnsavedChanges(initialDraft, {
+      title,
+      type: eventType,
+      start: start.toISOString(),
+      location,
+      contact: contact?.id ?? '',
+    });
+
+  usePreventRemove(dirty && !saving, ({ data }) => {
+    if (saved.current) {
+      navigation.dispatch(data.action);
+      return;
+    }
+    dialog.show({
+      title: 'Discard this appointment?',
+      message: 'What you entered has not been scheduled.',
+      actions: [
+        { label: 'Keep editing', variant: 'muted', onPress: dialog.close },
+        {
+          label: 'Discard',
+          variant: 'destructive',
+          onPress: () => {
+            dialog.close();
+            navigation.dispatch(data.action);
+          },
+        },
+      ],
+    });
+  });
 
   function applyVoicePrefill(prefill: VoicePrefill) {
     setError(null);
@@ -144,6 +194,29 @@ export default function NewAppointmentScreen() {
     [start]
   );
 
+  function requestSave() {
+    if (!title.trim() || saving) return;
+    if (!startsInPast(start)) {
+      void save();
+      return;
+    }
+    dialog.show({
+      title: PAST_START_CONFIRM.title,
+      message: PAST_START_CONFIRM.message,
+      actions: [
+        { label: 'Change time', variant: 'muted', onPress: dialog.close },
+        {
+          label: PAST_START_CONFIRM.confirmLabel,
+          variant: 'primary',
+          onPress: () => {
+            dialog.close();
+            void save();
+          },
+        },
+      ],
+    });
+  }
+
   async function save() {
     if (!title.trim() || !session || !accountId) return;
     setSaving(true);
@@ -184,6 +257,7 @@ export default function NewAppointmentScreen() {
         queryKey: ['contact-appointments', contact.id],
       });
     }
+    saved.current = true;
     router.back();
   }
 
@@ -403,7 +477,7 @@ export default function NewAppointmentScreen() {
             label="Schedule"
             busy={saving}
             disabled={!title.trim()}
-            onPress={save}
+            onPress={requestSave}
           />
         </View>
 
@@ -415,6 +489,7 @@ export default function NewAppointmentScreen() {
             : 'Attached contacts get automatic WhatsApp reminders (morning-of and 1 hour before).'}
         </Text>
       </ScrollView>
+      <AppDialog {...dialog.dialogProps} />
     </KeyboardAvoidingView>
   );
 }

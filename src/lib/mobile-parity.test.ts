@@ -6215,3 +6215,159 @@ describe('[UIX-009] mobile lists page, failed loads retry and edits are not lost
     );
   });
 });
+
+describe('[UIX-010] mobile screens say when something failed and guard unsaved work', () => {
+  it('[UIX-010] shows a retryable error instead of an empty state when a load fails', () => {
+    const calendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+    expect(calendar).toContain('isError && !data ? (');
+    expect(calendar).toContain('todosQuery.isError && !todosQuery.data');
+    expect(calendar).toContain('upcomingAppointmentsQuery.isError');
+    expect(calendar.match(/<LoadFailed/g)?.length).toBe(3);
+
+    const credits = mobileSource('app/(app)/credits.tsx');
+    expect(credits).toContain('Couldn’t load balance');
+    expect(credits).toContain('history.isError && transactions.length === 0');
+
+    const broadcasts = mobileSource('app/(app)/broadcasts.tsx');
+    expect(broadcasts).toContain('isLoading ? null : isError ? (');
+
+    const detail = mobileSource('app/(app)/broadcast/[id].tsx');
+    expect(detail).toContain('recipientsFailed ? (');
+    expect(detail).toContain('onRefresh={pull.onRefresh}');
+
+    const notifications = mobileSource('app/(app)/notifications.tsx');
+    expect(notifications).toContain('isError ? (');
+    expect(notifications).toContain('onRefresh={pull.onRefresh}');
+    expect(mobileSource('lib/use-notifications.ts')).toContain(
+      'isError: query.isError && !query.data'
+    );
+
+    const profile = mobileSource('components/profile-edit-sheet.tsx');
+    expect(profile).toContain('accountLoadFailed');
+    expect(profile).toContain('Retry loading the workspace name');
+  });
+
+  it('[UIX-010] pages broadcast recipients instead of stopping at 500', () => {
+    const detail = mobileSource('app/(app)/broadcast/[id].tsx');
+    expect(detail).toContain('useInfiniteQuery({');
+    expect(detail).toContain('.range(from, from + RECIPIENT_PAGE_SIZE - 1)');
+    expect(detail).toContain('onEndReached={');
+    expect(detail).not.toContain('.limit(500)');
+    expect(detail).toContain(
+      'canManage && (hasRetryableRecipients(filtered) || retryableCount > 0)'
+    );
+    expect(detail).toContain(
+      ".in('status', [...RETRYABLE_RECIPIENT_STATUSES])"
+    );
+  });
+
+  it('[UIX-010] asks before discarding a draft or a paid compose', () => {
+    const greetings = mobileSource('app/(app)/greetings.tsx');
+    expect(greetings).toContain("title: 'Discard draft?'");
+    expect(greetings).toContain("title: 'Replace your text?'");
+    expect(greetings).toContain('costs ${cost} credits again');
+    expect(greetings).toContain('onClose={requestClose}');
+    expect(greetings).toContain('onPress={compose}');
+
+    const calendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+    expect(calendar.match(/title: 'Discard changes\?'/g)?.length).toBe(2);
+    expect(calendar).toContain('onClose={requestCloseEdit}');
+    expect(calendar).toContain('onClose={requestClose}');
+
+    const create = mobileSource('app/(app)/appointment-new.tsx');
+    expect(create).toContain(
+      "import { usePreventRemove } from 'expo-router/react-navigation';"
+    );
+    expect(create).toContain('usePreventRemove(dirty && !saving');
+    expect(create).toContain('navigation.dispatch(data.action)');
+  });
+
+  it('[UIX-010] edits the current to-do and never saves one twice', () => {
+    const calendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+    expect(calendar).toMatch(
+      /function openEdit\(\) \{\s*haptic\.tap\(\);\s*loadEdit\(\);\s*setEditing\(true\);/
+    );
+    expect(calendar).toContain('onPress={openEdit}');
+    expect(calendar).toContain('saving.current) return;');
+    expect(calendar).toMatch(
+      /todoIconButton: \{\s*minWidth: 44,\s*minHeight: 44,/
+    );
+    expect(calendar.match(/style=\{styles\.todoIconButton\}/g)?.length).toBe(2);
+  });
+
+  it('[UIX-010] keeps an event’s length and confirms a start in the past', () => {
+    const calendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+    const create = mobileSource('app/(app)/appointment-new.tsx');
+    expect(calendar.match(/movedEventEnd\(/g)?.length).toBe(2);
+    expect(calendar).not.toContain('newStart.getTime() + 60 * 60 * 1000');
+    for (const source of [calendar, create]) {
+      expect(source).toContain("from '@/lib/event-timing'");
+      expect(source).toContain('startsInPast(');
+      expect(source).toContain('PAST_START_CONFIRM.message');
+    }
+    expect(calendar).toContain('onPress={requestSaveReschedule}');
+    expect(create).toContain('onPress={requestSave}');
+  });
+
+  it('[UIX-010] shows notices where they can be seen', () => {
+    expect(mobileSource('app/(app)/greetings.tsx')).toMatch(
+      /showAppDialog\(\{\s*title: 'Greeting on its way'/
+    );
+    const compose = mobileSource('app/(app)/broadcast-new.tsx');
+    expect(compose.indexOf('<Banner kind="error"')).toBeGreaterThan(
+      compose.indexOf('label="Preview"')
+    );
+    expect(compose).toContain('scrollRef.current?.scrollToEnd');
+  });
+
+  it('[UIX-010] marks the app offline from its own requests, with no native module', () => {
+    const pkg = JSON.parse(mobileSource('package.json')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(pkg.dependencies['@react-native-community/netinfo']).toBeUndefined();
+    expect(mobileSource('lib/supabase.ts')).toContain(
+      'global: { fetch: trackedFetch }'
+    );
+    expect(mobileSource('lib/api.ts')).toContain(
+      'await trackedFetch(url, { ...init, signal: controller.signal })'
+    );
+    expect(mobileSource('lib/tracked-fetch.ts')).toContain(
+      'onlineManager.setOnline(next)'
+    );
+    const layout = mobileSource('app/_layout.tsx');
+    expect(layout).toContain('useOnlineTracking();');
+    expect(layout).toContain('<OfflineBar />');
+    expect(mobileSource('components/offline-bar.tsx')).toContain(
+      'Offline — showing saved data'
+    );
+  });
+
+  it('[UIX-010] offers resend, sign-out confirmation and honest copy', () => {
+    const verify = mobileSource('app/(app)/verify-phone.tsx');
+    expect(verify).toContain('useResendCooldown()');
+    expect(verify).toContain("'Resend code'");
+    expect(verify).toContain('refreshError');
+    expect(mobileSource('app/(auth)/login.tsx')).toContain(
+      'useResendCooldown()'
+    );
+
+    const notifications = mobileSource('app/(app)/notifications.tsx');
+    expect(notifications).toContain('notificationTarget(item)');
+    expect(notifications).toContain('disabled={!target}');
+
+    const more = mobileSource('app/(app)/(tabs)/more.tsx');
+    expect(more).toContain("title: 'Sign out?'");
+    expect(more).toContain('onPress={confirmSignOut}');
+
+    const broadcasts = mobileSource('app/(app)/broadcasts.tsx');
+    expect(broadcasts).not.toContain('CSV uploads');
+    expect(broadcasts).toContain('a pasted list of numbers');
+    expect(mobileSource('app/(app)/broadcast-new.tsx')).toContain(
+      "'all' | 'tags' | 'csv' | null"
+    );
+
+    const greetings = mobileSource('app/(app)/greetings.tsx');
+    expect(greetings).toContain('!canManage');
+    expect(greetings).toContain('Tap + to write one');
+  });
+});
