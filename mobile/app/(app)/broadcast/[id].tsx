@@ -20,7 +20,7 @@ import {
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ConvoRealLoader } from '@/components/loader';
-import { Avatar, EmptyState, FilterChip, PrimaryButton } from '@/components/ui';
+import { Avatar, FilterChip } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
@@ -39,6 +39,7 @@ import {
   retryFailedSummary,
   type RetryFailedResult,
 } from '@shared/lib/broadcast-status';
+import { LoadErrorState } from '@/components/load-error';
 
 type StatusFilter = BroadcastRecipient['status'] | 'all';
 
@@ -332,17 +333,9 @@ export default function BroadcastDetailScreen() {
           }
           ListEmptyComponent={
             recipientsFailed ? (
-              <EmptyState
-                icon="cloud-offline-outline"
+              <LoadErrorState
                 title="Couldn’t load recipients"
-                subtitle="Check your connection and try again."
-                action={
-                  <PrimaryButton
-                    label="Retry"
-                    icon="refresh"
-                    onPress={() => refetchRecipients()}
-                  />
-                }
+                onRetry={() => void refetchRecipients()}
               />
             ) : (
               <Text

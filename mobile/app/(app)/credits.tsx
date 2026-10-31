@@ -17,7 +17,6 @@ import { ConvoRealLoader } from '@/components/loader';
 import { AnimatedCounter } from '@/components/motion';
 import { SuccessSheet } from '@/components/success-sheet';
 import {
-  EmptyState,
   FilterChip,
   GradientHero,
   PrimaryButton,
@@ -33,6 +32,7 @@ import { supabase } from '@/lib/supabase';
 import { onGradient, radius, spacing, useTheme, fonts } from '@/lib/theme';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { ledgerLabel } from '@shared/lib/format/ledger-label';
+import { LoadErrorState } from '@/components/load-error';
 
 interface WalletRow {
   total_credits: number;
@@ -284,17 +284,9 @@ export default function CreditsScreen() {
       {history.isLoading ? (
         <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 24 }} />
       ) : history.isError && transactions.length === 0 ? (
-        <EmptyState
-          icon="cloud-offline-outline"
+        <LoadErrorState
           title="Couldn’t load your credit history"
-          subtitle="Check your connection and try again."
-          action={
-            <PrimaryButton
-              label="Retry"
-              icon="refresh"
-              onPress={() => history.refetch()}
-            />
-          }
+          onRetry={() => void history.refetch()}
         />
       ) : transactions.length === 0 ? (
         <Text

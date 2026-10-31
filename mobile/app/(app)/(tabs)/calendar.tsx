@@ -38,7 +38,6 @@ import {
   ChoiceChip,
   EmptyState,
   FilterChip,
-  PrimaryButton,
   Tag,
   nameTagCap,
 } from '@/components/ui';
@@ -138,6 +137,7 @@ import {
   PAST_START_CONFIRM,
   startsInPast,
 } from '@/lib/event-timing';
+import { LoadErrorState } from '@/components/load-error';
 
 const TYPE_META: Record<
   AppointmentType,
@@ -867,9 +867,9 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
             style={{ alignSelf: 'center', paddingVertical: 20 }}
           />
         ) : isError && !data ? (
-          <LoadFailed
+          <LoadErrorState
             title="Couldn’t load this month"
-            onRetry={() => refetch()}
+            onRetry={() => void refetch()}
           />
         ) : dayAppointments.length === 0 && dayDealDates.length === 0 ? (
           dealOnly ? (
@@ -912,7 +912,7 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
         ) : (upcomingAppointmentsQuery.isError &&
             !upcomingAppointmentsQuery.data) ||
           (todosQuery.isError && !todosQuery.data) ? (
-          <LoadFailed
+          <LoadErrorState
             title="Couldn’t load what’s coming up"
             onRetry={() =>
               Promise.all([
@@ -962,9 +962,9 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
             style={{ alignSelf: 'center', paddingVertical: 20 }}
           />
         ) : todosQuery.isError && !todosQuery.data ? (
-          <LoadFailed
+          <LoadErrorState
             title="Couldn’t load your tasks"
-            onRetry={() => todosQuery.refetch()}
+            onRetry={() => void todosQuery.refetch()}
           />
         ) : (
           <>
@@ -1006,29 +1006,6 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
 }
 
 const PRIORITIES: TodoPriority[] = ['low', 'medium', 'high'];
-
-function LoadFailed({
-  title,
-  onRetry,
-}: {
-  title: string;
-  onRetry: () => unknown;
-}) {
-  return (
-    <EmptyState
-      icon="cloud-offline-outline"
-      title={title}
-      subtitle="Check your connection and try again."
-      action={
-        <PrimaryButton
-          label="Retry"
-          icon="refresh"
-          onPress={() => void onRetry()}
-        />
-      }
-    />
-  );
-}
 
 function priorityColor(
   priority: TodoPriority,

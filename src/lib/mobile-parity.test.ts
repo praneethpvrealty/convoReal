@@ -6222,7 +6222,7 @@ describe('[UIX-010] mobile screens say when something failed and guard unsaved w
     expect(calendar).toContain('isError && !data ? (');
     expect(calendar).toContain('todosQuery.isError && !todosQuery.data');
     expect(calendar).toContain('upcomingAppointmentsQuery.isError');
-    expect(calendar.match(/<LoadFailed/g)?.length).toBe(3);
+    expect(calendar.match(/<LoadErrorState/g)?.length).toBe(3);
 
     const credits = mobileSource('app/(app)/credits.tsx');
     expect(credits).toContain('Couldn’t load balance');

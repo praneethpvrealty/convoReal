@@ -19,7 +19,7 @@ import Animated, {
 
 import { TourTarget } from '@/components/copilot-tour';
 import { AnimatedCounter } from '@/components/motion';
-import { EmptyState, PrimaryButton } from '@/components/ui';
+import { EmptyState } from '@/components/ui';
 import { chatListTime } from '@/lib/format';
 import { getBroadcastStatus } from '@shared/lib/broadcast-status';
 import { supabase } from '@/lib/supabase';
@@ -32,6 +32,7 @@ import {
 } from '@/lib/theme';
 import type { Broadcast } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
+import { LoadErrorState } from '@/components/load-error';
 
 function statusColor(status: Broadcast['status'], colors: ThemeColors): string {
   switch (status) {
@@ -108,17 +109,9 @@ export default function BroadcastsScreen() {
         }
         ListEmptyComponent={
           isLoading ? null : isError ? (
-            <EmptyState
-              icon="cloud-offline-outline"
+            <LoadErrorState
               title="Couldn’t load your campaigns"
-              subtitle="Check your connection and try again."
-              action={
-                <PrimaryButton
-                  label="Retry"
-                  icon="refresh"
-                  onPress={() => refetch()}
-                />
-              }
+              onRetry={() => void refetch()}
             />
           ) : (
             <EmptyState

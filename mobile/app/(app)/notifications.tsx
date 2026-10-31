@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
-import { EmptyState, PrimaryButton } from '@/components/ui';
+import { EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { chatListTime } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -22,6 +22,7 @@ import {
   markAllNotificationsRead,
   useNotifications,
 } from '@/lib/use-notifications';
+import { LoadErrorState } from '@/components/load-error';
 
 const TYPE_ICONS: Record<
   string,
@@ -81,17 +82,9 @@ export default function NotificationsScreen() {
           }
           ListEmptyComponent={
             isError ? (
-              <EmptyState
-                icon="cloud-offline-outline"
+              <LoadErrorState
                 title="Couldn’t load notifications"
-                subtitle="Check your connection and try again."
-                action={
-                  <PrimaryButton
-                    label="Retry"
-                    icon="refresh"
-                    onPress={() => refetch()}
-                  />
-                }
+                onRetry={() => void refetch()}
               />
             ) : (
               <EmptyState
