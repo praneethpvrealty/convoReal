@@ -9,7 +9,7 @@ import {
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -43,7 +43,7 @@ import { MessageBubble, QuotedMessage } from '@/components/message-bubble';
 import { PropertyPickerSheet } from '@/components/property-picker-sheet';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { TemplatePicker } from '@/components/template-picker';
-import { Avatar } from '@/components/ui';
+import { Avatar, LoadErrorState } from '@/components/ui';
 import {
   ApiError,
   forwardMessage,
@@ -101,7 +101,14 @@ import {
   type Message,
   type MessageReaction,
 } from '@/lib/types';
+import { composerDraft, saveComposerDraft } from '@/lib/composer-drafts';
 import { dayLabel } from '@/lib/format';
+import {
+  nextKeysetCursor,
+  olderThanCursor,
+  uniqueById,
+  type KeysetCursor,
+} from '@/lib/list-paging';
 import { restoreFailedDraft, settlePending } from '@/lib/pending-messages';
 import {
   clearPendingShare,
@@ -137,12 +144,18 @@ type ThreadItem =
   | { kind: 'message'; message: Message }
   | { kind: 'day'; id: string; label: string };
 
-async function fetchMessages(conversationId: string): Promise<Message[]> {
-  const { data, error } = await supabase
+async function fetchMessages(
+  conversationId: string,
+  cursor: KeysetCursor | null
+): Promise<Message[]> {
+  let query = supabase
     .from('messages')
     .select('*')
-    .eq('conversation_id', conversationId)
+    .eq('conversation_id', conversationId);
+  if (cursor) query = query.or(olderThanCursor(cursor));
+  const { data, error } = await query
     .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(PAGE_SIZE);
   if (error) throw error;
   return (data ?? []) as Message[];
@@ -241,11 +254,25 @@ export default function ConversationScreen() {
   });
   const seedDraft =
     draftInquiry?.message ?? (draftText?.trim() ? draftText : undefined);
-  const { data: messages, isLoading } = useQuery({
+  const {
+    data: messagePages,
+    isLoading,
+    isError: messagesFailed,
+    refetch: refetchMessages,
+    fetchNextPage: fetchOlderMessages,
+    hasNextPage: hasOlderMessages,
+    isFetchingNextPage: fetchingOlderMessages,
+  } = useInfiniteQuery({
     queryKey: ['messages', id],
-    queryFn: () => fetchMessages(id),
+    queryFn: ({ pageParam }) => fetchMessages(id, pageParam),
+    initialPageParam: null as KeysetCursor | null,
+    getNextPageParam: (last) => nextKeysetCursor(last, PAGE_SIZE),
     enabled: Boolean(id),
   });
+  const messages = useMemo(
+    () => (messagePages ? uniqueById(messagePages.pages) : undefined),
+    [messagePages]
+  );
   const { data: lastCustomerMessage } = useQuery({
     queryKey: ['messages', id, 'last-customer'],
     queryFn: () => fetchLastCustomerMessage(id),
@@ -682,6 +709,13 @@ export default function ConversationScreen() {
         >
           <ConvoRealLoader />
         </View>
+      ) : messagesFailed && !messages ? (
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <LoadErrorState
+            title="Could not load this chat"
+            onRetry={() => void refetchMessages()}
+          />
+        </View>
       ) : (
         <View style={{ flex: 1 }}>
           {pinned.length > 0 ? (
@@ -740,6 +774,20 @@ export default function ConversationScreen() {
               )
             }
             scrollEventThrottle={64}
+            onEndReached={() => {
+              if (hasOlderMessages && !fetchingOlderMessages) {
+                void fetchOlderMessages();
+              }
+            }}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              fetchingOlderMessages ? (
+                <ActivityIndicator
+                  color={colors.primary}
+                  style={{ marginVertical: spacing.md }}
+                />
+              ) : null
+            }
             // A quoted message far up the page may not be measured yet:
             // land near it first, then ask again now that the rows in
             // between have real heights.
@@ -1088,7 +1136,10 @@ function Composer({
 }) {
   const { colors, dark } = useTheme();
   const insets = useSafeAreaInsets();
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(() => composerDraft(conversationId));
+  useEffect(() => {
+    saveComposerDraft(conversationId, draft);
+  }, [conversationId, draft]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The text Meta refused under its 24-hour rule. A retry will never

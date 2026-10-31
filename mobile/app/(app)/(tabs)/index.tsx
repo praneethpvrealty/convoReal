@@ -1,8 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from '@tanstack/react-query';
 import { Link, Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -29,6 +34,7 @@ import {
   ConversationSkeleton,
   EmptyState,
   FilterChip,
+  LoadErrorState,
   SearchBar,
   Tag,
   UnreadBadge,
@@ -61,6 +67,15 @@ import {
   lastMsgStatusKey,
   outgoingTickStatus,
 } from '@/lib/inbox-ticks';
+import {
+  INBOX_ID_CAP,
+  INBOX_PAGE_SIZE,
+  activeConversationIds,
+  inboxContactSearchFilter,
+  inboxFilterPlan,
+  inboxSearchFilter,
+} from '@/lib/inbox-query';
+import { nextOffset, uniqueById } from '@/lib/list-paging';
 import { needsReply, needsReplyLabel, unanswered } from '@/lib/reply-state';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
@@ -88,21 +103,65 @@ interface ActivityRow {
   inbound_count: number;
 }
 
-async function fetchConversations(archived: boolean): Promise<Conversation[]> {
-  const { data, error } = await supabase
+interface InboxPageScope {
+  archived: boolean;
+  filter: InboxFilterValue;
+  searchTerm: string;
+  searchFilter: string | null;
+  activeIds: string[] | null;
+}
+
+async function fetchConversations(
+  scope: InboxPageScope,
+  offset: number
+): Promise<Conversation[]> {
+  if (scope.searchTerm && !scope.searchFilter) return [];
+  if (scope.activeIds && scope.activeIds.length === 0) return [];
+  const plan = inboxFilterPlan(scope.filter);
+  let query = supabase
     .from('conversations')
     .select(
       '*, contact:contacts(*), group:whatsapp_groups(id, subject, status)'
     )
-    .eq('is_archived', archived)
+    .eq('is_archived', scope.archived)
     // A conversation row can exist with no messages yet (e.g. an approve
     // flow opened it but the send was blocked by the 24-hour window) —
     // those have nothing to show, so keep them out of the inbox.
-    .not('last_message_at', 'is', null)
-    .order('last_message_at', { ascending: false })
-    .limit(200);
+    .not('last_message_at', 'is', null);
+  if (plan.status) query = query.eq('status', plan.status);
+  if (plan.excludeClosed) query = query.neq('status', 'closed');
+  if (plan.unreadOnly) query = query.gt('unread_count', 0);
+  if (plan.or) query = query.or(plan.or);
+  if (plan.neverAnswered) query = query.is('last_customer_message_at', null);
+  if (plan.notAwaiting) {
+    query = query.not('awaiting_reply', 'is', true).neq('status', 'pending');
+  }
+  if (plan.lastMessageBefore) {
+    query = query.lt('last_message_at', plan.lastMessageBefore);
+  }
+  if (scope.activeIds) query = query.in('id', scope.activeIds);
+  if (scope.searchFilter) query = query.or(scope.searchFilter);
+  const { data, error } = await query
+    .order(plan.order.column, {
+      ascending: plan.order.ascending,
+      nullsFirst: false,
+    })
+    .order('id', { ascending: false })
+    .range(offset, offset + INBOX_PAGE_SIZE - 1);
   if (error) throw error;
   return (data ?? []) as Conversation[];
+}
+
+async function fetchSearchContactIds(search: string): Promise<string[]> {
+  const filter = inboxContactSearchFilter(search);
+  if (!filter) return [];
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('id')
+    .or(filter)
+    .limit(INBOX_ID_CAP);
+  if (error) throw error;
+  return (data ?? []).map((row: { id: string }) => row.id);
 }
 
 export default function InboxScreen() {
@@ -118,15 +177,13 @@ export default function InboxScreen() {
   const { show, dialogProps } = useAppDialog();
   const undo = useUndoBar({ bottomOffset: TAB_BAR_CLEARANCE });
 
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['conversations', archived],
-    queryFn: () => fetchConversations(archived),
-  });
-  const pull = usePullRefresh(refetch);
-
   // Busiest threads over the last 24 hours, counted in SQL — one RPC
   // instead of shipping a day of message rows to the phone.
-  const { data: activity } = useQuery({
+  const {
+    data: activity,
+    isError: activityFailed,
+    refetch: refetchActivity,
+  } = useQuery({
     queryKey: ['conversation-activity', accountId],
     enabled: Boolean(accountId) && filter === 'active',
     staleTime: 60_000,
@@ -176,7 +233,7 @@ export default function InboxScreen() {
   }, [accountId, userId]);
 
   const searchTerm = inboxSearchTerm(useDebounced(search));
-  const { data: messageHits } = useQuery({
+  const { data: messageHits, isPending: messageHitsPending } = useQuery({
     queryKey: ['inbox-message-search', accountId, searchTerm, archived],
     enabled: Boolean(accountId) && searchTerm !== '',
     staleTime: 30_000,
@@ -204,6 +261,73 @@ export default function InboxScreen() {
         (activity ?? []).map((r) => [r.conversation_id, r.message_count])
       ),
     [activity]
+  );
+
+  const { data: searchContactIds, isPending: searchContactsPending } = useQuery(
+    {
+      queryKey: ['inbox-contact-search', accountId, searchTerm],
+      enabled: Boolean(accountId) && searchTerm !== '',
+      staleTime: 30_000,
+      queryFn: () => fetchSearchContactIds(searchTerm),
+    }
+  );
+
+  const searchReady =
+    searchTerm === '' || (!messageHitsPending && !searchContactsPending);
+  const searchFilter = useMemo(
+    () =>
+      searchTerm
+        ? inboxSearchFilter(
+            searchTerm,
+            searchContactIds ?? [],
+            Array.from(messageHits?.keys() ?? [])
+          )
+        : null,
+    [searchTerm, searchContactIds, messageHits]
+  );
+  const activeIds = useMemo(
+    () => (filter === 'active' ? activeConversationIds(activity ?? []) : null),
+    [filter, activity]
+  );
+  const scope: InboxPageScope = {
+    archived,
+    filter,
+    searchTerm,
+    searchFilter,
+    activeIds,
+  };
+
+  const {
+    data: pages,
+    isLoading: pagesLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: [
+      'conversations',
+      archived,
+      filter,
+      searchTerm,
+      searchFilter,
+      activeIds,
+    ],
+    queryFn: ({ pageParam }) => fetchConversations(scope, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (_last, all) => nextOffset(all, INBOX_PAGE_SIZE),
+    enabled: searchReady && (filter !== 'active' || activity !== undefined),
+    placeholderData: keepPreviousData,
+  });
+  const data = useMemo(
+    () => (pages ? uniqueById(pages.pages) : undefined),
+    [pages]
+  );
+  const loadFailed = isError || (filter === 'active' && activityFailed);
+  const isLoading = pagesLoading || (!data && !loadFailed);
+  const pull = usePullRefresh(() =>
+    Promise.all([refetch(), filter === 'active' ? refetchActivity() : null])
   );
 
   const filtered = useMemo(() => {
@@ -242,22 +366,22 @@ export default function InboxScreen() {
         );
     else if (filter === 'open' || filter === 'pending' || filter === 'closed')
       list = list.filter((c) => c.status === filter);
-    const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter((c) => {
-        const closeReason = conversationCloseReasonLabel(c.close_reason);
-        return (
-          c.contact?.name?.toLowerCase().includes(q) ||
-          c.contact?.phone?.includes(q) ||
-          c.last_message_text?.toLowerCase().includes(q) ||
-          closeReason?.toLowerCase().includes(q) ||
-          c.close_note?.toLowerCase().includes(q) ||
-          messageHits?.has(c.id)
-        );
-      });
-    }
     return list;
-  }, [data, filter, search, activityById, messageHits]);
+  }, [data, filter, activityById]);
+
+  const loadMore = () => {
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+  };
+  useEffect(() => {
+    if (
+      data &&
+      filtered.length < INBOX_PAGE_SIZE / 2 &&
+      hasNextPage &&
+      !isFetchingNextPage
+    ) {
+      void fetchNextPage();
+    }
+  }, [data, filtered.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const visibleFilters = useMemo(() => {
     if (wide || showAllFilters) return INBOX_FILTERS;
@@ -349,8 +473,23 @@ export default function InboxScreen() {
               tintColor={colors.primary}
             />
           }
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <ActivityIndicator
+                color={colors.primary}
+                style={{ marginVertical: spacing.lg }}
+              />
+            ) : null
+          }
           ListEmptyComponent={
-            search || filter !== 'all' ? (
+            loadFailed ? (
+              <LoadErrorState
+                title="Could not load your inbox"
+                onRetry={() => void pull.onRefresh()}
+              />
+            ) : search || filter !== 'all' ? (
               <EmptyState
                 icon="search-outline"
                 title="No matches"

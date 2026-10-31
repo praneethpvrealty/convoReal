@@ -8,6 +8,7 @@ import {
   type AreaOption,
 } from '@/lib/contacts/area-variants';
 import { projectOptions } from '@/lib/contacts/contact-interest';
+import { contactTextSearchFilters } from '@/lib/contacts/search-filter';
 import { parsePropertyQuery } from '@/lib/search-parser';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 
@@ -585,9 +586,6 @@ async function runContactsPage(
       // 7. Fallback for remaining search text
       if (parsed.remainingSearch) {
         const term = `%${parsed.remainingSearch}%`;
-        const cleanSearch = parsed.remainingSearch
-          .trim()
-          .replace(/["'{}\\]/g, '');
         const { data: matchedNotes } = await db
           .from('contact_notes')
           .select('contact_id')
@@ -601,26 +599,20 @@ async function runContactsPage(
           : [];
         const safeRemainingIds = remainingNoteContactIds.slice(0, 150);
 
-        let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
-        if (cleanSearch) {
-          orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
-        }
+        const orParts = contactTextSearchFilters(parsed.remainingSearch);
         const remainingAreas = areaSearchClause(
           parsed.remainingSearch,
           areaOptionsForSearch
         );
-        if (remainingAreas) {
-          orFilter += `,${remainingAreas}`;
-        }
+        if (remainingAreas) orParts.push(remainingAreas);
         if (safeRemainingIds.length > 0) {
-          orFilter += `,id.in.(${safeRemainingIds.join(',')})`;
+          orParts.push(`id.in.(${safeRemainingIds.join(',')})`);
         }
-        query = query.or(orFilter);
+        if (orParts.length > 0) query = query.or(orParts.join(','));
       }
     } else {
       // Simple text-search query fallback
       const term = `%${search.trim()}%`;
-      const cleanSearch = search.trim().replace(/["'{}\\]/g, '');
       const { data: matchedNotes } = await db
         .from('contact_notes')
         .select('contact_id')
@@ -634,18 +626,13 @@ async function runContactsPage(
         : [];
       const safeNoteIds = noteContactIds.slice(0, 150);
 
-      let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
-      if (cleanSearch) {
-        orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
-      }
+      const orParts = contactTextSearchFilters(search);
       const searchAreas = areaSearchClause(search, areaOptionsForSearch);
-      if (searchAreas) {
-        orFilter += `,${searchAreas}`;
-      }
+      if (searchAreas) orParts.push(searchAreas);
       if (safeNoteIds.length > 0) {
-        orFilter += `,id.in.(${safeNoteIds.join(',')})`;
+        orParts.push(`id.in.(${safeNoteIds.join(',')})`);
       }
-      query = query.or(orFilter);
+      if (orParts.length > 0) query = query.or(orParts.join(','));
     }
   }
 

@@ -1,13 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import {
+  Stack,
+  router,
+  useLocalSearchParams,
+  useNavigation,
+} from 'expo-router';
+import { usePreventRemove } from 'expo-router/react-navigation';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -44,6 +51,8 @@ import {
   Avatar,
   Banner,
   ChoiceChip,
+  EmptyState,
+  LoadErrorState,
   PrimaryButton,
   SectionLabel,
   Tag,
@@ -59,7 +68,10 @@ import {
 import { noteWrite, referrerFields } from '@/lib/contact-form';
 import { contactFullName } from '@/lib/contact-name';
 import { storagePublicUrl } from '@/lib/storage-url';
+import { phoneHints } from '@/lib/phone-hints';
 import { useAccountCountryCode } from '@/lib/use-account-currency';
+import { useHeaderHeight } from '@/lib/use-header-height';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { contactPhone } from '@shared/lib/format/phone';
 import {
   LEAD_TEMP_NONE_LABEL,
@@ -204,8 +216,57 @@ export default function ContactDetailScreen() {
   // so a freshly created contact can be filled in without a second tap.
   const { id, edit } = useLocalSearchParams<{ id: string; edit?: string }>();
   const [editing, setEditing] = useState(edit === '1');
+  const [dirty, setDirty] = useState(false);
+  const navigation = useNavigation();
+  const { show, close, dialogProps } = useAppDialog();
 
-  const { data: contact, isLoading } = useQuery({
+  function confirmDiscard(discard: () => void) {
+    haptic.warn();
+    show({
+      title: 'Discard changes?',
+      message: 'Your edits to this contact have not been saved.',
+      actions: [
+        { label: 'Keep editing', variant: 'muted', onPress: close },
+        {
+          label: 'Discard',
+          variant: 'destructive',
+          onPress: () => {
+            close();
+            setDirty(false);
+            discard();
+          },
+        },
+      ],
+    });
+  }
+
+  function finishEditing() {
+    setDirty(false);
+    setEditing(false);
+  }
+
+  function toggleEditing() {
+    if (!editing) {
+      setEditing(true);
+      return;
+    }
+    if (dirty) {
+      confirmDiscard(finishEditing);
+      return;
+    }
+    finishEditing();
+  }
+
+  usePreventRemove(editing && dirty, ({ data }) =>
+    confirmDiscard(() => navigation.dispatch(data.action))
+  );
+
+  const {
+    data: contact,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['contact', id],
     queryFn: () => fetchContact(id),
     enabled: Boolean(id),
@@ -244,7 +305,12 @@ export default function ContactDetailScreen() {
             'Contact',
           headerRight: () =>
             contact ? (
-              <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}>
+              <Pressable
+                onPress={toggleEditing}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={editing ? 'Cancel editing' : 'Edit contact'}
+              >
                 <Text
                   style={{
                     color: colors.primary,
@@ -258,11 +324,29 @@ export default function ContactDetailScreen() {
             ) : null,
         }}
       />
-      {isLoading || !contact ? (
+      {isLoading ? (
         <View
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
         >
           <ConvoRealLoader />
+        </View>
+      ) : !contact ? (
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          {isError ? (
+            <LoadErrorState
+              title="Could not load this contact"
+              onRetry={() => void refetch()}
+            />
+          ) : (
+            <EmptyState
+              icon="person-outline"
+              title="Contact not found"
+              subtitle="It may have been deleted or merged into another contact."
+              action={
+                <PrimaryButton label="Back" onPress={() => router.back()} />
+              }
+            />
+          )}
         </View>
       ) : (
         <>
@@ -281,6 +365,9 @@ export default function ContactDetailScreen() {
                     onPress={() => {
                       if (!active) router.setParams({ id: a.id });
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open agent ${a.name || contactHandle(a)}`}
+                    accessibilityState={{ selected: active }}
                     style={[
                       styles.agentChip,
                       {
@@ -309,12 +396,17 @@ export default function ContactDetailScreen() {
             </ScrollView>
           ) : null}
           {editing ? (
-            <ContactEditor contact={contact} onDone={() => setEditing(false)} />
+            <ContactEditor
+              contact={contact}
+              onDone={finishEditing}
+              onDirtyChange={setDirty}
+            />
           ) : (
             <ContactCard contact={contact} />
           )}
         </>
       )}
+      <AppDialog {...dialogProps} />
     </View>
   );
 }
@@ -344,6 +436,11 @@ function ContactCard({ contact }: { contact: Contact }) {
     dialogProps: screenDialogProps,
   } = useAppDialog();
   const { startCall, callLogProps } = useCallLog();
+  const pull = usePullRefresh(() =>
+    queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey.includes(contact.id),
+    })
+  );
   const name = contact.name || contactHandle(contact);
   async function makePrimary(phone: string) {
     const failure = await promoteContactPhone(contact, phone);
@@ -544,6 +641,13 @@ function ContactCard({ contact }: { contact: Contact }) {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        refreshControl={
+          <RefreshControl
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
+            tintColor={colors.primary}
+          />
+        }
       >
         {contact.status === 'pending_review' ? (
           <ReviewBanner
@@ -1655,11 +1759,14 @@ async function openConversation(contactId: string) {
 function ContactEditor({
   contact,
   onDone,
+  onDirtyChange,
 }: {
   contact: Contact;
   onDone: () => void;
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const { colors, dark, fonts: f } = useTheme();
+  const headerHeight = useHeaderHeight();
   const source = resolveRequirementSource(contact);
   const [name, setName] = useState(contact.name ?? '');
   const [salutation, setSalutation] = useState(contact.salutation ?? '');
@@ -1729,6 +1836,46 @@ function ContactEditor({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const countryCode = useAccountCountryCode();
+  const hints = phoneHints(countryCode);
+
+  const snapshot = JSON.stringify([
+    name,
+    salutation,
+    secondName,
+    nameTag,
+    primaryPhone,
+    secondaryPhones,
+    email,
+    company,
+    referrer,
+    requirements,
+    notesDraft,
+    classification,
+    leadTemp,
+    minBudget,
+    minBudgetUnit,
+    maxBudget,
+    maxBudgetUnit,
+    noBudget,
+    listingTypes,
+    areas,
+    areasGeo,
+    strictArea,
+    propertyInterests,
+    minRoi,
+    requiresTenanted,
+    updateChannel,
+  ]);
+  const [initialSnapshot] = useState(snapshot);
+  const dirty = snapshot !== initialSnapshot;
+  useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
+
+  function fail(message: string) {
+    haptic.warn();
+    setError(message);
+  }
 
   const showPrefs = Boolean(
     classification && BUYER_PREF_CLASSIFICATIONS.includes(classification)
@@ -1745,7 +1892,7 @@ function ContactEditor({
   async function save() {
     const cleanEmail = email.trim();
     if (cleanEmail && !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
-      setError(
+      fail(
         'That email address doesn\u2019t look right \u2014 check it and try again.'
       );
       return;
@@ -1758,9 +1905,7 @@ function ContactEditor({
     for (const entry of typedPhones) {
       const normalized = contactPhone(entry, countryCode);
       if (!normalized) {
-        setError(
-          `"${entry}" doesn\u2019t look like a phone number \u2014 use 10 digits, or include the country code.`
-        );
+        fail(hints.invalid(entry));
         return;
       }
       if (normalized === primaryPhone || normalizedPhones.includes(normalized))
@@ -1775,7 +1920,7 @@ function ContactEditor({
       : budgetToRupees(maxBudget, maxBudgetUnit);
     const budgetError = budgetRangeError(minBudgetValue, maxBudgetValue);
     if (budgetError) {
-      setError(budgetError);
+      fail(budgetError);
       return;
     }
     setSaving(true);
@@ -1891,15 +2036,14 @@ function ContactEditor({
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
+      keyboardVerticalOffset={headerHeight}
     >
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        {error ? <Banner kind="error" text={error} /> : null}
-
         <View style={{ gap: spacing.sm }}>
           <SectionLabel text="Title" style={{ color: colors.textMuted }} />
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -1908,13 +2052,17 @@ function ContactEditor({
               return (
                 <Pressable
                   key={option}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={option}
+                  accessibilityState={{ selected, checked: selected }}
+                  hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
                   onPress={() => {
                     haptic.tap();
                     setSalutation(selected ? '' : option);
                   }}
                   style={{
+                    minHeight: 40,
+                    justifyContent: 'center',
                     borderWidth: 1,
                     borderColor: selected ? colors.primary : colors.border,
                     backgroundColor: selected
@@ -1990,7 +2138,7 @@ function ContactEditor({
                       prev.map((p, i) => (i === idx ? next : p))
                     )
                   }
-                  placeholder="+91 98765 43210"
+                  placeholder={hints.international}
                   keyboardType="phone-pad"
                   autoCapitalize="none"
                 />
@@ -2000,9 +2148,7 @@ function ContactEditor({
                 onPress={() => {
                   const candidate = contactPhone(value, countryCode);
                   if (!candidate) {
-                    setError(
-                      `"${value}" doesn\u2019t look like a phone number \u2014 use 10 digits, or include the country code.`
-                    );
+                    fail(hints.invalid(value));
                     return;
                   }
                   haptic.tap();
@@ -2482,7 +2628,8 @@ function ContactEditor({
           </View>
         ) : null}
 
-        <View style={{ marginTop: spacing.sm }}>
+        <View style={{ marginTop: spacing.sm, gap: spacing.sm }}>
+          {error ? <Banner kind="error" text={error} /> : null}
           <PrimaryButton label="Save changes" busy={saving} onPress={save} />
         </View>
       </ScrollView>

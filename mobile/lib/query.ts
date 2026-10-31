@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, focusManager } from '@tanstack/react-query';
+import { AppState, Platform } from 'react-native';
 
 /**
  * Query cache persisted to AsyncStorage = the offline READ story
@@ -21,6 +22,15 @@ export const queryClient = new QueryClient({
   },
 });
 
+if (Platform.OS !== 'web') {
+  focusManager.setEventListener((handleFocus) => {
+    const subscription = AppState.addEventListener('change', (state) =>
+      handleFocus(state === 'active')
+    );
+    return () => subscription.remove();
+  });
+}
+
 export const asyncStoragePersister = createAsyncStoragePersister({
   storage: AsyncStorage,
   key: 'convoreal-query-cache',
@@ -32,4 +42,4 @@ export const asyncStoragePersister = createAsyncStoragePersister({
  * cached shape changes so restored entries from older builds are discarded
  * instead of reaching components that expect the new shape.
  */
-export const queryCacheBuster = '2';
+export const queryCacheBuster = '3';

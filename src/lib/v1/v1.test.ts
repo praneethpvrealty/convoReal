@@ -99,8 +99,9 @@ describe('ilikeTerm', () => {
     expect(ilikeTerm('%_villa*')).toBe('_villa');
   });
 
-  it('doubles embedded quotes rather than letting them close the literal', () => {
-    expect(ilikeTerm('the "Grand" villa')).toBe('the ""Grand"" villa');
+  it('drops quotes and backslashes rather than letting them close the literal', () => {
+    expect(ilikeTerm('the "Grand" villa')).toBe('the Grand villa');
+    expect(ilikeTerm('A\\B')).toBe('A B');
   });
 
   it('returns null for a term that is only punctuation', () => {

@@ -226,7 +226,7 @@ export function ChoiceChip({
     <Pressable
       testID={testID}
       onPress={onPress}
-      hitSlop={6}
+      hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
       accessibilityRole={multi ? 'checkbox' : 'radio'}
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ selected, checked: selected }}
@@ -234,6 +234,7 @@ export function ChoiceChip({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
+        minHeight: 36,
         paddingHorizontal: 13,
         paddingVertical: 8,
         borderRadius: radius.full,
@@ -472,6 +473,51 @@ export function EmptyState({
       ) : null}
       {action}
     </View>
+  );
+}
+
+/** A load that failed, said as such rather than as an empty list. */
+export function LoadErrorState({
+  title = 'Could not load this',
+  subtitle = 'Check your connection and try again.',
+  onRetry,
+}: {
+  title?: string;
+  subtitle?: string;
+  onRetry: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <EmptyState
+      icon="cloud-offline-outline"
+      title={title}
+      subtitle={subtitle}
+      action={
+        <Pressable
+          onPress={onRetry}
+          accessibilityRole="button"
+          accessibilityLabel="Try again"
+          style={{
+            backgroundColor: colors.primary,
+            borderRadius: radius.full,
+            paddingHorizontal: 18,
+            paddingVertical: 11,
+            minHeight: 44,
+            justifyContent: 'center',
+          }}
+        >
+          <Text
+            style={{
+              color: colors.onPrimary,
+              fontSize: 13.5,
+              fontFamily: f.bold,
+            }}
+          >
+            Try again
+          </Text>
+        </Pressable>
+      }
+    />
   );
 }
 

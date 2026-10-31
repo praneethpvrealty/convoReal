@@ -6102,3 +6102,98 @@ describe('[ACC-009] mobile sign-in sends the same auth phone as web', () => {
     }
   });
 });
+
+describe('[UIX-009] mobile lists page, failed loads retry and edits are not lost', () => {
+  const thread = mobileSource('app/(app)/conversation/[id].tsx');
+  const inbox = mobileSource('app/(app)/(tabs)/index.tsx');
+  const contacts = mobileSource('app/(app)/(tabs)/contacts.tsx');
+  const contact = mobileSource('app/(app)/contact/[id].tsx');
+  const quickAdd = contacts.slice(
+    contacts.indexOf('function QuickAddContact('),
+    contacts.indexOf('function ContactRow(')
+  );
+  const contactRow = contacts.slice(contacts.indexOf('function ContactRow('));
+
+  it('[UIX-009] pages a thread backwards through older messages', () => {
+    expect(thread).toContain('useInfiniteQuery({');
+    expect(thread).toContain("queryKey: ['messages', id],");
+    expect(thread).toContain(
+      'getNextPageParam: (last) => nextKeysetCursor(last, PAGE_SIZE)'
+    );
+    expect(thread).toContain('query.or(olderThanCursor(cursor))');
+    expect(thread).toContain("queryKey: ['messages', id, 'last-customer'],");
+    expect(thread).toContain('void fetchOlderMessages();');
+    expect(thread).toContain('ListFooterComponent={');
+  });
+
+  it('[UIX-009] pages the inbox and searches it on the server', () => {
+    expect(inbox).toContain('useInfiniteQuery({');
+    expect(inbox).toContain(
+      'getNextPageParam: (_last, all) => nextOffset(all, INBOX_PAGE_SIZE)'
+    );
+    expect(inbox).toContain('.range(offset, offset + INBOX_PAGE_SIZE - 1)');
+    expect(inbox).not.toContain('.limit(200)');
+    expect(inbox).toContain('onEndReached={loadMore}');
+    expect(inbox).toContain('inboxFilterPlan(scope.filter)');
+    expect(inbox).toContain('query.or(scope.searchFilter)');
+    expect(inbox).not.toContain('c.contact?.name?.toLowerCase().includes(q)');
+  });
+
+  it('[UIX-009] pages contacts and builds search from the shared filter', () => {
+    expect(contacts).toContain('useInfiniteQuery({');
+    expect(contacts).toContain(
+      '.range(offset, offset + CONTACTS_PAGE_SIZE - 1)'
+    );
+    expect(contacts).toContain('contactTextSearchFilters(q)');
+    expect(contacts).not.toContain('orFilter');
+    expect(webSource('lib/contacts/list-queries.ts')).toContain(
+      "import { contactTextSearchFilters } from '@/lib/contacts/search-filter';"
+    );
+  });
+
+  it('[UIX-009] says a failed load failed and offers to try again', () => {
+    for (const source of [thread, inbox, contacts, contact]) {
+      expect(source).toContain('<LoadErrorState');
+    }
+    expect(mobileSource('components/ui.tsx')).toContain('Try again');
+    expect(contact).toContain('title="Contact not found"');
+    expect(contact).not.toContain('{isLoading || !contact ? (');
+  });
+
+  it('[UIX-009] confirms before discarding unsaved contact edits', () => {
+    expect(contact).toContain(
+      "import { usePreventRemove } from 'expo-router/react-navigation';"
+    );
+    expect(contact).toContain('usePreventRemove(editing && dirty');
+    expect(contact).toContain("title: 'Discard changes?'");
+    expect(contact).toContain('onDirtyChange={setDirty}');
+    expect(contact).toContain('keyboardVerticalOffset={headerHeight}');
+    expect(contact).toContain('<RefreshControl');
+  });
+
+  it('[UIX-009] keeps the quick-add draft until a contact is added', () => {
+    expect(quickAdd.match(/reset\(\);/g)).toHaveLength(1);
+    expect(quickAdd).toContain('style={sheetScrollArea}');
+    expect(quickAdd).toContain('keyboardShouldPersistTaps="handled"');
+    expect(quickAdd).toContain("queryKey: ['contact-counts']");
+    expect(contactRow).toContain('{hasPhone(contact) ? (');
+  });
+
+  it('[UIX-009] keeps a composer draft per thread and phone hints per country', () => {
+    expect(thread).toContain('useState(() => composerDraft(conversationId))');
+    expect(thread).toContain('saveComposerDraft(conversationId, draft)');
+    expect(mobileSource('lib/auth-store.ts')).toContain(
+      'clearComposerDrafts();'
+    );
+    for (const source of [contacts, contact]) {
+      expect(source).not.toMatch(/placeholder="[^"]*(98765|99002)/);
+      expect(source).toContain('phoneHints(countryCode)');
+    }
+  });
+
+  it('[UIX-009] refetches stale screens when the app returns to the foreground', () => {
+    expect(mobileSource('lib/query.ts')).toContain(
+      'focusManager.setEventListener('
+    );
+  });
+});

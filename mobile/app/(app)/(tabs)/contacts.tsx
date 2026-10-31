@@ -1,9 +1,14 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -38,6 +43,7 @@ import {
   EmptyState,
   FilterChip,
   IconButton,
+  LoadErrorState,
   PrimaryButton,
   SearchBar,
   SectionLabel,
@@ -72,6 +78,8 @@ import { useAccountCountryCode } from '@/lib/use-account-currency';
 import { friendlyError } from '@/lib/errors';
 import { splitImportedName } from '@/lib/name-tag-split';
 import { chatListTime, cleanPhoneInput } from '@/lib/format';
+import { uniqueById } from '@/lib/list-paging';
+import { phoneHints } from '@/lib/phone-hints';
 import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
 import { queryClient } from '@/lib/query';
@@ -96,6 +104,7 @@ import {
   type Contact,
 } from '@/lib/types';
 import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';
+import { contactTextSearchFilters } from '@shared/lib/contacts/search-filter';
 import {
   isVipTag,
   leadTempLabel,
@@ -126,6 +135,8 @@ export interface ContactsPage {
    *  matched a different unit of the tower. */
   interestMatches: Record<string, string>;
 }
+
+const CONTACTS_PAGE_SIZE = 50;
 
 const EMPTY_PAGE: ContactsPage = {
   contacts: [],
@@ -306,7 +317,8 @@ async function fetchContacts(
   search: string,
   segment: SegmentKey,
   interest: InterestFilter | null,
-  filters: ContactFilters
+  filters: ContactFilters,
+  offset: number
 ): Promise<ContactsPage> {
   const q = search.trim();
   const staffFilter = await staffPhoneFilter();
@@ -326,7 +338,8 @@ async function fetchContacts(
     .eq('is_merged', false)
     .eq('is_archived', segment === 'archived')
     .order(order.column, { ascending: order.ascending, nullsFirst: false })
-    .limit(150);
+    .order('id', { ascending: true })
+    .range(offset, offset + CONTACTS_PAGE_SIZE - 1);
 
   if (staffFilter) {
     query = query.not('phone', 'in', staffFilter);
@@ -417,24 +430,16 @@ async function fetchContacts(
       new Set([...tagContactIds, ...noteContactIds])
     ).slice(0, 150);
 
-    let orFilter =
-      `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},` +
-      `email.ilike.${term},company.ilike.${term},requirements.ilike.${term},` +
-      `classification.ilike.${term}`;
-    // Phone match ignoring formatting: "+91 97006 06010" → "919700606010"
-    // matches the stored "+919700606010".
-    const digits = q.replace(/\D/g, '');
-    if (digits.length >= 4) {
-      orFilter += `,phone.ilike.%${digits}%`;
-    }
+    const orParts = contactTextSearchFilters(q);
     const areaVariants = areaSearchVariants(q, options);
     if (areaVariants.length > 0) {
-      orFilter += `,${areaOverlapFilter(AREA_FILTER_COLUMNS, areaVariants)}`;
+      orParts.push(areaOverlapFilter(AREA_FILTER_COLUMNS, areaVariants));
     }
     if (matchedIds.length > 0) {
-      orFilter += `,id.in.(${matchedIds.join(',')})`;
+      orParts.push(`id.in.(${matchedIds.join(',')})`);
     }
-    query = query.or(orFilter);
+    if (orParts.length === 0) return EMPTY_PAGE;
+    query = query.or(orParts.join(','));
   }
 
   const { data, error } = await query;
@@ -587,7 +592,16 @@ export default function ContactsScreen() {
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const {
+    data: pages,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: [
       'contacts',
       debounced,
@@ -596,10 +610,20 @@ export default function ContactsScreen() {
       interest?.value,
       filtersKey(filters),
     ],
-    queryFn: () => fetchContacts(debounced, segment, interest, filters),
+    queryFn: ({ pageParam }) =>
+      fetchContacts(debounced, segment, interest, filters, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (last, all) =>
+      last.contacts.length < CONTACTS_PAGE_SIZE
+        ? undefined
+        : all.reduce((sum, page) => sum + page.contacts.length, 0),
     // Don't wipe the list to skeletons on every keystroke.
     placeholderData: keepPreviousData,
   });
+  const data = useMemo(
+    () => (pages ? mergeContactPages(pages.pages) : undefined),
+    [pages]
+  );
   const counts = useQuery({
     queryKey: ['contact-counts', accountId],
     enabled: Boolean(accountId),
@@ -835,28 +859,47 @@ export default function ContactsScreen() {
               tintColor={colors.primary}
             />
           }
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <ActivityIndicator
+                color={colors.primary}
+                style={{ marginVertical: spacing.lg }}
+              />
+            ) : null
+          }
           // Renders nothing when every ad is mapped, so a clean account
           // pays no space for it — and it sits above the queue of leads
           // that the missing mappings are what filled.
           ListHeaderComponent={<UnmappedPortalAds />}
           ListEmptyComponent={
-            <EmptyState
-              icon="people-outline"
-              title={debounced ? 'No matches' : 'Nothing here yet'}
-              subtitle={
-                interest
-                  ? `Nobody has enquired about ${interest.label} yet — link interested contacts from the listing, or clear the filter.`
-                  : activeFilterCount(filters) > 0
-                    ? 'No contact matches every filter. Loosen one from the Filters chip.'
-                    : debounced
-                      ? 'Searched names, phones, tags, notes, company and requirements.'
-                      : segment === 'active'
-                        ? 'Contacts arrive automatically from WhatsApp conversations and portal leads — or add one with the + button.'
-                        : segment === 'archived'
-                          ? 'No archived contacts.'
-                          : 'No contacts in this segment yet.'
-              }
-            />
+            isError ? (
+              <LoadErrorState
+                title="Could not load contacts"
+                onRetry={() => void refetch()}
+              />
+            ) : (
+              <EmptyState
+                icon="people-outline"
+                title={debounced ? 'No matches' : 'Nothing here yet'}
+                subtitle={
+                  interest
+                    ? `Nobody has enquired about ${interest.label} yet — link interested contacts from the listing, or clear the filter.`
+                    : activeFilterCount(filters) > 0
+                      ? 'No contact matches every filter. Loosen one from the Filters chip.'
+                      : debounced
+                        ? 'Searched names, phones, tags, notes, company and requirements.'
+                        : segment === 'active'
+                          ? 'Contacts arrive automatically from WhatsApp conversations and portal leads — or add one with the + button.'
+                          : segment === 'archived'
+                            ? 'No archived contacts.'
+                            : 'No contacts in this segment yet.'
+                }
+              />
+            )
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
@@ -991,6 +1034,25 @@ export default function ContactsScreen() {
       <AppDialog {...callLogProps} />
     </View>
   );
+}
+
+function mergeContactPages(pages: readonly ContactsPage[]): ContactsPage {
+  return {
+    contacts: uniqueById(pages.map((page) => page.contacts)),
+    tags: Object.assign({}, ...pages.map((page) => page.tags)),
+    propertyCodes: Object.assign(
+      {},
+      ...pages.map((page) => page.propertyCodes)
+    ),
+    propertyTitles: Object.assign(
+      {},
+      ...pages.map((page) => page.propertyTitles)
+    ),
+    interestMatches: Object.assign(
+      {},
+      ...pages.map((page) => page.interestMatches)
+    ),
+  };
 }
 
 /** The unit a row matched under a project filter, by code if it has one. */
@@ -1168,6 +1230,7 @@ function QuickAddContact({
       countryCode
     );
     if ('error' in result) {
+      haptic.warn();
       setError(result.error);
       return;
     }
@@ -1180,6 +1243,7 @@ function QuickAddContact({
       });
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
       reset();
       onClose();
       router.push(`/(app)/contact/${id}`);
@@ -1199,96 +1263,115 @@ function QuickAddContact({
     <BottomSheet
       visible={visible}
       onClose={() => {
-        reset();
+        setError(null);
         onClose();
       }}
-      contentStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
     >
-      <Text
-        style={{ fontSize: 17, fontFamily: f.extrabold, color: colors.text }}
+      <ScrollView
+        style={sheetScrollArea}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          gap: spacing.md,
+        }}
       >
-        New contact
-      </Text>
-      {error ? <Banner kind="error" text={error} /> : null}
-      <TextField
-        placeholder="Name"
-        autoCapitalize="words"
-        value={name}
-        onChangeText={setName}
-      />
-      <TextField
-        placeholder='Name tag · e.g. "Bank DSA"'
-        autoCapitalize="words"
-        value={nameTag}
-        onChangeText={setNameTag}
-      />
-      <TextField
-        placeholder="Phone · e.g. 99002 77111"
-        keyboardType="phone-pad"
-        autoComplete="tel"
-        value={phone}
-        onChangeText={setPhone}
-      />
-      <TextField
-        placeholder="Email · for a company with no number"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoComplete="email"
-        value={email}
-        onChangeText={setEmail}
-      />
-      <View style={{ gap: spacing.sm }}>
-        <SectionLabel
-          text="Classification"
-          style={{ color: colors.textMuted }}
-        />
-        <View
-          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        <Text
+          style={{ fontSize: 17, fontFamily: f.extrabold, color: colors.text }}
         >
-          {CLASSIFICATIONS.map((c) => {
-            const active = classification === c;
-            const hue = classificationColors[c]?.[dark ? 'dark' : 'light'];
-            return (
-              <Pressable
-                key={c}
-                onPress={() => setClassification(c)}
-                accessibilityRole="button"
-                accessibilityLabel={c}
-                accessibilityState={{ selected: active }}
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: radius.full,
-                  backgroundColor: active ? colors.primarySoft : colors.surface,
-                  borderWidth: active ? 1.5 : StyleSheet.hairlineWidth,
-                  borderColor: active ? colors.primary : colors.border,
-                }}
-              >
-                <Text
+          New contact
+        </Text>
+        {error ? <Banner kind="error" text={error} /> : null}
+        <TextField
+          placeholder="Name"
+          autoCapitalize="words"
+          value={name}
+          onChangeText={setName}
+        />
+        <TextField
+          placeholder='Name tag · e.g. "Bank DSA"'
+          autoCapitalize="words"
+          value={nameTag}
+          onChangeText={setNameTag}
+        />
+        <TextField
+          placeholder={phoneHints(countryCode).quickAdd}
+          keyboardType="phone-pad"
+          autoComplete="tel"
+          value={phone}
+          onChangeText={setPhone}
+        />
+        <TextField
+          placeholder="Email · for a company with no number"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <View style={{ gap: spacing.sm }}>
+          <SectionLabel
+            text="Classification"
+            style={{ color: colors.textMuted }}
+          />
+          <View
+            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+          >
+            {CLASSIFICATIONS.map((c) => {
+              const active = classification === c;
+              const hue = classificationColors[c]?.[dark ? 'dark' : 'light'];
+              return (
+                <Pressable
+                  key={c}
+                  onPress={() => setClassification(c)}
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={c}
+                  accessibilityState={{ selected: active, checked: active }}
                   style={{
-                    fontSize: 13,
-                    fontFamily: f.semibold,
-                    color: active ? colors.primary : (hue ?? colors.textMuted),
+                    minHeight: 36,
+                    justifyContent: 'center',
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: radius.full,
+                    backgroundColor: active
+                      ? colors.primarySoft
+                      : colors.surface,
+                    borderWidth: active ? 1.5 : StyleSheet.hairlineWidth,
+                    borderColor: active ? colors.primary : colors.border,
                   }}
                 >
-                  {c}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: f.semibold,
+                      color: active
+                        ? colors.primary
+                        : (hue ?? colors.textMuted),
+                    }}
+                  >
+                    {c}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      </View>
-      <PrimaryButton
-        label="Add contact"
-        busy={saving}
-        disabled={!phone.trim() && !email.trim()}
-        onPress={save}
-      />
-      <Text
-        style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}
-      >
-        Budgets, notes, tags and more can be added from the contact card.
-      </Text>
+        <PrimaryButton
+          label="Add contact"
+          busy={saving}
+          disabled={!phone.trim() && !email.trim()}
+          onPress={save}
+        />
+        <Text
+          style={{
+            fontSize: 11.5,
+            color: colors.textFaint,
+            textAlign: 'center',
+          }}
+        >
+          Budgets, notes, tags and more can be added from the contact card.
+        </Text>
+      </ScrollView>
     </BottomSheet>
   );
 }
@@ -1366,15 +1449,20 @@ function ContactRow({
               <Tag label={contact.name_tag} />
             </View>
           ) : null}
-          <Pressable
-            hitSlop={10}
-            onPress={onCall}
-            accessibilityRole="button"
-            accessibilityLabel={`Call ${name}`}
-            style={[styles.inlineCall, { backgroundColor: colors.primarySoft }]}
-          >
-            <Ionicons name="call" size={13} color={colors.primary} />
-          </Pressable>
+          {hasPhone(contact) ? (
+            <Pressable
+              hitSlop={10}
+              onPress={onCall}
+              accessibilityRole="button"
+              accessibilityLabel={`Call ${name}`}
+              style={[
+                styles.inlineCall,
+                { backgroundColor: colors.primarySoft },
+              ]}
+            >
+              <Ionicons name="call" size={13} color={colors.primary} />
+            </Pressable>
+          ) : null}
           <Text
             style={{
               fontSize: 11,

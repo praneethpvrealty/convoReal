@@ -6204,6 +6204,23 @@
             { "file": "mobile/lib/photo-upload.test.ts", "case": "[UIX-011]" },
             { "file": "mobile/lib/deal-form.test.ts", "case": "[UIX-011]" }
           ]
+        },
+        {
+          "id": "UIX-009",
+          "rule": "Long lists on mobile page instead of stopping: the inbox, the contacts tab and a chat thread each load the next page as the agent scrolls (a thread loads older messages at its top), and inbox name or phone search runs on the server so it finds threads beyond the loaded page. A failed load says so and offers Try again rather than showing the empty state, on the inbox, contacts, a thread and a contact. A contact that no longer exists says Contact not found with Back instead of spinning. Unsaved contact edits are confirmed with Discard changes? before Cancel or leaving the screen throws them away, and an editor validation error shows next to Save with a warning haptic. The quick-add contact sheet scrolls above the keyboard and keeps its draft when dismissed, clearing only after a successful add. Contacts and inbox search tolerate commas, parentheses and quotes (src/lib/postgrest-search.ts, src/lib/contacts/search-filter.ts, shared with the web contacts list). A composer draft survives leaving and reopening its thread for the app session. Phone hints follow the account country code, and the contact row offers Call only for a contact with a phone.",
+          "tests": [
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-009]" },
+            {
+              "file": "src/lib/contacts/search-filter.test.ts",
+              "case": "[UIX-009]"
+            },
+            { "file": "mobile/lib/list-paging.test.ts", "case": "[UIX-009]" },
+            { "file": "mobile/lib/inbox-query.test.ts", "case": "[UIX-009]" },
+            {
+              "file": "mobile/lib/composer-drafts.test.ts",
+              "case": "[UIX-009]"
+            }
+          ]
         }
       ]
     }
