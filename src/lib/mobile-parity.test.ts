@@ -6158,6 +6158,12 @@ describe('[UIX-009] mobile lists page, failed loads retry and edits are not lost
     expect(inbox).toContain("select('id, contacts!inner(id)')");
     expect(inbox).toContain('matchesLoadedSearch(c, shortSearch)');
     expect(inbox).toContain('nextActiveOffset(activeIds, all.length)');
+    expect(inbox).toMatch(
+      /!isFetchingNextPage &&\s*!isFetchNextPageError\s*\)/
+    );
+    expect(thread).toContain(
+      'prev.trim() && prev !== restoredDraft ? prev : seedDraft'
+    );
   });
 
   it('[UIX-009] says a failed load failed and offers to try again', () => {

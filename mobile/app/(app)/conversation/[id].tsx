@@ -1143,7 +1143,8 @@ function Composer({
 }) {
   const { colors, dark } = useTheme();
   const insets = useSafeAreaInsets();
-  const [draft, setDraft] = useState(() => composerDraft(conversationId));
+  const [restoredDraft] = useState(() => composerDraft(conversationId));
+  const [draft, setDraft] = useState(restoredDraft);
   useEffect(() => {
     saveComposerDraft(conversationId, draft);
   }, [conversationId, draft]);
@@ -1174,9 +1175,11 @@ function Composer({
   useEffect(() => {
     if (seedDraft && !seededRef.current) {
       seededRef.current = true;
-      setDraft((prev) => (prev.trim() ? prev : seedDraft));
+      setDraft((prev) =>
+        prev.trim() && prev !== restoredDraft ? prev : seedDraft
+      );
     }
-  }, [seedDraft]);
+  }, [seedDraft, restoredDraft]);
 
   async function loadSuggestions() {
     if (suggesting) return;

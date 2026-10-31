@@ -417,11 +417,19 @@ export default function InboxScreen() {
       data &&
       filtered.length < INBOX_PAGE_SIZE / 2 &&
       hasNextPage &&
-      !isFetchingNextPage
+      !isFetchingNextPage &&
+      !isFetchNextPageError
     ) {
       void fetchNextPage();
     }
-  }, [data, filtered.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [
+    data,
+    filtered.length,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+  ]);
 
   const visibleFilters = useMemo(() => {
     if (wide || showAllFilters) return INBOX_FILTERS;
