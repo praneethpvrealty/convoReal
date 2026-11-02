@@ -109,6 +109,57 @@ export function extractRateQuote(
   return { perSqft, amount };
 }
 
+const STATED_AREA_RE = new RegExp(
+  `(?<![\\d.,₹]|rs\\.?\\s*|inr\\s*)(\\d[\\d,]*(?:\\.\\d+)?)\\s*(${UNIT_PATTERN})(?![a-z])`,
+  'gi'
+);
+
+const PRECONVERTED_TOLERANCE = 0.05;
+
+export interface StatedArea {
+  value: number;
+  unit: string;
+}
+
+/** "26 gunta commercial land" → { value: 26, unit: 'gunta' }. Amounts
+ *  ("₹50 lakhs / gunta") never match: the number must sit right before
+ *  the unit. */
+export function extractStatedArea(
+  text: string | null | undefined
+): StatedArea | null {
+  if (!text) return null;
+  for (const match of text.matchAll(STATED_AREA_RE)) {
+    const value = parseFloat(match[1].replace(/,/g, ''));
+    const unit = canonicalAreaUnit(match[2]);
+    if (unit && Number.isFinite(value) && value > 0) return { value, unit };
+  }
+  return null;
+}
+
+/** "26 gunta" has come back from the model as land_area 28264.2 with
+ *  land_area_unit 'Gunta' — the figure already turned into Sq.Ft. but
+ *  still labelled in the quoted unit, so every later conversion
+ *  multiplies it by 1089 again. When the stated figure in that unit,
+ *  converted, lands on the model's number, the stated figure wins. */
+function undoPreconvertedLandArea(
+  draft: ParsedPropertyDraft,
+  sources: Array<string | null | undefined>
+): void {
+  const unit = canonicalAreaUnit(draft.land_area_unit);
+  if (!unit || !draft.land_area || draft.land_area <= 0) return;
+  for (const source of sources) {
+    const stated = extractStatedArea(source);
+    if (!stated || stated.unit !== unit) continue;
+    if (stated.value === draft.land_area) return;
+    const statedSqft = toSquareFeet(stated.value, unit);
+    if (!statedSqft || statedSqft === stated.value) continue;
+    if (Math.abs(draft.land_area / statedSqft - 1) <= PRECONVERTED_TOLERANCE) {
+      draft.land_area = stated.value;
+      return;
+    }
+  }
+}
+
 const YOUTUBE_URL_RE =
   /https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be|youtube-nocookie\.com)\/\S+/i;
 const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{6,20}$/;
@@ -230,6 +281,8 @@ export function applyListingDerivations(
     next.youtube_video_id ??
     previousDraft?.youtube_video_id ??
     null;
+
+  undoPreconvertedLandArea(next, [rawText, next.title, next.description]);
 
   const dimensionSqft = parseDimensionsToSqft(next.dimensions);
   if (dimensionSqft && !next.land_area) {
