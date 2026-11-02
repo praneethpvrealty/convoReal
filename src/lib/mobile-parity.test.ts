@@ -2939,7 +2939,12 @@ describe('[TXW] the Transaction Workspace ships on both surfaces', () => {
     expect(mobileList).toContain(
       "const OUTCOME_ORDER: readonly PipelineOutcome[] = [\n  'active',\n  'successful',\n  'lost',\n];"
     );
-    expect(mobileList).toContain('scrollToLocation({');
+    expect(mobileList).toContain('stickySectionHeadersEnabled');
+    expect(mobileList).toContain(
+      'scrollToLocation({\n      sectionIndex,\n      itemIndex: 1,\n      viewOffset: 0,\n      animated: true,\n    });'
+    );
+    expect(mobileList).not.toContain('itemIndex: 0');
+    expect(mobileList).toContain('onScrollToIndexFailed={(info) => {');
     expect(
       webSource('app/(dashboard)/pipelines/pipelines-content.tsx')
     ).toContain('useBoardLayout()');
