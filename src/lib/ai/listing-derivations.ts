@@ -110,7 +110,7 @@ export function extractRateQuote(
 }
 
 const STATED_AREA_RE = new RegExp(
-  `(?<![\\d.,₹]|rs\\.?\\s*|inr\\s*)(\\d[\\d,]*(?:\\.\\d+)?)\\s*(${UNIT_PATTERN})(?![a-z])`,
+  `(?<![\\d.,₹]|\\b(?:rs|inr)\\.?\\s*)(\\d[\\d,]*(?:\\.\\d+)?)\\s*(${UNIT_PATTERN})(?![a-z])`,
   'gi'
 );
 
@@ -125,13 +125,15 @@ export interface StatedArea {
  *  ("₹50 lakhs / gunta") never match: the number must sit right before
  *  the unit. */
 export function extractStatedArea(
-  text: string | null | undefined
+  text: string | null | undefined,
+  inUnit?: string | null
 ): StatedArea | null {
   if (!text) return null;
   for (const match of text.matchAll(STATED_AREA_RE)) {
     const value = parseFloat(match[1].replace(/,/g, ''));
     const unit = canonicalAreaUnit(match[2]);
-    if (unit && Number.isFinite(value) && value > 0) return { value, unit };
+    if (!unit || (inUnit && unit !== inUnit)) continue;
+    if (Number.isFinite(value) && value > 0) return { value, unit };
   }
   return null;
 }
@@ -148,8 +150,8 @@ function undoPreconvertedLandArea(
   const unit = canonicalAreaUnit(draft.land_area_unit);
   if (!unit || !draft.land_area || draft.land_area <= 0) return;
   for (const source of sources) {
-    const stated = extractStatedArea(source);
-    if (!stated || stated.unit !== unit) continue;
+    const stated = extractStatedArea(source, unit);
+    if (!stated) continue;
     if (stated.value === draft.land_area) return;
     const statedSqft = toSquareFeet(stated.value, unit);
     if (!statedSqft || statedSqft === stated.value) continue;
@@ -282,7 +284,12 @@ export function applyListingDerivations(
     previousDraft?.youtube_video_id ??
     null;
 
-  undoPreconvertedLandArea(next, [rawText, next.title, next.description]);
+  const describedArea =
+    !previousDraft || previousDraft.land_area === next.land_area;
+  undoPreconvertedLandArea(
+    next,
+    describedArea ? [rawText, next.title, next.description] : [rawText]
+  );
 
   const dimensionSqft = parseDimensionsToSqft(next.dimensions);
   if (dimensionSqft && !next.land_area) {

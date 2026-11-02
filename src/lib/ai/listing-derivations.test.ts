@@ -461,6 +461,19 @@ describe('extractStatedArea', () => {
     });
   });
 
+  it('finds the area in the unit asked for past an earlier one', () => {
+    expect(
+      extractStatedArea('Built up 1500 sqft, plot 26 gunta', 'gunta')
+    ).toEqual({ value: 26, unit: 'gunta' });
+  });
+
+  it('reads an area after a word that ends in rs', () => {
+    expect(extractStatedArea('Land for developers 26 gunta')).toEqual({
+      value: 26,
+      unit: 'gunta',
+    });
+  });
+
   it('ignores amounts quoted against a unit', () => {
     expect(extractStatedArea('Price 50 lakhs / Gunta')).toBeNull();
     expect(extractStatedArea('Rs 4500 per sqft')).toBeNull();
@@ -512,6 +525,33 @@ describe('applyListingDerivations — land area the model pre-converted', () => 
       'Actually it is 30 gunta'
     );
     expect(derived.land_area).toBe(30);
+  });
+
+  it('restores the gunta figure when a built-up area is quoted first', () => {
+    const derived = applyListingDerivations(
+      makeDraft({
+        type: 'Commercial Land',
+        land_area: 28264.2,
+        land_area_unit: 'Gunta',
+      }),
+      'Commercial plot, built up 1500 sqft, plot 26 gunta, price 50 lakhs per gunta'
+    );
+    expect(derived.land_area).toBe(26);
+    expect(derived.price).toBe(130000000);
+  });
+
+  it('does not let a stale title undo a correction', () => {
+    const previous = makeDraft({
+      title: '100 Sq Yards Plot',
+      land_area: 100,
+      land_area_unit: 'Sq.Yd.',
+    });
+    const corrected = applyListingDerivations(
+      { ...previous, land_area: 900 },
+      'Actually it is 900, not 100',
+      previous
+    );
+    expect(corrected.land_area).toBe(900);
   });
 
   it('leaves a Sq.Ft. figure alone', () => {
