@@ -324,10 +324,16 @@ export default function DealsScreen() {
     []
   );
 
+  // A sticky section header is laid out inside its sticky wrapper, so the
+  // list records every header at offset 0 and a jump to itemIndex 0 lands
+  // at the top of the board. Aim at the first cell below the header (a
+  // deal, or the empty footer of a stage with none); with sticky headers
+  // on, scrollToLocation pulls the header's own height back off, so the
+  // header lands at the top.
   function scrollToSection(sectionIndex: number) {
     sectionListRef.current?.scrollToLocation({
       sectionIndex,
-      itemIndex: 0,
+      itemIndex: 1,
       viewOffset: 0,
       animated: true,
     });

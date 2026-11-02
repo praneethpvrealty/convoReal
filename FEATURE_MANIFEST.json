@@ -3499,7 +3499,7 @@
       "invariants": [
         {
           "id": "PIPE-001",
-          "rule": "The Deals board opens flat on both surfaces: every stage of the pipeline in one row, active stages first in position order and then the won and lost stages at the right edge whatever their stored position, an empty stage folded to a rail that still accepts a drop and opens on a tap. The rotating wheel is a per-device choice behind a Flat / Wheel switch, stored under one key on both surfaces, and never the default.",
+          "rule": "The Deals board opens flat on both surfaces: every stage of the pipeline in one row, active stages first in position order and then the won and lost stages at the right edge whatever their stored position, an empty stage folded to a rail that still accepts a drop and opens on a tap. The rotating wheel is a per-device choice behind a Flat / Wheel switch, stored under one key on both surfaces, and never the default. On mobile the flat board is one sectioned list under a strip of stage chips: tapping a chip scrolls the list so that stage's header sits at the top (aimed at the first cell below the header, because a sticky header measures at offset 0 and a jump to it would land on the top of the board), and scrolling the list by hand moves the highlighted chip to the stage in view.",
           "tests": [
             {
               "file": "src/lib/pipelines/board-layout.test.ts",
