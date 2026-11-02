@@ -4,6 +4,7 @@ import {
   detectJointDevelopment,
   extractDimensionsFromText,
   extractRateQuote,
+  extractStatedArea,
   extractYouTubeVideoId,
   parseDimensionsToSqft,
   toSquareFeet,
@@ -445,5 +446,119 @@ describe('applyListingDerivations — joint development', () => {
       previous
     );
     expect(derived.listing_type).toBe('Sale');
+  });
+});
+
+describe('extractStatedArea', () => {
+  it('reads an area quoted with its unit', () => {
+    expect(extractStatedArea('26 gunta commercial land')).toEqual({
+      value: 26,
+      unit: 'gunta',
+    });
+    expect(extractStatedArea('Plot of 2.5 Acres near airport')).toEqual({
+      value: 2.5,
+      unit: 'acre',
+    });
+  });
+
+  it('finds the area in the unit asked for past an earlier one', () => {
+    expect(
+      extractStatedArea('Built up 1500 sqft, plot 26 gunta', 'gunta')
+    ).toEqual({ value: 26, unit: 'gunta' });
+  });
+
+  it('reads an area after a word that ends in rs', () => {
+    expect(extractStatedArea('Land for developers 26 gunta')).toEqual({
+      value: 26,
+      unit: 'gunta',
+    });
+  });
+
+  it('ignores amounts quoted against a unit', () => {
+    expect(extractStatedArea('Price 50 lakhs / Gunta')).toBeNull();
+    expect(extractStatedArea('Rs 4500 per sqft')).toBeNull();
+    expect(extractStatedArea('₹1.2 Cr per acre')).toBeNull();
+  });
+});
+
+describe('applyListingDerivations — land area the model pre-converted', () => {
+  const message =
+    '26 gunta commercial land is available for sale in devanahalli. Price 50 lakhs / Gunta';
+
+  it('restores the quoted figure and prices it per gunta', () => {
+    const derived = applyListingDerivations(
+      makeDraft({
+        title: '26 Gunta Commercial Land in Devanahalli',
+        type: 'Commercial Land',
+        land_area: 28264.2,
+        land_area_unit: 'Gunta',
+      }),
+      message
+    );
+    expect(derived.land_area).toBe(26);
+    expect(derived.land_area_unit).toBe('Gunta');
+    expect(derived.price).toBe(130000000);
+  });
+
+  it('falls back to the title when the message is a later correction', () => {
+    const derived = applyListingDerivations(
+      makeDraft({
+        title: '26 Gunta Commercial Land in Devanahalli',
+        type: 'Commercial Land',
+        land_area: 28314,
+        land_area_unit: 'Gunta',
+      }),
+      'Price 50 lakhs per gunta'
+    );
+    expect(derived.land_area).toBe(26);
+    expect(derived.price).toBe(130000000);
+  });
+
+  it('keeps a corrected area that no longer matches the stale title', () => {
+    const derived = applyListingDerivations(
+      makeDraft({
+        title: '26 Gunta Commercial Land in Devanahalli',
+        type: 'Commercial Land',
+        land_area: 30,
+        land_area_unit: 'Gunta',
+      }),
+      'Actually it is 30 gunta'
+    );
+    expect(derived.land_area).toBe(30);
+  });
+
+  it('restores the gunta figure when a built-up area is quoted first', () => {
+    const derived = applyListingDerivations(
+      makeDraft({
+        type: 'Commercial Land',
+        land_area: 28264.2,
+        land_area_unit: 'Gunta',
+      }),
+      'Commercial plot, built up 1500 sqft, plot 26 gunta, price 50 lakhs per gunta'
+    );
+    expect(derived.land_area).toBe(26);
+    expect(derived.price).toBe(130000000);
+  });
+
+  it('does not let a stale title undo a correction', () => {
+    const previous = makeDraft({
+      title: '100 Sq Yards Plot',
+      land_area: 100,
+      land_area_unit: 'Sq.Yd.',
+    });
+    const corrected = applyListingDerivations(
+      { ...previous, land_area: 900 },
+      'Actually it is 900, not 100',
+      previous
+    );
+    expect(corrected.land_area).toBe(900);
+  });
+
+  it('leaves a Sq.Ft. figure alone', () => {
+    const derived = applyListingDerivations(
+      makeDraft({ land_area: 28314, land_area_unit: 'Sq.Ft.' }),
+      message
+    );
+    expect(derived.land_area).toBe(28314);
   });
 });
