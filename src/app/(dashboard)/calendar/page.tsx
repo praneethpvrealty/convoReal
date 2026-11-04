@@ -54,6 +54,7 @@ import { TeamView } from '@/components/calendar/team-view';
 import { WeekView } from '@/components/calendar/week-view';
 import { AgendaView } from '@/components/calendar/agenda-view';
 import { TasksList } from '@/components/calendar/tasks-list';
+import { AgendaPdfButton } from '@/components/calendar/agenda-pdf-button';
 import { SubscribeFeedDialog } from '@/components/calendar/subscribe-feed-dialog';
 import {
   CalendarEvent,
@@ -1473,6 +1474,7 @@ export default function CalendarPage() {
                     </div>
                   </>
                 )}
+                <AgendaPdfButton date={currentDate} />
                 <SubscribeFeedDialog />
                 <button
                   onClick={() => openNewApptModal()}

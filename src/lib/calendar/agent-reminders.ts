@@ -24,6 +24,8 @@ import {
   isValidE164,
   phonesMatch,
 } from '@/lib/whatsapp/phone-utils';
+import type { AgendaContact } from '@/lib/calendar/agenda-format';
+import { agendaPdfLinkFor, istDateOf } from '@/lib/calendar/agenda-pdf-link';
 import {
   formatAgendaMessage,
   istDayWindow,
@@ -326,7 +328,7 @@ export async function sendDailyScheduleDigests(
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, assigned_to, title, event_type, start_time, location, status, contact:contacts(name)'
+      'id, account_id, user_id, assigned_to, title, event_type, start_time, location, status, contact:contacts(name, phone)'
     )
     .eq('status', 'scheduled')
     .gte('start_time', startIso)
@@ -344,7 +346,9 @@ export async function sendDailyScheduleDigests(
     // every morning, so an undated backlog would repeat in full daily.
     // No lower bound: a still-open todo overdue from an earlier day
     // belongs on today's agenda too, not just the ones due today.
-    .select('account_id, user_id, assigned_to, title, priority, due_date')
+    .select(
+      'account_id, user_id, assigned_to, title, priority, due_date, contact:contacts(name, phone)'
+    )
     .eq('completed', false)
     .not('due_date', 'is', null)
     .lt('due_date', endIso);
@@ -407,8 +411,9 @@ export async function sendDailyScheduleDigests(
       continue;
     }
 
+    const firstName = assignee.full_name?.trim().split(/\s+/)[0];
     const text =
-      `☀️ Good morning${assignee.full_name ? `, ${assignee.full_name.split(' ')[0]}` : ''}!\n\n` +
+      `☀️ *Good morning${firstName ? `, ${firstName}` : ''}!*\n\n` +
       formatAgendaMessage(
         label,
         entry.events.map((e) => ({
@@ -417,13 +422,24 @@ export async function sendDailyScheduleDigests(
           start_time: e.start_time as string,
           location: e.location as string | null,
           status: e.status as string,
-          contact: e.contact as unknown as { name: string | null } | null,
+          contact: e.contact as unknown as AgendaContact | null,
         })),
         entry.todos.map((t) => ({
           title: t.title as string,
           priority: t.priority as string,
           due_date: (t.due_date as string | null) ?? null,
-        }))
+          contact: t.contact as unknown as AgendaContact | null,
+        })),
+        {
+          pdfUrl: agendaPdfLinkFor(
+            {
+              accountId: entry.accountId,
+              userId: entry.userId,
+              date: istDateOf(now),
+            },
+            now
+          ),
+        }
       );
 
     const quiet = await resolveQuietPeriod(entry.accountId, 'agent', now);
