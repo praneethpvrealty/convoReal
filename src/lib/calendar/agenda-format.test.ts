@@ -8,6 +8,8 @@ describe('[CAL-017] agenda contact formatting', () => {
     expect(callablePhone('98450 12345')).toBe('+919845012345');
     expect(callablePhone('09845012345')).toBe('+919845012345');
     expect(callablePhone('+1 (415) 555-0100')).toBe('+14155550100');
+    expect(callablePhone('+65 8123 4567')).toBe('+6581234567');
+    expect(callablePhone('0065 8123 4567')).toBe('+6581234567');
     expect(callablePhone('123')).toBeNull();
     expect(callablePhone(null)).toBeNull();
   });

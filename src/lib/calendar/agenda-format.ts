@@ -7,8 +7,14 @@ const DEFAULT_COUNTRY_CODE =
   process.env.NEXT_PUBLIC_DEFAULT_COUNTRY_CODE || '91';
 
 export function callablePhone(phone: string | null | undefined): string | null {
-  const digits = String(phone ?? '').replace(/\D/g, '');
+  const raw = String(phone ?? '').trim();
+  const digits = raw.replace(/\D/g, '');
   if (digits.length < 8 || digits.length > 15) return null;
+  if (raw.startsWith('+')) return `+${digits}`;
+  if (raw.startsWith('00')) {
+    const intl = digits.slice(2);
+    return intl.length >= 8 ? `+${intl}` : null;
+  }
   if (digits.length === 10) return `+${DEFAULT_COUNTRY_CODE}${digits}`;
   if (digits.length === 11 && digits.startsWith('0')) {
     return `+${DEFAULT_COUNTRY_CODE}${digits.slice(1)}`;
