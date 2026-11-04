@@ -27,6 +27,7 @@ export interface DailyAgenda {
   events: DailyAgendaEvent[];
   dated: DailyAgendaTodo[];
   undated: DailyAgendaTodo[];
+  datedOmitted: boolean;
 }
 
 const MAX_UNDATED = 50;
@@ -83,8 +84,8 @@ export async function loadDailyAgenda(
       .or(mine)
       .not('due_date', 'is', null)
       .lt('due_date', endIso)
-      .order('due_date', { ascending: true })
-      .limit(MAX_DATED),
+      .order('due_date', { ascending: false })
+      .limit(MAX_DATED + 1),
     admin
       .from('todos')
       .select('title, priority, due_date, contact:contacts(name, phone)')
@@ -108,7 +109,9 @@ export async function loadDailyAgenda(
     ),
   });
   const byPriority = (a: DailyAgendaTodo, b: DailyAgendaTodo) =>
-    rank(a.priority) - rank(b.priority);
+    rank(a.priority) - rank(b.priority) ||
+    (a.dueDate ?? '').localeCompare(b.dueDate ?? '');
+  const datedRows = dated.data ?? [];
 
   return {
     date,
@@ -123,7 +126,8 @@ export async function loadDailyAgenda(
         row.contact as AgendaContact | AgendaContact[] | null
       ),
     })),
-    dated: (dated.data ?? []).map(toTodo).sort(byPriority),
+    dated: datedRows.slice(0, MAX_DATED).map(toTodo).sort(byPriority),
     undated: (undated.data ?? []).map(toTodo).sort(byPriority),
+    datedOmitted: datedRows.length > MAX_DATED,
   };
 }

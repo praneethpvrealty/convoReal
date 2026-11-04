@@ -36,6 +36,8 @@ const DANGER = rgb(0.863, 0.149, 0.149);
 const DANGER_SOFT = rgb(0.996, 0.886, 0.886);
 const LINK = rgb(0.031, 0.494, 0.373);
 
+export const NON_LATIN_PLACEHOLDER = '(text in a local script, see WhatsApp)';
+
 const EVENT_TYPE_LABEL: Record<string, string> = {
   site_visit: 'Site visit',
   call: 'Call',
@@ -79,11 +81,25 @@ class Writer {
 
   clean(text: string): string {
     let out = '';
-    for (const ch of text.replace(/\s+/g, ' ')) {
+    let dropped = false;
+    for (const ch of text.replace(/₹\s?/g, 'Rs. ').replace(/\s+/g, ' ')) {
       const cp = ch.codePointAt(0) ?? 0;
-      if (this.charset.has(cp)) out += ch;
+      if (this.charset.has(cp)) {
+        if (dropped && !/\s/.test(ch)) out += '… ';
+        dropped = false;
+        out += ch;
+      } else if (
+        !/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/u.test(ch)
+      ) {
+        if (!dropped) out += out && !out.endsWith(' ') ? ' ' : '';
+        dropped = true;
+      }
     }
-    return out.replace(/\s{2,}/g, ' ').trim();
+    if (dropped) out += '…';
+    out = out.replace(/\s{2,}/g, ' ').trim();
+    return /^[…\s.,·:;-]*$/.test(out) && text.trim()
+      ? NON_LATIN_PLACEHOLDER
+      : out;
   }
 
   newPage() {
@@ -188,7 +204,7 @@ function drawHeader(
 
   const chips = [
     `${counts.events} appointment${counts.events === 1 ? '' : 's'}`,
-    `${counts.dated} task${counts.dated === 1 ? '' : 's'} due`,
+    `${counts.dated}${agenda.datedOmitted ? '+' : ''} task${counts.dated === 1 ? '' : 's'} due`,
     counts.undated > 0 ? `${counts.undated} with no date` : null,
   ].filter((c): c is string => !!c);
   let x = MARGIN;
@@ -228,7 +244,9 @@ function drawContact(
   contact: DailyAgendaTodo['contact']
 ) {
   if (!contact) return false;
-  const name = contact.name?.trim() || '';
+  const rawName = contact.name?.trim() || '';
+  const name =
+    rawName && w.clean(rawName) !== NON_LATIN_PLACEHOLDER ? rawName : '';
   const phone = callablePhone(contact.phone);
   if (!name && !phone) return false;
   let cx = x;
@@ -426,6 +444,18 @@ export async function buildAgendaPdf(
   if (agenda.dated.length > 0) {
     drawSection(w, 'Tasks due', agenda.dated.length);
     for (const t of agenda.dated) drawTodo(w, t, dayStartIso);
+    if (agenda.datedOmitted) {
+      w.ensure(20);
+      w.text(
+        `Older overdue tasks beyond these ${agenda.dated.length} are on the Calendar page.`,
+        MARGIN,
+        w.cursor,
+        w.regular,
+        9.5,
+        DANGER
+      );
+      w.move(20);
+    }
   }
   if (agenda.undated.length > 0) {
     drawSection(w, 'No date set', agenda.undated.length);

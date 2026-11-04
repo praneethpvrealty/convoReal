@@ -349,6 +349,12 @@ const MAX_UNDATED_TODOS = 5;
  *  characters; the PDF carries the full list. */
 const MAX_DATED_TODOS = 25;
 
+/** Budget under WhatsApp's 4096-character text limit, with headroom
+ *  for the greeting the morning digest puts in front. */
+const MAX_AGENDA_CHARS = 3900;
+
+const MAX_ITEM_CHARS = 160;
+
 const AGENDA_RULE = '━━━━━━━━━━━━━━';
 
 function plural(n: number, word: string): string {
@@ -360,12 +366,37 @@ function byPriority<T extends { priority: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => rank(a.priority) - rank(b.priority));
 }
 
+function clip(text: string, max = MAX_ITEM_CHARS): string {
+  const chars = [...text];
+  return chars.length > max
+    ? `${chars
+        .slice(0, max - 1)
+        .join('')
+        .trimEnd()}…`
+    : text;
+}
+
 function todoLines(t: AgendaTodo): string[] {
   const contact = unwrapRelation(t.contact);
-  const title = agendaItemTitle(t.title, contact);
+  const title = clip(agendaItemTitle(t.title, contact));
   const head = t.priority === 'high' ? `🔴 *${title}*` : `▫️ ${title}`;
   const who = contactLine(contact);
   return who ? [head, `      ${who}`] : [head];
+}
+
+function eventLines(ev: AgendaEvent): string[] {
+  const time = new Date(ev.start_time).toLocaleTimeString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  const emoji = EVENT_TYPE_EMOJI[ev.event_type || 'other'] || '🗓';
+  const lines = [`${emoji} *${time}* — ${clip(ev.title)}`];
+  const who = contactLine(unwrapRelation(ev.contact));
+  if (who) lines.push(`      ${who}`);
+  if (ev.location) lines.push(`      📌 ${clip(ev.location, 120)}`);
+  return lines;
 }
 
 export function formatAgendaMessage(
@@ -374,72 +405,83 @@ export function formatAgendaMessage(
   todos: AgendaTodo[],
   options: { pdfUrl?: string | null } = {}
 ): string {
-  const lines: string[] = [`🗓 *Your schedule — ${dateLabel}*`];
+  const header = `🗓 *Your schedule — ${dateLabel}*`;
 
   const active = events.filter((e) => e.status === 'scheduled');
   const dated = byPriority(todos.filter((t) => t.due_date != null));
   const undated = byPriority(todos.filter((t) => t.due_date == null));
 
   if (active.length === 0 && todos.length === 0) {
-    lines.push(
+    return [
+      header,
       '',
-      'Nothing scheduled. Enjoy the breather — or send me a voice note to line something up. 🎙'
-    );
-    return lines.join('\n');
+      'Nothing scheduled. Enjoy the breather — or send me a voice note to line something up. 🎙',
+    ].join('\n');
   }
 
   const summary = [
     active.length > 0 ? plural(active.length, 'appointment') : null,
     dated.length > 0 ? plural(dated.length, 'task') : null,
   ].filter(Boolean);
-  if (summary.length > 0) lines.push(`_${summary.join(' · ')}_`);
+  const moreWhere = options.pdfUrl
+    ? 'in the PDF below'
+    : 'on the Calendar page';
 
-  if (active.length > 0) {
-    lines.push('', AGENDA_RULE, '📅 *Appointments*');
-    for (const ev of active) {
-      const time = new Date(ev.start_time).toLocaleTimeString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      });
-      const emoji = EVENT_TYPE_EMOJI[ev.event_type || 'other'] || '🗓';
-      const contact = unwrapRelation(ev.contact);
-      lines.push('', `${emoji} *${time}* — ${ev.title}`);
-      const who = contactLine(contact);
-      if (who) lines.push(`      ${who}`);
-      if (ev.location) lines.push(`      📌 ${ev.location}`);
+  const render = (shown: {
+    events: number;
+    dated: number;
+    undated: number;
+  }) => {
+    const lines: string[] = [header];
+    if (summary.length > 0) lines.push(`_${summary.join(' · ')}_`);
+
+    if (active.length > 0) {
+      lines.push('', AGENDA_RULE, '📅 *Appointments*');
+      for (const ev of active.slice(0, shown.events)) {
+        lines.push('', ...eventLines(ev));
+      }
+      const hidden = active.length - shown.events;
+      if (hidden > 0) lines.push('', `_+${hidden} more ${moreWhere}._`);
     }
-  }
 
-  if (dated.length > 0) {
-    lines.push('', AGENDA_RULE, `✅ *Tasks due:* ${dated.length}`);
-    for (const t of dated.slice(0, MAX_DATED_TODOS)) {
-      lines.push('', ...todoLines(t));
+    if (dated.length > 0) {
+      lines.push('', AGENDA_RULE, `✅ *Tasks due:* ${dated.length}`);
+      for (const t of dated.slice(0, shown.dated)) {
+        lines.push('', ...todoLines(t));
+      }
+      const hidden = dated.length - shown.dated;
+      if (hidden > 0) lines.push('', `_+${hidden} more ${moreWhere}._`);
     }
-    const hidden = dated.length - MAX_DATED_TODOS;
-    if (hidden > 0) {
-      lines.push(
-        '',
-        `_+${hidden} more ${options.pdfUrl ? 'in the PDF below' : 'on the Calendar page'}._`
-      );
+
+    if (undated.length > 0) {
+      lines.push('', AGENDA_RULE, '📌 *No date set:*');
+      for (const t of undated.slice(0, shown.undated)) {
+        lines.push('', ...todoLines(t));
+      }
+      const hidden = undated.length - shown.undated;
+      if (hidden > 0) lines.push('', `_+${hidden} more ${moreWhere}._`);
     }
-  }
 
-  if (undated.length > 0) {
-    lines.push('', AGENDA_RULE, '📌 *No date set:*');
-    for (const t of undated.slice(0, MAX_UNDATED_TODOS)) {
-      lines.push('', ...todoLines(t));
+    if (options.pdfUrl) {
+      lines.push('', AGENDA_RULE, '📄 *Download as PDF:*', options.pdfUrl);
     }
-    const hidden = undated.length - MAX_UNDATED_TODOS;
-    if (hidden > 0) lines.push('', `_+${hidden} more on the Calendar page._`);
-  }
+    return lines.join('\n');
+  };
 
-  if (options.pdfUrl) {
-    lines.push('', AGENDA_RULE, '📄 *Download as PDF:*', options.pdfUrl);
+  const shown = {
+    events: active.length,
+    dated: Math.min(dated.length, MAX_DATED_TODOS),
+    undated: Math.min(undated.length, MAX_UNDATED_TODOS),
+  };
+  let text = render(shown);
+  while (text.length > MAX_AGENDA_CHARS) {
+    if (shown.undated > 0) shown.undated--;
+    else if (shown.dated > 0) shown.dated--;
+    else if (shown.events > 0) shown.events--;
+    else break;
+    text = render(shown);
   }
-
-  return lines.join('\n');
+  return text;
 }
 
 /** Confirmation sent back to a lead whose inbound message we turned
