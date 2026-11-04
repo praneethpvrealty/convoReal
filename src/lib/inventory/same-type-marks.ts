@@ -4,7 +4,11 @@ import {
   propertyTypeAnswerGroups,
   sharesTypeAnswer,
 } from '@/lib/match-feedback';
-import { getMatchingContacts, statedTypeGroups } from '@/lib/matching';
+import {
+  getMatchingContacts,
+  statedTypeSignature,
+  typeGroupCategories,
+} from '@/lib/matching';
 import type { Contact, Property } from '@/types';
 
 // Only the columns src/lib/matching.ts reads, plus what a match row
@@ -24,7 +28,8 @@ const MATCH_POOL = ['Buyer', 'Agent'];
  * After an agent rules a contact out for wrong type and says what they
  * want, rules out the rest of the listing's Matching Contacts who want
  * only that too: the reason the agent gave holds for each of them.
- * Only the contact's own list (Buyers or Agents) is touched, only
+ * Every brief the contact is ranked on counts: one that wants another
+ * type, or states none, keeps them. Only the contact's own list (Buyers or Agents) is touched, only
  * contacts who rank for the listing now, and never anyone with an answer
  * on file for it — the insert skips an existing row, so a buyer's own
  * "yes" or "no" and an earlier mark stay as they are. Each joins the
@@ -45,6 +50,10 @@ export async function hideSameTypeMatches(
   const { accountId, userId, property, contact, optionIds } = args;
   const answerGroups = propertyTypeAnswerGroups(optionIds);
   if (answerGroups.length === 0) return 0;
+  const answer = {
+    groups: answerGroups,
+    categories: typeGroupCategories(answerGroups),
+  };
   if (!contact.classification || !MATCH_POOL.includes(contact.classification))
     return 0;
 
@@ -71,7 +80,7 @@ export async function hideSameTypeMatches(
           .filter(
             ({ contact: c }) =>
               c.id !== contact.id &&
-              sharesTypeAnswer(statedTypeGroups(c), answerGroups)
+              sharesTypeAnswer(statedTypeSignature(c), answer)
           )
           .map(({ contact: c }) => c.id)
       ),

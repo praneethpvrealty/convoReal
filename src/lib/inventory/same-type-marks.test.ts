@@ -114,6 +114,42 @@ describe('[PRP-051] a wrong-type answer hides every match who wants only that ty
     });
   });
 
+  it('keeps a contact one of whose briefs wants another type or states a wider category', async () => {
+    const { db, calls } = fakeDb([
+      buyer('two-briefs', {
+        pref_property_types: [],
+        requirement_profiles: [
+          {
+            id: 'flat',
+            raw_text: '3bhk flat on Sarjapur Road',
+            active: true,
+            property_types: ['Flat/ Apartment'],
+            property_categories: [],
+            areas: ['Sarjapur Road'],
+          },
+          {
+            id: 'villa',
+            raw_text: 'Villa on Sarjapur Road',
+            active: true,
+            property_types: ['Villa'],
+            property_categories: [],
+            areas: ['Sarjapur Road'],
+          },
+        ],
+      } as unknown as Partial<Contact>),
+      buyer('commercial-too', {
+        pref_property_types: ['Flat/ Apartment'],
+        pref_property_categories: ['commercial'],
+      }),
+      buyer('omi', { pref_property_types: ['Flat/ Apartment'] }),
+    ]);
+    expect(await hideSameTypeMatches(db, args(['pt_apartment']))).toBe(1);
+    const rows = calls.find((c) => c.op === 'upsert')?.args[0] as {
+      contact_id: string;
+    }[];
+    expect(rows.map((r) => r.contact_id)).toEqual(['omi']);
+  });
+
   it('counts only the marks it wrote, so an answer already on file stays', async () => {
     const { db } = fakeDb(
       [

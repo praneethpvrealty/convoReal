@@ -239,17 +239,27 @@ describe('[PRP-051] type suggestions', () => {
 
 describe('[PRP-051] the same type answer hides the same seekers', () => {
   it('a seeker matches the answer only when every type they state is in it', () => {
-    const flat = propertyTypeAnswerGroups(['pt_apartment']);
-    expect(sharesTypeAnswer(['apartment'], flat)).toBe(true);
-    expect(sharesTypeAnswer(['apartment', 'house'], flat)).toBe(false);
-    expect(sharesTypeAnswer([], flat)).toBe(false);
+    const flat = {
+      groups: propertyTypeAnswerGroups(['pt_apartment']),
+      categories: ['residential'],
+    };
+    const wants = (groups: string[], categories: string[] = []) => ({
+      groups,
+      categories,
+    });
+    expect(sharesTypeAnswer(wants(['apartment']), flat)).toBe(true);
+    expect(sharesTypeAnswer(wants(['apartment'], ['residential']), flat)).toBe(
+      true
+    );
+    expect(sharesTypeAnswer(wants(['apartment'], ['commercial']), flat)).toBe(
+      false
+    );
+    expect(sharesTypeAnswer(wants(['apartment', 'house']), flat)).toBe(false);
+    expect(sharesTypeAnswer(wants([]), flat)).toBe(false);
+    expect(sharesTypeAnswer(null, flat)).toBe(false);
     expect(
-      sharesTypeAnswer(
-        ['house'],
-        propertyTypeAnswerGroups(['pt_house', 'pt_land'])
-      )
-    ).toBe(true);
-    expect(sharesTypeAnswer(['apartment'], [])).toBe(false);
+      sharesTypeAnswer(wants(['apartment']), { groups: [], categories: [] })
+    ).toBe(false);
   });
 
   it('the confirmation names how many others were hidden', () => {

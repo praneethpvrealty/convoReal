@@ -255,18 +255,24 @@ export function propertyTypeAnswerGroups(optionIds: string[]): string[] {
 
 /**
  * Whether another contact on the list matched for the same reason the
- * agent just ruled out: every subtype they state is one the answer names.
- * "LAKSHMAN wants a Flat / Apartment, so not this listing" says the same
- * of every other Flat / Apartment seeker on it. A contact who states no
- * subtype, or also wants something the answer does not name, stays.
+ * agent just ruled out: every subtype they state is one the answer names,
+ * and every category they state is one those subtypes sit in. "LAKSHMAN
+ * wants a Flat / Apartment, so not this listing" says the same of every
+ * other Flat / Apartment seeker on it. A contact who states no subtype,
+ * or also wants something the answer does not cover, stays.
  */
 export function sharesTypeAnswer(
-  statedGroups: string[],
-  answerGroups: string[]
+  stated: { groups: string[]; categories: string[] } | null,
+  answer: { groups: string[]; categories: string[] }
 ): boolean {
-  if (statedGroups.length === 0 || answerGroups.length === 0) return false;
-  const answer = new Set(answerGroups);
-  return statedGroups.every((group) => answer.has(group));
+  if (!stated || stated.groups.length === 0 || answer.groups.length === 0)
+    return false;
+  const groups = new Set(answer.groups);
+  const categories = new Set(answer.categories);
+  return (
+    stated.groups.every((group) => groups.has(group)) &&
+    stated.categories.every((category) => categories.has(category))
+  );
 }
 
 /** The confirmation after a "Not a fit" mark, on web and mobile alike. */
