@@ -588,14 +588,15 @@ export interface TypeSignature {
 /**
  * Every property type a contact is matched on, read the way the matcher
  * reads them, across all the briefs it ranks them on. Null when any of
- * those briefs states no type at all: that brief is open to every type.
+ * those briefs names no subtype: a brief with no type is open to every
+ * type, and one with only a category to the whole category.
  */
 export function statedTypeSignature(contact: Contact): TypeSignature | null {
   const groups = new Set<string>();
   const categories = new Set<string>();
   for (const candidate of requirementCandidates(contact)) {
     const stated = statedTypePrefs(resolveRequirementSource(candidate));
-    if (stated.groups.size === 0 && stated.categories.size === 0) return null;
+    if (stated.groups.size === 0) return null;
     stated.groups.forEach((g) => groups.add(g));
     stated.categories.forEach((c) => categories.add(c));
   }

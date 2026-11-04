@@ -137,6 +137,27 @@ describe('[PRP-051] a wrong-type answer hides every match who wants only that ty
           },
         ],
       } as unknown as Partial<Contact>),
+      buyer('residential-brief', {
+        pref_property_types: [],
+        requirement_profiles: [
+          {
+            id: 'flat',
+            raw_text: '3bhk flat on Sarjapur Road',
+            active: true,
+            property_types: ['Flat/ Apartment'],
+            property_categories: [],
+            areas: ['Sarjapur Road'],
+          },
+          {
+            id: 'any-home',
+            raw_text: 'Any home on Sarjapur Road',
+            active: true,
+            property_types: [],
+            property_categories: ['residential'],
+            areas: ['Sarjapur Road'],
+          },
+        ],
+      } as unknown as Partial<Contact>),
       buyer('commercial-too', {
         pref_property_types: ['Flat/ Apartment'],
         pref_property_categories: ['commercial'],
