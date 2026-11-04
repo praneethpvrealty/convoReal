@@ -245,3 +245,46 @@ export function suggestPropertyTypeOption(signals: {
   }
   return null;
 }
+
+/** The subtype groups a staff type answer stands for. */
+export function propertyTypeAnswerGroups(optionIds: string[]): string[] {
+  return [
+    ...new Set(optionIds.flatMap((id) => propertyTypeOption(id)?.groups ?? [])),
+  ];
+}
+
+/**
+ * Whether another contact on the list matched for the same reason the
+ * agent just ruled out: every subtype they state is one the answer names.
+ * "LAKSHMAN wants a Flat / Apartment, so not this listing" says the same
+ * of every other Flat / Apartment seeker on it. A contact who states no
+ * subtype, or also wants something the answer does not name, stays.
+ */
+export function sharesTypeAnswer(
+  statedGroups: string[],
+  answerGroups: string[]
+): boolean {
+  if (statedGroups.length === 0 || answerGroups.length === 0) return false;
+  const answer = new Set(answerGroups);
+  return statedGroups.every((group) => answer.has(group));
+}
+
+/** The confirmation after a "Not a fit" mark, on web and mobile alike. */
+export function notAFitSavedMessage(
+  contactName: string,
+  result: { typeSaved: boolean; alsoHidden?: number },
+  optionIds: string[]
+): string {
+  const head = result.typeSaved
+    ? `${contactName} is hidden here, and their property type is saved for future matches.`
+    : `${contactName} is hidden from this listing's matches.`;
+  const others = result.alsoHidden ?? 0;
+  if (others <= 0) return head;
+  const titles = optionIds
+    .map((id) => propertyTypeOption(id)?.title)
+    .filter((t): t is string => !!t);
+  const looking = titles.length
+    ? ` looking for ${titles.join(' or ')}`
+    : ' with the same type';
+  return `${head} ${others} other contact${others === 1 ? '' : 's'}${looking} ${others === 1 ? 'was' : 'were'} hidden too.`;
+}

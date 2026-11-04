@@ -5,6 +5,9 @@ import {
   PROPERTY_TYPE_OPTIONS,
   STAFF_PROPERTY_TYPE_OPTIONS,
   isMatchRejectReason,
+  notAFitSavedMessage,
+  propertyTypeAnswerGroups,
+  sharesTypeAnswer,
   partitionMatchesByFeedback,
   propertyTypeNote,
   propertyTypePatch,
@@ -231,5 +234,43 @@ describe('[PRP-051] type suggestions', () => {
         interestedGroups: [],
       })
     ).toBeNull();
+  });
+});
+
+describe('[PRP-051] the same type answer hides the same seekers', () => {
+  it('a seeker matches the answer only when every type they state is in it', () => {
+    const flat = propertyTypeAnswerGroups(['pt_apartment']);
+    expect(sharesTypeAnswer(['apartment'], flat)).toBe(true);
+    expect(sharesTypeAnswer(['apartment', 'house'], flat)).toBe(false);
+    expect(sharesTypeAnswer([], flat)).toBe(false);
+    expect(
+      sharesTypeAnswer(
+        ['house'],
+        propertyTypeAnswerGroups(['pt_house', 'pt_land'])
+      )
+    ).toBe(true);
+    expect(sharesTypeAnswer(['apartment'], [])).toBe(false);
+  });
+
+  it('the confirmation names how many others were hidden', () => {
+    expect(
+      notAFitSavedMessage('LAKSHMAN', { typeSaved: true, alsoHidden: 0 }, [
+        'pt_apartment',
+      ])
+    ).toBe(
+      'LAKSHMAN is hidden here, and their property type is saved for future matches.'
+    );
+    expect(
+      notAFitSavedMessage('LAKSHMAN', { typeSaved: true, alsoHidden: 4 }, [
+        'pt_apartment',
+      ])
+    ).toBe(
+      'LAKSHMAN is hidden here, and their property type is saved for future matches. 4 other contacts looking for Flat / Apartment were hidden too.'
+    );
+    expect(
+      notAFitSavedMessage('Omi', { typeSaved: false, alsoHidden: 1 }, [])
+    ).toBe(
+      "Omi is hidden from this listing's matches. 1 other contact with the same type was hidden too."
+    );
   });
 });

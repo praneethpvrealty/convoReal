@@ -543,6 +543,52 @@ function inferTypePrefsFromText(text: string): {
   return { groups, categories };
 }
 
+/** The property types a contact (or one brief) states: typed preferences,
+ *  categories and legacy interests, before any text inference. */
+function statedTypePrefs(source: Contact): {
+  groups: Set<SubtypeGroup>;
+  categories: Set<Category>;
+} {
+  const groups = new Set<SubtypeGroup>();
+  const categories = new Set<Category>();
+  for (const t of source.pref_property_types || []) {
+    const g =
+      TYPE_TO_GROUP[t] ||
+      (normalizePropertyType(t)
+        ? TYPE_TO_GROUP[normalizePropertyType(t)!]
+        : undefined);
+    if (g) groups.add(g);
+  }
+  for (const c of source.pref_property_categories || []) {
+    if (
+      [
+        'residential',
+        'commercial',
+        'industrial',
+        'agricultural',
+        'plot',
+      ].includes(c)
+    ) {
+      categories.add(c as Category);
+    }
+  }
+  for (const interest of source.property_interests || []) {
+    const mapped = mapLegacyInterest(interest);
+    mapped.groups.forEach((g) => groups.add(g));
+    mapped.categories.forEach((c) => categories.add(c));
+  }
+  return { groups, categories };
+}
+
+/**
+ * The subtype groups a contact's matching brief names, read the way the
+ * matcher reads them. Empty when the contact states no subtype — a bare
+ * category or 'plot' names a sector, not a type.
+ */
+export function statedTypeGroups(contact: Contact): SubtypeGroup[] {
+  return [...statedTypePrefs(resolveRequirementSource(contact)).groups];
+}
+
 /** Maps a legacy property_interests entry to groups/categories. ROI-style interests return nothing (not a type constraint). */
 function mapLegacyInterest(interest: string): {
   groups: SubtypeGroup[];
@@ -907,32 +953,9 @@ function matchContactsSingleProfile(
     const wantedGroups = new Set<SubtypeGroup>();
     const wantedCategories = new Set<Category>();
 
-    for (const t of sourceContact.pref_property_types || []) {
-      const g =
-        TYPE_TO_GROUP[t] ||
-        (normalizePropertyType(t)
-          ? TYPE_TO_GROUP[normalizePropertyType(t)!]
-          : undefined);
-      if (g) wantedGroups.add(g);
-    }
-    for (const c of sourceContact.pref_property_categories || []) {
-      if (
-        [
-          'residential',
-          'commercial',
-          'industrial',
-          'agricultural',
-          'plot',
-        ].includes(c)
-      ) {
-        wantedCategories.add(c as Category);
-      }
-    }
-    for (const interest of sourceContact.property_interests || []) {
-      const mapped = mapLegacyInterest(interest);
-      mapped.groups.forEach((g) => wantedGroups.add(g));
-      mapped.categories.forEach((c) => wantedCategories.add(c));
-    }
+    const stated = statedTypePrefs(sourceContact);
+    stated.groups.forEach((g) => wantedGroups.add(g));
+    stated.categories.forEach((c) => wantedCategories.add(c));
     // Text fallback only for contacts that haven't been AI-extracted yet
     if (
       !hasExtraction &&

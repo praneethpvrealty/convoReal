@@ -135,7 +135,7 @@ export function markMatchNotAFit(
   reason: MatchRejectReason,
   propertyTypes: string[] = []
 ) {
-  return apiFetch<{ data: { typeSaved: boolean } }>(
+  return apiFetch<{ data: { typeSaved: boolean; alsoHidden?: number } }>(
     `/api/properties/${propertyId}/match-feedback`,
     {
       method: 'POST',

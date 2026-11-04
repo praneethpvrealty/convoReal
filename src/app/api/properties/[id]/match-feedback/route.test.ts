@@ -58,6 +58,13 @@ const ctx = {
   userId: 'user-1',
 };
 
+const hideSameTypeMatches = vi.fn<(...args: unknown[]) => Promise<number>>(
+  async () => 0
+);
+vi.mock('@/lib/inventory/same-type-marks', () => ({
+  hideSameTypeMatches: (...args: unknown[]) => hideSameTypeMatches(...args),
+}));
+
 vi.mock('@/lib/auth/account', () => ({
   requireRole: async () => ctx,
   requireWriteRole: () => writeRole(),
@@ -86,6 +93,8 @@ beforeEach(() => {
   insertError = null;
   noteRow = null;
   upsertError = null;
+  hideSameTypeMatches.mockReset();
+  hideSameTypeMatches.mockResolvedValue(0);
 });
 
 describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
@@ -97,7 +106,7 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
       propertyTypes: ['pt_plot'],
     });
     expect(res.status).toBe(200);
-    expect((await res.json()).data).toEqual({ typeSaved: true });
+    expect((await res.json()).data).toEqual({ typeSaved: true, alsoHidden: 0 });
 
     const upsert = calls.find((c) => c.op === 'upsert');
     expect(upsert?.table).toBe('listing_feedback');
@@ -134,6 +143,40 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
       contact_id: CONTACT,
       user_id: 'user-1',
     });
+  });
+
+  it('hides the other matches who want only the type the agent named', async () => {
+    contactRow = {
+      id: CONTACT,
+      classification: 'Buyer',
+      requirement_profiles: [],
+    };
+    hideSameTypeMatches.mockResolvedValue(4);
+    const res = await post({
+      action: 'reject',
+      contactId: CONTACT,
+      reason: 'type',
+      propertyTypes: ['pt_apartment'],
+    });
+    expect((await res.json()).data).toEqual({ typeSaved: true, alsoHidden: 4 });
+    expect(hideSameTypeMatches).toHaveBeenCalledTimes(1);
+    expect(hideSameTypeMatches.mock.calls[0][1]).toMatchObject({
+      accountId: 'account-1',
+      userId: 'user-1',
+      contact: { id: CONTACT },
+      optionIds: ['pt_apartment'],
+    });
+  });
+
+  it('hides no one else for another reason, a skipped type or a type-only save', async () => {
+    await post({ action: 'reject', contactId: CONTACT, reason: 'budget' });
+    await post({ action: 'reject', contactId: CONTACT, reason: 'type' });
+    await post({
+      action: 'set_type',
+      contactId: CONTACT,
+      propertyTypes: ['pt_apartment'],
+    });
+    expect(hideSameTypeMatches).not.toHaveBeenCalled();
   });
 
   it('fills a brief that names no type and leaves a stated one alone', async () => {
@@ -225,7 +268,10 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
       contactId: CONTACT,
       reason: 'budget',
     });
-    expect((await res.json()).data).toEqual({ typeSaved: false });
+    expect((await res.json()).data).toEqual({
+      typeSaved: false,
+      alsoHidden: 0,
+    });
     expect(calls.some((c) => c.op === 'update')).toBe(false);
   });
 
@@ -267,7 +313,7 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
       propertyTypes: ['pt_plot'],
     });
     expect(res.status).toBe(200);
-    expect((await res.json()).data).toEqual({ typeSaved: true });
+    expect((await res.json()).data).toEqual({ typeSaved: true, alsoHidden: 0 });
     expect(calls.some((c) => c.op === 'upsert')).toBe(false);
   });
 
