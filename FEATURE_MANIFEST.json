@@ -1518,6 +1518,28 @@
           "tests": [
             { "file": "src/lib/mobile-parity.test.ts", "case": "[CAL-016]" }
           ]
+        },
+        {
+          "id": "CAL-017",
+          "rule": "The morning WhatsApp schedule digest and the on-demand \"today\" agenda reply list high-priority tasks first and put each appointment's and task's linked contact on its own line with a dialable +<country code> phone number, drop a trailing @mention of that contact from the task title, cap the dated task list so the text stays under WhatsApp's 4096-character limit, and end with a link to the same day's agenda as a PDF. The link is /api/public/agenda-pdf/<token>, an HMAC-signed claim (ENCRYPTION_KEY) of account, member and IST date that expires after seven days and is rate-limited per link and per IP; it renders only while that member still belongs to a non-archived account, and only that member's own appointments and open tasks, with each contact phone a tap-to-call link. Web (the calendar header PDF button) and mobile (the calendar header document icon) mint the link for the selected day through GET /api/calendar/agenda-pdf?date=YYYY-MM-DD and open it.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/whatsapp-scheduler.test.ts",
+              "case": "[CAL-017]"
+            },
+            {
+              "file": "src/lib/calendar/agenda-format.test.ts",
+              "case": "[CAL-017]"
+            },
+            {
+              "file": "src/lib/calendar/agenda-pdf-link.test.ts",
+              "case": "[CAL-017]"
+            },
+            {
+              "file": "src/lib/calendar/agenda-pdf.test.ts",
+              "case": "[CAL-017]"
+            }
+          ]
         }
       ]
     },

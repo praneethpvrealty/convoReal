@@ -21,6 +21,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
@@ -43,6 +44,7 @@ import {
 } from '@/components/ui';
 import { useUndoBar, type UndoBarHandle } from '@/components/undo-bar';
 import { apiFetch, ApiError } from '@/lib/api';
+import { agendaPdfPath } from '@/lib/agenda-pdf';
 import { useAuthStore } from '@/lib/auth-store';
 import {
   DEAL_DATE_HORIZON_DAYS,
@@ -565,6 +567,27 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
       : null;
   const openedDetail = detail ?? requestedDetail;
 
+  const [pdfBusy, setPdfBusy] = useState(false);
+  async function openAgendaPdf() {
+    if (pdfBusy) return;
+    haptic.tap();
+    setPdfBusy(true);
+    try {
+      const res = await apiFetch<{ data: { url: string } }>(
+        agendaPdfPath(selected)
+      );
+      await WebBrowser.openBrowserAsync(res.data.url);
+    } catch (err) {
+      showDialog({
+        title: 'Could not open the PDF',
+        message:
+          err instanceof ApiError ? err.message : 'Please try again shortly.',
+      });
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   function shiftMonth(delta: number) {
     haptic.tap();
     setMonth((m) => new Date(m.getFullYear(), m.getMonth() + delta, 1));
@@ -590,6 +613,23 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
             gap: spacing.md,
           }}
         >
+          <Pressable
+            onPress={openAgendaPdf}
+            disabled={pdfBusy}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Download the selected day's agenda as PDF"
+          >
+            {pdfBusy ? (
+              <ActivityIndicator size="small" color={colors.textMuted} />
+            ) : (
+              <Ionicons
+                name="document-text-outline"
+                size={24}
+                color={colors.textMuted}
+              />
+            )}
+          </Pressable>
           <Link href="/(app)/calendar-feed" asChild>
             <Pressable
               hitSlop={10}

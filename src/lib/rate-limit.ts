@@ -364,6 +364,11 @@ export const RATE_LIMITS = {
   /** The same feed, per IP. Google and Apple fetch every subscriber's
    *  feed from shared egress addresses, so this only bounds scanning. */
   publicCalendarFeedIp: { limit: 600, windowMs: 60_000 },
+  /** Daily agenda PDF downloads, per signed link. A member opens it a
+   *  few times a day; this bounds a link that was forwarded on. */
+  publicAgendaPdf: { limit: 30, windowMs: 3_600_000 },
+  /** The same PDF, per IP — bounds scanning across links. */
+  publicAgendaPdfIp: { limit: 60, windowMs: 60_000 },
   /** `/api/v1/*` read+write, per API key. The consumer is an agent or
    *  an automation run, not a human clicking — a burst here is a tool
    *  loop fanning out over an inventory, which is legitimate. 120/min

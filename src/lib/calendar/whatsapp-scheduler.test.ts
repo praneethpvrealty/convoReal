@@ -352,6 +352,53 @@ describe('formatAgendaMessage', () => {
     expect(msg).toContain('🔴');
   });
 
+  it('[CAL-017] puts each contact and a tappable phone under the task, high priority first', () => {
+    const msg = formatAgendaMessage(
+      'Wednesday, 4 Nov',
+      [],
+      [
+        {
+          title: 'Follow up with Kusumaraju',
+          priority: 'medium',
+          due_date: '2026-11-04T06:00:00.000Z',
+        },
+        {
+          title: 'New Buyer Requirements - @Gouri Shankar',
+          priority: 'high',
+          due_date: '2026-11-04T06:00:00.000Z',
+          contact: [{ name: 'Gouri Shankar', phone: '919845012345' }],
+        },
+      ],
+      { pdfUrl: 'https://app.example.com/api/public/agenda-pdf/abc.def' }
+    );
+    expect(msg).toContain(
+      '🔴 *New Buyer Requirements*\n      👤 Gouri Shankar · 📞 +919845012345'
+    );
+    expect(msg).not.toContain('@Gouri');
+    expect(msg.indexOf('New Buyer Requirements')).toBeLessThan(
+      msg.indexOf('Follow up with Kusumaraju')
+    );
+    expect(msg).toMatch(
+      /Download as PDF:\*\nhttps:\/\/app\.example\.com\/api\/public\/agenda-pdf\/abc\.def$/
+    );
+  });
+
+  it('[CAL-017] caps a long dated list so the text stays under WhatsApp limits', () => {
+    const msg = formatAgendaMessage(
+      'Wednesday, 4 Nov',
+      [],
+      Array.from({ length: 60 }, (_, i) => ({
+        title: `Follow up with lead number ${i} about the HSR Layout plot`,
+        priority: 'medium',
+        due_date: '2026-11-04T06:00:00.000Z',
+        contact: { name: `Lead ${i}`, phone: '9845012345' },
+      })),
+      { pdfUrl: 'https://app.example.com/api/public/agenda-pdf/abc.def' }
+    );
+    expect(msg.length).toBeLessThan(4096);
+    expect(msg).toContain('+35 more in the PDF below');
+  });
+
   it('has a friendly empty state', () => {
     const msg = formatAgendaMessage('Tuesday, 14 Jul', [], []);
     expect(msg).toContain('Nothing scheduled');

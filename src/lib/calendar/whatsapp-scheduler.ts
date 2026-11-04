@@ -57,6 +57,13 @@ import {
   truncateParametersToBudget,
 } from '@/lib/whatsapp/template-send-builder';
 import { type MessageTemplate } from '@/types';
+import {
+  agendaItemTitle,
+  contactLine,
+  unwrapRelation,
+  type AgendaContact,
+} from '@/lib/calendar/agenda-format';
+import { agendaPdfLinkFor, istDateOf } from '@/lib/calendar/agenda-pdf-link';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -321,7 +328,7 @@ interface AgendaEvent {
   start_time: string;
   location: string | null;
   status: string;
-  contact?: { name: string | null } | null;
+  contact?: AgendaContact | AgendaContact[] | null;
 }
 
 interface AgendaTodo {
@@ -331,22 +338,47 @@ interface AgendaTodo {
    *  tasks still belong on the agenda, under their own heading, or the
    *  card's "Reply *today* to see your day's schedule" is a lie. */
   due_date?: string | null;
+  contact?: AgendaContact | AgendaContact[] | null;
 }
 
 /** Undated tasks shown before the list is truncated — enough to be
  *  useful, not so many that a long backlog buries the actual day. */
 const MAX_UNDATED_TODOS = 5;
 
+/** Dated tasks shown in the message. WhatsApp caps a text at 4096
+ *  characters; the PDF carries the full list. */
+const MAX_DATED_TODOS = 25;
+
+const AGENDA_RULE = '━━━━━━━━━━━━━━';
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`;
+}
+
+function byPriority<T extends { priority: string }>(items: T[]): T[] {
+  const rank = (p: string) => (p === 'high' ? 0 : p === 'low' ? 2 : 1);
+  return [...items].sort((a, b) => rank(a.priority) - rank(b.priority));
+}
+
+function todoLines(t: AgendaTodo): string[] {
+  const contact = unwrapRelation(t.contact);
+  const title = agendaItemTitle(t.title, contact);
+  const head = t.priority === 'high' ? `🔴 *${title}*` : `▫️ ${title}`;
+  const who = contactLine(contact);
+  return who ? [head, `      ${who}`] : [head];
+}
+
 export function formatAgendaMessage(
   dateLabel: string,
   events: AgendaEvent[],
-  todos: AgendaTodo[]
+  todos: AgendaTodo[],
+  options: { pdfUrl?: string | null } = {}
 ): string {
   const lines: string[] = [`🗓 *Your schedule — ${dateLabel}*`];
 
   const active = events.filter((e) => e.status === 'scheduled');
-  const dated = todos.filter((t) => t.due_date != null);
-  const undated = todos.filter((t) => t.due_date == null);
+  const dated = byPriority(todos.filter((t) => t.due_date != null));
+  const undated = byPriority(todos.filter((t) => t.due_date == null));
 
   if (active.length === 0 && todos.length === 0) {
     lines.push(
@@ -356,8 +388,14 @@ export function formatAgendaMessage(
     return lines.join('\n');
   }
 
+  const summary = [
+    active.length > 0 ? plural(active.length, 'appointment') : null,
+    dated.length > 0 ? plural(dated.length, 'task') : null,
+  ].filter(Boolean);
+  if (summary.length > 0) lines.push(`_${summary.join(' · ')}_`);
+
   if (active.length > 0) {
-    lines.push('');
+    lines.push('', AGENDA_RULE, '📅 *Appointments*');
     for (const ev of active) {
       const time = new Date(ev.start_time).toLocaleTimeString('en-IN', {
         timeZone: 'Asia/Kolkata',
@@ -366,26 +404,39 @@ export function formatAgendaMessage(
         hour12: true,
       });
       const emoji = EVENT_TYPE_EMOJI[ev.event_type || 'other'] || '🗓';
-      const who = ev.contact?.name ? ` · ${ev.contact.name}` : '';
-      const where = ev.location ? `\n   📌 ${ev.location}` : '';
-      lines.push(`${emoji} *${time}* — ${ev.title}${who}${where}`);
+      const contact = unwrapRelation(ev.contact);
+      lines.push('', `${emoji} *${time}* — ${ev.title}`);
+      const who = contactLine(contact);
+      if (who) lines.push(`      ${who}`);
+      if (ev.location) lines.push(`      📌 ${ev.location}`);
     }
   }
 
   if (dated.length > 0) {
-    lines.push('', '✅ *Tasks due:*');
-    for (const t of dated) {
-      lines.push(`${t.priority === 'high' ? '🔴' : '•'} ${t.title}`);
+    lines.push('', AGENDA_RULE, `✅ *Tasks due:* ${dated.length}`);
+    for (const t of dated.slice(0, MAX_DATED_TODOS)) {
+      lines.push('', ...todoLines(t));
+    }
+    const hidden = dated.length - MAX_DATED_TODOS;
+    if (hidden > 0) {
+      lines.push(
+        '',
+        `_+${hidden} more ${options.pdfUrl ? 'in the PDF below' : 'on the Calendar page'}._`
+      );
     }
   }
 
   if (undated.length > 0) {
-    lines.push('', '📌 *No date set:*');
+    lines.push('', AGENDA_RULE, '📌 *No date set:*');
     for (const t of undated.slice(0, MAX_UNDATED_TODOS)) {
-      lines.push(`${t.priority === 'high' ? '🔴' : '•'} ${t.title}`);
+      lines.push('', ...todoLines(t));
     }
     const hidden = undated.length - MAX_UNDATED_TODOS;
-    if (hidden > 0) lines.push(`_+${hidden} more on the Calendar page._`);
+    if (hidden > 0) lines.push('', `_+${hidden} more on the Calendar page._`);
+  }
+
+  if (options.pdfUrl) {
+    lines.push('', AGENDA_RULE, '📄 *Download as PDF:*', options.pdfUrl);
   }
 
   return lines.join('\n');
@@ -972,7 +1023,7 @@ export async function tryHandleOwnerScheduling(
       admin
         .from('appointments')
         .select(
-          'title, event_type, start_time, location, status, contact:contacts(name)'
+          'title, event_type, start_time, location, status, contact:contacts(name, phone)'
         )
         .eq('account_id', accountId)
         .or(
@@ -989,7 +1040,7 @@ export async function tryHandleOwnerScheduling(
       // undated backlog rather than this agent's.
       admin
         .from('todos')
-        .select('title, priority, due_date')
+        .select('title, priority, due_date, contact:contacts(name, phone)')
         .eq('account_id', accountId)
         .eq('completed', false)
         .or(
@@ -1003,7 +1054,14 @@ export async function tryHandleOwnerScheduling(
     const reply = formatAgendaMessage(
       label,
       (events || []) as unknown as AgendaEvent[],
-      (todos || []) as AgendaTodo[]
+      (todos || []) as unknown as AgendaTodo[],
+      {
+        pdfUrl: agendaPdfLinkFor({
+          accountId,
+          userId: userId,
+          date: istDateOf(new Date(startIso)),
+        }),
+      }
     );
     await replyAndLog({
       phoneNumberId,
