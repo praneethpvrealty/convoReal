@@ -8,6 +8,7 @@ import {
   MATCH_REJECT_REASONS,
   STAFF_PROPERTY_TYPE_OPTIONS,
   matchRejectReasonLabel,
+  notAFitSavedMessage,
   propertyTypeOption,
   type MatchFeedbackMark,
   type MatchRejectReason,
@@ -55,18 +56,14 @@ export function NotAFitPanel({
   async function save(chosen: MatchRejectReason, typeIds: string[]) {
     setSaving(true);
     try {
-      const { typeSaved } = await markMatchNotAFit(
+      const result = await markMatchNotAFit(
         propertyId,
         contactId,
         chosen,
         typeIds
       );
-      toast.success(
-        typeSaved
-          ? `${contactName} hidden here, and their property type is saved for future matches`
-          : `${contactName} hidden from this listing's matches`
-      );
-      await onSaved(typeSaved);
+      toast.success(notAFitSavedMessage(contactName, result, typeIds));
+      await onSaved(result.typeSaved);
       onClose();
     } catch (err) {
       toast.error(errorText(err, 'Could not save the mark'));

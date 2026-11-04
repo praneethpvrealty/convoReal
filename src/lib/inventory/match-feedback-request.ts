@@ -42,7 +42,7 @@ export function markMatchNotAFit(
   contactId: string,
   reason: MatchRejectReason,
   propertyTypes: string[] = []
-): Promise<{ typeSaved: boolean }> {
+): Promise<{ typeSaved: boolean; alsoHidden?: number }> {
   return post(propertyId, {
     action: 'reject',
     contactId,

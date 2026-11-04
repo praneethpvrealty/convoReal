@@ -543,6 +543,78 @@ function inferTypePrefsFromText(text: string): {
   return { groups, categories };
 }
 
+/** The property types a contact (or one brief) states: typed preferences,
+ *  categories and legacy interests, before any text inference. */
+function statedTypePrefs(source: Contact): {
+  groups: Set<SubtypeGroup>;
+  categories: Set<Category>;
+} {
+  const groups = new Set<SubtypeGroup>();
+  const categories = new Set<Category>();
+  for (const t of source.pref_property_types || []) {
+    const g =
+      TYPE_TO_GROUP[t] ||
+      (normalizePropertyType(t)
+        ? TYPE_TO_GROUP[normalizePropertyType(t)!]
+        : undefined);
+    if (g) groups.add(g);
+  }
+  for (const c of source.pref_property_categories || []) {
+    if (
+      [
+        'residential',
+        'commercial',
+        'industrial',
+        'agricultural',
+        'plot',
+      ].includes(c)
+    ) {
+      categories.add(c as Category);
+    }
+  }
+  for (const interest of source.property_interests || []) {
+    const mapped = mapLegacyInterest(interest);
+    mapped.groups.forEach((g) => groups.add(g));
+    mapped.categories.forEach((c) => categories.add(c));
+  }
+  return { groups, categories };
+}
+
+export interface TypeSignature {
+  groups: string[];
+  categories: string[];
+}
+
+/**
+ * Every property type a contact is matched on, read the way the matcher
+ * reads them, across all the briefs it ranks them on. Null when any of
+ * those briefs names no subtype: a brief with no type is open to every
+ * type, and one with only a category to the whole category.
+ */
+export function statedTypeSignature(contact: Contact): TypeSignature | null {
+  const groups = new Set<string>();
+  const categories = new Set<string>();
+  for (const candidate of requirementCandidates(contact)) {
+    const stated = statedTypePrefs(resolveRequirementSource(candidate));
+    if (stated.groups.size === 0) return null;
+    stated.groups.forEach((g) => groups.add(g));
+    stated.categories.forEach((c) => categories.add(c));
+  }
+  return { groups: [...groups], categories: [...categories] };
+}
+
+/** The categories a set of subtype groups covers: their sectors, and
+ *  'plot' when any of them is land. */
+export function typeGroupCategories(groups: string[]): string[] {
+  const covered = new Set<string>();
+  for (const group of groups) {
+    const category = GROUP_TO_CATEGORY[group as SubtypeGroup];
+    if (category) covered.add(category);
+    if (PLOT_GROUPS.includes(group as SubtypeGroup)) covered.add('plot');
+  }
+  return [...covered];
+}
+
 /** Maps a legacy property_interests entry to groups/categories. ROI-style interests return nothing (not a type constraint). */
 function mapLegacyInterest(interest: string): {
   groups: SubtypeGroup[];
@@ -907,32 +979,9 @@ function matchContactsSingleProfile(
     const wantedGroups = new Set<SubtypeGroup>();
     const wantedCategories = new Set<Category>();
 
-    for (const t of sourceContact.pref_property_types || []) {
-      const g =
-        TYPE_TO_GROUP[t] ||
-        (normalizePropertyType(t)
-          ? TYPE_TO_GROUP[normalizePropertyType(t)!]
-          : undefined);
-      if (g) wantedGroups.add(g);
-    }
-    for (const c of sourceContact.pref_property_categories || []) {
-      if (
-        [
-          'residential',
-          'commercial',
-          'industrial',
-          'agricultural',
-          'plot',
-        ].includes(c)
-      ) {
-        wantedCategories.add(c as Category);
-      }
-    }
-    for (const interest of sourceContact.property_interests || []) {
-      const mapped = mapLegacyInterest(interest);
-      mapped.groups.forEach((g) => wantedGroups.add(g));
-      mapped.categories.forEach((c) => wantedCategories.add(c));
-    }
+    const stated = statedTypePrefs(sourceContact);
+    stated.groups.forEach((g) => wantedGroups.add(g));
+    stated.categories.forEach((c) => wantedCategories.add(c));
     // Text fallback only for contacts that haven't been AI-extracted yet
     if (
       !hasExtraction &&
@@ -1520,22 +1569,10 @@ export function getMatchingContacts(
   const results: MatchingResult[] = [];
 
   for (const contact of contacts) {
-    const activeProfiles = activeRequirementProfiles(contact);
-    const hasLegacySource = hasLegacyRequirementSignals(contact);
-    const shouldUseLegacyFallback =
-      hasLegacySource &&
-      !(contact.requirements || '').trim() &&
-      activeProfiles.length > 0;
-
-    const candidates = [
-      ...(shouldUseLegacyFallback
-        ? [{ ...contact, requirement_profiles: [] }]
-        : [contact]),
-      ...activeProfiles.map((profile) =>
-        contactForRequirementProfile(contact, profile)
-      ),
-    ];
-    const best = matchContactsSingleProfile(property, candidates)[0];
+    const best = matchContactsSingleProfile(
+      property,
+      requirementCandidates(contact)
+    )[0];
     if (best) results.push({ ...best, contact });
   }
 
@@ -1543,6 +1580,24 @@ export function getMatchingContacts(
     results.sort((a, b) => b.score - a.score),
     parties
   );
+}
+
+/** Every brief a contact is ranked on: their own columns (or the
+ *  legacy fallback beside their briefs) and each active brief. */
+function requirementCandidates(contact: Contact): Contact[] {
+  const activeProfiles = activeRequirementProfiles(contact);
+  const shouldUseLegacyFallback =
+    hasLegacyRequirementSignals(contact) &&
+    !(contact.requirements || '').trim() &&
+    activeProfiles.length > 0;
+  return [
+    ...(shouldUseLegacyFallback
+      ? [{ ...contact, requirement_profiles: [] }]
+      : [contact]),
+    ...activeProfiles.map((profile) =>
+      contactForRequirementProfile(contact, profile)
+    ),
+  ];
 }
 
 /**

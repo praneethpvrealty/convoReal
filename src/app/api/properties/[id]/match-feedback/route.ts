@@ -6,6 +6,7 @@ import {
   toErrorResponse,
 } from '@/lib/auth/account';
 import { loadListingMatchFeedback } from '@/lib/inventory/match-feedback-store';
+import { hideSameTypeMatches } from '@/lib/inventory/same-type-marks';
 import {
   isMatchRejectReason,
   propertyTypeNote,
@@ -174,7 +175,8 @@ export async function GET(
 // POST /api/properties/[id]/match-feedback
 // { action: 'reject', contactId, reason, propertyTypes? }
 //   marks the contact not a fit for this listing; with reason 'type',
-//   propertyTypes (PROPERTY_TYPE_OPTIONS ids) also says what they want.
+//   propertyTypes (PROPERTY_TYPE_OPTIONS ids) also says what they want,
+//   and every other match wanting only that is hidden too (alsoHidden).
 // { action: 'set_type', contactId, propertyTypes }
 //   confirms a suggested type without marking anything.
 export async function POST(
@@ -331,7 +333,18 @@ export async function POST(
       }
     }
 
-    return NextResponse.json({ data: { typeSaved } });
+    const alsoHidden =
+      action === 'reject' && reason === 'type' && typeSaved
+        ? await hideSameTypeMatches(ctx.supabase, {
+            accountId: ctx.accountId,
+            userId: ctx.userId,
+            property: property as Property,
+            contact: contact as Contact,
+            optionIds,
+          })
+        : 0;
+
+    return NextResponse.json({ data: { typeSaved, alsoHidden } });
   } catch (err) {
     return toErrorResponse(err);
   }

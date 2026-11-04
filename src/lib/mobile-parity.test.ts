@@ -5357,6 +5357,12 @@ describe('[PRP-051] "Not a fit" on matching contacts runs one rule on both surfa
     expect(webTab).toContain("details.type === 'unknown'");
   });
 
+  it('confirms a mark, and the others it hid, in the same words', () => {
+    expect(webPanel).toContain('notAFitSavedMessage(');
+    expect(mobilePanel).toContain('notAFitSavedMessage(');
+    expect(mobileLib).toContain('alsoHidden?: number');
+  });
+
   it('calls the same route', () => {
     expect(mobileLib).toContain('/match-feedback');
     expect(webSource('lib/inventory/match-feedback-request.ts')).toContain(

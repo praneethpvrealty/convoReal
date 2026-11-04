@@ -17,6 +17,7 @@ import {
   MATCH_REJECT_REASONS,
   STAFF_PROPERTY_TYPE_OPTIONS,
   matchRejectReasonLabel,
+  notAFitSavedMessage,
   propertyTypeOption,
   type MatchRejectReason,
 } from '@shared/lib/match-feedback';
@@ -62,9 +63,11 @@ export function NotAFitPanel({
         typeIds
       );
       onSaved(
-        data?.typeSaved
-          ? `${contactName} is hidden here, and their property type is saved for future matches.`
-          : `${contactName} is hidden from this listing's matches.`
+        notAFitSavedMessage(
+          contactName,
+          { typeSaved: !!data?.typeSaved, alsoHidden: data?.alsoHidden },
+          typeIds
+        )
       );
     } catch (err) {
       onError(errorMessage(err, 'Could not save the mark.'));
