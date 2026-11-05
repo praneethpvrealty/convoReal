@@ -200,6 +200,33 @@ describe('[CNV-002] rankPropertiesForContact strictArea', () => {
     });
     expect(matches.map((m) => m.property.id)).toEqual(['p-2nd']);
   });
+
+  it('[CNV-013] ranks as if no area were named when asked for any location, leaving the areas on file', async () => {
+    const client = db();
+    const farAway = {
+      ...contact,
+      pref_areas: ['Mysore'],
+      pref_property_types: ['Commercial Plot'],
+      pref_budget_max: 100000000,
+    };
+    (client as unknown as { from: unknown }).from = memorySupabase({
+      contacts: [farAway],
+      properties: [{ ...jpNagarPlot }],
+      listing_feedback: [],
+      property_shares: [],
+    }).from;
+
+    expect(
+      await rankPropertiesForContact(client, 'acc-1', 'c-1', {
+        strictArea: false,
+      })
+    ).toHaveLength(0);
+    const matches = await rankPropertiesForContact(client, 'acc-1', 'c-1', {
+      anyLocation: true,
+    });
+    expect(matches.map((m) => m.property.id)).toEqual(['p-2nd']);
+    expect(farAway.pref_areas).toEqual(['Mysore']);
+  });
 });
 
 describe('[RDR-002] generateMatchEventForProperty', () => {

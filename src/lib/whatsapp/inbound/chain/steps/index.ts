@@ -30,6 +30,7 @@ import { calendarQuery } from './calendar-query';
 import { updateSessionInput } from './update-session-input';
 import { listingFeedbackList } from './listing-feedback-list';
 import { requirementTweak } from './requirement-tweak';
+import { preferenceNextStepTap } from './preference-next-step-tap';
 import { onboardingRungTap } from './onboarding-rung-tap';
 import { preferenceFlowRequest } from './preference-flow-request';
 import { updateIntent } from './update-intent';
@@ -74,6 +75,7 @@ export const INBOUND_STEPS: InboundStep[] = [
   { name: 'updateSessionInput', run: updateSessionInput },
   { name: 'listingFeedbackList', run: listingFeedbackList },
   { name: 'requirementTweak', run: requirementTweak },
+  { name: 'preferenceNextStepTap', run: preferenceNextStepTap },
   { name: 'onboardingRungTap', run: onboardingRungTap },
   { name: 'preferenceFlowRequest', run: preferenceFlowRequest },
   { name: 'updateIntent', run: updateIntent },

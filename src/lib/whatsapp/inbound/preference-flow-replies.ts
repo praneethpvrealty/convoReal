@@ -24,7 +24,10 @@ export async function handlePreferenceFlowTrigger(
   accountId: string,
   contactId: string,
   configOwnerUserId: string,
-  conversationId: string
+  conversationId: string,
+  /** The WhatsApp id of the template the lead tapped, when Meta sent
+   *  one — it names the listing the tap is about. */
+  contextMessageId: string | null = null
 ): Promise<boolean> {
   try {
     const flow = await getPublishedPreferenceFlow(accountId);
@@ -36,11 +39,13 @@ export async function handlePreferenceFlowTrigger(
       userId: configOwnerUserId,
       contactId,
       conversationId,
+      contextMessageId,
     });
 
-    // When a follow-on list (feedback or budget bands) already carries
-    // an "Update preferences" row, a third bubble repeating the form
-    // would bury it. Otherwise the form is the main action.
+    // The follow-on list (the feedback list, or the next-steps menu)
+    // carries the form as a row, so a third bubble repeating the form
+    // would bury it. Only when the list itself could not be sent does
+    // the form go out on its own.
     if (tap.replySent && tap.formOffered) {
       console.log(
         `[webhook] Sent preference tap reply (${tap.matchCount} matches) + tap list to contact ${contactId}`
@@ -52,11 +57,6 @@ export async function handlePreferenceFlowTrigger(
       accountId,
       contactId,
       senderType: 'bot',
-      // The listings reply already made the ask; the form must not
-      // repeat it as homework.
-      bodyText: tap.replySent
-        ? 'Prefer to update everything at once instead? The full form takes under a minute.'
-        : undefined,
     });
     if (!result.success) {
       console.error(`[webhook] Preference flow send failed: ${result.error}`);

@@ -5,13 +5,25 @@
 // funnel across batches 1–4: 20 tapped or replied, 7 forms sent, 2
 // opened, 1 completed. Interest is not the leak; the form is.
 //
-// So the tap is answered with inventory first: congratulate the
-// response, show the live listings that already fit the enquiry the
-// lead came in on, promise the engine keeps matching, and ask the one
-// qualifier that sharpens matching most — answerable by just replying,
-// which processBuyerQualificationMessage already parses as an answer
-// to the question directly before it. The form still follows, demoted
-// to an optional shortcut rather than the whole turn.
+// So the tap is answered with inventory first: show the live listings
+// that already fit the enquiry the lead came in on, promise the engine
+// keeps matching, and ask the one qualifier that sharpens matching most
+// — answerable by just replying, which processBuyerQualificationMessage
+// already parses as an answer to the question directly before it.
+//
+// The button carries no reference to the listing it sat under, so the
+// listing is resolved the way "Close my enquiry" resolves it: the
+// quoted template first, then the thread, then the recorded enquiry.
+// That listing anchors the reply — the opener names it instead of
+// welcoming the lead back a minute after a notice told them their deal
+// fell through — and seeds the requirement of a contact who has none,
+// so the matcher ranks against the plot, size, locality and price the
+// enquiry already stated instead of against an empty record.
+//
+// When nothing fits, the reply ends on one tappable menu of next moves
+// (src/lib/whatsapp/preference-next-steps.ts) rather than a typed
+// question and a second bubble repeating the form the lead just
+// declined. With listings, the feedback list carries the form row.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
@@ -31,16 +43,22 @@ import { extractEnquiredPropertyFromNote } from '@/lib/contacts/enquiry-note';
 import { accountShowcaseOrigin } from '@/lib/showcase/account-showcase-url';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
-import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
-import {
-  applyDefaultBuyingIntent,
-  sendListingIntentPrompt,
-} from '@/lib/whatsapp/listing-intent-prompt';
+import { applyDefaultBuyingIntent } from '@/lib/whatsapp/listing-intent-prompt';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { areaNearMissLine } from '@/lib/buyer/area-near-misses';
 import { accountShowcaseBrowseUrl } from '@/lib/showcase/account-showcase-url';
-import { showcaseBrowseLine } from '@/lib/inventory/listing-status';
-import type { Contact } from '@/types';
+import {
+  isListingLive,
+  showcaseBrowseLine,
+} from '@/lib/inventory/listing-status';
+import { resolveDroppedProperty } from '@/lib/whatsapp/enquiry-dropoff';
+import { describeEnquiredProperty } from '@/lib/whatsapp/enquiry-notice-template';
+import { seedRequirementFromListing } from '@/lib/contacts/seed-from-listing';
+import {
+  listingNoun,
+  sendPreferenceNextStepsPrompt,
+} from '@/lib/whatsapp/preference-next-steps';
+import type { Contact, Property } from '@/types';
 
 /** A lead younger than this is answering their own enquiry, not coming
  *  back from a re-engagement batch; "back on our radar" would tell them
@@ -67,12 +85,14 @@ function firstName(name: string | null | undefined): string {
   return isPlaceholderLeadName(name) ? 'there' : name!.trim().split(/\s+/)[0];
 }
 
+export const NEXT_STEPS_CLOSING = 'Pick what to try next 👇';
+
 /**
  * Pure text of the tap reply, testable without a database.
  *
- * The form's own message follows this one, so the closing line never
- * mentions tapping anything — the question must read as answerable by
- * replying right here.
+ * A list follows this message, so the closing line never mentions
+ * tapping anything unless it points at that list — a typed question
+ * must read as answerable by replying right here.
  */
 export function buildPreferenceTapReply(args: {
   contactName: string | null | undefined;
@@ -90,12 +110,18 @@ export function buildPreferenceTapReply(args: {
    *  whole catalogue, whatever the bot found. */
   showcaseUrl?: string | null;
   outside?: { locality: string; widened: boolean } | null;
+  /** The listing the tapped notice named, when it is no longer live:
+   *  the opener names it and never welcomes the lead back. The notice
+   *  already said the listing is gone, so this never says so again. */
+  anchored?: { title: string; noun: string } | null;
 }): string {
   const { contactName, enquiry, listings, question } = args;
   const name = firstName(contactName);
-  const opener = args.reEngaged
-    ? `Great to hear from you, ${name} 👍 You're back on our radar.`
-    : `Thanks for getting back to us, ${name} 👍`;
+  const opener = args.anchored
+    ? `Thanks, ${name} 👍 Let's find you another ${args.anchored.noun} like *${args.anchored.title}*.`
+    : args.reEngaged
+      ? `Great to hear from you, ${name} 👍 You're back on our radar.`
+      : `Thanks for getting back to us, ${name} 👍`;
   const anchor = enquiry ? `your interest in *${enquiry}*` : 'your requirement';
   const browse = args.showcaseUrl
     ? [showcaseBrowseLine(args.showcaseUrl), '']
@@ -111,10 +137,13 @@ export function buildPreferenceTapReply(args: {
         ? `nothing new is live near ${args.outside.locality} right now, so ${count} from elsewhere in our inventory:`
         : `nothing new in ${args.outside.locality} itself right now, but ${count} close by:`
       : `${count} from our inventory:`;
+    const lead = args.anchored
+      ? `Looking at what is live now, ${where}`
+      : `Based on ${anchor}, ${where}`;
     return [
       opener,
       '',
-      `Based on ${anchor}, ${where}`,
+      lead,
       '',
       listings.join('\n\n'),
       '',
@@ -126,10 +155,13 @@ export function buildPreferenceTapReply(args: {
     ].join('\n');
   }
 
+  const nothing = args.anchored
+    ? `Nothing live right now fits that brief exactly, but I'll keep watching and message you the moment the right ${args.anchored.noun} comes in.`
+    : `Nothing live right now fits ${anchor} exactly, but I'll keep watching and message you the moment the right property comes in.`;
   return [
     opener,
     '',
-    `Nothing live right now fits ${anchor} exactly, but I'll keep watching and message you the moment the right property comes in.`,
+    nothing,
     '',
     ...(args.nearMiss ? [args.nearMiss, ''] : []),
     ...browse,
@@ -149,6 +181,9 @@ export async function sendPreferenceTapReply(args: {
   userId: string;
   contactId: string;
   conversationId: string;
+  /** The WhatsApp id of the template the lead tapped, when Meta sent
+   *  one: the strongest signal of which listing the tap is about. */
+  contextMessageId?: string | null;
 }): Promise<PreferenceTapReplyResult> {
   const { db, accountId, userId, contactId, conversationId } = args;
 
@@ -162,8 +197,25 @@ export async function sendPreferenceTapReply(args: {
     if (!contact)
       return { matchCount: 0, replySent: false, formOffered: false };
 
-    const hadMissingIntent =
-      nextQualifierForContact(contact as Contact) === 'intent';
+    let row = contact as Contact;
+    const property = await resolveTappedListing({
+      db,
+      accountId,
+      contact: row,
+      conversationId,
+      contextMessageId: args.contextMessageId ?? null,
+    });
+    if (property) {
+      const seed = await seedRequirementFromListing({
+        db,
+        accountId,
+        contact: row,
+        property,
+      });
+      if (seed) row = { ...row, ...seed };
+    }
+
+    const hadMissingIntent = nextQualifierForContact(row) === 'intent';
     const defaultedBuying = hadMissingIntent
       ? await applyDefaultBuyingIntent({ db, accountId, contactId })
       : false;
@@ -188,14 +240,13 @@ export async function sendPreferenceTapReply(args: {
             excludeAlreadySent: true,
           });
 
-    const notes = ((contact as Contact).contact_notes ?? [])
+    const notes = (row.contact_notes ?? [])
       .map((n) => extractEnquiredPropertyFromNote(n.note_text))
       .filter(Boolean) as string[];
 
-    const missing = nextQualifierForContact(contact as Contact, {
+    const missing = nextQualifierForContact(row, {
       defaultBuying: defaultedBuying,
     });
-    const row = contact as Contact;
     const [baseUrl, showcaseUrl, nearMiss] = await Promise.all([
       accountShowcaseOrigin(db, accountId),
       accountShowcaseBrowseUrl(db, accountId, contactId),
@@ -223,14 +274,6 @@ export async function sendPreferenceTapReply(args: {
     ]);
     const contactName = row.name ?? null;
 
-    // With no matches and a tappable rung missing, the question becomes
-    // a tap: the list follows instead of a typed answer, and it carries
-    // the form row, so the closing line points down rather than asking.
-    const tapRung =
-      matches.length === 0 && (missing === 'budget' || missing === 'intent')
-        ? missing
-        : null;
-
     const areas = [...(row.areas_of_interest ?? []), ...(row.pref_areas ?? [])];
     const outsideLocality =
       strictMatches.length > 0
@@ -239,9 +282,18 @@ export async function sendPreferenceTapReply(args: {
           ? namedLocality(areas)
           : null;
 
+    const enquired = property ? describeEnquiredProperty(property) : null;
+    const anchored =
+      property && !isListingLive(property)
+        ? { title: enquired as string, noun: listingNoun(property.type) }
+        : null;
+    const buyingNote = defaultedBuying
+      ? "I'll assume you're buying; reply “renting” if needed. "
+      : '';
+
     const text = buildPreferenceTapReply({
       contactName,
-      enquiry: notes[0] ?? null,
+      enquiry: enquired ?? notes[0] ?? null,
       listings: buildListingLines(contactName, matches, baseUrl, contactId),
       reEngaged: isReEngagedLead(row.created_at),
       nearMiss,
@@ -249,16 +301,12 @@ export async function sendPreferenceTapReply(args: {
       outside: outsideLocality
         ? { locality: outsideLocality, widened: strictMatches.length === 0 }
         : null,
-      question: tapRung
-        ? tapRung === 'budget'
-          ? defaultedBuying
-            ? "I'll assume you're buying. Pick your budget below, or choose Renting instead if needed 👇"
-            : "Let's fine-tune it — pick your budget range below 👇"
-          : "Let's fine-tune it — buying or renting? Pick below 👇"
-        : defaultedBuying && missing
-          ? `I'll assume you're buying; reply “renting” if needed. ${buildFollowUpQuestion(missing)}`
+      anchored,
+      question:
+        matches.length === 0
+          ? `${buyingNote}${NEXT_STEPS_CLOSING}`
           : missing
-            ? buildFollowUpQuestion(missing)
+            ? `${buyingNote}${buildFollowUpQuestion(missing)}`
             : null,
     });
 
@@ -304,26 +352,25 @@ export async function sendPreferenceTapReply(args: {
           console.error('[preference-tap] radar event failed:', err);
         }
       );
-    } else if (tapRung && result.success) {
-      formOffered =
-        tapRung === 'budget'
-          ? await sendBudgetBandPrompt({
-              db,
-              accountId,
-              userId,
-              contactId,
-              conversationId,
-              includeFormRow: true,
-              includeRentSwitch: defaultedBuying,
-            })
-          : await sendListingIntentPrompt({
-              db,
-              accountId,
-              userId,
-              contactId,
-              conversationId,
-              includeFormRow: true,
-            });
+    } else if (result.success) {
+      // The menu carries the form row, so the closing line points down
+      // and the turn stays at two bubbles.
+      formOffered = await sendPreferenceNextStepsPrompt({
+        db,
+        accountId,
+        userId,
+        contactId,
+        conversationId,
+        listing: property
+          ? {
+              id: property.id,
+              title: property.title,
+              type: property.type,
+              city: property.city,
+            }
+          : null,
+        includeFormRow: true,
+      });
     }
 
     return {
@@ -334,5 +381,42 @@ export async function sendPreferenceTapReply(args: {
   } catch (err) {
     console.error('[preference-tap] failed:', err);
     return { matchCount: 0, replySent: false, formOffered: false };
+  }
+}
+
+/**
+ * The listing the tap is about, as a full row, or null when nothing in
+ * the quoted template, the thread or the recorded enquiry names one.
+ * Never throws: the reply still goes out against the contact as filed.
+ */
+async function resolveTappedListing(args: {
+  db: SupabaseClient;
+  accountId: string;
+  contact: Contact;
+  conversationId: string;
+  contextMessageId: string | null;
+}): Promise<Property | null> {
+  try {
+    const dropped = await resolveDroppedProperty({
+      db: args.db,
+      accountId: args.accountId,
+      contact: {
+        id: args.contact.id,
+        last_inquired_property_id: args.contact.last_inquired_property_id,
+      },
+      conversationId: args.conversationId,
+      contextMessageId: args.contextMessageId,
+    });
+    if (!dropped) return null;
+    const { data } = await args.db
+      .from('properties')
+      .select('*')
+      .eq('id', dropped.id)
+      .eq('account_id', args.accountId)
+      .maybeSingle();
+    return (data as Property | null) ?? null;
+  } catch (err) {
+    console.error('[preference-tap] listing lookup failed:', err);
+    return null;
   }
 }

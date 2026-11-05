@@ -425,7 +425,12 @@ describe('[CNV-004] a portal lead on an unavailable listing, replayed end to end
     const tapReplies = botTextsSince(from);
     expect(tapReplies.length).toBeLessThanOrEqual(2);
     const [reply] = tapReplies;
-    expect(reply.text).toContain('Thanks for getting back to us, shirish');
+    // The tap is anchored on the listing the notice named, found in
+    // the thread the way "Close my enquiry" finds it (CNV-013).
+    expect(reply.text).toContain(
+      "Thanks, shirish 👍 Let's find you another commercial plot like *#20, 2400 Sqft Commercial Plot on 100 feet JP Nagar 4th Phase, Bangalore*."
+    );
+    expect(reply.text).not.toContain('Thanks for getting back to us');
     expect(reply.text).toContain("here's one live option");
     expect(reply.text).toContain('*Prime Commercial Site for Sale*');
     expect(reply.text).toContain('property_id=PROP-2ND');
@@ -457,9 +462,9 @@ describe('[CNV-004] a portal lead on an unavailable listing, replayed end to end
     expect(await preferenceFlowRequest(tap('Update my preferences'))).toBe(
       'handled'
     );
-    const [reply, form] = botTextsSince(from);
+    const [reply, menu] = botTextsSince(from);
     expect(reply.text).toContain(
-      'Nothing live right now fits your requirement exactly'
+      'Nothing live right now fits that brief exactly'
     );
     expect(reply.text).toContain(
       '📍 We do have 2 listings in JP Nagar, at ₹19 Cr–₹21.6 Cr'
@@ -467,8 +472,12 @@ describe('[CNV-004] a portal lead on an unavailable listing, replayed end to end
     expect(reply.text).toContain(
       'Browse every live listing any time: https://www.convoreal.com/?ref=acc-1&v=c-shirish'
     );
-    expect(reply.text).toMatch(/just reply here\.$/);
-    expect(form.text).toContain('Prefer to update everything at once');
+    // [CNV-013] The turn ends on the next-steps menu, not on a typed
+    // question and a second bubble repeating the form.
+    expect(reply.text).toMatch(/Pick what to try next 👇$/);
+    expect(menu.kind).toBe('interactive');
+    expect(menu.text).toBe('What should I try next? Pick one below.');
+    expect(botTextsSince(from)).toHaveLength(2);
 
     from = transcript.length;
     expect(await buyerMatchesCommand(tap('Show Properties'))).toBe('handled');
