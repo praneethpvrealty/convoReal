@@ -281,6 +281,8 @@ export const SAME_REASON_REASONS: MatchRejectReason[] = [
   'type',
   'location',
   'budget',
+  'size',
+  'bought_elsewhere',
 ];
 
 /**
@@ -304,17 +306,18 @@ export function sharesAreaReason(
 }
 
 /**
- * Which way a budget mark points: the listing is too dear for the
- * marked contact's ceiling or too cheap for their floor. A price inside
- * a band with both ends reads as too dear from its midpoint up and too
- * cheap below it. Null when they state no budget to read, or only one
- * end that the listing sits inside: there is no middle to read from.
+ * Which way a budget or size mark points: the listing is above the
+ * marked contact's ceiling (too dear, too big) or below their floor (too
+ * cheap, too small). A value inside a band with both ends reads as above
+ * from its midpoint up and below under it. Null when they state no band
+ * to read, or only one end that the listing sits inside: there is no
+ * middle to read from.
  */
-export function budgetReasonDirection(
+export function bandReasonDirection(
   marked: { min: number | null; max: number | null } | null,
-  listingValue: number
+  listingValue: number | null
 ): 'over' | 'under' | null {
-  if (!marked || !(listingValue > 0)) return null;
+  if (!marked || listingValue === null || !(listingValue > 0)) return null;
   const { min, max } = marked;
   if (max !== null && listingValue > max) return 'over';
   if (min !== null && listingValue < min) return 'under';
@@ -323,18 +326,18 @@ export function budgetReasonDirection(
 }
 
 /**
- * Whether another contact matched on a budget the agent just ruled out:
- * for a listing too dear for the marked contact, a sibling whose every
- * brief tops out at or below their ceiling; for one too cheap, a sibling
- * whose every brief starts at or above their floor. A sibling with no
- * budget on file, or flexible on purpose, stays.
+ * Whether another contact matched on a budget or size the agent just
+ * ruled out: for a listing above the marked contact's band, a sibling
+ * whose every brief tops out at or below their ceiling; for one below
+ * it, a sibling whose every brief starts at or above their floor. A
+ * sibling with no figure on file, or flexible on purpose, stays.
  */
-export function sharesBudgetReason(
+export function sharesBandReason(
   sibling: { min: number | null; max: number | null } | null,
   marked: { min: number | null; max: number | null } | null,
-  listingValue: number
+  listingValue: number | null
 ): boolean {
-  const direction = budgetReasonDirection(marked, listingValue);
+  const direction = bandReasonDirection(marked, listingValue);
   if (!sibling || !marked || !direction) return false;
   if (direction === 'over')
     return sibling.max !== null && sibling.max <= marked.max!;
@@ -361,8 +364,12 @@ export function notAFitSavedMessage(
       ? ' looking in the same areas'
       : reason === 'budget'
         ? ' with the same budget'
-        : titles.length
-          ? ` looking for ${titles.join(' or ')}`
-          : ' with the same type';
+        : reason === 'size'
+          ? ' looking for the same size'
+          : reason === 'bought_elsewhere'
+            ? ' buying with them'
+            : titles.length
+              ? ` looking for ${titles.join(' or ')}`
+              : ' with the same type';
   return `${head} ${others} other contact${others === 1 ? '' : 's'}${looking} ${others === 1 ? 'was' : 'were'} hidden too.`;
 }

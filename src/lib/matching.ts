@@ -724,7 +724,7 @@ export function statedAreaSignature(contact: Contact): AreaSignature | null {
   return { areas: [...areas], projects: [...projects] };
 }
 
-export interface BudgetSignature {
+export interface BandSignature {
   /** The lowest floor across the briefs, null when any brief has none. */
   min: number | null;
   /** The highest ceiling across the briefs, null when any brief has none. */
@@ -732,31 +732,73 @@ export interface BudgetSignature {
 }
 
 /**
- * The budget a contact is matched on, across all the briefs the matcher
- * ranks them on: the widest band any of them allows. Null when the
- * contact is flexible on budget on purpose, or any brief prices by the
- * square foot, which no total budget compares with. A max that is only the price
- * of the listing they enquired about is not a limit they set, so it
- * counts as no max.
+ * The widest band a contact allows on one measure, across all the briefs
+ * the matcher ranks them on. `read` gives a brief's band, or null when
+ * that brief is open on the measure on purpose, which makes the whole
+ * contact null.
  */
-export function statedBudgetSignature(
-  contact: Contact
-): BudgetSignature | null {
+function widestBand(
+  contact: Contact,
+  read: (source: Contact) => { min: number | null; max: number | null } | null
+): BandSignature | null {
   let min: number | null = Infinity;
   let max: number | null = -Infinity;
   for (const candidate of requirementCandidates(contact)) {
-    const source = resolveRequirementSource(candidate);
-    if (source.no_budget) return null;
-    if (parsePricePerSqftBudget(requirementText(contact, source))) return null;
-    const band = statedBudgetBand(source);
-    const ceiling = band.anchoredMax ? null : band.max;
+    const band = read(resolveRequirementSource(candidate));
+    if (!band) return null;
     min = min === null || band.min === null ? null : Math.min(min, band.min);
-    max = max === null || ceiling === null ? null : Math.max(max, ceiling);
+    max = max === null || band.max === null ? null : Math.max(max, band.max);
   }
   return {
     min: min === null || !Number.isFinite(min) ? null : min,
     max: max === null || !Number.isFinite(max) ? null : max,
   };
+}
+
+/**
+ * The budget a contact is matched on: the widest band any brief allows.
+ * Null when the contact is flexible on budget on purpose, or any brief
+ * prices by the square foot, which no total budget compares with. A max
+ * that is only the price of the listing they enquired about is not a
+ * limit they set, so it counts as no max.
+ */
+export function statedBudgetSignature(contact: Contact): BandSignature | null {
+  return widestBand(contact, (source) => {
+    if (source.no_budget) return null;
+    if (parsePricePerSqftBudget(requirementText(contact, source))) return null;
+    const band = statedBudgetBand(source);
+    return { min: band.min, max: band.anchoredMax ? null : band.max };
+  });
+}
+
+const positiveOrNull = (value: unknown): number | null =>
+  value != null && Number(value) > 0 ? Number(value) : null;
+
+/** The plot or built-up area, in sq.ft, a contact is matched on. */
+export function statedAreaSizeSignature(
+  contact: Contact
+): BandSignature | null {
+  return widestBand(contact, (source) => ({
+    min: positiveOrNull(source.pref_land_area_min_sqft),
+    max: positiveOrNull(source.pref_land_area_max_sqft),
+  }));
+}
+
+/** The BHK a contact is matched on. A single figure is both ends, as the
+ *  matcher reads it. */
+export function statedBhkSignature(contact: Contact): BandSignature | null {
+  return widestBand(contact, (source) => {
+    const min = positiveOrNull(source.pref_bhk_min);
+    const max = positiveOrNull(source.pref_bhk_max);
+    return { min: min ?? max, max: max ?? min };
+  });
+}
+
+/** A listing's plot area, or its built-up area when it has none, in sq.ft. */
+export function listingAreaSqft(property: Partial<Property>): number | null {
+  const land = toSquareFeet(property.land_area, property.land_area_unit);
+  if (land && land > 0) return land;
+  return positiveOrNull(property.area_sqft);
 }
 
 /** Maps a legacy property_interests entry to groups/categories. ROI-style interests return nothing (not a type constraint). */
@@ -954,16 +996,7 @@ function matchContactsSingleProfile(
   const propProject = cleanArea(property.project || '');
   const propTags = (property.tags || []).map(cleanArea).filter(Boolean);
   const propBedrooms = property.bedrooms ? Number(property.bedrooms) : null;
-  const landAreaSqft = toSquareFeet(
-    property.land_area,
-    property.land_area_unit
-  );
-  const propertyAreaSqft =
-    landAreaSqft && landAreaSqft > 0
-      ? landAreaSqft
-      : property.area_sqft && Number(property.area_sqft) > 0
-        ? Number(property.area_sqft)
-        : null;
+  const propertyAreaSqft = listingAreaSqft(property);
   const propertyPricePerSqft =
     property.price_per_sqft && Number(property.price_per_sqft) > 0
       ? Number(property.price_per_sqft)

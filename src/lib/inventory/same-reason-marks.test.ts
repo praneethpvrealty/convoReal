@@ -28,16 +28,22 @@ function buyer(id: string, overrides: Partial<Contact> = {}): Contact {
   } as Contact;
 }
 
-function fakeDb(pool: Contact[], inserted?: (rows: unknown[]) => unknown[]) {
+function fakeDb(
+  pool: Contact[],
+  inserted?: (rows: unknown[]) => unknown[],
+  partyMembers: { party_id: string; contact_id: string }[] = []
+) {
   const calls: Call[] = [];
   const db = {
     rpc: () => Promise.resolve({ data: [], error: null }),
     from(table: string) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const query: any = {};
+      const filters: unknown[][] = [];
       for (const op of ['select', 'eq', 'neq', 'in', 'upsert']) {
         query[op] = (...args: unknown[]) => {
           calls.push({ table, op, args });
+          if (op === 'eq' || op === 'in') filters.push(args);
           return query;
         };
       }
@@ -46,11 +52,21 @@ function fakeDb(pool: Contact[], inserted?: (rows: unknown[]) => unknown[]) {
           (c) => c.table === table && c.op === 'upsert'
         );
         const data =
-          table === 'contacts'
-            ? pool
-            : upsert
-              ? (inserted ?? ((rows) => rows))(upsert.args[0] as unknown[])
-              : [];
+          table === 'contact_party_members'
+            ? partyMembers.filter((row) =>
+                filters.every(([column, value]) =>
+                  column === 'account_id'
+                    ? true
+                    : Array.isArray(value)
+                      ? value.includes(row[column as keyof typeof row])
+                      : row[column as keyof typeof row] === value
+                )
+              )
+            : table === 'contacts'
+              ? pool
+              : upsert
+                ? (inserted ?? ((rows) => rows))(upsert.args[0] as unknown[])
+                : [];
         return Promise.resolve({ data, error: null }).then(resolve);
       };
       return query;
@@ -63,11 +79,12 @@ const args = (
   optionIds: string[],
   classification = 'Buyer',
   reason: MatchRejectReason = 'type',
-  marked: Partial<Contact> = {}
+  marked: Partial<Contact> = {},
+  property: Property = duplex
 ) => ({
   accountId: 'acc-1',
   userId: 'user-1',
-  property: duplex,
+  property,
   contact: buyer('lakshman', { classification, ...marked }),
   reason,
   optionIds,
@@ -310,5 +327,95 @@ describe('[PRP-051] a budget mark hides every match whose budget stops where the
       0
     );
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('[PRP-051] a size mark hides every match whose size stops where theirs does', () => {
+  const flat = { pref_property_types: ['Flat/ Apartment'] };
+
+  it('on a listing above the area ceiling, hides those topping out no larger', async () => {
+    const sized = { ...duplex, area_sqft: 3500, bedrooms: 4 } as Property;
+    const { db, calls } = fakeDb([
+      buyer('smaller', { ...flat, pref_land_area_max_sqft: 3190 }),
+      buyer('same', { ...flat, pref_land_area_max_sqft: 3200 }),
+      buyer('larger', { ...flat, pref_land_area_max_sqft: 4000 }),
+      buyer('unknown', flat),
+    ]);
+    expect(
+      await hideSameReasonMatches(
+        db,
+        args(
+          [],
+          'Buyer',
+          'size',
+          { ...flat, pref_land_area_max_sqft: 3200 },
+          sized
+        )
+      )
+    ).toBe(2);
+    expect(rows(calls)).toEqual(['same:size', 'smaller:size']);
+  });
+
+  it('falls back to BHK when the listing has no area', async () => {
+    const fourBhk = { ...duplex, bedrooms: 4 } as Property;
+    const { db, calls } = fakeDb([
+      buyer('three', { ...flat, pref_bhk_min: 3, pref_bhk_max: 3 }),
+      buyer('two-three', { ...flat, pref_bhk_min: 2, pref_bhk_max: 3 }),
+      buyer('three-four', { ...flat, pref_bhk_min: 3, pref_bhk_max: 4 }),
+      buyer('any', flat),
+    ]);
+    expect(
+      await hideSameReasonMatches(
+        db,
+        args([], 'Buyer', 'size', { ...flat, pref_bhk_min: 3 }, fourBhk)
+      )
+    ).toBe(2);
+    expect(rows(calls)).toEqual(['three:size', 'two-three:size']);
+  });
+
+  it('hides no one when the marked contact states no size', async () => {
+    const sized = { ...duplex, area_sqft: 3500, bedrooms: 4 } as Property;
+    const { db, calls } = fakeDb([
+      buyer('smaller', { pref_land_area_max_sqft: 3200 }),
+    ]);
+    expect(
+      await hideSameReasonMatches(db, args([], 'Buyer', 'size', {}, sized))
+    ).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('[PRP-051] an already-bought mark hides the others buying with them', () => {
+  const party = [
+    { party_id: 'household', contact_id: 'lakshman' },
+    { party_id: 'household', contact_id: 'spouse' },
+    { party_id: 'other', contact_id: 'omi' },
+  ];
+
+  it("marks the other members of the marked contact's party on the list", async () => {
+    const { db, calls } = fakeDb(
+      [buyer('spouse'), buyer('omi'), buyer('stranger')],
+      undefined,
+      party
+    );
+    expect(
+      await hideSameReasonMatches(db, args([], 'Buyer', 'bought_elsewhere'))
+    ).toBe(1);
+    expect(rows(calls)).toEqual(['spouse:bought_elsewhere']);
+    expect(calls).toContainEqual({
+      table: 'contact_party_members',
+      op: 'eq',
+      args: ['account_id', 'acc-1'],
+    });
+  });
+
+  it('hides no one when the marked contact is in no party', async () => {
+    const { db, calls } = fakeDb([buyer('spouse')], undefined, [
+      { party_id: 'other', contact_id: 'omi' },
+    ]);
+    expect(
+      await hideSameReasonMatches(db, args([], 'Buyer', 'bought_elsewhere'))
+    ).toBe(0);
+    expect(calls.some((c) => c.table === 'contacts')).toBe(false);
   });
 });
