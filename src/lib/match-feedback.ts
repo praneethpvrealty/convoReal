@@ -282,6 +282,7 @@ export const SAME_REASON_REASONS: MatchRejectReason[] = [
   'location',
   'budget',
   'size',
+  'bought_elsewhere',
 ];
 
 /**
@@ -365,8 +366,10 @@ export function notAFitSavedMessage(
         ? ' with the same budget'
         : reason === 'size'
           ? ' looking for the same size'
-          : titles.length
-            ? ` looking for ${titles.join(' or ')}`
-            : ' with the same type';
+          : reason === 'bought_elsewhere'
+            ? ' buying with them'
+            : titles.length
+              ? ` looking for ${titles.join(' or ')}`
+              : ' with the same type';
   return `${head} ${others} other contact${others === 1 ? '' : 's'}${looking} ${others === 1 ? 'was' : 'were'} hidden too.`;
 }

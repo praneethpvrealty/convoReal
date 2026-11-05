@@ -89,11 +89,46 @@ function sameReasonTest(
 }
 
 /**
+ * "Already bought" is about the person, not what they want, so it holds
+ * only for the people buying with them: the other members of the marked
+ * contact's party (a household, a firm, partners), who share one
+ * requirement and so one purchase. Null when they are in no party.
+ */
+async function samePartyTest(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<((sibling: Contact) => boolean) | null> {
+  const { data: own, error } = await db
+    .from('contact_party_members')
+    .select('party_id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId);
+  if (error) throw error;
+  const partyIds = [
+    ...new Set((own ?? []).map((row) => row.party_id as string)),
+  ];
+  if (partyIds.length === 0) return null;
+
+  const { data: members, error: membersError } = await db
+    .from('contact_party_members')
+    .select('contact_id')
+    .eq('account_id', accountId)
+    .in('party_id', partyIds);
+  if (membersError) throw membersError;
+  const ids = new Set((members ?? []).map((row) => row.contact_id as string));
+  ids.delete(contactId);
+  if (ids.size === 0) return null;
+  return (sibling) => ids.has(sibling.id);
+}
+
+/**
  * After an agent rules a contact out for this listing on type, location,
  * budget or size, rules out the rest of its Matching Contacts the same
  * reason holds for: those who want only the type the agent named, who
  * name only areas the marked contact names, or whose budget or size
- * stops where theirs does on the side the listing misses. Every brief a contact is ranked
+ * stops where theirs does on the side the listing misses; and for
+ * "already bought", the others in the marked contact's party. Every brief a contact is ranked
  * on counts, so one that wants something wider keeps them. Only the
  * marked contact's own list (Buyers or Agents) is touched, only contacts
  * who rank for the listing now, and never anyone with an answer on file
@@ -118,10 +153,16 @@ export async function hideSameReasonMatches(
   if (!SAME_REASON_REASONS.includes(reason)) return 0;
   if (!contact.classification || !MATCH_POOL.includes(contact.classification))
     return 0;
-  const shares = sameReasonTest(reason, property, contact, optionIds);
-  if (!shares) return 0;
+  const sync =
+    reason === 'bought_elsewhere'
+      ? null
+      : sameReasonTest(reason, property, contact, optionIds);
+  if (reason !== 'bought_elsewhere' && !sync) return 0;
 
   try {
+    const shares = sync ?? (await samePartyTest(db, accountId, contact.id));
+    if (!shares) return 0;
+
     const { data: pool, error: poolError } = await db
       .from('contacts')
       .select(MATCH_CONTACT_COLUMNS)
