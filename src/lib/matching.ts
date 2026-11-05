@@ -615,6 +615,150 @@ export function typeGroupCategories(groups: string[]): string[] {
   return [...covered];
 }
 
+/** A brief's requirement text and the contact's notes, lower-cased: what
+ *  the matcher's text heuristics read. */
+function requirementText(contact: Contact, source: Contact): string {
+  const notesText = (contact.contact_notes || [])
+    .map((n) => n.note_text)
+    .join(' ');
+  return `${source.requirements || ''} ${notesText}`.toLowerCase();
+}
+
+const LOCATION_FREE_PHRASES = [
+  'any location',
+  'no location preference',
+  'location agnostic',
+  'yield focused',
+  'roi focused',
+];
+
+/** A stated area like "Anywhere" opens the location constraint. */
+function acceptsAnyArea(source: Contact): boolean {
+  return [
+    ...(source.areas_of_interest || []),
+    ...(source.pref_areas || []),
+  ].some((a) => isPlaceholderArea(cleanArea(a)));
+}
+
+/** The areas a brief states: agent-entered and AI-extracted, cleaned
+ *  the way the matcher compares them. */
+function statedAreas(source: Contact): {
+  explicitAreas: string[];
+  aiAreas: string[];
+} {
+  const read = (areas: string[] | null | undefined) =>
+    (areas || []).map(cleanArea).filter((a) => a && !isPlaceholderArea(a));
+  return {
+    explicitAreas: read(source.areas_of_interest),
+    aiAreas: read(source.pref_areas),
+  };
+}
+
+/**
+ * The budget a brief states, read the way the matcher reads it. The
+ * anchor belongs to the primary brief: a saved requirement profile
+ * states its own budget, so contactForRequirementProfile clears it, and
+ * a profile max that happens to equal the enquired price keeps the
+ * stated-budget tolerance.
+ */
+function statedBudgetBand(source: Contact): {
+  min: number | null;
+  max: number | null;
+  anchoredMax: boolean;
+} {
+  const positive = (value: unknown) =>
+    value != null && Number(value) > 0 ? Number(value) : null;
+  const explicitMax = positive(source.max_budget);
+  const min = resolveBudgetBound(
+    positive(source.min_budget),
+    source.pref_budget_min != null ? Number(source.pref_budget_min) : null
+  );
+  const max = resolveBudgetBound(
+    explicitMax,
+    source.pref_budget_max != null ? Number(source.pref_budget_max) : null
+  );
+  return {
+    min,
+    max,
+    anchoredMax:
+      explicitMax === null &&
+      min === null &&
+      isEnquiryBudgetAnchor(max, source.pref_budget_anchor),
+  };
+}
+
+export interface AreaSignature {
+  areas: string[];
+  projects: string[];
+}
+
+/**
+ * Every area and named project a contact is matched on, across all the
+ * briefs the matcher ranks them on. Null when any of those briefs names
+ * no area, accepts any area, or is one the matcher lets past a location
+ * miss (a yield or any-location brief): that brief is open to every
+ * location.
+ */
+export function statedAreaSignature(contact: Contact): AreaSignature | null {
+  const areas = new Set<string>();
+  const projects = new Set<string>();
+  for (const candidate of requirementCandidates(contact)) {
+    const source = resolveRequirementSource(candidate);
+    const { explicitAreas, aiAreas } = statedAreas(source);
+    if (explicitAreas.length === 0 && aiAreas.length === 0) return null;
+    const text = requirementText(contact, source);
+    const wantsYield =
+      Number(source.min_roi) > 0 || Number(source.pref_min_roi) > 0;
+    if (
+      acceptsAnyArea(source) ||
+      wantsYield ||
+      LOCATION_FREE_PHRASES.some((phrase) => text.includes(phrase))
+    )
+      return null;
+    [...explicitAreas, ...aiAreas].forEach((a) => areas.add(a));
+    [...(source.projects_of_interest || []), ...(source.pref_projects || [])]
+      .map((p) => p.trim().toLowerCase())
+      .filter(Boolean)
+      .forEach((p) => projects.add(p));
+  }
+  return { areas: [...areas], projects: [...projects] };
+}
+
+export interface BudgetSignature {
+  /** The lowest floor across the briefs, null when any brief has none. */
+  min: number | null;
+  /** The highest ceiling across the briefs, null when any brief has none. */
+  max: number | null;
+}
+
+/**
+ * The budget a contact is matched on, across all the briefs the matcher
+ * ranks them on: the widest band any of them allows. Null when the
+ * contact is flexible on budget on purpose, or any brief prices by the
+ * square foot, which no total budget compares with. A max that is only the price
+ * of the listing they enquired about is not a limit they set, so it
+ * counts as no max.
+ */
+export function statedBudgetSignature(
+  contact: Contact
+): BudgetSignature | null {
+  let min: number | null = Infinity;
+  let max: number | null = -Infinity;
+  for (const candidate of requirementCandidates(contact)) {
+    const source = resolveRequirementSource(candidate);
+    if (source.no_budget) return null;
+    if (parsePricePerSqftBudget(requirementText(contact, source))) return null;
+    const band = statedBudgetBand(source);
+    const ceiling = band.anchoredMax ? null : band.max;
+    min = min === null || band.min === null ? null : Math.min(min, band.min);
+    max = max === null || ceiling === null ? null : Math.max(max, ceiling);
+  }
+  return {
+    min: min === null || !Number.isFinite(min) ? null : min,
+    max: max === null || !Number.isFinite(max) ? null : max,
+  };
+}
+
 /** Maps a legacy property_interests entry to groups/categories. ROI-style interests return nothing (not a type constraint). */
 function mapLegacyInterest(interest: string): {
   groups: SubtypeGroup[];
@@ -844,11 +988,7 @@ function matchContactsSingleProfile(
     if (contact.is_dead || contact.is_archived) continue;
 
     const sourceContact = resolveRequirementSource(contact);
-    const notesText = (contact.contact_notes || [])
-      .map((n) => n.note_text)
-      .join(' ');
-    const combinedText =
-      `${sourceContact.requirements || ''} ${notesText}`.toLowerCase();
+    const combinedText = requirementText(contact, sourceContact);
     const hasExtraction = !!sourceContact.pref_extracted_at;
 
     const inferredTenanted = hasExtraction
@@ -898,12 +1038,7 @@ function matchContactsSingleProfile(
     )
       continue;
 
-    const explicitAreas = (sourceContact.areas_of_interest || [])
-      .map(cleanArea)
-      .filter((a) => a && !isPlaceholderArea(a));
-    const aiAreas = (sourceContact.pref_areas || [])
-      .map(cleanArea)
-      .filter((a) => a && !isPlaceholderArea(a));
+    const { explicitAreas, aiAreas } = statedAreas(sourceContact);
     // Zones and localities read from the requirement text stand in for
     // stated areas only when there are none: the extraction reads the
     // same text, so stated areas already carry every place the contact
@@ -1107,10 +1242,7 @@ function matchContactsSingleProfile(
     // A placeholder among the stated areas ("any commercial location")
     // is the agent saying location is open. The real localities beside it
     // still rank a hit; they just stop excluding everything else.
-    const anyAreaAccepted = [
-      ...(sourceContact.areas_of_interest || []),
-      ...(sourceContact.pref_areas || []),
-    ].some((a) => isPlaceholderArea(cleanArea(a)));
+    const anyAreaAccepted = acceptsAnyArea(sourceContact);
 
     // Google-resolved coordinates saved with the contact take precedence over
     // the static locality table, so areas outside it still radius-match.
@@ -1242,12 +1374,9 @@ function matchContactsSingleProfile(
         minExpectedRoi !== null &&
         propertyCategory === 'commercial' &&
         roiVerdict === 'match';
-      const textBypass =
-        combinedText.includes('any location') ||
-        combinedText.includes('no location preference') ||
-        combinedText.includes('location agnostic') ||
-        combinedText.includes('yield focused') ||
-        combinedText.includes('roi focused');
+      const textBypass = LOCATION_FREE_PHRASES.some((phrase) =>
+        combinedText.includes(phrase)
+      );
       if (yieldBypass || textBypass || anyAreaAccepted) {
         locationVerdict = 'unknown';
       } else {
@@ -1256,34 +1385,10 @@ function matchContactsSingleProfile(
     }
 
     // ── 4. Budget (applied last) ──────────────────────────────────
-    const explicitMin =
-      sourceContact.min_budget != null && Number(sourceContact.min_budget) > 0
-        ? Number(sourceContact.min_budget)
-        : null;
-    const explicitMax =
-      sourceContact.max_budget != null && Number(sourceContact.max_budget) > 0
-        ? Number(sourceContact.max_budget)
-        : null;
-    let budgetMin = resolveBudgetBound(
-      explicitMin,
-      sourceContact.pref_budget_min != null
-        ? Number(sourceContact.pref_budget_min)
-        : null
-    );
-    let budgetMax = resolveBudgetBound(
-      explicitMax,
-      sourceContact.pref_budget_max != null
-        ? Number(sourceContact.pref_budget_max)
-        : null
-    );
-    // The anchor belongs to the primary brief: a saved requirement
-    // profile states its own budget, so contactForRequirementProfile
-    // clears it, and a profile max that happens to equal the enquired
-    // price keeps the stated-budget tolerance.
-    const anchoredMax =
-      explicitMax === null &&
-      budgetMin === null &&
-      isEnquiryBudgetAnchor(budgetMax, sourceContact.pref_budget_anchor);
+    const statedBand = statedBudgetBand(sourceContact);
+    let budgetMin = statedBand.min;
+    let budgetMax = statedBand.max;
+    const anchoredMax = statedBand.anchoredMax;
     let maxIsCeiling = anchoredMax;
     if (budgetMin === null && budgetMax === null && !hasExtraction) {
       const parsed = parseBudgetFromText(combinedText);

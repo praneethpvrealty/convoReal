@@ -5360,6 +5360,8 @@ describe('[PRP-051] "Not a fit" on matching contacts runs one rule on both surfa
   it('confirms a mark, and the others it hid, in the same words', () => {
     expect(webPanel).toContain('notAFitSavedMessage(');
     expect(mobilePanel).toContain('notAFitSavedMessage(');
+    expect(webPanel).toContain('typeIds, chosen)');
+    expect(mobilePanel).toMatch(/typeIds,\s*chosen\s*\)/);
     expect(mobileLib).toContain('alsoHidden?: number');
   });
 

@@ -62,7 +62,7 @@ export function NotAFitPanel({
         chosen,
         typeIds
       );
-      toast.success(notAFitSavedMessage(contactName, result, typeIds));
+      toast.success(notAFitSavedMessage(contactName, result, typeIds, chosen));
       await onSaved(result.typeSaved);
       onClose();
     } catch (err) {

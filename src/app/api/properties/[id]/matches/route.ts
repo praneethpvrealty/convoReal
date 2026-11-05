@@ -8,7 +8,7 @@ import {
   loadTypeSuggestions,
 } from '@/lib/inventory/match-feedback-store';
 import { partitionMatchesByFeedback } from '@/lib/match-feedback';
-import { MATCH_CONTACT_COLUMNS } from '@/lib/inventory/same-type-marks';
+import { MATCH_CONTACT_COLUMNS } from '@/lib/inventory/same-reason-marks';
 import type { Contact, Property } from '@/types';
 
 const HIDDEN_LOOKUP_CAP = 100;

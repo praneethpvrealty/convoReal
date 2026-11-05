@@ -58,11 +58,11 @@ const ctx = {
   userId: 'user-1',
 };
 
-const hideSameTypeMatches = vi.fn<(...args: unknown[]) => Promise<number>>(
+const hideSameReasonMatches = vi.fn<(...args: unknown[]) => Promise<number>>(
   async () => 0
 );
-vi.mock('@/lib/inventory/same-type-marks', () => ({
-  hideSameTypeMatches: (...args: unknown[]) => hideSameTypeMatches(...args),
+vi.mock('@/lib/inventory/same-reason-marks', () => ({
+  hideSameReasonMatches: (...args: unknown[]) => hideSameReasonMatches(...args),
 }));
 
 vi.mock('@/lib/auth/account', () => ({
@@ -93,8 +93,8 @@ beforeEach(() => {
   insertError = null;
   noteRow = null;
   upsertError = null;
-  hideSameTypeMatches.mockReset();
-  hideSameTypeMatches.mockResolvedValue(0);
+  hideSameReasonMatches.mockReset();
+  hideSameReasonMatches.mockResolvedValue(0);
 });
 
 describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
@@ -151,7 +151,7 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
       classification: 'Buyer',
       requirement_profiles: [],
     };
-    hideSameTypeMatches.mockResolvedValue(4);
+    hideSameReasonMatches.mockResolvedValue(4);
     const res = await post({
       action: 'reject',
       contactId: CONTACT,
@@ -159,24 +159,42 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
       propertyTypes: ['pt_apartment'],
     });
     expect((await res.json()).data).toEqual({ typeSaved: true, alsoHidden: 4 });
-    expect(hideSameTypeMatches).toHaveBeenCalledTimes(1);
-    expect(hideSameTypeMatches.mock.calls[0][1]).toMatchObject({
+    expect(hideSameReasonMatches).toHaveBeenCalledTimes(1);
+    expect(hideSameReasonMatches.mock.calls[0][1]).toMatchObject({
       accountId: 'account-1',
       userId: 'user-1',
       contact: { id: CONTACT },
+      reason: 'type',
       optionIds: ['pt_apartment'],
     });
   });
 
+  it('hides the matches a location or budget mark holds for, with that reason', async () => {
+    hideSameReasonMatches.mockResolvedValue(2);
+    for (const reason of ['location', 'budget']) {
+      const res = await post({ action: 'reject', contactId: CONTACT, reason });
+      expect((await res.json()).data).toEqual({
+        typeSaved: false,
+        alsoHidden: 2,
+      });
+    }
+    expect(
+      hideSameReasonMatches.mock.calls.map(
+        (call) => (call[1] as { reason: string }).reason
+      )
+    ).toEqual(['location', 'budget']);
+  });
+
   it('hides no one else for another reason, a skipped type or a type-only save', async () => {
-    await post({ action: 'reject', contactId: CONTACT, reason: 'budget' });
+    await post({ action: 'reject', contactId: CONTACT, reason: 'not_now' });
+    await post({ action: 'reject', contactId: CONTACT, reason: 'size' });
     await post({ action: 'reject', contactId: CONTACT, reason: 'type' });
     await post({
       action: 'set_type',
       contactId: CONTACT,
       propertyTypes: ['pt_apartment'],
     });
-    expect(hideSameTypeMatches).not.toHaveBeenCalled();
+    expect(hideSameReasonMatches).not.toHaveBeenCalled();
   });
 
   it('fills a brief that names no type and leaves a stated one alone', async () => {
