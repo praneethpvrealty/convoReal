@@ -615,6 +615,31 @@ export function typeGroupCategories(groups: string[]): string[] {
   return [...covered];
 }
 
+/** A brief's requirement text and the contact's notes, lower-cased: what
+ *  the matcher's text heuristics read. */
+function requirementText(contact: Contact, source: Contact): string {
+  const notesText = (contact.contact_notes || [])
+    .map((n) => n.note_text)
+    .join(' ');
+  return `${source.requirements || ''} ${notesText}`.toLowerCase();
+}
+
+const LOCATION_FREE_PHRASES = [
+  'any location',
+  'no location preference',
+  'location agnostic',
+  'yield focused',
+  'roi focused',
+];
+
+/** A stated area like "Anywhere" opens the location constraint. */
+function acceptsAnyArea(source: Contact): boolean {
+  return [
+    ...(source.areas_of_interest || []),
+    ...(source.pref_areas || []),
+  ].some((a) => isPlaceholderArea(cleanArea(a)));
+}
+
 /** The areas a brief states: agent-entered and AI-extracted, cleaned
  *  the way the matcher compares them. */
 function statedAreas(source: Contact): {
@@ -670,7 +695,9 @@ export interface AreaSignature {
 /**
  * Every area and named project a contact is matched on, across all the
  * briefs the matcher ranks them on. Null when any of those briefs names
- * no area: that brief is open to every location.
+ * no area, accepts any area, or is one the matcher lets past a location
+ * miss (a yield or any-location brief): that brief is open to every
+ * location.
  */
 export function statedAreaSignature(contact: Contact): AreaSignature | null {
   const areas = new Set<string>();
@@ -679,6 +706,15 @@ export function statedAreaSignature(contact: Contact): AreaSignature | null {
     const source = resolveRequirementSource(candidate);
     const { explicitAreas, aiAreas } = statedAreas(source);
     if (explicitAreas.length === 0 && aiAreas.length === 0) return null;
+    const text = requirementText(contact, source);
+    const wantsYield =
+      Number(source.min_roi) > 0 || Number(source.pref_min_roi) > 0;
+    if (
+      acceptsAnyArea(source) ||
+      wantsYield ||
+      LOCATION_FREE_PHRASES.some((phrase) => text.includes(phrase))
+    )
+      return null;
     [...explicitAreas, ...aiAreas].forEach((a) => areas.add(a));
     [...(source.projects_of_interest || []), ...(source.pref_projects || [])]
       .map((p) => p.trim().toLowerCase())
@@ -698,7 +734,8 @@ export interface BudgetSignature {
 /**
  * The budget a contact is matched on, across all the briefs the matcher
  * ranks them on: the widest band any of them allows. Null when the
- * contact is flexible on budget on purpose. A max that is only the price
+ * contact is flexible on budget on purpose, or any brief prices by the
+ * square foot, which no total budget compares with. A max that is only the price
  * of the listing they enquired about is not a limit they set, so it
  * counts as no max.
  */
@@ -710,6 +747,7 @@ export function statedBudgetSignature(
   for (const candidate of requirementCandidates(contact)) {
     const source = resolveRequirementSource(candidate);
     if (source.no_budget) return null;
+    if (parsePricePerSqftBudget(requirementText(contact, source))) return null;
     const band = statedBudgetBand(source);
     const ceiling = band.anchoredMax ? null : band.max;
     min = min === null || band.min === null ? null : Math.min(min, band.min);
@@ -950,11 +988,7 @@ function matchContactsSingleProfile(
     if (contact.is_dead || contact.is_archived) continue;
 
     const sourceContact = resolveRequirementSource(contact);
-    const notesText = (contact.contact_notes || [])
-      .map((n) => n.note_text)
-      .join(' ');
-    const combinedText =
-      `${sourceContact.requirements || ''} ${notesText}`.toLowerCase();
+    const combinedText = requirementText(contact, sourceContact);
     const hasExtraction = !!sourceContact.pref_extracted_at;
 
     const inferredTenanted = hasExtraction
@@ -1208,10 +1242,7 @@ function matchContactsSingleProfile(
     // A placeholder among the stated areas ("any commercial location")
     // is the agent saying location is open. The real localities beside it
     // still rank a hit; they just stop excluding everything else.
-    const anyAreaAccepted = [
-      ...(sourceContact.areas_of_interest || []),
-      ...(sourceContact.pref_areas || []),
-    ].some((a) => isPlaceholderArea(cleanArea(a)));
+    const anyAreaAccepted = acceptsAnyArea(sourceContact);
 
     // Google-resolved coordinates saved with the contact take precedence over
     // the static locality table, so areas outside it still radius-match.
@@ -1343,12 +1374,9 @@ function matchContactsSingleProfile(
         minExpectedRoi !== null &&
         propertyCategory === 'commercial' &&
         roiVerdict === 'match';
-      const textBypass =
-        combinedText.includes('any location') ||
-        combinedText.includes('no location preference') ||
-        combinedText.includes('location agnostic') ||
-        combinedText.includes('yield focused') ||
-        combinedText.includes('roi focused');
+      const textBypass = LOCATION_FREE_PHRASES.some((phrase) =>
+        combinedText.includes(phrase)
+      );
       if (yieldBypass || textBypass || anyAreaAccepted) {
         locationVerdict = 'unknown';
       } else {

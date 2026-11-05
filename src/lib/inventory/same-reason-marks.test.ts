@@ -226,6 +226,12 @@ describe('[PRP-051] a location mark hides every match who names only the same ar
       buyer('wider', { ...flat, pref_areas: ['Sarjapur Road', 'HSR Layout'] }),
       buyer('project', { ...flat, pref_projects: ['SJR Blue Waters'] }),
       buyer('anywhere', { ...flat, pref_areas: [] }),
+      buyer('open', { ...flat, pref_areas: ['Sarjapur Road', 'Anywhere'] }),
+      buyer('yield', { ...flat, min_roi: 4 }),
+      buyer('text-open', {
+        ...flat,
+        requirements: 'Flat on Sarjapur Road, any location is fine',
+      }),
     ]);
     expect(
       await hideSameReasonMatches(db, args([], 'Buyer', 'location', flat))
@@ -252,6 +258,10 @@ describe('[PRP-051] a budget mark hides every match whose budget stops where the
       buyer('same', { max_budget: 87_000_000 }),
       buyer('higher', { pref_budget_max: 120_000_000 }),
       buyer('flexible', { no_budget: true }),
+      buyer('per-sqft', {
+        requirements: 'Flat on Sarjapur Road around 9500 per sqft',
+        pref_budget_max: 9_500,
+      }),
       buyer('unknown'),
     ]);
     expect(
