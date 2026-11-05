@@ -123,6 +123,34 @@ describe('hasSavedRequirement', () => {
       true
     );
   });
+
+  it('counts a saved buy-or-rent intent, so a Sale listing never overwrites a stated rental search', () => {
+    expect(hasSavedRequirement(empty({ pref_listing_types: ['Rent'] }))).toBe(
+      true
+    );
+    expect(hasSavedRequirement(empty({ pref_bhk_min: 2 }))).toBe(true);
+  });
+
+  it('counts an active requirement profile, and ignores a retired or empty one', () => {
+    const profile = {
+      id: 'rp-1',
+      raw_text: '2 BHK in HSR under 1.5 Cr',
+      active: true,
+    } as unknown as NonNullable<Contact['requirement_profiles']>[number];
+    expect(
+      hasSavedRequirement(empty({ requirement_profiles: [profile] }))
+    ).toBe(true);
+    expect(
+      hasSavedRequirement(
+        empty({ requirement_profiles: [{ ...profile, active: false }] })
+      )
+    ).toBe(false);
+    expect(
+      hasSavedRequirement(
+        empty({ requirement_profiles: [{ ...profile, raw_text: '  ' }] })
+      )
+    ).toBe(false);
+  });
 });
 
 describe('seedRequirementFromListing', () => {

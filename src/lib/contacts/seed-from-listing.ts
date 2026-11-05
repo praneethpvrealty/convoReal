@@ -18,6 +18,7 @@ import type { Contact } from '@/types';
 import { PROPERTY_TYPE_OPTIONS } from '@/lib/match-feedback';
 import { toSquareFeet } from '@/lib/area-units';
 import { areaLabelFromListing } from '@/app/api/leads/email-webhook/email-parser';
+import { activeRequirementProfiles } from '@/lib/requirements/profiles';
 
 /** The band around the listing's own size that still reads as "a plot
  *  like it": the larger corner sites in the same layout qualify, a
@@ -54,11 +55,18 @@ const hasAny = (list: unknown[] | null | undefined) =>
 const hasNumber = (value: unknown) => value != null && Number(value) > 0;
 
 /** True when anything on the record already says what the contact
- *  wants: a type, an area, a budget (or an explicit "no budget"), a
- *  size or a requirement line. */
+ *  wants: a type, a buy-or-rent intent, an area, a budget (or an
+ *  explicit "no budget"), a size, a BHK count, a requirement line or an
+ *  active requirement profile. A profile-only contact is matched from
+ *  the profile, and legacy columns seeded beside it would rank as a
+ *  second brief. */
 export function hasSavedRequirement(contact: Contact): boolean {
   return (
+    activeRequirementProfiles(contact).length > 0 ||
     hasAny(contact.pref_property_types) ||
+    hasAny(contact.pref_listing_types) ||
+    hasNumber(contact.pref_bhk_min) ||
+    hasNumber(contact.pref_bhk_max) ||
     hasAny(contact.pref_property_categories) ||
     hasAny(contact.property_interests) ||
     hasAny(contact.pref_areas) ||

@@ -227,6 +227,56 @@ describe('[CNV-002] rankPropertiesForContact strictArea', () => {
     expect(matches.map((m) => m.property.id)).toEqual(['p-2nd']);
     expect(farAway.pref_areas).toEqual(['Mysore']);
   });
+
+  it('[CNV-013] widens a profile-backed brief too, since the matcher reads areas off the profile', async () => {
+    const profile = {
+      id: 'rp-1',
+      title: 'Mysore · Commercial Plot',
+      raw_text: 'Commercial plot in Mysore up to 10 Cr',
+      source: 'manual',
+      active: true,
+      property_types: ['Commercial Plot'],
+      property_categories: [],
+      bhk_min: null,
+      bhk_max: null,
+      budget_min: null,
+      budget_max: 100000000,
+      land_area_min_sqft: null,
+      land_area_max_sqft: null,
+      areas: ['Mysore'],
+      excluded_areas: [],
+      projects: [],
+      min_roi: null,
+      listing_types: ['Sale'],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const profiled = {
+      ...contact,
+      property_interests: [],
+      pref_areas: [],
+      strict_area_match: false,
+      requirement_profiles: [profile],
+    };
+    const client = db();
+    (client as unknown as { from: unknown }).from = memorySupabase({
+      contacts: [profiled],
+      properties: [{ ...jpNagarPlot }],
+      listing_feedback: [],
+      property_shares: [],
+    }).from;
+
+    expect(
+      await rankPropertiesForContact(client, 'acc-1', 'c-1', {
+        strictArea: false,
+      })
+    ).toHaveLength(0);
+    const matches = await rankPropertiesForContact(client, 'acc-1', 'c-1', {
+      anyLocation: true,
+    });
+    expect(matches.map((m) => m.property.id)).toEqual(['p-2nd']);
+    expect(profile.areas).toEqual(['Mysore']);
+  });
 });
 
 describe('[RDR-002] generateMatchEventForProperty', () => {
