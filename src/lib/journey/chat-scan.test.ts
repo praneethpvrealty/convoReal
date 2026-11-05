@@ -46,6 +46,26 @@ describe('scanMessagesForProperties', () => {
     expect(found.has('p2')).toBe(false);
   });
 
+  it('matches a title as a notice renders it, without its trailing full stop', () => {
+    const found = scanMessagesForProperties(
+      [
+        {
+          content_text:
+            'Property: Residential Plot with the apartment building for sale, Bilekanahalli',
+          created_at: 't1',
+        },
+      ],
+      [
+        {
+          id: 'p4',
+          property_code: null,
+          title: 'Residential Plot with the apartment building for sale.',
+        },
+      ]
+    );
+    expect(found.get('p4')).toBe('t1');
+  });
+
   it('title matching is case-insensitive', () => {
     const found = scanMessagesForProperties(
       [

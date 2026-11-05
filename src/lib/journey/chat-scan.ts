@@ -9,8 +9,14 @@
  *   1. a showcase link carrying `property_id=<uuid>`
  *   2. the property code (e.g. "PROP-1002")
  *   3. the exact title — only when longer than 8 chars, so generic
- *      titles ("2 BHK Flat") don't false-positive on everyday chat
+ *      titles ("2 BHK Flat") don't false-positive on everyday chat.
+ *      A title is also matched as the templates and alerts render it,
+ *      with its trailing punctuation dropped: an enquiry notice names
+ *      "Residential Plot with the apartment building for sale" and the
+ *      inventory title ends in a full stop.
  */
+
+import { listingTitleForMessage } from '@/lib/inventory/listing-title';
 
 export interface ScannableMessage {
   content_text: string | null;
@@ -41,7 +47,7 @@ export function scanMessagesForProperties(
       if (found.has(prop.id)) continue;
       const hasIdLink = text.includes(`property_id=${prop.id}`);
       const hasCode = !!prop.property_code && text.includes(prop.property_code);
-      const cleanTitle = prop.title.trim();
+      const cleanTitle = listingTitleForMessage(prop.title);
       const hasTitle =
         cleanTitle.length > 8 && lower.includes(cleanTitle.toLowerCase());
       if (hasIdLink || hasCode || hasTitle) {

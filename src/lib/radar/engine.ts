@@ -320,6 +320,14 @@ export async function rankPropertiesForContact(
      *  the agent decides what to re-send and the UI already marks who
      *  was contacted. */
     excludeAlreadySent?: boolean;
+    /** Rank as if the contact had named no area at all, for this
+     *  ranking only. The "elsewhere in the city" tap after a no-match
+     *  reply: the lead asked to see what exists outside their locality,
+     *  so the areas on file stop gating and the nearest fits by type,
+     *  size and budget come back. The legacy columns and every
+     *  requirement profile lose their areas for the ranking; the saved
+     *  record is untouched. */
+    anyLocation?: boolean;
   } = {}
 ): Promise<RankedPropertyMatch[]> {
   const [{ data: contact }, { data: properties }, { data: rejected }, shared] =
@@ -370,13 +378,24 @@ export async function rankPropertiesForContact(
   // An explicit false also overrides a strict_area_match the contact
   // has saved: the fallback search after an empty strict pass must be
   // the ordinary radius, or such a contact is told nothing fits twice.
-  const base =
-    opts.strictArea === undefined
-      ? (contact as Contact)
-      : ({
-          ...(contact as Contact),
-          strict_area_match: opts.strictArea,
-        } as Contact);
+  const base = {
+    ...(contact as Contact),
+    ...(opts.strictArea === undefined
+      ? {}
+      : { strict_area_match: opts.strictArea }),
+    ...(opts.anyLocation
+      ? {
+          areas_of_interest: null,
+          areas_of_interest_geo: null,
+          pref_areas: null,
+          pref_excluded_areas: null,
+          strict_area_match: false,
+          requirement_profiles: (
+            (contact as Contact).requirement_profiles ?? []
+          ).map((profile) => ({ ...profile, areas: [], excluded_areas: [] })),
+        }
+      : {}),
+  } as Contact;
   const [subject] = await attachInquiredListingTypes(db, accountId, [base]);
 
   return rankProperties(subject, pool);

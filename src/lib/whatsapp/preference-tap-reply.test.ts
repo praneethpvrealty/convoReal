@@ -23,19 +23,35 @@ vi.mock('@/lib/whatsapp/listing-feedback', () => ({
     sendListingFeedbackPrompt(...args),
 }));
 
-const sendBudgetBandPrompt = vi.fn();
-const sendListingIntentPrompt = vi.fn();
 const applyDefaultBuyingIntent = vi.fn();
 
-vi.mock('@/lib/whatsapp/budget-band', () => ({
-  sendBudgetBandPrompt: (...args: unknown[]) => sendBudgetBandPrompt(...args),
-}));
-
 vi.mock('@/lib/whatsapp/listing-intent-prompt', () => ({
-  sendListingIntentPrompt: (...args: unknown[]) =>
-    sendListingIntentPrompt(...args),
   applyDefaultBuyingIntent: (...args: unknown[]) =>
     applyDefaultBuyingIntent(...args),
+}));
+
+const sendPreferenceNextStepsPrompt = vi.fn();
+
+vi.mock('@/lib/whatsapp/preference-next-steps', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/lib/whatsapp/preference-next-steps')
+  >()),
+  sendPreferenceNextStepsPrompt: (...args: unknown[]) =>
+    sendPreferenceNextStepsPrompt(...args),
+}));
+
+const resolveDroppedProperty = vi.fn();
+
+vi.mock('@/lib/whatsapp/enquiry-dropoff', () => ({
+  resolveDroppedProperty: (...args: unknown[]) =>
+    resolveDroppedProperty(...args),
+}));
+
+const seedRequirementFromListing = vi.fn();
+
+vi.mock('@/lib/contacts/seed-from-listing', () => ({
+  seedRequirementFromListing: (...args: unknown[]) =>
+    seedRequirementFromListing(...args),
 }));
 
 const areaNearMissLine = vi.fn();
@@ -190,19 +206,38 @@ describe('isReEngagedLead', () => {
   });
 });
 
-function dbWithContact(row: Record<string, unknown> | null) {
+function dbWith(rows: Record<string, Record<string, unknown> | null>) {
   return {
-    from: () => ({
+    from: (table: string) => ({
       select: () => ({
         eq: () => ({
           eq: () => ({
-            maybeSingle: async () => ({ data: row }),
+            maybeSingle: async () => ({ data: rows[table] ?? null }),
           }),
         }),
       }),
     }),
   } as never;
 }
+
+function dbWithContact(row: Record<string, unknown> | null) {
+  return dbWith({ contacts: row });
+}
+
+const SURYA_CITY = {
+  id: '8c08d00c-6e6a-4f89-bcf5-b21bbc78ebee',
+  title: '3933 Sq.Ft. North East corner Residential Plot in Surya City Phase 3',
+  type: 'Residential Land/ Plot',
+  status: 'Sold',
+  is_published: true,
+  listing_type: 'Sale',
+  price: 24000000,
+  land_area: 3933,
+  land_area_unit: 'Sq.Ft.',
+  sublocality: 'Surya City Phase 3',
+  city: 'Bangalore',
+  location: 'Surya City Phase 3, Bangalore, Karnataka',
+};
 
 const contactRow = {
   id: 'c1',
@@ -244,7 +279,10 @@ beforeEach(() => {
   generateMatchEventForContact.mockResolvedValue(undefined);
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
   sendListingFeedbackPrompt.mockResolvedValue(true);
+  sendPreferenceNextStepsPrompt.mockResolvedValue(true);
   applyDefaultBuyingIntent.mockResolvedValue(true);
+  resolveDroppedProperty.mockResolvedValue(null);
+  seedRequirementFromListing.mockResolvedValue(null);
 });
 
 describe('sendPreferenceTapReply', () => {
@@ -289,7 +327,6 @@ describe('sendPreferenceTapReply', () => {
     areaNearMissLine.mockResolvedValue(
       '📍 We do have 2 listings in Koramangala, at ₹9 Cr–₹12 Cr. Take a look: https://x/?ids=a,b'
     );
-    sendBudgetBandPrompt.mockResolvedValue(true);
 
     await sendPreferenceTapReply(args());
 
@@ -391,13 +428,11 @@ describe('sendPreferenceTapReply', () => {
     });
   });
 
-  it('turns a no-match budget question into the tappable band list', async () => {
-    // Budget is the missing rung for this fixture; with no listings to
-    // judge, the band list takes the interactive slot and carries the
-    // form row, so the closing line points down instead of asking for
-    // a typed answer.
+  it('[CNV-013] ends a no-match reply on the next-steps menu, form row included, instead of a typed question', async () => {
+    // With no listings to judge, the menu takes the interactive slot
+    // and carries the form row, so the closing line points down instead
+    // of asking the lead to type an answer the enquiry already gave.
     rankPropertiesForContact.mockResolvedValue([]);
-    sendBudgetBandPrompt.mockResolvedValue(true);
 
     const result = await sendPreferenceTapReply(args());
 
@@ -405,16 +440,20 @@ describe('sendPreferenceTapReply', () => {
     const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
       text: string;
     };
-    expect(text).toContain('pick your budget range below');
+    expect(text).toMatch(/Pick what to try next 👇$/);
     expect(text).not.toContain('what budget are you working with?');
-    expect(sendBudgetBandPrompt).toHaveBeenCalledWith(
-      expect.objectContaining({ contactId: 'c1', includeFormRow: true })
+    expect(text).not.toContain('land/plot, apartment, villa');
+    expect(sendPreferenceNextStepsPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contactId: 'c1',
+        listing: null,
+        includeFormRow: true,
+      })
     );
   });
 
-  it('[INB-002] defaults missing intent to buying and offers renting as the exception', async () => {
+  it('[INB-002] defaults missing intent to buying and says so ahead of the menu', async () => {
     rankPropertiesForContact.mockResolvedValue([]);
-    sendBudgetBandPrompt.mockResolvedValue(true);
 
     const result = await sendPreferenceTapReply(
       args({ ...contactRow, pref_listing_types: [] })
@@ -432,14 +471,8 @@ describe('sendPreferenceTapReply', () => {
       text: string;
     };
     expect(text).toContain("assume you're buying");
-    expect(sendBudgetBandPrompt).toHaveBeenCalledWith(
-      expect.objectContaining({
-        contactId: 'c1',
-        includeFormRow: true,
-        includeRentSwitch: true,
-      })
-    );
-    expect(sendListingIntentPrompt).not.toHaveBeenCalled();
+    expect(text).toMatch(/Pick what to try next 👇$/);
+    expect(sendPreferenceNextStepsPrompt).toHaveBeenCalledTimes(1);
   });
 
   it('states the buying default when matching listings use the interactive slot', async () => {
@@ -465,7 +498,7 @@ describe('sendPreferenceTapReply', () => {
       text: string;
     };
     expect(text).toContain('what budget are you working with?');
-    expect(sendBudgetBandPrompt).not.toHaveBeenCalled();
+    expect(sendPreferenceNextStepsPrompt).not.toHaveBeenCalled();
   });
 
   it('stands down without a contact row rather than sending a hole', async () => {
@@ -475,6 +508,161 @@ describe('sendPreferenceTapReply', () => {
 
     expect(result.replySent).toBe(false);
     expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+});
+
+describe('[CNV-013] the tap is anchored on the listing the notice named', () => {
+  const emptyContact = {
+    id: 'c1',
+    name: 'Appa',
+    created_at: '2026-08-07T06:36:30Z',
+    pref_property_types: [],
+    pref_areas: [],
+    areas_of_interest: [],
+    pref_listing_types: [],
+    last_inquired_property_id: '4dac1546-6ff4-461a-b524-766825d61bdc',
+    contact_notes: [],
+  };
+  const anchored = () => ({
+    ...args(emptyContact),
+    db: dbWith({ contacts: emptyContact, properties: SURYA_CITY }),
+    contextMessageId: 'wamid.notice',
+  });
+
+  it('resolves the listing from the quoted template the way Close my enquiry does', async () => {
+    rankPropertiesForContact.mockResolvedValue([]);
+    resolveDroppedProperty.mockResolvedValue({ id: SURYA_CITY.id });
+
+    await sendPreferenceTapReply(anchored());
+
+    expect(resolveDroppedProperty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'acct-1',
+        contextMessageId: 'wamid.notice',
+        conversationId: 'conv-1',
+        contact: expect.objectContaining({
+          id: 'c1',
+          last_inquired_property_id: '4dac1546-6ff4-461a-b524-766825d61bdc',
+        }),
+      })
+    );
+  });
+
+  it('seeds an empty record from that listing before ranking, and briefs the near-miss search with the seed', async () => {
+    rankPropertiesForContact.mockResolvedValue([]);
+    resolveDroppedProperty.mockResolvedValue({ id: SURYA_CITY.id });
+    seedRequirementFromListing.mockResolvedValue({
+      pref_property_types: ['Residential Land/ Plot'],
+      pref_listing_types: ['Sale'],
+      pref_areas: ['Surya City Phase 3'],
+      pref_budget_max: 24000000,
+      pref_budget_anchor: 24000000,
+    });
+
+    await sendPreferenceTapReply(anchored());
+
+    expect(seedRequirementFromListing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: 'acct-1',
+        contact: expect.objectContaining({ id: 'c1' }),
+        property: expect.objectContaining({ id: SURYA_CITY.id }),
+      })
+    );
+    expect(seedRequirementFromListing.mock.invocationCallOrder[0]).toBeLessThan(
+      rankPropertiesForContact.mock.invocationCallOrder[0]
+    );
+    expect(areaNearMissLine).toHaveBeenCalledWith(
+      expect.objectContaining({
+        brief: expect.objectContaining({
+          areas: ['Surya City Phase 3'],
+          listingTypes: ['Sale'],
+          budgetMax: 24000000,
+        }),
+      })
+    );
+  });
+
+  it('opens on the listing, never on "back on our radar", and never restates that it is gone', async () => {
+    rankPropertiesForContact.mockResolvedValue([]);
+    resolveDroppedProperty.mockResolvedValue({ id: SURYA_CITY.id });
+
+    await sendPreferenceTapReply(anchored());
+
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(
+      text.startsWith(
+        "Thanks, Appa 👍 Let's find you another plot like *3933 Sq.Ft. North East corner Residential Plot in Surya City Phase 3, Bangalore*."
+      )
+    ).toBe(true);
+    expect(text).toContain(
+      "Nothing live right now fits that brief exactly, but I'll keep watching and message you the moment the right plot comes in."
+    );
+    expect(text).not.toMatch(/radar|sold|no longer available/i);
+    expect(text).toMatch(/Pick what to try next 👇$/);
+    expect(sendPreferenceNextStepsPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        listing: {
+          id: SURYA_CITY.id,
+          title: SURYA_CITY.title,
+          type: 'Residential Land/ Plot',
+          city: 'Bangalore',
+        },
+        includeFormRow: true,
+      })
+    );
+  });
+
+  it('keeps the ordinary opener for a listing that is still live, but still anchors the enquiry on it', async () => {
+    rankPropertiesForContact.mockResolvedValue([aMatch]);
+    resolveDroppedProperty.mockResolvedValue({ id: SURYA_CITY.id });
+    const live = { ...SURYA_CITY, status: 'Available' };
+
+    await sendPreferenceTapReply({
+      ...anchored(),
+      db: dbWith({ contacts: emptyContact, properties: live }),
+    });
+
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain(
+      "Great to hear from you, Appa 👍 You're back on our radar."
+    );
+    expect(text).toContain(
+      "Based on your interest in *3933 Sq.Ft. North East corner Residential Plot in Surya City Phase 3, Bangalore*, here's one live option from our inventory:"
+    );
+  });
+
+  it('shows the fits under the anchored opener without repeating the listing', async () => {
+    rankPropertiesForContact.mockResolvedValue([aMatch, aNeighbour]);
+    resolveDroppedProperty.mockResolvedValue({ id: SURYA_CITY.id });
+
+    await sendPreferenceTapReply(anchored());
+
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain(
+      'Looking at what is live now, here are 2 live options from our inventory:'
+    );
+    expect(text.match(/Surya City Phase 3/g)).toHaveLength(1);
+    expect(sendPreferenceNextStepsPrompt).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the contact as filed when the listing lookup fails', async () => {
+    rankPropertiesForContact.mockResolvedValue([]);
+    resolveDroppedProperty.mockRejectedValue(new Error('scan failed'));
+
+    const result = await sendPreferenceTapReply(anchored());
+
+    expect(result.replySent).toBe(true);
+    expect(seedRequirementFromListing).not.toHaveBeenCalled();
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain("You're back on our radar");
   });
 });
 

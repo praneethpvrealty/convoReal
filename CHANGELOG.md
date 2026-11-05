@@ -17,6 +17,22 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 5 November 2026
+
+- **"Update my preferences" now answers with the listing the notice named,
+  and ends on a menu instead of a dead end.** A lead whose record held no
+  requirement tapped the button under a status notice for a sold 3,933
+  sq.ft plot and was told nothing fits, asked "land/plot, apartment, villa
+  or commercial?", then offered the same button again as a form. The tap
+  is now anchored on the notice's listing (found the way "Close my enquiry"
+  finds it), opens by naming it rather than "You're back on our radar", and
+  seeds an empty record from it — type, intent, locality, price anchor and
+  size band — before ranking. When nothing fits, one tappable menu follows:
+  stretch the budget, the nearest fits from elsewhere in the city, a
+  different area, a different type, a call back (a to-do and an alert for
+  the agent), or the full form. The "Prefer to update everything at once?"
+  bubble is gone (CNV-013).
+
 #### 31 October 2026
 
 - **A type-and-size brief now reaches Match Radar and the buyer.**

@@ -357,7 +357,8 @@ const QUALIFIER_FINGERPRINTS: Record<QualifierField, RegExp> = {
   type: /what kind of property are you looking for|land\/plot, apartment, villa/i,
   intent: /looking to buy or to rent/i,
   budget: /what budget(?: range)? are you working with/i,
-  location: /which area (?:are you looking at|suits you best)/i,
+  location:
+    /which area (?:are you looking at|suits you best)|which areas should i focus on/i,
 };
 
 /**

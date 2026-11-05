@@ -32,7 +32,8 @@ export async function preferenceFlowRequest(
       accountId,
       contactRecord.id,
       configOwnerUserId,
-      conversation.id
+      conversation.id,
+      message.context?.id ?? null
     );
     if (handledPreferenceFlow) return 'handled';
   }

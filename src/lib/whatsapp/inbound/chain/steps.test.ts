@@ -40,6 +40,7 @@ const EXPECTED_ORDER = [
   'updateSessionInput',
   'listingFeedbackList',
   'requirementTweak',
+  'preferenceNextStepTap',
   'onboardingRungTap',
   'preferenceFlowRequest',
   'updateIntent',
