@@ -57,6 +57,11 @@ export async function handlePreferenceFlowTrigger(
       accountId,
       contactId,
       senderType: 'bot',
+      // The reply just pointed at a list that did not arrive, so the
+      // form has to read as that list's stand-in, not as homework.
+      bodyText: tap.replySent
+        ? "Here's the quickest way to tell me what to try next — the full form takes under a minute."
+        : undefined,
     });
     if (!result.success) {
       console.error(`[webhook] Preference flow send failed: ${result.error}`);

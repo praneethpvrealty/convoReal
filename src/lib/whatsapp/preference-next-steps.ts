@@ -358,6 +358,25 @@ export async function handlePreferenceNextStepReply(args: {
       })
     );
 
+    // WhatsApp lets a lead pick a row from the same list again. The
+    // second tap earns the acknowledgement, not a second to-do and a
+    // second alert for one request — the showcase check-in's "Call me
+    // back" draws the same line.
+    const { data: openCallbacks } = await db
+      .from('todos')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('contact_id', contact.id)
+      .eq('completed', false)
+      .eq('source', 'system')
+      .ilike('title', 'Call back %')
+      .gte(
+        'created_at',
+        new Date(Date.now() - CALLBACK_TODO_DUE_MS).toISOString()
+      )
+      .limit(1);
+    if ((openCallbacks ?? []).length > 0) return true;
+
     const contactName = contact.name?.trim() || 'A lead';
     const contactPhone =
       (contactRow?.phone as string | null) || contact.phone || 'no number';

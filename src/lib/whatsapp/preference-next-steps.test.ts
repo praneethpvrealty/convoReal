@@ -62,17 +62,25 @@ const PLOT = {
   user_id: 'u-lister',
 };
 
-function fakeDb(rows: Record<string, Record<string, unknown> | null>) {
+function fakeDb(
+  rows: Record<string, Record<string, unknown> | null>,
+  lists: Record<string, Record<string, unknown>[]> = {}
+) {
   const inserted: Record<string, Record<string, unknown>[]> = {};
+  const chain = (table: string) => {
+    const builder: Record<string, unknown> = {};
+    for (const method of ['select', 'eq', 'ilike', 'gte', 'limit']) {
+      builder[method] = () => builder;
+    }
+    builder.maybeSingle = async () => ({ data: rows[table] ?? null });
+    builder.then = (
+      resolve: (value: { data: Record<string, unknown>[]; error: null }) => void
+    ) => resolve({ data: lists[table] ?? [], error: null });
+    return builder;
+  };
   const db = {
     from: (table: string) => ({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            maybeSingle: async () => ({ data: rows[table] ?? null }),
-          }),
-        }),
-      }),
+      ...chain(table),
       insert: async (values: Record<string, unknown>) => {
         (inserted[table] ??= []).push(values);
         return { error: null };
@@ -388,6 +396,24 @@ describe('handlePreferenceNextStepReply: call me back', () => {
     expect(
       (sendWhatsAppMessageAndPersist.mock.calls[0][0] as { text: string }).text
     ).toContain('about your search');
+  });
+
+  it('acknowledges a repeated tap but files no second to-do or alert', async () => {
+    const { db, inserted } = fakeDb(
+      { properties: PLOT },
+      { todos: [{ id: 'todo-open' }] }
+    );
+
+    expect(
+      await handlePreferenceNextStepReply({
+        ...base(db),
+        replyId: `ns_callback_${PLOT_ID}`,
+      })
+    ).toBe(true);
+
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+    expect(inserted.todos).toBeUndefined();
+    expect(createNotification).not.toHaveBeenCalled();
   });
 
   it('keeps the tap when handling throws, so no other handler guesses at it', async () => {
