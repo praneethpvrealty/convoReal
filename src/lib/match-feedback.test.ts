@@ -312,6 +312,10 @@ describe('[PRP-051] location and budget marks hide the matches they hold for', (
     expect(budgetReasonDirection({ min: 6e7, max: 1e8 }, 9e7)).toBe('over');
     expect(budgetReasonDirection({ min: 6e7, max: 1e8 }, 7e7)).toBe('under');
     expect(budgetReasonDirection({ min: 1e8, max: null }, 9e7)).toBe('under');
+    expect(budgetReasonDirection({ min: null, max: 1e8 }, 5e7)).toBe(null);
+    expect(budgetReasonDirection({ min: 5e7, max: null }, 9e7)).toBe(null);
+    expect(budgetReasonDirection({ min: 6e7, max: 1e8 }, 1.1e8)).toBe('over');
+    expect(budgetReasonDirection({ min: 6e7, max: 1e8 }, 5e7)).toBe('under');
     expect(budgetReasonDirection({ min: null, max: null }, 9e7)).toBe(null);
     expect(budgetReasonDirection(null, 9e7)).toBe(null);
     expect(budgetReasonDirection({ min: null, max: 8e7 }, 0)).toBe(null);

@@ -306,9 +306,9 @@ export function sharesAreaReason(
 /**
  * Which way a budget mark points: the listing is too dear for the
  * marked contact's ceiling or too cheap for their floor. A price inside
- * their band reads as too dear from its midpoint up, since an agent who
- * rules a listing out on budget inside the band usually means the top of
- * it is out of reach. Null when they state no budget to read.
+ * a band with both ends reads as too dear from its midpoint up and too
+ * cheap below it. Null when they state no budget to read, or only one
+ * end that the listing sits inside: there is no middle to read from.
  */
 export function budgetReasonDirection(
   marked: { min: number | null; max: number | null } | null,
@@ -316,10 +316,10 @@ export function budgetReasonDirection(
 ): 'over' | 'under' | null {
   if (!marked || !(listingValue > 0)) return null;
   const { min, max } = marked;
-  if (max !== null && (min === null || listingValue >= (min + max) / 2))
-    return 'over';
-  if (min !== null) return 'under';
-  return null;
+  if (max !== null && listingValue > max) return 'over';
+  if (min !== null && listingValue < min) return 'under';
+  if (min === null || max === null) return null;
+  return listingValue >= (min + max) / 2 ? 'over' : 'under';
 }
 
 /**
