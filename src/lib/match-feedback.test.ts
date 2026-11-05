@@ -4,10 +4,10 @@ import {
   MATCH_REJECT_REASONS,
   PROPERTY_TYPE_OPTIONS,
   STAFF_PROPERTY_TYPE_OPTIONS,
-  budgetReasonDirection,
+  bandReasonDirection,
   isMatchRejectReason,
   sharesAreaReason,
-  sharesBudgetReason,
+  sharesBandReason,
   notAFitSavedMessage,
   propertyTypeAnswerGroups,
   sharesTypeAnswer,
@@ -308,43 +308,41 @@ describe('[PRP-051] location and budget marks hide the matches they hold for', (
   });
 
   it('a budget mark reads which side of the band the listing misses', () => {
-    expect(budgetReasonDirection({ min: null, max: 8e7 }, 9e7)).toBe('over');
-    expect(budgetReasonDirection({ min: 6e7, max: 1e8 }, 9e7)).toBe('over');
-    expect(budgetReasonDirection({ min: 6e7, max: 1e8 }, 7e7)).toBe('under');
-    expect(budgetReasonDirection({ min: 1e8, max: null }, 9e7)).toBe('under');
-    expect(budgetReasonDirection({ min: null, max: 1e8 }, 5e7)).toBe(null);
-    expect(budgetReasonDirection({ min: 5e7, max: null }, 9e7)).toBe(null);
-    expect(budgetReasonDirection({ min: 6e7, max: 1e8 }, 1.1e8)).toBe('over');
-    expect(budgetReasonDirection({ min: 6e7, max: 1e8 }, 5e7)).toBe('under');
-    expect(budgetReasonDirection({ min: null, max: null }, 9e7)).toBe(null);
-    expect(budgetReasonDirection(null, 9e7)).toBe(null);
-    expect(budgetReasonDirection({ min: null, max: 8e7 }, 0)).toBe(null);
+    expect(bandReasonDirection({ min: null, max: 8e7 }, 9e7)).toBe('over');
+    expect(bandReasonDirection({ min: 6e7, max: 1e8 }, 9e7)).toBe('over');
+    expect(bandReasonDirection({ min: 6e7, max: 1e8 }, 7e7)).toBe('under');
+    expect(bandReasonDirection({ min: 1e8, max: null }, 9e7)).toBe('under');
+    expect(bandReasonDirection({ min: null, max: 1e8 }, 5e7)).toBe(null);
+    expect(bandReasonDirection({ min: 5e7, max: null }, 9e7)).toBe(null);
+    expect(bandReasonDirection({ min: 6e7, max: 1e8 }, 1.1e8)).toBe('over');
+    expect(bandReasonDirection({ min: 6e7, max: 1e8 }, 5e7)).toBe('under');
+    expect(bandReasonDirection({ min: null, max: null }, 9e7)).toBe(null);
+    expect(bandReasonDirection(null, 9e7)).toBe(null);
+    expect(bandReasonDirection({ min: null, max: 8e7 }, 0)).toBe(null);
+    expect(bandReasonDirection({ min: null, max: 8e7 }, null)).toBe(null);
   });
 
   it('a budget mark holds for a contact whose budget stops on the same side', () => {
     const marked = { min: null, max: 8e7 };
-    expect(sharesBudgetReason({ min: null, max: 7.5e7 }, marked, 9e7)).toBe(
-      true
-    );
-    expect(sharesBudgetReason({ min: null, max: 8e7 }, marked, 9e7)).toBe(true);
-    expect(sharesBudgetReason({ min: null, max: 1.2e8 }, marked, 9e7)).toBe(
+    expect(sharesBandReason({ min: null, max: 7.5e7 }, marked, 9e7)).toBe(true);
+    expect(sharesBandReason({ min: null, max: 8e7 }, marked, 9e7)).toBe(true);
+    expect(sharesBandReason({ min: null, max: 1.2e8 }, marked, 9e7)).toBe(
       false
     );
-    expect(sharesBudgetReason({ min: null, max: null }, marked, 9e7)).toBe(
-      false
-    );
-    expect(sharesBudgetReason(null, marked, 9e7)).toBe(false);
+    expect(sharesBandReason({ min: null, max: null }, marked, 9e7)).toBe(false);
+    expect(sharesBandReason(null, marked, 9e7)).toBe(false);
     const floor = { min: 1e8, max: null };
-    expect(sharesBudgetReason({ min: 1.1e8, max: null }, floor, 9e7)).toBe(
-      true
-    );
-    expect(sharesBudgetReason({ min: 9e7, max: null }, floor, 9e7)).toBe(false);
+    expect(sharesBandReason({ min: 1.1e8, max: null }, floor, 9e7)).toBe(true);
+    expect(sharesBandReason({ min: 9e7, max: null }, floor, 9e7)).toBe(false);
   });
 
   it('the confirmation names the reason the others share', () => {
     const result = { typeSaved: false, alsoHidden: 3 };
     expect(notAFitSavedMessage('LAKSHMAN', result, [], 'location')).toBe(
       "LAKSHMAN is hidden from this listing's matches. 3 other contacts looking in the same areas were hidden too."
+    );
+    expect(notAFitSavedMessage('LAKSHMAN', result, [], 'size')).toBe(
+      "LAKSHMAN is hidden from this listing's matches. 3 other contacts looking for the same size were hidden too."
     );
     expect(notAFitSavedMessage('LAKSHMAN', result, [], 'budget')).toBe(
       "LAKSHMAN is hidden from this listing's matches. 3 other contacts with the same budget were hidden too."

@@ -169,9 +169,9 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
     });
   });
 
-  it('hides the matches a location or budget mark holds for, with that reason', async () => {
+  it('hides the matches a location, budget or size mark holds for, with that reason', async () => {
     hideSameReasonMatches.mockResolvedValue(2);
-    for (const reason of ['location', 'budget']) {
+    for (const reason of ['location', 'budget', 'size']) {
       const res = await post({ action: 'reject', contactId: CONTACT, reason });
       expect((await res.json()).data).toEqual({
         typeSaved: false,
@@ -182,12 +182,17 @@ describe('[PRP-051] POST /api/properties/[id]/match-feedback', () => {
       hideSameReasonMatches.mock.calls.map(
         (call) => (call[1] as { reason: string }).reason
       )
-    ).toEqual(['location', 'budget']);
+    ).toEqual(['location', 'budget', 'size']);
   });
 
   it('hides no one else for another reason, a skipped type or a type-only save', async () => {
     await post({ action: 'reject', contactId: CONTACT, reason: 'not_now' });
-    await post({ action: 'reject', contactId: CONTACT, reason: 'size' });
+    await post({
+      action: 'reject',
+      contactId: CONTACT,
+      reason: 'bought_elsewhere',
+    });
+    await post({ action: 'reject', contactId: CONTACT, reason: 'other' });
     await post({ action: 'reject', contactId: CONTACT, reason: 'type' });
     await post({
       action: 'set_type',

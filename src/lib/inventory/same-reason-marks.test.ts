@@ -63,11 +63,12 @@ const args = (
   optionIds: string[],
   classification = 'Buyer',
   reason: MatchRejectReason = 'type',
-  marked: Partial<Contact> = {}
+  marked: Partial<Contact> = {},
+  property: Property = duplex
 ) => ({
   accountId: 'acc-1',
   userId: 'user-1',
-  property: duplex,
+  property,
   contact: buyer('lakshman', { classification, ...marked }),
   reason,
   optionIds,
@@ -309,6 +310,61 @@ describe('[PRP-051] a budget mark hides every match whose budget stops where the
     expect(await hideSameReasonMatches(db, args([], 'Buyer', 'not_now'))).toBe(
       0
     );
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('[PRP-051] a size mark hides every match whose size stops where theirs does', () => {
+  const flat = { pref_property_types: ['Flat/ Apartment'] };
+
+  it('on a listing above the area ceiling, hides those topping out no larger', async () => {
+    const sized = { ...duplex, area_sqft: 3500, bedrooms: 4 } as Property;
+    const { db, calls } = fakeDb([
+      buyer('smaller', { ...flat, pref_land_area_max_sqft: 3190 }),
+      buyer('same', { ...flat, pref_land_area_max_sqft: 3200 }),
+      buyer('larger', { ...flat, pref_land_area_max_sqft: 4000 }),
+      buyer('unknown', flat),
+    ]);
+    expect(
+      await hideSameReasonMatches(
+        db,
+        args(
+          [],
+          'Buyer',
+          'size',
+          { ...flat, pref_land_area_max_sqft: 3200 },
+          sized
+        )
+      )
+    ).toBe(2);
+    expect(rows(calls)).toEqual(['same:size', 'smaller:size']);
+  });
+
+  it('falls back to BHK when the listing has no area', async () => {
+    const fourBhk = { ...duplex, bedrooms: 4 } as Property;
+    const { db, calls } = fakeDb([
+      buyer('three', { ...flat, pref_bhk_min: 3, pref_bhk_max: 3 }),
+      buyer('two-three', { ...flat, pref_bhk_min: 2, pref_bhk_max: 3 }),
+      buyer('three-four', { ...flat, pref_bhk_min: 3, pref_bhk_max: 4 }),
+      buyer('any', flat),
+    ]);
+    expect(
+      await hideSameReasonMatches(
+        db,
+        args([], 'Buyer', 'size', { ...flat, pref_bhk_min: 3 }, fourBhk)
+      )
+    ).toBe(2);
+    expect(rows(calls)).toEqual(['three:size', 'two-three:size']);
+  });
+
+  it('hides no one when the marked contact states no size', async () => {
+    const sized = { ...duplex, area_sqft: 3500, bedrooms: 4 } as Property;
+    const { db, calls } = fakeDb([
+      buyer('smaller', { pref_land_area_max_sqft: 3200 }),
+    ]);
+    expect(
+      await hideSameReasonMatches(db, args([], 'Buyer', 'size', {}, sized))
+    ).toBe(0);
     expect(calls).toHaveLength(0);
   });
 });
