@@ -66,7 +66,8 @@ export function NotAFitPanel({
         notAFitSavedMessage(
           contactName,
           { typeSaved: !!data?.typeSaved, alsoHidden: data?.alsoHidden },
-          typeIds
+          typeIds,
+          chosen
         )
       );
     } catch (err) {

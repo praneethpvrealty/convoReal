@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { hideSameTypeMatches } from '@/lib/inventory/same-type-marks';
+import { hideSameReasonMatches } from '@/lib/inventory/same-reason-marks';
+import type { MatchRejectReason } from '@/lib/match-feedback';
 import type { Contact, Property } from '@/types';
 
 type Call = { table: string; op: string; args: unknown[] };
@@ -58,13 +59,29 @@ function fakeDb(pool: Contact[], inserted?: (rows: unknown[]) => unknown[]) {
   return { db, calls };
 }
 
-const args = (optionIds: string[], classification = 'Buyer') => ({
+const args = (
+  optionIds: string[],
+  classification = 'Buyer',
+  reason: MatchRejectReason = 'type',
+  marked: Partial<Contact> = {}
+) => ({
   accountId: 'acc-1',
   userId: 'user-1',
   property: duplex,
-  contact: { id: 'lakshman', classification },
+  contact: buyer('lakshman', { classification, ...marked }),
+  reason,
   optionIds,
 });
+
+const rows = (calls: Call[]) =>
+  (
+    (calls.find((c) => c.op === 'upsert')?.args[0] ?? []) as {
+      contact_id: string;
+      reason: string;
+    }[]
+  )
+    .map((r) => `${r.contact_id}:${r.reason}`)
+    .sort();
 
 describe('[PRP-051] a wrong-type answer hides every match who wants only that type', () => {
   it('marks the other flat seekers and leaves broader or type-less ones', async () => {
@@ -79,7 +96,7 @@ describe('[PRP-051] a wrong-type answer hides every match who wants only that ty
       }),
       buyer('open'),
     ]);
-    expect(await hideSameTypeMatches(db, args(['pt_apartment']))).toBe(2);
+    expect(await hideSameReasonMatches(db, args(['pt_apartment']))).toBe(2);
 
     const upsert = calls.find((c) => c.op === 'upsert');
     const rows = upsert?.args[0] as Record<string, unknown>[];
@@ -164,7 +181,7 @@ describe('[PRP-051] a wrong-type answer hides every match who wants only that ty
       }),
       buyer('omi', { pref_property_types: ['Flat/ Apartment'] }),
     ]);
-    expect(await hideSameTypeMatches(db, args(['pt_apartment']))).toBe(1);
+    expect(await hideSameReasonMatches(db, args(['pt_apartment']))).toBe(1);
     const rows = calls.find((c) => c.op === 'upsert')?.args[0] as {
       contact_id: string;
     }[];
@@ -179,23 +196,109 @@ describe('[PRP-051] a wrong-type answer hides every match who wants only that ty
       ],
       (rows) => rows.slice(0, 1)
     );
-    expect(await hideSameTypeMatches(db, args(['pt_apartment']))).toBe(1);
+    expect(await hideSameReasonMatches(db, args(['pt_apartment']))).toBe(1);
   });
 
   it('touches no one when the contact is outside the match lists or no type was named', async () => {
     const pool = [buyer('omi', { pref_property_types: ['Flat/ Apartment'] })];
     const owner = fakeDb(pool);
     expect(
-      await hideSameTypeMatches(owner.db, args(['pt_apartment'], 'Owner'))
+      await hideSameReasonMatches(owner.db, args(['pt_apartment'], 'Owner'))
     ).toBe(0);
     const none = fakeDb(pool);
-    expect(await hideSameTypeMatches(none.db, args([]))).toBe(0);
+    expect(await hideSameReasonMatches(none.db, args([]))).toBe(0);
     expect([...owner.calls, ...none.calls]).toHaveLength(0);
   });
 
   it('writes nothing when no other match wants only that type', async () => {
     const { db, calls } = fakeDb([buyer('open')]);
-    expect(await hideSameTypeMatches(db, args(['pt_apartment']))).toBe(0);
+    expect(await hideSameReasonMatches(db, args(['pt_apartment']))).toBe(0);
     expect(calls.some((c) => c.op === 'upsert')).toBe(false);
+  });
+});
+
+describe('[PRP-051] a location mark hides every match who names only the same areas', () => {
+  it('marks the other Sarjapur Road-only buyers and leaves wider ones', async () => {
+    const flat = { pref_property_types: ['Flat/ Apartment'] };
+    const { db, calls } = fakeDb([
+      buyer('omi', flat),
+      buyer('harsha', { ...flat, areas_of_interest: ['Sarjapur Road.'] }),
+      buyer('wider', { ...flat, pref_areas: ['Sarjapur Road', 'HSR Layout'] }),
+      buyer('project', { ...flat, pref_projects: ['SJR Blue Waters'] }),
+      buyer('anywhere', { ...flat, pref_areas: [] }),
+    ]);
+    expect(
+      await hideSameReasonMatches(db, args([], 'Buyer', 'location', flat))
+    ).toBe(2);
+    expect(rows(calls)).toEqual(['harsha:location', 'omi:location']);
+  });
+
+  it('hides no one when the marked contact names no area', async () => {
+    const { db, calls } = fakeDb([buyer('omi')]);
+    expect(
+      await hideSameReasonMatches(
+        db,
+        args([], 'Buyer', 'location', { pref_areas: [] })
+      )
+    ).toBe(0);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('[PRP-051] a budget mark hides every match whose budget stops where theirs does', () => {
+  it('on a listing above the ceiling, hides those topping out no higher', async () => {
+    const { db, calls } = fakeDb([
+      buyer('lower', { pref_budget_max: 86_000_000 }),
+      buyer('same', { max_budget: 87_000_000 }),
+      buyer('higher', { pref_budget_max: 120_000_000 }),
+      buyer('flexible', { no_budget: true }),
+      buyer('unknown'),
+    ]);
+    expect(
+      await hideSameReasonMatches(
+        db,
+        args([], 'Buyer', 'budget', { pref_budget_max: 87_000_000 })
+      )
+    ).toBe(2);
+    expect(rows(calls)).toEqual(['lower:budget', 'same:budget']);
+  });
+
+  it('on a listing below the floor, hides those starting no lower', async () => {
+    const { db, calls } = fakeDb([
+      buyer('higher-floor', {
+        pref_budget_min: 110_000_000,
+        pref_budget_max: 160_000_000,
+      }),
+      buyer('lower-floor', {
+        pref_budget_min: 80_000_000,
+        pref_budget_max: 160_000_000,
+      }),
+    ]);
+    expect(
+      await hideSameReasonMatches(
+        db,
+        args([], 'Buyer', 'budget', {
+          pref_budget_min: 100_000_000,
+          pref_budget_max: 150_000_000,
+        })
+      )
+    ).toBe(1);
+    expect(rows(calls)).toEqual(['higher-floor:budget']);
+  });
+
+  it('hides no one when the marked contact has no budget on file', async () => {
+    const { db, calls } = fakeDb([buyer('lower', { pref_budget_max: 9e7 })]);
+    expect(await hideSameReasonMatches(db, args([], 'Buyer', 'budget'))).toBe(
+      0
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it('hides no one for a reason that names nothing to compare', async () => {
+    const { db, calls } = fakeDb([buyer('omi')]);
+    expect(await hideSameReasonMatches(db, args([], 'Buyer', 'not_now'))).toBe(
+      0
+    );
+    expect(calls).toHaveLength(0);
   });
 });

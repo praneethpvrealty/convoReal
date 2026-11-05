@@ -4,7 +4,10 @@ import {
   MATCH_REJECT_REASONS,
   PROPERTY_TYPE_OPTIONS,
   STAFF_PROPERTY_TYPE_OPTIONS,
+  budgetReasonDirection,
   isMatchRejectReason,
+  sharesAreaReason,
+  sharesBudgetReason,
   notAFitSavedMessage,
   propertyTypeAnswerGroups,
   sharesTypeAnswer,
@@ -281,6 +284,66 @@ describe('[PRP-051] the same type answer hides the same seekers', () => {
       notAFitSavedMessage('Omi', { typeSaved: false, alsoHidden: 1 }, [])
     ).toBe(
       "Omi is hidden from this listing's matches. 1 other contact with the same type was hidden too."
+    );
+  });
+});
+
+describe('[PRP-051] location and budget marks hide the matches they hold for', () => {
+  it('a location mark holds for a contact naming only the same areas and projects', () => {
+    const marked = { areas: ['sarjapur road', 'hsr layout'], projects: [] };
+    const wants = (areas: string[], projects: string[] = []) => ({
+      areas,
+      projects,
+    });
+    expect(sharesAreaReason(wants(['sarjapur road']), marked)).toBe(true);
+    expect(
+      sharesAreaReason(wants(['sarjapur road', 'whitefield']), marked)
+    ).toBe(false);
+    expect(
+      sharesAreaReason(wants(['sarjapur road'], ['sjr blue waters']), marked)
+    ).toBe(false);
+    expect(sharesAreaReason(wants([]), marked)).toBe(false);
+    expect(sharesAreaReason(null, marked)).toBe(false);
+    expect(sharesAreaReason(wants(['sarjapur road']), null)).toBe(false);
+  });
+
+  it('a budget mark reads which side of the band the listing misses', () => {
+    expect(budgetReasonDirection({ min: null, max: 8e7 }, 9e7)).toBe('over');
+    expect(budgetReasonDirection({ min: 6e7, max: 1e8 }, 9e7)).toBe('over');
+    expect(budgetReasonDirection({ min: 6e7, max: 1e8 }, 7e7)).toBe('under');
+    expect(budgetReasonDirection({ min: 1e8, max: null }, 9e7)).toBe('under');
+    expect(budgetReasonDirection({ min: null, max: null }, 9e7)).toBe(null);
+    expect(budgetReasonDirection(null, 9e7)).toBe(null);
+    expect(budgetReasonDirection({ min: null, max: 8e7 }, 0)).toBe(null);
+  });
+
+  it('a budget mark holds for a contact whose budget stops on the same side', () => {
+    const marked = { min: null, max: 8e7 };
+    expect(sharesBudgetReason({ min: null, max: 7.5e7 }, marked, 9e7)).toBe(
+      true
+    );
+    expect(sharesBudgetReason({ min: null, max: 8e7 }, marked, 9e7)).toBe(true);
+    expect(sharesBudgetReason({ min: null, max: 1.2e8 }, marked, 9e7)).toBe(
+      false
+    );
+    expect(sharesBudgetReason({ min: null, max: null }, marked, 9e7)).toBe(
+      false
+    );
+    expect(sharesBudgetReason(null, marked, 9e7)).toBe(false);
+    const floor = { min: 1e8, max: null };
+    expect(sharesBudgetReason({ min: 1.1e8, max: null }, floor, 9e7)).toBe(
+      true
+    );
+    expect(sharesBudgetReason({ min: 9e7, max: null }, floor, 9e7)).toBe(false);
+  });
+
+  it('the confirmation names the reason the others share', () => {
+    const result = { typeSaved: false, alsoHidden: 3 };
+    expect(notAFitSavedMessage('LAKSHMAN', result, [], 'location')).toBe(
+      "LAKSHMAN is hidden from this listing's matches. 3 other contacts looking in the same areas were hidden too."
+    );
+    expect(notAFitSavedMessage('LAKSHMAN', result, [], 'budget')).toBe(
+      "LAKSHMAN is hidden from this listing's matches. 3 other contacts with the same budget were hidden too."
     );
   });
 });

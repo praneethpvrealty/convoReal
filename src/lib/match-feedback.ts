@@ -275,11 +275,78 @@ export function sharesTypeAnswer(
   );
 }
 
+/** The reasons a "Not a fit" mark also hides the other matches who
+ *  share it. */
+export const SAME_REASON_REASONS: MatchRejectReason[] = [
+  'type',
+  'location',
+  'budget',
+];
+
+/**
+ * Whether another contact matched on the same location the agent just
+ * ruled out: every area they name is one the marked contact names, and
+ * so is every project. "Not this listing for LAKSHMAN, who wants Sarjapur
+ * Road" says the same of every other Sarjapur Road-only buyer on it. A
+ * contact who names no area, or also another area or project, stays.
+ */
+export function sharesAreaReason(
+  sibling: { areas: string[]; projects: string[] } | null,
+  marked: { areas: string[]; projects: string[] } | null
+): boolean {
+  if (!sibling || !marked || sibling.areas.length === 0) return false;
+  const areas = new Set(marked.areas);
+  const projects = new Set(marked.projects);
+  return (
+    sibling.areas.every((area) => areas.has(area)) &&
+    sibling.projects.every((project) => projects.has(project))
+  );
+}
+
+/**
+ * Which way a budget mark points: the listing is too dear for the
+ * marked contact's ceiling or too cheap for their floor. A price inside
+ * their band reads as too dear from its midpoint up, since an agent who
+ * rules a listing out on budget inside the band usually means the top of
+ * it is out of reach. Null when they state no budget to read.
+ */
+export function budgetReasonDirection(
+  marked: { min: number | null; max: number | null } | null,
+  listingValue: number
+): 'over' | 'under' | null {
+  if (!marked || !(listingValue > 0)) return null;
+  const { min, max } = marked;
+  if (max !== null && (min === null || listingValue >= (min + max) / 2))
+    return 'over';
+  if (min !== null) return 'under';
+  return null;
+}
+
+/**
+ * Whether another contact matched on a budget the agent just ruled out:
+ * for a listing too dear for the marked contact, a sibling whose every
+ * brief tops out at or below their ceiling; for one too cheap, a sibling
+ * whose every brief starts at or above their floor. A sibling with no
+ * budget on file, or flexible on purpose, stays.
+ */
+export function sharesBudgetReason(
+  sibling: { min: number | null; max: number | null } | null,
+  marked: { min: number | null; max: number | null } | null,
+  listingValue: number
+): boolean {
+  const direction = budgetReasonDirection(marked, listingValue);
+  if (!sibling || !marked || !direction) return false;
+  if (direction === 'over')
+    return sibling.max !== null && sibling.max <= marked.max!;
+  return sibling.min !== null && sibling.min >= marked.min!;
+}
+
 /** The confirmation after a "Not a fit" mark, on web and mobile alike. */
 export function notAFitSavedMessage(
   contactName: string,
   result: { typeSaved: boolean; alsoHidden?: number },
-  optionIds: string[]
+  optionIds: string[],
+  reason: MatchRejectReason = 'type'
 ): string {
   const head = result.typeSaved
     ? `${contactName} is hidden here, and their property type is saved for future matches.`
@@ -289,8 +356,13 @@ export function notAFitSavedMessage(
   const titles = optionIds
     .map((id) => propertyTypeOption(id)?.title)
     .filter((t): t is string => !!t);
-  const looking = titles.length
-    ? ` looking for ${titles.join(' or ')}`
-    : ' with the same type';
+  const looking =
+    reason === 'location'
+      ? ' looking in the same areas'
+      : reason === 'budget'
+        ? ' with the same budget'
+        : titles.length
+          ? ` looking for ${titles.join(' or ')}`
+          : ' with the same type';
   return `${head} ${others} other contact${others === 1 ? '' : 's'}${looking} ${others === 1 ? 'was' : 'were'} hidden too.`;
 }
