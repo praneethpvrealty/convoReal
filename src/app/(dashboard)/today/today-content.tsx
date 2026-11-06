@@ -688,7 +688,9 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
           </div>
         )}
 
-        {failed.insights && !insightsLoading ? (
+        {failed.insights &&
+        !insightsLoading &&
+        resolveRange(rangePreset, customStart, customEnd) ? (
           <LoadError
             what="activity insights"
             onRetry={() => setRefreshedAt(Date.now())}

@@ -180,8 +180,9 @@ export function WhatsAppConfig() {
 
             if (
               !payload ||
+              !res.ok ||
               payload.reason === 'db_error' ||
-              (!res.ok && payload.connected === undefined)
+              payload.reason === 'unknown'
             ) {
               setConnectionStatus('unknown');
               setResetReason(null);

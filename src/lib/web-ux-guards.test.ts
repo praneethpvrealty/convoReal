@@ -52,6 +52,16 @@ describe('[UIX-053] web screens show a retry instead of an empty or endless stat
     expect(config).toContain('what="your WhatsApp configuration"');
     expect(config).toContain("setConnectionStatus('unknown');");
     expect(config).toContain("'Connection status unknown'");
+    expect(config).toMatch(
+      /!payload \|\|\s*!res\.ok \|\|\s*payload\.reason === 'db_error' \|\|\s*payload\.reason === 'unknown'/
+    );
+  });
+
+  it('Today shows the insights retry only for a range that can be retried', () => {
+    const today = webSource('app/(dashboard)/today/today-content.tsx');
+    expect(today).toMatch(
+      /failed\.insights &&\s*!insightsLoading &&\s*resolveRange\(rangePreset, customStart, customEnd\)/
+    );
   });
 
   it('header search and verify-phone report failures with a retry', () => {
