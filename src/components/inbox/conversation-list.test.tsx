@@ -227,7 +227,8 @@ describe('ConversationList', () => {
 
     await waitFor(() => expect(fetches.resolvers).toHaveLength(1));
     const page = fetches.resolvers[0];
-    expect(page.calls).toContainEqual(['range', [0, 49]]);
+    expect(page.calls).toContainEqual(['limit', [50]]);
+    expect(page.calls.some(([method]) => method === 'range')).toBe(false);
     page.resolve([conversation('c1', 'Adithi')]);
 
     await waitFor(() => expect(fetches.resolvers).toHaveLength(2));
@@ -242,6 +243,34 @@ describe('ConversationList', () => {
       expect(
         onLoaded.mock.calls.at(-1)?.[0].map((c: Conversation) => c.id)
       ).toEqual(['draft-1', 'c1'])
+    );
+  });
+
+  it('[UIX-012] offers a retry when the deep-linked conversation lookup fails', async () => {
+    search.params = new URLSearchParams('c=draft-1');
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    mount(client, vi.fn());
+
+    await waitFor(() => expect(fetches.resolvers).toHaveLength(1));
+    fetches.resolvers[0].resolve([conversation('c1', 'Adithi')]);
+    await waitFor(() => expect(fetches.resolvers).toHaveLength(2));
+    fetches.resolvers[1].reject({ message: 'network down' });
+
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      "Couldn't load conversations"
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Retry/ }));
+    await waitFor(() =>
+      expect(
+        fetches.resolvers.filter(({ calls }) =>
+          calls.some(
+            ([method, args]) =>
+              method === 'eq' && args[0] === 'id' && args[1] === 'draft-1'
+          )
+        )
+      ).toHaveLength(2)
     );
   });
 
@@ -268,7 +297,12 @@ describe('ConversationList', () => {
     const more = await screen.findByRole('button', { name: 'Load more' });
     fireEvent.click(more);
     await waitFor(() => expect(fetches.resolvers).toHaveLength(2));
-    expect(fetches.resolvers[1].calls).toContainEqual(['range', [50, 99]]);
+    expect(fetches.resolvers[1].calls).toContainEqual([
+      'or',
+      [
+        'last_message_at.lt."2026-10-03T10:00:00.000Z",last_message_at.is.null,and(last_message_at.eq."2026-10-03T10:00:00.000Z",id.lt."c49")',
+      ],
+    ]);
     fetches.resolvers[1].resolve([conversation('c50', 'Last')]);
     await waitFor(() =>
       expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
@@ -308,7 +342,10 @@ describe('ConversationList', () => {
       ).toBe(true)
     );
     const contactLookup = fetches.resolvers.find(({ calls }) =>
-      calls.some(([method]) => method === 'limit')
+      calls.some(
+        ([method, args]) =>
+          method === 'select' && args[0] === 'id, contacts!inner(id)'
+      )
     )!;
     contactLookup.resolve([{ id: 'far-away' }]);
 

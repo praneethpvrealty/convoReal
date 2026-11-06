@@ -146,10 +146,9 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     };
 
-    const budgetError = budgetRangeError(
-      fieldsToSave.min_budget,
-      fieldsToSave.max_budget
-    );
+    const budgetError = fieldsToSave.no_budget
+      ? null
+      : budgetRangeError(fieldsToSave.min_budget, fieldsToSave.max_budget);
     if (budgetError) {
       return NextResponse.json(
         { error: budgetError, code: 'BUDGET_RANGE' },

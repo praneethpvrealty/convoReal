@@ -7,7 +7,10 @@ import {
   activeConversationIds,
   inboxContactSearchFilter,
   inboxFilterPlan,
+  inboxAfterCursor,
+  inboxNextCursor,
   inboxNextOffset,
+  inboxSearchCapped,
   inboxRows,
   inboxSearchFilter,
 } from './inbox-page';
@@ -66,5 +69,52 @@ describe('[UIX-012] web inbox paging', () => {
         { conversation_id: 'busy', message_count: 9 },
       ])
     ).toEqual(['busy', 'quiet']);
+  });
+});
+
+describe('[UIX-012] inbox keyset paging', () => {
+  const rows = Array.from({ length: INBOX_PAGE_SIZE }, (_, i) => ({
+    id: `c${i}`,
+    last_message_at: `2026-10-03T10:${String(59 - (i % 60)).padStart(2, '0')}:00Z`,
+    last_customer_message_at: null,
+  }));
+
+  it('continues after the last loaded row, not after a row count', () => {
+    const cursor = inboxNextCursor([rows], 'last_message_at');
+    expect(cursor).toEqual({
+      value: rows[rows.length - 1].last_message_at,
+      id: `c${INBOX_PAGE_SIZE - 1}`,
+    });
+    expect(inboxNextCursor([rows.slice(0, 3)], 'last_message_at')).toBe(
+      undefined
+    );
+  });
+
+  it('builds the after-cursor filter for both sort directions and nulls last', () => {
+    const cursor = { value: '2026-10-03T10:00:00Z', id: 'c9' };
+    expect(
+      inboxAfterCursor(cursor, { column: 'last_message_at', ascending: false })
+    ).toBe(
+      'last_message_at.lt."2026-10-03T10:00:00Z",last_message_at.is.null,and(last_message_at.eq."2026-10-03T10:00:00Z",id.lt."c9")'
+    );
+    expect(
+      inboxAfterCursor(cursor, {
+        column: 'last_customer_message_at',
+        ascending: true,
+      })
+    ).toContain('last_customer_message_at.gt."2026-10-03T10:00:00Z"');
+    expect(
+      inboxAfterCursor(
+        { value: null, id: 'c9' },
+        { column: 'last_customer_message_at', ascending: true }
+      )
+    ).toBe('and(last_customer_message_at.is.null,id.lt."c9")');
+  });
+
+  it('flags a search whose thread ids hit the cap', () => {
+    const many = Array.from({ length: INBOX_ID_CAP }, (_, i) => `c${i}`);
+    expect(inboxSearchCapped(many, [])).toBe(true);
+    expect(inboxSearchCapped([], [...many, 'extra'])).toBe(true);
+    expect(inboxSearchCapped(['a'], ['b'])).toBe(false);
   });
 });

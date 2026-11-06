@@ -34,7 +34,7 @@ describe('[UIX-013] bulk contact import', () => {
 
   it('explains a per-row database failure and summarises a partial import', () => {
     expect(bulkImportFailureReason({ code: '23505' })).toBe(
-      'Already in your contacts'
+      'Another contact already has this full name — change the second name'
     );
     expect(bulkImportFailureReason({ message: 'boom' })).toBe('boom');
     expect(bulkImportSummary({ imported: 1, problems: [] })).toBe(

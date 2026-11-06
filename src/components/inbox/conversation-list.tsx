@@ -63,7 +63,10 @@ import {
   activeConversationIds,
   inboxContactSearchFilter,
   inboxFilterPlan,
-  inboxNextOffset,
+  inboxAfterCursor,
+  inboxNextCursor,
+  inboxSearchCapped,
+  type InboxCursor,
   inboxRows,
   inboxSearchFilter,
 } from '@/lib/conversations/inbox-page';
@@ -155,7 +158,7 @@ const CONVERSATION_COLUMNS = '*, contact:contacts(*)';
 
 async function fetchConversationPage(
   scope: InboxPageScope,
-  offset: number
+  cursor: InboxCursor | null
 ): Promise<Conversation[]> {
   if (scope.searchTerm && !scope.searchFilter) return [];
   if (scope.activeIds && scope.activeIds.length === 0) return [];
@@ -187,6 +190,9 @@ async function fetchConversationPage(
   }
   if (scope.activeIds) query = query.in('id', scope.activeIds);
   if (scope.searchFilter) query = query.or(scope.searchFilter);
+  if (cursor && !scope.activeIds) {
+    query = query.or(inboxAfterCursor(cursor, plan.order));
+  }
   const ordered = query
     .order(plan.order.column, {
       ascending: plan.order.ascending,
@@ -195,7 +201,7 @@ async function fetchConversationPage(
     .order('id', { ascending: false });
   const { data, error } = await (scope.activeIds
     ? ordered
-    : ordered.range(offset, offset + INBOX_PAGE_SIZE - 1));
+    : ordered.limit(INBOX_PAGE_SIZE));
   if (error) throw error;
   return (data ?? []) as Conversation[];
 }
@@ -354,6 +360,12 @@ export function ConversationList({
     searchTerm !== '' && (messageSearch.isError || contactSearch.isError);
   const searchReady =
     searchTerm === '' || (messageSearch.isSuccess && contactSearch.isSuccess);
+  const searchCapped =
+    searchTerm !== '' &&
+    inboxSearchCapped(
+      contactSearch.data ?? [],
+      Array.from(messageHits?.keys() ?? [])
+    );
   const searchFilter = useMemo(
     () =>
       searchTerm
@@ -425,9 +437,11 @@ export function ConversationList({
       activeIds,
     ],
     queryFn: ({ pageParam }) => fetchConversationPage(pageScope, pageParam),
-    initialPageParam: 0,
+    initialPageParam: null as InboxCursor | null,
     getNextPageParam: (_last, all) =>
-      activeIds ? undefined : inboxNextOffset(all),
+      activeIds
+        ? undefined
+        : inboxNextCursor(all, inboxFilterPlan(filter).order.column),
     enabled:
       searchReady &&
       !searchFailed &&
@@ -496,6 +510,7 @@ export function ConversationList({
 
   const loadFailed =
     (Boolean(fetchError) && !isFetchNextPageError) ||
+    (pinnedMissing && pinnedQuery.isError) ||
     searchFailed ||
     (filter === 'active' && activityQuery.isError);
   const loading = !ready && !loadFailed;
@@ -503,8 +518,9 @@ export function ConversationList({
     if (messageSearch.isError) void messageSearch.refetch();
     if (contactSearch.isError) void contactSearch.refetch();
     if (activityQuery.isError) void activityQuery.refetch();
+    if (pinnedQuery.isError) void pinnedQuery.refetch();
     void refetch();
-  }, [messageSearch, contactSearch, activityQuery, refetch]);
+  }, [messageSearch, contactSearch, activityQuery, pinnedQuery, refetch]);
 
   const searchMatches = useMemo(() => {
     const matches = new Map<string, string>();
@@ -797,6 +813,15 @@ export function ConversationList({
           </div>
         ) : (
           <div className="flex flex-col">
+            {searchCapped && (
+              <p
+                role="status"
+                className="border-b border-slate-800 px-4 py-2 text-xs text-amber-300"
+              >
+                Showing the most recent matches — refine your search to find
+                older threads.
+              </p>
+            )}
             {filtered.map((conv) => (
               <ConversationItem
                 key={conv.id}

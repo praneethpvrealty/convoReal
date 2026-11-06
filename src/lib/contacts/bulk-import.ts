@@ -65,7 +65,9 @@ export function bulkImportFailureReason(error: {
   code?: string;
   message?: string;
 }): string {
-  if (error.code === '23505') return 'Already in your contacts';
+  if (error.code === '23505') {
+    return 'Another contact already has this full name — change the second name';
+  }
   return error.message || 'Could not be saved';
 }
 

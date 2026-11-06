@@ -110,4 +110,14 @@ describe('PUT /api/contacts/[id] property links', () => {
     expect(res.status).toBe(400);
     expect(writes).toEqual([]);
   });
+
+  it('[UIX-013] skips the budget range check when the contact has no budget', async () => {
+    const res = await put({
+      phone: '+919800000001',
+      no_budget: true,
+      min_budget: 9000000,
+      max_budget: 5000000,
+    });
+    expect(res.status).toBe(200);
+  });
 });

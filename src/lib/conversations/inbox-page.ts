@@ -106,6 +106,48 @@ export function activeConversationIds(
     .map((row) => row.conversation_id);
 }
 
+export interface InboxCursor {
+  value: string | null;
+  id: string;
+}
+
+export function inboxNextCursor<T extends { id: string }>(
+  pages: readonly (readonly T[])[],
+  column: InboxFilterPlan['order']['column'],
+  pageSize: number = INBOX_PAGE_SIZE
+): InboxCursor | undefined {
+  const page = pages[pages.length - 1];
+  if (!page || page.length < pageSize) return undefined;
+  const last = page[page.length - 1] as T & Record<string, unknown>;
+  const value = last[column];
+  return { value: typeof value === 'string' ? value : null, id: last.id };
+}
+
+export function inboxAfterCursor(
+  cursor: InboxCursor,
+  order: InboxFilterPlan['order']
+): string {
+  const id = `"${cursor.id.replace(/"/g, '')}"`;
+  if (cursor.value === null) return `and(${order.column}.is.null,id.lt.${id})`;
+  const value = `"${cursor.value.replace(/"/g, '')}"`;
+  const past = order.ascending ? 'gt' : 'lt';
+  return [
+    `${order.column}.${past}.${value}`,
+    `${order.column}.is.null`,
+    `and(${order.column}.eq.${value},id.lt.${id})`,
+  ].join(',');
+}
+
+export function inboxSearchCapped(
+  contactThreadIds: readonly string[],
+  messageHitIds: readonly string[]
+): boolean {
+  return (
+    contactThreadIds.length >= INBOX_ID_CAP ||
+    messageHitIds.length > INBOX_ID_CAP
+  );
+}
+
 export function inboxNextOffset(
   pages: readonly (readonly unknown[])[],
   pageSize: number = INBOX_PAGE_SIZE
