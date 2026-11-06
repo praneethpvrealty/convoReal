@@ -254,15 +254,16 @@ export function PropertyMapView({
 
   const cappedNotice = cappedResultsNotice(properties.length, total);
 
-  if (loadFailed && onRetry) {
-    return (
+  const loadError =
+    loadFailed && onRetry ? (
       <LoadError
         what="the map listings"
         onRetry={onRetry}
         retrying={retrying}
       />
-    );
-  }
+    ) : null;
+
+  if (!BROWSER_KEY && loadError) return loadError;
 
   if (!BROWSER_KEY) {
     return (
@@ -283,6 +284,11 @@ export function PropertyMapView({
   return (
     <div className="relative h-[32rem] overflow-hidden rounded-xl border border-slate-800">
       <div ref={containerRef} className="absolute inset-0" />
+      {loadError && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950/90 p-4">
+          <div className="w-full max-w-md">{loadError}</div>
+        </div>
+      )}
       {(status === 'loading' || loading) && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60">
           <Loader2 className="size-6 animate-spin text-slate-400" />

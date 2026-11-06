@@ -99,6 +99,22 @@ describe('DealForm', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it('[UIX-032] asks before discarding a changed currency', async () => {
+    const confirmMock = vi.fn(() => false);
+    vi.stubGlobal('confirm', confirmMock);
+    const onOpenChange = renderForm();
+
+    fireEvent.change(screen.getByDisplayValue('INR (₹)'), {
+      target: { value: 'AED' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      'Discard your unsaved changes to this deal?'
+    );
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
   it('[UIX-040] focuses the first missing field when saving an incomplete deal', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

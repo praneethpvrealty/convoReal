@@ -42,6 +42,27 @@ describe('PropertyMapView', () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it('[UIX-034] keeps the map container mounted behind the load error', async () => {
+    vi.stubEnv('NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY', 'test-key');
+    const { PropertyMapView } = await import('./property-map-view');
+    const props = {
+      properties: [] as Property[],
+      loading: false,
+      onRetry: vi.fn(),
+      center: null,
+      onOpen: vi.fn(),
+      currency: 'INR',
+    };
+    const view = render(<PropertyMapView {...props} loadFailed />);
+    const container = view.container.querySelector('.absolute.inset-0');
+    expect(container).not.toBeNull();
+    expect(screen.getByRole('alert')).toBeTruthy();
+
+    view.rerender(<PropertyMapView {...props} loadFailed={false} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(view.container.querySelector('.absolute.inset-0')).toBe(container);
+  });
+
   it('[UIX-035] says the map shows only the first 100 of a larger search', async () => {
     vi.stubEnv('NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY', 'test-key');
     const { PropertyMapView } = await import('./property-map-view');

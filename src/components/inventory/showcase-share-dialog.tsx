@@ -361,6 +361,7 @@ Best regards`;
       (scope === 'all' || scopeProperties !== null),
     staleTime: Infinity,
     gcTime: 0,
+    retry: false,
     queryFn: async () => {
       const response = await fetch('/api/showcase-shares', {
         method: 'POST',

@@ -180,7 +180,7 @@ export function TransactionWorkspaceIndex({
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading closing records…
         </div>
-      ) : isError ? (
+      ) : isError && rows.length === 0 ? (
         <LoadError
           what="closing records"
           onRetry={() => void refetch()}

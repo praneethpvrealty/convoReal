@@ -61,6 +61,7 @@ import { focusFirstField } from '@/lib/forms/focus-first-field';
 interface DealFormFields {
   title: string;
   value: string;
+  currency: string;
   contactId: string;
   stageId: string;
   assignedTo: string;
@@ -129,7 +130,7 @@ export function DealForm({
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const baseline = useRef<string | null>(null);
+  const baseline = useRef<DealFormFields | null>(null);
 
   // Reset the form fields every time the sheet opens or its input
   // props change. This is a legitimate prop-driven sync; the rule is
@@ -142,9 +143,10 @@ export function DealForm({
     }
     setConfirmDelete(false);
     if (deal) {
-      baseline.current = dealFormSnapshot({
+      baseline.current = {
         title: deal.title,
         value: String(deal.value ?? ''),
+        currency: deal.currency || 'INR',
         contactId: deal.contact_id ?? '',
         stageId: deal.stage_id,
         assignedTo: deal.assigned_to ?? '',
@@ -158,7 +160,7 @@ export function DealForm({
         brokerageValue: deal.brokerage_value
           ? String(deal.brokerage_value)
           : '',
-      });
+      };
       setTitle(deal.title);
       setValue(String(deal.value ?? ''));
       setCurrency(deal.currency || 'INR');
@@ -189,18 +191,19 @@ export function DealForm({
           .eq('account_id', accountId)
           .maybeSingle()
           .then(({ data }) => {
-            if (data?.currency) {
-              setCurrency(data.currency);
-            } else {
-              setCurrency('INR');
+            const loaded = data?.currency || 'INR';
+            setCurrency(loaded);
+            if (baseline.current) {
+              baseline.current = { ...baseline.current, currency: loaded };
             }
           });
       } else {
         setCurrency('INR');
       }
-      baseline.current = dealFormSnapshot({
+      baseline.current = {
         title: '',
         value: '',
+        currency: 'INR',
         contactId: '',
         stageId: defaultStageId || stages[0]?.id || '',
         assignedTo: '',
@@ -212,7 +215,7 @@ export function DealForm({
         propertyId: '',
         brokerageType: 'percentage',
         brokerageValue: '',
-      });
+      };
       setContactId('');
       setStageId(defaultStageId || stages[0]?.id || '');
       setAssignedTo('');
@@ -278,6 +281,7 @@ export function DealForm({
     return dealFormSnapshot({
       title,
       value,
+      currency,
       contactId,
       stageId,
       assignedTo,
@@ -297,7 +301,7 @@ export function DealForm({
       !nextOpen &&
       !saving &&
       baseline.current !== null &&
-      baseline.current !== currentSnapshot() &&
+      dealFormSnapshot(baseline.current) !== currentSnapshot() &&
       !window.confirm('Discard your unsaved changes to this deal?')
     ) {
       return;

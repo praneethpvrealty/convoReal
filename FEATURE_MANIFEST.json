@@ -6528,6 +6528,7 @@
           "id": "UIX-037",
           "rule": "The web closing-record pages tell a failed load from a missing record: the deal workspace shows Couldn't load this closing record. with Retry when the fetch fails and This closing record could not be found. only when it returns nothing, and the records index shows Couldn't load closing records. with Retry instead of No records yet.",
           "tests": [
+            { "file": "src/lib/web-ux-guards.test.ts", "case": "[UIX-037]" },
             {
               "file": "src/components/deals/deal-workspace.load-state.test.tsx",
               "case": "[UIX-037]"
@@ -6610,6 +6611,7 @@
           "id": "UIX-044",
           "rule": "The showcase share dialog surfaces its failures with an error toast instead of failing silently: listings that failed to load, search results that failed to load, and a share that could not be saved on the server (the link still opens the showcase).",
           "tests": [
+            { "file": "src/lib/web-ux-guards.test.ts", "case": "[UIX-044]" },
             {
               "file": "src/components/inventory/showcase-share-dialog.test.tsx",
               "case": "[UIX-044]"
