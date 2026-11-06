@@ -3,7 +3,7 @@
 import { use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 import { FlowNodeLoader } from '@/components/ui/flow-node-loader';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 

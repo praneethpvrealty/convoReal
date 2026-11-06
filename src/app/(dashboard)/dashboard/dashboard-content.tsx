@@ -30,7 +30,7 @@ import { TeamWorkload } from '@/components/dashboard/team-workload';
 import { NetworkReach } from '@/components/dashboard/network-reach';
 import { getCurrencyIcon, formatCurrency } from '@/lib/currency-utils';
 import { useAuth } from '@/hooks/useAuth';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 
 type RangeDays = 7 | 30 | 90;
 

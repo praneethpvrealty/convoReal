@@ -28,7 +28,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { reloadTo } from '@/lib/navigation';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 
 export default function VerifyPhonePage() {
   const router = useRouter();

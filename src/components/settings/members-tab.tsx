@@ -60,7 +60,7 @@ import {
 import { RequireRole } from '@/components/auth/require-role';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { useAuth } from '@/hooks/useAuth';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 import type { AccountRole } from '@/lib/auth/roles';
 import { InviteMemberDialog } from './invite-member-dialog';
 

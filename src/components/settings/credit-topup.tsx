@@ -6,7 +6,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { openRazorpayCheckout } from '@/lib/marketplace/checkout';
 import { useCredits } from '@/hooks/useCredits';
 import { useTopupModal } from '@/components/layout/topup-modal-context';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 
 interface CreditPackageOption {
   key: string;

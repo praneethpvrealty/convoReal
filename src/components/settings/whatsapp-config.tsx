@@ -40,7 +40,7 @@ import {
 import type { WhatsAppConfig as WhatsAppConfigType } from '@/types';
 import { WhatsAppNumberProfiles } from '@/components/settings/whatsapp-number-profiles';
 import { WhatsAppNumberChangeCard } from '@/components/settings/whatsapp-number-change-card';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 
 const MASKED_TOKEN = '••••••••••••••••';
 

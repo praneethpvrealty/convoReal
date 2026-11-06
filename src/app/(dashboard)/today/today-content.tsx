@@ -27,7 +27,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { InfoHint } from '@/components/ui/info-hint';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 import {
   endOfLocalDay,
   loadExpiringSessions,

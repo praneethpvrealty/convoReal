@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Coins, TrendingDown, TrendingUp, CalendarClock } from 'lucide-react';
 import { useCredits } from '@/hooks/useCredits';
 import { daysUntil } from '@/lib/format/days-until';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 
 interface SummaryResponse {
   totalSpent?: number;
