@@ -3,7 +3,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { LoadError } from '@/components/broadcasts/load-error';
+import {
+  requirementsTruncationNotice,
+  REQUIREMENTS_TOTAL_HEADER,
+} from '@/lib/requirements/list-limit';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -115,11 +120,48 @@ interface ConsolidatedContact {
   created_at: string;
 }
 
+const NO_REQUIREMENTS: ConsolidatedContact[] = [];
+
 export default function RequirementsPage() {
   const router = useRouter();
   const { accountId, user } = useAuth();
-  const [data, setData] = useState<ConsolidatedContact[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const requirementsKey = useMemo(
+    () => ['requirements-consolidated', accountId ?? null],
+    [accountId]
+  );
+  const requirementsQuery = useQuery({
+    queryKey: requirementsKey,
+    enabled: Boolean(accountId),
+    queryFn: async () => {
+      const response = await fetch('/api/requirements');
+      if (!response.ok) throw new Error('Failed to fetch requirements');
+      const rows = ((await response.json()) ?? []) as ConsolidatedContact[];
+      const total = Number(response.headers.get(REQUIREMENTS_TOTAL_HEADER));
+      return {
+        rows,
+        total: Number.isFinite(total) && total > 0 ? total : rows.length,
+      };
+    },
+  });
+  const data = requirementsQuery.data?.rows ?? NO_REQUIREMENTS;
+  const loading = requirementsQuery.isPending && !requirementsQuery.isError;
+  const truncationNotice = requirementsTruncationNotice(
+    data.length,
+    requirementsQuery.data?.total ?? data.length
+  );
+  const setData = useCallback(
+    (update: (rows: ConsolidatedContact[]) => ConsolidatedContact[]) =>
+      queryClient.setQueryData<{ rows: ConsolidatedContact[]; total: number }>(
+        requirementsKey,
+        (prev) => (prev ? { ...prev, rows: update(prev.rows) } : prev)
+      ),
+    [queryClient, requirementsKey]
+  );
+  const refetchRequirements = requirementsQuery.refetch;
+  const fetchRequirements = useCallback(() => {
+    void refetchRequirements();
+  }, [refetchRequirements]);
 
   // Filters state
   const [search, setSearch] = useState('');
@@ -155,27 +197,7 @@ export default function RequirementsPage() {
   const [reqProjectsText, setReqProjectsText] = useState('');
   const [reqStrictProjects, setReqStrictProjects] = useState(false);
   const [savingReq, setSavingReq] = useState(false);
-
-  const fetchRequirements = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/requirements');
-      if (!response.ok) throw new Error('Failed to fetch requirements');
-      const result = await response.json();
-      setData(result || []);
-    } catch (err) {
-      console.error('[Requirements] Fetch error:', err);
-      toast.error('Failed to load consolidated requirements');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (accountId) {
-      fetchRequirements();
-    }
-  }, [accountId, fetchRequirements]);
+  const [editorBaseline, setEditorBaseline] = useState('');
 
   // Stats calculation
   const stats = useMemo(() => {
@@ -479,12 +501,29 @@ export default function RequirementsPage() {
 
   const loadEditorFields = (c: ConsolidatedContact | null) => {
     const sourceContact = c ? resolveForSource(c) : null;
-    setReqText(c?.requirements ?? '');
+    const text = c?.requirements ?? '';
+    setReqText(text);
     const projects =
       sourceContact?.projects_of_interest ?? sourceContact?.pref_projects ?? [];
     setReqProjects(projects);
     setReqProjectsText(projects.join(', ') + (projects.length > 0 ? ', ' : ''));
-    setReqStrictProjects(!!sourceContact?.strict_project_match);
+    const strict = !!sourceContact?.strict_project_match;
+    setReqStrictProjects(strict);
+    setEditorBaseline(JSON.stringify([text, projects, strict]));
+  };
+
+  const editorDirty =
+    editorBaseline !==
+    JSON.stringify([reqText, reqProjects, reqStrictProjects]);
+  const requestEditorOpenChange = (next: boolean) => {
+    if (
+      !next &&
+      editorDirty &&
+      !savingReq &&
+      !window.confirm('Discard changes?')
+    )
+      return;
+    setEditorOpen(next);
   };
 
   const openEditRequirements = (c: ConsolidatedContact) => {
@@ -856,7 +895,21 @@ export default function RequirementsPage() {
 
       {/* Cards Grid */}
       <div className="relative z-10 min-h-0 flex-1">
-        {loading ? (
+        {truncationNotice && (
+          <p
+            role="status"
+            className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200"
+          >
+            {truncationNotice}
+          </p>
+        )}
+        {requirementsQuery.isError && !requirementsQuery.data ? (
+          <LoadError
+            what="requirements"
+            onRetry={fetchRequirements}
+            retrying={requirementsQuery.isFetching}
+          />
+        ) : loading ? (
           <div
             role="status"
             aria-label="Loading requirements"
@@ -1438,7 +1491,7 @@ export default function RequirementsPage() {
       </Dialog>
 
       {/* Add / Edit Requirements Dialog */}
-      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+      <Dialog open={editorOpen} onOpenChange={requestEditorOpenChange}>
         <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-white">
@@ -1508,7 +1561,7 @@ export default function RequirementsPage() {
           <DialogFooter className="border-slate-700 bg-slate-900">
             <Button
               variant="outline"
-              onClick={() => setEditorOpen(false)}
+              onClick={() => requestEditorOpenChange(false)}
               disabled={savingReq}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >

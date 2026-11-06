@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { LoadError } from '@/components/broadcasts/load-error';
 import type { MessageTemplate } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +45,8 @@ interface TemplatePickerProps {
   onSelect: (template: MessageTemplate, values: TemplateSendValues) => void;
   intent?: TemplateIntent | null;
 }
+
+const NO_TEMPLATES: MessageTemplate[] = [];
 
 function renderBodyPreview(body: string, params: string[]): string {
   return body.replace(/\{\{(\d+)\}\}/g, (_, raw) => {
@@ -87,69 +92,27 @@ export function TemplatePicker({
   onSelect,
   intent,
 }: TemplatePickerProps) {
-  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { accountId } = useAuth();
+  const templatesQuery = useQuery({
+    queryKey: ['approved-templates', accountId],
+    enabled: open && Boolean(accountId),
+    queryFn: async () => {
+      const { data, error } = await createClient()
+        .from('message_templates')
+        .select('*')
+        .eq('account_id', accountId!)
+        .eq('status', 'APPROVED')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data as MessageTemplate[]) ?? [];
+    },
+  });
+  const templates = templatesQuery.data ?? NO_TEMPLATES;
+  const loading = templatesQuery.isPending;
   const [selected, setSelected] = useState<MessageTemplate | null>(null);
   const [params, setParams] = useState<string[]>([]);
   const [headerText, setHeaderText] = useState<string>('');
   const [buttonParams, setButtonParams] = useState<Record<number, string>>({});
-
-  useEffect(() => {
-    if (!open) return;
-
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        if (!cancelled) {
-          setTemplates([]);
-          setLoading(false);
-        }
-        return;
-      }
-
-      // Fetch user's profile to get their account_id
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('account_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      const accountId = profile?.account_id;
-      if (!accountId) {
-        if (!cancelled) {
-          setTemplates([]);
-          setLoading(false);
-        }
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('message_templates')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('status', 'APPROVED')
-        .order('created_at', { ascending: false });
-
-      if (cancelled) return;
-      if (error) {
-        console.error('Failed to fetch templates:', error);
-        setTemplates([]);
-      } else {
-        setTemplates((data as MessageTemplate[]) ?? []);
-      }
-      setLoading(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
 
   // Land straight on the intended template with its values filled.
   // Nothing is sent here — the agent still reviews the rendered
@@ -191,15 +154,6 @@ export function TemplatePicker({
 
   function pickTemplate(template: MessageTemplate) {
     const slots = collectVariableSlots(template);
-    const noInputsNeeded =
-      slots.bodyVars.length === 0 &&
-      slots.headerVarCount === 0 &&
-      slots.urlButtonSlots.length === 0;
-    if (noInputsNeeded) {
-      onSelect(template, { body: [] });
-      handleOpenChange(false);
-      return;
-    }
     setSelected(template);
     setParams(new Array(slots.bodyVars.length).fill(''));
     setHeaderText('');
@@ -249,7 +203,13 @@ export function TemplatePicker({
 
         {!selected ? (
           <div className="max-h-[60vh] space-y-2 overflow-y-auto">
-            {loading ? (
+            {templatesQuery.isError ? (
+              <LoadError
+                what="templates"
+                onRetry={() => void templatesQuery.refetch()}
+                retrying={templatesQuery.isFetching}
+              />
+            ) : loading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="text-primary h-5 w-5 animate-spin" />
               </div>
@@ -298,6 +258,14 @@ export function TemplatePicker({
           <div className="space-y-3">
             <div className="rounded-md border border-slate-800 bg-slate-950/50 p-3">
               <p className="mb-1 text-xs text-slate-400">Preview</p>
+              {selected.header_type === 'text' && selected.header_content && (
+                <p className="mb-1 text-sm font-semibold text-slate-100">
+                  {renderBodyPreview(
+                    selected.header_content,
+                    headerText ? [headerText] : []
+                  )}
+                </p>
+              )}
               <p className="text-sm whitespace-pre-wrap text-slate-200">
                 {renderBodyPreview(selected.body_text, params)}
               </p>
@@ -305,6 +273,21 @@ export function TemplatePicker({
                 <p className="mt-2 text-xs text-slate-500 italic">
                   {selected.footer_text}
                 </p>
+              )}
+              {(selected.buttons ?? []).length > 0 && (
+                <ul
+                  aria-label="Template buttons"
+                  className="mt-3 space-y-1 border-t border-slate-800 pt-2"
+                >
+                  {(selected.buttons ?? []).map((button, i) => (
+                    <li
+                      key={`${button.type}-${i}`}
+                      className="text-primary text-center text-sm font-medium"
+                    >
+                      {button.text}
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
             {slots && slots.headerVarCount > 0 && (

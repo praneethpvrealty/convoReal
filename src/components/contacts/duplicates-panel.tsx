@@ -4,6 +4,11 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { contactFullName } from '@/lib/contacts/full-name';
+import {
+  mergeOutcomeMessage,
+  type MergeFailure,
+} from '@/lib/contacts/merge-outcome';
 import {
   GitMerge,
   Phone,
@@ -223,36 +228,57 @@ export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
   async function handleMerge() {
     if (!mergeGroup || !targetId) return;
     if (phoneMismatch && !phonesConfirmed) return;
-    const sourceIds = mergeGroup.contacts
-      .filter((c) => c.id !== targetId)
-      .map((c) => c.id);
+    const sources = mergeGroup.contacts.filter((c) => c.id !== targetId);
 
     setMerging(true);
+    const merged: string[] = [];
+    const mergedIds = new Set<string>();
+    const failed: MergeFailure[] = [];
     try {
-      // Merge all non-target contacts into the target sequentially
-      for (const sourceId of sourceIds) {
-        const res = await fetch('/api/contacts/merge', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sourceId,
-            targetId,
-            confirmDifferentPhones: phoneMismatch && phonesConfirmed,
-          }),
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || 'Merge failed');
+      for (const source of sources) {
+        const label = contactFullName(source) || source.phone;
+        try {
+          const res = await fetch('/api/contacts/merge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sourceId: source.id,
+              targetId,
+              confirmDifferentPhones: phoneMismatch && phonesConfirmed,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => null);
+            failed.push({ label, reason: err?.error || 'Merge failed' });
+          } else {
+            merged.push(label);
+            mergedIds.add(source.id);
+          }
+        } catch (err) {
+          failed.push({
+            label,
+            reason: err instanceof Error ? err.message : 'Merge failed',
+          });
         }
       }
-      toast.success(`Merged ${sourceIds.length + 1} contacts into one`);
-      setMergeGroup(null);
-      setTargetId(null);
-      setPhonesConfirmed(false);
+      const outcome = mergeOutcomeMessage(merged, failed);
+      toast[outcome.tone](outcome.title, { description: outcome.detail });
+      if (failed.length === 0) {
+        setMergeGroup(null);
+        setTargetId(null);
+        setPhonesConfirmed(false);
+      } else {
+        setMergeGroup((group) =>
+          group
+            ? {
+                ...group,
+                contacts: group.contacts.filter((c) => !mergedIds.has(c.id)),
+              }
+            : group
+        );
+      }
       await refetch();
-      onMergeComplete?.();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Merge failed');
+      if (merged.length > 0) onMergeComplete?.();
     } finally {
       setMerging(false);
     }

@@ -81,7 +81,18 @@ import { UnmappedPortalAds } from '@/components/contacts/unmapped-portal-ads';
 import { ReengageWizard } from '@/components/contacts/reengage-wizard';
 import { useCan } from '@/hooks/useCan';
 import { GatedButton } from '@/components/ui/gated-button';
-import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import {
+  DEFAULT_COUNTRY_CODE,
+  normalizePhoneWithCountryCode,
+} from '@/lib/whatsapp/phone-utils';
+import {
+  bulkImportFailureReason,
+  bulkImportRowLabel,
+  bulkImportSummary,
+  planBulkImport,
+  type BulkImportProblem,
+  type BulkImportResult,
+} from '@/lib/contacts/bulk-import';
 import { splitImportedName } from '@/lib/contacts/name-tag-split';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
@@ -826,6 +837,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
   // Bulk Device Import state
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const { data: defaultCountryCode = DEFAULT_COUNTRY_CODE } = useQuery({
+    queryKey: ['account-default-country-code', accountId ?? null],
+    enabled: Boolean(accountId),
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('showcase_settings')
+        .select('default_country_code')
+        .maybeSingle();
+      if (error) throw error;
+      return data?.default_country_code || DEFAULT_COUNTRY_CODE;
+    },
+  });
   const [bulkImportContacts, setBulkImportContacts] = useState<
     BulkImportContact[]
   >([]);
@@ -1001,7 +1025,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         setEditContact({
           id: '',
           user_id: user?.id || '',
-          phone: normalizePhoneWithCountryCode(phone) || phone,
+          phone:
+            normalizePhoneWithCountryCode(phone, defaultCountryCode) || phone,
           name: split.name,
           second_name: split.secondName,
           name_tag: split.nameTag,
@@ -1024,7 +1049,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               second_name: split.secondName ?? '',
               name_tag: split.nameTag ?? '',
               phone: c.tel?.[0]
-                ? normalizePhoneWithCountryCode(c.tel[0]) || c.tel[0]
+                ? normalizePhoneWithCountryCode(c.tel[0], defaultCountryCode) ||
+                  c.tel[0]
                 : '',
               email: c.email?.[0] || '',
               classification: 'Others' as const,
@@ -1043,38 +1069,67 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
   };
 
-  const handleBulkImportSave = async (toImport: BulkImportContact[]) => {
+  const handleBulkImportSave = async (
+    toImport: BulkImportContact[]
+  ): Promise<BulkImportResult> => {
     if (!accountId) {
       toast.error('Account not loaded');
-      return;
+      return { imported: 0, problems: [] };
     }
 
-    try {
-      const records = toImport.map((c) => ({
-        account_id: accountId,
-        user_id: user?.id || null,
-        name: c.name,
-        second_name: c.second_name.trim() || null,
-        name_tag: c.name_tag.trim() || null,
-        phone: normalizePhoneWithCountryCode(c.phone) || c.phone,
-        email: c.email || null,
-        classification: c.classification,
-        company: '',
-        source: 'Phonebook',
-      }));
+    const plan = planBulkImport(toImport, defaultCountryCode);
+    const records = plan.ready.map(({ index, phone }) => {
+      const c = toImport[index];
+      return {
+        index,
+        row: {
+          account_id: accountId,
+          user_id: user?.id || null,
+          name: c.name.trim(),
+          second_name: c.second_name.trim() || null,
+          name_tag: c.name_tag.trim() || null,
+          phone,
+          email: c.email.trim() || null,
+          classification: c.classification,
+          company: '',
+          source: 'Phonebook',
+        },
+      };
+    });
 
-      const { error } = await supabase.from('contacts').insert(records);
-
-      if (error) throw error;
-
-      toast.success(`Successfully imported ${records.length} contacts`);
-      void invalidateList();
-    } catch (err) {
-      const error = err as Error;
-      console.error('Bulk insert failed:', error);
-      toast.error(error.message || 'Failed to save contacts');
-      throw error;
+    const problems: BulkImportProblem[] = [...plan.skipped];
+    let imported = 0;
+    if (records.length > 0) {
+      const { error } = await supabase
+        .from('contacts')
+        .insert(records.map((r) => r.row));
+      if (!error) {
+        imported = records.length;
+      } else {
+        for (const record of records) {
+          const { error: rowError } = await supabase
+            .from('contacts')
+            .insert(record.row);
+          if (rowError) {
+            problems.push({
+              index: record.index,
+              label: bulkImportRowLabel(toImport[record.index]),
+              reason: bulkImportFailureReason(rowError),
+            });
+          } else {
+            imported += 1;
+          }
+        }
+      }
     }
+
+    problems.sort((x, y) => x.index - y.index);
+    const result = { imported, problems };
+    if (imported > 0) void invalidateList();
+    if (problems.length === 0) toast.success(bulkImportSummary(result));
+    else if (imported > 0) toast.warning(bulkImportSummary(result));
+    else toast.error('No contacts were imported');
+    return result;
   };
 
   async function openEditForm(contact: Contact) {

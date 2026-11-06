@@ -143,6 +143,13 @@ export async function loadPartyCandidates(
   return (data ?? []) as PartyCandidate[];
 }
 
+export class ContactNotFoundError extends Error {
+  constructor() {
+    super('Contact not found');
+    this.name = 'ContactNotFoundError';
+  }
+}
+
 export async function loadContactDetail(
   db: DB,
   contactId: string
@@ -151,9 +158,10 @@ export async function loadContactDetail(
     .from('contacts')
     .select('*')
     .eq('id', contactId)
-    .single();
+    .maybeSingle();
 
-  if (!data) throw new Error(error?.message ?? 'Contact not found');
+  if (error) throw new Error(error.message);
+  if (!data) throw new ContactNotFoundError();
 
   // Fetch last inquired property details (for backward compatibility)
   let inquiredProperty: Property | null = null;

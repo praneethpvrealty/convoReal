@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { TypedSupabaseClient } from '@/lib/supabase/database';
 
 import {
+  ContactNotFoundError,
   PARTY_CANDIDATE_COLUMNS,
   PROPERTY_PICKER_COLUMNS,
   REFERRER_CANDIDATE_COLUMNS,
@@ -194,9 +195,11 @@ describe('loadContactDetail', () => {
     ]);
   });
 
-  it('throws when the contact is missing so a refetch keeps the last loaded bundle', async () => {
+  it('[UIX-013] throws ContactNotFoundError when the contact is missing so a refetch keeps the last loaded bundle', async () => {
     const { client } = stubClient(() => null);
-    await expect(loadContactDetail(client, 'gone')).rejects.toThrow();
+    await expect(loadContactDetail(client, 'gone')).rejects.toBeInstanceOf(
+      ContactNotFoundError
+    );
   });
 });
 

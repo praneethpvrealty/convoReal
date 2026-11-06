@@ -19,6 +19,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Check, Loader2 } from 'lucide-react';
+import type {
+  BulkImportProblem,
+  BulkImportResult,
+} from '@/lib/contacts/bulk-import';
 
 export interface BulkImportContact {
   name: string;
@@ -45,7 +49,9 @@ interface BulkImportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contacts: BulkImportContact[];
-  onImport: (contactsToImport: BulkImportContact[]) => Promise<void>;
+  onImport: (
+    contactsToImport: BulkImportContact[]
+  ) => Promise<BulkImportResult>;
 }
 
 export function BulkImportModal({
@@ -57,13 +63,13 @@ export function BulkImportModal({
   const [contacts, setContacts] =
     useState<BulkImportContact[]>(initialContacts);
   const [importing, setImporting] = useState(false);
+  const [problems, setProblems] = useState<BulkImportProblem[]>([]);
 
-  // Sync state if initialContacts changes
-  if (
-    contacts.length !== initialContacts.length &&
-    initialContacts.length > 0
-  ) {
+  const [source, setSource] = useState(initialContacts);
+  if (source !== initialContacts) {
+    setSource(initialContacts);
     setContacts(initialContacts);
+    setProblems([]);
   }
 
   const toggleSelectAll = (checked: boolean) => {
@@ -108,13 +114,20 @@ export function BulkImportModal({
   const selectedCount = contacts.filter((c) => c.selected).length;
 
   const handleImportSubmit = async () => {
-    const selected = contacts.filter((c) => c.selected && c.name && c.phone);
+    const selected = contacts.filter((c) => c.selected);
     if (selected.length === 0) return;
 
     setImporting(true);
     try {
-      await onImport(selected);
-      onOpenChange(false);
+      const result = await onImport(selected);
+      if (result.problems.length === 0) {
+        setProblems([]);
+        onOpenChange(false);
+        return;
+      }
+      const failed = new Set(result.problems.map((p) => p.index));
+      setContacts(selected.filter((_, i) => failed.has(i)));
+      setProblems(result.problems.map((p, i) => ({ ...p, index: i })));
     } finally {
       setImporting(false);
     }
@@ -274,6 +287,25 @@ export function BulkImportModal({
             </TableBody>
           </Table>
         </div>
+
+        {problems.length > 0 && (
+          <div
+            role="alert"
+            className="max-h-40 overflow-y-auto rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-100"
+          >
+            <p className="mb-1 font-semibold">
+              {problems.length} contact{problems.length === 1 ? '' : 's'} not
+              imported — fix and import again, or close.
+            </p>
+            <ul className="space-y-0.5">
+              {problems.map((p) => (
+                <li key={p.index}>
+                  <span className="font-medium">{p.label}</span>: {p.reason}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <DialogFooter className="flex items-center justify-between gap-2 border-t border-slate-800 pt-4 sm:justify-between">
           <span className="text-xs text-slate-400">

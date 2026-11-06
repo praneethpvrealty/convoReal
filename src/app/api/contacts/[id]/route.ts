@@ -9,6 +9,7 @@ import { sanitizeAreasGeo } from '@/lib/contacts/area-geo';
 import { sanitizeAreaList } from '@/lib/contacts/area-fragments';
 import { sanitizeListingTypes } from '@/lib/ai/preference-extraction';
 import { isUpdateChannel } from '@/lib/voice/announcements';
+import { budgetRangeError } from '@/lib/contacts/budget-amount';
 
 // PUT /api/contacts/[id] — update a contact with tags, notes, and property links
 // in a single server-side call (replaces multi-step client writes in contact-form.tsx).
@@ -145,6 +146,17 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     };
 
+    const budgetError = budgetRangeError(
+      fieldsToSave.min_budget,
+      fieldsToSave.max_budget
+    );
+    if (budgetError) {
+      return NextResponse.json(
+        { error: budgetError, code: 'BUDGET_RANGE' },
+        { status: 400 }
+      );
+    }
+
     // Step 1: Update the contact row
     const { data: updated, error: updateErr } = await ctx.supabase
       .from('contacts')
@@ -241,6 +253,7 @@ export async function PUT(
     // Step 4: Sync properties (owner_contact_id)
     const cls = typeof classification === 'string' ? classification : '';
     if (
+      Array.isArray(property_ids) &&
       [
         'Buyer',
         'Seller',
@@ -259,9 +272,9 @@ export async function PUT(
         .update({ owner_contact_id: null })
         .eq('owner_contact_id', contactId);
 
-      const propIds = Array.isArray(property_ids)
-        ? property_ids.filter((id: unknown) => typeof id === 'string')
-        : [];
+      const propIds = property_ids.filter(
+        (id: unknown): id is string => typeof id === 'string'
+      );
       if (propIds.length > 0) {
         const { data: linked, error: propErr } = await ctx.supabase
           .from('properties')

@@ -230,6 +230,13 @@ _On web, a contact's Reference field suggests existing contacts as you type and 
 
 - [ ] **Referrer suggestions on mobile (§2.8)**: the mobile contact edit (`mobile/app/(app)/contact/[id].tsx`) needs the same search (account-scoped, name, second name or phone, current contact excluded, five results in name order) and to write `referrer_contact_id` on pick, the way `referrerFields` already clears it when the text changes.
 
+### Deferred: web inbox and contacts error states on mobile
+
+_The web template picker, requirements list and inbox gained retryable error states and truncation notices (UIX-012, UIX-013). Mobile already pages its inbox and searches it on the server (UIX-009); two pieces still trail web._
+
+- [ ] **Template picker load failure on mobile (§2.8)**: `mobile/components/template-picker.tsx` shows No approved text templates when the query fails; it should show a Retry instead, and list a template's button titles in its preview the way the web picker does.
+- [ ] **Requirements truncation on mobile (§2.8)**: `GET /api/requirements` now returns the newest 1000 with an `X-Total-Count` header; `mobile/lib/requirements.ts` should read it and show `requirementsTruncationNotice` from `src/lib/requirements/list-limit.ts` (dependency-free, importable through `@shared/`).
+
 ---
 
 ### Transaction Workspace: Phases 1–5 shipped

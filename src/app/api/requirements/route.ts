@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import {
+  REQUIREMENTS_LIST_LIMIT,
+  REQUIREMENTS_TOTAL_HEADER,
+} from '@/lib/requirements/list-limit';
 
 export async function GET() {
   try {
     const ctx = await requireRole('viewer');
 
-    const { data, error } = await ctx.supabase
+    const { data, error, count } = await ctx.supabase
       .from('contacts')
       .select(
         `
@@ -17,11 +21,13 @@ export async function GET() {
           tag_id,
           tags (*)
         )
-      `
+      `,
+        { count: 'exact' }
       )
       .eq('account_id', ctx.accountId)
       .in('classification', ['Buyer', 'Agent'])
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(0, REQUIREMENTS_LIST_LIMIT - 1);
 
     if (error) {
       console.error('[GET /api/requirements] DB select error:', error);
@@ -31,7 +37,10 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(data || []);
+    const rows = data || [];
+    return NextResponse.json(rows, {
+      headers: { [REQUIREMENTS_TOTAL_HEADER]: String(count ?? rows.length) },
+    });
   } catch (err) {
     console.error('[GET /api/requirements] Unexpected error:', err);
     return toErrorResponse(err);
