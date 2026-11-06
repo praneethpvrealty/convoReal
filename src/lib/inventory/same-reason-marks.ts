@@ -35,6 +35,10 @@ export const MATCH_CONTACT_COLUMNS =
 
 const MATCH_POOL = ['Buyer', 'Agent'];
 
+/** Reasons about the person rather than what they want: they hold only
+ *  for the people buying with them. */
+const PARTY_REASONS: MatchRejectReason[] = ['bought_elsewhere', 'not_now'];
+
 /**
  * Who else on the listing the agent's reason holds for, as a test on a
  * matched contact, or null when the reason names nothing to compare.
@@ -89,10 +93,11 @@ function sameReasonTest(
 }
 
 /**
- * "Already bought" is about the person, not what they want, so it holds
- * only for the people buying with them: the other members of the marked
+ * "Already bought" and "not buying now" are about the person, not what
+ * they want, so they hold only for the people buying with them: the other members of the marked
  * contact's party (a household, a firm, partners), who share one
- * requirement and so one purchase. Null when they are in no party.
+ * requirement and so one purchase and one timeline. Null when they are
+ * in no party.
  */
 async function samePartyTest(
   db: SupabaseClient,
@@ -128,7 +133,8 @@ async function samePartyTest(
  * reason holds for: those who want only the type the agent named, who
  * name only areas the marked contact names, or whose budget or size
  * stops where theirs does on the side the listing misses; and for
- * "already bought", the others in the marked contact's party. Every brief a contact is ranked
+ * "already bought" or "not buying now", the others in the marked
+ * contact's party. Every brief a contact is ranked
  * on counts, so one that wants something wider keeps them. Only the
  * marked contact's own list (Buyers or Agents) is touched, only contacts
  * who rank for the listing now, and never anyone with an answer on file
@@ -153,11 +159,11 @@ export async function hideSameReasonMatches(
   if (!SAME_REASON_REASONS.includes(reason)) return 0;
   if (!contact.classification || !MATCH_POOL.includes(contact.classification))
     return 0;
-  const sync =
-    reason === 'bought_elsewhere'
-      ? null
-      : sameReasonTest(reason, property, contact, optionIds);
-  if (reason !== 'bought_elsewhere' && !sync) return 0;
+  const byParty = PARTY_REASONS.includes(reason);
+  const sync = byParty
+    ? null
+    : sameReasonTest(reason, property, contact, optionIds);
+  if (!byParty && !sync) return 0;
 
   try {
     const shares = sync ?? (await samePartyTest(db, accountId, contact.id));

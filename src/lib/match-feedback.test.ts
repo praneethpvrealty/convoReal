@@ -351,6 +351,9 @@ describe('[PRP-051] location and budget marks hide the matches they hold for', (
     ).toBe(
       "LAKSHMAN is hidden from this listing's matches. 1 other contact buying with them was hidden too."
     );
+    expect(notAFitSavedMessage('LAKSHMAN', result, [], 'not_now')).toBe(
+      "LAKSHMAN is hidden from this listing's matches. 3 other contacts buying with them were hidden too."
+    );
     expect(notAFitSavedMessage('LAKSHMAN', result, [], 'size')).toBe(
       "LAKSHMAN is hidden from this listing's matches. 3 other contacts looking for the same size were hidden too."
     );
