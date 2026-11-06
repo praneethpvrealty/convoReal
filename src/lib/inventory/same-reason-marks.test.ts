@@ -323,9 +323,7 @@ describe('[PRP-051] a budget mark hides every match whose budget stops where the
 
   it('hides no one for a reason that names nothing to compare', async () => {
     const { db, calls } = fakeDb([buyer('omi')]);
-    expect(await hideSameReasonMatches(db, args([], 'Buyer', 'not_now'))).toBe(
-      0
-    );
+    expect(await hideSameReasonMatches(db, args([], 'Buyer', 'other'))).toBe(0);
     expect(calls).toHaveLength(0);
   });
 });
@@ -385,7 +383,7 @@ describe('[PRP-051] a size mark hides every match whose size stops where theirs 
   });
 });
 
-describe('[PRP-051] an already-bought mark hides the others buying with them', () => {
+describe('[PRP-051] an already-bought or not-buying-now mark hides the others buying with them', () => {
   const party = [
     { party_id: 'household', contact_id: 'lakshman' },
     { party_id: 'household', contact_id: 'spouse' },
@@ -407,6 +405,18 @@ describe('[PRP-051] an already-bought mark hides the others buying with them', (
       op: 'eq',
       args: ['account_id', 'acc-1'],
     });
+  });
+
+  it('does the same for a not-buying-now mark', async () => {
+    const { db, calls } = fakeDb(
+      [buyer('spouse'), buyer('omi'), buyer('stranger')],
+      undefined,
+      party
+    );
+    expect(await hideSameReasonMatches(db, args([], 'Buyer', 'not_now'))).toBe(
+      1
+    );
+    expect(rows(calls)).toEqual(['spouse:not_now']);
   });
 
   it('hides no one when the marked contact is in no party', async () => {

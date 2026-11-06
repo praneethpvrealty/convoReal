@@ -283,6 +283,7 @@ export const SAME_REASON_REASONS: MatchRejectReason[] = [
   'budget',
   'size',
   'bought_elsewhere',
+  'not_now',
 ];
 
 /**
@@ -366,7 +367,7 @@ export function notAFitSavedMessage(
         ? ' with the same budget'
         : reason === 'size'
           ? ' looking for the same size'
-          : reason === 'bought_elsewhere'
+          : reason === 'bought_elsewhere' || reason === 'not_now'
             ? ' buying with them'
             : titles.length
               ? ` looking for ${titles.join(' or ')}`
