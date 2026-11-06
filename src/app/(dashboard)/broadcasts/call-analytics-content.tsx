@@ -15,7 +15,7 @@ import { SkeletonCard, Skeleton } from '@/components/dashboard/skeleton';
 import { EmptyState } from '@/components/dashboard/empty-state';
 import { BarChart } from '@/components/tremor/bar-chart';
 import { cn } from '@/lib/utils';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 
 interface CallAnalytics {
   days: number;

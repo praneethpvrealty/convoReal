@@ -53,7 +53,7 @@ import {
 } from '@/components/ui/dialog';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { InfoHint } from '@/components/ui/info-hint';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 import {
   useAudienceCount,
   type AudienceConfig,
