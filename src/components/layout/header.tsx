@@ -16,6 +16,7 @@ import {
   User,
   Search,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -98,6 +99,8 @@ export function Header({ onOpenSidebar }: HeaderProps) {
     { id: string; title: string; location: string | null; status: string }[]
   >([]);
   const [searching, setSearching] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [searchAttempt, setSearchAttempt] = useState(0);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -111,6 +114,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
   }, []);
 
   useEffect(() => {
+    setSearchFailed(false);
     if (!searchOpen) {
       setSearchQuery('');
       setContactsResults([]);
@@ -160,15 +164,20 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         setContactsResults(contactsRes.data ?? []);
         setDealsResults(dealsRes.data ?? []);
         setPropertiesResults(propertiesRes.data ?? []);
+        const failure =
+          contactsRes.error ?? dealsRes.error ?? propertiesRes.error;
+        if (failure) console.error('Search failed:', failure);
+        setSearchFailed(Boolean(failure));
       } catch (err) {
         console.error('Search failed:', err);
+        setSearchFailed(true);
       } finally {
         setSearching(false);
       }
     }, 200);
 
     return () => clearTimeout(handler);
-  }, [searchQuery, searchOpen, supabase, profile?.account_id]);
+  }, [searchQuery, searchOpen, supabase, profile?.account_id, searchAttempt]);
 
   const initial =
     profile?.full_name?.charAt(0)?.toUpperCase() ??
@@ -232,8 +241,28 @@ export function Header({ onOpenSidebar }: HeaderProps) {
               </div>
             )}
 
+            {searchQuery.trim() && !searching && searchFailed && (
+              <div
+                role="alert"
+                className="flex flex-col items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/5 py-6 text-center"
+              >
+                <p className="text-xs text-red-300">
+                  Search didn&apos;t finish, so some results may be missing.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSearchAttempt((n) => n + 1)}
+                  className="text-primary hover:text-primary/80 flex items-center gap-1 text-xs font-medium"
+                >
+                  <RefreshCw className="size-3" />
+                  Try again
+                </button>
+              </div>
+            )}
+
             {searchQuery.trim() &&
               !searching &&
+              !searchFailed &&
               contactsResults.length === 0 &&
               dealsResults.length === 0 &&
               propertiesResults.length === 0 && (

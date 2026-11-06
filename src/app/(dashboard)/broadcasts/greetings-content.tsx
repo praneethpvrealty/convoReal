@@ -370,6 +370,11 @@ export default function GreetingsContent() {
   );
 }
 
+const DISCARD_GREETING_DRAFT =
+  'Discard draft? The greeting you composed will be lost.';
+const DISCARD_GREETING_CHANGES =
+  'Discard changes? Your edits to this greeting will be lost.';
+
 function ComposeGreetingDialog({
   open,
   presetOccasionId,
@@ -415,6 +420,15 @@ function ComposeGreetingDialog({
     setNotes('');
     setCustomLabel('');
     setLastPreset(null);
+  };
+
+  const hasDraft =
+    message.trim() !== '' || notes.trim() !== '' || customLabel.trim() !== '';
+
+  const requestClose = () => {
+    if (hasDraft && !window.confirm(DISCARD_GREETING_DRAFT)) return;
+    onOpenChange(false);
+    reset();
   };
 
   const generateMutation = useMutation({
@@ -471,8 +485,8 @@ function ComposeGreetingDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        onOpenChange(next);
-        if (!next) reset();
+        if (next) onOpenChange(true);
+        else requestClose();
       }}
     >
       <DialogContent className="max-w-lg">
@@ -663,13 +677,7 @@ function ComposeGreetingDialog({
           )}
         </div>
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => {
-              onOpenChange(false);
-              reset();
-            }}
-          >
+          <Button variant="outline" onClick={requestClose}>
             Cancel
           </Button>
           <Button
@@ -702,6 +710,17 @@ function EditGreetingDialog({
     setMessage(greeting.message_text);
   }
 
+  const requestClose = () => {
+    if (
+      greeting &&
+      message !== greeting.message_text &&
+      !window.confirm(DISCARD_GREETING_CHANGES)
+    )
+      return;
+    setLoadedId(null);
+    onClose();
+  };
+
   const saveMutation = useMutation({
     mutationFn: () =>
       api<OccasionGreeting>(`/api/greetings/${greeting!.id}`, {
@@ -720,10 +739,7 @@ function EditGreetingDialog({
     <Dialog
       open={Boolean(greeting)}
       onOpenChange={(open) => {
-        if (!open) {
-          setLoadedId(null);
-          onClose();
-        }
+        if (!open) requestClose();
       }}
     >
       <DialogContent className="max-w-lg">
@@ -745,7 +761,7 @@ function EditGreetingDialog({
           </p>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={requestClose}>
             Cancel
           </Button>
           <Button

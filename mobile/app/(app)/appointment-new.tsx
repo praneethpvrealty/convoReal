@@ -42,7 +42,12 @@ import type { AppointmentType, Contact } from '@/lib/types';
 import { voiceHints, type VoicePrefill } from '@/lib/voice-event';
 import { contactHandle } from '@/lib/reachability';
 import { hasUnsavedChanges } from '@/lib/unsaved-changes';
-import { PAST_START_CONFIRM, startsInPast } from '@/lib/event-timing';
+import {
+  DEFAULT_EVENT_DURATION_MS,
+  PAST_START_CONFIRM,
+  eventTimesError,
+  startsInPast,
+} from '@/lib/event-timing';
 import {
   EVENT_TYPE_LABELS,
   EVENT_TYPE_ORDER,
@@ -219,9 +224,15 @@ export default function NewAppointmentScreen() {
 
   async function save() {
     if (!title.trim() || !session || !accountId) return;
+    const end = new Date(start.getTime() + DEFAULT_EVENT_DURATION_MS);
+    const timesError = eventTimesError(start, end);
+    if (timesError) {
+      haptic.warn();
+      setError(timesError);
+      return;
+    }
     setSaving(true);
     setError(null);
-    const end = new Date(start.getTime() + 60 * 60 * 1000);
     // Same direct insert the web's schedule dialog performs — WhatsApp
     // reminders are cron-driven off the row, no API call needed.
     const { error: insertError } = await supabase.from('appointments').insert({

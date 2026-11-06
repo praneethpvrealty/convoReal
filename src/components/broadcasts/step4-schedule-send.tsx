@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Send, Loader2, Users, Save, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, Users, RefreshCw } from 'lucide-react';
 import {
   useAudienceCount,
   type AudienceConfig,
@@ -32,7 +32,6 @@ interface Step4Props {
   onOptedInOnlyChange: (next: boolean) => void;
   optedInCount: number | null;
   onSend: () => void;
-  onSaveDraft?: () => void;
   onBack: () => void;
   isProcessing: boolean;
   progress: number;
@@ -47,7 +46,6 @@ export function Step4ScheduleSend({
   onOptedInOnlyChange,
   optedInCount,
   onSend,
-  onSaveDraft,
   onBack,
   isProcessing,
   progress,
@@ -201,18 +199,6 @@ export function Step4ScheduleSend({
         </Button>
 
         <div className="flex items-center gap-2">
-          {onSaveDraft && (
-            <Button
-              variant="outline"
-              onClick={onSaveDraft}
-              disabled={!name.trim() || isProcessing}
-              className="border-slate-700 text-slate-300 hover:bg-slate-800 disabled:opacity-50"
-            >
-              <Save className="h-4 w-4" />
-              Save as Draft
-            </Button>
-          )}
-
           <Dialog
             open={showConfirm}
             onOpenChange={(open) => {

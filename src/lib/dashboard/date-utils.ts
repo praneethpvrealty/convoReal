@@ -58,3 +58,11 @@ export const DOW_SHORT_MON_FIRST = [
   'Sat',
   'Sun',
 ] as const;
+
+export const DATE_RANGE_ORDER_ERROR =
+  'The end date must be on or after the start date';
+
+export function customRangeError(start: string, end: string): string | null {
+  if (!start || !end) return null;
+  return start > end ? DATE_RANGE_ORDER_ERROR : null;
+}

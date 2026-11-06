@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
+import { LoadError } from '@/components/ui/load-error';
 import type {
   AccountMember,
   RoutingRule,
@@ -56,6 +57,7 @@ export function RoutingRulesTab() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<AccountMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
 
   const [newRuleType, setNewRuleType] =
@@ -78,9 +80,10 @@ export function RoutingRulesTab() {
         setMembers(
           ((await mres.json()) as { members: AccountMember[] }).members
         );
+      setLoadFailed(!rres.ok || !tres.ok || !mres.ok);
     } catch (err) {
       console.error('[RoutingRulesTab] load error:', err);
-      toast.error('Could not reach the server');
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -151,6 +154,12 @@ export function RoutingRulesTab() {
   }
 
   async function handleDelete(rule: RoutingRule) {
+    if (
+      !window.confirm(
+        `Delete this ${RULE_TYPE_LABELS[rule.rule_type].toLowerCase()} rule? New conversations will stop routing by it.`
+      )
+    )
+      return;
     setPending(rule.id);
     try {
       const res = await fetch(`/api/account/routing-rules/${rule.id}`, {
@@ -204,6 +213,20 @@ export function RoutingRulesTab() {
           </p>
         </CardContent>
       </Card>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="mt-4">
+        <LoadError
+          what="routing rules"
+          onRetry={() => {
+            setLoading(true);
+            void loadEverything();
+          }}
+        />
+      </div>
     );
   }
 
@@ -263,10 +286,12 @@ export function RoutingRulesTab() {
                       checked={rule.is_active}
                       onCheckedChange={() => handleToggleActive(rule)}
                       disabled={pending === rule.id}
+                      aria-label={`${rule.is_active ? 'Pause' : 'Activate'} ${RULE_TYPE_LABELS[rule.rule_type]} rule`}
                     />
                     <Button
                       variant="outline"
                       size="sm"
+                      aria-label={`Delete ${RULE_TYPE_LABELS[rule.rule_type]} rule`}
                       onClick={() => handleDelete(rule)}
                       disabled={pending === rule.id}
                       className="border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20"

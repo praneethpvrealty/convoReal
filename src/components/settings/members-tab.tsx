@@ -60,6 +60,7 @@ import {
 import { RequireRole } from '@/components/auth/require-role';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { useAuth } from '@/hooks/useAuth';
+import { LoadError } from '@/components/ui/load-error';
 import type { AccountRole } from '@/lib/auth/roles';
 import { InviteMemberDialog } from './invite-member-dialog';
 
@@ -149,12 +150,16 @@ function fmtExpiresIn(iso: string): string {
   return `expires in ${hours} hour${hours === 1 ? '' : 's'}`;
 }
 
+export const REVOKE_INVITE_CONFIRM =
+  'Revoke this invitation? The link stops working and the invitee will need a new one.';
+
 export function MembersTab() {
   const { user, canManageMembers } = useAuth();
 
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removingMember, setRemovingMember] = useState<Member | null>(null);
@@ -172,8 +177,7 @@ export function MembersTab() {
       ]);
 
       if (!mres.ok) {
-        const payload = await mres.json().catch(() => ({}));
-        toast.error(payload.error || 'Failed to load members');
+        setLoadFailed(true);
         return;
       }
       const mdata = (await mres.json()) as { members: Member[] };
@@ -181,8 +185,7 @@ export function MembersTab() {
 
       if (ires) {
         if (!ires.ok) {
-          const payload = await ires.json().catch(() => ({}));
-          toast.error(payload.error || 'Failed to load invitations');
+          setLoadFailed(true);
           return;
         }
         const idata = (await ires.json()) as { invitations: Invitation[] };
@@ -190,9 +193,10 @@ export function MembersTab() {
       } else {
         setInvitations([]);
       }
+      setLoadFailed(false);
     } catch (err) {
       console.error('[MembersTab] load error:', err);
-      toast.error('Could not reach the server');
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -277,6 +281,7 @@ export function MembersTab() {
   }
 
   async function handleRevoke(invite: Invitation) {
+    if (!window.confirm(REVOKE_INVITE_CONFIRM)) return;
     try {
       const res = await fetch(`/api/account/invitations/${invite.id}`, {
         method: 'DELETE',
@@ -298,6 +303,20 @@ export function MembersTab() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="text-primary size-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="mt-4">
+        <LoadError
+          what="account members"
+          onRetry={() => {
+            setLoading(true);
+            void loadEverything();
+          }}
+        />
       </div>
     );
   }

@@ -24,7 +24,12 @@ import {
   linkedContactForProperty,
   linkedPropertyForContacts,
 } from '@/lib/calendar/auto-link';
-import { PAST_START_CONFIRM, startsInPast } from '@/lib/calendar/event-timing';
+import {
+  PAST_START_CONFIRM,
+  eventTimesError,
+  movedEventEnd,
+  startsInPast,
+} from '@/lib/calendar/event-timing';
 
 interface SimpleContact {
   id: string;
@@ -56,6 +61,12 @@ interface ScheduleDialogProps {
   propertyId?: string | null;
   initialTitle?: string;
   onSuccess?: () => void;
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+function formatDateTime(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function ScheduleDialog({
@@ -130,10 +141,6 @@ export function ScheduleDialog({
       const start = new Date(now.getTime() + 60 * 60 * 1000); // +1 hour
       const end = new Date(start.getTime() + 60 * 60 * 1000); // +1 hour duration
 
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const formatDateTime = (d: Date) =>
-        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
       setStartTime(formatDateTime(start));
       setEndTime(formatDateTime(end));
     }
@@ -181,14 +188,32 @@ export function ScheduleDialog({
     }
   };
 
+  const changeStart = (value: string) => {
+    const nextStart = new Date(value);
+    if (startTime && Number.isFinite(nextStart.getTime())) {
+      setEndTime(formatDateTime(movedEventEnd(startTime, endTime, nextStart)));
+    }
+    setStartTime(value);
+  };
+
+  const timesError =
+    startTime && endTime
+      ? eventTimesError(new Date(startTime), new Date(endTime))
+      : null;
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     if (!title.trim()) {
       toast.error('Please enter a schedule title / type');
       return;
     }
     if (!startTime || !endTime) {
       toast.error('Start and End times are required');
+      return;
+    }
+    if (timesError) {
+      toast.error(timesError);
       return;
     }
     if (
@@ -304,7 +329,7 @@ export function ScheduleDialog({
               <DateTimePicker
                 id="startTime"
                 value={startTime}
-                onChange={(val) => setStartTime(val)}
+                onChange={changeStart}
               />
             </div>
 
@@ -318,6 +343,14 @@ export function ScheduleDialog({
                 onChange={(val) => setEndTime(val)}
               />
             </div>
+            {timesError && (
+              <p
+                role="alert"
+                className="col-span-2 text-xs font-medium text-red-400"
+              >
+                {timesError}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -372,11 +405,11 @@ export function ScheduleDialog({
             </Button>
             <Button
               type="submit"
-              disabled={loading}
+              disabled={loading || Boolean(timesError)}
               className="bg-primary hover:bg-primary/90 text-primary-foreground h-9"
             >
               {loading && <Loader2 className="mr-1.5 size-4 animate-spin" />}
-              Save Changes
+              {loading ? 'Saving…' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </form>

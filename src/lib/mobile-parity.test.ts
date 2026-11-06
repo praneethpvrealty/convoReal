@@ -6246,14 +6246,30 @@ describe('[UIX-010] mobile screens say when something failed and guard unsaved w
       'components/calendar/schedule-dialog.tsx',
     ]) {
       const source = webSource(path);
-      expect(source).toContain(
-        "import { PAST_START_CONFIRM, startsInPast } from '@/lib/calendar/event-timing';"
+      expect(source).toMatch(
+        /import \{[^}]*PAST_START_CONFIRM,[^}]*startsInPast,[^}]*\} from '@\/lib\/calendar\/event-timing';/
       );
       expect(source).toContain('startsInPast(');
     }
     expect(mobileSource('lib/event-timing.ts')).toContain(
       "export * from '@shared/lib/calendar/event-timing';"
     );
+  });
+
+  it('[UIX-050] checks that an appointment ends after it starts on both surfaces', () => {
+    const create = mobileSource('app/(app)/appointment-new.tsx');
+    expect(create).toContain('eventTimesError(start, end)');
+    expect(create).toContain(
+      'new Date(start.getTime() + DEFAULT_EVENT_DURATION_MS)'
+    );
+    for (const path of [
+      'app/(dashboard)/calendar/page.tsx',
+      'components/calendar/schedule-dialog.tsx',
+    ]) {
+      const source = webSource(path);
+      expect(source).toContain('eventTimesError(');
+      expect(source).toContain('movedEventEnd(');
+    }
   });
 
   it('[UIX-010] shows a retryable error instead of an empty state when a load fails', () => {

@@ -153,6 +153,7 @@ _A §2.8 gap, stated rather than silent._
 _A §2.8 gap, stated rather than silent._
 
 - [ ] **Broadcast composer audiences (mobile)**: The web wizard can target a custom-field match; `mobile/app/(app)/broadcast-new.tsx` offers All contacts, By tag and a pasted list of numbers (parsed by the shared `src/lib/broadcasts/csv-audience.ts`). Both surfaces already count through `POST /api/broadcasts/audience-count`, which accepts every audience type, so closing the gap is a composer UI on mobile with no new rule.
+- [ ] **Broadcast composer discard confirm (mobile)**: The web wizard warns before leaving with a message, audience or name in it (UIX-056); `mobile/app/(app)/broadcast-new.tsx` has no `usePreventRemove` guard yet. Closing it is the `Discard changes?` pattern `appointment-new.tsx` already uses.
 
 ### Deferred: account administration on mobile
 
