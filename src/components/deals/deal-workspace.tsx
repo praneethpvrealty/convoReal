@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { LoadError } from '@/components/broadcasts/load-error';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -134,7 +135,13 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
 
   const canEdit = !isViewer && !isReadOnly;
 
-  const { data: deal, isLoading } = useQuery({
+  const {
+    data: deal,
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ['deal-workspace', dealId],
     queryFn: async (): Promise<DealSummary | null> => {
       const { data, error } = await supabase
@@ -254,6 +261,16 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading closing record…
       </div>
+    );
+  }
+
+  if (isError && !deal) {
+    return (
+      <LoadError
+        what="this closing record"
+        onRetry={() => void refetch()}
+        retrying={isFetching}
+      />
     );
   }
 

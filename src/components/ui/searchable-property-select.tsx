@@ -30,6 +30,8 @@ interface SearchablePropertySelectProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  onSearchChange?: (search: string) => void;
+  notice?: string | null;
 }
 
 export function SearchablePropertySelect({
@@ -39,6 +41,8 @@ export function SearchablePropertySelect({
   placeholder = 'Select property...',
   className = '',
   disabled = false,
+  onSearchChange,
+  notice,
 }: SearchablePropertySelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -46,6 +50,10 @@ export function SearchablePropertySelect({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownPosition = useAnchoredDropdown(isOpen, containerRef);
+  const onSearchChangeRef = useRef(onSearchChange);
+  useEffect(() => {
+    onSearchChangeRef.current = onSearchChange;
+  }, [onSearchChange]);
 
   // Find the selected property
   const selectedProperty = useMemo(() => {
@@ -56,7 +64,7 @@ export function SearchablePropertySelect({
   // Filter properties based on search query
   const filteredProperties = useMemo(() => {
     const query = search.toLowerCase().trim();
-    if (!query) return properties;
+    if (!query || onSearchChange) return properties;
 
     return properties.filter((p) => {
       const code = (p.property_code || '').toLowerCase();
@@ -75,7 +83,7 @@ export function SearchablePropertySelect({
         tags.includes(query)
       );
     });
-  }, [search, properties]);
+  }, [search, properties, onSearchChange]);
 
   // Close dropdown on click outside — excludes both the trigger container
   // and the portal-rendered dropdown content.
@@ -104,6 +112,7 @@ export function SearchablePropertySelect({
     } else if (!isOpen) {
       setTimeout(() => {
         setSearch('');
+        onSearchChangeRef.current?.('');
       }, 0);
     }
   }, [isOpen]);
@@ -132,13 +141,19 @@ export function SearchablePropertySelect({
             type="text"
             placeholder="Search by title, code, locality or tag..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              onSearchChange?.(e.target.value);
+            }}
             className="focus:ring-primary h-8.5 w-full rounded-lg border border-slate-800 bg-slate-950 pr-7 pl-8 text-xs text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none"
           />
           {search && (
             <button
               type="button"
-              onClick={() => setSearch('')}
+              onClick={() => {
+                setSearch('');
+                onSearchChange?.('');
+              }}
               className="absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400 hover:text-white"
             >
               <X className="size-3" />
@@ -261,6 +276,14 @@ export function SearchablePropertySelect({
             })
           )}
         </div>
+        {notice && (
+          <p
+            role="status"
+            className="mt-1.5 shrink-0 border-t border-slate-800/80 px-1 pt-1.5 text-[10px] text-amber-300/90"
+          >
+            {notice}
+          </p>
+        )}
       </div>
     ) : null;
 

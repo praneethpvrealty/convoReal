@@ -6488,3 +6488,18 @@ describe('[ACC-010] mobile signs out only on a definitive auth failure and says 
     );
   });
 });
+
+describe('[UIX-035] the property map says when its results are capped', () => {
+  it('[UIX-035] both maps word the cap with the shared helper and offer a retry', () => {
+    const mobile = mobileSource('app/(app)/properties-map.tsx');
+    expect(mobile).toContain(
+      "import { cappedResultsNotice } from '@shared/lib/inventory/result-cap';"
+    );
+    expect(mobile).toContain('Couldn’t load the map listings');
+    const web = webSource('components/inventory/property-map-view.tsx');
+    expect(web).toContain(
+      "import { cappedResultsNotice } from '@/lib/inventory/result-cap';"
+    );
+    expect(web).toContain('<LoadError');
+  });
+});

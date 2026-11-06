@@ -128,6 +128,7 @@ export function ContactNotesDialog({
   };
 
   const handleDelete = async (note: ContactNote) => {
+    if (!window.confirm('Delete this note? This cannot be undone.')) return;
     const { data, error } = await supabase
       .from('contact_notes')
       .delete()

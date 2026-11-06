@@ -40,6 +40,18 @@ describe('[UIX-004] destructive actions ask first on both surfaces', () => {
     expect(web).toContain('Duplicate this listing?');
   });
 
+  it('[UIX-033] confirms removing a listing video on both', () => {
+    expect(
+      webSource('components/inventory/property-form/media-section.tsx')
+    ).toContain(
+      "'Remove the listing video? It stops playing in the Showcase.'"
+    );
+    const mobile = mobileSource('components/property-video-editor.tsx');
+    expect(mobile).toContain("title: 'Remove the listing video?'");
+    expect(mobile).toContain("message: 'It stops playing in the Showcase.'");
+    expect(mobile).toContain('onPress={confirmRemove}');
+  });
+
   it('[UIX-004] offers Undo after archiving a chat on mobile as web does', () => {
     const inbox = mobileSource('app/(app)/(tabs)/index.tsx');
     expect(inbox).toContain("'Conversation archived'");

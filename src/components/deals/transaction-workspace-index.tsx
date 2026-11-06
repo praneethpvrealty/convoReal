@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Briefcase, Layers, Loader2, Search } from 'lucide-react';
 
+import { LoadError } from '@/components/broadcasts/load-error';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { todayDateKey } from '@/lib/deals/deadlines';
@@ -70,7 +71,13 @@ export function TransactionWorkspaceIndex({
   const [query, setQuery] = useState('');
   const today = todayDateKey();
 
-  const { data: rows = [], isLoading } = useQuery({
+  const {
+    data: rows = [],
+    isLoading,
+    isError,
+    refetch,
+    isFetching,
+  } = useQuery({
     queryKey: ['transaction-workspace-index', accountId],
     queryFn: async (): Promise<IndexRow[]> => {
       const { data, error } = await supabase.rpc(
@@ -173,6 +180,12 @@ export function TransactionWorkspaceIndex({
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading closing records…
         </div>
+      ) : isError ? (
+        <LoadError
+          what="closing records"
+          onRetry={() => void refetch()}
+          retrying={isFetching}
+        />
       ) : visible.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/40 p-10 text-center">
           <Briefcase className="mx-auto h-8 w-8 text-slate-600" />

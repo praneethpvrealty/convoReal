@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { Building2, UserRound } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { dealsHref } from '@/lib/deals/routes';
 import { createClient } from '@/lib/supabase/client';
@@ -24,6 +25,9 @@ import { SearchablePropertySelect } from '@/components/ui/searchable-property-se
 import type { Contact, Property } from '@/types';
 import { navigateJourney } from './shared';
 import { contactHandle } from '@/lib/contacts/reachability';
+import { ilikeAcross, ilikeTerm } from '@/lib/postgrest-search';
+import { PICKER_LIMIT, pickerTruncatedNotice } from '@/lib/journey/picker';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 export function NewJourneyDialog({
   open,
@@ -37,37 +41,81 @@ export function NewJourneyDialog({
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
-  const [loaded, setLoaded] = useState(false);
+  const [contactsTruncated, setContactsTruncated] = useState(false);
+  const [propertiesTruncated, setPropertiesTruncated] = useState(false);
+  const [contactsLoaded, setContactsLoaded] = useState(false);
+  const [propertiesLoaded, setPropertiesLoaded] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
+  const [propertySearch, setPropertySearch] = useState('');
+  const contactTerm = ilikeTerm(useDebouncedValue(contactSearch, 300)) ?? '';
+  const propertyTerm = ilikeTerm(useDebouncedValue(propertySearch, 300)) ?? '';
 
   useEffect(() => {
-    if (!open || !accountId || loaded) return;
+    if (!open || !accountId) return;
     let cancelled = false;
     (async () => {
-      const [{ data: cs }, { data: ps }] = await Promise.all([
-        supabase
-          .from('contacts')
-          .select('id, name, phone, name_tag')
-          .eq('account_id', accountId)
-          .order('created_at', { ascending: false })
-          .limit(1000),
-        supabase
-          .from('properties')
-          .select(
-            'id, title, property_code, location, sublocality, project, tags'
-          )
-          .eq('account_id', accountId)
-          .order('created_at', { ascending: false })
-          .limit(1000),
-      ]);
+      let query = supabase
+        .from('contacts')
+        .select('id, name, phone, name_tag')
+        .eq('account_id', accountId);
+      if (contactTerm) {
+        query = query.or(
+          ilikeAcross(['name', 'phone', 'name_tag'], contactTerm)
+        );
+      }
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(PICKER_LIMIT + 1);
       if (cancelled) return;
-      setContacts((cs ?? []) as Contact[]);
-      setProperties((ps ?? []) as Property[]);
-      setLoaded(true);
+      if (error) {
+        toast.error('Could not load contacts');
+        return;
+      }
+      const found = (data ?? []) as Contact[];
+      setContactsTruncated(found.length > PICKER_LIMIT);
+      setContacts(found.slice(0, PICKER_LIMIT));
+      setContactsLoaded(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, accountId, loaded, supabase]);
+  }, [open, accountId, contactTerm, supabase]);
+
+  useEffect(() => {
+    if (!open || !accountId) return;
+    let cancelled = false;
+    (async () => {
+      let query = supabase
+        .from('properties')
+        .select(
+          'id, title, property_code, location, sublocality, project, tags'
+        )
+        .eq('account_id', accountId);
+      if (propertyTerm) {
+        query = query.or(
+          ilikeAcross(
+            ['title', 'property_code', 'location', 'sublocality', 'project'],
+            propertyTerm
+          )
+        );
+      }
+      const { data, error } = await query
+        .order('created_at', { ascending: false })
+        .limit(PICKER_LIMIT + 1);
+      if (cancelled) return;
+      if (error) {
+        toast.error('Could not load properties');
+        return;
+      }
+      const found = (data ?? []) as Property[];
+      setPropertiesTruncated(found.length > PICKER_LIMIT);
+      setProperties(found.slice(0, PICKER_LIMIT));
+      setPropertiesLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, accountId, propertyTerm, supabase]);
 
   // Same-pathname navigation (/journey → /journey?…) — must go through
   // the History API on this Next version; see navigateJourney.
@@ -98,7 +146,19 @@ export function NewJourneyDialog({
               }))}
               value={null}
               onChange={(id) => id && go(dealsHref('journey', { contact: id }))}
-              placeholder={loaded ? 'Select a contact…' : 'Loading contacts…'}
+              placeholder={
+                contactsLoaded ? 'Select a contact…' : 'Loading contacts…'
+              }
+              onSearchChange={setContactSearch}
+              notice={
+                contactsTruncated
+                  ? pickerTruncatedNotice(
+                      PICKER_LIMIT,
+                      'contacts',
+                      Boolean(contactTerm)
+                    )
+                  : null
+              }
             />
           </div>
           <div>
@@ -113,7 +173,17 @@ export function NewJourneyDialog({
                 id && go(dealsHref('journey', { property: id }))
               }
               placeholder={
-                loaded ? 'Select a property…' : 'Loading properties…'
+                propertiesLoaded ? 'Select a property…' : 'Loading properties…'
+              }
+              onSearchChange={setPropertySearch}
+              notice={
+                propertiesTruncated
+                  ? pickerTruncatedNotice(
+                      PICKER_LIMIT,
+                      'properties',
+                      Boolean(propertyTerm)
+                    )
+                  : null
               }
             />
           </div>

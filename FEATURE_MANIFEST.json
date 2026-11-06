@@ -6420,6 +6420,203 @@
           ]
         }
       ]
+    },
+    {
+      "id": "web-record-resilience",
+      "name": "Listings, deals and journeys never drop work or hide a failure",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "UIX-030",
+          "rule": "A web listing photo or document upload with several files keeps every file that uploaded when one fails: a file over the size limit or refused by storage is skipped, the rest are added to the listing, and one error toast names the failed file and why (or the first three names and how many more), built by uploadFailureSummary in src/lib/inventory/upload-batch.ts.",
+          "tests": [
+            {
+              "file": "src/components/inventory/property-form/media-section.test.tsx",
+              "case": "[UIX-030]"
+            },
+            {
+              "file": "src/lib/inventory/upload-batch.test.ts",
+              "case": "[UIX-030]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-031",
+          "rule": "The web property form's Save is disabled and reads Uploading… while a photo, document, floor plan or sketch upload is in flight, and a submit through Enter in that window says Wait for the uploads to finish before saving. instead of saving without the files.",
+          "tests": [
+            {
+              "file": "src/components/inventory/property-form.structure.test.ts",
+              "case": "[UIX-031]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-032",
+          "rule": "Closing the web property form or deal form with unsaved changes, through Cancel, Escape or the backdrop, asks Discard your unsaved changes to this listing? (or this deal?) and stays open on No; a form with nothing changed closes straight away, and a successful save closes without asking. The listing form compares what Save would send (propertyFormIsDirty in src/lib/inventory/property-form-dirty.ts), so a field the form fills in by itself is not a change.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/property-form-dirty.test.ts",
+              "case": "[UIX-032]"
+            },
+            {
+              "file": "src/components/pipelines/deal-form.test.tsx",
+              "case": "[UIX-032]"
+            },
+            {
+              "file": "src/components/inventory/property-form.structure.test.ts",
+              "case": "[UIX-032]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-033",
+          "rule": "Removing a listing video asks first on both surfaces with the same wording: Remove the listing video? It stops playing in the Showcase. Nothing is deleted until the agent confirms.",
+          "tests": [
+            {
+              "file": "src/components/inventory/property-form/media-section.test.tsx",
+              "case": "[UIX-033]"
+            },
+            {
+              "file": "src/lib/destructive-confirm-parity.test.ts",
+              "case": "[UIX-033]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-034",
+          "rule": "When the web Inventory list, table or map fails to load, it shows Couldn't load … with Retry (LoadError) instead of the empty-inventory state or an empty map, and Retry refetches the same search.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[UIX-034]"
+            },
+            {
+              "file": "src/components/inventory/property-map-view.test.tsx",
+              "case": "[UIX-034]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-035",
+          "rule": "The property map loads at most 100 results; when the search has more, both surfaces say Showing the first 100 of N listings from cappedResultsNotice in src/lib/inventory/result-cap.ts, and say nothing when every result fits. The mobile map shows Couldn’t load the map listings with Retry on a failed load.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/upload-batch.test.ts",
+              "case": "[UIX-035]"
+            },
+            {
+              "file": "src/components/inventory/property-map-view.test.tsx",
+              "case": "[UIX-035]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[UIX-035]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-036",
+          "rule": "The project units dialog keeps the agent's ticks while its list refreshes or is searched: the attached set is read once when the dialog opens, a ticked unit stays listed while a search hides it, every unit already in the project is always listed, and the title search runs 300 ms after typing stops rather than on every keystroke.",
+          "tests": [
+            {
+              "file": "src/components/inventory/project-units-dialog.test.tsx",
+              "case": "[UIX-036]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-037",
+          "rule": "The web closing-record pages tell a failed load from a missing record: the deal workspace shows Couldn't load this closing record. with Retry when the fetch fails and This closing record could not be found. only when it returns nothing, and the records index shows Couldn't load closing records. with Retry instead of No records yet.",
+          "tests": [
+            {
+              "file": "src/components/deals/deal-workspace.load-state.test.tsx",
+              "case": "[UIX-037]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-038",
+          "rule": "Moving a journey branch on web moves its card at once and puts it back where it was, with an error toast, when the move is refused or the request fails; a second advance or move of the same branch while one is in flight is ignored and the sheet's Advance and Move to controls are disabled, so one click never moves a branch twice.",
+          "tests": [
+            {
+              "file": "src/components/journey/journey-section.move.test.tsx",
+              "case": "[UIX-038]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-039",
+          "rule": "The web journey pickers (Add to journey and Open a journey) search contacts and properties on the server as the agent types, debounced, through ilikeAcross in src/lib/postgrest-search.ts, load at most PICKER_LIMIT rows, and say Showing the first N … when more exist (src/lib/journey/picker.ts); a failed load in Add to journey shows a retry instead of Nothing matches.",
+          "tests": [
+            {
+              "file": "src/components/journey/journey-pickers.test.tsx",
+              "case": "[UIX-039]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-040",
+          "rule": "A failed save on the web property form or deal form moves focus to the first invalid field and scrolls it into view: the field named by the validation message (propertyFormErrorFieldIds in src/lib/inventory/property-form-dirty.ts) or the first of title, contact and stage that is missing on a deal, and the lost-reason panel when a lost deal has no reason.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/property-form-dirty.test.ts",
+              "case": "[UIX-040]"
+            },
+            {
+              "file": "src/components/pipelines/deal-form.test.tsx",
+              "case": "[UIX-040]"
+            },
+            {
+              "file": "src/components/inventory/property-form.structure.test.ts",
+              "case": "[UIX-040]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-041",
+          "rule": "A document uploaded from the web property form is titled after its file name without the extension (Sale Deed 2024.pdf becomes Sale Deed 2024), never the generated storage name, through documentTitleFromFileName in src/lib/inventory/upload-batch.ts.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/upload-batch.test.ts",
+              "case": "[UIX-041]"
+            },
+            {
+              "file": "src/components/inventory/property-form/media-section.test.tsx",
+              "case": "[UIX-041]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-042",
+          "rule": "Deleting a contact note from a journey's notes dialog asks Delete this note? This cannot be undone. and deletes nothing on No.",
+          "tests": [
+            {
+              "file": "src/components/journey/journey-pickers.test.tsx",
+              "case": "[UIX-042]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-043",
+          "rule": "The property share dialog says Couldn't load the active unmasked links on this listing. with Retry when the share-grant list fails, rather than showing no live links.",
+          "tests": [
+            {
+              "file": "src/components/inventory/property-share-dialog.test.tsx",
+              "case": "[UIX-043]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-044",
+          "rule": "The showcase share dialog surfaces its failures with an error toast instead of failing silently: listings that failed to load, search results that failed to load, and a share that could not be saved on the server (the link still opens the showcase).",
+          "tests": [
+            {
+              "file": "src/components/inventory/showcase-share-dialog.test.tsx",
+              "case": "[UIX-044]"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

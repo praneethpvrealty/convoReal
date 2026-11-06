@@ -36,7 +36,7 @@ export function PropertyVideoEditor({
   initialState: VideoState;
 }) {
   const { colors, fonts: f } = useTheme();
-  const { show, dialogProps } = useAppDialog();
+  const { show, close, dialogProps } = useAppDialog();
   const [state, setState] = useState(initialState);
   const [busy, setBusy] = useState<'upload' | 'remove' | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -161,6 +161,25 @@ export function PropertyVideoEditor({
     }
   }
 
+  function confirmRemove() {
+    if (!ready || busy) return;
+    show({
+      title: 'Remove the listing video?',
+      message: 'It stops playing in the Showcase.',
+      actions: [
+        {
+          label: 'Remove',
+          variant: 'destructive' as const,
+          onPress: () => {
+            close();
+            void remove();
+          },
+        },
+        { label: 'Cancel', variant: 'muted' as const, onPress: close },
+      ],
+    });
+  }
+
   async function remove() {
     if (!ready || busy) return;
     setBusy('remove');
@@ -280,7 +299,7 @@ export function PropertyVideoEditor({
         </Pressable>
         {ready ? (
           <Pressable
-            onPress={() => void remove()}
+            onPress={confirmRemove}
             disabled={Boolean(busy) || youtubeBusy}
             accessibilityRole="button"
             accessibilityLabel="Remove walkthrough video"

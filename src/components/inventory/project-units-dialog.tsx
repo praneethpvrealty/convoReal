@@ -11,11 +11,12 @@
 // selectable — silently stealing a unit from another tower would be a
 // worse surprise than being told why it is greyed.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -73,9 +74,21 @@ export function ProjectUnitsDialog({
   /** What was attached when the dialog opened, so Save writes the
    *  difference rather than rewriting every row. */
   const [initial, setInitial] = useState<Set<string>>(new Set());
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const [seen, setSeen] = useState<Map<string, UnitRow>>(new Map());
+  const loadedProjectId = useRef<string | null>(null);
+
+  function handleOpenChange(open: boolean) {
+    if (!open) {
+      loadedProjectId.current = null;
+      setSearch('');
+    }
+    onOpenChange(open);
+  }
 
   const load = useCallback(async () => {
     if (!project || !accountId) return;
+    const firstLoad = loadedProjectId.current !== project.id;
     setLoading(true);
     try {
       let query = supabase
@@ -87,7 +100,7 @@ export function ProjectUnitsDialog({
         .order('created_at', { ascending: false })
         .limit(PAGE_SIZE);
 
-      const term = search.trim();
+      const term = debouncedSearch.trim();
       if (term) query = query.ilike('title', `%${term}%`);
 
       const { data, error } = await query;
@@ -97,34 +110,39 @@ export function ProjectUnitsDialog({
       // present — otherwise a filtered view would look like they had
       // been detached, and unticking one would detach it for real.
       const found = (data ?? []) as UnitRow[];
-      const missingMine = term
-        ? await supabase
-            .from('properties')
-            .select(
-              'id, title, price, area_sqft, bedrooms, status, unit_no, tower, floor_number, project, project_id'
-            )
-            .eq('account_id', accountId)
-            .eq('project_id', project.id)
-            .then((r) => (r.data ?? []) as UnitRow[])
-        : [];
+      const { data: mineData, error: mineError } = await supabase
+        .from('properties')
+        .select(
+          'id, title, price, area_sqft, bedrooms, status, unit_no, tower, floor_number, project, project_id'
+        )
+        .eq('account_id', accountId)
+        .eq('project_id', project.id);
+      if (mineError) throw mineError;
+      const missingMine = (mineData ?? []) as UnitRow[];
 
       const byId = new Map<string, UnitRow>();
       for (const r of [...missingMine, ...found]) byId.set(r.id, r);
       const all = [...byId.values()];
       setRows(all);
+      setSeen((prev) => {
+        const next = new Map(firstLoad ? [] : prev);
+        for (const r of all) next.set(r.id, r);
+        return next;
+      });
 
-      const mine = new Set(
-        all.filter((r) => r.project_id === project.id).map((r) => r.id)
-      );
-      setSelected(mine);
-      setInitial(mine);
+      if (firstLoad) {
+        const mine = new Set(missingMine.map((r) => r.id));
+        setSelected(mine);
+        setInitial(mine);
+        loadedProjectId.current = project.id;
+      }
     } catch (err) {
       console.error('Failed to load units:', err);
       toast.error('Could not load listings');
     } finally {
       setLoading(false);
     }
-  }, [supabase, accountId, project, search]);
+  }, [supabase, accountId, project, debouncedSearch]);
 
   useEffect(() => {
     if (project) void load();
@@ -144,7 +162,7 @@ export function ProjectUnitsDialog({
     const toAttach = [...selected].filter((id) => !initial.has(id));
     const toDetach = [...initial].filter((id) => !selected.has(id));
     if (toAttach.length === 0 && toDetach.length === 0) {
-      onOpenChange(false);
+      handleOpenChange(false);
       return;
     }
 
@@ -175,7 +193,7 @@ export function ProjectUnitsDialog({
         toast.success(`${project.name}: ${parts.join(', ')}`);
       }
       onChanged();
-      onOpenChange(false);
+      handleOpenChange(false);
     } catch (err) {
       console.error('Unit attach failed:', err);
       toast.error(
@@ -186,12 +204,21 @@ export function ProjectUnitsDialog({
     }
   }
 
+  const visibleRows = useMemo(() => {
+    const ids = new Set(rows.map((r) => r.id));
+    const kept = [...selected]
+      .filter((id) => !ids.has(id))
+      .map((id) => seen.get(id))
+      .filter((r): r is UnitRow => Boolean(r));
+    return [...kept, ...rows];
+  }, [rows, selected, seen]);
+
   const dirty =
     [...selected].some((id) => !initial.has(id)) ||
     [...initial].some((id) => !selected.has(id));
 
   return (
-    <Dialog open={!!project} onOpenChange={onOpenChange}>
+    <Dialog open={!!project} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90vh] border-slate-800 bg-slate-900 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-white">
@@ -219,12 +246,12 @@ export function ProjectUnitsDialog({
             <div className="flex justify-center py-10">
               <Loader2 className="size-5 animate-spin text-slate-500" />
             </div>
-          ) : rows.length === 0 ? (
+          ) : visibleRows.length === 0 ? (
             <p className="py-10 text-center text-sm text-slate-500">
               No listings found.
             </p>
           ) : (
-            rows.map((row) => {
+            visibleRows.map((row) => {
               const takenByAnother =
                 !!row.project_id && row.project_id !== project?.id;
               const rate = formatRatePerSqft(
@@ -277,7 +304,7 @@ export function ProjectUnitsDialog({
         <DialogFooter>
           <Button
             variant="ghost"
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleOpenChange(false)}
             className="cursor-pointer text-slate-400"
           >
             Cancel

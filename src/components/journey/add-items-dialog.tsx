@@ -11,7 +11,7 @@
  * opening the property elsewhere.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, ChevronDown, Home, Search, UserRound } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -29,6 +29,10 @@ import {
 import type { Contact, Property } from '@/types';
 import type { JourneyMode } from './shared';
 import { contactHandle } from '@/lib/contacts/reachability';
+import { ilikeAcross, ilikeTerm } from '@/lib/postgrest-search';
+import { PICKER_LIMIT, pickerTruncatedNotice } from '@/lib/journey/picker';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { LoadError } from '@/components/broadcasts/load-error';
 
 export interface AddItemsDialogProps {
   open: boolean;
@@ -163,26 +167,51 @@ export function AddItemsDialog({
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [truncated, setTruncated] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const term = ilikeTerm(useDebouncedValue(search, 300)) ?? '';
+
   useEffect(() => {
-    if (!open || !accountId) return;
+    if (!open) return;
     setSelected(new Set());
     setSearch('');
     setExpandedId(null);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !accountId) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setLoadFailed(false);
       if (mode === 'buyer') {
-        const { data } = await supabase
+        let query = supabase
           .from('properties')
           .select(
             'id, title, property_code, location, sublocality, city, price, rent_per_month, listing_type, status, type, bedrooms, bathrooms, area_sqft, area_unit, land_area, land_area_unit, dimensions, facing_direction, images'
           )
-          .eq('account_id', accountId)
+          .eq('account_id', accountId);
+        if (term) {
+          query = query.or(
+            ilikeAcross(
+              ['title', 'property_code', 'location', 'sublocality', 'city'],
+              term
+            )
+          );
+        }
+        const { data, error } = await query
           .order('created_at', { ascending: false })
-          .limit(500);
-        if (!cancelled) {
+          .limit(PICKER_LIMIT + 1);
+        if (cancelled) return;
+        if (error) {
+          setLoadFailed(true);
+          setRows([]);
+        } else {
+          const found = (data ?? []) as Property[];
+          setTruncated(found.length > PICKER_LIMIT);
           setRows(
-            ((data ?? []) as Property[]).map((p) => ({
+            found.slice(0, PICKER_LIMIT).map((p) => ({
               id: p.id,
               title: p.title,
               subtitle: [
@@ -198,15 +227,25 @@ export function AddItemsDialog({
           );
         }
       } else {
-        const { data } = await supabase
+        let query = supabase
           .from('contacts')
           .select('id, name, name_tag, phone, classification, lead_temp')
-          .eq('account_id', accountId)
+          .eq('account_id', accountId);
+        if (term) {
+          query = query.or(ilikeAcross(['name', 'phone', 'name_tag'], term));
+        }
+        const { data, error } = await query
           .order('created_at', { ascending: false })
-          .limit(500);
-        if (!cancelled) {
+          .limit(PICKER_LIMIT + 1);
+        if (cancelled) return;
+        if (error) {
+          setLoadFailed(true);
+          setRows([]);
+        } else {
+          const found = (data ?? []) as Contact[];
+          setTruncated(found.length > PICKER_LIMIT);
           setRows(
-            ((data ?? []) as Contact[]).map((c) => ({
+            found.slice(0, PICKER_LIMIT).map((c) => ({
               id: c.id,
               title: c.name || contactHandle(c),
               subtitle: [contactHandle(c), c.classification, c.lead_temp]
@@ -217,23 +256,12 @@ export function AddItemsDialog({
           );
         }
       }
-      if (!cancelled) setLoading(false);
+      setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [open, accountId, mode, supabase, currency]);
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return rows;
-    return rows.filter(
-      (r) =>
-        r.title.toLowerCase().includes(q) ||
-        r.subtitle.toLowerCase().includes(q) ||
-        (r.badge ?? '').toLowerCase().includes(q)
-    );
-  }, [rows, search]);
+  }, [open, accountId, mode, supabase, currency, term, reloadKey]);
 
   const toggle = (id: string) => {
     if (existingIds.has(id)) return;
@@ -287,12 +315,17 @@ export function AddItemsDialog({
         <div className="max-h-[320px] space-y-0.5 overflow-y-auto pr-1">
           {loading ? (
             <p className="py-8 text-center text-xs text-slate-500">Loading…</p>
-          ) : filtered.length === 0 ? (
+          ) : loadFailed ? (
+            <LoadError
+              what={mode === 'buyer' ? 'properties' : 'contacts'}
+              onRetry={() => setReloadKey((k) => k + 1)}
+            />
+          ) : rows.length === 0 ? (
             <p className="py-8 text-center text-xs text-slate-500">
               Nothing matches.
             </p>
           ) : (
-            filtered.map((r) => {
+            rows.map((r) => {
               const already = existingIds.has(r.id);
               const isSel = selected.has(r.id);
               const expanded = expandedId === r.id;
@@ -382,6 +415,16 @@ export function AddItemsDialog({
             })
           )}
         </div>
+
+        {truncated && !loading && !loadFailed && (
+          <p role="status" className="text-[11px] text-amber-300/90">
+            {pickerTruncatedNotice(
+              PICKER_LIMIT,
+              mode === 'buyer' ? 'properties' : 'contacts',
+              Boolean(term)
+            )}
+          </p>
+        )}
 
         <DialogFooter>
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>

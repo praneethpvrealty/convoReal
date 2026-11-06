@@ -107,6 +107,7 @@ on:
       - 'src/lib/voice/campaign-settings.ts'
       - 'src/lib/format/list-time.ts'
       - 'src/lib/inventory/property-sorts.ts'
+      - 'src/lib/inventory/result-cap.ts'
       - 'src/lib/broadcast-status.ts'
       - 'src/lib/contacts/lead-temp.ts'
       - 'src/lib/conversations/inbox-filters.ts'

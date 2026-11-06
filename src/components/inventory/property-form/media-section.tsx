@@ -35,6 +35,11 @@ import {
   samplePixels,
 } from '@/lib/inventory/cover-photo';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
+import {
+  documentTitleFromFileName,
+  uploadFailureSummary,
+  type FailedUpload,
+} from '@/lib/inventory/upload-batch';
 import { storagePublicUrl } from '@/lib/storage/url';
 import type { SetPropertyFormField } from '@/hooks/usePropertyForm';
 import type { PropertyFormValues } from '@/lib/inventory/property-form-state';
@@ -134,52 +139,57 @@ export function MediaSection({
 
     setUploadingImage(true);
     const uploaded: { url: string; document: boolean }[] = [];
+    const failed: FailedUpload[] = [];
 
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
 
-        // 5MB limit
         if (file.size > 5 * 1024 * 1024) {
-          toast.error(`File "${file.name}" is too large. Max size is 5MB.`);
+          failed.push({ name: file.name, reason: 'larger than 5MB' });
           continue;
         }
 
-        // Compress image before upload
-        let uploadFile: File | Blob = file;
-        if (
-          file.type.startsWith('image/') &&
-          file.type !== 'image/svg+xml' &&
-          file.type !== 'image/gif'
-        ) {
-          try {
-            uploadFile = await compressImageOnClient(file);
-          } catch {
-            // Fallback to original if compression fails
+        try {
+          let uploadFile: File | Blob = file;
+          if (
+            file.type.startsWith('image/') &&
+            file.type !== 'image/svg+xml' &&
+            file.type !== 'image/gif'
+          ) {
+            try {
+              uploadFile = await compressImageOnClient(file);
+            } catch {
+              uploadFile = file;
+            }
           }
-        }
 
-        const ext = 'jpg';
-        const randomStr = Math.random().toString(36).substring(2, 7);
-        // Scoped by account ID folder
-        const path = `${accountId}/img-${Date.now()}-${randomStr}.${ext}`;
+          const randomStr = Math.random().toString(36).substring(2, 7);
+          const path = `${accountId}/img-${Date.now()}-${randomStr}.jpg`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('property-images')
-          .upload(path, uploadFile, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: 'image/jpeg',
+          const { error: uploadError } = await supabase.storage
+            .from('property-images')
+            .upload(path, uploadFile, {
+              cacheControl: '3600',
+              upsert: true,
+              contentType: 'image/jpeg',
+            });
+
+          if (uploadError) {
+            failed.push({ name: file.name, reason: uploadError.message });
+            continue;
+          }
+
+          uploaded.push({
+            url: `property-images/${path}`,
+            document: await isDocumentImage(uploadFile),
           });
-
-        if (uploadError) {
-          throw new Error(`Upload failed: ${uploadError.message}`);
+        } catch (err: unknown) {
+          failed.push({
+            name: file.name,
+            reason: err instanceof Error ? err.message : 'upload failed',
+          });
         }
-
-        uploaded.push({
-          url: `property-images/${path}`,
-          document: await isDocumentImage(uploadFile),
-        });
       }
 
       if (uploaded.length > 0) {
@@ -197,10 +207,8 @@ export function MediaSection({
             : `Uploaded ${uploaded.length} image(s)`
         );
       }
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Image upload failed';
-      toast.error(message);
+      const failure = uploadFailureSummary(failed, 'photo');
+      if (failure) toast.error(failure);
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -216,7 +224,8 @@ export function MediaSection({
     }
 
     setUploadingDocument(true);
-    const uploadedUrls: string[] = [];
+    const newDocs: { url: string; title: string }[] = [];
+    const failed: FailedUpload[] = [];
 
     try {
       for (let i = 0; i < files.length; i++) {
@@ -224,45 +233,44 @@ export function MediaSection({
 
         if (file.size > DOCUMENT_SIZE_LIMIT) {
           const mb = (file.size / (1024 * 1024)).toFixed(1);
-          toast.error(
-            `File "${file.name}" is ${mb}MB. Max size is ${Math.round(DOCUMENT_SIZE_LIMIT / (1024 * 1024))}MB.`
-          );
+          failed.push({
+            name: file.name,
+            reason: `${mb}MB is over the ${Math.round(DOCUMENT_SIZE_LIMIT / (1024 * 1024))}MB limit`,
+          });
           continue;
         }
 
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-        const randomStr = Math.random().toString(36).substring(2, 7);
-        // Scoped by account ID folder
-        const path = `${accountId}/doc-${Date.now()}-${randomStr}.${ext}`;
+        try {
+          const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+          const randomStr = Math.random().toString(36).substring(2, 7);
+          const path = `${accountId}/doc-${Date.now()}-${randomStr}.${ext}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('property-documents')
-          .upload(path, file, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: file.type,
+          const { error: uploadError } = await supabase.storage
+            .from('property-documents')
+            .upload(path, file, {
+              cacheControl: '3600',
+              upsert: true,
+              contentType: file.type,
+            });
+
+          if (uploadError) {
+            failed.push({ name: file.name, reason: uploadError.message });
+            continue;
+          }
+
+          newDocs.push({
+            url: `property-documents/${path}`,
+            title: documentTitleFromFileName(file.name),
           });
-
-        if (uploadError) {
-          throw new Error(`Upload failed: ${uploadError.message}`);
+        } catch (err: unknown) {
+          failed.push({
+            name: file.name,
+            reason: err instanceof Error ? err.message : 'upload failed',
+          });
         }
-
-        uploadedUrls.push(`property-documents/${path}`);
       }
 
-      if (uploadedUrls.length > 0) {
-        const newDocs = uploadedUrls.map((url) => {
-          const filename = url.split('/').pop()?.split('?')[0] || '';
-          const decoded = decodeURIComponent(filename);
-          const cleanName = decoded
-            .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-[a-zA-Z0-9]+-/, '')
-            .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-/, '')
-            .split('.')
-            .slice(0, -1)
-            .join('.');
-          return { url, title: cleanName };
-        });
-
+      if (newDocs.length > 0) {
         set('documents', (prev) => {
           const filteredPrev = prev
             .filter((doc) => {
@@ -275,12 +283,10 @@ export function MediaSection({
             });
           return [...filteredPrev, ...newDocs];
         });
-        toast.success(`Uploaded ${uploadedUrls.length} document(s)`);
+        toast.success(`Uploaded ${newDocs.length} document(s)`);
       }
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Document upload failed';
-      toast.error(message);
+      const failure = uploadFailureSummary(failed, 'document');
+      if (failure) toast.error(failure);
     } finally {
       setUploadingDocument(false);
       if (documentInputRef.current) documentInputRef.current.value = '';
@@ -402,6 +408,12 @@ export function MediaSection({
 
   async function handleRemoveVideo() {
     if (!property?.id || removingVideo) return;
+    if (
+      !window.confirm(
+        'Remove the listing video? It stops playing in the Showcase.'
+      )
+    )
+      return;
     setRemovingVideo(true);
     try {
       const response = await fetch(

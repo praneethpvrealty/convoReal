@@ -258,6 +258,7 @@ Best regards`;
           if (cancelled) return;
           if (error) {
             console.error('[showcase-share] listings load failed:', error);
+            toast.error('Failed to load listings to share');
             setProperties([]);
           } else {
             setProperties((data ?? []) as unknown as Property[]);
@@ -366,10 +367,22 @@ Best regards`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: pinnedIds }),
       });
-      if (!response.ok) return null;
+      if (!response.ok) throw new Error('Could not save this share');
       return ((await response.json()) as { data: { id: string } }).data.id;
     },
   });
+  useEffect(() => {
+    if (shareInstance.isError) {
+      toast.error(
+        'Could not save this share on the server — the link still opens the showcase.'
+      );
+    }
+  }, [shareInstance.isError]);
+  useEffect(() => {
+    if (searchResults.isError) {
+      toast.error('Could not load the search results to share');
+    }
+  }, [searchResults.isError]);
   const shareInstancePending =
     settledScopeIds !== scopeIds ||
     (shareInstance.data === undefined && !shareInstance.isError);

@@ -109,7 +109,13 @@ import {
   emptyPropertyFormValues,
   propertyToFormValues,
   validatePropertyForm,
+  type PropertyFormValues,
 } from '@/lib/inventory/property-form-state';
+import {
+  propertyFormErrorFieldIds,
+  propertyFormIsDirty,
+} from '@/lib/inventory/property-form-dirty';
+import { focusFirstField } from '@/lib/forms/focus-first-field';
 import { usePropertyForm } from '@/hooks/usePropertyForm';
 import { BasicsSection } from '@/components/inventory/property-form/basics-section';
 import {
@@ -299,6 +305,10 @@ export function PropertyForm({
   const [removingVideo, setRemovingVideo] = useState(false);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [planUploads, setPlanUploads] = useState(0);
+  const uploadsInFlight =
+    uploadingImage || uploadingDocument || planUploads > 0;
+  const baselineValues = useRef<PropertyFormValues | null>(null);
   const [contactedContactIds, setContactedContactIds] = useState<Set<string>>(
     new Set()
   );
@@ -758,11 +768,11 @@ export function PropertyForm({
         depth: false,
       };
       derivedDims.current = { landArea: false, frontage: false, depth: false };
-      reset(
-        property
-          ? propertyToFormValues(property, contacts)
-          : emptyPropertyFormValues(defaultOwnerId)
-      );
+      const nextValues = property
+        ? propertyToFormValues(property, contacts)
+        : emptyPropertyFormValues(defaultOwnerId);
+      baselineValues.current = nextValues;
+      reset(nextValues);
       setTagInput('');
       if (property) {
         // Set owner search input to display the selected owner's name
@@ -779,6 +789,7 @@ export function PropertyForm({
       }
     } else {
       formResetKey.current = null;
+      baselineValues.current = null;
     }
   }, [open, property, defaultOwnerId, contacts, reset]);
 
@@ -995,6 +1006,7 @@ export function PropertyForm({
       );
       return null;
     }
+    setPlanUploads((n) => n + 1);
     try {
       let uploadFile: File | Blob = file;
       let uploadContentType = file.type;
@@ -1025,6 +1037,8 @@ export function PropertyForm({
         err instanceof Error ? err.message : 'Plan or sketch upload failed'
       );
       return null;
+    } finally {
+      setPlanUploads((n) => Math.max(0, n - 1));
     }
   }
 
@@ -1172,9 +1186,15 @@ export function PropertyForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    if (uploadsInFlight) {
+      toast.error('Wait for the uploads to finish before saving.');
+      return;
+    }
+
     const validationError = validatePropertyForm(values);
     if (validationError) {
       toast.error(validationError);
+      focusFirstField(propertyFormErrorFieldIds(validationError, values));
       return;
     }
 
@@ -1328,8 +1348,21 @@ export function PropertyForm({
     ownerContactId,
   });
 
+  function handleOpenChange(nextOpen: boolean) {
+    if (
+      !nextOpen &&
+      !viewMode &&
+      !saving &&
+      propertyFormIsDirty(baselineValues.current, values, isEdit) &&
+      !window.confirm('Discard your unsaved changes to this listing?')
+    ) {
+      return;
+    }
+    onOpenChange(nextOpen);
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={`flex max-h-[90vh] flex-col overflow-hidden border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-2xl ${viewMode ? '' : 'lg:max-w-5xl'}`}
       >
@@ -2768,7 +2801,7 @@ export function PropertyForm({
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => onOpenChange(false)}
+                        onClick={() => handleOpenChange(false)}
                         disabled={saving}
                         className="text-slate-350 border-slate-700 hover:bg-slate-800"
                       >
@@ -2776,13 +2809,22 @@ export function PropertyForm({
                       </Button>
                       <Button
                         type="submit"
-                        disabled={saving}
+                        disabled={saving || uploadsInFlight}
+                        title={
+                          uploadsInFlight
+                            ? 'Wait for the uploads to finish'
+                            : undefined
+                        }
                         className="bg-primary hover:bg-primary/95 text-primary-foreground flex items-center gap-1.5 font-semibold"
                       >
-                        {saving && (
+                        {(saving || uploadsInFlight) && (
                           <Loader2 className="size-3.5 animate-spin" />
                         )}
-                        {isEdit ? 'Save Changes' : 'Create Listing'}
+                        {uploadsInFlight
+                          ? 'Uploading…'
+                          : isEdit
+                            ? 'Save Changes'
+                            : 'Create Listing'}
                       </Button>
                     </div>
                   </div>

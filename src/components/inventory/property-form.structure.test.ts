@@ -145,3 +145,31 @@ describe('property-form.tsx stays split into its tab components', () => {
     expect(media).not.toContain('useState(');
   });
 });
+
+describe('property form save and close guards', () => {
+  const form = inventorySource('property-form.tsx');
+
+  it('[UIX-031] holds the save while a photo, document or plan upload is in flight', () => {
+    expect(form).toMatch(
+      /const uploadsInFlight =\s+uploadingImage \|\| uploadingDocument \|\| planUploads > 0;/
+    );
+    expect(form).toContain('disabled={saving || uploadsInFlight}');
+    expect(form).toContain('Wait for the uploads to finish before saving.');
+  });
+
+  it('[UIX-032] asks before a dirty listing form closes', () => {
+    expect(form).toContain(
+      '<Dialog open={open} onOpenChange={handleOpenChange}>'
+    );
+    expect(form).toContain(
+      'propertyFormIsDirty(baselineValues.current, values, isEdit)'
+    );
+    expect(form).toContain('Discard your unsaved changes to this listing?');
+  });
+
+  it('[UIX-040] moves focus to the first invalid field on a failed save', () => {
+    expect(form).toContain(
+      'focusFirstField(propertyFormErrorFieldIds(validationError, values));'
+    );
+  });
+});

@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyMapView } from '@/components/inventory/property-map-view';
+import { LoadError } from '@/components/broadcasts/load-error';
 import { useT } from '@/hooks/useLocale';
 import { PropertyList } from '@/components/inventory/property-list';
 import { PropertyTable } from '@/components/inventory/property-table';
@@ -420,14 +421,14 @@ export default function InventoryPage() {
   });
 
   useEffect(() => {
-    if (propertiesQuery.error) {
+    if (propertiesQuery.error && propertiesQuery.data) {
       const message =
         propertiesQuery.error instanceof Error
           ? propertiesQuery.error.message
           : 'Error loading properties';
       toast.error(message);
     }
-  }, [propertiesQuery.error]);
+  }, [propertiesQuery.error, propertiesQuery.data]);
 
   const properties = useMemo(
     () => propertiesQuery.data?.data ?? [],
@@ -448,7 +449,10 @@ export default function InventoryPage() {
     queryFn: async () => {
       const response = await fetch(`/api/properties?${mapParams}`);
       if (!response.ok) throw new Error('Failed to fetch properties');
-      return (await response.json()) as { data: Property[] };
+      return (await response.json()) as {
+        data: Property[];
+        pagination?: { total: number };
+      };
     },
     placeholderData: (prev) => prev,
   });
@@ -1805,7 +1809,11 @@ export default function InventoryPage() {
       {view === 'map' ? (
         <PropertyMapView
           properties={mapQuery.data?.data ?? []}
-          loading={mapQuery.isPending}
+          loading={mapQuery.isPending && !mapQuery.isError}
+          total={mapQuery.data?.pagination?.total ?? null}
+          loadFailed={mapQuery.isError && !mapQuery.data}
+          onRetry={() => void mapQuery.refetch()}
+          retrying={mapQuery.isFetching}
           center={
             nearMe ??
             (pickedPlace
@@ -1838,7 +1846,13 @@ export default function InventoryPage() {
             }}
           />
 
-          {view === 'table' ? (
+          {propertiesQuery.isError && !propertiesQuery.data ? (
+            <LoadError
+              what="your listings"
+              onRetry={() => void propertiesQuery.refetch()}
+              retrying={propertiesQuery.isFetching}
+            />
+          ) : view === 'table' ? (
             <PropertyTable
               properties={properties}
               loading={loading}
