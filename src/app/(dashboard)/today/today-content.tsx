@@ -27,6 +27,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { InfoHint } from '@/components/ui/info-hint';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { LoadError } from '@/components/broadcasts/load-error';
 import {
   endOfLocalDay,
   loadExpiringSessions,
@@ -47,7 +48,11 @@ import {
   todayDateKey,
   type DealDeadline,
 } from '@/lib/deals/deadlines';
-import { daysAgoStart, startOfLocalDay } from '@/lib/dashboard/date-utils';
+import {
+  customRangeError,
+  daysAgoStart,
+  startOfLocalDay,
+} from '@/lib/dashboard/date-utils';
 import { hasPhone } from '@/lib/contacts/reachability';
 import type { Contact } from '@/types';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
@@ -93,6 +98,16 @@ function resolveRange(
     }
   }
 }
+
+type LoadKey = 'expiring' | 'hot' | 'agenda' | 'deadlines' | 'insights';
+
+const NO_FAILURES: Record<LoadKey, boolean> = {
+  expiring: false,
+  hot: false,
+  agenda: false,
+  deadlines: false,
+  insights: false,
+};
 
 type SectionFilter =
   'all' | 'windows' | 'hot' | 'replies' | 'agenda' | 'deadlines';
@@ -199,6 +214,13 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
+  const [failed, setFailed] = useState<Record<LoadKey, boolean>>(NO_FAILURES);
+  const markFailed = useCallback((key: LoadKey, value: boolean) => {
+    setFailed((current) =>
+      current[key] === value ? current : { ...current, [key]: value }
+    );
+  }, []);
+
   const [filter, setFilter] = useState<SectionFilter>('all');
   /** Agenda rows mid-way through their optimistic strikethrough. */
   const [completing, setCompleting] = useState<Set<string>>(new Set());
@@ -222,24 +244,48 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
     // Fire everything in parallel; each section owns its skeleton so a
     // slow loader never blocks the others (same as the dashboard page).
     void loadExpiringSessions(db)
-      .then((items) => setExpiring(items))
-      .catch((err) => console.error('[today] expiring sessions failed:', err))
+      .then((items) => {
+        setExpiring(items);
+        markFailed('expiring', false);
+      })
+      .catch((err) => {
+        console.error('[today] expiring sessions failed:', err);
+        markFailed('expiring', true);
+      })
       .finally(() => setExpiringLoading(false));
 
     void loadHotGoingQuiet(db)
-      .then((leads) => setHotLeads(leads))
-      .catch((err) => console.error('[today] hot leads failed:', err))
+      .then((leads) => {
+        setHotLeads(leads);
+        markFailed('hot', false);
+      })
+      .catch((err) => {
+        console.error('[today] hot leads failed:', err);
+        markFailed('hot', true);
+      })
       .finally(() => setHotLoading(false));
 
     void loadTodaysAgenda(db)
-      .then((a) => setAgenda(a))
-      .catch((err) => console.error('[today] agenda failed:', err))
+      .then((a) => {
+        setAgenda(a);
+        markFailed('agenda', false);
+      })
+      .catch((err) => {
+        console.error('[today] agenda failed:', err);
+        markFailed('agenda', true);
+      })
       .finally(() => setAgendaLoading(false));
 
     if (accountId && !embedded) {
       void loadDealDeadlines(db, accountId, todayDateKey())
-        .then((rows) => setDeadlines(rows))
-        .catch((err) => console.error('[today] deal deadlines failed:', err))
+        .then((rows) => {
+          setDeadlines(rows);
+          markFailed('deadlines', false);
+        })
+        .catch((err) => {
+          console.error('[today] deal deadlines failed:', err);
+          markFailed('deadlines', true);
+        })
         .finally(() => setDeadlinesLoading(false));
     } else {
       setDeadlinesLoading(false);
@@ -247,7 +293,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
 
     setRefreshedAt(Date.now());
     setNow(Date.now());
-  }, [accountId, embedded]);
+  }, [accountId, embedded, markFailed]);
 
   useEffect(() => {
     // Microtask defer keeps the synchronous loading-flag setters out of
@@ -302,9 +348,14 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
       setInsightsLoading(true);
       loadRangeInsights(createClient(), accountId, range[0], range[1])
         .then((data) => {
-          if (!cancelled) setInsights(data);
+          if (cancelled) return;
+          setInsights(data);
+          markFailed('insights', false);
         })
-        .catch((err) => console.error('[today] insights failed:', err))
+        .catch((err) => {
+          console.error('[today] insights failed:', err);
+          if (!cancelled) markFailed('insights', true);
+        })
         .finally(() => {
           if (!cancelled) setInsightsLoading(false);
         });
@@ -312,7 +363,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
     return () => {
       cancelled = true;
     };
-  }, [accountId, rangePreset, customStart, customEnd, refreshedAt]);
+  }, [accountId, rangePreset, customStart, customEnd, refreshedAt, markFailed]);
 
   // --- Split loader 1's list into the two visible sections ------------
   const { windowsClosing, awaitingReply } = useMemo(() => {
@@ -503,8 +554,10 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
     embedded && (key === 'agenda' || key === 'deadlines');
   const show = (key: Exclude<SectionFilter, 'all'>) =>
     !embeddedHidden(key) && (filter === 'all' || filter === key);
-  const collapsed = (loading: boolean, count: number) =>
-    embedded && !loading && count === 0;
+  const collapsed = (loading: boolean, count: number, key: LoadKey) =>
+    embedded && !loading && !failed[key] && count === 0;
+  const rangeError =
+    rangePreset === 'custom' ? customRangeError(customStart, customEnd) : null;
 
   return (
     <div className="space-y-6">
@@ -541,6 +594,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
             label="Windows closing"
             value={windowsClosing.length}
             loading={expiringLoading}
+            failed={failed.expiring}
             icon={<Timer className="size-4 text-rose-400" />}
             valueClass="text-rose-400"
             hint="WhatsApp reply windows expire 24h after the customer's last message. Cards here have < 6h left — reply before the window shuts."
@@ -549,6 +603,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
             label="Hot going quiet"
             value={hotLeads?.length ?? 0}
             loading={hotLoading}
+            failed={failed.hot}
             icon={<Flame className="size-4 text-amber-400" />}
             valueClass="text-amber-400"
             hint="Leads tagged as 'Hot' who haven't been contacted in several days. Reach out before they lose interest."
@@ -557,6 +612,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
             label="Awaiting reply"
             value={awaitingReply.length}
             loading={expiringLoading}
+            failed={failed.expiring}
             icon={<MessagesSquare className="size-4 text-sky-400" />}
             valueClass="text-sky-400"
             hint="Active WhatsApp threads where the customer messaged you but you haven't responded in over 2 hours."
@@ -565,6 +621,7 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
             label="Today's agenda"
             value={agendaCount}
             loading={agendaLoading}
+            failed={failed.agenda}
             icon={<CalendarDays className="size-4 text-emerald-400" />}
             valueClass="text-emerald-400"
             hint="Your appointments and to-do items due today. Complete or reschedule them from here."
@@ -620,58 +677,73 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
                 Pick both dates to load the range
               </span>
             )}
+            {rangeError && (
+              <span
+                role="alert"
+                className="text-[11px] font-medium text-red-400"
+              >
+                {rangeError}
+              </span>
+            )}
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-          <InsightTile
-            label="New inquiries"
-            value={insights?.newInquiries ?? 0}
-            loading={insightsLoading}
-            icon={<MessagesSquare className="size-3.5 text-sky-400" />}
-            hint="New WhatsApp conversations opened in this period."
+        {failed.insights && !insightsLoading ? (
+          <LoadError
+            what="activity insights"
+            onRetry={() => setRefreshedAt(Date.now())}
           />
-          <InsightTile
-            label="New contacts"
-            value={insights?.newContacts ?? 0}
-            loading={insightsLoading}
-            icon={<UserPlus className="size-3.5 text-emerald-400" />}
-            hint="Contacts added to your Engine in this period — from inbound chats, imports, or manual entry."
-          />
-          <InsightTile
-            label="Msgs received"
-            value={insights?.messagesReceived ?? 0}
-            loading={insightsLoading}
-            icon={<MessageSquare className="size-3.5 text-violet-400" />}
-            hint="Inbound customer messages across all conversations."
-          />
-          <InsightTile
-            label="Msgs sent"
-            value={insights?.messagesSent ?? 0}
-            loading={insightsLoading}
-            icon={<Reply className="size-3.5 text-amber-400" />}
-            hint="Outbound messages in this period, including AI bot replies."
-          />
-          <InsightTile
-            label="Responded"
-            value={insights?.respondedConversations ?? 0}
-            suffix={
-              insights && insights.inboundConversations > 0
-                ? `/ ${insights.inboundConversations}`
-                : undefined
-            }
-            loading={insightsLoading}
-            icon={<Check className="size-3.5 text-teal-400" />}
-            hint="Of the conversations where a customer wrote to you in this period, how many got a reply (you or the bot)."
-          />
-          <InsightTile
-            label="Showcase opens"
-            value={insights?.showcaseOpens ?? 0}
-            loading={insightsLoading}
-            icon={<Link2 className="size-3.5 text-rose-400" />}
-            hint="How many times your shared showcase links were opened (from Showcase Pulse)."
-          />
-        </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            <InsightTile
+              label="New inquiries"
+              value={insights?.newInquiries ?? 0}
+              loading={insightsLoading}
+              icon={<MessagesSquare className="size-3.5 text-sky-400" />}
+              hint="New WhatsApp conversations opened in this period."
+            />
+            <InsightTile
+              label="New contacts"
+              value={insights?.newContacts ?? 0}
+              loading={insightsLoading}
+              icon={<UserPlus className="size-3.5 text-emerald-400" />}
+              hint="Contacts added to your Engine in this period — from inbound chats, imports, or manual entry."
+            />
+            <InsightTile
+              label="Msgs received"
+              value={insights?.messagesReceived ?? 0}
+              loading={insightsLoading}
+              icon={<MessageSquare className="size-3.5 text-violet-400" />}
+              hint="Inbound customer messages across all conversations."
+            />
+            <InsightTile
+              label="Msgs sent"
+              value={insights?.messagesSent ?? 0}
+              loading={insightsLoading}
+              icon={<Reply className="size-3.5 text-amber-400" />}
+              hint="Outbound messages in this period, including AI bot replies."
+            />
+            <InsightTile
+              label="Responded"
+              value={insights?.respondedConversations ?? 0}
+              suffix={
+                insights && insights.inboundConversations > 0
+                  ? `/ ${insights.inboundConversations}`
+                  : undefined
+              }
+              loading={insightsLoading}
+              icon={<Check className="size-3.5 text-teal-400" />}
+              hint="Of the conversations where a customer wrote to you in this period, how many got a reply (you or the bot)."
+            />
+            <InsightTile
+              label="Showcase opens"
+              value={insights?.showcaseOpens ?? 0}
+              loading={insightsLoading}
+              icon={<Link2 className="size-3.5 text-rose-400" />}
+              hint="How many times your shared showcase links were opened (from Showcase Pulse)."
+            />
+          </div>
+        )}
       </section>
 
       {/* Filter chips */}
@@ -700,11 +772,17 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
           <Section
             title="⏳ WhatsApp windows closing"
             count={windowsClosing.length}
-            collapsed={collapsed(expiringLoading, windowsClosing.length)}
+            collapsed={collapsed(
+              expiringLoading,
+              windowsClosing.length,
+              'expiring'
+            )}
             hint="WhatsApp only lets you reply within 24h of the customer's last message. These conversations are about to expire — reply now or lose the window."
           >
             {expiringLoading ? (
               <SkeletonRows />
+            ) : failed.expiring ? (
+              <LoadError what="reply windows" onRetry={loadAll} />
             ) : windowsClosing.length === 0 ? (
               <EmptyState />
             ) : (
@@ -728,11 +806,13 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
           <Section
             title="🔥 Hot leads going quiet"
             count={hotLeads?.length ?? 0}
-            collapsed={collapsed(hotLoading, hotLeads?.length ?? 0)}
+            collapsed={collapsed(hotLoading, hotLeads?.length ?? 0, 'hot')}
             hint="Contacts marked as 'Hot' in your pipeline who haven't heard from you recently. A quick WhatsApp or call can re-engage them."
           >
             {hotLoading ? (
               <SkeletonRows />
+            ) : failed.hot ? (
+              <LoadError what="hot leads" onRetry={loadAll} />
             ) : !hotLeads || hotLeads.length === 0 ? (
               <EmptyState />
             ) : (
@@ -835,11 +915,20 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
           <Section
             title="💬 Awaiting your reply"
             count={awaitingReply.length}
-            collapsed={collapsed(expiringLoading, awaitingReply.length)}
+            collapsed={collapsed(
+              expiringLoading,
+              awaitingReply.length,
+              'expiring'
+            )}
             hint="Conversations where the customer sent a message and is waiting for your response. Older unanswered threads appear first."
           >
             {expiringLoading ? (
               <SkeletonRows />
+            ) : failed.expiring ? (
+              <LoadError
+                what="conversations awaiting reply"
+                onRetry={loadAll}
+              />
             ) : awaitingReply.length === 0 ? (
               <EmptyState />
             ) : (
@@ -867,6 +956,8 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
           >
             {agendaLoading ? (
               <SkeletonRows />
+            ) : failed.agenda ? (
+              <LoadError what="today's agenda" onRetry={loadAll} />
             ) : agendaCount === 0 ? (
               <EmptyState />
             ) : (
@@ -979,6 +1070,8 @@ export default function TodayPage({ embedded = false }: TodayPageProps = {}) {
           >
             {deadlinesLoading ? (
               <SkeletonRows />
+            ) : failed.deadlines ? (
+              <LoadError what="deal deadlines" onRetry={loadAll} />
             ) : deadlineCount === 0 ? (
               <EmptyState />
             ) : (
@@ -1073,6 +1166,7 @@ function StatCard({
   icon,
   valueClass,
   hint,
+  failed = false,
 }: {
   label: string;
   value: number;
@@ -1080,6 +1174,7 @@ function StatCard({
   icon: React.ReactNode;
   valueClass: string;
   hint?: string;
+  failed?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
@@ -1093,6 +1188,8 @@ function StatCard({
       <div className={`mt-2.5 text-2xl font-black ${valueClass}`}>
         {loading ? (
           <div className="h-8 w-10 animate-pulse rounded-lg bg-slate-800" />
+        ) : failed ? (
+          '—'
         ) : (
           value
         )}

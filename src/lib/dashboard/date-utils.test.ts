@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  DATE_RANGE_ORDER_ERROR,
   DOW_SHORT_MON_FIRST,
+  customRangeError,
   daysAgoStart,
   lastNDayKeys,
   localDayKey,
@@ -118,6 +120,24 @@ describe('mondayIndex', () => {
     );
     expect(DOW_SHORT_MON_FIRST[mondayIndex(new Date('2026-05-24'))]).toBe(
       'Sun'
+    );
+  });
+});
+
+describe('[UIX-052] customRangeError', () => {
+  it('says nothing until both dates are picked', () => {
+    expect(customRangeError('', '2026-11-05')).toBeNull();
+    expect(customRangeError('2026-11-05', '')).toBeNull();
+  });
+
+  it('accepts a single day or a forward range', () => {
+    expect(customRangeError('2026-11-05', '2026-11-05')).toBeNull();
+    expect(customRangeError('2026-11-01', '2026-11-05')).toBeNull();
+  });
+
+  it('reports an end before the start', () => {
+    expect(customRangeError('2026-11-05', '2026-11-01')).toBe(
+      DATE_RANGE_ORDER_ERROR
     );
   });
 });

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Bell } from 'lucide-react';
+import { Bell, RefreshCw } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 
 import { createClient } from '@/lib/supabase/client';
@@ -30,13 +30,11 @@ export function NotificationBell() {
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
-  // Initial load + live updates on one realtime channel, mirroring the
-  // inbox unread-count hook. A new row for this user lands in the feed
-  // instantly; a tab-focus resync catches anything missed while hidden.
   useEffect(() => {
     if (!user?.id) return;
-    const supabase = createClient();
     let cancelled = false;
 
     async function load() {
@@ -44,7 +42,7 @@ export function NotificationBell() {
         const res = await fetch('/api/notifications?limit=30', {
           cache: 'no-store',
         });
-        if (cancelled || !res.ok) return;
+        if (!res.ok) throw new Error(`notifications failed (${res.status})`);
         const json = (await res.json()) as {
           data: NotificationRow[];
           unreadCount: number;
@@ -52,8 +50,10 @@ export function NotificationBell() {
         if (cancelled) return;
         setItems(json.data || []);
         setUnread(json.unreadCount || 0);
-      } catch {
-        // Best-effort — the bell simply stays empty on failure.
+        setLoadFailed(false);
+      } catch (err) {
+        console.error('[notifications] load failed:', err);
+        if (!cancelled) setLoadFailed(true);
       }
     }
 
@@ -63,6 +63,16 @@ export function NotificationBell() {
       if (document.visibilityState === 'visible') load();
     }
     document.addEventListener('visibilitychange', resync);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', resync);
+    };
+  }, [user?.id, reloadToken]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const supabase = createClient();
 
     const channel = supabase
       .channel('notifications-realtime')
@@ -83,8 +93,6 @@ export function NotificationBell() {
       .subscribe();
 
     return () => {
-      cancelled = true;
-      document.removeEventListener('visibilitychange', resync);
       supabase.removeChannel(channel);
     };
   }, [user?.id]);
@@ -111,7 +119,7 @@ export function NotificationBell() {
   const onOpenChange = useCallback(
     (next: boolean) => {
       setOpen(next);
-      if (next) markAllRead();
+      if (!next) markAllRead();
     },
     [markAllRead]
   );
@@ -146,7 +154,24 @@ export function NotificationBell() {
         </div>
 
         <div className="max-h-96 overflow-y-auto">
-          {items.length === 0 ? (
+          {loadFailed && items.length === 0 ? (
+            <div
+              role="alert"
+              className="flex flex-col items-center gap-2 px-3 py-8 text-center"
+            >
+              <p className="text-sm text-red-300">
+                Couldn&apos;t load notifications.
+              </p>
+              <button
+                type="button"
+                onClick={() => setReloadToken((t) => t + 1)}
+                className="text-primary hover:text-primary/80 flex items-center gap-1 text-xs font-medium"
+              >
+                <RefreshCw className="size-3" />
+                Retry
+              </button>
+            </div>
+          ) : items.length === 0 ? (
             <p className="text-muted-foreground px-3 py-8 text-center text-sm">
               You&apos;re all caught up.
             </p>
@@ -183,7 +208,7 @@ export function NotificationBell() {
                   key={n.id}
                   href={n.link}
                   prefetch={false}
-                  onClick={() => setOpen(false)}
+                  onClick={() => onOpenChange(false)}
                   className="border-foreground/5 block border-b last:border-b-0"
                 >
                   {body}

@@ -1,7 +1,9 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
+import { use } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { LoadError } from '@/components/broadcasts/load-error';
 import { FlowNodeLoader } from '@/components/ui/flow-node-loader';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 
@@ -13,6 +15,14 @@ import {
 } from '@/components/automations/automation-builder';
 import type { AutomationTriggerType } from '@/types';
 
+class AutomationLoadError extends Error {
+  status: number;
+  constructor(status: number) {
+    super(`Failed to load (${status})`);
+    this.status = status;
+  }
+}
+
 export default function EditAutomationPage({
   params,
 }: {
@@ -20,20 +30,13 @@ export default function EditAutomationPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
-  const [initial, setInitial] = useState<BuilderInitial | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
+  const query = useQuery({
+    queryKey: ['automation-edit', id],
+    queryFn: async (): Promise<BuilderInitial> => {
       const res = await fetch(`/api/automations/${id}`);
-      if (!res.ok) {
-        if (!cancelled) setError(`Failed to load (${res.status})`);
-        return;
-      }
+      if (!res.ok) throw new AutomationLoadError(res.status);
       const body = await res.json();
-      if (cancelled) return;
-      setInitial({
+      return {
         id: body.automation.id,
         name: body.automation.name ?? '',
         description: body.automation.description ?? '',
@@ -41,18 +44,33 @@ export default function EditAutomationPage({
         trigger_config: body.automation.trigger_config ?? {},
         is_active: !!body.automation.is_active,
         steps: fromServerSteps((body.steps ?? []) as ServerStepNode[]),
-      });
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+      };
+    },
+    retry: false,
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+  });
+  const initial = query.data ?? null;
 
-  if (error) {
+  if (query.isError) {
+    const notFound =
+      query.error instanceof AutomationLoadError && query.error.status === 404;
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3">
-        <p className="text-sm text-red-400">{error}</p>
+      <div className="flex h-screen flex-col items-center justify-center gap-3 px-4">
+        {notFound ? (
+          <p className="text-sm text-red-400">
+            This automation no longer exists.
+          </p>
+        ) : (
+          <div className="w-full max-w-md">
+            <LoadError
+              what="this automation"
+              retrying={query.isFetching}
+              onRetry={() => void query.refetch()}
+            />
+          </div>
+        )}
         <button
           onClick={() => router.push('/automations')}
           className="text-primary hover:text-primary/80 text-sm"

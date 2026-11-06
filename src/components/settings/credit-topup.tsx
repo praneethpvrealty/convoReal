@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { openRazorpayCheckout } from '@/lib/marketplace/checkout';
 import { useCredits } from '@/hooks/useCredits';
 import { useTopupModal } from '@/components/layout/topup-modal-context';
+import { LoadError } from '@/components/broadcasts/load-error';
 
 interface CreditPackageOption {
   key: string;
@@ -36,20 +37,37 @@ export function CreditTopup() {
   const { refresh } = useCredits();
   const [packages, setPackages] = useState<CreditPackageOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [buyingKey, setBuyingKey] = useState<string | null>(null);
+  const [buyError, setBuyError] = useState<string | null>(null);
+
+  const loadPackages = useCallback(() => {
+    setLoading(true);
+    setLoadFailed(false);
+    fetch('/api/billing/credits/packages')
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`packages request failed (${res.status})`);
+        const json = await res.json();
+        setPackages(json.packages ?? []);
+      })
+      .catch(() => {
+        setLoadFailed(true);
+        toast.error('Failed to load credit packages');
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
-    setLoading(true);
-    fetch('/api/billing/credits/packages')
-      .then((res) => res.json())
-      .then((json) => setPackages(json.packages ?? []))
-      .catch(() => toast.error('Failed to load credit packages'))
-      .finally(() => setLoading(false));
-  }, [isOpen]);
+    Promise.resolve().then(() => {
+      setBuyError(null);
+      loadPackages();
+    });
+  }, [isOpen, loadPackages]);
 
   async function handleBuy(pkg: CreditPackageOption) {
     setBuyingKey(pkg.key);
+    setBuyError(null);
     try {
       const res = await fetch('/api/billing/credits/buy', {
         method: 'POST',
@@ -76,9 +94,12 @@ export function CreditTopup() {
         closeTopupModal();
       } else if (json.gateway === 'stripe' && json.checkoutUrl) {
         window.location.href = json.checkoutUrl;
+      } else {
+        throw new Error('Checkout could not be started');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Purchase failed';
+      setBuyError(`Top-up failed: ${msg}`);
       toast.error(msg);
     } finally {
       setBuyingKey(null);
@@ -97,6 +118,8 @@ export function CreditTopup() {
           <p className="py-8 text-center text-sm text-slate-400">
             Loading packages...
           </p>
+        ) : loadFailed ? (
+          <LoadError what="credit packages" onRetry={loadPackages} />
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {packages.map((pkg) => (
@@ -122,6 +145,12 @@ export function CreditTopup() {
               </button>
             ))}
           </div>
+        )}
+
+        {buyError && (
+          <p role="alert" className="mt-3 text-sm text-red-300">
+            {buyError}
+          </p>
         )}
 
         <p className="mt-4 text-xs text-slate-500">

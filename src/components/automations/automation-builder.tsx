@@ -474,6 +474,11 @@ export function AutomationBuilder({ initial }: { initial: BuilderInitial }) {
       if (!isEditing && body?.automation?.id) {
         router.replace(`/automations/${body.automation.id}/edit`);
       }
+    } catch (err) {
+      console.error('[automations] save failed:', err);
+      toast.error(
+        "Couldn't save the automation. Check your connection and try again."
+      );
     } finally {
       setSaving(false);
     }

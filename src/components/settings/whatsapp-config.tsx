@@ -40,10 +40,14 @@ import {
 import type { WhatsAppConfig as WhatsAppConfigType } from '@/types';
 import { WhatsAppNumberProfiles } from '@/components/settings/whatsapp-number-profiles';
 import { WhatsAppNumberChangeCard } from '@/components/settings/whatsapp-number-change-card';
+import { LoadError } from '@/components/broadcasts/load-error';
 
 const MASKED_TOKEN = '••••••••••••••••';
 
 type ConnectionStatus = 'connected' | 'disconnected' | 'unknown';
+
+const CONNECTION_CHECK_FAILED =
+  "Couldn't check the connection with Meta right now. Use Test Connection to try again.";
 type ResetReason = 'token_corrupted' | 'meta_api_error' | null;
 
 export function WhatsAppConfig() {
@@ -57,6 +61,7 @@ export function WhatsAppConfig() {
   const { user, accountId, loading: authLoading, profileLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -118,6 +123,7 @@ export function WhatsAppConfig() {
   const fetchConfig = useCallback(
     async (acctId: string) => {
       setLoading(true);
+      setLoadFailed(false);
       try {
         // Load form values from Supabase (shows what's in DB).
         // Switched from `user_id` (which would only match the row's
@@ -133,6 +139,8 @@ export function WhatsAppConfig() {
 
         if (error) {
           console.error('Failed to load config row:', error);
+          setLoadFailed(true);
+          return;
         }
 
         if (data) {
@@ -168,9 +176,17 @@ export function WhatsAppConfig() {
         if (data) {
           try {
             const res = await fetch('/api/whatsapp/config', { method: 'GET' });
-            const payload = await res.json();
+            const payload = await res.json().catch(() => null);
 
-            if (payload.connected) {
+            if (
+              !payload ||
+              payload.reason === 'db_error' ||
+              (!res.ok && payload.connected === undefined)
+            ) {
+              setConnectionStatus('unknown');
+              setResetReason(null);
+              setStatusMessage(CONNECTION_CHECK_FAILED);
+            } else if (payload.connected) {
               setConnectionStatus('connected');
               setResetReason(null);
               setStatusMessage('');
@@ -193,7 +209,9 @@ export function WhatsAppConfig() {
             }
           } catch (err) {
             console.error('Health check failed:', err);
-            setConnectionStatus('disconnected');
+            setConnectionStatus('unknown');
+            setResetReason(null);
+            setStatusMessage(CONNECTION_CHECK_FAILED);
           }
         } else {
           setConnectionStatus('disconnected');
@@ -202,6 +220,7 @@ export function WhatsAppConfig() {
         }
       } catch (err) {
         console.error('fetchConfig error:', err);
+        setLoadFailed(true);
         toast.error('Failed to load WhatsApp configuration');
       } finally {
         setLoading(false);
@@ -713,6 +732,19 @@ export function WhatsAppConfig() {
     );
   }
 
+  if (loadFailed) {
+    return (
+      <div className="mt-4">
+        <LoadError
+          what="your WhatsApp configuration"
+          onRetry={() => {
+            if (accountId) void fetchConfig(accountId);
+          }}
+        />
+      </div>
+    );
+  }
+
   const showResetBanner = resetReason === 'token_corrupted';
 
   return (
@@ -815,13 +847,17 @@ export function WhatsAppConfig() {
             <div className="flex items-center gap-2">
               {connectionStatus === 'connected' ? (
                 <CheckCircle2 className="text-primary size-4" />
+              ) : connectionStatus === 'unknown' && config ? (
+                <AlertTriangle className="size-4 text-amber-400" />
               ) : (
                 <XCircle className="size-4 text-red-500" />
               )}
               <AlertTitle className="mb-0 text-white">
                 {connectionStatus === 'connected'
                   ? 'Credentials valid'
-                  : 'Not Connected'}
+                  : connectionStatus === 'unknown' && config
+                    ? 'Connection status unknown'
+                    : 'Not Connected'}
               </AlertTitle>
             </div>
             <AlertDescription className="text-slate-400">

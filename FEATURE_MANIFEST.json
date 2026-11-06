@@ -6334,6 +6334,92 @@
           ]
         }
       ]
+    },
+    {
+      "id": "web-failure-states",
+      "name": "Web screens say when something failed and never lose work silently",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "UIX-050",
+          "rule": "An appointment must end after it starts, decided by eventTimesError in src/lib/calendar/event-timing.ts on the web calendar's event form, the schedule dialog and the mobile New appointment screen. On web, moving the start shifts the end by the event's existing duration (movedEventEnd), an end at or before the start shows The end time must be after the start time under the times and disables Save, and Save shows Saving… and ignores a second click until the request settles.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/event-timing.test.ts",
+              "case": "[UIX-050]"
+            },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[UIX-050]" },
+            { "file": "src/lib/web-ux-guards.test.ts", "case": "[UIX-050]" }
+          ]
+        },
+        {
+          "id": "UIX-051",
+          "rule": "The web credit balance never reads 0 because it has not loaded: useCredits exposes isLoading and isError, the header chip shows a skeleton while loading and a — credits retry chip on failure, the sidebar widget shows a skeleton or — with Couldn't load your balance and Retry, and Settings → Credits shows — and a Retry for a failed balance, spend or earned figure. The meter fills by creditMeterPct in src/lib/credits/types.ts, clamped to 0–100% and full above the low-credit threshold. A failed top-up says Top-up failed in the dialog as well as a toast, and failed packages offer Retry.",
+          "tests": [
+            { "file": "src/lib/credits/types.test.ts", "case": "[UIX-051]" },
+            {
+              "file": "src/components/layout/credit-meter.test.tsx",
+              "case": "[UIX-051]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-052",
+          "rule": "A custom date range whose end is before its start says The end date must be on or after the start date (customRangeError in src/lib/dashboard/date-utils.ts) instead of silently keeping the previous numbers, on Today's activity insights.",
+          "tests": [
+            {
+              "file": "src/lib/dashboard/date-utils.test.ts",
+              "case": "[UIX-052]"
+            },
+            {
+              "file": "src/app/(dashboard)/today/today-content.test.tsx",
+              "case": "[UIX-052]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-053",
+          "rule": "A failed load on the web shows a Couldn't load message with Retry (LoadError) instead of an empty state, a zero or an endless spinner: each Today section and its activity insights (stat tiles read —), each dashboard panel (metrics, conversations chart, pipeline, response time, team workload, activity), the WhatsApp config settings (a failed config read never renders as Not Connected, and a failed health check reads Connection status unknown), the automation edit page (a 404 says This automation no longer exists), verify-phone, and header search (Search didn't finish with Try again instead of No results found). Saving an automation that fails before reaching the server shows a toast.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/today/today-content.test.tsx",
+              "case": "[UIX-053]"
+            },
+            {
+              "file": "src/app/(dashboard)/automations/[id]/edit/page.test.tsx",
+              "case": "[UIX-053]"
+            },
+            { "file": "src/lib/web-ux-guards.test.ts", "case": "[UIX-053]" }
+          ]
+        },
+        {
+          "id": "UIX-054",
+          "rule": "Settings → Members, Teams and Routing rules show a retryable error when their load fails rather than an empty list. Deleting a routing rule and revoking an invitation ask first, and the routing rule delete button and active switch carry aria-labels naming the rule.",
+          "tests": [
+            {
+              "file": "src/components/settings/settings-load-errors.test.tsx",
+              "case": "[UIX-054]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-055",
+          "rule": "The web notification bell shows Couldn't load notifications with Retry when the feed fails instead of You're all caught up, keeps unread markers visible while the panel is open and marks everything read when it closes (including by following a notification link).",
+          "tests": [
+            {
+              "file": "src/components/layout/notification-bell.test.tsx",
+              "case": "[UIX-055]"
+            }
+          ]
+        },
+        {
+          "id": "UIX-056",
+          "rule": "Unsaved work on web asks before it is thrown away: the new-broadcast wizard warns on reload or tab close and confirms Back to the list while it holds a message, audience or name, and offers no Save as Draft because a draft could not be resumed; the new-greeting composer asks Discard draft? and the greeting editor Discard changes? before closing over edits.",
+          "tests": [
+            { "file": "src/lib/web-ux-guards.test.ts", "case": "[UIX-056]" }
+          ]
+        }
+      ]
     }
   ]
 }

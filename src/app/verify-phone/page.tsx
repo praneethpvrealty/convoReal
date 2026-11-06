@@ -17,6 +17,7 @@ import { useRouter } from 'next/navigation';
 import { MessageSquare } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { WhatsappPhoneVerify } from '@/components/auth/whatsapp-phone-verify';
 import { HelpCentreLink } from '@/components/auth/help-centre-link';
 import {
@@ -27,38 +28,55 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { reloadTo } from '@/lib/navigation';
+import { LoadError } from '@/components/broadcasts/load-error';
 
 export default function VerifyPhonePage() {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [requiredPhone, setRequiredPhone] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        router.replace('/login');
-        return;
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser();
+        if (cancelled) return;
+        if (!user) {
+          if (isAuthRetryableFetchError(error)) throw error;
+          router.replace('/login');
+          return;
+        }
+        if (user.phone && user.phone_confirmed_at) {
+          router.replace('/dashboard');
+          return;
+        }
+        const requirement = await fetch('/api/beta-invites/required-phone', {
+          cache: 'no-store',
+        });
+        if (requirement.status >= 500) {
+          throw new Error(`required-phone failed (${requirement.status})`);
+        }
+        if (requirement.ok) {
+          const data = (await requirement.json()) as { phone: string | null };
+          if (!cancelled) setRequiredPhone(data.phone);
+        }
+        if (!cancelled) setReady(true);
+      } catch (err) {
+        console.error('[verify-phone] load failed:', err);
+        if (!cancelled) setLoadFailed(true);
       }
-      if (user.phone && user.phone_confirmed_at) {
-        // Already verified (e.g. WhatsApp-OTP login) — nothing to do.
-        router.replace('/dashboard');
-        return;
-      }
-      const requirement = await fetch('/api/beta-invites/required-phone', {
-        cache: 'no-store',
-      });
-      if (requirement.ok) {
-        const data = (await requirement.json()) as { phone: string | null };
-        setRequiredPhone(data.phone);
-      }
-      setReady(true);
     })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4">
@@ -88,6 +106,14 @@ export default function VerifyPhonePage() {
                 // number onto profiles.phone; hard navigation so the
                 // shell re-reads a fresh session.
                 reloadTo('/dashboard');
+              }}
+            />
+          ) : loadFailed ? (
+            <LoadError
+              what="your verification details"
+              onRetry={() => {
+                setLoadFailed(false);
+                setAttempt((n) => n + 1);
               }}
             />
           ) : (

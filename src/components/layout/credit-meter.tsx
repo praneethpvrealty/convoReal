@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useCredits } from '@/hooks/useCredits';
-import type { CreditStatus } from '@/lib/credits/types';
+import { creditMeterPct, type CreditStatus } from '@/lib/credits/types';
 import { useTopupModal } from './topup-modal-context';
 
 const CHIP_CLASSES: Record<CreditStatus, string> = {
@@ -41,13 +41,31 @@ export function CreditMeter() {
   const credits = useCredits();
   const { openTopupModal } = useTopupModal();
 
-  if (credits.isLoading) return null;
+  if (credits.isLoading) {
+    return (
+      <span
+        aria-busy="true"
+        aria-label="Loading credits"
+        className="hidden h-7 w-24 animate-pulse rounded-full border border-slate-800 bg-slate-900 sm:block"
+      />
+    );
+  }
 
-  const monthlyCycleTotal = credits.monthly > 0 ? credits.monthly : 1;
-  const progressPct = Math.min(
-    100,
-    Math.round((credits.monthly / monthlyCycleTotal) * 100)
-  );
+  if (credits.isError) {
+    return (
+      <button
+        type="button"
+        onClick={() => void credits.refresh()}
+        title="Couldn't load your credit balance. Click to retry."
+        aria-label="Couldn't load credits. Retry"
+        className="hidden items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-300 transition-colors hover:bg-red-500/20 sm:flex"
+      >
+        <Coins className="size-3.5" />— credits
+      </button>
+    );
+  }
+
+  const progressPct = creditMeterPct(credits.total);
 
   return (
     <DropdownMenu>

@@ -3,6 +3,7 @@ import {
   recomputeReferralTier,
   referralTierMultiplier,
   deriveCreditStatus,
+  creditMeterPct,
   MONTHLY_GRANT,
   COMMITMENT_BONUS_PCT,
   CYCLE_MONTHS,
@@ -90,5 +91,21 @@ describe('plan/cycle constant tables stay in sync with the design doc', () => {
     expect(base).toBe(12000);
     expect(bonus).toBe(3600);
     expect(base + bonus).toBe(15600);
+  });
+});
+
+describe('[UIX-051] creditMeterPct', () => {
+  it('stays between 0 and 100 whatever the balance', () => {
+    expect(creditMeterPct(0)).toBe(0);
+    expect(creditMeterPct(-5)).toBe(0);
+    expect(creditMeterPct(Number.NaN)).toBe(0);
+    expect(creditMeterPct(50)).toBe(50);
+    expect(creditMeterPct(100)).toBe(100);
+    expect(creditMeterPct(8000)).toBe(100);
+  });
+
+  it('drains as the balance falls through the low and critical bands', () => {
+    expect(creditMeterPct(20)).toBeLessThan(creditMeterPct(60));
+    expect(deriveCreditStatus(20)).toBe('critical');
   });
 });

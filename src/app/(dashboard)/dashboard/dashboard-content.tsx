@@ -30,6 +30,7 @@ import { TeamWorkload } from '@/components/dashboard/team-workload';
 import { NetworkReach } from '@/components/dashboard/network-reach';
 import { getCurrencyIcon, formatCurrency } from '@/lib/currency-utils';
 import { useAuth } from '@/hooks/useAuth';
+import { LoadError } from '@/components/broadcasts/load-error';
 
 type RangeDays = 7 | 30 | 90;
 
@@ -119,6 +120,19 @@ export default function DashboardContent() {
 
   const handleRangeChange = useCallback((r: RangeDays) => setRange(r), []);
 
+  const failed = (query: { isError: boolean; data: unknown }) =>
+    query.isError && query.data === undefined;
+  const panelError = (
+    what: string,
+    query: { isFetching: boolean; refetch: () => unknown }
+  ) => (
+    <LoadError
+      what={what}
+      retrying={query.isFetching}
+      onRetry={() => void query.refetch()}
+    />
+  );
+
   return (
     <div className="relative space-y-6 overflow-hidden">
       {/* Decorative ambient background glows */}
@@ -127,7 +141,11 @@ export default function DashboardContent() {
 
       {/* Metric cards */}
       <div className="relative z-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {metricsLoading || !metrics ? (
+        {failed(metricsQuery) ? (
+          <div className="col-span-full">
+            {panelError('your dashboard metrics', metricsQuery)}
+          </div>
+        ) : metricsLoading || !metrics ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
         ) : (
           <>
@@ -194,23 +212,35 @@ export default function DashboardContent() {
         {/* Left Columns (Charts and Performance) */}
         <div className="space-y-6 lg:col-span-9">
           <div className="w-full">
-            <ConversationsChart
-              data={seriesQuery.data ?? null}
-              loading={seriesQuery.isPending}
-              range={range}
-              onRangeChange={handleRangeChange}
-            />
+            {failed(seriesQuery) ? (
+              panelError('the conversations chart', seriesQuery)
+            ) : (
+              <ConversationsChart
+                data={seriesQuery.data ?? null}
+                loading={seriesQuery.isPending}
+                range={range}
+                onRangeChange={handleRangeChange}
+              />
+            )}
           </div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <PipelineDonut
-              data={pipeline}
-              loading={pipelineLoading}
-              currency={currency}
-            />
-            <ResponseTimeChart
-              data={responseTime}
-              loading={responseTimeLoading}
-            />
+            {failed(pipelineQuery) ? (
+              panelError('the pipeline breakdown', pipelineQuery)
+            ) : (
+              <PipelineDonut
+                data={pipeline}
+                loading={pipelineLoading}
+                currency={currency}
+              />
+            )}
+            {failed(responseTimeQuery) ? (
+              panelError('response times', responseTimeQuery)
+            ) : (
+              <ResponseTimeChart
+                data={responseTime}
+                loading={responseTimeLoading}
+              />
+            )}
           </div>
           <NetworkReach />
         </div>
@@ -218,14 +248,21 @@ export default function DashboardContent() {
         {/* Right Columns (Active Roster & Activity Feed) */}
         <div className="space-y-6 lg:col-span-3">
           <ActiveUsers />
-          {showWorkload && (
-            <TeamWorkload
-              unassignedCount={unassignedCount}
-              agentLoad={agentLoad}
-              loading={workloadLoading}
-            />
+          {showWorkload &&
+            (failed(workloadQuery) ? (
+              panelError('team workload', workloadQuery)
+            ) : (
+              <TeamWorkload
+                unassignedCount={unassignedCount}
+                agentLoad={agentLoad}
+                loading={workloadLoading}
+              />
+            ))}
+          {failed(activityQuery) ? (
+            panelError('recent activity', activityQuery)
+          ) : (
+            <ActivityFeed items={activity} loading={activityLoading} />
           )}
-          <ActivityFeed items={activity} loading={activityLoading} />
         </div>
       </div>
     </div>

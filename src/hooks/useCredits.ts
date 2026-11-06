@@ -17,6 +17,7 @@ export interface CreditState {
   monthlyResetAt: string | null;
   status: CreditStatus;
   isLoading: boolean;
+  isError: boolean;
 }
 
 const DEFAULT_STATE: CreditState = {
@@ -30,6 +31,7 @@ const DEFAULT_STATE: CreditState = {
   monthlyResetAt: null,
   status: 'healthy',
   isLoading: true,
+  isError: false,
 };
 
 const CACHE_TTL_MS = 5000;
@@ -58,6 +60,7 @@ function fromWalletRow(row: CreditWalletRow): CreditState {
     monthlyResetAt: row.monthly_reset_at,
     status: deriveCreditStatus(row.total_credits),
     isLoading: false,
+    isError: false,
   };
 }
 
@@ -79,7 +82,7 @@ export function useCredits(): CreditState & { refresh: () => Promise<void> } {
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ['credits', accountId], [accountId]);
 
-  const { data } = useQuery({
+  const { data, isError } = useQuery({
     queryKey,
     queryFn: async (): Promise<CreditState> => {
       const res = await fetch('/api/billing/credits');
@@ -96,13 +99,18 @@ export function useCredits(): CreditState & { refresh: () => Promise<void> } {
         monthlyResetAt: json.monthlyResetAt,
         status: json.status,
         isLoading: false,
+        isError: false,
       };
     },
     refetchInterval: 60_000,
     staleTime: CACHE_TTL_MS,
   });
 
-  const state = data ?? DEFAULT_STATE;
+  const state: CreditState = data ?? {
+    ...DEFAULT_STATE,
+    isLoading: !isError,
+    isError,
+  };
 
   const refresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey });

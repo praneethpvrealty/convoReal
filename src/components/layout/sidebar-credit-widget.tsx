@@ -1,9 +1,9 @@
 'use client';
 
-import { Coins } from 'lucide-react';
+import { Coins, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useCredits } from '@/hooks/useCredits';
-import type { CreditStatus } from '@/lib/credits/types';
+import { creditMeterPct, type CreditStatus } from '@/lib/credits/types';
 import { useTopupModal } from './topup-modal-context';
 
 const BAR_CLASSES: Record<CreditStatus, string> = {
@@ -23,14 +23,51 @@ export function SidebarCreditWidget() {
   const credits = useCredits();
   const { openTopupModal } = useTopupModal();
 
-  if (credits.isLoading) return null;
+  if (credits.isLoading) {
+    return (
+      <div
+        aria-busy="true"
+        aria-label="Loading credits"
+        className="mx-1 mb-3 rounded-xl border border-slate-900/60 bg-slate-900/30 p-3"
+      >
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-300">
+          <Coins className="size-3.5" />
+          Credits
+        </div>
+        <div className="h-6 w-16 animate-pulse rounded bg-slate-800" />
+        <div className="mt-2 h-1 w-full rounded-full bg-slate-800" />
+      </div>
+    );
+  }
+
+  if (credits.isError) {
+    return (
+      <div
+        role="alert"
+        className="mx-1 mb-3 rounded-xl border border-slate-900/60 bg-slate-900/30 p-3"
+      >
+        <div className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-300">
+          <Coins className="size-3.5" />
+          Credits
+        </div>
+        <p className="text-lg leading-tight font-black text-slate-500">—</p>
+        <p className="mt-1 text-[11px] text-red-300">
+          Couldn&apos;t load your balance.
+        </p>
+        <button
+          type="button"
+          onClick={() => void credits.refresh()}
+          className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg bg-slate-800/60 py-1.5 text-[11px] font-semibold text-slate-200 transition-colors hover:bg-slate-800"
+        >
+          <RefreshCw className="size-3" />
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const resetDays = daysUntil(credits.monthlyResetAt);
-  const monthlyCycleTotal = credits.monthly > 0 ? credits.monthly : 1;
-  const progressPct = Math.min(
-    100,
-    Math.round((credits.monthly / monthlyCycleTotal) * 100)
-  );
+  const progressPct = creditMeterPct(credits.total);
 
   return (
     <div className="mx-1 mb-3 rounded-xl border border-slate-900/60 bg-slate-900/30 p-3">

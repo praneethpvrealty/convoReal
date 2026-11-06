@@ -48,6 +48,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/useAuth';
+import { LoadError } from '@/components/broadcasts/load-error';
 import type { OrgRole } from '@/lib/auth/roles';
 import type { AccountMember, Team } from '@/types';
 
@@ -84,6 +85,7 @@ export function TeamsTab() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<AccountMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -104,9 +106,10 @@ export function TeamsTab() {
         const mdata = (await mres.json()) as { members: AccountMember[] };
         setMembers(mdata.members);
       }
+      setLoadFailed(!tres.ok || !mres.ok);
     } catch (err) {
       console.error('[TeamsTab] load error:', err);
-      toast.error('Could not reach the server');
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -247,6 +250,20 @@ export function TeamsTab() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="text-primary size-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="mt-4">
+        <LoadError
+          what="teams"
+          onRetry={() => {
+            setLoading(true);
+            void loadEverything();
+          }}
+        />
       </div>
     );
   }

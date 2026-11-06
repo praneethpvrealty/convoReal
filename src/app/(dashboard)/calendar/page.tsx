@@ -115,7 +115,12 @@ import {
   resolveInitialView,
   type CalendarViewMode,
 } from '@/lib/calendar/default-view';
-import { PAST_START_CONFIRM, startsInPast } from '@/lib/calendar/event-timing';
+import {
+  PAST_START_CONFIRM,
+  eventTimesError,
+  movedEventEnd,
+  startsInPast,
+} from '@/lib/calendar/event-timing';
 
 const EMPTY_EXTRAS: Record<EventFieldKey, string> = {
   agenda: '',
@@ -232,6 +237,7 @@ export default function CalendarPage() {
   const [apptPropertyId, setApptPropertyId] = useState('');
   const [apptStartTime, setApptStartTime] = useState('');
   const [apptEndTime, setApptEndTime] = useState('');
+  const [apptSaving, setApptSaving] = useState(false);
   const [apptLocation, setApptLocation] = useState('');
   const [apptStatus, setApptStatus] = useState<
     'scheduled' | 'completed' | 'cancelled'
@@ -925,13 +931,32 @@ export default function CalendarPage() {
     openEditApptModal(appointment);
   }, [appointments, openEditApptModal, requestedEventId]);
 
+  const changeApptStart = (value: string) => {
+    const nextStart = new Date(value);
+    if (apptStartTime && Number.isFinite(nextStart.getTime())) {
+      setApptEndTime(
+        formatDateTimeLocal(
+          movedEventEnd(apptStartTime, apptEndTime, nextStart)
+        )
+      );
+    }
+    setApptStartTime(value);
+  };
+
+  const apptTimesError =
+    apptStartTime && apptEndTime
+      ? eventTimesError(new Date(apptStartTime), new Date(apptEndTime))
+      : null;
+
   const saveAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (apptSaving) return;
     if (!apptTitle.trim()) {
       toast.error('Please enter a title');
       return;
     }
 
+    setApptSaving(true);
     try {
       const parseDateTimeString = (str: string): Date => {
         const parsed = new Date(str);
@@ -949,8 +974,10 @@ export default function CalendarPage() {
       const startDate = parseDateTimeString(apptStartTime);
       const endDate = parseDateTimeString(apptEndTime);
 
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        throw new Error('Invalid start or end date selection.');
+      const timesError = eventTimesError(startDate, endDate);
+      if (timesError) {
+        toast.error(timesError);
+        return;
       }
 
       const startMoved =
@@ -1068,6 +1095,8 @@ export default function CalendarPage() {
       console.error('[CALENDAR SAVE] caught error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || 'Failed to save appointment');
+    } finally {
+      setApptSaving(false);
     }
   };
 
@@ -2192,7 +2221,7 @@ export default function CalendarPage() {
                     </label>
                     <DateTimePicker
                       value={apptStartTime}
-                      onChange={(val) => setApptStartTime(val)}
+                      onChange={changeApptStart}
                       align="left"
                     />
                   </div>
@@ -2207,6 +2236,14 @@ export default function CalendarPage() {
                       align="right"
                     />
                   </div>
+                  {apptTimesError && (
+                    <p
+                      role="alert"
+                      className="col-span-2 text-xs font-medium text-red-400"
+                    >
+                      {apptTimesError}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -2316,9 +2353,10 @@ export default function CalendarPage() {
                     )}
                     <button
                       type="submit"
-                      className="bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90"
+                      disabled={apptSaving || Boolean(apptTimesError)}
+                      className="bg-primary text-primary-foreground rounded-lg px-4 py-2 text-sm font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Save Changes
+                      {apptSaving ? 'Saving…' : 'Save Changes'}
                     </button>
                   </div>
                 </div>

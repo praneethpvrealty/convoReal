@@ -265,9 +265,16 @@ export function recomputeReferralTier(paidReferralCount: number): ReferralTier {
 
 export type CreditStatus = 'healthy' | 'low' | 'critical' | 'empty';
 
+export const CREDIT_LOW_THRESHOLD = 100;
+
 export function deriveCreditStatus(totalCredits: number): CreditStatus {
   if (totalCredits <= 0) return 'empty';
   if (totalCredits <= 20) return 'critical';
-  if (totalCredits <= 100) return 'low';
+  if (totalCredits <= CREDIT_LOW_THRESHOLD) return 'low';
   return 'healthy';
+}
+
+export function creditMeterPct(totalCredits: number): number {
+  if (!Number.isFinite(totalCredits) || totalCredits <= 0) return 0;
+  return Math.min(100, Math.round((totalCredits / CREDIT_LOW_THRESHOLD) * 100));
 }
