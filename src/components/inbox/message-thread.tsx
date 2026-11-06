@@ -59,7 +59,7 @@ import { MessageComposer } from './message-composer';
 import { TemplatePicker, type TemplateIntent } from './template-picker';
 import { buildReplyPreview } from './reply-quote';
 import { MessageThreadSkeleton } from '@/components/inbox/message-thread-skeleton';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 import { Skeleton } from '@/components/dashboard/skeleton';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
