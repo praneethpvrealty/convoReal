@@ -22,7 +22,7 @@ import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAuth } from '@/hooks/useAuth';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't

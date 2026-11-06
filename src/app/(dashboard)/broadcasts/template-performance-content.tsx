@@ -23,7 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { cn } from '@/lib/utils';
 import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 
 type Range = 30 | 90 | 365;
 

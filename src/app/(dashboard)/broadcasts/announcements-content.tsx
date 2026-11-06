@@ -30,7 +30,7 @@ import {
 import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { InfoHint } from '@/components/ui/info-hint';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 
 const TEXT_MAX = 1200;
 

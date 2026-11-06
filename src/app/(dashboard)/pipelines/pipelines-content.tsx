@@ -38,6 +38,7 @@ import {
   Orbit,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { LoadError } from '@/components/ui/load-error';
 import { useCan } from '@/hooks/useCan';
 import { GatedButton } from '@/components/ui/gated-button';
 import { InfoHint } from '@/components/ui/info-hint';
@@ -87,6 +88,11 @@ export default function PipelinesPage() {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pipelinesFailed, setPipelinesFailed] = useState(false);
+  const [boardFailed, setBoardFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [boardAttempt, setBoardAttempt] = useState(0);
+  const [savingBrokerage, setSavingBrokerage] = useState(false);
   const [boardScope, setBoardScope] = useState<BoardScope>('focus');
   const [boardLayout, setBoardLayout] = useBoardLayout();
 
@@ -187,25 +193,26 @@ export default function PipelinesPage() {
   // Guard against double-seeding (React StrictMode double-effect in dev).
   const seedAttempted = useRef(false);
 
-  const loadPipelines = useCallback(async () => {
+  const loadPipelines = useCallback(async (): Promise<Pipeline[] | null> => {
     const { data, error } = await supabase
       .from('pipelines')
       .select('*')
       .order('created_at');
     if (error) {
       console.error('Failed to load pipelines:', error.message);
-      return [];
+      return null;
     }
     return data ?? [];
   }, [supabase]);
 
   const loadStages = useCallback(
-    async (pipelineId: string) => {
-      const { data } = await supabase
+    async (pipelineId: string): Promise<PipelineStage[] | null> => {
+      const { data, error: loadError } = await supabase
         .from('pipeline_stages')
         .select('*')
         .eq('pipeline_id', pipelineId)
         .order('position');
+      if (loadError) return null;
 
       const loaded = data ?? [];
       const hasLost = loaded.some((s) => isLostStage(s));
@@ -235,14 +242,15 @@ export default function PipelinesPage() {
   );
 
   const loadDeals = useCallback(
-    async (pipelineId: string) => {
-      const { data } = await supabase
+    async (pipelineId: string): Promise<Deal[] | null> => {
+      const { data, error } = await supabase
         .from('deals')
         .select(
           '*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*), property:properties(*)'
         )
         .eq('pipeline_id', pipelineId)
         .order('created_at', { ascending: false });
+      if (error) return null;
       return (data ?? []) as Deal[];
     },
     [supabase]
@@ -289,15 +297,21 @@ export default function PipelinesPage() {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setPipelinesFailed(false);
       let list = await loadPipelines();
 
-      if (list.length === 0 && !seedAttempted.current) {
+      if (list && list.length === 0 && !seedAttempted.current) {
         seedAttempted.current = true;
         const seeded = await seedDefaultPipeline();
         if (seeded) list = await loadPipelines();
       }
 
       if (cancelled) return;
+      if (!list) {
+        setPipelinesFailed(true);
+        setLoading(false);
+        return;
+      }
       setPipelines(list);
       if (list.length > 0) {
         setSelectedPipelineId((prev) =>
@@ -311,7 +325,7 @@ export default function PipelinesPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadPipelines, seedDefaultPipeline]);
+  }, [loadPipelines, seedDefaultPipeline, loadAttempt]);
 
   // Load stages + deals whenever selected pipeline changes.
   // Clearing on no-selection is a legitimate sync with URL/prop
@@ -332,16 +346,21 @@ export default function PipelinesPage() {
         loadDeals(selectedPipelineId),
       ]);
       if (cancelled) return;
-      setStages(s);
-      setDeals(d);
+      setBoardFailed(!s || !d);
+      setStages(s ?? []);
+      setDeals(d ?? []);
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedPipelineId, loadStages, loadDeals]);
+  }, [selectedPipelineId, loadStages, loadDeals, boardAttempt]);
 
   const refreshPipelines = useCallback(async () => {
     const list = await loadPipelines();
+    if (!list) {
+      toast.error("Couldn't refresh pipelines");
+      return;
+    }
     setPipelines(list);
     if (list.length === 0) setSelectedPipelineId('');
     else if (!list.some((p) => p.id === selectedPipelineId))
@@ -359,13 +378,23 @@ export default function PipelinesPage() {
 
   const refreshStages = useCallback(async () => {
     if (!selectedPipelineId) return;
-    setStages(await loadStages(selectedPipelineId));
+    const loaded = await loadStages(selectedPipelineId);
+    if (!loaded) {
+      toast.error("Couldn't refresh stages");
+      return;
+    }
+    setStages(loaded);
     await syncJourneyStages();
   }, [loadStages, selectedPipelineId, syncJourneyStages]);
 
   const refreshDeals = useCallback(async () => {
     if (!selectedPipelineId) return;
-    setDeals(await loadDeals(selectedPipelineId));
+    const loaded = await loadDeals(selectedPipelineId);
+    if (!loaded) {
+      toast.error("Couldn't refresh deals");
+      return;
+    }
+    setDeals(loaded);
     void queryClient.invalidateQueries({ queryKey: [BOARD_FOCUS_QUERY_KEY] });
   }, [loadDeals, selectedPipelineId, queryClient]);
 
@@ -460,7 +489,8 @@ export default function PipelinesPage() {
   );
 
   async function handleModalBrokerageSave() {
-    if (!brokeragePromptDeal || !pendingStageId) return;
+    if (!brokeragePromptDeal || !pendingStageId || savingBrokerage) return;
+    setSavingBrokerage(true);
 
     const dealId = brokeragePromptDeal.id;
     const dealValue = brokeragePromptDeal.value || 0;
@@ -505,6 +535,7 @@ export default function PipelinesPage() {
         source: 'web',
       }),
     }).catch(() => null);
+    setSavingBrokerage(false);
 
     if (!res || !res.ok) {
       toast.error('Failed to move deal');
@@ -597,6 +628,15 @@ export default function PipelinesPage() {
   }
 
   const selectedPipeline = pipelines.find((p) => p.id === selectedPipelineId);
+
+  if (pipelinesFailed) {
+    return (
+      <LoadError
+        what="your pipelines"
+        onRetry={() => setLoadAttempt((n) => n + 1)}
+      />
+    );
+  }
 
   if (loading || focusQuery.isLoading) {
     return (
@@ -791,15 +831,22 @@ export default function PipelinesPage() {
               </div>
             </div>
           ) : null}
-          <PipelineBoard
-            stages={stages}
-            deals={visibleDeals}
-            onDealMoved={handleDealMoved}
-            onAddDeal={handleAddDeal}
-            onEditDeal={handleEditDeal}
-            currency={currency}
-            layout={boardLayout}
-          />
+          {boardFailed ? (
+            <LoadError
+              what="this pipeline's stages and deals"
+              onRetry={() => setBoardAttempt((n) => n + 1)}
+            />
+          ) : (
+            <PipelineBoard
+              stages={stages}
+              deals={visibleDeals}
+              onDealMoved={handleDealMoved}
+              onAddDeal={handleAddDeal}
+              onEditDeal={handleEditDeal}
+              currency={currency}
+              layout={boardLayout}
+            />
+          )}
         </>
       )}
 
@@ -959,6 +1006,7 @@ export default function PipelinesPage() {
             <Button
               onClick={handleModalBrokerageSave}
               disabled={
+                savingBrokerage ||
                 !modalBrokerageValue ||
                 isNaN(Number(modalBrokerageValue)) ||
                 Number(modalBrokerageValue) <= 0

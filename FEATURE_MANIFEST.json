@@ -3598,6 +3598,17 @@
             "src/components/pipelines/deal-card.tsx",
             "mobile/app/(app)/deals.tsx"
           ]
+        },
+        {
+          "id": "PIPE-005",
+          "rule": "The Deals board seeds a default pipeline only when the pipelines load succeeded and came back empty. A failed load of the pipelines, or of the selected pipeline's stages or deals, shows a retry state instead of an empty board, never creates a pipeline, and a failed refresh keeps what was on screen. Saving the brokerage prompt disables its button until the move returns, so a double click cannot move the deal twice.",
+          "tests": [
+            {
+              "file": "src/app/(dashboard)/pipelines/pipelines-content.test.tsx",
+              "case": "[PIPE-005]"
+            }
+          ],
+          "guards": ["src/app/(dashboard)/pipelines/pipelines-content.tsx"]
         }
       ]
     },

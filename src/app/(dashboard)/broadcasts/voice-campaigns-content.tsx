@@ -46,7 +46,7 @@ import { SearchablePropertySelect } from '@/components/ui/searchable-property-se
 import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { InfoHint } from '@/components/ui/info-hint';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 import { voiceCampaignSettingsErrors } from '@/lib/voice/campaign-settings';
 
 interface RecipientCounts {
