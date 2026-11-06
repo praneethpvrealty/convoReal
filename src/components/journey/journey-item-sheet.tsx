@@ -28,6 +28,7 @@ import {
   ExternalLink,
   EyeOff,
   Home,
+  Loader2,
   MapPin,
   MessageSquare,
   Phone,
@@ -116,6 +117,7 @@ export interface JourneyItemSheetProps {
    *  the listing in the prefilled check-in message. */
   property: Property | null;
   onClose: () => void;
+  moving?: boolean;
   onAdvance: (item: JourneyItem) => void;
   onMoveTo: (item: JourneyItem, stageId: string) => void;
   onDrop: (item: JourneyItem, reason: string) => void;
@@ -137,6 +139,7 @@ export function JourneyItemSheet({
   contact,
   property,
   onClose,
+  moving = false,
   onAdvance,
   onMoveTo,
   onDrop,
@@ -701,14 +704,22 @@ export function JourneyItemSheet({
                       <Button
                         size="sm"
                         className="flex-1"
+                        disabled={moving}
                         onClick={() => onAdvance(item)}
                       >
-                        <ArrowRight className="h-3.5 w-3.5" />
+                        {moving ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        )}
                         Advance to {nextStage.name}
                       </Button>
                     )}
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800">
+                      <DropdownMenuTrigger
+                        disabled={moving}
+                        className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
                         Move to
                         <ChevronDown className="h-3 w-3" />
                       </DropdownMenuTrigger>

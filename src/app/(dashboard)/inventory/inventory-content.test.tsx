@@ -835,3 +835,30 @@ describe('inventory header add menu', () => {
     expect(await screen.findByTestId('import-shared-dialog')).toBeTruthy();
   });
 });
+
+describe('inventory list load failure', () => {
+  it('[UIX-034] shows a retry instead of an empty inventory when the list fails', async () => {
+    const fetchMock = vi.fn();
+    mockPropertiesFetch(fetchMock);
+    const base = fetchMock.getMockImplementation()!;
+    let failing = true;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/properties?') && failing) {
+        return { ok: false, json: async () => ({ error: 'boom' }) };
+      }
+      return base(url);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain("Couldn't load your listings.");
+    expect(screen.queryByTestId('inventory-empty-state')).toBeNull();
+
+    failing = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByTestId('property-list')).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});

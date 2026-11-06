@@ -302,3 +302,42 @@ describe('[PRP-048] sharing a listing that has left the market', () => {
     ).toContain('availability note left out');
   });
 });
+
+describe('[UIX-043] PropertyShareDialog unmasked links load failure', () => {
+  it('[UIX-043] reports a failed grant list with a retry instead of an empty list', async () => {
+    let failing = true;
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (String(url).includes('/share-grants') && !init?.method) {
+        return Promise.resolve(
+          failing
+            ? {
+                ok: false,
+                json: () => Promise.resolve({ error: 'boom' }),
+              }
+            : { ok: true, json: () => Promise.resolve({ data: [grant] }) }
+        );
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    });
+    renderDialog();
+
+    expect(
+      await screen.findByText(
+        "Couldn't load the active unmasked links on this listing."
+      )
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Revoke$/ })).toBeNull();
+
+    failing = false;
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(
+      await screen.findByRole('button', { name: /^Revoke$/ })
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(
+        "Couldn't load the active unmasked links on this listing."
+      )
+    ).toBeNull();
+  });
+});

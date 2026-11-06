@@ -56,6 +56,28 @@ import {
   type LostReasonInput,
 } from '@/lib/pipelines/lost-reasons';
 import { formatCurrency } from '@/lib/format/currency';
+import { focusFirstField } from '@/lib/forms/focus-first-field';
+
+interface DealFormFields {
+  title: string;
+  value: string;
+  currency: string;
+  contactId: string;
+  stageId: string;
+  assignedTo: string;
+  expectedCloseDate: string;
+  actualCloseDate: string;
+  notes: string;
+  lostReason: LostReason | null;
+  lostNote: string;
+  propertyId: string;
+  brokerageType: 'percentage' | 'fixed';
+  brokerageValue: string;
+}
+
+function dealFormSnapshot(fields: DealFormFields): string {
+  return JSON.stringify(fields);
+}
 
 interface DealFormProps {
   open: boolean;
@@ -108,15 +130,37 @@ export function DealForm({
   const [statusAction, setStatusAction] = useState<DealStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const baseline = useRef<DealFormFields | null>(null);
 
   // Reset the form fields every time the sheet opens or its input
   // props change. This is a legitimate prop-driven sync; the rule is
   // over-cautious here, hence the block-level disable.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      baseline.current = null;
+      return;
+    }
     setConfirmDelete(false);
     if (deal) {
+      baseline.current = {
+        title: deal.title,
+        value: String(deal.value ?? ''),
+        currency: deal.currency || 'INR',
+        contactId: deal.contact_id ?? '',
+        stageId: deal.stage_id,
+        assignedTo: deal.assigned_to ?? '',
+        expectedCloseDate: deal.expected_close_date ?? '',
+        actualCloseDate: deal.actual_close_date ?? '',
+        notes: deal.notes ?? '',
+        lostReason: isLostReason(deal.lost_reason) ? deal.lost_reason : null,
+        lostNote: deal.lost_note ?? '',
+        propertyId: deal.property_id ?? '',
+        brokerageType: deal.brokerage_type === 'fixed' ? 'fixed' : 'percentage',
+        brokerageValue: deal.brokerage_value
+          ? String(deal.brokerage_value)
+          : '',
+      };
       setTitle(deal.title);
       setValue(String(deal.value ?? ''));
       setCurrency(deal.currency || 'INR');
@@ -147,15 +191,31 @@ export function DealForm({
           .eq('account_id', accountId)
           .maybeSingle()
           .then(({ data }) => {
-            if (data?.currency) {
-              setCurrency(data.currency);
-            } else {
-              setCurrency('INR');
+            const loaded = data?.currency || 'INR';
+            setCurrency(loaded);
+            if (baseline.current) {
+              baseline.current = { ...baseline.current, currency: loaded };
             }
           });
       } else {
         setCurrency('INR');
       }
+      baseline.current = {
+        title: '',
+        value: '',
+        currency: 'INR',
+        contactId: '',
+        stageId: defaultStageId || stages[0]?.id || '',
+        assignedTo: '',
+        expectedCloseDate: '',
+        actualCloseDate: '',
+        notes: '',
+        lostReason: null,
+        lostNote: '',
+        propertyId: '',
+        brokerageType: 'percentage',
+        brokerageValue: '',
+      };
       setContactId('');
       setStageId(defaultStageId || stages[0]?.id || '');
       setAssignedTo('');
@@ -217,9 +277,48 @@ export function DealForm({
     };
   }, [open, contactId, supabase]);
 
+  function currentSnapshot() {
+    return dealFormSnapshot({
+      title,
+      value,
+      currency,
+      contactId,
+      stageId,
+      assignedTo,
+      expectedCloseDate,
+      actualCloseDate,
+      notes,
+      lostReason,
+      lostNote,
+      propertyId,
+      brokerageType,
+      brokerageValue,
+    });
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (
+      !nextOpen &&
+      !saving &&
+      baseline.current !== null &&
+      dealFormSnapshot(baseline.current) !== currentSnapshot() &&
+      !window.confirm('Discard your unsaved changes to this deal?')
+    ) {
+      return;
+    }
+    onOpenChange(nextOpen);
+  }
+
   async function handleSave() {
     if (!title.trim() || !contactId || !stageId) {
       toast.error('Title, contact, and stage are required');
+      focusFirstField(
+        [
+          !title.trim() && 'deal-title',
+          !contactId && 'deal-contact',
+          !stageId && 'deal-stage',
+        ].filter((id): id is string => Boolean(id))
+      );
       return;
     }
     setSaving(true);
@@ -253,6 +352,15 @@ export function DealForm({
     ) {
       toast.error('Pick why the deal was lost');
       setSaving(false);
+      lostPanelRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+      lostPanelRef.current
+        ?.querySelector<HTMLElement>(
+          lostReason ? 'input' : 'button[aria-pressed]'
+        )
+        ?.focus({ preventScroll: true });
       return;
     }
 
@@ -466,7 +574,7 @@ export function DealForm({
     : false;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         side="right"
         className="w-full border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-lg"
@@ -489,8 +597,11 @@ export function DealForm({
 
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
             <div className="grid gap-2">
-              <Label className="text-slate-300">Title</Label>
+              <Label htmlFor="deal-title" className="text-slate-300">
+                Title
+              </Label>
               <Input
+                id="deal-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Deal title"
@@ -499,8 +610,11 @@ export function DealForm({
             </div>
 
             <div className="grid gap-2">
-              <Label className="text-slate-300">Contact</Label>
+              <Label htmlFor="deal-contact" className="text-slate-300">
+                Contact
+              </Label>
               <select
+                id="deal-contact"
                 value={contactId}
                 onChange={(e) => setContactId(e.target.value)}
                 className="focus:border-primary focus:ring-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:ring-1"
@@ -606,8 +720,11 @@ export function DealForm({
             )}
 
             <div className="grid gap-2">
-              <Label className="text-slate-300">Stage</Label>
+              <Label htmlFor="deal-stage" className="text-slate-300">
+                Stage
+              </Label>
               <select
+                id="deal-stage"
                 value={stageId}
                 onChange={(e) => {
                   setStageId(e.target.value);
@@ -803,14 +920,14 @@ export function DealForm({
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
                 className="flex-1 border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={saving || !title.trim() || !contactId || !stageId}
+                disabled={saving}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 flex-1"
               >
                 {saving ? 'Saving...' : deal ? 'Save Changes' : 'Create Deal'}

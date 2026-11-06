@@ -20,6 +20,7 @@ import { buildPropertyParams } from '@/app/(app)/(tabs)/properties';
 import { propertyFiltersKey } from '@/lib/property-filters';
 import { usePropertySearch } from '@/lib/property-search-store';
 import { mapPin, radius, spacing, useTheme, fonts } from '@/lib/theme';
+import { cappedResultsNotice } from '@shared/lib/inventory/result-cap';
 import type { PropertiesResponse, Property } from '@/lib/types';
 
 const BENGALURU = {
@@ -42,7 +43,7 @@ export default function PropertiesMapScreen() {
     usePropertySearch();
   const mapRef = useRef<MapView>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: [
       'properties-map',
       search.trim(),
@@ -77,6 +78,11 @@ export default function PropertiesMapScreen() {
           typeof p.latitude === 'number' && typeof p.longitude === 'number'
       ),
     [data]
+  );
+
+  const cappedNotice = cappedResultsNotice(
+    data?.data.length ?? 0,
+    data?.pagination?.total
   );
 
   useEffect(() => {
@@ -175,9 +181,9 @@ export default function PropertiesMapScreen() {
       >
         {isLoading ? (
           <ActivityIndicator color={colors.primary} size="small" />
-        ) : (
+        ) : isError && !data ? (
           <>
-            <Ionicons name="location" size={14} color={colors.primary} />
+            <Ionicons name="alert-circle" size={14} color={colors.danger} />
             <Text
               style={{
                 fontSize: 13,
@@ -185,8 +191,52 @@ export default function PropertiesMapScreen() {
                 color: colors.text,
               }}
             >
-              {pinned.length} of {data?.data.length ?? 0} results have map pins
+              Couldn’t load the map listings
             </Text>
+            <View style={{ flex: 1 }} />
+            <Pressable
+              onPress={() => void refetch()}
+              disabled={isFetching}
+              hitSlop={8}
+              accessibilityRole="button"
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.bold,
+                  color: colors.primary,
+                }}
+              >
+                {isFetching ? 'Retrying…' : 'Retry'}
+              </Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Ionicons name="location" size={14} color={colors.primary} />
+            <View style={{ flexShrink: 1 }}>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.semibold,
+                  color: colors.text,
+                }}
+              >
+                {pinned.length} of {data?.data.length ?? 0} results have map
+                pins
+              </Text>
+              {cappedNotice ? (
+                <Text
+                  style={{
+                    fontSize: 11.5,
+                    fontFamily: f.semibold,
+                    color: colors.textFaint,
+                  }}
+                >
+                  {cappedNotice}
+                </Text>
+              ) : null}
+            </View>
             <View style={{ flex: 1 }} />
             <Pressable onPress={() => router.back()} hitSlop={8}>
               <Text

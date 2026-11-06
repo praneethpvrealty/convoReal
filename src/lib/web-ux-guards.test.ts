@@ -112,3 +112,19 @@ describe('[UIX-056] unsaved work asks before it is thrown away', () => {
     expect(greetings.match(/onClick=\{requestClose\}/g)?.length).toBe(2);
   });
 });
+
+describe('[UIX-037] closing records keep loaded rows through a failed refetch', () => {
+  it('shows the records error only when no rows have loaded', () => {
+    const index = webSource('components/deals/transaction-workspace-index.tsx');
+    expect(index).toContain('isError && rows.length === 0 ?');
+  });
+});
+
+describe('[UIX-044] a refused share save falls back at once', () => {
+  it('does not retry the share-instance save', () => {
+    const dialog = webSource('components/inventory/showcase-share-dialog.tsx');
+    expect(dialog).toMatch(
+      /queryKey: \['showcase-share-instance'[\s\S]{0,300}retry: false,/
+    );
+  });
+});

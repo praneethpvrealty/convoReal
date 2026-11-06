@@ -20,6 +20,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, MapPinOff } from 'lucide-react';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import { useT } from '@/hooks/useLocale';
+import { LoadError } from '@/components/ui/load-error';
+import { cappedResultsNotice } from '@/lib/inventory/result-cap';
 import type { Property } from '@/types';
 
 const BROWSER_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY;
@@ -98,6 +100,10 @@ function pinPrice(property: Property, currency: string) {
 export function PropertyMapView({
   properties,
   loading,
+  total,
+  loadFailed = false,
+  onRetry,
+  retrying = false,
   center,
   onOpen,
   currency,
@@ -105,6 +111,10 @@ export function PropertyMapView({
 }: {
   properties: Property[];
   loading: boolean;
+  total?: number | null;
+  loadFailed?: boolean;
+  onRetry?: () => void;
+  retrying?: boolean;
   /** Active near-filter centre (locality pick or Near me), if any. */
   center: { latitude: number; longitude: number } | null;
   onOpen: (property: Property) => void;
@@ -242,6 +252,19 @@ export function PropertyMapView({
     }
   }, [status, pinned, center, currency, appearance]);
 
+  const cappedNotice = cappedResultsNotice(properties.length, total);
+
+  const loadError =
+    loadFailed && onRetry ? (
+      <LoadError
+        what="the map listings"
+        onRetry={onRetry}
+        retrying={retrying}
+      />
+    ) : null;
+
+  if (!BROWSER_KEY && loadError) return loadError;
+
   if (!BROWSER_KEY) {
     return (
       <div className="flex h-[32rem] flex-col items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 text-center">
@@ -261,6 +284,11 @@ export function PropertyMapView({
   return (
     <div className="relative h-[32rem] overflow-hidden rounded-xl border border-slate-800">
       <div ref={containerRef} className="absolute inset-0" />
+      {loadError && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950/90 p-4">
+          <div className="w-full max-w-md">{loadError}</div>
+        </div>
+      )}
       {(status === 'loading' || loading) && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-950/60">
           <Loader2 className="size-6 animate-spin text-slate-400" />
@@ -277,6 +305,14 @@ export function PropertyMapView({
           {pinned.length === 0
             ? t('inventory.mapNone')
             : `${pinned.length}/${properties.length} ${t('inventory.mapped')}`}
+        </div>
+      )}
+      {cappedNotice && !loading && (
+        <div
+          role="status"
+          className="absolute top-3 left-3 rounded-full border border-amber-500/30 bg-slate-950/85 px-3 py-1.5 text-xs font-semibold text-amber-200 backdrop-blur"
+        >
+          {cappedNotice} — narrow the search to see the rest
         </div>
       )}
     </div>

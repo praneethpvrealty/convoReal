@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { LoadError } from '@/components/ui/load-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -310,6 +311,7 @@ export function PropertyShareDialog({
   // and pull any of them back. Bumping the version refetches.
   const [activeGrants, setActiveGrants] = useState<ActiveGrant[] | null>(null);
   const [grantsVersion, setGrantsVersion] = useState(0);
+  const [grantsLoadFailed, setGrantsLoadFailed] = useState(false);
   const [revokingGrantId, setRevokingGrantId] = useState<string | null>(null);
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
   useEffect(() => {
@@ -398,10 +400,12 @@ export function PropertyShareDialog({
         if (cancelled) return;
         if (!res.ok) throw new Error(json.error || 'Failed to load links');
         setActiveGrants(json.data as ActiveGrant[]);
+        setGrantsLoadFailed(false);
       } catch (err) {
         if (cancelled) return;
         console.error('[property-share] Grant list load failed:', err);
-        setActiveGrants([]);
+        setActiveGrants(null);
+        setGrantsLoadFailed(true);
       }
     });
     return () => {
@@ -2328,6 +2332,12 @@ export function PropertyShareDialog({
 
                   {/* Live keys on this listing — including any minted in an
                       earlier session, so nothing stays unmasked unnoticed. */}
+                  {grantsLoadFailed && (
+                    <LoadError
+                      what="the active unmasked links on this listing"
+                      onRetry={bumpGrants}
+                    />
+                  )}
                   {activeGrants && activeGrants.length > 0 && (
                     <div className="space-y-1.5 border-t border-slate-800 pt-2.5">
                       <p className="text-xs font-bold tracking-wider text-slate-400 uppercase">

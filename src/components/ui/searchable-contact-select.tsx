@@ -21,6 +21,8 @@ interface SearchableContactSelectProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  onSearchChange?: (search: string) => void;
+  notice?: string | null;
 }
 
 export function SearchableContactSelect({
@@ -30,6 +32,8 @@ export function SearchableContactSelect({
   placeholder = 'Select contact...',
   className = '',
   disabled = false,
+  onSearchChange,
+  notice,
 }: SearchableContactSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -37,6 +41,10 @@ export function SearchableContactSelect({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownPosition = useAnchoredDropdown(isOpen, containerRef);
+  const onSearchChangeRef = useRef(onSearchChange);
+  useEffect(() => {
+    onSearchChangeRef.current = onSearchChange;
+  }, [onSearchChange]);
 
   // Find the selected contact
   const selectedContact = useMemo(() => {
@@ -47,14 +55,14 @@ export function SearchableContactSelect({
   // Filter contacts based on search query
   const filteredContacts = useMemo(() => {
     const query = search.toLowerCase().trim();
-    if (!query) return contacts;
+    if (!query || onSearchChange) return contacts;
 
     return contacts.filter((c) => {
       const name = contactFullName(c).toLowerCase();
       const phone = (c.phone || '').toLowerCase();
       return name.includes(query) || phone.includes(query);
     });
-  }, [search, contacts]);
+  }, [search, contacts, onSearchChange]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -82,6 +90,7 @@ export function SearchableContactSelect({
     } else if (!isOpen) {
       setTimeout(() => {
         setSearch('');
+        onSearchChangeRef.current?.('');
       }, 0);
     }
   }, [isOpen]);
@@ -106,13 +115,19 @@ export function SearchableContactSelect({
             type="text"
             placeholder="Search contacts by name or phone..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              onSearchChange?.(e.target.value);
+            }}
             className="focus:ring-primary h-8.5 w-full rounded-lg border border-slate-800 bg-slate-950 pr-7 pl-8 text-xs text-white placeholder:text-slate-500 focus:ring-1 focus:outline-none"
           />
           {search && (
             <button
               type="button"
-              onClick={() => setSearch('')}
+              onClick={() => {
+                setSearch('');
+                onSearchChange?.('');
+              }}
               className="absolute top-1/2 right-2.5 -translate-y-1/2 text-slate-400 hover:text-white"
             >
               <X className="size-3" />
@@ -180,6 +195,14 @@ export function SearchableContactSelect({
             })
           )}
         </div>
+        {notice && (
+          <p
+            role="status"
+            className="mt-1.5 shrink-0 border-t border-slate-800/80 px-1 pt-1.5 text-[10px] text-amber-300/90"
+          >
+            {notice}
+          </p>
+        )}
       </div>
     ) : null;
 

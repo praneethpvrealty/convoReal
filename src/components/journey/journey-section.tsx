@@ -18,7 +18,7 @@
  * stage editor, currency, and routing stay with the page.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Building2,
   Import,
@@ -158,6 +158,10 @@ export function JourneySection({
   const [brokerageType, setBrokerageType] =
     useState<BrokerageType>('percentage');
   const [brokerageValue, setBrokerageValue] = useState('');
+  const movingRef = useRef<Set<string>>(new Set());
+  const [movingItemIds, setMovingItemIds] = useState<Set<string>>(
+    () => new Set()
+  );
 
   // ── Load subject + items ─────────────────────────────────────
   const loadJourney = useCallback(async () => {
@@ -407,44 +411,68 @@ export function JourneySection({
       eventType: 'advanced' | 'moved',
       brokerage?: { brokerage_type: BrokerageType; brokerage_value: number }
     ) => {
+      if (movingRef.current.has(item.id)) return false;
+      movingRef.current.add(item.id);
+      setMovingItemIds(new Set(movingRef.current));
       setBrokeragePrompt(null);
-      const res = await fetch('/api/journey/move', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          item_id: item.id,
-          stage_id: toStageId,
-          event_type: eventType,
-          ...brokerage,
-          source: 'web',
-        }),
-      });
-      const json = (await res.json().catch(() => null)) as {
-        error?: string;
-        code?: string;
-        data?: { stage_name?: string; deal_value?: number };
-      } | null;
-      if (res.status === 409 && json?.code === 'BROKERAGE_REQUIRED') {
-        setBrokerageType('percentage');
-        setBrokerageValue('');
-        setBrokeragePrompt({
-          item,
-          toStageId,
-          eventType,
-          stageName: json.data?.stage_name ?? '',
-          dealValue: json.data?.deal_value ?? 0,
+      const fromStageId = item.stage_id;
+      const restore = () =>
+        setItems((prev) =>
+          prev.map((i) =>
+            i.id === item.id ? { ...i, stage_id: fromStageId } : i
+          )
+        );
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, stage_id: toStageId } : i))
+      );
+      try {
+        const res = await fetch('/api/journey/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            item_id: item.id,
+            stage_id: toStageId,
+            event_type: eventType,
+            ...brokerage,
+            source: 'web',
+          }),
         });
-        return false;
-      }
-      if (!res.ok) {
-        toast.error(`Failed to move: ${json?.error ?? 'try again'}`);
+        const json = (await res.json().catch(() => null)) as {
+          error?: string;
+          code?: string;
+          data?: { stage_name?: string; deal_value?: number };
+        } | null;
+        if (res.status === 409 && json?.code === 'BROKERAGE_REQUIRED') {
+          restore();
+          setBrokerageType('percentage');
+          setBrokerageValue('');
+          setBrokeragePrompt({
+            item,
+            toStageId,
+            eventType,
+            stageName: json.data?.stage_name ?? '',
+            dealValue: json.data?.deal_value ?? 0,
+          });
+          return false;
+        }
+        if (!res.ok) {
+          restore();
+          toast.error(`Failed to move: ${json?.error ?? 'try again'}`);
+          await refresh();
+          return false;
+        }
         await refresh();
+        setFocusItemId(item.id);
+        onItemMoved?.(item.id);
+        return true;
+      } catch {
+        restore();
+        toast.error('Failed to move: check your connection and try again');
         return false;
+      } finally {
+        movingRef.current.delete(item.id);
+        setMovingItemIds(new Set(movingRef.current));
       }
-      await refresh();
-      setFocusItemId(item.id);
-      onItemMoved?.(item.id);
-      return true;
     },
     [refresh, onItemMoved]
   );
@@ -886,6 +914,7 @@ export function JourneySection({
           mode === 'buyer' ? (selectedItem?.property ?? null) : subjectProperty
         }
         onClose={() => setSelectedItem(null)}
+        moving={selectedItem ? movingItemIds.has(selectedItem.id) : false}
         onAdvance={handleAdvance}
         onMoveTo={handleMoveTo}
         onDrop={handleDrop}
