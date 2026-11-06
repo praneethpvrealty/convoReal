@@ -39,10 +39,29 @@ vi.mock('@/hooks/useCan', () => ({
 }));
 
 vi.mock('@/components/pipelines/pipeline-board', () => ({
-  PipelineBoard: ({ onAddDeal }: { onAddDeal: (stageId: string) => void }) => (
-    <button type="button" onClick={() => onAddDeal('stage-1')}>
-      Add deal from board
-    </button>
+  PipelineBoard: ({
+    onAddDeal,
+    onDealMoved,
+    deals,
+  }: {
+    onAddDeal: (stageId: string) => void;
+    onDealMoved: (dealId: string, stageId: string) => void;
+    deals: Array<{ id: string; stage_id: string }>;
+  }) => (
+    <>
+      <button type="button" onClick={() => onAddDeal('stage-1')}>
+        Add deal from board
+      </button>
+      {deals.map((deal) => (
+        <button
+          key={deal.id}
+          type="button"
+          onClick={() => onDealMoved(deal.id, 'stage-2')}
+        >
+          {`${deal.id} in ${deal.stage_id}`}
+        </button>
+      ))}
+    </>
   ),
 }));
 
@@ -121,7 +140,10 @@ function query(table: string) {
 
 const supabase = {
   from: query,
-  rpc: async () => ({ data: [], error: null }),
+  rpc: async (): Promise<{ data: unknown; error: null }> => ({
+    data: [],
+    error: null,
+  }),
 };
 
 vi.mock('@/lib/supabase/client', () => ({
@@ -228,5 +250,53 @@ describe('[PIPE-005] a failed load never seeds a pipeline', () => {
     calls.failing.delete('deals');
     fireEvent.click(screen.getByRole('button', { name: /Retry/ }));
     expect(await screen.findByText('Add deal from board')).toBeTruthy();
+  });
+});
+
+describe('[PIPE-005] a failed move puts the deal back', () => {
+  it('restores the stage even when the follow-up refresh fails too', async () => {
+    const stages = rows.pipeline_stages as Array<Record<string, unknown>>;
+    const original = { stages: rows.pipeline_stages, deals: rows.deals };
+    rows.pipeline_stages = [
+      ...stages,
+      {
+        id: 'stage-2',
+        pipeline_id: 'pipeline-1',
+        name: 'Site visit',
+        position: 2,
+        color: '#22c55e',
+        stage_type: 'open',
+      },
+    ];
+    rows.deals = [
+      {
+        id: 'deal-1',
+        pipeline_id: 'pipeline-1',
+        stage_id: 'stage-1',
+        status: 'open',
+        brokerage_amount: 1000,
+      },
+    ];
+    const fetchMock = vi.fn(async () => {
+      calls.failing.add('deals');
+      return new Response(null, { status: 503 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const rpc = supabase.rpc;
+    supabase.rpc = async () => ({ data: ['deal-1'], error: null });
+    try {
+      renderBoard();
+      fireEvent.click(await screen.findByText('deal-1 in stage-1'));
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+      expect(fetchMock).toHaveBeenCalled();
+      expect(screen.getByText('deal-1 in stage-1')).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+      supabase.rpc = rpc;
+      rows.pipeline_stages = original.stages;
+      rows.deals = original.deals;
+    }
   });
 });

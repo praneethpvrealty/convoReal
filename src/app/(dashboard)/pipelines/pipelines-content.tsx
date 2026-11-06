@@ -405,6 +405,12 @@ export default function PipelinesPage() {
     await refreshDeals();
   }, [queryClient, refreshDeals]);
 
+  const restoreDeal = useCallback((snapshot: Deal) => {
+    setDeals((prev) =>
+      prev.map((d) => (d.id === snapshot.id ? { ...snapshot } : d))
+    );
+  }, []);
+
   const persistDealMove = useCallback(
     async (
       dealId: string,
@@ -447,6 +453,7 @@ export default function PipelinesPage() {
 
       if (!res || !res.ok) {
         toast.error('Failed to move deal');
+        if (deal) restoreDeal(deal);
         refreshDeals();
         return;
       }
@@ -454,7 +461,7 @@ export default function PipelinesPage() {
         void queryClient.invalidateQueries({ queryKey });
       }
     },
-    [refreshDeals, deals, stages, queryClient]
+    [refreshDeals, restoreDeal, deals, stages, queryClient]
   );
 
   const handleDealMoved = useCallback(
@@ -539,6 +546,7 @@ export default function PipelinesPage() {
 
     if (!res || !res.ok) {
       toast.error('Failed to move deal');
+      restoreDeal(brokeragePromptDeal);
       refreshDeals();
       setBrokeragePromptDeal(null);
       setPendingStageId('');
@@ -555,6 +563,7 @@ export default function PipelinesPage() {
   }
 
   function handleModalBrokerageCancel() {
+    if (brokeragePromptDeal) restoreDeal(brokeragePromptDeal);
     setBrokeragePromptDeal(null);
     setPendingStageId('');
     refreshDeals(); // Forces board to snap back
