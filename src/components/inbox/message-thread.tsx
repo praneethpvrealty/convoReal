@@ -59,6 +59,7 @@ import { MessageComposer } from './message-composer';
 import { TemplatePicker, type TemplateIntent } from './template-picker';
 import { buildReplyPreview } from './reply-quote';
 import { MessageThreadSkeleton } from '@/components/inbox/message-thread-skeleton';
+import { LoadError } from '@/components/ui/load-error';
 import { Skeleton } from '@/components/dashboard/skeleton';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
@@ -214,6 +215,8 @@ export function MessageThread({
 }: MessageThreadProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
@@ -419,6 +422,7 @@ export function MessageThread({
       if (isConversationChange) {
         setLoading(true);
       }
+      setLoadFailed(false);
 
       const { data, error } = await supabase
         .from('messages')
@@ -430,6 +434,7 @@ export function MessageThread({
 
       if (error) {
         console.error('Failed to fetch messages:', error);
+        setLoadFailed(true);
       } else {
         // A message hidden from the inbox must be hidden on every
         // surface. Without this it stays visible here while the mobile
@@ -450,7 +455,7 @@ export function MessageThread({
     // the realtime channel reconnects or the tab regains focus —
     // realtime is best-effort and any message events sent while the WS
     // was disconnected or throttled are otherwise lost.
-  }, [conversationId, resyncToken]);
+  }, [conversationId, resyncToken, reloadToken]);
 
   // Reactions fetch — pulls the current state from the DB. Kept separate
   // from the channel subscription below so a `resyncToken` bump just
@@ -1425,6 +1430,11 @@ export function MessageThread({
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {loading ? (
           <MessageThreadSkeleton />
+        ) : loadFailed && messages.length === 0 ? (
+          <LoadError
+            what="messages"
+            onRetry={() => setReloadToken((n) => n + 1)}
+          />
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12">
             <p className="text-sm text-slate-500">No messages yet</p>

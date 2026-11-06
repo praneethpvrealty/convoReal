@@ -442,7 +442,7 @@ export default function InboxPage() {
       if (
         deepLinkConvId &&
         autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
-        loadedFiltered.length > 0
+        loadedFiltered.some((c) => c.id === deepLinkConvId)
       ) {
         autoSelectedForDeepLinkRef.current = deepLinkConvId;
         // If the deep-linked conversation is already the active one

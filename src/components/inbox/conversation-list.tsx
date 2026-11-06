@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from '@tanstack/react-query';
 import type { PostgrestError } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -22,7 +26,11 @@ import {
   Archive,
   ArchiveRestore,
   Users,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { LoadError } from '@/components/ui/load-error';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -49,6 +57,19 @@ import {
   isInboxFilterValue,
   type InboxFilterValue,
 } from '@/lib/conversations/inbox-filters';
+import {
+  INBOX_ID_CAP,
+  INBOX_PAGE_SIZE,
+  activeConversationIds,
+  inboxContactSearchFilter,
+  inboxFilterPlan,
+  inboxAfterCursor,
+  inboxNextCursor,
+  inboxSearchCapped,
+  type InboxCursor,
+  inboxRows,
+  inboxSearchFilter,
+} from '@/lib/conversations/inbox-page';
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -123,16 +144,96 @@ function scopeOptionsFor(
   return [{ label: 'Mine', value: 'mine' }];
 }
 
-async function fetchConversations(): Promise<Conversation[]> {
-  const { data, error } = await createClient()
+interface InboxPageScope {
+  userId: string | null;
+  archived: boolean;
+  filter: InboxFilterValue;
+  scope: ScopeFilterValue;
+  searchTerm: string;
+  searchFilter: string | null;
+  activeIds: string[] | null;
+}
+
+const CONVERSATION_COLUMNS = '*, contact:contacts(*)';
+
+async function fetchConversationPage(
+  scope: InboxPageScope,
+  cursor: InboxCursor | null
+): Promise<Conversation[]> {
+  if (scope.searchTerm && !scope.searchFilter) return [];
+  if (scope.activeIds && scope.activeIds.length === 0) return [];
+  const plan = inboxFilterPlan(scope.filter);
+  let query = createClient()
     .from('conversations')
-    .select('*, contact:contacts(*)')
+    .select(CONVERSATION_COLUMNS)
+    .eq('is_archived', scope.archived)
     // Message-less conversation rows (opened by a flow whose send was
     // blocked, e.g. outside the 24-hour window) have nothing to show.
-    .not('last_message_at', 'is', null)
-    .order('last_message_at', { ascending: false });
+    .not('last_message_at', 'is', null);
+  if (plan.status) query = query.eq('status', plan.status);
+  if (plan.excludeClosed) query = query.neq('status', 'closed');
+  if (plan.unreadOnly) query = query.gt('unread_count', 0);
+  if (plan.or) query = query.or(plan.or);
+  if (plan.neverAnswered) query = query.is('last_customer_message_at', null);
+  if (plan.notAwaiting) {
+    query = query.not('awaiting_reply', 'is', true).neq('status', 'pending');
+  }
+  if (plan.lastMessageBefore) {
+    query = query.lt('last_message_at', plan.lastMessageBefore);
+  }
+  if (scope.scope === 'unassigned') {
+    query = query.is('assigned_agent_id', null).is('assigned_team_id', null);
+  } else if (scope.scope === 'mine' && scope.userId) {
+    query = query.eq('assigned_agent_id', scope.userId);
+  } else if (scope.scope.startsWith('team:')) {
+    query = query.eq('assigned_team_id', scope.scope.slice('team:'.length));
+  }
+  if (scope.activeIds) query = query.in('id', scope.activeIds);
+  if (scope.searchFilter) query = query.or(scope.searchFilter);
+  if (cursor && !scope.activeIds) {
+    query = query.or(inboxAfterCursor(cursor, plan.order));
+  }
+  const ordered = query
+    .order(plan.order.column, {
+      ascending: plan.order.ascending,
+      nullsFirst: false,
+    })
+    .order('id', { ascending: false });
+  const { data, error } = await (scope.activeIds
+    ? ordered
+    : ordered.limit(INBOX_PAGE_SIZE));
   if (error) throw error;
   return (data ?? []) as Conversation[];
+}
+
+async function fetchContactThreadIds(
+  search: string,
+  archived: boolean
+): Promise<string[]> {
+  const filter = inboxContactSearchFilter(search);
+  if (!filter) return [];
+  const { data, error } = await createClient()
+    .from('conversations')
+    .select('id, contacts!inner(id)')
+    .eq('is_archived', archived)
+    .not('last_message_at', 'is', null)
+    .or(filter, { referencedTable: 'contacts' })
+    .order('last_message_at', { ascending: false })
+    .limit(INBOX_ID_CAP);
+  if (error) throw error;
+  return (data ?? []).map((row: { id: string }) => row.id);
+}
+
+async function fetchPinnedConversation(
+  id: string
+): Promise<Conversation | null> {
+  const { data, error } = await createClient()
+    .from('conversations')
+    .select(CONVERSATION_COLUMNS)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Conversation | null) ?? null;
 }
 
 export function ConversationList({
@@ -224,19 +325,171 @@ export function ConversationList({
     onConversationsLoadedRef.current = onConversationsLoaded;
   });
 
-  const conversationsQuery = useQuery({
-    queryKey: ['inbox-conversations', user?.id ?? null],
-    queryFn: fetchConversations,
+  const [searchTerm, setSearchTerm] = useState(() => inboxSearchTerm(search));
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchTerm(inboxSearchTerm(search)), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const archived = filter === 'archived';
+  const messageSearch = useQuery({
+    queryKey: ['inbox-message-search', accountId ?? null, searchTerm, archived],
+    enabled: Boolean(accountId) && searchTerm !== '',
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await createClient().rpc(
+        'search_inbox_messages',
+        {
+          p_account_id: accountId,
+          p_query: searchTerm,
+          p_archived: archived,
+        }
+      );
+      if (error) throw error;
+      return inboxMessageHitMap(data as InboxMessageHit[] | null);
+    },
+  });
+  const messageHits = messageSearch.data;
+  const contactSearch = useQuery({
+    queryKey: ['inbox-contact-search', accountId ?? null, searchTerm, archived],
+    enabled: Boolean(accountId) && searchTerm !== '',
+    staleTime: 30_000,
+    queryFn: () => fetchContactThreadIds(searchTerm, archived),
+  });
+  const searchFailed =
+    searchTerm !== '' && (messageSearch.isError || contactSearch.isError);
+  const searchReady =
+    searchTerm === '' || (messageSearch.isSuccess && contactSearch.isSuccess);
+  const searchCapped =
+    searchTerm !== '' &&
+    inboxSearchCapped(
+      contactSearch.data ?? [],
+      Array.from(messageHits?.keys() ?? [])
+    );
+  const searchFilter = useMemo(
+    () =>
+      searchTerm
+        ? inboxSearchFilter(
+            searchTerm,
+            contactSearch.data ?? [],
+            Array.from(messageHits?.keys() ?? [])
+          )
+        : null,
+    [searchTerm, contactSearch.data, messageHits]
+  );
+
+  // Busiest threads over the last 24 hours, counted in SQL by the
+  // conversation_activity RPC — fetched only while the Active filter is on.
+  const activityQuery = useQuery({
+    queryKey: ['conversation-activity', accountId ?? null],
+    enabled: filter === 'active' && Boolean(accountId),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await createClient().rpc(
+        'conversation_activity',
+        { p_account_id: accountId, p_hours: 24 }
+      );
+      if (error) throw error;
+      return (data ?? []) as {
+        conversation_id: string;
+        message_count: number;
+      }[];
+    },
+  });
+  const activityById = useMemo(
+    () =>
+      activityQuery.data
+        ? new Map(
+            activityQuery.data.map((r) => [
+              r.conversation_id,
+              Number(r.message_count),
+            ])
+          )
+        : null,
+    [activityQuery.data]
+  );
+  const activeIds = useMemo(
+    () =>
+      filter === 'active' && activityQuery.data
+        ? activeConversationIds(activityQuery.data)
+        : null,
+    [filter, activityQuery.data]
+  );
+
+  const pageScope: InboxPageScope = {
+    userId: user?.id ?? null,
+    archived,
+    filter,
+    scope: effectiveScope,
+    searchTerm,
+    searchFilter,
+    activeIds,
+  };
+  const conversationsQuery = useInfiniteQuery({
+    queryKey: [
+      'inbox-conversations',
+      user?.id ?? null,
+      archived,
+      filter,
+      effectiveScope,
+      searchTerm,
+      searchFilter,
+      activeIds,
+    ],
+    queryFn: ({ pageParam }) => fetchConversationPage(pageScope, pageParam),
+    initialPageParam: null as InboxCursor | null,
+    getNextPageParam: (_last, all) =>
+      activeIds
+        ? undefined
+        : inboxNextCursor(all, inboxFilterPlan(filter).order.column),
+    enabled:
+      searchReady &&
+      !searchFailed &&
+      (filter !== 'active' || activityQuery.data !== undefined),
+    placeholderData: keepPreviousData,
     staleTime: 0,
   });
-  const { data: fetched, error: fetchError, refetch } = conversationsQuery;
+  const {
+    data: pages,
+    error: fetchError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+  } = conversationsQuery;
+
+  const pagedRows = useMemo(
+    () => (pages ? inboxRows(pages.pages) : null),
+    [pages]
+  );
+  const pinnedId = searchParams.get('c');
+  const pinnedMissing =
+    Boolean(pinnedId) &&
+    pagedRows !== null &&
+    !pagedRows.some((c) => c.id === pinnedId);
+  const pinnedQuery = useQuery({
+    queryKey: ['inbox-pinned-conversation', pinnedId],
+    enabled: pinnedMissing,
+    queryFn: () => fetchPinnedConversation(pinnedId!),
+  });
+  const pinned = pinnedMissing ? (pinnedQuery.data ?? null) : null;
+  const loadedRows = useMemo(
+    () => (pages ? inboxRows(pages.pages, pinned) : null),
+    [pages, pinned]
+  );
+  const serverMatchIds = useMemo(
+    () =>
+      searchTerm && pagedRows ? new Set(pagedRows.map((c) => c.id)) : null,
+    [searchTerm, pagedRows]
+  );
 
   useEffect(() => {
-    if (!fetched) return;
-    onConversationsLoadedRef.current(fetched);
+    if (!loadedRows) return;
+    onConversationsLoadedRef.current(loadedRows);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setReady(true);
-  }, [fetched]);
+  }, [loadedRows]);
 
   useEffect(() => {
     if (!fetchError) return;
@@ -255,37 +508,19 @@ export function ConversationList({
     void refetch();
   }, [resyncToken, refetch]);
 
-  const loading = !ready && !fetchError;
-
-  const [searchTerm, setSearchTerm] = useState(() => inboxSearchTerm(search));
-  useEffect(() => {
-    const timer = setTimeout(() => setSearchTerm(inboxSearchTerm(search)), 250);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  const searchArchived = filter === 'archived';
-  const { data: messageHits } = useQuery({
-    queryKey: [
-      'inbox-message-search',
-      accountId ?? null,
-      searchTerm,
-      searchArchived,
-    ],
-    enabled: Boolean(accountId) && searchTerm !== '',
-    staleTime: 30_000,
-    queryFn: async () => {
-      const { data, error } = await createClient().rpc(
-        'search_inbox_messages',
-        {
-          p_account_id: accountId,
-          p_query: searchTerm,
-          p_archived: searchArchived,
-        }
-      );
-      if (error) throw error;
-      return inboxMessageHitMap(data as InboxMessageHit[] | null);
-    },
-  });
+  const loadFailed =
+    (Boolean(fetchError) && !isFetchNextPageError) ||
+    (pinnedMissing && pinnedQuery.isError) ||
+    searchFailed ||
+    (filter === 'active' && activityQuery.isError);
+  const loading = !ready && !loadFailed;
+  const retryLoad = useCallback(() => {
+    if (messageSearch.isError) void messageSearch.refetch();
+    if (contactSearch.isError) void contactSearch.refetch();
+    if (activityQuery.isError) void activityQuery.refetch();
+    if (pinnedQuery.isError) void pinnedQuery.refetch();
+    void refetch();
+  }, [messageSearch, contactSearch, activityQuery, pinnedQuery, refetch]);
 
   const searchMatches = useMemo(() => {
     const matches = new Map<string, string>();
@@ -298,43 +533,6 @@ export function ConversationList({
   const userPhoneDigits = profile?.phone
     ? profile.phone.replace(/\D/g, '')
     : '';
-
-  // Busiest threads over the last 24 hours, counted in SQL by the
-  // conversation_activity RPC — fetched only while the Active filter is on.
-  const [activityById, setActivityById] = useState<Map<string, number> | null>(
-    null
-  );
-  useEffect(() => {
-    if (filter !== 'active' || !accountId) return;
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await createClient().rpc(
-        'conversation_activity',
-        {
-          p_account_id: accountId,
-          p_hours: 24,
-        }
-      );
-      if (cancelled) return;
-      if (error) {
-        console.error('Failed to fetch conversation activity:', error.message);
-        return;
-      }
-      setActivityById(
-        new Map(
-          (data ?? []).map(
-            (r: { conversation_id: string; message_count: number }) => [
-              r.conversation_id,
-              Number(r.message_count),
-            ]
-          )
-        )
-      );
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [filter, accountId]);
 
   const filtered = useMemo(() => {
     let result = conversations;
@@ -421,9 +619,13 @@ export function ConversationList({
           lastMsg.includes(q) ||
           closeReason.includes(q) ||
           closeNote.includes(q) ||
-          Boolean(messageHits?.has(c.id))
+          Boolean(messageHits?.has(c.id)) ||
+          Boolean(serverMatchIds?.has(c.id))
         );
       });
+    } else if (pinnedId && !result.some((c) => c.id === pinnedId)) {
+      const pinnedRow = conversations.find((c) => c.id === pinnedId);
+      if (pinnedRow) result = [pinnedRow, ...result];
     }
 
     return result;
@@ -436,6 +638,8 @@ export function ConversationList({
     userPhoneDigits,
     activityById,
     messageHits,
+    serverMatchIds,
+    pinnedId,
   ]);
 
   const handleSearchChange = useCallback(
@@ -475,11 +679,19 @@ export function ConversationList({
           action: {
             label: 'Undo',
             onClick: async () => {
-              const supabase2 = createClient();
-              await supabase2
+              const { data: restored, error: undoError } = await createClient()
                 .from('conversations')
                 .update({ is_archived: !newArchived })
-                .eq('id', conv.id);
+                .eq('id', conv.id)
+                .select('id');
+              if (undoError || !restored?.length) {
+                toast.error(
+                  newArchived
+                    ? 'Couldn’t undo — the conversation is still archived'
+                    : 'Couldn’t undo — the conversation is still unarchived'
+                );
+                return;
+              }
               onArchiveChange?.(conv.id, !newArchived);
             },
           },
@@ -581,9 +793,17 @@ export function ConversationList({
 
       {/* Conversation Items */}
       <ScrollArea className="min-h-0 flex-1">
-        {loading ? (
+        {loadFailed ? (
+          <div className="p-3">
+            <LoadError
+              what={searchFailed ? 'search results' : 'conversations'}
+              onRetry={retryLoad}
+              retrying={conversationsQuery.isFetching}
+            />
+          </div>
+        ) : loading ? (
           <ConversationListSkeleton />
-        ) : filtered.length === 0 ? (
+        ) : filtered.length === 0 && !hasNextPage ? (
           <div className="px-4 py-12 text-center">
             <p className="text-sm text-slate-500">
               {filter === 'archived'
@@ -593,6 +813,15 @@ export function ConversationList({
           </div>
         ) : (
           <div className="flex flex-col">
+            {searchCapped && (
+              <p
+                role="status"
+                className="border-b border-slate-800 px-4 py-2 text-xs text-amber-300"
+              >
+                Showing the most recent matches — refine your search to find
+                older threads.
+              </p>
+            )}
             {filtered.map((conv) => (
               <ConversationItem
                 key={conv.id}
@@ -606,6 +835,29 @@ export function ConversationList({
                 onArchiveToggle={handleArchiveToggle}
               />
             ))}
+            {hasNextPage && (
+              <div className="flex flex-col items-center gap-1 p-3">
+                {isFetchNextPageError && (
+                  <p role="alert" className="text-xs text-red-300">
+                    Couldn&apos;t load more conversations.
+                  </p>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="border-slate-700 text-slate-300"
+                >
+                  {isFetchingNextPage ? (
+                    <Loader2 className="animate-spin" />
+                  ) : isFetchNextPageError ? (
+                    <RefreshCw />
+                  ) : null}
+                  {isFetchNextPageError ? 'Retry' : 'Load more'}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>

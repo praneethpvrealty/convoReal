@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { budgetRangeError } from '@/lib/contacts/budget-amount';
+import { contactFormPayloadPropertyIds } from '@/lib/contacts/form-links';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -61,11 +63,13 @@ interface ContactFormProps {
   onSaved: () => void;
 }
 
+const NO_CONTACT_TAGS: ContactTag[] = [];
+
 export function ContactForm({
   open,
   onOpenChange,
   contact,
-  contactTags = [],
+  contactTags = NO_CONTACT_TAGS,
   onSaved,
 }: ContactFormProps) {
   const supabase = createClient();
@@ -104,10 +108,15 @@ export function ContactForm({
   const [notesText, setNotesText] = useState('');
   const [recentNoteId, setRecentNoteId] = useState<string | null>(null);
   const [defaultCountryCode, setDefaultCountryCode] = useState('91');
+  const [currency, setCurrency] = useState('INR');
+  const [noteLoaded, setNoteLoaded] = useState(false);
+  const [baseline, setBaseline] = useState<string | null>(null);
 
   // Associated Properties state
   const [propertiesList, setPropertiesList] = useState<Property[]>([]);
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
+  const [propertiesLoaded, setPropertiesLoaded] = useState(false);
+  const [propertyLinksFailed, setPropertyLinksFailed] = useState(false);
   const [loadingProperties, setLoadingProperties] = useState(false);
   const [propertySearch, setPropertySearch] = useState('');
 
@@ -170,21 +179,29 @@ export function ContactForm({
         setNotesText('');
         setRecentNoteId(null);
       }
+      setNoteLoaded(true);
     },
     [supabase]
   );
 
   const fetchAssociatedProperties = useCallback(
     async (contactId: string) => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('properties')
         .select('id')
         .eq('owner_contact_id', contactId);
-      if (data) {
-        setSelectedPropertyIds(data.map((p) => p.id));
-      } else {
+      if (error || !data) {
         setSelectedPropertyIds([]);
+        setPropertiesLoaded(false);
+        setPropertyLinksFailed(true);
+        toast.error(
+          'Couldn’t load the linked properties — saving keeps the current links.'
+        );
+        return;
       }
+      setSelectedPropertyIds(data.map((p) => p.id));
+      setPropertiesLoaded(true);
+      setPropertyLinksFailed(false);
     },
     [supabase]
   );
@@ -268,13 +285,19 @@ export function ContactForm({
       fetchContacts();
       fetchProperties();
 
+      setBaseline(null);
+      setPropertyLinksFailed(false);
       if (contact?.id) {
+        setNoteLoaded(false);
+        setPropertiesLoaded(false);
         fetchRecentNote(contact.id);
         fetchAssociatedProperties(contact.id);
       } else {
         setNotesText('');
         setRecentNoteId(null);
         setSelectedPropertyIds([]);
+        setNoteLoaded(true);
+        setPropertiesLoaded(true);
       }
     }
   }, [
@@ -294,11 +317,12 @@ export function ContactForm({
       try {
         const { data } = await supabase
           .from('showcase_settings')
-          .select('default_country_code')
+          .select('default_country_code, currency')
           .maybeSingle();
         if (data?.default_country_code) {
           setDefaultCountryCode(data.default_country_code);
         }
+        if (data?.currency) setCurrency(data.currency);
       } catch (err) {
         console.error('Failed to load default country code setting:', err);
       }
@@ -327,6 +351,61 @@ export function ContactForm({
       )
       .slice(0, 5);
   }, [contacts, referrer, contact]);
+
+  const snapshot = JSON.stringify([
+    name,
+    salutation,
+    secondName,
+    nameTag,
+    phone,
+    secondaryPhones,
+    email,
+    company,
+    classification,
+    leadTemp,
+    updateChannel,
+    preferredLanguage,
+    lastInquiredPropertyId,
+    referrer,
+    referrerContactId,
+    source,
+    dob,
+    feedbackStatus,
+    notesText,
+    selectedPropertyIds,
+    minBudget,
+    maxBudget,
+    noBudget,
+    listingIntent,
+    strictAreaMatch,
+    areasOfInterest,
+    projectsOfInterest,
+    strictProjectMatch,
+    propertyInterests,
+    minRoi,
+    requiresTenanted,
+    selectedTagIds,
+  ]);
+  const settled =
+    open &&
+    noteLoaded &&
+    (!contact?.id || propertiesLoaded || propertyLinksFailed);
+  useEffect(() => {
+    if (!settled || baseline !== null) return;
+    setBaseline(snapshot);
+  }, [settled, baseline, snapshot]);
+  const dirty = baseline !== null && baseline !== snapshot;
+
+  const requestClose = (next: boolean) => {
+    if (!next && dirty && !saving && !window.confirm('Discard changes?')) {
+      return;
+    }
+    onOpenChange(next);
+  };
+
+  const minBudgetValue = !noBudget && minBudget ? Number(minBudget) : null;
+  const maxBudgetValue = !noBudget && maxBudget ? Number(maxBudget) : null;
+  const budgetError = budgetRangeError(minBudgetValue, maxBudgetValue);
 
   const handleSwapSecondaryToPrimary = (idx: number) => {
     const currentPrimary = phone;
@@ -358,6 +437,11 @@ export function ContactForm({
 
     if (!phone.trim() && !email.trim()) {
       toast.error('Add a phone number or an email');
+      return;
+    }
+
+    if (budgetError) {
+      toast.error(budgetError);
       return;
     }
 
@@ -432,7 +516,7 @@ export function ContactForm({
         tag_ids: selectedTagIds,
         note_text: notesText,
         recent_note_id: recentNoteId || null,
-        property_ids: selectedPropertyIds,
+        ...contactFormPayloadPropertyIds(propertiesLoaded, selectedPropertyIds),
       };
 
       const url = isEdit ? `/api/contacts/${contactId}` : '/api/contacts';
@@ -464,7 +548,7 @@ export function ContactForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={requestClose}>
       <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-lg">
         <DialogHeader className="border-b border-slate-800 p-6 pb-4">
           <DialogTitle className="text-white">
@@ -611,6 +695,7 @@ export function ContactForm({
                                 type="button"
                                 variant="ghost"
                                 size="icon"
+                                aria-label="Make primary number"
                                 onClick={() =>
                                   handleSwapSecondaryToPrimary(idx)
                                 }
@@ -632,6 +717,7 @@ export function ContactForm({
                                 type="button"
                                 variant="ghost"
                                 size="icon"
+                                aria-label="Remove secondary number"
                                 onClick={() => {
                                   setSecondaryPhones(
                                     secondaryPhones.filter((_, i) => i !== idx)
@@ -953,7 +1039,9 @@ export function ContactForm({
                 {/* Budget Fields */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="text-slate-300">Budget Range (INR)</Label>
+                    <Label className="text-slate-300">
+                      Budget Range ({currency})
+                    </Label>
                     <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-400 select-none">
                       <input
                         type="checkbox"
@@ -979,10 +1067,12 @@ export function ContactForm({
                         value={minBudget}
                         onChange={(e) => setMinBudget(e.target.value)}
                         placeholder="Min Budget"
+                        aria-invalid={budgetError ? true : undefined}
                         className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500 disabled:opacity-40"
                       />
                       <PriceHint
                         value={minBudget}
+                        currency={currency}
                         compact
                         className="block text-[10px]"
                       />
@@ -994,15 +1084,22 @@ export function ContactForm({
                         value={maxBudget}
                         onChange={(e) => setMaxBudget(e.target.value)}
                         placeholder="Max Budget"
+                        aria-invalid={budgetError ? true : undefined}
                         className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500 disabled:opacity-40"
                       />
                       <PriceHint
                         value={maxBudget}
+                        currency={currency}
                         compact
                         className="block text-[10px]"
                       />
                     </div>
                   </div>
+                  {budgetError && (
+                    <p role="alert" className="text-xs text-red-400">
+                      {budgetError}
+                    </p>
+                  )}
                 </div>
 
                 {/* ROI Preference Field */}
@@ -1198,6 +1295,13 @@ export function ContactForm({
             ].includes(classification) && (
               <div className="space-y-2 border-t border-slate-800 pt-4">
                 <Label className="text-slate-350">Associated Properties</Label>
+                {isEdit && !propertiesLoaded && (
+                  <p role="status" className="text-[11px] text-amber-300">
+                    {propertyLinksFailed
+                      ? 'Couldn’t load the linked properties. Saving leaves the current links as they are.'
+                      : 'Loading linked properties…'}
+                  </p>
+                )}
                 <div className="relative">
                   <Search className="absolute top-1/2 left-2.5 size-3 -translate-y-1/2 text-slate-500" />
                   <Input
@@ -1228,6 +1332,7 @@ export function ContactForm({
                           <input
                             type="checkbox"
                             checked={checked}
+                            disabled={isEdit && !propertiesLoaded}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 setSelectedPropertyIds((prev) => [
@@ -1247,7 +1352,8 @@ export function ContactForm({
                               {prop.title}
                             </span>
                             <span className="block truncate text-left text-[10px] text-slate-500">
-                              {prop.location} • {formatCurrency(prop.price)}
+                              {prop.location} •{' '}
+                              {formatCurrency(prop.price, currency)}
                             </span>
                           </div>
                         </label>
@@ -1263,14 +1369,14 @@ export function ContactForm({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => requestClose(false)}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={saving}
+              disabled={saving || Boolean(budgetError)}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saving && <Loader2 className="size-4 animate-spin" />}

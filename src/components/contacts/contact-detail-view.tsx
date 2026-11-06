@@ -22,6 +22,7 @@ import {
   loadAssociatedProperties,
   loadContactCalls,
   loadContactDeals,
+  ContactNotFoundError,
   loadContactDetail,
   loadContactNotes,
   loadContactTags,
@@ -84,6 +85,7 @@ import {
 } from '@/components/ui/sheet';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { LoadError } from '@/components/ui/load-error';
 import {
   BUDGET_UNIT_OPTIONS,
   budgetRangeError,
@@ -1591,6 +1593,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           contactTagIds: prev.contactTagIds.filter((id) => id !== tagId),
         }));
         onUpdated();
+        toast.success('Tag removed');
       } else {
         toast.error('Could not remove that tag.');
       }
@@ -1604,6 +1607,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           contactTagIds: [...prev.contactTagIds, tagId],
         }));
         onUpdated();
+        toast.success('Tag added');
+      } else {
+        toast.error('Could not add that tag.');
       }
     }
     setSavingTags(false);
@@ -1637,6 +1643,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   }
 
   async function deleteNote(noteId: string) {
+    if (!window.confirm('Delete this note? This cannot be undone.')) return;
     const { data, error } = await supabase
       .from('contact_notes')
       .delete()
@@ -1661,7 +1668,36 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         side="right"
         className="w-full border-slate-700 bg-slate-900 p-0 text-slate-200 sm:max-w-lg"
       >
-        {!contact ? (
+        {!contact && detailQuery.error instanceof ContactNotFoundError ? (
+          <div
+            role="alert"
+            className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center"
+          >
+            <SheetTitle className="text-white">Contact not found</SheetTitle>
+            <p className="text-sm text-slate-400">
+              It may have been deleted or merged into another contact.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              className="border-slate-700 text-slate-300"
+            >
+              Close
+            </Button>
+          </div>
+        ) : !contact && detailQuery.isError ? (
+          <div className="flex h-full items-center justify-center p-6">
+            <SheetTitle className="sr-only">Contact</SheetTitle>
+            <div className="w-full">
+              <LoadError
+                what="this contact"
+                onRetry={() => void detailQuery.refetch()}
+                retrying={detailQuery.isFetching}
+              />
+            </div>
+          </div>
+        ) : !contact ? (
           <div className="flex h-full items-center justify-center">
             <Loader2 className="text-primary size-6 animate-spin" />
           </div>
@@ -2257,6 +2293,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                         type="button"
                                         variant="ghost"
                                         size="icon"
+                                        aria-label="Make primary number"
                                         onClick={() =>
                                           handleSwapSecondaryToPrimary(idx)
                                         }
@@ -2278,6 +2315,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                         type="button"
                                         variant="ghost"
                                         size="icon"
+                                        aria-label="Remove secondary number"
                                         onClick={() => {
                                           setEditSecondaryPhones(
                                             editSecondaryPhones.filter(
@@ -3359,7 +3397,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             key={tag.id}
                             onClick={() => toggleTag(tag.id)}
                             disabled={savingTags}
-                            className={`inline-flex cursor-pointer items-center rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                            aria-pressed={selected}
+                            className={`focus-visible:ring-primary inline-flex cursor-pointer items-center rounded-full px-3 py-1 text-xs font-medium transition-all outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-900 ${
                               selected
                                 ? 'ring-primary ring-2 ring-offset-1 ring-offset-slate-900'
                                 : 'opacity-50 hover:opacity-80'
@@ -3407,7 +3446,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   </div>
 
                   <div className="flex-1 space-y-2 overflow-y-auto">
-                    {loadingNotes ? (
+                    {notesQuery.isError && notes.length === 0 ? (
+                      <LoadError
+                        what="notes"
+                        onRetry={() => void notesQuery.refetch()}
+                        retrying={notesQuery.isFetching}
+                      />
+                    ) : loadingNotes ? (
                       <div className="flex items-center justify-center py-8">
                         <Loader2 className="size-5 animate-spin text-slate-500" />
                       </div>
@@ -3426,8 +3471,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                               {note.note_text}
                             </p>
                             <button
+                              type="button"
                               onClick={() => deleteNote(note.id)}
-                              className="shrink-0 cursor-pointer text-slate-500 opacity-0 transition-all group-hover:opacity-100 hover:text-red-400"
+                              aria-label="Delete note"
+                              title="Delete note"
+                              className="focus-visible:ring-primary shrink-0 cursor-pointer rounded text-slate-500 opacity-0 transition-all outline-none group-hover:opacity-100 hover:text-red-400 focus-visible:opacity-100 focus-visible:ring-2"
                             >
                               <Trash2 className="size-3.5" />
                             </button>

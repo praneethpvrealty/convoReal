@@ -441,13 +441,6 @@ export function MessageComposer({
           </GatedButton>
         </div>
       )}
-
-      {/* Hint sits outside the flex row so its height doesn't push
-          `items-end` buttons below the textarea. Indented to line up
-          under the textarea left edge (w-9 button + gap-2 = 44px). */}
-      <p className="mt-1 pl-11 text-[10px] text-slate-600">
-        Type &apos;/&apos; for quick replies
-      </p>
     </div>
   );
 }

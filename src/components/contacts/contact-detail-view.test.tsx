@@ -14,6 +14,7 @@ const tables = vi.hoisted(() => ({
   reads: [] as string[],
   searches: [] as Array<{ table: string; ors: string[]; limit?: number }>,
   rows: {} as Record<string, unknown>,
+  errors: {} as Record<string, unknown>,
 }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
@@ -37,6 +38,9 @@ vi.mock('@/lib/supabase/client', () => ({
       };
       const finish = (single: boolean) => {
         if (search.ors.length > 0) tables.searches.push(search);
+        if (tables.errors[table]) {
+          return Promise.resolve({ data: null, error: tables.errors[table] });
+        }
         return Promise.resolve({
           data: single
             ? ((tables.rows[table] as unknown[] | undefined)?.[0] ?? null)
@@ -156,6 +160,7 @@ describe('ContactDetailView', () => {
     tables.reads = [];
     tables.searches = [];
     tables.rows = {};
+    tables.errors = {};
   });
 
   it('searches referrer suggestions on the server only once the field is used', async () => {
@@ -248,5 +253,45 @@ describe('ContactDetailView', () => {
     expect(screen.getAllByDisplayValue('Meera Buyer').length).toBeGreaterThan(
       0
     );
+  });
+
+  it('[UIX-013] says Contact not found when the contact no longer exists', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+      )
+    );
+    renderView();
+    expect(await screen.findByText('Contact not found')).toBeTruthy();
+    expect(screen.queryByText(/Couldn't load/)).toBeNull();
+  });
+
+  it('[UIX-013] offers Retry when the contact fails to load', async () => {
+    tables.errors = { contacts: { message: 'network down' } };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+      )
+    );
+    renderView();
+    expect(await screen.findByText("Couldn't load this contact.")).toBeTruthy();
+    expect(screen.queryByText('Contact not found')).toBeNull();
+
+    tables.errors = {};
+    tables.rows = {
+      contacts: [
+        {
+          id: 'c1',
+          name: 'Meera Buyer',
+          phone: '+919800000000',
+          classification: 'Buyer',
+          secondary_phones: [],
+        },
+      ],
+    };
+    fireEvent.click(screen.getByRole('button', { name: /Retry/ }));
+    expect(await screen.findByText('Meera Buyer')).toBeTruthy();
   });
 });
