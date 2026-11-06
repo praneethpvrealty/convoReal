@@ -32,7 +32,7 @@ import { contactHandle } from '@/lib/contacts/reachability';
 import { ilikeAcross, ilikeTerm } from '@/lib/postgrest-search';
 import { PICKER_LIMIT, pickerTruncatedNotice } from '@/lib/journey/picker';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 
 export interface AddItemsDialogProps {
   open: boolean;

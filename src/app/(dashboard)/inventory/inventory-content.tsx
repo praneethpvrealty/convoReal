@@ -56,7 +56,7 @@ import {
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyMapView } from '@/components/inventory/property-map-view';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 import { useT } from '@/hooks/useLocale';
 import { PropertyList } from '@/components/inventory/property-list';
 import { PropertyTable } from '@/components/inventory/property-table';

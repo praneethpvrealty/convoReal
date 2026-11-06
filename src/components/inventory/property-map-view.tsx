@@ -20,7 +20,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, MapPinOff } from 'lucide-react';
 import { formatCurrencyShort } from '@/lib/currency-utils';
 import { useT } from '@/hooks/useLocale';
-import { LoadError } from '@/components/broadcasts/load-error';
+import { LoadError } from '@/components/ui/load-error';
 import { cappedResultsNotice } from '@/lib/inventory/result-cap';
 import type { Property } from '@/types';
 
