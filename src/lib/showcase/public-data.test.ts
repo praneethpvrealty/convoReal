@@ -16,6 +16,7 @@ const state = {
   images: ['old.jpg'],
   catalogueFetches: 0,
   catalogueError: null as Error | null,
+  catalogueTransportFailures: 0,
   orFilters: [] as string[],
   shareLookups: [] as Array<Record<string, unknown>>,
   sharePinnedIds: null as string[] | null,
@@ -63,7 +64,25 @@ vi.mock('@/lib/supabase/admin', () => {
         }),
       then: (resolve: (value: unknown) => unknown) => {
         if (table === 'properties' && !isVersionProbe) state.catalogueFetches++;
+        if (
+          table === 'properties' &&
+          !isVersionProbe &&
+          state.catalogueTransportFailures > 0
+        ) {
+          state.catalogueTransportFailures--;
+          return Promise.resolve({
+            data: null,
+            error: {
+              message: 'TypeError: terminated',
+              details: 'TypeError: terminated\n    at ...',
+              hint: '',
+              code: '',
+            },
+            status: 0,
+          }).then(resolve);
+        }
         return Promise.resolve({
+          status: 200,
           data:
             table === 'properties'
               ? state.catalogueError
@@ -103,6 +122,7 @@ describe('cachedFetchShowcaseData', () => {
   beforeEach(() => {
     state.catalogueFetches = 0;
     state.catalogueError = null;
+    state.catalogueTransportFailures = 0;
   });
 
   it('serves repeat visits from cache while nothing changes', async () => {
@@ -175,6 +195,70 @@ describe('cachedFetchShowcaseData', () => {
       'Failed to load public showcase properties:',
       expect.objectContaining({ accountId: 'acc-transient-failure' })
     );
+    consoleError.mockRestore();
+  });
+
+  it('retries once when the catalogue body dies in transit after a 200 (a HEAD probe)', async () => {
+    state.catalogueTransportFailures = 1;
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    const result = await cachedFetchShowcaseData('acc-head-probe', false);
+
+    expect(state.catalogueFetches).toBe(2);
+    expect(result.properties).toHaveLength(1);
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('retries the co-broker catalogue read the same way', async () => {
+    state.catalogueTransportFailures = 1;
+
+    const result = await cachedFetchShowcaseData('acc-head-probe-agent', true);
+
+    expect(state.catalogueFetches).toBe(2);
+    expect(result.properties).toHaveLength(1);
+  });
+
+  it('gives up after one retry and names the transport failure', async () => {
+    state.catalogueTransportFailures = 2;
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      cachedFetchShowcaseData('acc-head-probe-dead', false)
+    ).rejects.toThrow(
+      'Failed to load public showcase properties: TypeError: terminated'
+    );
+
+    expect(state.catalogueFetches).toBe(2);
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to load public showcase properties:',
+      expect.objectContaining({
+        accountId: 'acc-head-probe-dead',
+        status: 0,
+        message: 'TypeError: terminated',
+      })
+    );
+    consoleError.mockRestore();
+  });
+
+  it('does not retry a database error, which carries a real status', async () => {
+    state.catalogueError = new Error('permission denied for table properties');
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    await expect(
+      cachedFetchShowcaseData('acc-db-error', false)
+    ).rejects.toThrow(
+      'Failed to load public showcase properties: permission denied for table properties'
+    );
+
+    expect(state.catalogueFetches).toBe(1);
+    state.catalogueError = null;
     consoleError.mockRestore();
   });
 });
