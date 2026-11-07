@@ -62,17 +62,41 @@ export function splitShowcaseListings(rows: Property[]): {
 }
 
 function requireShowcaseProperties(
-  result: { data: Property[] | null; error: unknown },
+  result: { data: Property[] | null; error: unknown; status?: number },
   accountId: string
 ): Property[] {
   if (result.error) {
+    const cause = result.error as {
+      message?: string;
+      code?: string;
+      details?: string;
+    };
     console.error('Failed to load public showcase properties:', {
       accountId,
-      error: result.error,
+      status: result.status,
+      code: cause.code,
+      message: cause.message,
+      details: cause.details,
     });
-    throw new Error('Failed to load public showcase properties');
+    throw new Error(
+      `Failed to load public showcase properties: ${cause.message ?? 'unknown error'}`
+    );
   }
   return result.data ?? [];
+}
+
+// A catalogue read that fails in transit comes back with status 0: the
+// 200 and its headers arrived, then the body stream died. The common
+// case is a HEAD probe of a showcase link (a link unfurler, a monitor):
+// Next ends a HEAD response as soon as the shell renders and the
+// catalogue query, still streaming, loses its socket. The read is
+// idempotent, so one more attempt is the whole remedy; a database error
+// has a real status and is not retried.
+async function readShowcaseCatalogue<T extends { status: number }>(
+  query: PromiseLike<T>
+): Promise<T> {
+  const first = await query;
+  return first.status === 0 ? query : first;
 }
 
 export function resolveSubdomainFromHost(host: string): string | null {
@@ -380,14 +404,16 @@ const fetchShowcaseData = async (
         .eq('account_id', accountId)
         .maybeSingle(),
       admin.from('accounts').select('name').eq('id', accountId).maybeSingle(),
-      admin
-        .from('properties')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('is_published', true)
-        .in('status', SHOWCASE_LISTED_STATUSES)
-        .or(AGENT_VIEW_AUDIENCE_FILTER)
-        .order('created_at', { ascending: false }),
+      readShowcaseCatalogue(
+        admin
+          .from('properties')
+          .select('*')
+          .eq('account_id', accountId)
+          .eq('is_published', true)
+          .in('status', SHOWCASE_LISTED_STATUSES)
+          .or(AGENT_VIEW_AUDIENCE_FILTER)
+          .order('created_at', { ascending: false })
+      ),
       admin
         .from('agency_services')
         .select('*')
@@ -432,13 +458,15 @@ const fetchShowcaseData = async (
       .eq('account_id', accountId)
       .maybeSingle(),
     admin.from('accounts').select('name').eq('id', accountId).maybeSingle(),
-    admin
-      .from('properties')
-      .select('*')
-      .eq('account_id', accountId)
-      .eq('is_published', true)
-      .in('status', SHOWCASE_LISTED_STATUSES)
-      .order('created_at', { ascending: false }),
+    readShowcaseCatalogue(
+      admin
+        .from('properties')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('is_published', true)
+        .in('status', SHOWCASE_LISTED_STATUSES)
+        .order('created_at', { ascending: false })
+    ),
     admin
       .from('contacts')
       .select('id, name, phone, email')
