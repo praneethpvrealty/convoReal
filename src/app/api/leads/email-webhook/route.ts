@@ -21,7 +21,10 @@ import { writeSyncLog, assignTagsToContact } from './db-utils';
 import { sendLeadArrivalReplies } from './lead-replies';
 import { portalKeyFromSource } from '@/lib/portals/listing-identity';
 import { placeholderLeadName } from '@/lib/contacts/lead-placeholder';
-import { reviveContact } from '@/lib/contacts/lifecycle';
+import {
+  isLeadInitiatedDeadReason,
+  reviveContact,
+} from '@/lib/contacts/lifecycle';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
 
@@ -1018,7 +1021,7 @@ export async function POST(request: Request) {
     const cleanPhone = normalizedPhoneNum.replace(/\D/g, '');
     const { data: existingContact } = await supabase
       .from('contacts')
-      .select('id, name, pref_areas, is_dead')
+      .select('id, name, pref_areas, is_dead, dead_reason')
       .eq('account_id', accountId)
       .or(`phone.eq.${normalizedPhoneNum},phone.eq.${cleanPhone}`)
       .maybeSingle();
@@ -1098,23 +1101,39 @@ export async function POST(request: Request) {
         .update(updatePayload)
         .eq('id', existingContact.id);
 
-      // A lead who closed their search and then enquires again on a
-      // portal has reopened it themselves. Revived before anything is
-      // sent, so the welcome below and the reply to its button agree on
-      // whether this lead may be messaged — the dispatcher refuses every
-      // automated send to a dead contact, including the answer to a
-      // button we just put in front of them. The anchor follows the new
-      // enquiry, or is dropped when it matched nothing, so the listing
-      // they dropped is not what the next matches reply pins.
-      if (existingContact.is_dead) {
-        await reviveContact({
+      // A lead who closed their search from WhatsApp and then enquires
+      // again on a portal has reopened it themselves. Revived before
+      // anything is sent, so the welcome below and the reply to its
+      // button agree on whether this lead may be messaged — the
+      // dispatcher refuses every automated send to a dead contact,
+      // including the answer to a button we just put in front of them.
+      // The anchor follows the new enquiry, or is dropped when it matched
+      // nothing, so the listing they dropped is not what the next matches
+      // reply pins. A contact an agent took off automated sending
+      // (manual or bulk cleanup) stays dead: the enquiry is still
+      // recorded for them, but no greeting goes out, since the bulk
+      // route's revive is that decision.
+      const leadClosedOwnSearch =
+        existingContact.is_dead &&
+        isLeadInitiatedDeadReason(existingContact.dead_reason);
+      if (leadClosedOwnSearch) {
+        const revived = await reviveContact({
           db: supabase,
           accountId,
           contactId: existingContact.id,
           lastInquiredPropertyId: matchedPropertyIds[0] ?? null,
           note: `Lead enquired again on ${parsed.source} — revived from closed enquiry`,
         });
+        if (!revived) {
+          // Greeting a lead who is still dead recreates the silence this
+          // revival exists to end; the reconcile cron re-ingests the lead.
+          return NextResponse.json(
+            { error: 'Failed to revive closed lead' },
+            { status: 500 }
+          );
+        }
       }
+      const staysDead = existingContact.is_dead && !leadClosedOwnSearch;
 
       // The budget and its enquiry anchor land in one transaction, under
       // the row lock, so concurrent enquiries cannot pair one budget with
@@ -1296,18 +1315,24 @@ export async function POST(request: Request) {
         match: matchAudit,
       });
 
-      await sendLeadArrivalReplies({
-        supabase,
-        accountId,
-        userId,
-        syncConfig,
-        contactId: existingContact.id,
-        conversationId: conversationId || null,
-        cleanPhone,
-        leadName: existingContact.name || '',
-        leadSource: parsed.source || '',
-        matchedPropertyId: matchedPropertyIds[0] ?? null,
-      });
+      if (staysDead) {
+        console.log(
+          `[lead-webhook] Contact ${existingContact.id} was taken off automated sending (${existingContact.dead_reason}); enquiry recorded, no greeting sent`
+        );
+      } else {
+        await sendLeadArrivalReplies({
+          supabase,
+          accountId,
+          userId,
+          syncConfig,
+          contactId: existingContact.id,
+          conversationId: conversationId || null,
+          cleanPhone,
+          leadName: existingContact.name || '',
+          leadSource: parsed.source || '',
+          matchedPropertyId: matchedPropertyIds[0] ?? null,
+        });
+      }
 
       // Fire automations for existing contact getting a new lead
       void runAutomationsForTrigger({

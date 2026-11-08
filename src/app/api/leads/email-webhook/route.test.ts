@@ -1744,6 +1744,7 @@ describe('[INB-049] a closed lead who enquires again on a portal', () => {
       name: 'vasudha',
       pref_areas: [],
       is_dead: true,
+      dead_reason: 'closed_enquiry',
       last_inquired_property_id: 'prop-dropped',
     };
 
@@ -1761,6 +1762,38 @@ describe('[INB-049] a closed lead who enquires again on a portal', () => {
       vi.mocked(sendAutoReply).mock.invocationCallOrder[0]
     );
     expect(mockDb.contacts.length).toBe(0);
+  });
+
+  it('sends nothing and reports a retryable failure when the revival does not land', async () => {
+    mockDb.existingContact = {
+      id: 'contact-dead',
+      name: 'vasudha',
+      pref_areas: [],
+      is_dead: true,
+      dead_reason: 'closed_enquiry',
+    };
+    lifecycle.revive.mockResolvedValueOnce(false);
+
+    expect((await post()).status).toBe(500);
+
+    expect(sendAutoReply).not.toHaveBeenCalled();
+    expect(mockDb.email_sync_logs).toHaveLength(0);
+  });
+
+  it('records the enquiry but neither revives nor greets a contact an agent took off automated sending', async () => {
+    mockDb.existingContact = {
+      id: 'contact-cleaned',
+      name: 'vasudha',
+      pref_areas: [],
+      is_dead: true,
+      dead_reason: 'bulk_cleanup',
+    };
+
+    expect((await post()).status).toBe(200);
+
+    expect(lifecycle.revive).not.toHaveBeenCalled();
+    expect(sendAutoReply).not.toHaveBeenCalled();
+    expect(mockDb.email_sync_logs).toHaveLength(1);
   });
 
   it('leaves a live lead alone', async () => {

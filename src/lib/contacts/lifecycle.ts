@@ -23,6 +23,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export type DeadReason =
   'closed_enquiry' | 'stop_alerts' | 'manual' | 'bulk_cleanup';
 
+/** The reasons a lead gives in their own words. A manual or bulk
+ *  cleanup is an agent's decision, which only an agent undoes. */
+export function isLeadInitiatedDeadReason(
+  reason: string | null | undefined
+): boolean {
+  return reason === 'closed_enquiry' || reason === 'stop_alerts';
+}
+
 /** Thrown by the dispatcher when an automated send targets a dead contact. */
 export const DEAD_CONTACT_BLOCKED_MESSAGE =
   'This lead closed their enquiry — automated messages are blocked. Reply from the inbox if you need to reach them.';
@@ -121,12 +129,18 @@ export async function reviveContact(args: {
     return false;
   }
   if (args.note) {
-    await args.db.from('contact_notes').insert({
+    const { error: noteError } = await args.db.from('contact_notes').insert({
       contact_id: args.contactId,
       account_id: args.accountId,
       user_id: null,
       note_text: args.note,
     });
+    if (noteError) {
+      console.error(
+        '[contact-lifecycle] revive note failed:',
+        noteError.message
+      );
+    }
   }
   return true;
 }

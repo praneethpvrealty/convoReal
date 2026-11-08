@@ -26,7 +26,9 @@ than a written entry. Newest first.
   was refused for it. The webhook now revives the contact before any
   greeting goes out, notes which portal they came back on, and points the
   enquiry at the listing they asked about (or clears it when it matched
-  nothing) instead of the one they had dropped. A send the dispatcher
+  nothing) instead of the one they had dropped. Only a close in the lead's
+  own words is undone this way; a contact an agent took off automated
+  sending stays that way, with the enquiry recorded and no greeting sent. A send the dispatcher
   refuses on policy inside the inbound chain now ends that chain with a
   warning instead of failing the webhook into retries. **Migration
   required:** `20261108073500_contact_notes_system_author.sql` lets a note

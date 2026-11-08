@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   isContactReachable,
+  isLeadInitiatedDeadReason,
   markContactDead,
   reviveContact,
 } from './lifecycle';
@@ -152,6 +153,16 @@ describe('reviveContact', () => {
     expect(writes2.find((w) => w.table === 'contacts')?.patch).toMatchObject({
       last_inquired_property_id: 'prop-2',
     });
+  });
+});
+
+describe('[INB-049] which closes a lead may undo by enquiring again', () => {
+  it("is only the lead's own: a close from WhatsApp or STOP ALERTS, never an agent's cleanup", () => {
+    expect(isLeadInitiatedDeadReason('closed_enquiry')).toBe(true);
+    expect(isLeadInitiatedDeadReason('stop_alerts')).toBe(true);
+    expect(isLeadInitiatedDeadReason('manual')).toBe(false);
+    expect(isLeadInitiatedDeadReason('bulk_cleanup')).toBe(false);
+    expect(isLeadInitiatedDeadReason(null)).toBe(false);
   });
 });
 
