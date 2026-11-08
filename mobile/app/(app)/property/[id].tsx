@@ -1141,8 +1141,8 @@ export default function PropertyDetailScreen() {
               textAlign: 'center',
             }}
           >
-            AI descriptions, buyer document requests and the full sharing flows
-            live on the web for now.
+            AI descriptions and this listing's buyer document requests are on
+            the web for now.
           </Text>
         </View>
       </ScrollView>

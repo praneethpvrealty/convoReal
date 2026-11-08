@@ -10,9 +10,11 @@ import {
   View,
 } from 'react-native';
 
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, HiddenWhileTyping } from '@/components/sheet';
 import { Avatar, SearchBar, Tag, nameTagCap } from '@/components/ui';
+import { chatListTime } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
+import { scoreTone } from '@/lib/match-chips';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
@@ -23,6 +25,12 @@ import {
   defaultShareRecipients,
   hasRealName,
 } from '@shared/lib/inventory/share-recipients';
+
+export interface SuggestedRecipient {
+  contact: Contact;
+  score: number;
+  sharedAt: string | null;
+}
 
 /**
  * Pick Engine contacts by name or phone — the same debounced `contacts`
@@ -54,6 +62,7 @@ export function ContactPickerSheet({
   initialSelected,
   maxSelections = Number.POSITIVE_INFINITY,
   recentWhenEmpty = false,
+  suggested,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -84,6 +93,10 @@ export function ContactPickerSheet({
   /** Before anything is typed, list the eight most recently contacted
    *  reachable contacts, the same default the web share dialog uses. */
   recentWhenEmpty?: boolean;
+  /** Before anything is typed, ranked contacts listed above the recent
+   *  ones with their match score — a listing's matches when it is being
+   *  broadcast. */
+  suggested?: SuggestedRecipient[];
 }) {
   const { colors, fonts: f } = useTheme();
   const [search, setSearch] = useState('');
@@ -168,7 +181,9 @@ export function ContactPickerSheet({
       return { contacts, tags };
     },
   });
-  const showRecent = recentWhenEmpty && !searchContacts && debounced.length < 2;
+  const showDefault = !searchContacts && debounced.length < 2;
+  const showRecent = recentWhenEmpty && showDefault;
+  const suggestions = showDefault ? (suggested ?? []) : [];
   const { data: recentData, isFetching: recentFetching } = useQuery({
     queryKey: ['contact-picker-recent', searchKey ?? 'all'],
     enabled: visible && showRecent,
@@ -186,9 +201,140 @@ export function ContactPickerSheet({
       );
     },
   });
-  const recent = recentData ?? [];
-  const results = showRecent ? recent : (data?.contacts ?? []);
-  const tagsById = showRecent ? {} : (data?.tags ?? {});
+  const suggestedIds = new Set(suggestions.map((s) => s.contact.id));
+  const recent = (recentData ?? []).filter((c) => !suggestedIds.has(c.id));
+  const results = data?.contacts ?? [];
+  const tagsById = data?.tags ?? {};
+  const showDefaultRows =
+    suggestions.length > 0 || (showRecent && recent.length > 0);
+
+  function sectionLabel(text: string) {
+    return (
+      <Text
+        style={{
+          fontSize: 12,
+          fontFamily: f.semibold,
+          color: colors.textMuted,
+        }}
+      >
+        {text}
+      </Text>
+    );
+  }
+
+  function scoreColor(score: number): string {
+    const tone = scoreTone(score);
+    return tone === 'strong'
+      ? colors.success
+      : tone === 'fair'
+        ? colors.warning
+        : colors.textFaint;
+  }
+
+  function renderRow(
+    c: Contact,
+    tags: string[],
+    match?: Omit<SuggestedRecipient, 'contact'>
+  ) {
+    const isPicked = picked.some((p) => p.id === c.id);
+    return (
+      <Pressable
+        key={c.id}
+        disabled={multiSelect && !isPicked && picked.length >= maxSelections}
+        onPress={() => {
+          if (multiSelect) {
+            togglePicked(c);
+            return;
+          }
+          haptic.tap();
+          onSelect?.(c);
+        }}
+        accessibilityRole={multiSelect ? 'checkbox' : 'button'}
+        accessibilityState={multiSelect ? { checked: isPicked } : undefined}
+        accessibilityLabel={
+          match
+            ? `${c.name || contactHandle(c)}, ${match.score}% match${match.sharedAt ? ', already shared' : ''}`
+            : c.name || contactHandle(c)
+        }
+        style={[
+          styles.row,
+          {
+            backgroundColor: colors.glass,
+            borderColor: colors.glassBorder,
+          },
+          isPicked && {
+            borderColor: colors.primary,
+            backgroundColor: colors.primarySoft,
+          },
+          multiSelect &&
+            !isPicked &&
+            picked.length >= maxSelections && {
+              opacity: 0.45,
+            },
+        ]}
+      >
+        {multiSelect ? (
+          <Ionicons
+            name={isPicked ? 'checkbox' : 'square-outline'}
+            size={20}
+            color={isPicked ? colors.primary : colors.textFaint}
+          />
+        ) : null}
+        <Avatar name={c.name || contactHandle(c)} size={34} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <View style={styles.nameRow}>
+            <Text
+              style={{
+                flexShrink: 1,
+                fontSize: 14.5,
+                fontFamily: f.semibold,
+                color: colors.text,
+              }}
+              numberOfLines={1}
+            >
+              {hasRealName(c) ? c.name : c.phone}
+            </Text>
+            {c.name_tag ? (
+              <View style={nameTagCap}>
+                <Tag label={c.name_tag} />
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.metaRow}>
+            {hasRealName(c) ? (
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: colors.textMuted,
+                }}
+                numberOfLines={1}
+              >
+                {c.phone}
+              </Text>
+            ) : null}
+            {match ? (
+              <Tag
+                label={`${match.score}% match`}
+                color={scoreColor(match.score)}
+              />
+            ) : null}
+            {match?.sharedAt ? (
+              <Tag
+                label={`Shared ${chatListTime(match.sharedAt)}`}
+                color={colors.textMuted}
+              />
+            ) : null}
+            {tags.slice(0, 2).map((t) => (
+              <Tag key={t} label={t} />
+            ))}
+          </View>
+        </View>
+        {multiSelect ? null : (
+          <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+        )}
+      </Pressable>
+    );
+  }
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title={title}>
@@ -215,9 +361,11 @@ export function ContactPickerSheet({
         ) : (
           <>
             {hint ? (
-              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                {hint}
-              </Text>
+              <HiddenWhileTyping>
+                <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+                  {hint}
+                </Text>
+              </HiddenWhileTyping>
             ) : null}
 
             {nudge ? (
@@ -297,7 +445,26 @@ export function ContactPickerSheet({
             />
 
             <View style={{ minHeight: 96, maxHeight: 300, flexShrink: 1 }}>
-              {debounced.length < 2 && !(showRecent && recent.length > 0) ? (
+              {showDefaultRows ? (
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View style={{ gap: spacing.sm }}>
+                    {suggestions.length > 0
+                      ? sectionLabel('Suggested for this listing')
+                      : null}
+                    {suggestions.map(({ contact, ...match }) =>
+                      renderRow(contact, [], match)
+                    )}
+                    {showRecent && recent.length > 0
+                      ? sectionLabel('Recently contacted')
+                      : null}
+                    {showRecent ? recent.map((c) => renderRow(c, [])) : null}
+                  </View>
+                </ScrollView>
+              ) : debounced.length < 2 ? (
                 showRecent && recentFetching ? (
                   <View
                     style={{
@@ -312,7 +479,7 @@ export function ContactPickerSheet({
                     Type at least 2 characters to search your contacts.
                   </Text>
                 )
-              ) : !showRecent && isFetching ? (
+              ) : isFetching ? (
                 <View
                   style={{ paddingVertical: spacing.xl, alignItems: 'center' }}
                 >
@@ -329,115 +496,7 @@ export function ContactPickerSheet({
                   showsVerticalScrollIndicator={false}
                 >
                   <View style={{ gap: spacing.sm }}>
-                    {showRecent ? (
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          fontFamily: f.semibold,
-                          color: colors.textMuted,
-                        }}
-                      >
-                        Recently contacted
-                      </Text>
-                    ) : null}
-                    {results.map((c) => {
-                      const isPicked = picked.some((p) => p.id === c.id);
-                      return (
-                        <Pressable
-                          key={c.id}
-                          disabled={
-                            multiSelect &&
-                            !isPicked &&
-                            picked.length >= maxSelections
-                          }
-                          onPress={() => {
-                            if (multiSelect) {
-                              togglePicked(c);
-                              return;
-                            }
-                            haptic.tap();
-                            onSelect?.(c);
-                          }}
-                          accessibilityRole={
-                            multiSelect ? 'checkbox' : 'button'
-                          }
-                          accessibilityState={
-                            multiSelect ? { checked: isPicked } : undefined
-                          }
-                          accessibilityLabel={c.name || contactHandle(c)}
-                          style={[
-                            styles.row,
-                            {
-                              backgroundColor: colors.glass,
-                              borderColor: colors.glassBorder,
-                            },
-                            isPicked && {
-                              borderColor: colors.primary,
-                              backgroundColor: colors.primarySoft,
-                            },
-                            multiSelect &&
-                              !isPicked &&
-                              picked.length >= maxSelections && {
-                                opacity: 0.45,
-                              },
-                          ]}
-                        >
-                          {multiSelect ? (
-                            <Ionicons
-                              name={isPicked ? 'checkbox' : 'square-outline'}
-                              size={20}
-                              color={
-                                isPicked ? colors.primary : colors.textFaint
-                              }
-                            />
-                          ) : null}
-                          <Avatar name={c.name || contactHandle(c)} size={34} />
-                          <View style={{ flex: 1, gap: 2 }}>
-                            <View style={styles.nameRow}>
-                              <Text
-                                style={{
-                                  flexShrink: 1,
-                                  fontSize: 14.5,
-                                  fontFamily: f.semibold,
-                                  color: colors.text,
-                                }}
-                                numberOfLines={1}
-                              >
-                                {hasRealName(c) ? c.name : c.phone}
-                              </Text>
-                              {c.name_tag ? (
-                                <View style={nameTagCap}>
-                                  <Tag label={c.name_tag} />
-                                </View>
-                              ) : null}
-                            </View>
-                            <View style={styles.metaRow}>
-                              {hasRealName(c) ? (
-                                <Text
-                                  style={{
-                                    fontSize: 12,
-                                    color: colors.textMuted,
-                                  }}
-                                  numberOfLines={1}
-                                >
-                                  {c.phone}
-                                </Text>
-                              ) : null}
-                              {(tagsById[c.id] ?? []).slice(0, 2).map((t) => (
-                                <Tag key={t} label={t} />
-                              ))}
-                            </View>
-                          </View>
-                          {multiSelect ? null : (
-                            <Ionicons
-                              name="chevron-forward"
-                              size={16}
-                              color={colors.textFaint}
-                            />
-                          )}
-                        </Pressable>
-                      );
-                    })}
+                    {results.map((c) => renderRow(c, tagsById[c.id] ?? []))}
                   </View>
                 </ScrollView>
               )}

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BROADCAST_SUGGESTION_COUNT,
   DEFAULT_SHARE_RECIPIENT_COUNT,
+  broadcastSuggestions,
   defaultShareRecipients,
   hasRealName,
 } from './share-recipients';
@@ -105,5 +107,72 @@ describe('[PRP-045] hasRealName', () => {
     expect(hasRealName({ name: 'Flat 51010', phone: '919986551010' })).toBe(
       true
     );
+  });
+});
+
+describe('[PRP-055] broadcastSuggestions', () => {
+  function ranked(
+    id: string,
+    fields: {
+      classification?: string | null;
+      phone?: string | null;
+      sharedAt?: string | null;
+      score?: number;
+    } = {}
+  ) {
+    return {
+      contact: {
+        id,
+        classification:
+          fields.classification === undefined ? 'Buyer' : fields.classification,
+        phone: fields.phone === undefined ? '919800000000' : fields.phone,
+      },
+      score: fields.score ?? 90,
+      sharedAt: fields.sharedAt ?? null,
+    };
+  }
+
+  it('keeps ranked buyers with a phone and drops agents, as the buyers audience does', () => {
+    const rows = [
+      ranked('buyer'),
+      ranked('agent', { classification: 'Agent' }),
+      ranked('no-phone', { phone: '  ' }),
+      ranked('unclassified', { classification: null }),
+    ];
+    expect(broadcastSuggestions(rows).map((r) => r.contact.id)).toEqual([
+      'buyer',
+      'unclassified',
+    ]);
+  });
+
+  it('puts buyers who have not had this listing ahead of those who have, rank kept', () => {
+    const rows = [
+      ranked('shared-best', { sharedAt: '2026-11-07T10:00:00Z' }),
+      ranked('fresh-second'),
+      ranked('shared-third', { sharedAt: '2026-11-01T10:00:00Z' }),
+      ranked('fresh-fourth'),
+    ];
+    expect(broadcastSuggestions(rows).map((r) => r.contact.id)).toEqual([
+      'fresh-second',
+      'fresh-fourth',
+      'shared-best',
+      'shared-third',
+    ]);
+  });
+
+  it('leaves out contacts the listing was never ranked for', () => {
+    const rows = [ranked('ranked'), ranked('audience-overlay', { score: 0 })];
+    expect(broadcastSuggestions(rows).map((r) => r.contact.id)).toEqual([
+      'ranked',
+    ]);
+  });
+
+  it('caps the list', () => {
+    const rows = Array.from(
+      { length: BROADCAST_SUGGESTION_COUNT + 5 },
+      (_, i) => ranked(`b${i}`)
+    );
+    expect(broadcastSuggestions(rows)).toHaveLength(BROADCAST_SUGGESTION_COUNT);
+    expect(broadcastSuggestions(rows, 3)).toHaveLength(3);
   });
 });

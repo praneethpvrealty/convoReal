@@ -28,7 +28,11 @@ The Supabase values MUST match the deployed web app's project (see
 `.env.example` — a mismatch means every API call fails Unauthorized).
 `GOOGLE_MAPS_ANDROID_API_KEY` enables real native maps on Android —
 create a key with "Maps SDK for Android" in Google Cloud, restricted
-to the package `com.convoreal.app`.
+to the package `com.convoreal.app`. Set it on the `preview`
+environment as well: a build without it shows the "Open in Google
+Maps" fallback in place of the map (`lib/maps-availability.ts`), and the
+Play Store app-signing certificate's SHA-1 must be on the key's
+restrictions too, or tiles stay blank in the store build.
 
 The Sentry values are what make the `convoreal-mobile` project report
 anything. `Sentry.init()` in `lib/monitoring.ts` is gated on

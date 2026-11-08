@@ -6503,3 +6503,42 @@ describe('[UIX-035] the property map says when its results are capped', () => {
     expect(web).toContain('<LoadError');
   });
 });
+
+describe("[PRP-055] the broadcast picker opens on the listing's ranked buyers", () => {
+  const mobileSheet = mobileSource('components/property-share-sheet.tsx');
+  const mobilePicker = mobileSource('components/contact-picker-sheet.tsx');
+  const webDialog = webSource('components/inventory/property-share-dialog.tsx');
+
+  it('feeds the shared ranking to the mobile picker, above the recent contacts', () => {
+    expect(mobileSheet).toContain(
+      "import { broadcastSuggestions } from '@shared/lib/inventory/share-recipients';"
+    );
+    expect(mobileSheet).toContain(
+      "queryKey: ['property-matches', property.id]"
+    );
+    expect(mobileSheet).toContain('suggested={suggestedBuyers}');
+    expect(mobilePicker).toContain(
+      "sectionLabel('Suggested for this listing')"
+    );
+    expect(mobilePicker).toContain('`${match.score}% match`');
+    expect(mobilePicker).toContain('`Shared ${chatListTime(match.sharedAt)}`');
+    expect(mobilePicker).toContain(
+      'const recent = (recentData ?? []).filter((c) => !suggestedIds.has(c.id));'
+    );
+  });
+
+  it('leaves contacts marked not a fit out of the web suggestions too', () => {
+    expect(webDialog).toContain(
+      "queryKey: ['property-match-feedback', property?.id]"
+    );
+    expect(webDialog).toContain('return partitionMatchesByFeedback(');
+    expect(webDialog).toContain('matchFeedbackQuery.data?.marks ?? []');
+  });
+
+  it('keeps the picker list in view while the keyboard is up', () => {
+    expect(mobilePicker).toContain('<HiddenWhileTyping>');
+    expect(mobileSource('components/sheet.tsx')).toContain(
+      '<SheetKeyboardContext.Provider value={keyboardHeight > 0}>'
+    );
+  });
+});

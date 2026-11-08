@@ -1,13 +1,12 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-/**
- * Google Maps was removed from Expo Go on Android (SDK 53+), and even
- * a configured API key can't reach Expo Go's manifest — native map
- * tiles only render there in a real (EAS) build. iOS Expo Go still
- * draws Apple Maps. Screens use this to swap MapView for a graceful
- * fallback instead of a black canvas.
- */
-export const nativeMapsAvailable = !(
-  Platform.OS === 'android' && Constants.executionEnvironment === 'storeClient'
-);
+import { canDrawNativeMaps } from '@/lib/maps-availability';
+
+/** Screens use this to swap MapView for a graceful fallback instead of
+ *  a black canvas; see lib/maps-availability.ts for when that is. */
+export const nativeMapsAvailable = canDrawNativeMaps({
+  os: Platform.OS,
+  executionEnvironment: Constants.executionEnvironment,
+  googleMapsConfigured: Constants.expoConfig?.extra?.googleMapsConfigured,
+});
