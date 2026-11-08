@@ -51,6 +51,7 @@ export const BROADCAST_SUGGESTION_COUNT = 20;
 
 interface RankedRecipient {
   contact: { phone?: string | null; classification?: string | null };
+  score: number;
   sharedAt?: string | null;
 }
 
@@ -60,6 +61,7 @@ export function broadcastSuggestions<T extends RankedRecipient>(
 ): T[] {
   const buyers = ranked.filter(
     (row) =>
+      row.score > 0 &&
       row.contact.classification !== 'Agent' &&
       Boolean(row.contact.phone?.trim())
   );

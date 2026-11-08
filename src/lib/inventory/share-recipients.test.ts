@@ -117,6 +117,7 @@ describe('[PRP-055] broadcastSuggestions', () => {
       classification?: string | null;
       phone?: string | null;
       sharedAt?: string | null;
+      score?: number;
     } = {}
   ) {
     return {
@@ -126,7 +127,7 @@ describe('[PRP-055] broadcastSuggestions', () => {
           fields.classification === undefined ? 'Buyer' : fields.classification,
         phone: fields.phone === undefined ? '919800000000' : fields.phone,
       },
-      score: 90,
+      score: fields.score ?? 90,
       sharedAt: fields.sharedAt ?? null,
     };
   }
@@ -156,6 +157,13 @@ describe('[PRP-055] broadcastSuggestions', () => {
       'fresh-fourth',
       'shared-best',
       'shared-third',
+    ]);
+  });
+
+  it('leaves out contacts the listing was never ranked for', () => {
+    const rows = [ranked('ranked'), ranked('audience-overlay', { score: 0 })];
+    expect(broadcastSuggestions(rows).map((r) => r.contact.id)).toEqual([
+      'ranked',
     ]);
   });
 

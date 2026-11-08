@@ -369,41 +369,36 @@ export function ContactPickerSheet({
             ) : null}
 
             {nudge ? (
-              <HiddenWhileTyping>
-                <Pressable
-                  disabled={!nudge.onPress}
-                  onPress={nudge.onPress}
-                  accessibilityRole={nudge.onPress ? 'button' : 'text'}
-                  accessibilityLabel={nudge.text}
-                  style={[
-                    styles.nudge,
-                    { backgroundColor: colors.primarySoft },
-                  ]}
+              <Pressable
+                disabled={!nudge.onPress}
+                onPress={nudge.onPress}
+                accessibilityRole={nudge.onPress ? 'button' : 'text'}
+                accessibilityLabel={nudge.text}
+                style={[styles.nudge, { backgroundColor: colors.primarySoft }]}
+              >
+                <Ionicons
+                  name={nudge.icon ?? 'megaphone-outline'}
+                  size={15}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 12,
+                    lineHeight: 17,
+                    color: colors.primary,
+                  }}
                 >
+                  {nudge.text}
+                </Text>
+                {nudge.onPress ? (
                   <Ionicons
-                    name={nudge.icon ?? 'megaphone-outline'}
-                    size={15}
+                    name="chevron-forward"
+                    size={14}
                     color={colors.primary}
                   />
-                  <Text
-                    style={{
-                      flex: 1,
-                      fontSize: 12,
-                      lineHeight: 17,
-                      color: colors.primary,
-                    }}
-                  >
-                    {nudge.text}
-                  </Text>
-                  {nudge.onPress ? (
-                    <Ionicons
-                      name="chevron-forward"
-                      size={14}
-                      color={colors.primary}
-                    />
-                  ) : null}
-                </Pressable>
-              </HiddenWhileTyping>
+                ) : null}
+              </Pressable>
             ) : null}
 
             {onSkip ? (
