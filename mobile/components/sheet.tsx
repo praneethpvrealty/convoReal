@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 const SheetFrameContext = createContext(0);
+const SheetKeyboardContext = createContext(false);
 
 /** Height available to the open sheet: its modal frame minus the
  *  keyboard, measured from layout — window dimensions misreport on
@@ -25,6 +26,17 @@ export function useSheetFrame(): number {
   const measured = useContext(SheetFrameContext);
   const windowHeight = useWindowDimensions().height;
   return measured > 0 ? measured : windowHeight;
+}
+
+/** Whether the keyboard is up over the open sheet, so a sheet can drop
+ *  its explanatory text and give the space to what is being searched. */
+export function useSheetKeyboardOpen(): boolean {
+  return useContext(SheetKeyboardContext);
+}
+
+/** Renders its children only while the keyboard is down. */
+export function HiddenWhileTyping({ children }: { children: React.ReactNode }) {
+  return useSheetKeyboardOpen() ? null : <>{children}</>;
 }
 
 /** Scroll areas inside a sheet: content-sized until the sheet hits its
@@ -139,7 +151,9 @@ export function BottomSheet({
             </View>
           ) : null}
           <SheetFrameContext.Provider value={available}>
-            {children}
+            <SheetKeyboardContext.Provider value={keyboardHeight > 0}>
+              {children}
+            </SheetKeyboardContext.Provider>
           </SheetFrameContext.Provider>
         </Pressable>
       </Pressable>

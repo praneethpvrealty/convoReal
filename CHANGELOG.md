@@ -17,6 +17,25 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 8 November 2026
+
+- **Broadcasting a listing starts with the buyers it suits.** The mobile
+  broadcast picker opened on "Recently contacted", while the listing's 20
+  ranked buyers sat one scroll below on the same screen. It now opens on
+  "Suggested for this listing": up to 20 ranked buyers, those who have not
+  had the listing first, each with its match score and when it was last
+  shared, then the recent contacts. A contact marked "Not a fit" is no
+  longer suggested on mobile or in the web share dialog. While the keyboard
+  is up the picker hides its explanation, so a short screen shows more than
+  two rows.
+- **No more black map on Android builds without a Maps key.** The listing
+  location and the full map showed a black box with only the Google logo
+  when the build carried no `GOOGLE_MAPS_ANDROID_API_KEY`. They now show the
+  "Open in Google Maps" fallback. Builds that have the key are unchanged and
+  keep receiving updates.
+- The mobile property screen no longer says sharing lives on the web; it
+  names the two things that still do.
+
 #### 5 November 2026
 
 - **"Update my preferences" now answers with the listing the notice named,

@@ -303,7 +303,7 @@ function MapFallback({
             textAlign: 'center',
           }}
         >
-          Map tiles need the installed app
+          The map can't load in this app build
         </Text>
         <Text
           style={{
@@ -313,9 +313,9 @@ function MapFallback({
             textAlign: 'center',
           }}
         >
-          Expo Go on Android can't render Google Maps. Your {count} pinned
-          result{count === 1 ? '' : 's'} will appear here in the full app build
-          — for now, browse them in the List or open the area in Google Maps.
+          This build has no Google Maps access. Browse your {count} pinned
+          result{count === 1 ? '' : 's'} in the List, or open the area in Google
+          Maps.
         </Text>
         <Pressable
           onPress={openArea}

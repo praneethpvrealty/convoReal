@@ -21,6 +21,7 @@ import {
   type UnavailableSharePrompt,
 } from '@shared/lib/inventory/listing-availability';
 import { SHARE_UNRECORDED_NOTICE } from '@shared/lib/inventory/share-log-request';
+import { broadcastSuggestions } from '@shared/lib/inventory/share-recipients';
 
 import {
   AppDialog,
@@ -44,6 +45,7 @@ import {
   type SharePropertyPreview,
 } from '@/lib/property-share-actions';
 import { propertyShareUrl } from '@/lib/property-share-link';
+import { fetchPropertyMatches } from '@/lib/property-matches';
 import {
   addRecipientGreeting,
   buildPropertyShareMessage,
@@ -136,6 +138,19 @@ export function PropertyShareSheet({
     'external' | 'engine' | 'inventory' | null
   >(null);
   const [engineSending, setEngineSending] = useState(false);
+  // The same ranked list the listing's Matching Contacts section shows,
+  // read from the shared cache, so the broadcast picker opens on the
+  // buyers this listing suits rather than whoever was messaged last.
+  const matchesQuery = useQuery({
+    queryKey: ['property-matches', property.id],
+    queryFn: () => fetchPropertyMatches(property.id),
+    enabled: visible,
+    staleTime: 60_000,
+  });
+  const suggestedBuyers = useMemo(
+    () => broadcastSuggestions(matchesQuery.data?.matches ?? []),
+    [matchesQuery.data]
+  );
   const [engineProgress, setEngineProgress] = useState<{
     done: number;
     total: number;
@@ -1033,7 +1048,8 @@ export function PropertyShareSheet({
         onSelectMany={sendViaConvoRealMany}
         title="Broadcast this property"
         recentWhenEmpty
-        hint="Choose the buyers who should receive this listing. The property stays attached and ConvoReal handles the approved WhatsApp template automatically. Search again to add more — your picks are kept."
+        suggested={suggestedBuyers}
+        hint="Buyers this listing suits come first, ranked by match. The property stays attached and ConvoReal handles the approved WhatsApp template automatically. Search to add anyone else — your picks are kept."
         busy={engineSending}
         busyLabel="Sending from ConvoReal…"
       />

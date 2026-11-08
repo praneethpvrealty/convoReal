@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
@@ -53,6 +54,8 @@ import {
   type MatchDetails,
 } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import { fetchListingMatchFeedback } from '@/lib/inventory/match-feedback-request';
+import { partitionMatchesByFeedback } from '@/lib/match-feedback';
 import {
   SHARE_UNRECORDED_NOTICE,
   recordPropertyShares,
@@ -1029,6 +1032,16 @@ export function PropertyShareDialog({
     }
   }, [open, accountId, property, fetchContacts, fetchTemplates, supabase]);
 
+  // The listing's "Not a fit" marks, from the cache the Matching
+  // Contacts tab fills, so a contact ruled out there is not suggested
+  // for a broadcast here.
+  const matchFeedbackQuery = useQuery({
+    queryKey: ['property-match-feedback', property?.id],
+    queryFn: () => fetchListingMatchFeedback(property!.id),
+    enabled: open && !!property?.id,
+    staleTime: 30_000,
+  });
+
   // Get matching contacts from list
   const matchedContacts = useMemo(() => {
     if (!property || contacts.length === 0) return [];
@@ -1040,8 +1053,12 @@ export function PropertyShareDialog({
         hasPhone(c) &&
         (c.classification === 'Buyer' || c.classification === 'Agent')
     );
-    return getMatchingContacts(property, targetContacts);
-  }, [contacts, property]);
+    return partitionMatchesByFeedback(
+      getMatchingContacts(property, targetContacts),
+      matchFeedbackQuery.data?.marks ?? [],
+      targetContacts
+    ).visible;
+  }, [contacts, property, matchFeedbackQuery.data]);
 
   // Combine search query and matching contacts logic
   // Exclude contacts who were already messaged in the last 14 days from

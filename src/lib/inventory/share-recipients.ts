@@ -46,3 +46,25 @@ export function defaultShareRecipients<T extends RecipientFields>(
     })
     .slice(0, limit);
 }
+
+export const BROADCAST_SUGGESTION_COUNT = 20;
+
+interface RankedRecipient {
+  contact: { phone?: string | null; classification?: string | null };
+  sharedAt?: string | null;
+}
+
+export function broadcastSuggestions<T extends RankedRecipient>(
+  ranked: T[],
+  limit: number = BROADCAST_SUGGESTION_COUNT
+): T[] {
+  const buyers = ranked.filter(
+    (row) =>
+      row.contact.classification !== 'Agent' &&
+      Boolean(row.contact.phone?.trim())
+  );
+  return [
+    ...buyers.filter((row) => !row.sharedAt),
+    ...buyers.filter((row) => row.sharedAt),
+  ].slice(0, limit);
+}

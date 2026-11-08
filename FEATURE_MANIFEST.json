@@ -2810,6 +2810,43 @@
               "case": "[PRP-054]"
             }
           ]
+        },
+        {
+          "id": "PRP-055",
+          "rule": "Broadcasting a listing from its share sheet opens the recipient picker on the buyers the listing suits, on web and mobile alike, never only on whoever was messaged last. Mobile lists up to 20 of the listing's ranked matches under \"Suggested for this listing\" before \"Recently contacted\": buyers only (every non-agent classification, as the Buyers audience reads it) with a WhatsApp number, those who have not had this listing first and those who have after, each keeping its rank, each showing its match score and when the listing was last shared with them, and a suggested contact is not repeated under recent. The ranking is the server's (GET /api/properties/[id]/matches, cached under the same key as the listing's Matching Contacts section), so a contact marked not a fit there is never suggested; the web share dialog's matched suggestions drop the same marks. While the keyboard is up the mobile picker hides its explanation so the contact rows keep the space. A broadcast from the picker stays a batch share: it never passes journeyVisible (JRN-005).",
+          "tests": [
+            {
+              "file": "src/lib/inventory/share-recipients.test.ts",
+              "case": "[PRP-055]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-055]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/share-recipients.ts",
+            "src/components/inventory/property-share-dialog.tsx",
+            "mobile/components/property-share-sheet.tsx",
+            "mobile/components/contact-picker-sheet.tsx",
+            "mobile/components/sheet.tsx"
+          ]
+        },
+        {
+          "id": "PRP-056",
+          "rule": "The mobile app draws a native map only where it can show tiles: always on iOS, and on Android only in an installed build that carries GOOGLE_MAPS_ANDROID_API_KEY, never in Expo Go. Every other case shows the map fallback with its Google Maps hand-off instead of a black canvas. app.config.js marks a build that has the key with extra.googleMapsConfigured, because Expo strips android.config from the runtime config, and fingerprint.config.js drops that flag from the runtime fingerprint, so adding it moves no installed build off its runtime version.",
+          "tests": [
+            {
+              "file": "mobile/lib/maps-availability.test.ts",
+              "case": "[PRP-056]"
+            }
+          ],
+          "guards": [
+            "mobile/lib/maps-availability.ts",
+            "mobile/lib/maps-support.ts",
+            "mobile/app.config.js",
+            "mobile/fingerprint.config.js"
+          ]
         }
       ]
     },

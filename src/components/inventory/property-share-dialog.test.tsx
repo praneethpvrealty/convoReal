@@ -8,6 +8,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Property } from '@/types';
 import { PropertyShareDialog } from './property-share-dialog';
 
@@ -106,13 +107,18 @@ function renderDialog(
   overrides: Partial<Property> = {},
   onOpenChange: (open: boolean) => void = () => {}
 ) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <PropertyShareDialog
-      open
-      onOpenChange={onOpenChange}
-      property={{ ...property, ...overrides }}
-      onPromote={onPromote}
-    />
+    <QueryClientProvider client={queryClient}>
+      <PropertyShareDialog
+        open
+        onOpenChange={onOpenChange}
+        property={{ ...property, ...overrides }}
+        onPromote={onPromote}
+      />
+    </QueryClientProvider>
   );
 }
 

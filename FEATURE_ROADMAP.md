@@ -237,6 +237,13 @@ _The web template picker, requirements list and inbox gained retryable error sta
 - [ ] **Template picker load failure on mobile (§2.8)**: `mobile/components/template-picker.tsx` shows No approved text templates when the query fails; it should show a Retry instead, and list a template's button titles in its preview the way the web picker does.
 - [ ] **Requirements truncation on mobile (§2.8)**: `GET /api/requirements` now returns the newest 1000 with an `X-Total-Count` header; `mobile/lib/requirements.ts` should read it and show `requirementsTruncationNotice` from `src/lib/requirements/list-limit.ts` (dependency-free, importable through `@shared/`).
 
+### Deferred: AI descriptions and listing document requests on mobile
+
+_The mobile property screen said "the full sharing flows live on the web for now" long after sharing, broadcasting and the product card reached mobile. Its footnote now names only what is still web-only._
+
+- [ ] **AI listing descriptions on mobile (§2.8)**: the web property form writes a description through `POST /api/ai/generate-description`; the mobile editor has no counterpart.
+- [ ] **A listing's buyer document requests on mobile (§2.8)**: web lists and answers them per listing (`src/components/inventory/property-requests-panels.tsx`, `GET /api/properties/[id]/document-requests`); mobile shows document approvals only on the dashboard.
+
 ---
 
 ### Transaction Workspace: Phases 1–5 shipped

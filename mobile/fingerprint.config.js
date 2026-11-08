@@ -23,15 +23,27 @@
  * Expo config, and an empty experiments object with it, so turning it
  * off did not move the runtime version off the installed builds.
  *
+ * extra.googleMapsConfigured (also set in app.config.js) only tells the
+ * JS bundle that the build carries a Maps key. The key itself is in
+ * android.config, which stays hashed, so dropping the flag keeps the
+ * builds that already have the key on their current runtime version.
+ *
  * @type {import('@expo/fingerprint').Config}
  */
 function withoutBundlerOnlyExperiments(contents) {
   const config = JSON.parse(contents);
-  if (!config.experiments || !('onDemandFilesystem' in config.experiments)) {
-    return contents;
+  const hasExperiment =
+    config.experiments && 'onDemandFilesystem' in config.experiments;
+  const hasMapsFlag = config.extra && 'googleMapsConfigured' in config.extra;
+  if (!hasExperiment && !hasMapsFlag) return contents;
+  if (hasExperiment) {
+    delete config.experiments.onDemandFilesystem;
+    if (Object.keys(config.experiments).length === 0) delete config.experiments;
   }
-  delete config.experiments.onDemandFilesystem;
-  if (Object.keys(config.experiments).length === 0) delete config.experiments;
+  if (hasMapsFlag) {
+    delete config.extra.googleMapsConfigured;
+    if (Object.keys(config.extra).length === 0) delete config.extra;
+  }
   return JSON.stringify(config);
 }
 
