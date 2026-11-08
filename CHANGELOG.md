@@ -19,6 +19,22 @@ than a written entry. Newest first.
 
 #### 8 November 2026
 
+- **A closed lead who enquires again is a lead again.** A buyer who had
+  closed their search from WhatsApp and later enquired on 99acres got the
+  welcome template with its "Show Properties" button, and then silence: the
+  lead webhook never read the closed state, while the reply to the button
+  was refused for it. The webhook now revives the contact before any
+  greeting goes out, notes which portal they came back on, and points the
+  enquiry at the listing they asked about (or clears it when it matched
+  nothing) instead of the one they had dropped. Only a close in the lead's
+  own words is undone this way; a contact an agent took off automated
+  sending stays that way, with the enquiry recorded and no greeting sent. A send the dispatcher
+  refuses on policy inside the inbound chain now ends that chain with a
+  warning instead of failing the webhook into retries. **Migration
+  required:** `20261108073500_contact_notes_system_author.sql` lets a note
+  the Engine writes on the lead's own action (the close, START ALERTS, the
+  drop-off reason, this revival) land without an author; every such note
+  had been failing a NOT NULL check since the column was created.
 - **Broadcasting a listing starts with the buyers it suits.** The mobile
   broadcast picker opened on "Recently contacted", while the listing's 20
   ranked buyers sat one scroll below on the same screen. It now opens on

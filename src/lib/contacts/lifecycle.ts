@@ -23,6 +23,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 export type DeadReason =
   'closed_enquiry' | 'stop_alerts' | 'manual' | 'bulk_cleanup';
 
+/** The reasons a lead gives in their own words. A manual or bulk
+ *  cleanup is an agent's decision, which only an agent undoes. */
+export function isLeadInitiatedDeadReason(
+  reason: string | null | undefined
+): boolean {
+  return reason === 'closed_enquiry' || reason === 'stop_alerts';
+}
+
 /** Thrown by the dispatcher when an automated send targets a dead contact. */
 export const DEAD_CONTACT_BLOCKED_MESSAGE =
   'This lead closed their enquiry — automated messages are blocked. Reply from the inbox if you need to reach them.';
@@ -85,12 +93,21 @@ export async function markContactDead(
 /**
  * Undo it. Alerts stay declined — the lead opted out of those in their
  * own words, and reviving a record is the agent's decision to make, not
- * consent to message them again.
+ * consent to message them again. A lead who enquires again on a portal
+ * is revived the same way (the lead webhook passes the enquiry as the
+ * anchor, or null when it matched nothing, so the listing they dropped
+ * is never what "Show Properties" pins next).
  */
 export async function reviveContact(args: {
   db: SupabaseClient;
   accountId: string;
   contactId: string;
+  /** Written to contact_notes as the audit trail; omitted when the
+   *  caller records the revival itself. */
+  note?: string;
+  /** The enquiry the revival is about; null drops the anchor of the
+   *  closed search. Omitted keeps whatever is stored. */
+  lastInquiredPropertyId?: string | null;
 }): Promise<boolean> {
   const { error } = await args.db
     .from('contacts')
@@ -99,6 +116,9 @@ export async function reviveContact(args: {
       dead_at: null,
       dead_reason: null,
       requirement_active: true,
+      ...(args.lastInquiredPropertyId !== undefined
+        ? { last_inquired_property_id: args.lastInquiredPropertyId }
+        : {}),
       updated_at: new Date().toISOString(),
     })
     .eq('id', args.contactId)
@@ -107,6 +127,20 @@ export async function reviveContact(args: {
   if (error) {
     console.error('[contact-lifecycle] revive failed:', error.message);
     return false;
+  }
+  if (args.note) {
+    const { error: noteError } = await args.db.from('contact_notes').insert({
+      contact_id: args.contactId,
+      account_id: args.accountId,
+      user_id: null,
+      note_text: args.note,
+    });
+    if (noteError) {
+      console.error(
+        '[contact-lifecycle] revive note failed:',
+        noteError.message
+      );
+    }
   }
   return true;
 }

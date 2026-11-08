@@ -908,6 +908,29 @@
             "src/lib/ai/requirement-signal.ts",
             "src/lib/ai/buyer-qualification.ts"
           ]
+        },
+        {
+          "id": "INB-049",
+          "rule": "A lead marked dead by their own words (dead_reason closed_enquiry or stop_alerts) who enquires again on a portal has reopened that search themselves: the lead webhook revives the contact (is_dead cleared, requirement matching back on, alert consent left as they last said) before any greeting is sent, and answers the portal with a retryable 500 instead of greeting when the revival does not land; it records a note naming the portal, and points the enquiry anchor at the listing the enquiry matched or clears it when it matched nothing \u2014 so the welcome template and the reply to its Show Properties button agree that the lead may be messaged, and the listing they dropped is never what that reply pins. A contact an agent took off automated sending (dead_reason manual or bulk_cleanup) stays dead: the enquiry is recorded for them and no greeting goes out, since reviving them is the agent\u0027s decision. A note the Engine writes on the lead\u0027s own action carries no author, and contact_notes accepts it (user_id nullable); before this every such note, from the close itself onward, failed its NOT NULL check and never landed. When a dispatcher policy refusal (dead or chain-only contact, bot switched off) escapes an inbound step, the chain stands down on that message with a warning rather than failing the webhook into the queue's retries and dead-letter queue.",
+          "tests": [
+            {
+              "file": "src/app/api/leads/email-webhook/route.test.ts",
+              "case": "[INB-049]"
+            },
+            {
+              "file": "src/lib/contacts/lifecycle.test.ts",
+              "case": "[INB-049]"
+            },
+            {
+              "file": "src/lib/whatsapp/inbound/chain/run.test.ts",
+              "case": "[INB-049]"
+            }
+          ],
+          "guards": [
+            "src/app/api/leads/email-webhook/route.ts",
+            "src/lib/whatsapp/inbound/chain/run.ts",
+            "supabase/migrations/20261108073500_contact_notes_system_author.sql"
+          ]
         }
       ]
     },

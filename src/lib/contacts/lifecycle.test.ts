@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   isContactReachable,
+  isLeadInitiatedDeadReason,
   markContactDead,
   reviveContact,
 } from './lifecycle';
@@ -115,6 +118,66 @@ describe('reviveContact', () => {
     // The lead opted out in their own words; an agent restoring the
     // record is not them changing their mind.
     expect(update?.patch).not.toHaveProperty('buyer_alerts_consent');
+    expect(update?.patch).not.toHaveProperty('last_inquired_property_id');
+    expect(writes.find((w) => w.table === 'contact_notes')).toBeUndefined();
+  });
+
+  it('[INB-049] follows a new enquiry: repoints or drops the anchor and records why', async () => {
+    const { db, writes } = fakeDb();
+
+    await reviveContact({
+      ...ARGS,
+      db,
+      lastInquiredPropertyId: null,
+      note: 'Lead enquired again on 99acres — revived from closed enquiry',
+    });
+
+    const update = writes.find((w) => w.table === 'contacts');
+    expect(update?.patch).toMatchObject({
+      is_dead: false,
+      dead_reason: null,
+      requirement_active: true,
+      last_inquired_property_id: null,
+    });
+    expect(update?.patch).not.toHaveProperty('buyer_alerts_consent');
+    expect(
+      writes.find((w) => w.table === 'contact_notes')?.patch
+    ).toMatchObject({
+      contact_id: 'contact-1',
+      account_id: 'acc-1',
+      note_text: 'Lead enquired again on 99acres — revived from closed enquiry',
+    });
+
+    const { db: db2, writes: writes2 } = fakeDb();
+    await reviveContact({ ...ARGS, db: db2, lastInquiredPropertyId: 'prop-2' });
+    expect(writes2.find((w) => w.table === 'contacts')?.patch).toMatchObject({
+      last_inquired_property_id: 'prop-2',
+    });
+  });
+});
+
+describe('[INB-049] which closes a lead may undo by enquiring again', () => {
+  it("is only the lead's own: a close from WhatsApp or STOP ALERTS, never an agent's cleanup", () => {
+    expect(isLeadInitiatedDeadReason('closed_enquiry')).toBe(true);
+    expect(isLeadInitiatedDeadReason('stop_alerts')).toBe(true);
+    expect(isLeadInitiatedDeadReason('manual')).toBe(false);
+    expect(isLeadInitiatedDeadReason('bulk_cleanup')).toBe(false);
+    expect(isLeadInitiatedDeadReason(null)).toBe(false);
+  });
+});
+
+describe('[INB-049] a note the Engine writes has no author', () => {
+  it('is accepted by contact_notes, which required one until this migration', () => {
+    const sql = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20261108073500_contact_notes_system_author.sql'
+      ),
+      'utf8'
+    );
+    expect(sql).toMatch(
+      /ALTER TABLE contact_notes ALTER COLUMN user_id DROP NOT NULL;/
+    );
   });
 });
 

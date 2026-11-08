@@ -1,7 +1,12 @@
 import { isBuyerRequirementMessage } from '@/lib/ai/lead-routing';
 import { detailsRequestForSharedListing } from '@/lib/ai/named-share';
 import { isEngineControlReplyId } from '@/lib/whatsapp/control-reply-ids';
-import { isBotPaused } from '@/lib/conversations/bot-pause';
+import {
+  BOT_PAUSED_BLOCKED_MESSAGE,
+  isBotPaused,
+} from '@/lib/conversations/bot-pause';
+import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only';
+import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isEarliestCustomerMessage } from '@/lib/whatsapp/serialized-inbound';
 import type { InboundChainContext, InboundChainPayload } from './context';
@@ -140,6 +145,35 @@ export async function handleInboundChain(
     ? INBOUND_STEPS.filter((step) => STEPS_WHILE_BOT_PAUSED.has(step.name))
     : INBOUND_STEPS;
   for (const step of steps) {
-    if ((await step.run(ctx)) === 'handled') return;
+    let result: Awaited<ReturnType<typeof step.run>>;
+    try {
+      result = await step.run(ctx);
+    } catch (err) {
+      if (!isSendPolicyRefusal(err)) throw err;
+      // The step claimed the message and the dispatcher refused its
+      // reply on policy: the contact is dead or chain-only, or the bot
+      // was switched off under it. Every later step's send would be
+      // refused the same way, and the queue's retries and dead-letter
+      // queue cannot change a policy, so the chain ends here quietly
+      // instead of failing the webhook.
+      console.warn(
+        `[webhook] ${step.name} stood down on ${ctx.message.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+      return;
+    }
+    if (result === 'handled') return;
   }
+}
+
+const SEND_POLICY_REFUSALS = [
+  DEAD_CONTACT_BLOCKED_MESSAGE,
+  BOT_PAUSED_BLOCKED_MESSAGE,
+  CHAIN_ONLY_BLOCKED_MESSAGE,
+];
+
+export function isSendPolicyRefusal(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err);
+  return SEND_POLICY_REFUSALS.some((refusal) => text.includes(refusal));
 }
