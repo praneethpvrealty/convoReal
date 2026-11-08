@@ -26,7 +26,16 @@ const mockDb = {
   profiles: { user_id: 'user-456' },
   whatsapp_config: { account_id: 'acc-789' },
   email_sync_configs: { account_id: 'acc-789', is_active: true },
+  existingContact: null as MockRecord | null,
 };
+
+const lifecycle = vi.hoisted(() => ({
+  revive: vi.fn<(...args: unknown[]) => Promise<boolean>>(async () => true),
+}));
+vi.mock('@/lib/contacts/lifecycle', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/contacts/lifecycle')>()),
+  reviveContact: (...args: unknown[]) => lifecycle.revive(...args),
+}));
 
 const journeyInterest = vi.hoisted(() => ({
   clear: vi.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
@@ -57,6 +66,7 @@ vi.mock('@/lib/supabase/admin', () => {
   };
 
   const mockSupabase = {
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
     from: vi.fn().mockImplementation((table) => {
       let propertyId: unknown;
       const builder = {
@@ -109,7 +119,10 @@ vi.mock('@/lib/supabase/admin', () => {
         limit: vi.fn().mockImplementation(() => builder),
         maybeSingle: vi.fn().mockImplementation(() => {
           if (table === 'contacts')
-            return Promise.resolve({ data: null, error: null });
+            return Promise.resolve({
+              data: mockDb.existingContact,
+              error: null,
+            });
           if (table === 'properties' && propertyId !== undefined)
             return Promise.resolve({
               data: mockDb.properties.find((p) => p.id === propertyId) ?? null,
@@ -1683,6 +1696,85 @@ describe('[JRN-026] a portal enquiry lands on the Journey tab', () => {
     expect(source).toMatch(
       /return NextResponse\.json\(\s*\{ error: reopenError\.message \},\s*\{ status: 500 \}\s*\);\s*\}\s*await recordJourneyLeadInterest\(supabase, \{\s*accountId,\s*userId,\s*contactId: existingContact\.id,/
     );
+  });
+});
+
+describe('[INB-049] a closed lead who enquires again on a portal', () => {
+  const payload = {
+    subject:
+      'Buyer wants to know about your Rs. 2.4 Cr, Residential Land/Plot in KHB Suryanagar Phase 3 Attibele',
+    from: '99_SUPPORT <nnacres-services@99acres.com>',
+    text: `
+      Dear Praneeth,
+      A buyer has responded to your advertisement.
+      Name: vasudha
+      Mobile: 9313858423
+      Email: vasudha@example.com
+      Message: Interested in the plot.
+    `,
+  };
+  const post = () =>
+    POST(
+      new Request(
+        'http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      )
+    );
+
+  beforeEach(() => {
+    mockDb.contacts = [];
+    mockDb.email_sync_logs = [];
+    mockDb.contact_property_inquiries = [];
+    mockDb.properties = [];
+    lifecycle.revive.mockClear();
+    vi.mocked(sendAutoReply).mockClear();
+  });
+
+  afterEach(() => {
+    mockDb.existingContact = null;
+  });
+
+  it('revives the lead before the welcome goes out and drops the anchor of the closed search', async () => {
+    mockDb.existingContact = {
+      id: 'contact-dead',
+      name: 'vasudha',
+      pref_areas: [],
+      is_dead: true,
+      last_inquired_property_id: 'prop-dropped',
+    };
+
+    expect((await post()).status).toBe(200);
+
+    expect(lifecycle.revive).toHaveBeenCalledTimes(1);
+    expect(lifecycle.revive.mock.calls[0][0]).toMatchObject({
+      accountId: 'acc-789',
+      contactId: 'contact-dead',
+      lastInquiredPropertyId: null,
+      note: 'Lead enquired again on 99acres — revived from closed enquiry',
+    });
+    expect(sendAutoReply).toHaveBeenCalledTimes(1);
+    expect(lifecycle.revive.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(sendAutoReply).mock.invocationCallOrder[0]
+    );
+    expect(mockDb.contacts.length).toBe(0);
+  });
+
+  it('leaves a live lead alone', async () => {
+    mockDb.existingContact = {
+      id: 'contact-live',
+      name: 'vasudha',
+      pref_areas: [],
+      is_dead: false,
+    };
+
+    expect((await post()).status).toBe(200);
+
+    expect(lifecycle.revive).not.toHaveBeenCalled();
+    expect(sendAutoReply).toHaveBeenCalledTimes(1);
   });
 });
 

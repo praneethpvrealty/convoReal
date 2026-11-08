@@ -21,6 +21,7 @@ import { writeSyncLog, assignTagsToContact } from './db-utils';
 import { sendLeadArrivalReplies } from './lead-replies';
 import { portalKeyFromSource } from '@/lib/portals/listing-identity';
 import { placeholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { reviveContact } from '@/lib/contacts/lifecycle';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 import { recordJourneyLeadInterest } from '@/lib/journey/lead-interest';
 
@@ -1017,7 +1018,7 @@ export async function POST(request: Request) {
     const cleanPhone = normalizedPhoneNum.replace(/\D/g, '');
     const { data: existingContact } = await supabase
       .from('contacts')
-      .select('id, name, pref_areas')
+      .select('id, name, pref_areas, is_dead')
       .eq('account_id', accountId)
       .or(`phone.eq.${normalizedPhoneNum},phone.eq.${cleanPhone}`)
       .maybeSingle();
@@ -1096,6 +1097,24 @@ export async function POST(request: Request) {
         // is the point of this webhook, not the backfill.
         .update(updatePayload)
         .eq('id', existingContact.id);
+
+      // A lead who closed their search and then enquires again on a
+      // portal has reopened it themselves. Revived before anything is
+      // sent, so the welcome below and the reply to its button agree on
+      // whether this lead may be messaged — the dispatcher refuses every
+      // automated send to a dead contact, including the answer to a
+      // button we just put in front of them. The anchor follows the new
+      // enquiry, or is dropped when it matched nothing, so the listing
+      // they dropped is not what the next matches reply pins.
+      if (existingContact.is_dead) {
+        await reviveContact({
+          db: supabase,
+          accountId,
+          contactId: existingContact.id,
+          lastInquiredPropertyId: matchedPropertyIds[0] ?? null,
+          note: `Lead enquired again on ${parsed.source} — revived from closed enquiry`,
+        });
+      }
 
       // The budget and its enquiry anchor land in one transaction, under
       // the row lock, so concurrent enquiries cannot pair one budget with
