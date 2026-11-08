@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
@@ -150,6 +152,21 @@ describe('reviveContact', () => {
     expect(writes2.find((w) => w.table === 'contacts')?.patch).toMatchObject({
       last_inquired_property_id: 'prop-2',
     });
+  });
+});
+
+describe('[INB-049] a note the Engine writes has no author', () => {
+  it('is accepted by contact_notes, which required one until this migration', () => {
+    const sql = readFileSync(
+      join(
+        process.cwd(),
+        'supabase/migrations/20261108073500_contact_notes_system_author.sql'
+      ),
+      'utf8'
+    );
+    expect(sql).toMatch(
+      /ALTER TABLE contact_notes ALTER COLUMN user_id DROP NOT NULL;/
+    );
   });
 });
 

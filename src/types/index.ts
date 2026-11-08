@@ -415,7 +415,7 @@ export interface ContactCustomValue {
 export interface ContactNote {
   id: string;
   contact_id: string;
-  user_id: string;
+  user_id: string | null;
   note_text: string;
   is_completed: boolean;
   created_at: string;

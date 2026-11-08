@@ -28,7 +28,11 @@ than a written entry. Newest first.
   enquiry at the listing they asked about (or clears it when it matched
   nothing) instead of the one they had dropped. A send the dispatcher
   refuses on policy inside the inbound chain now ends that chain with a
-  warning instead of failing the webhook into retries.
+  warning instead of failing the webhook into retries. **Migration
+  required:** `20261108073500_contact_notes_system_author.sql` lets a note
+  the Engine writes on the lead's own action (the close, START ALERTS, the
+  drop-off reason, this revival) land without an author; every such note
+  had been failing a NOT NULL check since the column was created.
 - **Broadcasting a listing starts with the buyers it suits.** The mobile
   broadcast picker opened on "Recently contacted", while the listing's 20
   ranked buyers sat one scroll below on the same screen. It now opens on
