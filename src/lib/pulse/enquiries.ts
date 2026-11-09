@@ -197,7 +197,11 @@ export function pulseEnquiryIsHot(
     default:
       break;
   }
-  const age = now.getTime() - new Date(row.occurred_at).getTime();
+  const freshFrom =
+    row.kind === 'check_in'
+      ? (text(row.detail.responded_at) ?? row.occurred_at)
+      : row.occurred_at;
+  const age = now.getTime() - new Date(freshFrom).getTime();
   if (!Number.isFinite(age) || age > PULSE_ENQUIRY_FRESH_MS) return false;
   switch (row.kind) {
     case 'rating':

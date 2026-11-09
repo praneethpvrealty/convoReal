@@ -150,6 +150,16 @@ describe('[PLS-009] Pulse enquiries feed', () => {
         now
       )
     ).toBe(false);
+    expect(
+      pulseEnquiryIsHot(
+        row({
+          kind: 'check_in',
+          occurred_at: '2026-11-02T09:00:00Z',
+          detail: { response: 'visit', responded_at: '2026-11-09T07:00:00Z' },
+        }),
+        now
+      )
+    ).toBe(true);
     expect(pulseEnquiryIsHot(row({ kind: 'shortlist' }), now)).toBe(true);
   });
 
