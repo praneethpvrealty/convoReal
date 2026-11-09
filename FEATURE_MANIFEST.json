@@ -2898,6 +2898,50 @@
             "mobile/app/(app)/property-edit.tsx",
             "mobile/app/(app)/contact/[id].tsx"
           ]
+        },
+        {
+          "id": "PRP-058",
+          "rule": "The public listing panel keeps WhatsApp, Exact location and Enquire in a footer that stays on screen while it scrolls, and lists similar properties only after the enquiry form. A visitor whose name and ten-digit number the showcase already holds enquires or requests the exact location with one tap and no form, and can edit those details back into the form. An anonymous visitor is asked for a WhatsApp number once a second listing is opened in the visit and again after a rating of 7 or more; either answer files a Website Inquiry on that listing naming the moment it came from, a dismissal is remembered on the device, and a known visitor or a co-broker view is never asked.",
+          "tests": [
+            {
+              "file": "src/components/showcase/showcase-view.enquiry-footer.test.tsx",
+              "case": "[PRP-058]"
+            },
+            {
+              "file": "src/lib/showcase/visitor-capture.test.ts",
+              "case": "[PRP-058]"
+            }
+          ]
+        },
+        {
+          "id": "PRP-059",
+          "rule": "Shortlisting a listing on the public showcase (add or remove) and tapping WhatsApp on one are recorded as showcase events, so they appear in Pulse beside views; for a visitor the showcase has identified, a shortlist add or a WhatsApp tap also files an enquiry on that listing (Website Shortlist or Website WhatsApp), once per listing, only for a listing in the same account, and never for an anonymous visitor or a shortlist removal. The shortlist bar offers to send the whole shortlist to the agency number as one WhatsApp message carrying every property code, and an approved exact-location request is recorded as a Location request enquiry on its listing.",
+          "tests": [
+            {
+              "file": "src/app/api/public/showcase-events/route.intents.test.ts",
+              "case": "[PRP-059]"
+            },
+            {
+              "file": "src/components/showcase/showcase-view.intent-signals.test.tsx",
+              "case": "[PRP-059]"
+            },
+            {
+              "file": "src/components/showcase/showcase-shortlist.test.tsx",
+              "case": "[PRP-059]"
+            },
+            {
+              "file": "src/lib/showcase/shortlist.test.ts",
+              "case": "[PRP-059]"
+            },
+            {
+              "file": "src/lib/showcase/intent-signals.test.ts",
+              "case": "[PRP-059]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261109093000_showcase_event_types.sql",
+            "supabase/migrations/20261109093001_location_request_enquiry.sql"
+          ]
         }
       ]
     },
@@ -5114,6 +5158,33 @@
               "case": "[PLS-008]"
             }
           ]
+        },
+        {
+          "id": "PLS-009",
+          "rule": "Showcase Pulse offers an Enquiries & requests view on web and mobile that lists, newest first in keyset pages, every enquiry on the account's listings, exact-location and document request, fit rating with its miss reasons, shortlist, WhatsApp tap and check-in sent, each naming the contact when known or the requester or guest session otherwise, with 30-day counts per kind that filter the list and a follow-up flag on a fresh enquiry, shortlist, WhatsApp tap, rating of 7 or more, pending request or answered check-in; the rows come from one account-guarded SQL function and their wording from one shared module. Shortlist and WhatsApp-tap events also appear in the visitor activity feed on both surfaces, and the view check-in cron reports how many qualifying views it held back and why.",
+          "tests": [
+            {
+              "file": "src/lib/pulse/enquiries.test.ts",
+              "case": "[PLS-009]"
+            },
+            {
+              "file": "src/lib/pulse/enquiries-migration.test.ts",
+              "case": "[PLS-009]"
+            },
+            {
+              "file": "mobile/lib/pulse-enquiries.test.ts",
+              "case": "[PLS-009]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PLS-009]"
+            },
+            {
+              "file": "src/lib/showcase/view-nudges.test.ts",
+              "case": "[PLS-009]"
+            }
+          ],
+          "guards": ["supabase/migrations/20261109101500_pulse_enquiries.sql"]
         }
       ]
     },

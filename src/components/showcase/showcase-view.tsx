@@ -90,11 +90,20 @@ import {
   type ShowcaseStyle,
 } from '@/lib/showcase/style';
 import { useShowcaseShortlist } from '@/hooks/useShowcaseShortlist';
+import { MAX_SHORTLIST_PROPERTIES } from '@/lib/showcase/shortlist';
 import {
   listingAvailabilityNotice,
   listingStatusInquiryLine,
 } from '@/lib/inventory/listing-status';
 import { ShowcaseShortlist } from '@/components/showcase/showcase-shortlist';
+import { VisitorCapturePrompt } from '@/components/showcase/visitor-capture-prompt';
+import {
+  VISITOR_CAPTURE_DISMISSED_KEY,
+  hasVisitorIdentity,
+  shouldOfferBrowsingCapture,
+  visitorInquiryMessage,
+  type VisitorInquiryIntent,
+} from '@/lib/showcase/visitor-capture';
 import { ShowcaseMap } from '@/components/showcase/showcase-map';
 import {
   DealFloorBoard,
@@ -253,6 +262,23 @@ export function ShowcaseView({
     [properties]
   );
   const shortlist = useShowcaseShortlist(accountId, shortlistable);
+  const toggleShortlist = (id: string) => {
+    const adding = !shortlist.ids.includes(id);
+    if (adding && shortlist.ids.length >= MAX_SHORTLIST_PROPERTIES) {
+      shortlist.toggle(id);
+      return;
+    }
+    shortlist.toggle(id);
+    trackerRef.current?.track('shortlist', id, {
+      action: adding ? 'add' : 'remove',
+    });
+  };
+  const clearShortlist = () => {
+    shortlist.ids.forEach((id) =>
+      trackerRef.current?.track('shortlist', id, { action: 'remove' })
+    );
+    shortlist.clear();
+  };
   const agencyDesign = isAgencyShowcaseDesign(showcaseStyle);
   const dealFloor = showcaseStyle === 'deal-floor';
   const motionEnabled = showcase3dEnabled && !agencyDesign;
@@ -549,6 +575,15 @@ export function ShowcaseView({
   const [locReqSubmitting, setLocReqSubmitting] = useState(false);
   const [locReqSuccess, setLocReqSuccess] = useState<string | null>(null); // property id that was requested
 
+  const inquiryFormRef = useRef<HTMLDivElement | null>(null);
+  const locationBlockRef = useRef<HTMLDivElement | null>(null);
+  const viewedIdsRef = useRef<Set<string>>(new Set());
+  const [editingVisitor, setEditingVisitor] = useState(false);
+  const [captureDismissed, setCaptureDismissed] = useState(false);
+  const [showViewCapture, setShowViewCapture] = useState(false);
+  const [ratingCaptureFor, setRatingCaptureFor] = useState<string | null>(null);
+  const [captureSubmitting, setCaptureSubmitting] = useState(false);
+
   // Co-broker re-share link states (agent mode)
   const [reshareOpen, setReshareOpen] = useState(false);
   const [reshareName, setReshareName] = useState('');
@@ -830,6 +865,7 @@ export function ShowcaseView({
       setVisitorName(storedName);
       setVisitorPhone(storedPhone);
       setVisitorEmail(storedEmail);
+      setCaptureDismissed(readStored(VISITOR_CAPTURE_DISMISSED_KEY) === '1');
 
       // Pre-fill inquiry form inputs if stored
       if (storedName) setInquiryName(storedName);
@@ -890,7 +926,11 @@ export function ShowcaseView({
     setInquiryName(name);
     setInquiryPhone(phone);
     if (email) setInquiryEmail(email);
+    setEditingVisitor(false);
   };
+
+  const identifiedVisitor =
+    hasVisitorIdentity(visitorName, visitorPhone) && !editingVisitor;
 
   const updateInterestStatus = (
     propertyId: string,
@@ -907,6 +947,10 @@ export function ShowcaseView({
   // re-rating 8 → 9 must not create duplicate inquiries.
   const recordPriorityInterest = async (property: Property, rating: number) => {
     if (interestStatus[property.id] === 'interested') return;
+    if (!visitorName.trim() || !visitorPhone.trim()) {
+      if (!captureDismissed) setRatingCaptureFor(property.id);
+      return;
+    }
     updateInterestStatus(property.id, 'interested');
 
     trackPixelEvent('Lead', {
@@ -918,7 +962,6 @@ export function ShowcaseView({
       inquiry_type: 'high_rating',
     });
 
-    if (!visitorName.trim() || !visitorPhone.trim()) return;
     try {
       await fetch('/api/public/inquiry', {
         method: 'POST',
@@ -927,7 +970,7 @@ export function ShowcaseView({
           name: visitorName.trim(),
           phone: visitorPhone.trim(),
           email: visitorEmail.trim() || undefined,
-          message: `Visitor rated this property ${rating}/10 — high interest.`,
+          message: visitorInquiryMessage('high_rating', rating),
           propertyId: property.id,
           propertyTitle: property.title,
           propertyCode: property.property_code,
@@ -953,7 +996,13 @@ export function ShowcaseView({
 
     if (rating >= HIGH_INTEREST_RATING) {
       void recordPriorityInterest(property, rating);
-    } else if (interestStatus[property.id] === 'interested') {
+    } else if (ratingCaptureFor === property.id) {
+      setRatingCaptureFor(null);
+    }
+    if (
+      rating < HIGH_INTEREST_RATING &&
+      interestStatus[property.id] === 'interested'
+    ) {
       const updated = { ...interestStatus };
       delete updated[property.id];
       setInterestStatus(updated);
@@ -1601,19 +1650,21 @@ export function ShowcaseView({
   };
 
   // Location reveal request submission handler
-  const handleLocReqSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!locReqName.trim() || !locReqPhone.trim() || !selectedProperty) return;
+  const submitLocationRequest = async (
+    property: Property,
+    name: string,
+    phone: string
+  ) => {
     setLocReqSubmitting(true);
     try {
       const res = await fetch(
-        `/api/public/properties/${selectedProperty.id}/location-request`,
+        `/api/public/properties/${property.id}/location-request`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            requester_name: locReqName.trim(),
-            requester_phone: locReqPhone.trim(),
+            requester_name: name,
+            requester_phone: phone,
             account_id: accountId,
             via_contact_id: visitorRef || undefined,
             via_share_id: shareId || undefined,
@@ -1624,8 +1675,8 @@ export function ShowcaseView({
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || 'Request failed');
       }
-      saveVisitorInfo(locReqName.trim(), locReqPhone.trim());
-      setLocReqSuccess(selectedProperty.id);
+      saveVisitorInfo(name, phone);
+      setLocReqSuccess(property.id);
       toast.success(
         'Location request submitted! You will receive the exact location on WhatsApp once approved.'
       );
@@ -1637,6 +1688,34 @@ export function ShowcaseView({
     } finally {
       setLocReqSubmitting(false);
     }
+  };
+
+  const handleLocReqSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locReqName.trim() || !locReqPhone.trim() || !selectedProperty) return;
+    void submitLocationRequest(
+      selectedProperty,
+      locReqName.trim(),
+      locReqPhone.trim()
+    );
+  };
+
+  const requestExactLocation = (property: Property) => {
+    if (identifiedVisitor) {
+      void submitLocationRequest(
+        property,
+        visitorName.trim(),
+        visitorPhone.trim()
+      );
+      return;
+    }
+    setLocReqName(visitorName);
+    setLocReqPhone(visitorPhone);
+    setLocReqOpen(true);
+    locationBlockRef.current?.scrollIntoView?.({
+      behavior: 'smooth',
+      block: 'center',
+    });
   };
 
   // Co-broker re-share link mint handler
@@ -1723,10 +1802,11 @@ export function ShowcaseView({
         inquiry_type: 'inquiry_form',
       });
 
-      // Clear inputs
-      setInquiryName('');
-      setInquiryPhone('');
-      setInquiryEmail('');
+      saveVisitorInfo(
+        inquiryName.trim(),
+        inquiryPhone.trim(),
+        inquiryEmail.trim() || undefined
+      );
       setInquiryMessage('');
     } catch (err) {
       console.error(err);
@@ -1735,6 +1815,131 @@ export function ShowcaseView({
       setSubmitting(false);
     }
   };
+
+  // One request shape for every moment a visitor hands over a number
+  // without typing the long form: the sticky "I'm interested" tap, a
+  // high fit rating, or the browsing prompt. All three land in the same
+  // Website Inquiry path the form uses, so the agent's inbox, to-do and
+  // contact note look the same whichever surface produced the lead.
+  const submitVisitorInquiry = async (
+    property: Property,
+    args: {
+      name: string;
+      phone: string;
+      intent: VisitorInquiryIntent;
+      rating?: number | null;
+    }
+  ) => {
+    const res = await fetch('/api/public/inquiry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: args.name,
+        phone: args.phone,
+        email: visitorEmail.trim() || undefined,
+        message: visitorInquiryMessage(args.intent, args.rating),
+        propertyId: property.id,
+        propertyTitle: property.title,
+        propertyCode: property.property_code,
+        accountId,
+        referrerContactId: property.agent_details?.id || referrerContactId,
+        sellerPage: sellerPageSlug,
+        sessionKey: getShowcaseSessionKey(),
+      }),
+    });
+    if (!res.ok) throw new Error('Inquiry submission failed');
+    saveVisitorInfo(args.name, args.phone);
+    trackPixelEvent('Lead', {
+      content_name: property.title,
+      content_ids: [property.property_code || property.id],
+      content_type: 'product',
+      value: Number(property.price) || 0,
+      currency: settings?.currency || 'INR',
+      inquiry_type: args.intent,
+    });
+  };
+
+  const handleQuickInterest = async (property: Property) => {
+    if (submitting || submitSuccess) return;
+    setSubmitting(true);
+    try {
+      await submitVisitorInquiry(property, {
+        name: visitorName.trim(),
+        phone: visitorPhone.trim(),
+        intent: 'quick_interest',
+      });
+      updateInterestStatus(property.id, 'interested');
+      setSubmitSuccess(true);
+      toast.success('Got it — the agent will call you back.');
+      inquiryFormRef.current?.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to submit inquiry. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCaptureSubmit = async (
+    property: Property,
+    name: string,
+    phone: string,
+    intent: VisitorInquiryIntent,
+    rating?: number | null
+  ) => {
+    if (captureSubmitting) return;
+    setCaptureSubmitting(true);
+    try {
+      await submitVisitorInquiry(property, { name, phone, intent, rating });
+      if (intent === 'high_rating')
+        updateInterestStatus(property.id, 'interested');
+      setShowViewCapture(false);
+      setRatingCaptureFor(null);
+      toast.success('Thanks! The agent will reach you on WhatsApp.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not save your number. Please try again.');
+    } finally {
+      setCaptureSubmitting(false);
+    }
+  };
+
+  const dismissBrowsingCapture = () => {
+    writeStored(VISITOR_CAPTURE_DISMISSED_KEY, '1');
+    setCaptureDismissed(true);
+    setShowViewCapture(false);
+  };
+
+  const focusInquiryForm = () => {
+    inquiryFormRef.current?.scrollIntoView?.({
+      behavior: 'smooth',
+      block: 'start',
+    });
+    inquiryFormRef.current?.querySelector<HTMLInputElement>('input')?.focus?.();
+  };
+
+  useEffect(() => {
+    if (!selectedPropertyId) return;
+    viewedIdsRef.current.add(selectedPropertyId);
+    if (
+      shouldOfferBrowsingCapture({
+        distinctViews: viewedIdsRef.current.size,
+        identified: hasVisitorIdentity(visitorName, visitorPhone),
+        dismissed: captureDismissed,
+        agentMode: isAgentMode,
+      })
+    )
+      setShowViewCapture(true);
+  }, [
+    selectedPropertyId,
+    visitorName,
+    visitorPhone,
+    captureDismissed,
+    isAgentMode,
+  ]);
 
   // Deep-linking mount logic
   useEffect(() => {
@@ -1791,6 +1996,7 @@ export function ShowcaseView({
   };
 
   const trackWhatsAppInquiry = (property: Property) => {
+    trackerRef.current?.track('whatsapp_click', property.id);
     trackPixelEvent('Lead', {
       content_name: property.title,
       content_ids: [property.property_code || property.id],
@@ -2619,7 +2825,7 @@ export function ShowcaseView({
               key={filteredProperties.map((p) => p.id).join(':')}
               properties={filteredProperties}
               shortlistIds={shortlist.ids}
-              onToggleShortlist={shortlist.toggle}
+              onToggleShortlist={toggleShortlist}
               onOpen={openPropertyModal}
               formatPrice={formatPrice}
               whatsAppLink={(property) =>
@@ -2775,7 +2981,7 @@ export function ShowcaseView({
                               className="showcase-photo-shortlist absolute top-3 right-3 size-11 rounded-xl"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                shortlist.toggle(property.id);
+                                toggleShortlist(property.id);
                               }}
                             >
                               {shortlist.ids.includes(property.id) ? (
@@ -2941,7 +3147,7 @@ export function ShowcaseView({
                                 aria-pressed={shortlist.ids.includes(
                                   property.id
                                 )}
-                                onClick={() => shortlist.toggle(property.id)}
+                                onClick={() => toggleShortlist(property.id)}
                                 className="mb-3 min-h-11 w-full gap-2"
                               >
                                 {shortlist.ids.includes(property.id) ? (
@@ -3176,8 +3382,17 @@ export function ShowcaseView({
           name={visitorName}
           phone={visitorPhone}
           email={visitorEmail}
-          onRemove={shortlist.toggle}
-          onClear={shortlist.clear}
+          onRemove={toggleShortlist}
+          onClear={clearShortlist}
+          onSent={shortlist.clear}
+          whatsappPhone={enquiryWhatsAppPhone()}
+          onWhatsApp={(ids) =>
+            ids.forEach((id) =>
+              trackerRef.current?.track('whatsapp_click', id, {
+                shortlist: true,
+              })
+            )
+          }
           openRequest={shortlistOpenRequest}
         />
       )}
@@ -3221,7 +3436,7 @@ export function ShowcaseView({
               if (e.target === e.currentTarget) closePropertyModal();
             }}
           >
-            <div className="animate-zoom-in relative flex w-full max-w-4xl flex-col overflow-hidden border border-slate-900/60 bg-slate-900/85 shadow-2xl backdrop-blur-xl sm:rounded-3xl lg:max-h-[90dvh] lg:flex-row">
+            <div className="animate-zoom-in relative flex w-full max-w-4xl flex-col border border-slate-900/60 bg-slate-900/85 shadow-2xl backdrop-blur-xl sm:rounded-3xl lg:max-h-[90dvh] lg:flex-row lg:overflow-hidden">
               {/* Close Button */}
               <button
                 onClick={closePropertyModal}
@@ -3481,6 +3696,26 @@ export function ShowcaseView({
                     </div>
                   )}
 
+                  {showViewCapture && !identifiedVisitor && !isAgentMode && (
+                    <VisitorCapturePrompt
+                      title="Browsing a few? Get the details on WhatsApp"
+                      body="Exact locations, documents and price updates for the listings you like, straight to your WhatsApp."
+                      submitLabel="Send me updates"
+                      initialName={visitorName}
+                      initialPhone={visitorPhone}
+                      submitting={captureSubmitting}
+                      onSubmit={(name, phone) =>
+                        handleCaptureSubmit(
+                          selectedProperty,
+                          name,
+                          phone,
+                          'browsing_capture'
+                        )
+                      }
+                      onDismiss={dismissBrowsingCapture}
+                    />
+                  )}
+
                   {/* Price Box */}
                   <div className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-900/80 bg-slate-950/65 p-4 backdrop-blur-md md:flex-row md:items-center">
                     <div className="flex flex-col">
@@ -3636,7 +3871,10 @@ export function ShowcaseView({
                     there is nothing left to request. */}
                   {!selectedProperty.location_revealed &&
                     (!isAgentMode || selectedProperty.location_guarded) && (
-                      <div className="border-slate-850 group relative space-y-2 overflow-hidden rounded-xl border bg-slate-950/50 p-3.5 backdrop-blur-sm">
+                      <div
+                        ref={locationBlockRef}
+                        className="border-slate-850 group relative space-y-2 overflow-hidden rounded-xl border bg-slate-950/50 p-3.5 backdrop-blur-sm"
+                      >
                         <div className="from-primary/5 pointer-events-none absolute inset-0 bg-gradient-to-r via-transparent to-transparent" />
                         <div className="flex items-start gap-2.5">
                           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-amber-500/20 bg-amber-500/10">
@@ -4162,7 +4400,7 @@ export function ShowcaseView({
                     variant="outline"
                     aria-label={`Shortlist ${selectedProperty.title}`}
                     aria-pressed={shortlist.ids.includes(selectedProperty.id)}
-                    onClick={() => shortlist.toggle(selectedProperty.id)}
+                    onClick={() => toggleShortlist(selectedProperty.id)}
                     className="mt-6 min-h-11 w-full gap-2"
                   >
                     {shortlist.ids.includes(selectedProperty.id) ? (
@@ -4268,16 +4506,6 @@ export function ShowcaseView({
                       />
                     )}
 
-                    {/* Similar properties — browse-more growth loop */}
-                    {!sellerPageSlug && (
-                      <SimilarProperties
-                        accountId={accountId}
-                        currentProperty={selectedProperty}
-                        onSelect={openPropertyModal}
-                        agentMode={agentLookups}
-                      />
-                    )}
-
                     {!isAgentMode && (
                       <PropertyRatingBar
                         value={ratings[selectedProperty.id]?.rating ?? null}
@@ -4296,100 +4524,240 @@ export function ShowcaseView({
                         }}
                       />
                     )}
-                    {submitSuccess ? (
-                      <div className="animate-zoom-in space-y-2 rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-center">
-                        <CheckCircle className="mx-auto size-10 text-green-400" />
-                        <h4 className="text-sm font-bold text-white">
-                          Inquiry Submitted
-                        </h4>
-                        <p className="text-slate-350 text-xs leading-relaxed">
-                          Thank you for your interest! An agent has been
-                          assigned to review your inquiry and will reach out to
-                          you shortly.
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSubmitSuccess(false)}
-                          className="mt-2 border-slate-800 text-xs text-slate-200"
-                        >
-                          Send another message
-                        </Button>
-                      </div>
-                    ) : (
-                      <form
-                        onSubmit={handleInquirySubmit}
-                        className="space-y-3"
-                      >
-                        <h4 className="text-xs font-bold tracking-wider text-white uppercase">
-                          Send Instant Inquiry
-                        </h4>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <Input
-                            required
-                            value={inquiryName}
-                            onChange={(e) => setInquiryName(e.target.value)}
-                            placeholder="Your Name"
-                            className="border-slate-850 focus:border-primary bg-slate-950 text-xs text-white placeholder:text-slate-600"
-                          />
-                          <Input
-                            required
-                            type="tel"
-                            value={inquiryPhone}
-                            onChange={(e) => setInquiryPhone(e.target.value)}
-                            placeholder="Mobile Number"
-                            className="border-slate-850 focus:border-primary bg-slate-950 text-xs text-white placeholder:text-slate-600"
-                          />
-                        </div>
-
-                        <Input
-                          type="email"
-                          value={inquiryEmail}
-                          onChange={(e) => setInquiryEmail(e.target.value)}
-                          placeholder="Email Address (Optional)"
-                          className="border-slate-850 focus:border-primary w-full bg-slate-950 text-xs text-white placeholder:text-slate-600"
+                    {!isAgentMode &&
+                      !identifiedVisitor &&
+                      !captureDismissed &&
+                      ratingCaptureFor === selectedProperty.id &&
+                      (ratings[selectedProperty.id]?.rating ?? 0) >=
+                        HIGH_INTEREST_RATING && (
+                        <VisitorCapturePrompt
+                          title="Sounds like a fit — want a call back?"
+                          body="Share your WhatsApp number and the agent will reach out about this property."
+                          submitLabel="Call me about this one"
+                          initialName={visitorName}
+                          initialPhone={visitorPhone}
+                          submitting={captureSubmitting}
+                          onSubmit={(name, phone) =>
+                            handleCaptureSubmit(
+                              selectedProperty,
+                              name,
+                              phone,
+                              'high_rating',
+                              ratings[selectedProperty.id]?.rating ?? null
+                            )
+                          }
+                          onDismiss={() => {
+                            setRatingCaptureFor(null);
+                            dismissBrowsingCapture();
+                          }}
                         />
-
-                        <Textarea
-                          value={inquiryMessage}
-                          onChange={(e) => setInquiryMessage(e.target.value)}
-                          placeholder={`I am interested in "${selectedProperty.title}". Please share details.`}
-                          rows={2}
-                          className="border-slate-850 placeholder:text-slate-650 focus:border-primary min-h-[50px] w-full bg-slate-950 text-xs text-white"
-                        />
-
-                        <div className="flex flex-col gap-3 sm:flex-row">
-                          {(displayPhone ||
-                            selectedProperty.agent_details?.phone) && (
-                            <a
-                              href={getWhatsAppLink(selectedProperty)}
-                              onClick={() =>
-                                trackWhatsAppInquiry(selectedProperty)
-                              }
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-center text-xs font-bold text-white shadow-md shadow-emerald-950/20 transition-all hover:scale-[1.01] hover:bg-emerald-500"
-                            >
-                              <MessageCircle className="size-4 fill-white text-emerald-600" />
-                              WhatsApp Inquiry
-                            </a>
-                          )}
+                      )}
+                    <div ref={inquiryFormRef} className="space-y-3">
+                      {submitSuccess ? (
+                        <div className="animate-zoom-in space-y-2 rounded-xl border border-green-500/30 bg-green-500/10 p-4 text-center">
+                          <CheckCircle className="mx-auto size-10 text-green-400" />
+                          <h4 className="text-sm font-bold text-white">
+                            Inquiry Submitted
+                          </h4>
+                          <p className="text-slate-350 text-xs leading-relaxed">
+                            Thank you for your interest! An agent has been
+                            assigned to review your inquiry and will reach out
+                            to you shortly.
+                          </p>
                           <Button
-                            type="submit"
-                            disabled={submitting}
-                            className="bg-primary hover:bg-primary-hover text-primary-foreground shadow-primary/20 flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold shadow-md"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSubmitSuccess(false)}
+                            className="mt-2 border-slate-800 text-xs text-slate-200"
                           >
-                            {submitting ? (
-                              <div className="border-primary-foreground h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
-                            ) : (
-                              <Send className="size-3.5" />
-                            )}
-                            Submit Lead Form
+                            Send another message
                           </Button>
                         </div>
-                      </form>
+                      ) : identifiedVisitor ? (
+                        <div
+                          data-quick-enquiry
+                          className="border-slate-850 space-y-3 rounded-xl border bg-slate-950/40 p-4"
+                        >
+                          <h4 className="text-xs font-bold tracking-wider text-white uppercase">
+                            Interested in this property?
+                          </h4>
+                          <p className="text-[11px] leading-relaxed text-slate-400">
+                            We have your details as{' '}
+                            <strong className="text-slate-200">
+                              {visitorName}
+                            </strong>{' '}
+                            · {visitorPhone}. One tap and the agent calls you
+                            back.
+                          </p>
+                          <div className="flex flex-col gap-2 sm:flex-row">
+                            <Button
+                              type="button"
+                              onClick={() =>
+                                handleQuickInterest(selectedProperty)
+                              }
+                              disabled={submitting}
+                              className="bg-primary hover:bg-primary-hover text-primary-foreground flex min-h-10 flex-1 items-center justify-center gap-1.5 text-xs font-bold"
+                            >
+                              {submitting ? (
+                                <div className="border-primary-foreground h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
+                              ) : (
+                                <Send className="size-3.5" />
+                              )}
+                              I&apos;m interested — call me
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setEditingVisitor(true)}
+                              className="min-h-10 border-slate-800 text-xs text-slate-300"
+                            >
+                              Not you? Edit details
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <form
+                          onSubmit={handleInquirySubmit}
+                          className="space-y-3"
+                        >
+                          <h4 className="text-xs font-bold tracking-wider text-white uppercase">
+                            Send Instant Inquiry
+                          </h4>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <Input
+                              required
+                              value={inquiryName}
+                              onChange={(e) => setInquiryName(e.target.value)}
+                              placeholder="Your Name"
+                              className="border-slate-850 focus:border-primary bg-slate-950 text-xs text-white placeholder:text-slate-600"
+                            />
+                            <Input
+                              required
+                              type="tel"
+                              value={inquiryPhone}
+                              onChange={(e) => setInquiryPhone(e.target.value)}
+                              placeholder="Mobile Number"
+                              className="border-slate-850 focus:border-primary bg-slate-950 text-xs text-white placeholder:text-slate-600"
+                            />
+                          </div>
+
+                          <Input
+                            type="email"
+                            value={inquiryEmail}
+                            onChange={(e) => setInquiryEmail(e.target.value)}
+                            placeholder="Email Address (Optional)"
+                            className="border-slate-850 focus:border-primary w-full bg-slate-950 text-xs text-white placeholder:text-slate-600"
+                          />
+
+                          <Textarea
+                            value={inquiryMessage}
+                            onChange={(e) => setInquiryMessage(e.target.value)}
+                            placeholder={`I am interested in "${selectedProperty.title}". Please share details.`}
+                            rows={2}
+                            className="border-slate-850 placeholder:text-slate-650 focus:border-primary min-h-[50px] w-full bg-slate-950 text-xs text-white"
+                          />
+
+                          <div className="flex flex-col gap-3 sm:flex-row">
+                            {(displayPhone ||
+                              selectedProperty.agent_details?.phone) && (
+                              <a
+                                href={getWhatsAppLink(selectedProperty)}
+                                onClick={() =>
+                                  trackWhatsAppInquiry(selectedProperty)
+                                }
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-center text-xs font-bold text-white shadow-md shadow-emerald-950/20 transition-all hover:scale-[1.01] hover:bg-emerald-500"
+                              >
+                                <MessageCircle className="size-4 fill-white text-emerald-600" />
+                                WhatsApp Inquiry
+                              </a>
+                            )}
+                            <Button
+                              type="submit"
+                              disabled={submitting}
+                              className="bg-primary hover:bg-primary-hover text-primary-foreground shadow-primary/20 flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold shadow-md"
+                            >
+                              {submitting ? (
+                                <div className="border-primary-foreground h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
+                              ) : (
+                                <Send className="size-3.5" />
+                              )}
+                              Submit Lead Form
+                            </Button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+
+                    {/* Similar properties — browse-more growth loop, after
+                      the enquiry so it never pulls a visitor away before
+                      they reach it */}
+                    {!sellerPageSlug && (
+                      <SimilarProperties
+                        accountId={accountId}
+                        currentProperty={selectedProperty}
+                        onSelect={openPropertyModal}
+                        agentMode={agentLookups}
+                      />
                     )}
+                  </div>
+                )}
+
+                {!isAgentMode && !selectedAvailabilityNotice && (
+                  <div
+                    data-showcase-detail-actions
+                    className="sticky bottom-0 z-10 -mx-6 mt-6 -mb-6 flex gap-2 border-t border-slate-800 bg-slate-950/90 px-4 pt-3 backdrop-blur"
+                    style={{
+                      paddingBottom:
+                        'calc(0.75rem + env(safe-area-inset-bottom))',
+                    }}
+                  >
+                    {(displayPhone ||
+                      selectedProperty.agent_details?.phone) && (
+                      <a
+                        href={getWhatsAppLink(selectedProperty)}
+                        onClick={() => trackWhatsAppInquiry(selectedProperty)}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label="WhatsApp the agent about this property"
+                        className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-green-600 px-3 text-xs font-bold text-white hover:bg-green-500"
+                      >
+                        <MessageCircle className="size-4 fill-white text-green-600" />
+                        WhatsApp
+                      </a>
+                    )}
+                    {!selectedProperty.location_revealed &&
+                      locReqSuccess !== selectedProperty.id && (
+                        <button
+                          type="button"
+                          onClick={() => requestExactLocation(selectedProperty)}
+                          disabled={locReqSubmitting}
+                          className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 text-xs font-bold text-amber-400 hover:bg-amber-500/20"
+                        >
+                          <MapPin className="size-4" />
+                          Exact location
+                        </button>
+                      )}
+                    <Button
+                      type="button"
+                      onClick={() =>
+                        identifiedVisitor
+                          ? handleQuickInterest(selectedProperty)
+                          : focusInquiryForm()
+                      }
+                      disabled={
+                        submitting || (identifiedVisitor && submitSuccess)
+                      }
+                      className="bg-primary hover:bg-primary-hover text-primary-foreground min-h-11 flex-1 rounded-xl text-xs font-bold"
+                    >
+                      {identifiedVisitor
+                        ? submitSuccess
+                          ? 'Enquiry sent'
+                          : 'I’m interested'
+                        : 'Enquire'}
+                    </Button>
                   </div>
                 )}
               </div>

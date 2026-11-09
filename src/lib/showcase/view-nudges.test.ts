@@ -476,7 +476,7 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     });
   });
 
-  it('claims nothing during the account client quiet hours', async () => {
+  it('[PLS-009] claims nothing during the account client quiet hours, and says it held the view for them', async () => {
     h.quiet = true;
     const { db, rpcCalls } = fakeDb({
       candidates: [candidate],
@@ -488,6 +488,12 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     );
     expect(h.send).not.toHaveBeenCalled();
     expect(totals.sent).toBe(0);
+    expect(totals.held).toEqual({
+      quiet_hours: 1,
+      visitor_active: 0,
+      conversation_busy: 0,
+      template_pending: 0,
+    });
   });
 
   it('stops claiming once client quiet hours begin partway through a batch', async () => {
@@ -719,6 +725,7 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     ).toBe('Marketing');
     expect(h.send).not.toHaveBeenCalled();
     expect(totals.skipped).toBe(1);
+    expect(totals.held.template_pending).toBe(1);
     expect(nudgeUpdate(queries)).toBeUndefined();
     expect(
       queries.find(
@@ -800,13 +807,14 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     expect(nudgeUpdate(queries)).toMatchObject({ status: 'sent' });
   });
 
-  it('releases the claim without spending an attempt when the conversation lease is busy', async () => {
+  it('[PLS-009] releases the claim without spending an attempt when the conversation lease is busy', async () => {
     h.lease = 'busy';
     const { db, queries } = fakeDb({
       candidates: [candidate],
       tables: baseTables(),
     });
-    await processShowcaseViewNudges(db);
+    const totals = await processShowcaseViewNudges(db);
+    expect(totals.held.conversation_busy).toBe(1);
     expect(h.send).not.toHaveBeenCalled();
     expect(nudgeUpdate(queries)).toBeUndefined();
     expect(
@@ -838,7 +846,7 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
     }
   );
 
-  it('releases the claim, sending nothing, when the visitor is browsing again', async () => {
+  it('[PLS-009] releases the claim, sending nothing, when the visitor is browsing again', async () => {
     const { db, queries } = fakeDb({
       candidates: [candidate],
       tables: baseTables({
@@ -847,7 +855,8 @@ describe('[PLS-006] the showcase view check-in sweep', () => {
         ],
       }),
     });
-    await processShowcaseViewNudges(db);
+    const totals = await processShowcaseViewNudges(db);
+    expect(totals.held.visitor_active).toBe(1);
     expect(h.send).not.toHaveBeenCalled();
     expect(
       queries.some(

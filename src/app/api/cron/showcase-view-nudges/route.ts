@@ -32,9 +32,16 @@ export async function GET(request: Request) {
     const db = supabaseAdmin();
     const hotViewerAlerts = await processHotViewerAlerts(db);
     const totals = await processShowcaseViewNudges(db);
-    if (totals.sent + totals.skipped + totals.failed + hotViewerAlerts > 0) {
+    const held = Object.entries(totals.held)
+      .filter(([, count]) => count > 0)
+      .map(([reason, count]) => `${reason}=${count}`)
+      .join(',');
+    if (
+      totals.sent + totals.skipped + totals.failed + hotViewerAlerts > 0 ||
+      held
+    ) {
       console.log(
-        `[showcase-view-nudges] sent=${totals.sent} skipped=${totals.skipped} failed=${totals.failed} hot=${hotViewerAlerts}`
+        `[showcase-view-nudges] sent=${totals.sent} skipped=${totals.skipped} failed=${totals.failed} hot=${hotViewerAlerts}${held ? ` held=${held}` : ''}`
       );
     }
     return NextResponse.json({ ...totals, hotViewerAlerts });

@@ -48,8 +48,21 @@ type SendOutcome =
       channel: 'buttons' | 'template';
     }
   | { status: 'skipped'; reason: string }
-  | { status: 'deferred' }
+  | { status: 'deferred'; reason: ViewNudgeHoldReason }
   | { status: 'retry' };
+
+/** Why a qualifying view did not get its check-in on this sweep. None
+ *  of these writes a row, so the candidate comes back next run; the
+ *  counts are the only trace the cron leaves of them. */
+export type ViewNudgeHoldReason =
+  'quiet_hours' | 'visitor_active' | 'conversation_busy' | 'template_pending';
+
+export interface ViewNudgeTotals {
+  sent: number;
+  skipped: number;
+  failed: number;
+  held: Record<ViewNudgeHoldReason, number>;
+}
 
 export async function ensureViewNudgeTemplate(
   db: SupabaseClient,
@@ -136,8 +149,18 @@ export async function ensureViewNudgeTemplate(
 export async function processShowcaseViewNudges(
   db: SupabaseClient,
   now: Date = new Date()
-): Promise<{ sent: number; skipped: number; failed: number }> {
-  const totals = { sent: 0, skipped: 0, failed: 0 };
+): Promise<ViewNudgeTotals> {
+  const totals: ViewNudgeTotals = {
+    sent: 0,
+    skipped: 0,
+    failed: 0,
+    held: {
+      quiet_hours: 0,
+      visitor_active: 0,
+      conversation_busy: 0,
+      template_pending: 0,
+    },
+  };
   const { data, error } = await db.rpc('showcase_view_nudge_candidates', {
     p_min_dwell_ms: VIEW_NUDGE_MIN_DWELL_MS,
     p_settle_minutes: VIEW_NUDGE_SETTLE_MINUTES,
@@ -158,7 +181,10 @@ export async function processShowcaseViewNudges(
       'client',
       clock()
     );
-    if (isQuiet) continue;
+    if (isQuiet) {
+      totals.held.quiet_hours++;
+      continue;
+    }
 
     const { data: nudgeId, error: claimError } = await db.rpc(
       'claim_showcase_view_nudge',
@@ -186,7 +212,7 @@ export async function processShowcaseViewNudges(
       leased.status === 'ran'
         ? leased.value
         : leased.status === 'busy'
-          ? { status: 'deferred' }
+          ? { status: 'deferred', reason: 'conversation_busy' }
           : { status: 'retry' };
 
     if (outcome.status === 'deferred') {
@@ -203,6 +229,7 @@ export async function processShowcaseViewNudges(
         );
       }
       totals.skipped++;
+      totals.held[outcome.reason]++;
       continue;
     }
 
@@ -291,7 +318,7 @@ async function sendViewNudge(
     .limit(1)
     .maybeSingle();
   if (recentActivityError) return { status: 'retry' };
-  if (recentActivity) return { status: 'deferred' };
+  if (recentActivity) return { status: 'deferred', reason: 'visitor_active' };
   if (conversation?.id) {
     const { data: agentMessage, error: agentMessageError } = await db
       .from('messages')
@@ -385,7 +412,7 @@ async function sendViewNudge(
       contact.buyer_alerts_consent as string | null,
       await resolveSendLanguage(db, accountId, contactId)
     );
-    if (!template) return { status: 'deferred' };
+    if (!template) return { status: 'deferred', reason: 'template_pending' };
 
     let brandName: string | null = null;
     if (template.name === SHOWCASE_VIEW_NUDGE_TEMPLATE_NAME) {

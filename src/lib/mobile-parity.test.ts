@@ -32,6 +32,7 @@ import {
 import { TOURS } from '@/lib/copilot/tours';
 import { AGENCY_SHOWCASE_DESIGNS, SHOWCASE_STYLES } from '@/lib/showcase/style';
 import { JOURNEY_ITEM_SOURCE_LABELS } from '@/lib/journey/captured';
+import { PULSE_ENQUIRY_KINDS } from '@/lib/pulse/enquiries';
 import { MESSAGES } from '@/lib/i18n/messages';
 import {
   MEDIA_SIZE_LIMITS,
@@ -4917,6 +4918,72 @@ describe('[PLS-001] mobile Showcase Pulse feed paging matches web', () => {
       }));
       expect(mobile.nextPulseFeedCursor(rows)).toEqual(
         nextPulseFeedCursor(rows)
+      );
+    }
+  });
+});
+
+describe('[PLS-009] mobile Showcase Pulse enquiries view reads the shared rules', () => {
+  const root = process.cwd();
+  const read = (path: string) => readFileSync(join(root, path), 'utf8');
+
+  it('fetches through the shared module rather than a copied rule', () => {
+    const fetcher = read('mobile/lib/pulse-enquiries.ts');
+    expect(fetcher).toContain("from '@shared/lib/pulse/enquiries'");
+    expect(fetcher).toContain("rpc('pulse_enquiries'");
+    expect(fetcher).toContain("rpc('pulse_enquiry_counts'");
+    expect(fetcher).toContain('p_kind: kind');
+    const web = read('src/lib/pulse/enquiries-queries.ts');
+    expect(web).toContain('p_kind: kind');
+    expect(web).toContain("rpc('pulse_enquiries'");
+    expect(web).toContain("rpc('pulse_enquiry_counts'");
+  });
+
+  it('renders the same wording, follow-up flag and view toggle as web', () => {
+    const screen = read('mobile/app/(app)/pulse.tsx');
+    const panel = read('src/components/pulse/enquiries-panel.tsx');
+    for (const symbol of [
+      'describePulseEnquiry',
+      'pulseEnquiryIsHot',
+      'pulseEnquiryVisitor',
+      'filterPulseEnquiries',
+      'nextPulseEnquiryCursor',
+      'PULSE_ENQUIRY_FILTERS',
+      'PULSE_ENQUIRY_KINDS',
+    ]) {
+      expect(screen).toContain(symbol);
+      expect(panel).toContain(symbol);
+    }
+    expect(screen).toContain("'Enquiries & requests'");
+    expect(read('src/app/(dashboard)/pulse/pulse-content.tsx')).toContain(
+      "'Enquiries & requests'"
+    );
+  });
+
+  it('describes a shortlist removal as a removal on both surfaces', () => {
+    expect(read('mobile/app/(app)/pulse.tsx')).toContain(
+      'from their shortlist'
+    );
+    expect(read('src/app/(dashboard)/pulse/pulse-content.tsx')).toContain(
+      'their shortlist'
+    );
+  });
+
+  it('names an icon for every kind and knows the two new activity event types', () => {
+    const fetcher = read('mobile/lib/pulse-enquiries.ts');
+    for (const kind of PULSE_ENQUIRY_KINDS) {
+      expect(fetcher).toMatch(new RegExp(`\\b${kind}: '`));
+    }
+    const mobileTypes = read('mobile/lib/types.ts');
+    const webTypes = read('src/types/index.ts');
+    for (const eventType of ["'shortlist'", "'whatsapp_click'"]) {
+      expect(mobileTypes).toContain(eventType);
+      expect(webTypes).toContain(eventType);
+      expect(read('mobile/app/(app)/pulse.tsx')).toContain(
+        `case ${eventType}:`
+      );
+      expect(read('src/app/(dashboard)/pulse/pulse-content.tsx')).toContain(
+        `case ${eventType}:`
       );
     }
   });

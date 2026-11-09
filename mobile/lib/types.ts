@@ -420,7 +420,13 @@ export interface MessageTemplate {
 // ------------------------------------------------------------------
 
 export type ShowcaseEventType =
-  'open' | 'view_property' | 'map_click' | 'gallery' | 'search';
+  | 'open'
+  | 'view_property'
+  | 'map_click'
+  | 'gallery'
+  | 'search'
+  | 'shortlist'
+  | 'whatsapp_click';
 
 export interface ShowcaseEvent {
   id: string;

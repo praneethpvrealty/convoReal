@@ -47,6 +47,47 @@ than a written entry. Newest first.
   its account ref through the button. Sent template bubbles on web and mobile
   show the template's buttons under the body, so the agent can see the link
   went out.
+
+- **One place to see what showcase visitors asked for.** Showcase Pulse
+  gains an Enquiries & requests view on web and mobile: every enquiry,
+  exact-location and document request, fit rating with its miss reasons,
+  shortlist, WhatsApp tap and check-in sent, newest first, with 30-day
+  counts per kind that filter the list and a follow-up flag on what
+  deserves a call today. Until now a form enquiry went to the Inbox, Today
+  and a to-do, a location or document request to the approval panels, a
+  rating nowhere, and a shortlist or WhatsApp tap nowhere at all. The
+  activity feed also shows shortlists and WhatsApp taps, and the view
+  check-in cron now reports how many qualifying views it held back and
+  why (quiet hours, visitor still browsing, conversation busy, template
+  awaiting approval), which its log never said. **Migration required:**
+  `20261109101500_pulse_enquiries.sql`.
+
+- **Shortlists and WhatsApp taps on the showcase reach the agent.** A
+  visitor's shortlist lived only in their browser and a WhatsApp tap went
+  only to the Meta Pixel, so neither ever showed in Pulse. Both are now
+  recorded as showcase events, and for a visitor the showcase already
+  knows each one is filed as an enquiry on the listing, where Today, the
+  contact's enquiries and the journey already look. The shortlist bar can
+  send the whole shortlist to the agency on WhatsApp as one message with
+  every property code, and an approved exact-location request, the most
+  common thing visitors actually asked for, is recorded as an enquiry on
+  its listing. **Migrations required:**
+  `20261109093000_showcase_event_types.sql` (drops and recreates the
+  event type constraint, so apply it by hand) and
+  `20261109093001_location_request_enquiry.sql`.
+
+- **A showcase visitor can enquire without scrolling to the bottom of the
+  listing.** The listing panel now keeps WhatsApp, Exact location and
+  Enquire in a footer that stays on screen, and the "You may also like"
+  strip sits below the enquiry form instead of above it, where it pulled
+  visitors into the next listing before they reached the form. A visitor
+  the showcase already knows enquires, or requests the exact location,
+  with one tap and no form. An anonymous visitor is asked for a WhatsApp
+  number at the two moments it is worth asking: when they open a second
+  listing in one visit, and when they rate a listing 7 or higher; either
+  answer reaches the Inbox, Today and the agent's to-dos as a Website
+  Inquiry that says which moment produced it. On one brokerage's showcase
+  121 sessions in the last 30 days produced two form enquiries.
 - **Greetings and broadcasts go out in seconds, and the card says how far
   they got.** A Diwali greeting to 18 contacts took 28 minutes: the send
   route started the dispatch without anything keeping it alive, so it froze

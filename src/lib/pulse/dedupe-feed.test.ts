@@ -114,6 +114,28 @@ describe('dedupeConsecutiveEvents', () => {
     expect(dedupeConsecutiveEvents(feed)).toHaveLength(2);
   });
 
+  it('[PLS-009] keeps a shortlist add and the removal that followed as separate activity', () => {
+    const feed = [
+      evt({
+        id: '2',
+        created_at: '2026-01-01T00:01:00Z',
+        event_type: 'shortlist',
+        property_id: 'p1',
+        metadata: { action: 'remove' },
+      }),
+      evt({
+        id: '1',
+        created_at: '2026-01-01T00:00:30Z',
+        event_type: 'shortlist',
+        property_id: 'p1',
+        metadata: { action: 'add' },
+      }),
+    ];
+    const result = dedupeConsecutiveEvents(feed);
+    expect(result).toHaveLength(2);
+    expect(result.map((r) => r.metadata.action)).toEqual(['remove', 'add']);
+  });
+
   it('returns an empty array for an empty feed', () => {
     expect(dedupeConsecutiveEvents([])).toEqual([]);
   });
