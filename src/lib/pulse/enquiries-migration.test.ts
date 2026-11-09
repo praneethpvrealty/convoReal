@@ -47,6 +47,13 @@ describe('[PLS-009] pulse_enquiries feeds every kind the panel lists, behind the
     expect(migration).toContain("'session_key', left(e.session_key, 8)");
   });
 
+  it('counts and lists only exact-location requests, never teaser-page unlocks', () => {
+    expect(
+      (migration.match(/COALESCE\(r\.scope, 'location'\) = 'location'/g) ?? [])
+        .length
+    ).toBe(2);
+  });
+
   it('pages newest first by (occurred_at, id) and caps a page at 100 rows', () => {
     expect(migration).toContain('ORDER BY r.occurred_at DESC, r.id DESC');
     expect(migration).toContain('p_before_id UUID DEFAULT NULL');

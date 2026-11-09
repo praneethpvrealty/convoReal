@@ -68,6 +68,7 @@ AS $$
       )
     FROM property_location_requests r
     WHERE r.account_id = p_account_id
+      AND COALESCE(r.scope, 'location') = 'location'
 
     UNION ALL
 
@@ -209,7 +210,9 @@ AS $$
     UNION ALL
     SELECT 'location_request', count(*)
     FROM property_location_requests r
-    WHERE r.account_id = p_account_id AND r.created_at >= p_since
+    WHERE r.account_id = p_account_id
+      AND COALESCE(r.scope, 'location') = 'location'
+      AND r.created_at >= p_since
     UNION ALL
     SELECT 'document_request', count(*)
     FROM property_document_requests d
