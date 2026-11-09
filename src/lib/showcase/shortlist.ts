@@ -39,3 +39,30 @@ export function parseInquiryPropertyIds(value: unknown): string[] | null {
     return null;
   return [...new Set(value.map((id: string) => id.toLowerCase()))];
 }
+
+export function buildShortlistWhatsAppMessage(
+  properties: Array<{
+    title: string;
+    property_code?: string | null;
+    location?: string | null;
+  }>
+): string {
+  const lines = properties.map(
+    (property, index) =>
+      `${index + 1}. ${property.title}${property.property_code ? ` (Property ID: ${property.property_code})` : ''}`
+  );
+  return [
+    `Hi! I have shortlisted ${properties.length === 1 ? 'this property' : `these ${properties.length} properties`} on your showcase:`,
+    ...lines,
+    'Please share details and availability.',
+  ].join('\n');
+}
+
+export function shortlistWhatsAppLink(
+  phone: string,
+  properties: Parameters<typeof buildShortlistWhatsAppMessage>[0]
+): string | null {
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(buildShortlistWhatsAppMessage(properties))}`;
+}

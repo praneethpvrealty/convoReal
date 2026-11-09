@@ -30,6 +30,20 @@ than a written entry. Newest first.
 
 #### 9 November 2026
 
+- **Shortlists and WhatsApp taps on the showcase reach the agent.** A
+  visitor's shortlist lived only in their browser and a WhatsApp tap went
+  only to the Meta Pixel, so neither ever showed in Pulse. Both are now
+  recorded as showcase events, and for a visitor the showcase already
+  knows each one is filed as an enquiry on the listing, where Today, the
+  contact's enquiries and the journey already look. The shortlist bar can
+  send the whole shortlist to the agency on WhatsApp as one message with
+  every property code, and an approved exact-location request, the most
+  common thing visitors actually asked for, is recorded as an enquiry on
+  its listing. **Migrations required:**
+  `20261109093000_showcase_event_types.sql` (drops and recreates the
+  event type constraint, so apply it by hand) and
+  `20261109093001_location_request_enquiry.sql`.
+
 - **A showcase visitor can enquire without scrolling to the bottom of the
   listing.** The listing panel now keeps WhatsApp, Exact location and
   Enquire in a footer that stays on screen, and the "You may also like"
