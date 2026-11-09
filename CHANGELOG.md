@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 9 November 2026
 
+- **The keyboard no longer hides, or fights, the field you tapped on mobile.**
+  On a Samsung Fold, tapping Description on Edit property opened the keyboard
+  over the field, then the keyboard closed and reopened on its own two or
+  three times before settling, still covering what was being typed. The
+  screen asked React Native to shrink itself by the keyboard's height, a mode
+  that under SDK 57 edge-to-edge never allowed for the navigation header and
+  re-laid the form out on every change. Edit property and the contact screen
+  now pad for the keyboard under the header, as the chat screen already did,
+  and scroll the focused field to sit just above it whenever the keyboard
+  opens or grows.
 - **Greetings and broadcasts go out in seconds, and the card says how far
   they got.** A Diwali greeting to 18 contacts took 28 minutes: the send
   route started the dispatch without anything keeping it alive, so it froze
