@@ -88,6 +88,12 @@ import {
   buildPortfolioAccessTemplatePayload,
   PORTFOLIO_ACCESS_TEMPLATE_NAME,
 } from './portfolio-access-template';
+import {
+  buildPortalAgentInviteTemplatePayload,
+  buildPortalInviteTemplatePayload,
+  PORTAL_AGENT_INVITE_TEMPLATE_NAME,
+  PORTAL_INVITE_TEMPLATE_NAME,
+} from './portal-invite-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -267,6 +273,22 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       "Sends a buyer or owner their Portfolio sign-in link from the contact record when their 24-hour window has closed. Without it, the Portfolio invite can only go out from the agent's personal WhatsApp once the window closes.",
     build: buildPortfolioAccessTemplatePayload,
+  },
+  {
+    name: PORTAL_INVITE_TEMPLATE_NAME,
+    copyKey: 'portal_invite',
+    label: 'Portal invite',
+    whyItMatters:
+      "Sends a buyer the account's property portal link from the contact record when their 24-hour window has closed, with the same filter-shortlist-enquire wording as the free-text invite and the attributed link in the button. Without it the closed-window share falls back to the inventory digest template.",
+    build: buildPortalInviteTemplatePayload,
+  },
+  {
+    name: PORTAL_AGENT_INVITE_TEMPLATE_NAME,
+    copyKey: 'portal_invite_agent',
+    label: 'Portal invite (agent view)',
+    whyItMatters:
+      'The co-broker version of the portal invite: opens the full inventory in agent view and explains forwarding listings with their own share link. Without it an Agent contact gets the buyer wording or the inventory digest.',
+    build: buildPortalAgentInviteTemplatePayload,
   },
 ];
 

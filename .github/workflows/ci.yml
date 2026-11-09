@@ -96,6 +96,7 @@ jobs:
               - 'src/lib/conversations/bot-pause.ts'
               - 'src/lib/conversations/inbox-search.ts'
               - 'src/lib/conversations/text-format.ts'
+              - 'src/lib/conversations/template-bubble-buttons.ts'
               - 'src/lib/copilot/nudge-pick.ts'
               - 'src/lib/copilot/tour-copy.ts'
               - 'src/lib/copilot/tours.ts'

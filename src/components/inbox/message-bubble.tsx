@@ -15,6 +15,9 @@ import {
   LayoutTemplate,
   ImageOff,
   CornerDownLeft,
+  ExternalLink,
+  Phone,
+  Copy,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ReplyQuote } from './reply-quote';
@@ -24,6 +27,7 @@ import {
   stripDeliveryFailure,
   type DeliveryFailurePresentation,
 } from '@/lib/whatsapp/delivery-failure';
+import type { TemplateBubbleButton } from '@/lib/conversations/template-bubble-buttons';
 import {
   Tooltip,
   TooltipContent,
@@ -38,6 +42,9 @@ interface MessageBubbleProps {
   reactions?: MessageReaction[];
   currentUserId?: string;
   onToggleReaction?: (emoji: string) => void;
+  /** The sent template's buttons, resolved by the thread from the
+   *  account's template rows; a message row keeps only the name. */
+  templateButtons?: TemplateBubbleButton[];
 }
 
 function StatusIcon({
@@ -167,7 +174,43 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   );
 }
 
-function MessageContent({ message }: { message: Message }) {
+const TEMPLATE_BUTTON_ICONS = {
+  url: ExternalLink,
+  call: Phone,
+  copy: Copy,
+  reply: CornerDownLeft,
+} as const;
+
+function TemplateButtons({ buttons }: { buttons: TemplateBubbleButton[] }) {
+  if (buttons.length === 0) return null;
+  return (
+    <ul
+      aria-label="Template buttons"
+      className="mt-2 flex flex-col gap-1 border-t border-white/15 pt-2"
+    >
+      {buttons.map((button, index) => {
+        const Icon = TEMPLATE_BUTTON_ICONS[button.kind];
+        return (
+          <li
+            key={`${button.kind}-${index}`}
+            className="flex items-center justify-center gap-1.5 rounded-md bg-white/10 px-2 py-1 text-xs font-medium"
+          >
+            <Icon className="h-3 w-3 shrink-0 opacity-80" />
+            <span className="truncate">{button.label}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function MessageContent({
+  message,
+  templateButtons = [],
+}: {
+  message: Message;
+  templateButtons?: TemplateBubbleButton[];
+}) {
   const displayText = stripDeliveryFailure(message.content_text);
   switch (message.content_type) {
     case 'text':
@@ -252,6 +295,7 @@ function MessageContent({ message }: { message: Message }) {
               <FormattedText text={displayText} />
             </p>
           )}
+          <TemplateButtons buttons={templateButtons} />
         </div>
       );
 
@@ -297,6 +341,7 @@ export function MessageBubble({
   reactions,
   currentUserId,
   onToggleReaction,
+  templateButtons,
 }: MessageBubbleProps) {
   const isAgent =
     message.sender_type === 'agent' || message.sender_type === 'bot';
@@ -331,7 +376,7 @@ export function MessageBubble({
         {reply && (
           <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
         )}
-        <MessageContent message={message} />
+        <MessageContent message={message} templateButtons={templateButtons} />
         <div
           className={cn(
             'mt-1 flex items-center gap-1',

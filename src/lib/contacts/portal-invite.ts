@@ -7,12 +7,17 @@ import {
   accountBrandName,
   accountShowcaseBase,
 } from '@/lib/showcase/account-showcase-url';
+import { languageForMetaCode } from '@/lib/languages';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import {
-  buildPropertySelectionUpdateParams,
   PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME,
   sanitizeTemplateParam,
 } from '@/lib/whatsapp/inventory-update-template';
+import {
+  buildPortalInviteFallbackSelection,
+  buildPortalInviteTemplateParams,
+  portalInviteTemplateName,
+} from '@/lib/whatsapp/portal-invite-template';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import {
   narrowToLanguage,
@@ -41,6 +46,8 @@ export interface PortalInvite {
   url: string;
   filters: PortalInviteFilters;
   audience: PortalInviteAudience;
+  agentName: string | null;
+  brandName: string | null;
 }
 
 export type PortalInviteDelivery = 'free_text' | 'template' | 'personal';
@@ -48,6 +55,8 @@ export type PortalInviteDelivery = 'free_text' | 'template' | 'personal';
 export interface PortalInviteResult {
   success: boolean;
   delivery?: PortalInviteDelivery;
+  /** The approved template that carried a closed-window send. */
+  templateName?: string;
   message: string;
   url: string;
   error?: string;
@@ -57,7 +66,7 @@ export const PORTAL_INVITE_PERSONAL_NOTE =
   '🔗 Shared the property portal link via personal WhatsApp';
 
 export const PORTAL_INVITE_WINDOW_CLOSED_ERROR =
-  'The 24-hour window is closed and the property selection template is not approved yet. Set it up from Share showcase, or use personal WhatsApp.';
+  'The 24-hour window is closed and the portal invite template is not approved yet. Submit it from Settings → Templates, or use personal WhatsApp.';
 
 const clean = (value?: string | null) => value?.trim() || '';
 
@@ -225,6 +234,8 @@ export async function buildPortalInvite(args: {
     url,
     filters,
     audience,
+    agentName,
+    brandName,
   };
 }
 
@@ -243,16 +254,35 @@ function resolveBodyText(body: string | null | undefined, params: string[]) {
   );
 }
 
+/**
+ * The dynamic suffix for the template's URL button. The button's base is
+ * the app origin the template was submitted from; a tenant on its own
+ * showcase subdomain builds its portal link without `ref`, so the suffix
+ * adds it back whenever the two hosts differ, or the button would open
+ * the default account's showcase.
+ */
 export function portalInviteButtonParams(
   buttons: PortalTemplateRow['buttons'],
-  url: string
+  url: string,
+  accountId?: string | null
 ): Record<number, string> {
   const params: Record<number, string> = {};
-  const query = new URL(url).search;
+  const target = new URL(url);
   (buttons ?? []).forEach((button, index) => {
-    if (button.type === 'URL' && (button.url ?? '').includes('{{1}}')) {
-      params[index] = query;
+    if (button.type !== 'URL' || !(button.url ?? '').includes('{{1}}')) return;
+    let suffix = target.search;
+    if (accountId && !target.searchParams.has('ref')) {
+      let baseHost: string | null = null;
+      try {
+        baseHost = new URL((button.url ?? '').replace('{{1}}', '')).host;
+      } catch {
+        baseHost = null;
+      }
+      if (baseHost && baseHost !== target.host) {
+        suffix = `${suffix ? `${suffix}&` : '?'}ref=${encodeURIComponent(accountId)}`;
+      }
     }
+    params[index] = suffix;
   });
   return params;
 }
@@ -318,15 +348,21 @@ export async function sendPortalInvite(args: {
   }
 
   const language = await resolveSendLanguage(db, accountId, contact.id);
+  const { audience, filters, agentName, brandName } = invite;
+  const portalName = portalInviteTemplateName(audience);
   const { data: rows } = await db
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
-    .eq('name', PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME);
-  const template = narrowToLanguage(
-    (rows ?? []) as PortalTemplateRow[],
-    language
-  ).find((row) => (row.status ?? '').toUpperCase() === 'APPROVED');
+    .in('name', [portalName, PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME]);
+  const approved = (name: string) =>
+    narrowToLanguage(
+      ((rows ?? []) as PortalTemplateRow[]).filter((row) => row.name === name),
+      language
+    ).find((row) => (row.status ?? '').toUpperCase() === 'APPROVED');
+  const portalTemplate = approved(portalName);
+  const template =
+    portalTemplate ?? approved(PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME);
   if (!template) {
     return {
       success: false,
@@ -336,22 +372,41 @@ export async function sendPortalInvite(args: {
     };
   }
 
-  const { data: published } = await db
-    .from('properties')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('is_published', true)
-    .eq('status', 'Available')
-    .order('created_at', { ascending: false });
-  const [selection] = buildPropertySelectionUpdateParams(
-    (published ?? []) as Property[],
-    contact
+  const scope = describePortalInviteFilters(filters);
+  const templateLanguage =
+    languageForMetaCode(template.language ?? '') ?? language;
+  let templateParams: string[];
+  if (portalTemplate) {
+    templateParams = buildPortalInviteTemplateParams({
+      contactName: contact.name,
+      agentName,
+      brandName,
+      scope,
+      audience,
+      language: templateLanguage,
+    });
+  } else {
+    const { data: published } = await db
+      .from('properties')
+      .select('type')
+      .eq('account_id', accountId)
+      .eq('is_published', true)
+      .eq('status', 'Available');
+    templateParams = [
+      sanitizeTemplateParam(firstName(contact.name) || 'there'),
+      buildPortalInviteFallbackSelection(
+        (published ?? []) as Pick<Property, 'type'>[],
+        scope,
+        audience,
+        templateLanguage
+      ),
+    ];
+  }
+  const buttonParams = portalInviteButtonParams(
+    template.buttons,
+    url,
+    accountId
   );
-  const templateParams = [
-    sanitizeTemplateParam(firstName(contact.name) || 'there'),
-    selection,
-  ];
-  const buttonParams = portalInviteButtonParams(template.buttons, url);
   const result = await sendWhatsAppMessageAndPersist({
     accountId,
     userId,
@@ -373,6 +428,7 @@ export async function sendPortalInvite(args: {
   return {
     success: result.success,
     delivery: result.success ? 'template' : undefined,
+    templateName: result.success ? template.name : undefined,
     message,
     url,
     error: result.error,
