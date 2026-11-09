@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
   checkRateLimit,
@@ -7,8 +7,8 @@ import {
 } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
+  dispatchBroadcast,
   resolveAudienceOnServer,
-  sendBroadcastRecipients,
 } from '@/lib/broadcasts/sender';
 import { parseAudience } from '@/lib/broadcasts/audience';
 import {
@@ -20,6 +20,8 @@ import {
 import { ensureBroadcastUpdateTemplate } from '@/lib/whatsapp/broadcast-update-template';
 
 const INSERT_BATCH_SIZE = 200;
+
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
@@ -183,25 +185,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Trigger background dispatch in fire-and-forget style or via waitUntil
-    const reqWithWaitUntil = request as Request & {
-      waitUntil?: (promise: Promise<unknown>) => void;
-    };
-    if (typeof reqWithWaitUntil.waitUntil === 'function') {
-      reqWithWaitUntil.waitUntil(
-        sendBroadcastRecipients(broadcast.id, ctx.accountId, ctx.userId).catch(
-          (err) => console.error('[Broadcast Background Send] error:', err)
-        )
-      );
-    } else {
-      void sendBroadcastRecipients(
-        broadcast.id,
-        ctx.accountId,
-        ctx.userId
-      ).catch((err) =>
+    after(() =>
+      dispatchBroadcast(broadcast.id, ctx.accountId, ctx.userId).catch((err) =>
         console.error('[Broadcast Background Send] error:', err)
-      );
-    }
+      )
+    );
 
     return NextResponse.json({
       success: true,

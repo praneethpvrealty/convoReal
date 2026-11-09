@@ -5591,6 +5591,17 @@ describe('[UIX-003] web and mobile start from the same defaults', () => {
 });
 
 describe('[UIX-005] the same value reads the same way on web and mobile', () => {
+  it('[BRC-003] labels greeting delivery through one shared module', () => {
+    const mobile = mobileSource('app/(app)/greetings.tsx');
+    const web = webSource('app/(dashboard)/broadcasts/greetings-content.tsx');
+    expect(mobile).toContain("from '@shared/lib/greetings/delivery'");
+    for (const source of [mobile, web]) {
+      expect(source).toContain('greetingStatusDisplay(');
+      expect(source).toContain('greetingInFlightWarning(');
+      expect(source).toContain('GREETING_IN_FLIGHT_POLL_MS');
+    }
+  });
+
   it('[UIX-005] formats list and clock times through one shared module', () => {
     const mobileFormat = mobileSource('lib/format.ts');
     expect(mobileFormat).toContain("from '@shared/lib/format/list-time'");

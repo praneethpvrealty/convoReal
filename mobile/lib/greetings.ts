@@ -8,6 +8,8 @@
 // src/lib/greetings/occasions.ts, the same module the web imports.
 // ------------------------------------------------------------------
 
+import type { GreetingDelivery } from '@shared/lib/greetings/delivery';
+
 /** Mirrors GREETING_MESSAGE_MAX in src/lib/greetings/generate.ts. */
 export const GREETING_MESSAGE_MAX = 600;
 
@@ -60,6 +62,7 @@ export interface Greeting {
   status: 'draft' | 'sent';
   broadcast_id: string | null;
   sent_at: string | null;
+  delivery?: GreetingDelivery | null;
   created_at: string;
 }
 

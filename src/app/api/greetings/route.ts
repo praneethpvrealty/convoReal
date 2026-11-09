@@ -11,6 +11,7 @@ import {
 } from '@/lib/rate-limit';
 import { GREETING_MESSAGE_MAX } from '@/lib/greetings/generate';
 import { occasionById } from '@/lib/greetings/occasions';
+import { greetingDeliveryFromBroadcast } from '@/lib/greetings/delivery';
 
 const LABEL_MAX = 80;
 
@@ -20,14 +21,22 @@ export async function GET() {
     const ctx = await getCurrentAccount();
     const { data, error } = await ctx.supabase
       .from('occasion_greetings')
-      .select('*')
+      .select(
+        '*, broadcast:broadcasts(status, total_recipients, sent_count, failed_count)'
+      )
       .eq('account_id', ctx.accountId)
       .order('created_at', { ascending: false })
       .limit(100);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    return NextResponse.json({ data: data ?? [] });
+    const greetings = (data ?? []).map(({ broadcast, ...greeting }) => ({
+      ...greeting,
+      delivery: greetingDeliveryFromBroadcast(
+        Array.isArray(broadcast) ? broadcast[0] : broadcast
+      ),
+    }));
+    return NextResponse.json({ data: greetings });
   } catch (err) {
     return toErrorResponse(err);
   }

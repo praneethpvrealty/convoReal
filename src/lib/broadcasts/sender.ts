@@ -369,7 +369,7 @@ export async function sendBroadcastRecipients(
   accountId: string,
   userId: string,
   limit: number = 200
-) {
+): Promise<number> {
   const supabase = supabaseAdmin(); // Use admin/service role client to bypass user RLS constraints on updates
 
   // Fetch the broadcast details
@@ -380,7 +380,7 @@ export async function sendBroadcastRecipients(
     .single();
 
   if (bErr || !broadcast || broadcast.status !== 'sending') {
-    return;
+    return 0;
   }
 
   // Only one dispatcher may send a broadcast at a time. Recipients are
@@ -399,17 +399,17 @@ export async function sendBroadcastRecipients(
       `[Broadcast Sender] Could not claim dispatch for ${broadcastId}:`,
       claimErr.message
     );
-    return;
+    return 0;
   }
   if (claimed !== true) {
     console.log(
       `[Broadcast Sender] ${broadcastId} already being dispatched elsewhere — standing down.`
     );
-    return;
+    return 0;
   }
 
   try {
-    await dispatchClaimedRecipients(
+    return await dispatchClaimedRecipients(
       broadcast,
       broadcastId,
       accountId,
@@ -444,7 +444,7 @@ async function dispatchClaimedRecipients(
   accountId: string,
   userId: string,
   limit: number
-) {
+): Promise<number> {
   const supabase = supabaseAdmin();
 
   // Claiming IS the permission to send. Reading rows that are merely
@@ -463,7 +463,7 @@ async function dispatchClaimedRecipients(
       `[Broadcast Sender] Error claiming recipients for ${broadcastId}:`,
       rFetchErr.message
     );
-    return;
+    return 0;
   }
 
   // The claim returns the row only; contacts are loaded separately
@@ -519,7 +519,7 @@ async function dispatchClaimedRecipients(
         })
         .eq('id', broadcastId);
     }
-    return;
+    return 0;
   }
 
   // Fetch the template details
@@ -799,6 +799,36 @@ async function dispatchClaimedRecipients(
       await sleep(DELAY_MS);
     }
   }
+  return recipients.length;
+}
+
+export const DISPATCH_CHUNK_SIZE = 20;
+export const DISPATCH_BUDGET_MS = 240_000;
+
+export async function dispatchBroadcast(
+  broadcastId: string,
+  accountId: string,
+  userId: string,
+  {
+    budgetMs = DISPATCH_BUDGET_MS,
+    chunkSize = DISPATCH_CHUNK_SIZE,
+    now = Date.now,
+    send = sendBroadcastRecipients,
+  }: {
+    budgetMs?: number;
+    chunkSize?: number;
+    now?: () => number;
+    send?: typeof sendBroadcastRecipients;
+  } = {}
+): Promise<number> {
+  const deadline = now() + budgetMs;
+  let total = 0;
+  while (now() < deadline) {
+    const handled = await send(broadcastId, accountId, userId, chunkSize);
+    if (handled === 0) break;
+    total += handled;
+  }
+  return total;
 }
 
 export async function sweepAndSendBroadcasts() {
