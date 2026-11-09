@@ -93,7 +93,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('[PRP-058] showcase intent signals', () => {
+describe('[PRP-059] showcase intent signals', () => {
   it('reports a shortlist add and remove as events on the listing', () => {
     fireEvent.click(
       screen.getAllByRole('button', {

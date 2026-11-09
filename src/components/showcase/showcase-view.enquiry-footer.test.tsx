@@ -126,7 +126,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('[PRP-057] showcase detail enquiry footer', () => {
+describe('[PRP-058] showcase detail enquiry footer', () => {
   it('keeps WhatsApp, exact location and enquire one tap away, and puts similar listings after the form', () => {
     renderShowcase();
     const footer = document.querySelector('[data-showcase-detail-actions]');
@@ -250,7 +250,7 @@ describe('[PRP-057] showcase detail enquiry footer', () => {
   });
 });
 
-describe('[PRP-057] soft identity capture', () => {
+describe('[PRP-058] soft identity capture', () => {
   it('asks for a WhatsApp number after a high rating and files the lead with the rating', async () => {
     renderShowcase();
     expect(document.querySelector('[data-visitor-capture]')).toBeNull();

@@ -6,7 +6,7 @@ import {
   visitorInquiryMessage,
 } from './visitor-capture';
 
-describe('[PRP-057] soft identity capture on the public showcase', () => {
+describe('[PRP-058] soft identity capture on the public showcase', () => {
   it('asks an anonymous visitor only once they have opened a second listing', () => {
     const base = { identified: false, dismissed: false, agentMode: false };
     expect(shouldOfferBrowsingCapture({ ...base, distinctViews: 1 })).toBe(

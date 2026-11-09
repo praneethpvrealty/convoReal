@@ -19,6 +19,35 @@ than a written entry. Newest first.
 
 #### 9 November 2026
 
+- **The keyboard no longer hides, or fights, the field you tapped on mobile.**
+  On a Samsung Fold, tapping Description on Edit property opened the keyboard
+  over the field, then the keyboard closed and reopened on its own two or
+  three times before settling, still covering what was being typed. The
+  screen asked React Native to shrink itself by the keyboard's height, a mode
+  that under SDK 57 edge-to-edge never allowed for the navigation header and
+  re-laid the form out on every change. Edit property and the contact screen
+  now pad for the keyboard under the header, as the chat screen already did,
+  and scroll the focused field to sit just above it whenever the keyboard
+  opens or grows.
+- **Share Portal outside the 24-hour window now sends a portal invite, not
+  an inventory digest.** The closed-window path borrowed the
+  `property_selection_update` template, so a contact got "I've selected
+  these properties based on what you're looking for" followed by 116
+  residential, 111 commercial and 19 land options cut off mid-title, with no
+  mention of the portal and the link hidden in a button neither chat bubble
+  showed. Two Marketing templates, `property_portal_invite` and
+  `property_portal_agent_invite`, now carry the same wording as the free-text
+  invite — who is writing, what the portal opens on, and filter, shortlist
+  and enquire from the portal (or agent view and your own share link for a
+  co-broker) — with the attributed link in an "Open the portal" button, in
+  every product language behind the usual translation review. Submit them
+  from Settings → Templates. Until they are approved the old template still
+  goes out, but its body names what the portal holds and points at the
+  button instead of listing properties. A subdomain tenant's link now keeps
+  its account ref through the button. Sent template bubbles on web and mobile
+  show the template's buttons under the body, so the agent can see the link
+  went out.
+
 - **One place to see what showcase visitors asked for.** Showcase Pulse
   gains an Enquiries & requests view on web and mobile: every enquiry,
   exact-location and document request, fit rating with its miss reasons,
@@ -59,7 +88,6 @@ than a written entry. Newest first.
   answer reaches the Inbox, Today and the agent's to-dos as a Website
   Inquiry that says which moment produced it. On one brokerage's showcase
   121 sessions in the last 30 days produced two form enquiries.
-
 - **Greetings and broadcasts go out in seconds, and the card says how far
   they got.** A Diwali greeting to 18 contacts took 28 minutes: the send
   route started the dispatch without anything keeping it alive, so it froze

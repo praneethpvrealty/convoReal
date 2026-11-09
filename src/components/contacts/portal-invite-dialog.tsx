@@ -72,7 +72,10 @@ export function PortalInviteDialog({
         body: JSON.stringify({ channel: 'business' }),
       });
       const body = (await response.json().catch(() => ({}))) as {
-        data?: { delivery?: 'free_text' | 'template' };
+        data?: {
+          delivery?: 'free_text' | 'template';
+          templateName?: string;
+        };
         error?: string;
       };
       if (!response.ok) {
@@ -80,7 +83,9 @@ export function PortalInviteDialog({
       }
       toast.success(
         body.data?.delivery === 'template'
-          ? `Portal link sent to ${name} with the approved property selection template`
+          ? body.data.templateName === 'property_selection_update'
+            ? `Portal link sent to ${name} as the inventory update template — submit the portal invite template in Settings → Templates for the full wording`
+            : `Portal invite sent to ${name} as the approved template, with the portal in its button`
           : `Portal link sent to ${name} from your business WhatsApp`
       );
       onSent();
@@ -147,9 +152,10 @@ export function PortalInviteDialog({
 
         <p className="text-xs leading-5 text-slate-500">
           Business WhatsApp is sent and tracked in ConvoReal; outside the
-          24-hour window it goes out as the approved property selection template
-          with a button to the portal. Personal WhatsApp opens this message in
-          your own app and notes the share on the timeline.
+          24-hour window it goes out as the approved portal invite template,
+          this same wording with the portal in its button. Personal WhatsApp
+          opens this message in your own app and notes the share on the
+          timeline.
         </p>
 
         {error ? (

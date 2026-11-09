@@ -4,7 +4,7 @@ import {
   shortlistWhatsAppLink,
 } from './shortlist';
 
-describe('[PRP-058] shortlist sent as one WhatsApp message', () => {
+describe('[PRP-059] shortlist sent as one WhatsApp message', () => {
   const properties = [
     { title: '45x60 Plot in JP Nagar', property_code: 'PROP-2489' },
     { title: 'Corner plot in Indiranagar', property_code: null },

@@ -131,7 +131,7 @@ beforeEach(() => {
   getCurrentAccount.mockRejectedValue(new Error('Unauthorized'));
 });
 
-describe('[PRP-058] showcase-events beacon — shortlist and WhatsApp intents', () => {
+describe('[PRP-059] showcase-events beacon — shortlist and WhatsApp intents', () => {
   it('records a shortlist add or remove with its action and a WhatsApp tap', async () => {
     await POST(
       beacon([

@@ -181,7 +181,7 @@ it('keeps shortlisting usable when browser storage is blocked', () => {
   expect(screen.getByText('2 shortlisted')).toBeTruthy();
 });
 
-it('[PRP-058] offers to send the shortlist to the agency on WhatsApp with every listing code', () => {
+it('[PRP-059] offers to send the shortlist to the agency on WhatsApp with every listing code', () => {
   const onWhatsApp = vi.fn();
   render(
     <ShowcaseShortlist
@@ -215,7 +215,7 @@ it('[PRP-058] offers to send the shortlist to the agency on WhatsApp with every 
   expect(onWhatsApp).toHaveBeenCalledWith(['one', 'two']);
 });
 
-it('[PRP-058] hides the WhatsApp option when the showcase has no number', () => {
+it('[PRP-059] hides the WhatsApp option when the showcase has no number', () => {
   render(
     <ShowcaseShortlist
       properties={[{ id: 'one', title: 'First home' }] as Property[]}
@@ -230,7 +230,7 @@ it('[PRP-058] hides the WhatsApp option when the showcase has no number', () => 
   expect(screen.queryByRole('link', { name: /send on whatsapp/i })).toBeNull();
 });
 
-it('[PRP-058] empties a sent shortlist through onSent, not the tracked clear', async () => {
+it('[PRP-059] empties a sent shortlist through onSent, not the tracked clear', async () => {
   const onClear = vi.fn();
   const onSent = vi.fn();
   render(

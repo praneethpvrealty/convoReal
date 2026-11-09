@@ -76,6 +76,10 @@ const TEMPLATE_LABELS: Record<EngineTemplateKey, string> = {
     'Number change notice — the brokerage now messages from a different WhatsApp number',
   portfolio_access:
     'Portfolio access — a buyer or owner is sent their Portfolio sign-in link',
+  portal_invite:
+    'Portal invite — a buyer is sent the property portal link to filter, shortlist and enquire',
+  portal_invite_agent:
+    'Portal invite (agent view) — a co-broker is sent the full inventory to forward with their own share link',
 };
 
 /** What each numbered placeholder gets filled with at send time. */
@@ -150,6 +154,16 @@ const PLACEHOLDER_MEANINGS: Record<EngineTemplateKey, string[]> = {
     'previous WhatsApp number',
   ],
   portfolio_access: ['contact first name', 'brokerage name'],
+  portal_invite: [
+    'contact first name',
+    'sender (agent name and brokerage)',
+    'what the portal opens on, or how to use the filters',
+  ],
+  portal_invite_agent: [
+    'co-broker first name',
+    'sender (agent name and brokerage)',
+    'what the portal opens on, or that the full inventory is there',
+  ],
 };
 
 /** The buttons each template actually carries, so a bubble shows the
@@ -183,6 +197,8 @@ const REPLY_BUTTONS: Record<EngineTemplateKey, TemplateButtonAction[]> = {
   ],
   contact_number_update: ['acknowledge_update'],
   portfolio_access: ['portfolio_sign_in'],
+  portal_invite: ['open_portal'],
+  portal_invite_agent: ['open_portal'],
 };
 
 const BUTTON_ORDER = Object.keys(

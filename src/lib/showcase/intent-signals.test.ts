@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
 
-describe('[PRP-058] shortlist and WhatsApp taps travel as showcase events', () => {
+describe('[PRP-059] shortlist and WhatsApp taps travel as showcase events', () => {
   const migration = read(
     'supabase/migrations/20261109093000_showcase_event_types.sql'
   );
