@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 9 November 2026
 
+- **The Find my property bubble no longer sits on the Enquire button.**
+  On a phone the new listing footer and the floating assistant launcher
+  shared the bottom edge, and the launcher covered Enquire. The launcher
+  now steps aside while a listing is open (an open chat stays put) and
+  returns when the panel closes.
+
 - **The keyboard no longer hides, or fights, the field you tapped on mobile.**
   On a Samsung Fold, tapping Description on Edit property opened the keyboard
   over the field, then the keyboard closed and reopened on its own two or

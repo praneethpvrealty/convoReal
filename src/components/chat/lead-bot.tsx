@@ -37,6 +37,9 @@ interface LeadBotProps {
   launcherLabel?: string;
   /** Floating only — open on first paint (used after a page-level CTA). */
   defaultOpen?: boolean;
+  /** Floating only — keep the closed launcher off screen while another
+   *  surface owns the bottom edge; an open chat stays where it is. */
+  launcherHidden?: boolean;
 }
 
 export function LeadBot({
@@ -57,6 +60,7 @@ export function LeadBot({
   footer,
   launcherLabel = 'Chat with us',
   defaultOpen = false,
+  launcherHidden = false,
 }: LeadBotProps) {
   const [open, setOpen] = useState(variant === 'inline' || defaultOpen);
   const [draft, setDraft] = useState('');
@@ -193,6 +197,8 @@ export function LeadBot({
       </div>
     );
   }
+
+  if (!open && launcherHidden) return null;
 
   return (
     <div
