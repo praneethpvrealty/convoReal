@@ -12,6 +12,15 @@ To build the definitive, WhatsApp-first Engine for independent real estate agenc
 
 ## 🗺️ Product Roadmap
 
+### Known gap: inbound shortlist messages resolve one listing
+
+The showcase shortlist bar sends every shortlisted listing in one WhatsApp
+message with its property code. The inbound chain resolves one property
+reference per message, so the first code becomes the enquiry and the rest
+reach the agent only as text (every listing is still recorded as a Pulse
+WhatsApp tap, and a known visitor's shortlist files an enquiry per listing
+from the beacon). Multi-listing resolution in the inbound chain is open.
+
 ### Milestone 1: Expected Yield Matching & Location-Agnostic Profiling (DONE)
 
 _Provide flexibility for investors who prioritize yields over location coordinates._

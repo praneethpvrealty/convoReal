@@ -2825,7 +2825,7 @@ export function ShowcaseView({
               key={filteredProperties.map((p) => p.id).join(':')}
               properties={filteredProperties}
               shortlistIds={shortlist.ids}
-              onToggleShortlist={shortlist.toggle}
+              onToggleShortlist={toggleShortlist}
               onOpen={openPropertyModal}
               formatPrice={formatPrice}
               whatsAppLink={(property) =>
@@ -3384,6 +3384,7 @@ export function ShowcaseView({
           email={visitorEmail}
           onRemove={toggleShortlist}
           onClear={clearShortlist}
+          onSent={shortlist.clear}
           whatsappPhone={enquiryWhatsAppPhone()}
           onWhatsApp={(ids) =>
             ids.forEach((id) =>

@@ -260,12 +260,26 @@ export async function POST(request: NextRequest) {
             : metadata,
       }));
 
-    if (rows.length > 0) {
-      const { error } = await db.from('showcase_events').insert(rows);
+    // Intent rows go in their own insert: they depend on migration
+    // 20261109093000 widening the event_type constraint, and a batch
+    // that fails on them must not take the visit's opens and views
+    // down with it.
+    const intentTypes = new Set(['shortlist', 'whatsapp_click']);
+    const activityRows = rows.filter(
+      (row) => !intentTypes.has(row.event_type!)
+    );
+    const intentRows = rows.filter((row) => intentTypes.has(row.event_type!));
+    if (activityRows.length > 0) {
+      const { error } = await db.from('showcase_events').insert(activityRows);
       if (error)
         console.error('[showcase-events] insert failed:', error.message);
-      if (contactId)
-        await recordIntentEnquiries(db, accountId, contactId, rows);
+    }
+    if (intentRows.length > 0) {
+      const { error } = await db.from('showcase_events').insert(intentRows);
+      if (error)
+        console.error('[showcase-events] intent insert failed:', error.message);
+      else if (contactId)
+        await recordIntentEnquiries(db, accountId, contactId, intentRows);
     }
 
     // Retroactive stitching: the session_key persists in the visitor's

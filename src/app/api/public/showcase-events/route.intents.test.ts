@@ -158,6 +158,31 @@ describe('[PRP-058] showcase-events beacon — shortlist and WhatsApp intents', 
     expect(events[1].metadata).toEqual({ action: 'remove' });
   });
 
+  it('inserts intent rows apart from the visit\u2019s activity rows', async () => {
+    await POST(
+      beacon([
+        { type: 'view_property', property_id: PROPERTY },
+        {
+          type: 'shortlist',
+          property_id: PROPERTY,
+          metadata: { action: 'add' },
+        },
+      ])
+    );
+    const batches = inserts.filter((i) => i.table === 'showcase_events');
+    expect(batches).toHaveLength(2);
+    expect(
+      (batches[0].rows as Array<{ event_type: string }>).map(
+        (r) => r.event_type
+      )
+    ).toEqual(['view_property']);
+    expect(
+      (batches[1].rows as Array<{ event_type: string }>).map(
+        (r) => r.event_type
+      )
+    ).toEqual(['shortlist']);
+  });
+
   it('drops a shortlist event without a known action', async () => {
     await POST(
       beacon([

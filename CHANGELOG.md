@@ -39,8 +39,10 @@ than a written entry. Newest first.
   send the whole shortlist to the agency on WhatsApp as one message with
   every property code, and an approved exact-location request, the most
   common thing visitors actually asked for, is recorded as an enquiry on
-  its listing. **Migration required:**
-  `20261109093000_showcase_intent_signals.sql`.
+  its listing. **Migrations required:**
+  `20261109093000_showcase_event_types.sql` (drops and recreates the
+  event type constraint, so apply it by hand) and
+  `20261109093001_location_request_enquiry.sql`.
 
 - **A showcase visitor can enquire without scrolling to the bottom of the
   listing.** The listing panel now keeps WhatsApp, Exact location and

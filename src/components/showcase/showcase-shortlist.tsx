@@ -37,6 +37,9 @@ interface ShowcaseShortlistProps {
   email: string;
   onRemove: (id: string) => void;
   onClear: () => void;
+  /** Empties the shortlist after its enquiry is sent, without reporting
+   *  a removal for listings the visitor just enquired about. */
+  onSent?: () => void;
   /** Bumped by the page to open the enquiry from elsewhere (the Deal
    *  Floor match-report tile and Quick Picks). */
   openRequest?: number;
@@ -126,6 +129,7 @@ function ShortlistEnquiry({
   email: initialEmail,
   onRemove,
   onClear,
+  onSent,
   onClose,
 }: ShowcaseShortlistProps & { onClose: () => void }) {
   const [name, setName] = useState(initialName);
@@ -166,7 +170,7 @@ function ShortlistEnquiry({
           result?.error || 'Could not send your enquiry. Please try again.'
         );
       setSentCount(properties.length);
-      onClear();
+      (onSent ?? onClear)();
     } catch (err) {
       setError(
         err instanceof Error

@@ -1,21 +1,12 @@
 -- ============================================================
--- 20261109093000_showcase_intent_signals.sql
--- Two showcase intents the agent never saw: shortlisting a listing
--- (kept only in the visitor's browser) and tapping WhatsApp on it
--- (sent only to the Meta Pixel). Both now travel through the Pulse
--- beacon as showcase_events, and an approved exact-location request
--- is recorded as an enquiry on that listing, since on the showcases
--- measured it was the request visitors actually made (32 in 90 days
--- against 2 form enquiries). A teaser-page unlock (scope 'listing',
--- migration 254) is not a location request and is left alone.
+-- 20261109093001_location_request_enquiry.sql
+-- An approved exact-location request is recorded as an enquiry on
+-- that listing, since on the showcases measured it was the request
+-- visitors actually made (32 in 90 days against 2 form enquiries). A
+-- teaser-page unlock (scope 'listing', migration 254) is not a
+-- location request and is left alone. CREATE OR REPLACE TRIGGER keeps
+-- the file free of the statements the Supabase connector holds back.
 -- ============================================================
-
-ALTER TABLE showcase_events
-  DROP CONSTRAINT IF EXISTS showcase_events_event_type_check;
-
-ALTER TABLE showcase_events
-  ADD CONSTRAINT showcase_events_event_type_check
-  CHECK (event_type IN ('open', 'view_property', 'map_click', 'gallery', 'search', 'shortlist', 'whatsapp_click'));
 
 CREATE OR REPLACE FUNCTION public.record_location_request_enquiry()
 RETURNS TRIGGER
@@ -45,8 +36,7 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS record_location_request_enquiry ON property_location_requests;
-CREATE TRIGGER record_location_request_enquiry
+CREATE OR REPLACE TRIGGER record_location_request_enquiry
   AFTER INSERT OR UPDATE OF status ON property_location_requests
   FOR EACH ROW
   EXECUTE FUNCTION public.record_location_request_enquiry();

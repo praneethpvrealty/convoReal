@@ -229,3 +229,28 @@ it('[PRP-058] hides the WhatsApp option when the showcase has no number', () => 
   );
   expect(screen.queryByRole('link', { name: /send on whatsapp/i })).toBeNull();
 });
+
+it('[PRP-058] empties a sent shortlist through onSent, not the tracked clear', async () => {
+  const onClear = vi.fn();
+  const onSent = vi.fn();
+  render(
+    <ShowcaseShortlist
+      properties={[{ id: 'one', title: 'First home' }] as Property[]}
+      accountId="account"
+      name="Asha"
+      phone="9845012345"
+      email=""
+      onRemove={() => {}}
+      onClear={onClear}
+      onSent={onSent}
+    />
+  );
+  fireEvent.click(
+    screen.getByRole('button', { name: /enquire about selected/i })
+  );
+  fireEvent.click(
+    screen.getByRole('button', { name: /send enquiry for 1 property/i })
+  );
+  await waitFor(() => expect(onSent).toHaveBeenCalledTimes(1));
+  expect(onClear).not.toHaveBeenCalled();
+});

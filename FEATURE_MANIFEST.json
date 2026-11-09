@@ -2911,7 +2911,8 @@
             }
           ],
           "guards": [
-            "supabase/migrations/20261109093000_showcase_intent_signals.sql"
+            "supabase/migrations/20261109093000_showcase_event_types.sql",
+            "supabase/migrations/20261109093001_location_request_enquiry.sql"
           ]
         }
       ]
