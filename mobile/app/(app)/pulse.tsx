@@ -38,6 +38,25 @@ import {
   fetchPulseViewedListings,
 } from '@/lib/pulse';
 import {
+  ENQUIRY_KIND_ICONS,
+  fetchPulseEnquiries,
+  fetchPulseEnquiryCounts,
+} from '@/lib/pulse-enquiries';
+import {
+  PULSE_ENQUIRY_COUNT_DAYS,
+  PULSE_ENQUIRY_FILTERS,
+  PULSE_ENQUIRY_KINDS,
+  PULSE_ENQUIRY_KIND_LABELS,
+  describePulseEnquiry,
+  filterPulseEnquiries,
+  nextPulseEnquiryCursor,
+  pulseEnquiryIsHot,
+  pulseEnquiryVisitor,
+  type PulseEnquiryCursor,
+  type PulseEnquiryFilter,
+  type PulseEnquiryRow,
+} from '@shared/lib/pulse/enquiries';
+import {
   DEFAULT_PULSE_LISTING_SORT,
   PULSE_LISTING_SORTS,
   type PulseListingSort,
@@ -69,6 +88,12 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
  */
 
 type FeedFilter = 'all' | 'property_views' | 'identified';
+type PulseView = 'activity' | 'enquiries';
+
+const PULSE_VIEWS: { key: PulseView; label: string }[] = [
+  { key: 'activity', label: 'Visitor activity' },
+  { key: 'enquiries', label: 'Enquiries & requests' },
+];
 
 const FEED_FILTERS: { key: FeedFilter; label: string }[] = [
   { key: 'all', label: 'All activity' },
@@ -86,6 +111,8 @@ export default function PulseScreen() {
   const { width } = useWindowDimensions();
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const [filter, setFilter] = useState<FeedFilter>('all');
+  const [view, setView] = useState<PulseView>('activity');
+  const [enquiryFilter, setEnquiryFilter] = useState<PulseEnquiryFilter>('all');
   const [expandedVisitors, setExpandedVisitors] = useState<Set<string>>(
     new Set()
   );
@@ -122,6 +149,25 @@ export default function PulseScreen() {
     retry: retryAnalyticsRequest,
   });
   const feedRows = useMemo(() => feed.data?.pages.flat() ?? [], [feed.data]);
+  const enquiryCounts = useQuery({
+    queryKey: ['pulse-enquiry-counts'],
+    enabled: Boolean(accountId) && view === 'enquiries',
+    queryFn: () => fetchPulseEnquiryCounts(accountId!),
+    retry: retryAnalyticsRequest,
+  });
+  const enquiries = useInfiniteQuery({
+    queryKey: ['pulse-enquiries-pages'],
+    enabled: Boolean(accountId) && view === 'enquiries',
+    queryFn: ({ pageParam }) => fetchPulseEnquiries(accountId!, pageParam),
+    initialPageParam: null as PulseEnquiryCursor | null,
+    getNextPageParam: (last) => nextPulseEnquiryCursor(last) ?? undefined,
+    retry: retryAnalyticsRequest,
+  });
+  const enquiryRows = useMemo(
+    () =>
+      filterPulseEnquiries(enquiries.data?.pages.flat() ?? [], enquiryFilter),
+    [enquiries.data, enquiryFilter]
+  );
 
   const events = useMemo(() => {
     const rows = feedRows.filter((evt) => {
@@ -140,7 +186,13 @@ export default function PulseScreen() {
     anonymous / total >= ANONYMOUS_NUDGE_THRESHOLD;
 
   const pull = usePullRefresh(() =>
-    Promise.all([stats.refetch(), top.refetch(), feed.refetch()])
+    Promise.all([
+      stats.refetch(),
+      top.refetch(),
+      view === 'enquiries'
+        ? Promise.all([enquiryCounts.refetch(), enquiries.refetch()])
+        : feed.refetch(),
+    ])
   );
   const statWidth = width < 500 ? '47%' : '30%';
   const anyLoading =
@@ -151,9 +203,11 @@ export default function PulseScreen() {
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: true, title: 'Showcase Pulse' }} />
 
-      <FlatList
-        data={events}
-        keyExtractor={(visitor) => visitor.id}
+      <FlatList<VisitorActivityGroup | PulseEnquiryRow>
+        data={view === 'enquiries' ? enquiryRows : events}
+        keyExtractor={(item) =>
+          'kind' in item ? `${item.kind}:${item.id}` : item.id
+        }
         contentContainerStyle={styles.container}
         refreshControl={
           <RefreshControl
@@ -195,137 +249,238 @@ export default function PulseScreen() {
               </View>
             </TourTarget>
 
-            {anyLoading ? (
-              <InlineStatus text="Loading engagement data…" loading />
-            ) : anyError ? (
-              <InlineStatus text="Some engagement data could not be loaded. Pull to retry." />
-            ) : null}
-
-            <SectionLabel
-              text={
-                top.data && top.data.length > 0
-                  ? `Viewed listings (${top.data.length})`
-                  : 'Viewed listings'
-              }
-            />
-            <View style={styles.filters}>
-              {PULSE_LISTING_SORTS.map((option) => (
-                <FilterChip
-                  key={option.key}
-                  label={option.label}
-                  active={listingSort === option.key}
-                  onPress={() => {
-                    setListingSort(option.key);
-                    setRenderedListings(PULSE_LISTINGS_RENDER_STEP);
-                  }}
-                />
-              ))}
-            </View>
-            {top.isLoading ? (
-              <InlineStatus text="Loading viewed listings…" loading />
-            ) : top.isError ? (
-              <InlineStatus text="Viewed listings unavailable. Pull to retry." />
-            ) : !top.data || top.data.length === 0 ? (
-              <Text
-                style={[
-                  styles.quiet,
-                  { color: colors.textFaint, borderColor: colors.border },
-                ]}
-              >
-                No properties viewed yet.
-              </Text>
-            ) : (
-              <ScrollView
-                nestedScrollEnabled
-                key={listingSort}
-                style={[
-                  styles.listingScroller,
-                  top.isPlaceholderData && { opacity: 0.6 },
-                ]}
-                contentContainerStyle={{ gap: spacing.sm }}
-                accessibilityLabel="Viewed listings"
-                scrollEventThrottle={100}
-                onScroll={({ nativeEvent }) => {
-                  const total = top.data.length;
-                  setRenderedListings((rendered) =>
-                    nextRenderedListingCount(rendered, total, {
-                      offsetY: nativeEvent.contentOffset.y,
-                      viewportHeight: nativeEvent.layoutMeasurement.height,
-                      contentHeight: nativeEvent.contentSize.height,
-                    })
-                  );
-                }}
-              >
-                {top.data.slice(0, renderedListings).map((p) => (
-                  <TopListingCard
-                    key={p.propertyId}
-                    listing={p}
-                    onPress={() =>
-                      setViewersFor({ id: p.propertyId, title: p.title })
-                    }
-                  />
-                ))}
-              </ScrollView>
-            )}
-
-            <SectionLabel
-              text="Visitor activity"
-              style={{ marginTop: spacing.sm }}
-            />
-            <View style={styles.filters}>
-              {FEED_FILTERS.map((opt) => (
+            <View style={styles.filters} accessibilityRole="tablist">
+              {PULSE_VIEWS.map((opt) => (
                 <FilterChip
                   key={opt.key}
                   label={opt.label}
-                  active={filter === opt.key}
-                  onPress={() => setFilter(opt.key)}
+                  active={view === opt.key}
+                  onPress={() => setView(opt.key)}
                 />
               ))}
             </View>
 
-            {showNudge ? (
-              <Pressable
-                onPress={() => router.push('/(app)/(tabs)/properties')}
-                accessibilityRole="button"
-                accessibilityLabel="Share tracked links from Properties"
-                style={[
-                  styles.nudge,
-                  {
-                    backgroundColor: colors.primarySoft,
-                    borderColor: colors.primary,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="person-add-outline"
-                  size={17}
-                  color={colors.primary}
-                />
-                <Text
-                  style={{
-                    flex: 1,
-                    fontSize: 12.5,
-                    lineHeight: 18,
-                    color: colors.text,
-                  }}
-                >
-                  Most of this activity is anonymous. Share a property with{' '}
-                  <Text style={{ fontFamily: f.bold }}>
-                    Send personally (tracked)
-                  </Text>{' '}
-                  to see visitors by name here.
+            {view === 'enquiries' ? (
+              <>
+                <View style={styles.grid}>
+                  {PULSE_ENQUIRY_KINDS.map((kind) => (
+                    <Pressable
+                      key={kind}
+                      onPress={() =>
+                        setEnquiryFilter(enquiryFilter === kind ? 'all' : kind)
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={PULSE_ENQUIRY_KIND_LABELS[kind]}
+                      accessibilityState={{ selected: enquiryFilter === kind }}
+                      style={[
+                        styles.countTile,
+                        {
+                          width: statWidth,
+                          borderColor:
+                            enquiryFilter === kind
+                              ? colors.primary
+                              : colors.border,
+                          backgroundColor: colors.surface,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={ENQUIRY_KIND_ICONS[kind]}
+                        size={15}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 18,
+                          fontFamily: f.extrabold,
+                          color: colors.text,
+                        }}
+                      >
+                        {enquiryCounts.data
+                          ? String(enquiryCounts.data[kind])
+                          : '…'}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.textMuted }}>
+                        {PULSE_ENQUIRY_KIND_LABELS[kind]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+                  Last {PULSE_ENQUIRY_COUNT_DAYS} days. Form and portal
+                  enquiries reach the Inbox and Today as well; everything else
+                  is only here.
                 </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={colors.primary}
+                <SectionLabel
+                  text="Enquiries & requests"
+                  style={{ marginTop: spacing.sm }}
                 />
-              </Pressable>
-            ) : null}
+                <View style={styles.filters}>
+                  {PULSE_ENQUIRY_FILTERS.map((opt) => (
+                    <FilterChip
+                      key={opt.key}
+                      label={opt.label}
+                      active={enquiryFilter === opt.key}
+                      onPress={() => setEnquiryFilter(opt.key)}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : (
+              <>
+                {anyLoading ? (
+                  <InlineStatus text="Loading engagement data…" loading />
+                ) : anyError ? (
+                  <InlineStatus text="Some engagement data could not be loaded. Pull to retry." />
+                ) : null}
+
+                <SectionLabel
+                  text={
+                    top.data && top.data.length > 0
+                      ? `Viewed listings (${top.data.length})`
+                      : 'Viewed listings'
+                  }
+                />
+                <View style={styles.filters}>
+                  {PULSE_LISTING_SORTS.map((option) => (
+                    <FilterChip
+                      key={option.key}
+                      label={option.label}
+                      active={listingSort === option.key}
+                      onPress={() => {
+                        setListingSort(option.key);
+                        setRenderedListings(PULSE_LISTINGS_RENDER_STEP);
+                      }}
+                    />
+                  ))}
+                </View>
+                {top.isLoading ? (
+                  <InlineStatus text="Loading viewed listings…" loading />
+                ) : top.isError ? (
+                  <InlineStatus text="Viewed listings unavailable. Pull to retry." />
+                ) : !top.data || top.data.length === 0 ? (
+                  <Text
+                    style={[
+                      styles.quiet,
+                      { color: colors.textFaint, borderColor: colors.border },
+                    ]}
+                  >
+                    No properties viewed yet.
+                  </Text>
+                ) : (
+                  <ScrollView
+                    nestedScrollEnabled
+                    key={listingSort}
+                    style={[
+                      styles.listingScroller,
+                      top.isPlaceholderData && { opacity: 0.6 },
+                    ]}
+                    contentContainerStyle={{ gap: spacing.sm }}
+                    accessibilityLabel="Viewed listings"
+                    scrollEventThrottle={100}
+                    onScroll={({ nativeEvent }) => {
+                      const total = top.data.length;
+                      setRenderedListings((rendered) =>
+                        nextRenderedListingCount(rendered, total, {
+                          offsetY: nativeEvent.contentOffset.y,
+                          viewportHeight: nativeEvent.layoutMeasurement.height,
+                          contentHeight: nativeEvent.contentSize.height,
+                        })
+                      );
+                    }}
+                  >
+                    {top.data.slice(0, renderedListings).map((p) => (
+                      <TopListingCard
+                        key={p.propertyId}
+                        listing={p}
+                        onPress={() =>
+                          setViewersFor({ id: p.propertyId, title: p.title })
+                        }
+                      />
+                    ))}
+                  </ScrollView>
+                )}
+
+                <SectionLabel
+                  text="Visitor activity"
+                  style={{ marginTop: spacing.sm }}
+                />
+                <View style={styles.filters}>
+                  {FEED_FILTERS.map((opt) => (
+                    <FilterChip
+                      key={opt.key}
+                      label={opt.label}
+                      active={filter === opt.key}
+                      onPress={() => setFilter(opt.key)}
+                    />
+                  ))}
+                </View>
+
+                {showNudge ? (
+                  <Pressable
+                    onPress={() => router.push('/(app)/(tabs)/properties')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Share tracked links from Properties"
+                    style={[
+                      styles.nudge,
+                      {
+                        backgroundColor: colors.primarySoft,
+                        borderColor: colors.primary,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="person-add-outline"
+                      size={17}
+                      color={colors.primary}
+                    />
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontSize: 12.5,
+                        lineHeight: 18,
+                        color: colors.text,
+                      }}
+                    >
+                      Most of this activity is anonymous. Share a property with{' '}
+                      <Text style={{ fontFamily: f.bold }}>
+                        Send personally (tracked)
+                      </Text>{' '}
+                      to see visitors by name here.
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={colors.primary}
+                    />
+                  </Pressable>
+                ) : null}
+              </>
+            )}
           </View>
         }
         ListEmptyComponent={
-          feed.isLoading ? (
+          view === 'enquiries' ? (
+            enquiries.isLoading ? (
+              <InlineStatus text="Loading enquiries…" loading />
+            ) : enquiries.isError ? (
+              <InlineStatus text="Enquiries unavailable. Pull to retry." />
+            ) : (
+              <EmptyState
+                icon="mail-open-outline"
+                title={
+                  (enquiries.data?.pages.flat().length ?? 0) === 0
+                    ? 'No enquiries or requests yet'
+                    : 'Nothing of this kind yet'
+                }
+                subtitle={
+                  (enquiries.data?.pages.flat().length ?? 0) === 0
+                    ? 'Enquiries, exact-location and document requests, ratings, shortlists and WhatsApp taps from your showcase land here.'
+                    : undefined
+                }
+              />
+            )
+          ) : feed.isLoading ? (
             <InlineStatus text="Loading visitor activity…" loading />
           ) : feed.isError ? (
             <InlineStatus text="Visitor activity unavailable. Pull to retry." />
@@ -346,7 +501,31 @@ export default function PulseScreen() {
           )
         }
         ListFooterComponent={
-          feed.hasNextPage ? (
+          view === 'enquiries' ? (
+            enquiries.hasNextPage ? (
+              <Pressable
+                onPress={() => enquiries.fetchNextPage()}
+                disabled={enquiries.isFetchingNextPage}
+                accessibilityRole="button"
+                accessibilityLabel="Load older enquiries"
+                style={[styles.loadOlder, { borderColor: colors.border }]}
+              >
+                {enquiries.isFetchingNextPage ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Text
+                    style={{
+                      fontSize: 13.5,
+                      fontFamily: f.bold,
+                      color: colors.primary,
+                    }}
+                  >
+                    Load older enquiries
+                  </Text>
+                )}
+              </Pressable>
+            ) : null
+          ) : feed.hasNextPage ? (
             <Pressable
               onPress={() => feed.fetchNextPage()}
               disabled={feed.isFetchingNextPage}
@@ -372,18 +551,22 @@ export default function PulseScreen() {
         }
         renderItem={({ item, index }) => (
           <EnterRow index={index}>
-            <VisitorActivityCard
-              visitor={item}
-              expanded={expandedVisitors.has(item.id)}
-              onToggle={() =>
-                setExpandedVisitors((current) => {
-                  const next = new Set(current);
-                  if (next.has(item.id)) next.delete(item.id);
-                  else next.add(item.id);
-                  return next;
-                })
-              }
-            />
+            {'kind' in item ? (
+              <EnquiryRow row={item} />
+            ) : (
+              <VisitorActivityCard
+                visitor={item}
+                expanded={expandedVisitors.has(item.id)}
+                onToggle={() =>
+                  setExpandedVisitors((current) => {
+                    const next = new Set(current);
+                    if (next.has(item.id)) next.delete(item.id);
+                    else next.add(item.id);
+                    return next;
+                  })
+                }
+              />
+            )}
           </EnterRow>
         )}
       />
@@ -632,6 +815,62 @@ function VisitorActivityCard({
   );
 }
 
+function EnquiryRow({ row }: { row: PulseEnquiryRow }) {
+  const { colors, fonts: f } = useTheme();
+  const visitor = pulseEnquiryVisitor(row);
+  const hot = pulseEnquiryIsHot(row);
+  const body = (
+    <View
+      style={[
+        styles.enquiryRow,
+        { borderColor: colors.border, backgroundColor: colors.surface },
+      ]}
+    >
+      <Ionicons
+        name={ENQUIRY_KIND_ICONS[row.kind]}
+        size={16}
+        color={colors.primary}
+        style={{ marginTop: 2 }}
+      />
+      <View style={{ flex: 1, gap: 3 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              flexShrink: 1,
+              fontSize: 13.5,
+              fontFamily: f.bold,
+              color: colors.text,
+            }}
+          >
+            {visitor.label}
+          </Text>
+          {hot ? <Tag label="Follow up" color={colors.warning} /> : null}
+        </View>
+        <Text
+          style={{ fontSize: 12.5, lineHeight: 17, color: colors.textMuted }}
+        >
+          {describePulseEnquiry(row)}
+          {row.property_code ? ` · ${row.property_code}` : ''}
+        </Text>
+        <Text style={{ fontSize: 11, color: colors.textFaint }}>
+          {formatTimeAgo(row.occurred_at)}
+        </Text>
+      </View>
+    </View>
+  );
+  if (!row.contact_id) return body;
+  return (
+    <PressScale
+      onPress={() => router.push(`/(app)/contact/${row.contact_id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${visitor.label}`}
+    >
+      {body}
+    </PressScale>
+  );
+}
+
 function ActivityLine({ event }: { event: DedupedPulseEvent }) {
   const { colors } = useTheme();
   const what = event.property?.title ?? 'a property';
@@ -644,6 +883,8 @@ function ActivityLine({ event }: { event: DedupedPulseEvent }) {
       ? formatDwellTime(event.metadata.duration_ms)
       : '';
   const { icon, tint, action } = describe(event.event_type, colors);
+  const shortlistRemoval =
+    event.event_type === 'shortlist' && event.metadata.action === 'remove';
 
   return (
     <View style={styles.eventLine}>
@@ -656,8 +897,8 @@ function ActivityLine({ event }: { event: DedupedPulseEvent }) {
           color: colors.textMuted,
         }}
       >
-        {action}
-        {event.event_type === 'open'
+        {shortlistRemoval ? `Removed ${what} from their shortlist` : action}
+        {event.event_type === 'open' || shortlistRemoval
           ? ''
           : event.event_type === 'search'
             ? searchQuery
@@ -704,6 +945,18 @@ function describe(
         icon: 'search-outline',
         tint: colors.primary,
         action: 'Searched for',
+      };
+    case 'shortlist':
+      return {
+        icon: 'bookmark-outline',
+        tint: colors.success,
+        action: 'Shortlisted',
+      };
+    case 'whatsapp_click':
+      return {
+        icon: 'logo-whatsapp',
+        tint: colors.success,
+        action: 'Tapped WhatsApp on',
       };
     default:
       return {
@@ -772,6 +1025,20 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  countTile: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    gap: 4,
+  },
+  enquiryRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
   nudge: {
     flexDirection: 'row',
     alignItems: 'center',

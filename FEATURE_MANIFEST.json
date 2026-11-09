@@ -5130,6 +5130,33 @@
               "case": "[PLS-008]"
             }
           ]
+        },
+        {
+          "id": "PLS-009",
+          "rule": "Showcase Pulse offers an Enquiries & requests view on web and mobile that lists, newest first in keyset pages, every enquiry on the account's listings, exact-location and document request, fit rating with its miss reasons, shortlist, WhatsApp tap and check-in sent, each naming the contact when known or the requester or guest session otherwise, with 30-day counts per kind that filter the list and a follow-up flag on a fresh enquiry, shortlist, WhatsApp tap, rating of 7 or more, pending request or answered check-in; the rows come from one account-guarded SQL function and their wording from one shared module. Shortlist and WhatsApp-tap events also appear in the visitor activity feed on both surfaces, and the view check-in cron reports how many qualifying views it held back and why.",
+          "tests": [
+            {
+              "file": "src/lib/pulse/enquiries.test.ts",
+              "case": "[PLS-009]"
+            },
+            {
+              "file": "src/lib/pulse/enquiries-migration.test.ts",
+              "case": "[PLS-009]"
+            },
+            {
+              "file": "mobile/lib/pulse-enquiries.test.ts",
+              "case": "[PLS-009]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PLS-009]"
+            },
+            {
+              "file": "src/lib/showcase/view-nudges.test.ts",
+              "case": "[PLS-009]"
+            }
+          ],
+          "guards": ["supabase/migrations/20261109101500_pulse_enquiries.sql"]
         }
       ]
     },

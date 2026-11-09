@@ -377,7 +377,14 @@ export interface ShowcaseEvent {
   /** Contact whose personalized link this visitor arrived on without
    *  being that contact — a forwarded link (migration 20260926130000). */
   via_contact_id?: string | null;
-  event_type: 'open' | 'view_property' | 'map_click' | 'gallery' | 'search';
+  event_type:
+    | 'open'
+    | 'view_property'
+    | 'map_click'
+    | 'gallery'
+    | 'search'
+    | 'shortlist'
+    | 'whatsapp_click';
   metadata: Record<string, unknown>;
   created_at: string;
 }
