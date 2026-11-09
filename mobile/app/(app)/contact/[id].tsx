@@ -1772,6 +1772,8 @@ function ContactEditor({
 }) {
   const { colors, dark, fonts: f } = useTheme();
   const headerHeight = useHeaderHeight();
+  const scrollRef = useRef<ScrollView>(null);
+  const onScroll = useKeyboardReveal(scrollRef);
   const source = resolveRequirementSource(contact);
   const [name, setName] = useState(contact.name ?? '');
   const [salutation, setSalutation] = useState(contact.salutation ?? '');
@@ -2045,9 +2047,12 @@ function ContactEditor({
       keyboardVerticalOffset={headerHeight}
     >
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
         <View style={{ gap: spacing.sm }}>
           <SectionLabel text="Title" style={{ color: colors.textMuted }} />
