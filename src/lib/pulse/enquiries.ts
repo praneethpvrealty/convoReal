@@ -9,6 +9,10 @@
 
 export const PULSE_ENQUIRY_PAGE_SIZE = 40;
 export const PULSE_ENQUIRY_COUNT_DAYS = 30;
+/** How long an enquiry, shortlist, WhatsApp tap, high rating or answered
+ *  check-in keeps its follow-up flag. A pending request keeps it until
+ *  it is decided. */
+export const PULSE_ENQUIRY_FRESH_MS = 48 * 60 * 60 * 1000;
 
 export type PulseEnquiryKind =
   | 'enquiry'
@@ -166,10 +170,23 @@ export function describePulseEnquiry(row: PulseEnquiryRow): string {
   }
 }
 
-/** A high rating, a shortlist, a WhatsApp tap or a reply to a check-in
- *  deserves a follow-up today; a declined request or a low rating does
- *  not. */
-export function pulseEnquiryIsHot(row: PulseEnquiryRow): boolean {
+/** A fresh high rating, shortlist, WhatsApp tap, enquiry or reply to a
+ *  check-in deserves a follow-up today, and a pending request does until
+ *  it is decided; a declined request, a low rating or anything older
+ *  than the freshness window does not. */
+export function pulseEnquiryIsHot(
+  row: PulseEnquiryRow,
+  now: Date = new Date()
+): boolean {
+  switch (row.kind) {
+    case 'location_request':
+    case 'document_request':
+      return text(row.detail.status) === 'pending';
+    default:
+      break;
+  }
+  const age = now.getTime() - new Date(row.occurred_at).getTime();
+  if (!Number.isFinite(age) || age > PULSE_ENQUIRY_FRESH_MS) return false;
   switch (row.kind) {
     case 'rating':
       return Number(row.detail.rating) >= 7;
@@ -179,9 +196,8 @@ export function pulseEnquiryIsHot(row: PulseEnquiryRow): boolean {
       return true;
     case 'check_in':
       return Boolean(text(row.detail.response));
-    case 'location_request':
-    case 'document_request':
-      return text(row.detail.status) === 'pending';
+    default:
+      return false;
   }
 }
 

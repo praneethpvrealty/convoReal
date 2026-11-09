@@ -32,7 +32,10 @@ describe('[PLS-009] mobile Pulse enquiries use the shared rules', () => {
     expect(describePulseEnquiry(row)).toBe(
       'Rated 45x60 Plot in JP Nagar 9/10.'
     );
-    expect(pulseEnquiryIsHot(row)).toBe(true);
+    expect(pulseEnquiryIsHot(row, new Date('2026-11-09T09:00:00Z'))).toBe(true);
+    expect(pulseEnquiryIsHot(row, new Date('2026-11-20T09:00:00Z'))).toBe(
+      false
+    );
     expect(pulseEnquiryVisitor(row)).toEqual({
       label: 'Asha Rao',
       identified: true,

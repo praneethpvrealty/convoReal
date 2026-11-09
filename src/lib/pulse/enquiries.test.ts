@@ -90,27 +90,36 @@ describe('[PLS-009] Pulse enquiries feed', () => {
     ).toContain('no reply yet');
   });
 
-  it('flags what deserves a follow-up today', () => {
+  it('flags what deserves a follow-up today, and lets the flag lapse', () => {
+    const now = new Date('2026-11-09T09:00:00Z');
+    const stale = new Date('2026-11-12T09:00:00Z');
+    expect(pulseEnquiryIsHot(row({ kind: 'enquiry' }), now)).toBe(true);
+    expect(pulseEnquiryIsHot(row({ kind: 'enquiry' }), stale)).toBe(false);
     expect(
-      pulseEnquiryIsHot(row({ kind: 'rating', detail: { rating: 9 } }))
+      pulseEnquiryIsHot(row({ kind: 'rating', detail: { rating: 9 } }), now)
     ).toBe(true);
     expect(
-      pulseEnquiryIsHot(row({ kind: 'rating', detail: { rating: 2 } }))
+      pulseEnquiryIsHot(row({ kind: 'rating', detail: { rating: 9 } }), stale)
+    ).toBe(false);
+    expect(
+      pulseEnquiryIsHot(row({ kind: 'rating', detail: { rating: 2 } }), now)
     ).toBe(false);
     expect(
       pulseEnquiryIsHot(
-        row({ kind: 'location_request', detail: { status: 'approved' } })
+        row({ kind: 'location_request', detail: { status: 'approved' } }),
+        now
       )
     ).toBe(false);
     expect(
       pulseEnquiryIsHot(
-        row({ kind: 'location_request', detail: { status: 'pending' } })
+        row({ kind: 'location_request', detail: { status: 'pending' } }),
+        stale
       )
     ).toBe(true);
-    expect(pulseEnquiryIsHot(row({ kind: 'check_in', detail: {} }))).toBe(
+    expect(pulseEnquiryIsHot(row({ kind: 'check_in', detail: {} }), now)).toBe(
       false
     );
-    expect(pulseEnquiryIsHot(row({ kind: 'shortlist' }))).toBe(true);
+    expect(pulseEnquiryIsHot(row({ kind: 'shortlist' }), now)).toBe(true);
   });
 
   it('filters by kind and pages by the last row’s time until a short page arrives', () => {
