@@ -13,11 +13,13 @@ vi.mock('@/lib/conversations/resolve', () => ({
   resolveConversation: async () => ({ conversation: { id: 'conv-1' } }),
 }));
 
+let sendLanguage = 'en';
+
 vi.mock('@/lib/whatsapp/template-language', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('@/lib/whatsapp/template-language')
   >()),
-  resolveSendLanguage: async () => 'en',
+  resolveSendLanguage: async () => sendLanguage,
 }));
 
 vi.mock('@/lib/showcase/account-showcase-url', () => ({
@@ -121,6 +123,7 @@ const digestTemplate = {
 beforeEach(() => {
   queues = {};
   calls = [];
+  sendLanguage = 'en';
   sendWhatsAppMessageAndPersist.mockReset();
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
 });
@@ -246,6 +249,60 @@ describe('sendPortalInvite outside the 24-hour window', () => {
     expect(args.messageParams.buttonParams).toEqual({
       2: '?ref=acc-1&listing_type=Sale&category=Vacant+plot&search=BTM+2nd+Stage&v=c-9',
     });
+  });
+
+  it('[CTM-002] fills the parameters in the language of the variant that is actually sent', async () => {
+    sendLanguage = 'hi';
+    queues['messages'] = [closedWindow];
+    queues['profiles'] = [{ data: { full_name: 'Lakshmi' } }];
+    queues['message_templates'] = [
+      {
+        data: [
+          {
+            ...portalTemplate,
+            language: 'hi',
+            body_text: 'नमस्ते {{1}} 👋, यह {{2}} की ओर से संदेश है। {{3}}',
+          },
+          digestTemplate,
+        ],
+      },
+    ];
+
+    await sendPortalInvite({
+      db: makeDb() as never,
+      accountId: 'acc-1',
+      userId: 'user-1',
+      contact: buyer,
+    });
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateLanguage: 'hi',
+        templateParams: [
+          'Pramod',
+          'Aryavarta Ventures से Lakshmi',
+          'यह आपके लिए पहले से vacant plot for sale in BTM 2nd Stage पर खुलता है — खोज बढ़ाने के लिए फ़िल्टर कभी भी बदलें।',
+        ],
+      })
+    );
+
+    sendWhatsAppMessageAndPersist.mockClear();
+    queues['messages'] = [closedWindow];
+    queues['profiles'] = [{ data: { full_name: 'Lakshmi' } }];
+    queues['message_templates'] = [{ data: [digestTemplate] }];
+    queues['properties'] = [{ data: [{ type: 'Flat/ Apartment' }] }];
+
+    await sendPortalInvite({
+      db: makeDb() as never,
+      accountId: 'acc-1',
+      userId: 'user-1',
+      contact: buyer,
+    });
+    const [args] = sendWhatsAppMessageAndPersist.mock.calls[0] as [
+      { templateLanguage: string; templateParams: string[] },
+    ];
+    expect(args.templateLanguage).toBe('en_US');
+    expect(args.templateParams[1]).toContain('Tap Browse showcase below');
+    expect(args.templateParams[1]).not.toContain('कैटलॉग देखें');
   });
 
   it('[CTM-002] refuses the business number when neither template is approved', async () => {

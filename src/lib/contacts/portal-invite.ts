@@ -7,6 +7,7 @@ import {
   accountBrandName,
   accountShowcaseBase,
 } from '@/lib/showcase/account-showcase-url';
+import { languageForMetaCode } from '@/lib/languages';
 import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import {
   PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME,
@@ -372,6 +373,8 @@ export async function sendPortalInvite(args: {
   }
 
   const scope = describePortalInviteFilters(filters);
+  const templateLanguage =
+    languageForMetaCode(template.language ?? '') ?? language;
   let templateParams: string[];
   if (portalTemplate) {
     templateParams = buildPortalInviteTemplateParams({
@@ -380,7 +383,7 @@ export async function sendPortalInvite(args: {
       brandName,
       scope,
       audience,
-      language,
+      language: templateLanguage,
     });
   } else {
     const { data: published } = await db
@@ -395,7 +398,7 @@ export async function sendPortalInvite(args: {
         (published ?? []) as Pick<Property, 'type'>[],
         scope,
         audience,
-        language
+        templateLanguage
       ),
     ];
   }
