@@ -4932,7 +4932,9 @@ describe('[PLS-009] mobile Showcase Pulse enquiries view reads the shared rules'
     expect(fetcher).toContain("from '@shared/lib/pulse/enquiries'");
     expect(fetcher).toContain("rpc('pulse_enquiries'");
     expect(fetcher).toContain("rpc('pulse_enquiry_counts'");
+    expect(fetcher).toContain('p_kind: kind');
     const web = read('src/lib/pulse/enquiries-queries.ts');
+    expect(web).toContain('p_kind: kind');
     expect(web).toContain("rpc('pulse_enquiries'");
     expect(web).toContain("rpc('pulse_enquiry_counts'");
   });

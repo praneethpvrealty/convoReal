@@ -155,10 +155,12 @@ export default function PulseScreen() {
     queryFn: () => fetchPulseEnquiryCounts(accountId!),
     retry: retryAnalyticsRequest,
   });
+  const enquiryKind = enquiryFilter === 'all' ? null : enquiryFilter;
   const enquiries = useInfiniteQuery({
-    queryKey: ['pulse-enquiries-pages'],
+    queryKey: ['pulse-enquiries-pages', enquiryKind],
     enabled: Boolean(accountId) && view === 'enquiries',
-    queryFn: ({ pageParam }) => fetchPulseEnquiries(accountId!, pageParam),
+    queryFn: ({ pageParam }) =>
+      fetchPulseEnquiries(accountId!, pageParam, enquiryKind),
     initialPageParam: null as PulseEnquiryCursor | null,
     getNextPageParam: (last) => nextPulseEnquiryCursor(last) ?? undefined,
     retry: retryAnalyticsRequest,

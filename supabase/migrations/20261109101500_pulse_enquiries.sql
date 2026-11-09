@@ -13,14 +13,19 @@
 -- (migration 162) the way journey_overview_groups does: an agent sees
 -- the contacts assigned to them or their team, a manager or
 -- coordinator sees every contact, and a contact the caller may not
--- see is returned without its identity.
+-- see is returned without its identity. A location request that came
+-- through a co-broker's link belongs to the co-broker's client, whose
+-- name and number the listing side masks everywhere
+-- (src/app/api/properties/[id]/location-requests/route.ts); here they
+-- are withheld and the row is flagged identity_protected.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION public.pulse_enquiries(
   p_account_id UUID,
   p_before TIMESTAMPTZ DEFAULT NULL,
   p_before_id UUID DEFAULT NULL,
-  p_limit INTEGER DEFAULT 40
+  p_limit INTEGER DEFAULT 40,
+  p_kind TEXT DEFAULT NULL
 )
 RETURNS TABLE (
   kind TEXT,
@@ -63,8 +68,14 @@ AS $$
       r.property_id,
       jsonb_build_object(
         'status', r.status,
-        'requester_name', r.requester_name,
-        'requester_phone', r.requester_phone
+        'requester_name',
+          CASE WHEN r.via_contact_id IS NULL AND r.via_share_id IS NULL
+            THEN r.requester_name END,
+        'requester_phone',
+          CASE WHEN r.via_contact_id IS NULL AND r.via_share_id IS NULL
+            THEN r.requester_phone END,
+        'identity_protected',
+          r.via_contact_id IS NOT NULL OR r.via_share_id IS NOT NULL
       )
     FROM property_location_requests r
     WHERE r.account_id = p_account_id
@@ -182,6 +193,7 @@ AS $$
    )
   LEFT JOIN properties p ON p.id = r.property_id AND p.account_id = p_account_id
   WHERE is_account_member(p_account_id)
+    AND (p_kind IS NULL OR r.kind = p_kind)
     AND (
       p_before IS NULL
       OR (p_before_id IS NULL AND r.occurred_at < p_before)
@@ -245,5 +257,5 @@ AS $$
   WHERE is_account_member(p_account_id);
 $$;
 
-GRANT EXECUTE ON FUNCTION public.pulse_enquiries(UUID, TIMESTAMPTZ, UUID, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.pulse_enquiries(UUID, TIMESTAMPTZ, UUID, INTEGER, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.pulse_enquiry_counts(UUID, TIMESTAMPTZ) TO authenticated;

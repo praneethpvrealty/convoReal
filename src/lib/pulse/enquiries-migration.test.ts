@@ -54,6 +54,27 @@ describe('[PLS-009] pulse_enquiries feeds every kind the panel lists, behind the
     ).toBe(2);
   });
 
+  it('withholds the name and number of a co-broker\u2019s client and flags the row', () => {
+    const branch = migration.slice(
+      migration.indexOf("'location_request',"),
+      migration.indexOf("'document_request',")
+    );
+    expect(branch).toMatch(
+      /'requester_name',\s+CASE WHEN r\.via_contact_id IS NULL AND r\.via_share_id IS NULL\s+THEN r\.requester_name END/
+    );
+    expect(branch).toMatch(
+      /'requester_phone',\s+CASE WHEN r\.via_contact_id IS NULL AND r\.via_share_id IS NULL\s+THEN r\.requester_phone END/
+    );
+    expect(branch).toMatch(
+      /'identity_protected',\s+r\.via_contact_id IS NOT NULL OR r\.via_share_id IS NOT NULL/
+    );
+  });
+
+  it('filters by kind inside the function so a kind tile pages its own rows', () => {
+    expect(migration).toContain('p_kind TEXT DEFAULT NULL');
+    expect(migration).toContain('AND (p_kind IS NULL OR r.kind = p_kind)');
+  });
+
   it('pages newest first by (occurred_at, id) and caps a page at 100 rows', () => {
     expect(migration).toContain('ORDER BY r.occurred_at DESC, r.id DESC');
     expect(migration).toContain('p_before_id UUID DEFAULT NULL');

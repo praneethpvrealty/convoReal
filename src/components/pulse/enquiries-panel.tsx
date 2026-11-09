@@ -71,10 +71,11 @@ export function EnquiriesPanel({ accountId }: EnquiriesPanelProps) {
     queryFn: () => loadPulseEnquiryCounts(createClient(), accountId),
     staleTime: 60_000,
   });
+  const kind = filter === 'all' ? null : filter;
   const rowsQuery = useInfiniteQuery({
-    queryKey: ['pulse-enquiries', accountId],
+    queryKey: ['pulse-enquiries', accountId, kind],
     queryFn: ({ pageParam }) =>
-      loadPulseEnquiries(createClient(), accountId, pageParam),
+      loadPulseEnquiries(createClient(), accountId, pageParam, kind),
     initialPageParam: null as PulseEnquiryCursor | null,
     getNextPageParam: (last) => nextPulseEnquiryCursor(last) ?? undefined,
     staleTime: 60_000,

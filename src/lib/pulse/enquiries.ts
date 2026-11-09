@@ -107,6 +107,12 @@ export function pulseEnquiryVisitor(row: PulseEnquiryRow): {
       identified: true,
     };
   }
+  if (row.detail.identity_protected === true) {
+    return {
+      label: 'Co-broker’s client (identity protected)',
+      identified: false,
+    };
+  }
   const requester =
     text(row.detail.requester_name) || text(row.detail.requester_phone);
   if (requester) return { label: requester, identified: false };

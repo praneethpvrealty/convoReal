@@ -11,13 +11,15 @@ import {
 export async function loadPulseEnquiries(
   db: SupabaseClient,
   accountId: string,
-  cursor: PulseEnquiryCursor | null = null
+  cursor: PulseEnquiryCursor | null = null,
+  kind: PulseEnquiryKind | null = null
 ): Promise<PulseEnquiryRow[]> {
   const { data, error } = await db.rpc('pulse_enquiries', {
     p_account_id: accountId,
     p_before: cursor?.before ?? null,
     p_before_id: cursor?.beforeId ?? null,
     p_limit: PULSE_ENQUIRY_PAGE_SIZE,
+    p_kind: kind,
   });
   if (error) throw error;
   return (data ?? []) as PulseEnquiryRow[];

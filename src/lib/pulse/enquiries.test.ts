@@ -48,6 +48,20 @@ describe('[PLS-009] Pulse enquiries feed', () => {
     ).toEqual({ label: 'Anonymous Guest · ab12cd34', identified: false });
   });
 
+  it('withholds a co-broker\u2019s client behind a protected label', () => {
+    expect(
+      pulseEnquiryVisitor(
+        row({
+          kind: 'location_request',
+          detail: { status: 'approved', identity_protected: true },
+        })
+      )
+    ).toEqual({
+      label: 'Co-broker\u2019s client (identity protected)',
+      identified: false,
+    });
+  });
+
   it('describes every kind of request in the agent’s words', () => {
     expect(
       describePulseEnquiry(row({ detail: { source: 'Website Shortlist' } }))
