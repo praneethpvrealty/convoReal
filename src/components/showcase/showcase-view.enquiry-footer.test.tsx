@@ -176,11 +176,40 @@ describe('[PRP-057] showcase detail enquiry footer', () => {
     );
   });
 
-  it('lets a known visitor edit their details back into the full form', () => {
+  it('lets a known visitor edit their details back into the full form, and keeps the corrected identity', async () => {
     identify();
     renderShowcase();
     fireEvent.click(screen.getByRole('button', { name: /not you/i }));
     expect(screen.getByText(/send instant inquiry/i)).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText(/your name/i), {
+      target: { value: 'Meera' },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/mobile number/i), {
+      target: { value: '9000011111' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /submit lead form/i }));
+    await waitFor(() =>
+      expect(localStorage.getItem('visitor_phone')).toBe('9000011111')
+    );
+    expect(localStorage.getItem('visitor_name')).toBe('Meera');
+  });
+
+  it('sends one enquiry however often the footer is tapped afterwards', async () => {
+    identify();
+    renderShowcase();
+    const footer = document.querySelector(
+      '[data-showcase-detail-actions]'
+    ) as HTMLElement;
+    fireEvent.click(
+      within(footer).getByRole('button', { name: /i.m interested/i })
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/inquiry submitted/i)).toBeTruthy()
+    );
+    const sent = within(footer).getByRole('button', { name: /enquiry sent/i });
+    expect((sent as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(sent);
+    expect(postedBodies('/api/public/inquiry')).toHaveLength(1);
   });
 
   it('requests the exact location straight away for a known visitor', async () => {
@@ -262,6 +291,30 @@ describe('[PRP-057] soft identity capture', () => {
     expect(localStorage.getItem('visitor_capture_dismissed')).toBe('1');
 
     fireEvent.click(screen.getByTitle(first.title));
+    expect(screen.queryByText(/browsing a few/i)).toBeNull();
+  });
+
+  it('withdraws the rating prompt when the rating drops below the threshold, and remembers a dismissal', async () => {
+    renderShowcase();
+    fireEvent.click(detailPanel().getByRole('button', { name: /^8$/ }));
+    await screen.findByText(/sounds like a fit/i);
+    fireEvent.click(detailPanel().getByRole('button', { name: /^3$/ }));
+    expect(screen.queryByText(/sounds like a fit/i)).toBeNull();
+    expect(localStorage.getItem('visitor_interests') ?? '{}').not.toContain(
+      'interested'
+    );
+
+    fireEvent.click(detailPanel().getByRole('button', { name: /^9$/ }));
+    const prompt = await screen.findByText(/sounds like a fit/i);
+    fireEvent.click(
+      within(prompt.closest('form') as HTMLFormElement).getByRole('button', {
+        name: /not now/i,
+      })
+    );
+    expect(localStorage.getItem('visitor_capture_dismissed')).toBe('1');
+    fireEvent.click(screen.getByTitle(second.title));
+    fireEvent.click(detailPanel().getByRole('button', { name: /^10$/ }));
+    expect(screen.queryByText(/sounds like a fit/i)).toBeNull();
     expect(screen.queryByText(/browsing a few/i)).toBeNull();
   });
 

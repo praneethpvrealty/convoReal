@@ -929,6 +929,10 @@ export function ShowcaseView({
   // re-rating 8 → 9 must not create duplicate inquiries.
   const recordPriorityInterest = async (property: Property, rating: number) => {
     if (interestStatus[property.id] === 'interested') return;
+    if (!visitorName.trim() || !visitorPhone.trim()) {
+      if (!captureDismissed) setRatingCaptureFor(property.id);
+      return;
+    }
     updateInterestStatus(property.id, 'interested');
 
     trackPixelEvent('Lead', {
@@ -940,10 +944,6 @@ export function ShowcaseView({
       inquiry_type: 'high_rating',
     });
 
-    if (!visitorName.trim() || !visitorPhone.trim()) {
-      setRatingCaptureFor(property.id);
-      return;
-    }
     try {
       await fetch('/api/public/inquiry', {
         method: 'POST',
@@ -978,7 +978,13 @@ export function ShowcaseView({
 
     if (rating >= HIGH_INTEREST_RATING) {
       void recordPriorityInterest(property, rating);
-    } else if (interestStatus[property.id] === 'interested') {
+    } else if (ratingCaptureFor === property.id) {
+      setRatingCaptureFor(null);
+    }
+    if (
+      rating < HIGH_INTEREST_RATING &&
+      interestStatus[property.id] === 'interested'
+    ) {
       const updated = { ...interestStatus };
       delete updated[property.id];
       setInterestStatus(updated);
@@ -1778,10 +1784,11 @@ export function ShowcaseView({
         inquiry_type: 'inquiry_form',
       });
 
-      // Clear inputs
-      setInquiryName('');
-      setInquiryPhone('');
-      setInquiryEmail('');
+      saveVisitorInfo(
+        inquiryName.trim(),
+        inquiryPhone.trim(),
+        inquiryEmail.trim() || undefined
+      );
       setInquiryMessage('');
     } catch (err) {
       console.error(err);
@@ -1835,7 +1842,7 @@ export function ShowcaseView({
   };
 
   const handleQuickInterest = async (property: Property) => {
-    if (submitting) return;
+    if (submitting || submitSuccess) return;
     setSubmitting(true);
     try {
       await submitVisitorInquiry(property, {
@@ -4491,7 +4498,10 @@ export function ShowcaseView({
                     )}
                     {!isAgentMode &&
                       !identifiedVisitor &&
-                      ratingCaptureFor === selectedProperty.id && (
+                      !captureDismissed &&
+                      ratingCaptureFor === selectedProperty.id &&
+                      (ratings[selectedProperty.id]?.rating ?? 0) >=
+                        HIGH_INTEREST_RATING && (
                         <VisitorCapturePrompt
                           title="Sounds like a fit — want a call back?"
                           body="Share your WhatsApp number and the agent will reach out about this property."
@@ -4508,7 +4518,10 @@ export function ShowcaseView({
                               ratings[selectedProperty.id]?.rating ?? null
                             )
                           }
-                          onDismiss={() => setRatingCaptureFor(null)}
+                          onDismiss={() => {
+                            setRatingCaptureFor(null);
+                            dismissBrowsingCapture();
+                          }}
                         />
                       )}
                     <div ref={inquiryFormRef} className="space-y-3">
@@ -4706,10 +4719,16 @@ export function ShowcaseView({
                           ? handleQuickInterest(selectedProperty)
                           : focusInquiryForm()
                       }
-                      disabled={submitting}
+                      disabled={
+                        submitting || (identifiedVisitor && submitSuccess)
+                      }
                       className="bg-primary hover:bg-primary-hover text-primary-foreground min-h-11 flex-1 rounded-xl text-xs font-bold"
                     >
-                      {identifiedVisitor ? 'I’m interested' : 'Enquire'}
+                      {identifiedVisitor
+                        ? submitSuccess
+                          ? 'Enquiry sent'
+                          : 'I’m interested'
+                        : 'Enquire'}
                     </Button>
                   </div>
                 )}
