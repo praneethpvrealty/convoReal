@@ -25,7 +25,14 @@ const EVENT_TYPES = new Set([
   'map_click',
   'gallery',
   'search',
+  'shortlist',
+  'whatsapp_click',
 ]);
+const SHORTLIST_ACTIONS = new Set(['add', 'remove']);
+const INTENT_ENQUIRY_SOURCE: Record<string, string> = {
+  shortlist: 'Website Shortlist',
+  whatsapp_click: 'Website WhatsApp',
+};
 const MAX_BATCH = 20;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,8 +63,71 @@ function sanitizeMetadata(event: BeaconEvent): Record<string, unknown> | null {
     return query ? { query } : null;
   }
 
+  if (event.type === 'shortlist') {
+    const action = event.metadata?.action;
+    return typeof action === 'string' && SHORTLIST_ACTIONS.has(action)
+      ? { action }
+      : null;
+  }
+
   if (!event.metadata || typeof event.metadata !== 'object') return {};
   return JSON.stringify(event.metadata).length <= 1000 ? event.metadata : {};
+}
+
+/** A shortlist or a WhatsApp tap by a visitor the showcase knows is an
+ *  enquiry on that listing, so it reaches Today, the contact's
+ *  enquiries and the journey like a form enquiry would. The listing
+ *  must belong to the account: the beacon is public, and a property id
+ *  from another tenant must never be filed on this account's contact. */
+async function recordIntentEnquiries(
+  db: ReturnType<typeof supabaseAdmin>,
+  accountId: string,
+  contactId: string,
+  rows: Array<{
+    property_id: string | null;
+    event_type: string | undefined;
+    metadata: Record<string, unknown>;
+  }>
+) {
+  const intents = rows.filter(
+    (row) =>
+      row.property_id &&
+      (row.event_type === 'whatsapp_click' ||
+        (row.event_type === 'shortlist' && row.metadata.action === 'add'))
+  );
+  if (intents.length === 0) return;
+  const propertyIds = [...new Set(intents.map((row) => row.property_id!))];
+  const { data: owned, error: ownedError } = await db
+    .from('properties')
+    .select('id')
+    .eq('account_id', accountId)
+    .in('id', propertyIds);
+  if (ownedError) {
+    console.error(
+      '[showcase-events] intent lookup failed:',
+      ownedError.message
+    );
+    return;
+  }
+  const ownedIds = new Set((owned ?? []).map((row) => row.id as string));
+  const enquiries = new Map<string, string>();
+  for (const row of intents) {
+    if (!ownedIds.has(row.property_id!) || enquiries.has(row.property_id!))
+      continue;
+    enquiries.set(row.property_id!, INTENT_ENQUIRY_SOURCE[row.event_type!]);
+  }
+  if (enquiries.size === 0) return;
+  const { error } = await db.from('contact_property_inquiries').upsert(
+    [...enquiries].map(([propertyId, source]) => ({
+      account_id: accountId,
+      contact_id: contactId,
+      property_id: propertyId,
+      inquiry_source: source,
+    })),
+    { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
+  );
+  if (error)
+    console.error('[showcase-events] intent enquiry failed:', error.message);
 }
 
 export async function POST(request: NextRequest) {
@@ -190,6 +260,8 @@ export async function POST(request: NextRequest) {
       const { error } = await db.from('showcase_events').insert(rows);
       if (error)
         console.error('[showcase-events] insert failed:', error.message);
+      if (contactId)
+        await recordIntentEnquiries(db, accountId, contactId, rows);
     }
 
     // Retroactive stitching: the session_key persists in the visitor's

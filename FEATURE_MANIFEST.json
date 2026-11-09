@@ -2884,6 +2884,35 @@
               "case": "[PRP-057]"
             }
           ]
+        },
+        {
+          "id": "PRP-058",
+          "rule": "Shortlisting a listing on the public showcase (add or remove) and tapping WhatsApp on one are recorded as showcase events, so they appear in Pulse beside views; for a visitor the showcase has identified, a shortlist add or a WhatsApp tap also files an enquiry on that listing (Website Shortlist or Website WhatsApp), once per listing, only for a listing in the same account, and never for an anonymous visitor or a shortlist removal. The shortlist bar offers to send the whole shortlist to the agency number as one WhatsApp message carrying every property code, and an approved exact-location request is recorded as a Location request enquiry on its listing.",
+          "tests": [
+            {
+              "file": "src/app/api/public/showcase-events/route.intents.test.ts",
+              "case": "[PRP-058]"
+            },
+            {
+              "file": "src/components/showcase/showcase-view.intent-signals.test.tsx",
+              "case": "[PRP-058]"
+            },
+            {
+              "file": "src/components/showcase/showcase-shortlist.test.tsx",
+              "case": "[PRP-058]"
+            },
+            {
+              "file": "src/lib/showcase/shortlist.test.ts",
+              "case": "[PRP-058]"
+            },
+            {
+              "file": "src/lib/showcase/intent-signals.test.ts",
+              "case": "[PRP-058]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261109093000_showcase_intent_signals.sql"
+          ]
         }
       ]
     },

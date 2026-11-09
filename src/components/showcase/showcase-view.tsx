@@ -90,6 +90,7 @@ import {
   type ShowcaseStyle,
 } from '@/lib/showcase/style';
 import { useShowcaseShortlist } from '@/hooks/useShowcaseShortlist';
+import { MAX_SHORTLIST_PROPERTIES } from '@/lib/showcase/shortlist';
 import {
   listingAvailabilityNotice,
   listingStatusInquiryLine,
@@ -261,6 +262,17 @@ export function ShowcaseView({
     [properties]
   );
   const shortlist = useShowcaseShortlist(accountId, shortlistable);
+  const toggleShortlist = (id: string) => {
+    const adding = !shortlist.ids.includes(id);
+    if (adding && shortlist.ids.length >= MAX_SHORTLIST_PROPERTIES) {
+      shortlist.toggle(id);
+      return;
+    }
+    shortlist.toggle(id);
+    trackerRef.current?.track('shortlist', id, {
+      action: adding ? 'add' : 'remove',
+    });
+  };
   const agencyDesign = isAgencyShowcaseDesign(showcaseStyle);
   const dealFloor = showcaseStyle === 'deal-floor';
   const motionEnabled = showcase3dEnabled && !agencyDesign;
@@ -1978,6 +1990,7 @@ export function ShowcaseView({
   };
 
   const trackWhatsAppInquiry = (property: Property) => {
+    trackerRef.current?.track('whatsapp_click', property.id);
     trackPixelEvent('Lead', {
       content_name: property.title,
       content_ids: [property.property_code || property.id],
@@ -2962,7 +2975,7 @@ export function ShowcaseView({
                               className="showcase-photo-shortlist absolute top-3 right-3 size-11 rounded-xl"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                shortlist.toggle(property.id);
+                                toggleShortlist(property.id);
                               }}
                             >
                               {shortlist.ids.includes(property.id) ? (
@@ -3128,7 +3141,7 @@ export function ShowcaseView({
                                 aria-pressed={shortlist.ids.includes(
                                   property.id
                                 )}
-                                onClick={() => shortlist.toggle(property.id)}
+                                onClick={() => toggleShortlist(property.id)}
                                 className="mb-3 min-h-11 w-full gap-2"
                               >
                                 {shortlist.ids.includes(property.id) ? (
@@ -3363,8 +3376,16 @@ export function ShowcaseView({
           name={visitorName}
           phone={visitorPhone}
           email={visitorEmail}
-          onRemove={shortlist.toggle}
+          onRemove={toggleShortlist}
           onClear={shortlist.clear}
+          whatsappPhone={enquiryWhatsAppPhone()}
+          onWhatsApp={(ids) =>
+            ids.forEach((id) =>
+              trackerRef.current?.track('whatsapp_click', id, {
+                shortlist: true,
+              })
+            )
+          }
           openRequest={shortlistOpenRequest}
         />
       )}
@@ -4372,7 +4393,7 @@ export function ShowcaseView({
                     variant="outline"
                     aria-label={`Shortlist ${selectedProperty.title}`}
                     aria-pressed={shortlist.ids.includes(selectedProperty.id)}
-                    onClick={() => shortlist.toggle(selectedProperty.id)}
+                    onClick={() => toggleShortlist(selectedProperty.id)}
                     className="mt-6 min-h-11 w-full gap-2"
                   >
                     {shortlist.ids.includes(selectedProperty.id) ? (

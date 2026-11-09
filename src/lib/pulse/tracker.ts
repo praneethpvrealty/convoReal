@@ -27,7 +27,14 @@ import { INTERNAL_VIEW_PARAM, isInternalView } from './internal-view';
 import { getShowcaseSessionKey } from './session-key';
 
 interface PulseEvent {
-  type: 'open' | 'view_property' | 'map_click' | 'gallery' | 'search';
+  type:
+    | 'open'
+    | 'view_property'
+    | 'map_click'
+    | 'gallery'
+    | 'search'
+    | 'shortlist'
+    | 'whatsapp_click';
   property_id?: string;
   metadata?: Record<string, unknown>;
 }

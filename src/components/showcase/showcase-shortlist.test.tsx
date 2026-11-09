@@ -180,3 +180,52 @@ it('keeps shortlisting usable when browser storage is blocked', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Second home' }));
   expect(screen.getByText('2 shortlisted')).toBeTruthy();
 });
+
+it('[PRP-058] offers to send the shortlist to the agency on WhatsApp with every listing code', () => {
+  const onWhatsApp = vi.fn();
+  render(
+    <ShowcaseShortlist
+      properties={
+        [
+          { id: 'one', title: 'First home', property_code: 'CR-1' },
+          { id: 'two', title: 'Second home', property_code: 'CR-2' },
+        ] as Property[]
+      }
+      accountId="account"
+      name=""
+      phone=""
+      email=""
+      onRemove={() => {}}
+      onClear={() => {}}
+      whatsappPhone="+91 98450 12345"
+      onWhatsApp={onWhatsApp}
+    />
+  );
+  const link = screen.getByRole('link', {
+    name: /send on whatsapp/i,
+  }) as HTMLAnchorElement;
+  expect(link.href).toMatch(/^https:\/\/wa\.me\/919845012345\?text=/);
+  const text = decodeURIComponent(link.href);
+  expect(text).toContain('CR-1');
+  expect(text).toContain('CR-2');
+  const stop = (event: Event) => event.preventDefault();
+  document.addEventListener('click', stop);
+  fireEvent.click(link);
+  document.removeEventListener('click', stop);
+  expect(onWhatsApp).toHaveBeenCalledWith(['one', 'two']);
+});
+
+it('[PRP-058] hides the WhatsApp option when the showcase has no number', () => {
+  render(
+    <ShowcaseShortlist
+      properties={[{ id: 'one', title: 'First home' }] as Property[]}
+      accountId="account"
+      name=""
+      phone=""
+      email=""
+      onRemove={() => {}}
+      onClear={() => {}}
+    />
+  );
+  expect(screen.queryByRole('link', { name: /send on whatsapp/i })).toBeNull();
+});

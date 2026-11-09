@@ -1,7 +1,13 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { BookmarkCheck, CheckCircle, Trash2, X } from 'lucide-react';
+import {
+  BookmarkCheck,
+  CheckCircle,
+  MessageCircle,
+  Trash2,
+  X,
+} from 'lucide-react';
 import type { Property } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +24,7 @@ import {
   type ShowcaseStyle,
 } from '@/lib/showcase/style';
 import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
+import { shortlistWhatsAppLink } from '@/lib/showcase/shortlist';
 
 interface ShowcaseShortlistProps {
   showcaseStyle?: ShowcaseStyle;
@@ -33,6 +40,10 @@ interface ShowcaseShortlistProps {
   /** Bumped by the page to open the enquiry from elsewhere (the Deal
    *  Floor match-report tile and Quick Picks). */
   openRequest?: number;
+  /** The agency number the shortlist can be sent to as one WhatsApp
+   *  message, with every listing's code so the inbox resolves them. */
+  whatsappPhone?: string;
+  onWhatsApp?: (propertyIds: string[]) => void;
 }
 
 export function ShowcaseShortlist(props: ShowcaseShortlistProps) {
@@ -44,6 +55,9 @@ export function ShowcaseShortlist(props: ShowcaseShortlistProps) {
     if (props.properties.length > 0) setOpen(true);
   }
   if (!props.properties.length && !open) return null;
+  const whatsappHref = props.whatsappPhone
+    ? shortlistWhatsAppLink(props.whatsappPhone, props.properties)
+    : null;
   return (
     <>
       {!open && (
@@ -74,6 +88,20 @@ export function ShowcaseShortlist(props: ShowcaseShortlistProps) {
             <Trash2 className="size-4" />
             Clear all
           </Button>
+          {whatsappHref && (
+            <a
+              href={whatsappHref}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() =>
+                props.onWhatsApp?.(props.properties.map((p) => p.id))
+              }
+              className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-green-600 px-3 text-sm font-bold whitespace-nowrap text-white hover:bg-green-500"
+            >
+              <MessageCircle className="size-4 fill-white text-green-600" />
+              Send on WhatsApp
+            </a>
+          )}
           <Button
             className="min-h-11 flex-1 whitespace-nowrap"
             onClick={() => setOpen(true)}
