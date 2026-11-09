@@ -364,12 +364,19 @@ export async function countAudienceOnServer(
   return Number(data ?? 0);
 }
 
+export interface DispatchOutcome {
+  handled: number;
+  rateLimited: number;
+}
+
+const NO_DISPATCH: DispatchOutcome = { handled: 0, rateLimited: 0 };
+
 export async function sendBroadcastRecipients(
   broadcastId: string,
   accountId: string,
   userId: string,
   limit: number = 200
-): Promise<number> {
+): Promise<DispatchOutcome> {
   const supabase = supabaseAdmin(); // Use admin/service role client to bypass user RLS constraints on updates
 
   // Fetch the broadcast details
@@ -380,7 +387,7 @@ export async function sendBroadcastRecipients(
     .single();
 
   if (bErr || !broadcast || broadcast.status !== 'sending') {
-    return 0;
+    return NO_DISPATCH;
   }
 
   // Only one dispatcher may send a broadcast at a time. Recipients are
@@ -399,13 +406,13 @@ export async function sendBroadcastRecipients(
       `[Broadcast Sender] Could not claim dispatch for ${broadcastId}:`,
       claimErr.message
     );
-    return 0;
+    return NO_DISPATCH;
   }
   if (claimed !== true) {
     console.log(
       `[Broadcast Sender] ${broadcastId} already being dispatched elsewhere — standing down.`
     );
-    return 0;
+    return NO_DISPATCH;
   }
 
   try {
@@ -444,7 +451,7 @@ async function dispatchClaimedRecipients(
   accountId: string,
   userId: string,
   limit: number
-): Promise<number> {
+): Promise<DispatchOutcome> {
   const supabase = supabaseAdmin();
 
   // Claiming IS the permission to send. Reading rows that are merely
@@ -463,7 +470,7 @@ async function dispatchClaimedRecipients(
       `[Broadcast Sender] Error claiming recipients for ${broadcastId}:`,
       rFetchErr.message
     );
-    return 0;
+    return NO_DISPATCH;
   }
 
   // The claim returns the row only; contacts are loaded separately
@@ -519,7 +526,7 @@ async function dispatchClaimedRecipients(
         })
         .eq('id', broadcastId);
     }
-    return 0;
+    return NO_DISPATCH;
   }
 
   // Fetch the template details
@@ -612,6 +619,7 @@ async function dispatchClaimedRecipients(
   const BATCH_SIZE = 10;
   const DELAY_MS = 1000;
   const MAX_RETRIES = 5;
+  let rateLimitedCount = 0;
 
   for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
     // A long batch outlives the lease at one send per second, so renew
@@ -761,6 +769,7 @@ async function dispatchClaimedRecipients(
         } else {
           const errMsg = result.error || 'Unknown error';
           const rateLimited = isRateLimitError(errMsg);
+          if (rateLimited) rateLimitedCount += 1;
           const backoffMs = Math.min(300_000, 1000 * Math.pow(2, newCount)); // cap 5m
           const retryAfter =
             rateLimited && newCount < MAX_RETRIES
@@ -799,7 +808,7 @@ async function dispatchClaimedRecipients(
       await sleep(DELAY_MS);
     }
   }
-  return recipients.length;
+  return { handled: recipients.length, rateLimited: rateLimitedCount };
 }
 
 export const DISPATCH_CHUNK_SIZE = 20;
@@ -824,9 +833,14 @@ export async function dispatchBroadcast(
   const deadline = now() + budgetMs;
   let total = 0;
   while (now() < deadline) {
-    const handled = await send(broadcastId, accountId, userId, chunkSize);
-    if (handled === 0) break;
+    const { handled, rateLimited } = await send(
+      broadcastId,
+      accountId,
+      userId,
+      chunkSize
+    );
     total += handled;
+    if (handled === 0 || rateLimited > 0) break;
   }
   return total;
 }

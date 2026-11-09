@@ -10,7 +10,10 @@ const { dispatchBroadcast, DISPATCH_CHUNK_SIZE } = await import('./sender');
 describe('dispatchBroadcast', () => {
   it('[BRC-003] keeps claiming small chunks until nothing is left to send', async () => {
     const handled = [20, 20, 5, 0];
-    const send = vi.fn(async () => handled.shift() ?? 0);
+    const send = vi.fn(async () => ({
+      handled: handled.shift() ?? 0,
+      rateLimited: 0,
+    }));
     const total = await dispatchBroadcast('b1', 'a1', 'u1', { send });
     expect(total).toBe(45);
     expect(send).toHaveBeenCalledTimes(4);
@@ -23,7 +26,7 @@ describe('dispatchBroadcast', () => {
     let clock = 0;
     const send = vi.fn(async () => {
       clock += 30_000;
-      return 20;
+      return { handled: 20, rateLimited: 0 };
     });
     const total = await dispatchBroadcast('b1', 'a1', 'u1', {
       send,
@@ -35,8 +38,19 @@ describe('dispatchBroadcast', () => {
   });
 
   it('[BRC-003] stands down at once when another dispatcher holds the broadcast', async () => {
-    const send = vi.fn(async () => 0);
+    const send = vi.fn(async () => ({ handled: 0, rateLimited: 0 }));
     expect(await dispatchBroadcast('b1', 'a1', 'u1', { send })).toBe(0);
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('[BRC-003] leaves rate-limited rows to the sweep instead of burning their retries in seconds', async () => {
+    const outcomes = [
+      { handled: 20, rateLimited: 0 },
+      { handled: 20, rateLimited: 3 },
+      { handled: 20, rateLimited: 0 },
+    ];
+    const send = vi.fn(async () => outcomes.shift()!);
+    expect(await dispatchBroadcast('b1', 'a1', 'u1', { send })).toBe(40);
+    expect(send).toHaveBeenCalledTimes(2);
   });
 });
