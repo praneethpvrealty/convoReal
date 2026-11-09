@@ -676,6 +676,38 @@ describe('the portal link invite is one server draft on both surfaces', () => {
     );
   });
 
+  it("[CTM-002] shows a sent template's buttons in both chat threads from the shared matcher", () => {
+    const mobileThread = mobileSource('app/(app)/conversation/[id].tsx');
+    const mobileBubble = mobileSource('components/message-bubble.tsx');
+    const webThread = webSource('components/inbox/message-thread.tsx');
+    const webBubble = webSource('components/inbox/message-bubble.tsx');
+
+    expect(mobileThread).toContain(
+      "from '@shared/lib/conversations/template-bubble-buttons'"
+    );
+    expect(webThread).toContain(
+      "from '@/lib/conversations/template-bubble-buttons'"
+    );
+    for (const source of [mobileThread, webThread]) {
+      expect(source).toContain('matchTemplateRow(');
+      expect(source).toContain('templateBubbleButtons(');
+      expect(source).toContain(
+        "select('name, language, status, body_text, buttons')"
+      );
+    }
+    for (const source of [mobileBubble, webBubble]) {
+      expect(source).toContain('templateButtons');
+      expect(source).toContain('"Template buttons"');
+    }
+    const mobileSheet = mobileSource('components/portal-invite-sheet.tsx');
+    const webDialog = webSource('components/contacts/portal-invite-dialog.tsx');
+    for (const source of [mobileSheet, webDialog]) {
+      expect(source).toContain('approved portal invite');
+      expect(source).toContain("'property_selection_update'");
+      expect(source).not.toContain('approved property selection template');
+    }
+  });
+
   it('[CTM-002] offers the agent-view invite to co-brokers on both surfaces', () => {
     const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
     const mobileSheet = mobileSource('components/portal-invite-sheet.tsx');

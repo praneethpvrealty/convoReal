@@ -126,6 +126,8 @@ export interface Message {
     | 'interactive';
   content_text?: string;
   media_url?: string;
+  /** Name of the WhatsApp template a template bubble was sent as. */
+  template_name?: string | null;
   status: MessageStatus;
   created_at: string;
   error_info?: string;
@@ -408,6 +410,7 @@ export interface MessageTemplate {
   header_content?: string | null;
   body_text: string;
   footer_text?: string | null;
+  buttons?: { type: string; text: string }[] | null;
   status: string;
 }
 

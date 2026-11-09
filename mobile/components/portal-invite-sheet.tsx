@@ -37,9 +37,10 @@ export function PortalInviteSheet({
 }) {
   const { colors, fonts: f } = useTheme();
   const [sending, setSending] = useState(false);
-  const [delivery, setDelivery] = useState<'free_text' | 'template' | null>(
-    null
-  );
+  const [delivery, setDelivery] = useState<{
+    kind: 'free_text' | 'template';
+    templateName?: string;
+  } | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const name = contact.name?.trim() || contact.phone || 'this contact';
   const isAgent = contact.classification === 'Agent';
@@ -64,12 +65,15 @@ export function PortalInviteSheet({
     setSendError(null);
     try {
       const response = await apiFetch<{
-        data: { delivery: 'free_text' | 'template' };
+        data: { delivery: 'free_text' | 'template'; templateName?: string };
       }>(path, {
         method: 'POST',
         body: JSON.stringify({ channel: 'business' }),
       });
-      setDelivery(response.data.delivery);
+      setDelivery({
+        kind: response.data.delivery,
+        templateName: response.data.templateName,
+      });
       onSent();
     } catch (reason) {
       haptic.warn();
@@ -118,8 +122,10 @@ export function PortalInviteSheet({
         onClose={closeSheet}
         title="Portal link sent"
         message={
-          delivery === 'template'
-            ? `The approved property selection template went to ${name} with a button to the portal. Their reply lands in your Inbox.`
+          delivery.kind === 'template'
+            ? delivery.templateName === 'property_selection_update'
+              ? `The inventory update template went to ${name} with the portal in its button. Submit the portal invite template in Settings → Templates to send the full wording next time. Their reply lands in your Inbox.`
+              : `The approved portal invite template went to ${name} with the portal in its button. Their reply lands in your Inbox.`
             : `The portal link was sent to ${name} from your business WhatsApp. Their reply lands in your Inbox.`
         }
         confetti={false}
@@ -206,9 +212,10 @@ export function PortalInviteSheet({
             }}
           >
             Business WhatsApp is sent and tracked in ConvoReal; outside the
-            24-hour window it goes out as the approved property selection
-            template with a button to the portal. Personal WhatsApp opens this
-            message in your own app and notes the share on the timeline.
+            24-hour window it goes out as the approved portal invite template,
+            this same wording with the portal in its button. Personal WhatsApp
+            opens this message in your own app and notes the share on the
+            timeline.
           </Text>
         </View>
 
