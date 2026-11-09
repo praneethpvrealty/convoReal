@@ -28,6 +28,21 @@ than a written entry. Newest first.
   its broadcast finishes, then Sent or the failure count, on web and mobile,
   and Send again warns while the first send is still going out.
 
+#### 9 November 2026
+
+- **A showcase visitor can enquire without scrolling to the bottom of the
+  listing.** The listing panel now keeps WhatsApp, Exact location and
+  Enquire in a footer that stays on screen, and the "You may also like"
+  strip sits below the enquiry form instead of above it, where it pulled
+  visitors into the next listing before they reached the form. A visitor
+  the showcase already knows enquires, or requests the exact location,
+  with one tap and no form. An anonymous visitor is asked for a WhatsApp
+  number at the two moments it is worth asking: when they open a second
+  listing in one visit, and when they rate a listing 7 or higher; either
+  answer reaches the Inbox, Today and the agent's to-dos as a Website
+  Inquiry that says which moment produced it. On one brokerage's showcase
+  121 sessions in the last 30 days produced two form enquiries.
+
 #### 8 November 2026
 
 - **A closed lead who enquires again is a lead again.** A buyer who had
