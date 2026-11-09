@@ -36,6 +36,13 @@ import {
   upcomingOccasions,
 } from '@/lib/greetings/occasions';
 import type { OccasionGreeting } from '@/lib/greetings/types';
+import {
+  GREETING_IN_FLIGHT_POLL_MS,
+  greetingInFlightWarning,
+  greetingStatusDisplay,
+  isGreetingDeliveryInFlight,
+  type GreetingStatusTone,
+} from '@/lib/greetings/delivery';
 import { buildPersonalGreetingMessage } from '@/lib/greetings/personal-share';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { Button } from '@/components/ui/button';
@@ -91,9 +98,11 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return json.data as T;
 }
 
-const STATUS_STYLES: Record<OccasionGreeting['status'], string> = {
+const STATUS_STYLES: Record<GreetingStatusTone, string> = {
   draft: 'bg-slate-500/10 text-slate-300 border-slate-500/30',
+  sending: 'bg-amber-500/10 text-amber-300 border-amber-500/30 animate-pulse',
   sent: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+  failed: 'bg-red-500/10 text-red-400 border-red-500/30',
 };
 
 export default function GreetingsContent() {
@@ -111,6 +120,10 @@ export default function GreetingsContent() {
   const greetingsQuery = useQuery({
     queryKey: ['occasion-greetings'],
     queryFn: () => api<OccasionGreeting[]>('/api/greetings'),
+    refetchInterval: (query) =>
+      query.state.data?.some((g) => isGreetingDeliveryInFlight(g.delivery))
+        ? GREETING_IN_FLIGHT_POLL_MS
+        : false,
   });
 
   const deleteMutation = useMutation({
@@ -236,11 +249,13 @@ export default function GreetingsContent() {
                       </span>
                       <span
                         className={cn(
-                          'inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize',
-                          STATUS_STYLES[g.status]
+                          'inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                          STATUS_STYLES[
+                            greetingStatusDisplay(g.status, g.delivery).tone
+                          ]
                         )}
                       >
-                        {g.status}
+                        {greetingStatusDisplay(g.status, g.delivery).label}
                       </span>
                     </div>
                     <p className="mt-1 line-clamp-2 text-xs text-slate-400">
@@ -312,7 +327,11 @@ export default function GreetingsContent() {
         onClose={() => setEditTarget(null)}
       />
       <SendGreetingDialog
-        greeting={sendTarget}
+        greeting={
+          sendTarget
+            ? (greetings.find((g) => g.id === sendTarget.id) ?? sendTarget)
+            : null
+        }
         onClose={() => setSendTarget(null)}
       />
       <Dialog
@@ -1063,11 +1082,15 @@ function SendGreetingDialog({
           </div>
           {sendChannel === 'engine' && greeting?.status === 'sent' && (
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
-              This greeting was already sent
-              {greeting.sent_at
-                ? ` on ${format(new Date(greeting.sent_at), 'd MMM yyyy')}`
-                : ''}
-              . Recipients who already received it will get it again.
+              {greetingInFlightWarning(greeting.delivery) ?? (
+                <>
+                  This greeting was already sent
+                  {greeting.sent_at
+                    ? ` on ${format(new Date(greeting.sent_at), 'd MMM yyyy')}`
+                    : ''}
+                  . Recipients who already received it will get it again.
+                </>
+              )}
             </div>
           )}
           {sendChannel === 'engine' && template && !approved && (

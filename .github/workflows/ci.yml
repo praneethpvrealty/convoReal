@@ -143,6 +143,7 @@ jobs:
               - 'src/lib/sweep/gap-actions.ts'
               - 'src/lib/today/insights.ts'
               - 'src/lib/broadcasts/recount.ts'
+              - 'src/lib/greetings/delivery.ts'
               - 'src/lib/broadcasts/csv-audience.ts'
               - 'src/lib/broadcasts/carrier-template.ts'
               - 'src/lib/format/phone.ts'

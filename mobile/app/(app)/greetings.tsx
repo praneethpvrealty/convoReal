@@ -52,6 +52,12 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import { useAppConfig } from '@/lib/use-app-config';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { recountOutcome } from '@shared/lib/broadcasts/recount';
+import {
+  GREETING_IN_FLIGHT_POLL_MS,
+  greetingInFlightWarning,
+  greetingStatusDisplay,
+  isGreetingDeliveryInFlight,
+} from '@shared/lib/greetings/delivery';
 import type { Contact } from '@/lib/types';
 
 interface OccasionOption {
@@ -85,6 +91,10 @@ export default function GreetingsScreen() {
     queryKey: ['occasion-greetings'],
     queryFn: async () =>
       (await apiFetch<{ data: Greeting[] }>('/api/greetings')).data,
+    refetchInterval: (query) =>
+      query.state.data?.some((g) => isGreetingDeliveryInFlight(g.delivery))
+        ? GREETING_IN_FLIGHT_POLL_MS
+        : false,
   });
   const pull = usePullRefresh(refetch);
 
@@ -278,13 +288,15 @@ export default function GreetingsScreen() {
                       fontSize: 11.5,
                       fontFamily: f.bold,
                       textTransform: 'uppercase',
-                      color:
-                        item.status === 'sent'
-                          ? colors.success
-                          : colors.textFaint,
+                      color: {
+                        draft: colors.textFaint,
+                        sending: colors.warning,
+                        sent: colors.success,
+                        failed: colors.danger,
+                      }[greetingStatusDisplay(item.status, item.delivery).tone],
                     }}
                   >
-                    {item.status}
+                    {greetingStatusDisplay(item.status, item.delivery).label}
                   </Text>
                 </View>
                 <Text
@@ -346,7 +358,11 @@ export default function GreetingsScreen() {
         onClose={() => setEditTarget(null)}
       />
       <SendGreetingSheet
-        greeting={sendTarget}
+        greeting={
+          sendTarget
+            ? ((data ?? []).find((g) => g.id === sendTarget.id) ?? sendTarget)
+            : null
+        }
         onClose={() => setSendTarget(null)}
       />
       {cardPreview?.image_path ? (
@@ -1034,8 +1050,8 @@ function SendGreetingSheet({
               }}
             >
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                This greeting was already sent. Recipients who already received
-                it will get it again.
+                {greetingInFlightWarning(greeting.delivery) ??
+                  'This greeting was already sent. Recipients who already received it will get it again.'}
               </Text>
             </View>
           ) : null}

@@ -70,6 +70,15 @@ vi.mock('@/lib/supabase/admin', () => ({
 }));
 
 let audienceCalls: Array<{ optedInOnly?: boolean } | undefined>;
+let afterCallbacks: Array<() => unknown>;
+let dispatched: string[];
+
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: (callback: () => unknown) => {
+    afterCallbacks.push(callback);
+  },
+}));
 
 vi.mock('@/lib/broadcasts/sender', () => ({
   resolveAudienceOnServer: async (
@@ -82,7 +91,10 @@ vi.mock('@/lib/broadcasts/sender', () => ({
     audienceCalls.push(options);
     return options?.optedInOnly ? [] : [{ id: 'c-1' }, { id: 'c-2' }];
   },
-  sendBroadcastRecipients: async () => undefined,
+  dispatchBroadcast: async (broadcastId: string) => {
+    dispatched.push(broadcastId);
+    return 0;
+  },
 }));
 
 vi.mock('@/lib/whatsapp/broadcast-update-template', () => ({
@@ -110,6 +122,8 @@ const approvedCarrier = {
 beforeEach(() => {
   inserted = [];
   audienceCalls = [];
+  afterCallbacks = [];
+  dispatched = [];
   carrierState = {
     status: 'APPROVED',
     template: approvedCarrier,
@@ -152,6 +166,21 @@ describe('POST /api/broadcasts with a composed message', () => {
     expect(
       inserted.filter((i) => i.table === 'broadcast_recipients')
     ).toHaveLength(2);
+  });
+
+  it('[BRC-003] hands the dispatch to after() so it outlives the response', async () => {
+    const res = await POST(
+      request({
+        name: 'Open house',
+        message: 'Open house on Sunday',
+        audience: { type: 'all' },
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(dispatched).toEqual([]);
+    expect(afterCallbacks).toHaveLength(1);
+    await afterCallbacks[0]();
+    expect(dispatched).toEqual(['bcast-1']);
   });
 
   it('[BRC-001] narrows a Marketing send to explicit opt-ins when the composer asks', async () => {

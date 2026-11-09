@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
   checkRateLimit,
@@ -7,8 +7,8 @@ import {
 } from '@/lib/rate-limit';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import {
+  dispatchBroadcast,
   resolveAudienceOnServer,
-  sendBroadcastRecipients,
   type AudienceConfig,
 } from '@/lib/broadcasts/sender';
 import {
@@ -22,10 +22,12 @@ import { parseGreetingAudience } from '@/lib/greetings/audience';
 
 const INSERT_BATCH_SIZE = 200;
 
+export const maxDuration = 300;
+
 // POST /api/greetings/[id]/send — broadcast a greeting to the chosen
 // audience on the shared occasion_greeting template. The fan-out is a
 // normal broadcasts row, so delivery tracking, retry and the sweep cron
-// all apply.
+// all apply; after() keeps the dispatch alive once the response is sent.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -195,19 +197,11 @@ export async function POST(
       );
     }
 
-    const reqWithWaitUntil = request as Request & {
-      waitUntil?: (promise: Promise<unknown>) => void;
-    };
-    const dispatch = sendBroadcastRecipients(
-      broadcast.id,
-      ctx.accountId,
-      ctx.userId
-    ).catch((err) => console.error('[Greeting Broadcast Send] error:', err));
-    if (typeof reqWithWaitUntil.waitUntil === 'function') {
-      reqWithWaitUntil.waitUntil(dispatch);
-    } else {
-      void dispatch;
-    }
+    after(() =>
+      dispatchBroadcast(broadcast.id, ctx.accountId, ctx.userId).catch((err) =>
+        console.error('[Greeting Broadcast Send] error:', err)
+      )
+    );
 
     return NextResponse.json({
       data: { broadcastId: broadcast.id, recipientsCount: contacts.length },

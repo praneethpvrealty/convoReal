@@ -17,6 +17,17 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 9 November 2026
+
+- **Greetings and broadcasts go out in seconds, and the card says how far
+  they got.** A Diwali greeting to 18 contacts took 28 minutes: the send
+  route started the dispatch without anything keeping it alive, so it froze
+  with the function and held the lease the sweep needed. It now runs through
+  `after()` in chunks of 20 for up to four minutes, with the five-minute sweep
+  still picking up anything left. A sent greeting reads Sending 3 of 18 until
+  its broadcast finishes, then Sent or the failure count, on web and mobile,
+  and Send again warns while the first send is still going out.
+
 #### 8 November 2026
 
 - **A closed lead who enquires again is a lead again.** A buyer who had

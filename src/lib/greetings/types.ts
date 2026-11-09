@@ -1,3 +1,5 @@
+import type { GreetingDelivery } from './delivery';
+
 export interface OccasionGreeting {
   id: string;
   account_id: string;
@@ -9,6 +11,7 @@ export interface OccasionGreeting {
   status: 'draft' | 'sent';
   broadcast_id: string | null;
   sent_at: string | null;
+  delivery?: GreetingDelivery | null;
   created_at: string;
   updated_at: string;
 }
