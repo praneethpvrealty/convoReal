@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
   Bookmark,
   ChevronDown,
@@ -31,7 +31,6 @@ import {
   type PulseEnquiryCursor,
   type PulseEnquiryFilter,
   type PulseEnquiryKind,
-  type PulseEnquiryRow,
 } from '@/lib/pulse/enquiries';
 import {
   loadPulseEnquiries,
@@ -66,44 +65,25 @@ function timeAgo(iso: string) {
 export function EnquiriesPanel({ accountId }: EnquiriesPanelProps) {
   const router = useRouter();
   const [filter, setFilter] = useState<PulseEnquiryFilter>('all');
-  const [older, setOlder] = useState<{
-    rows: PulseEnquiryRow[];
-    cursor: PulseEnquiryCursor | null;
-  } | null>(null);
-  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const countsQuery = useQuery({
     queryKey: ['pulse-enquiry-counts', accountId],
     queryFn: () => loadPulseEnquiryCounts(createClient(), accountId),
     staleTime: 60_000,
   });
-  const rowsQuery = useQuery({
+  const rowsQuery = useInfiniteQuery({
     queryKey: ['pulse-enquiries', accountId],
-    queryFn: () => loadPulseEnquiries(createClient(), accountId),
+    queryFn: ({ pageParam }) =>
+      loadPulseEnquiries(createClient(), accountId, pageParam),
+    initialPageParam: null as PulseEnquiryCursor | null,
+    getNextPageParam: (last) => nextPulseEnquiryCursor(last) ?? undefined,
     staleTime: 60_000,
   });
 
-  const firstPage = rowsQuery.data ?? [];
-  const rows = [...firstPage, ...(older?.rows ?? [])];
-  const cursor = older ? older.cursor : nextPulseEnquiryCursor(firstPage);
+  const rows = rowsQuery.data?.pages.flat() ?? [];
   const visible = filterPulseEnquiries(rows, filter);
   const counts = countsQuery.data;
-
-  const loadOlder = async () => {
-    if (!cursor || loadingOlder) return;
-    setLoadingOlder(true);
-    try {
-      const page = await loadPulseEnquiries(createClient(), accountId, cursor);
-      setOlder((current) => ({
-        rows: [...(current?.rows ?? []), ...page],
-        cursor: nextPulseEnquiryCursor(page),
-      }));
-    } catch (err) {
-      console.error('[pulse] older enquiries failed:', err);
-    } finally {
-      setLoadingOlder(false);
-    }
-  };
+  const loadingOlder = rowsQuery.isFetchingNextPage;
 
   return (
     <div className="space-y-4" data-pulse-enquiries>
@@ -237,11 +217,11 @@ export function EnquiriesPanel({ accountId }: EnquiriesPanelProps) {
             })}
           </ul>
         )}
-        {cursor && !rowsQuery.isPending && (
+        {rowsQuery.hasNextPage && !rowsQuery.isPending && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={loadOlder}
+            onClick={() => void rowsQuery.fetchNextPage()}
             disabled={loadingOlder}
             className="w-full cursor-pointer rounded-xl border border-slate-800 text-xs font-bold text-slate-400 hover:bg-slate-900/40 hover:text-white"
           >

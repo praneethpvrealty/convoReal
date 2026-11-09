@@ -16,6 +16,7 @@ export async function loadPulseEnquiries(
   const { data, error } = await db.rpc('pulse_enquiries', {
     p_account_id: accountId,
     p_before: cursor?.before ?? null,
+    p_before_id: cursor?.beforeId ?? null,
     p_limit: PULSE_ENQUIRY_PAGE_SIZE,
   });
   if (error) throw error;

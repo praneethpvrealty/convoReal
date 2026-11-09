@@ -122,10 +122,12 @@ describe('[PLS-009] Pulse enquiries feed', () => {
     expect(filterPulseEnquiries(rows, 'all')).toHaveLength(2);
     expect(nextPulseEnquiryCursor(rows)).toBeNull();
     const full = Array.from({ length: PULSE_ENQUIRY_PAGE_SIZE }, (_, i) => ({
-      occurred_at: `2026-11-0${1 + (i % 9)}T00:00:00Z`,
+      id: `row-${i}`,
+      occurred_at: '2026-11-09T07:28:00Z',
     }));
     expect(nextPulseEnquiryCursor(full)).toEqual({
-      before: full[full.length - 1].occurred_at,
+      before: '2026-11-09T07:28:00Z',
+      beforeId: `row-${PULSE_ENQUIRY_PAGE_SIZE - 1}`,
     });
   });
 

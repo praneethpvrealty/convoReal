@@ -40,9 +40,26 @@ describe('[PLS-009] pulse_enquiries feeds every kind the panel lists, behind the
     expect(migration).not.toMatch(/TO anon/);
   });
 
-  it('pages newest first by occurred_at then id and caps a page at 100 rows', () => {
+  it('pages newest first by (occurred_at, id) and caps a page at 100 rows', () => {
     expect(migration).toContain('ORDER BY r.occurred_at DESC, r.id DESC');
-    expect(migration).toContain('p_before IS NULL OR r.occurred_at < p_before');
+    expect(migration).toContain('p_before_id UUID DEFAULT NULL');
+    expect(migration).toContain(
+      '(r.occurred_at, r.id) < (p_before, p_before_id)'
+    );
     expect(migration).toContain('LIMIT LEAST(GREATEST(p_limit, 1), 100)');
+  });
+
+  it('shows a contact\u2019s identity only to a caller contacts_select would let see it', () => {
+    const join = migration.slice(
+      migration.indexOf('LEFT JOIN contacts c'),
+      migration.indexOf('LEFT JOIN properties p')
+    );
+    expect(join).toContain(
+      "profile.org_role IN ('org_manager', 'org_coordinator')"
+    );
+    expect(join).toContain('c.assigned_agent_id = (SELECT auth.uid())');
+    expect(join).toContain('c.assigned_team_id = (');
+    expect(join).toContain("profile.org_role IN ('org_manager', 'org_leader')");
+    expect(migration).toContain('c.id AS contact_id');
   });
 });

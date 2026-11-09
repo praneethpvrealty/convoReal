@@ -8,13 +8,20 @@
 -- once, from this function, on web and mobile alike.
 --
 -- Rows come newest first in keyset pages (occurred_at, then id), the
--- same way the activity feed pages, and the account guard sits in
--- every branch so a member of another account gets nothing.
+-- same way the activity feed pages. Only an account member gets rows,
+-- and the contact's name and phone follow the contacts_select policy
+-- (migration 162) the way journey_overview_groups does: an agent sees
+-- the contacts assigned to them or their team, a manager or
+-- coordinator sees every contact, and a contact the caller may not
+-- see is returned without its identity.
 -- ============================================================
+
+DROP FUNCTION IF EXISTS public.pulse_enquiries(UUID, TIMESTAMPTZ, INTEGER);
 
 CREATE OR REPLACE FUNCTION public.pulse_enquiries(
   p_account_id UUID,
   p_before TIMESTAMPTZ DEFAULT NULL,
+  p_before_id UUID DEFAULT NULL,
   p_limit INTEGER DEFAULT 40
 )
 RETURNS TABLE (
@@ -132,7 +139,7 @@ AS $$
     r.kind,
     r.id,
     r.occurred_at,
-    r.contact_id,
+    c.id AS contact_id,
     c.name AS contact_name,
     c.phone AS contact_phone,
     r.property_id,
@@ -140,10 +147,43 @@ AS $$
     p.property_code,
     r.detail
   FROM rows r
-  LEFT JOIN contacts c ON c.id = r.contact_id AND c.account_id = p_account_id
+  LEFT JOIN contacts c
+    ON c.id = r.contact_id
+   AND c.account_id = p_account_id
+   AND (
+     EXISTS (
+       SELECT 1 FROM profiles profile
+       WHERE profile.user_id = (SELECT auth.uid())
+         AND profile.account_id = c.account_id
+         AND profile.org_role IN ('org_manager', 'org_coordinator')
+     )
+     OR c.assigned_agent_id = (SELECT auth.uid())
+     OR (
+       c.assigned_team_id IS NOT NULL
+       AND c.assigned_team_id = (
+         SELECT profile.team_id FROM profiles profile
+         WHERE profile.user_id = (SELECT auth.uid())
+           AND profile.account_id = c.account_id
+       )
+     )
+     OR (
+       c.assigned_agent_id IS NULL
+       AND c.assigned_team_id IS NULL
+       AND EXISTS (
+         SELECT 1 FROM profiles profile
+         WHERE profile.user_id = (SELECT auth.uid())
+           AND profile.account_id = c.account_id
+           AND profile.org_role IN ('org_manager', 'org_leader')
+       )
+     )
+   )
   LEFT JOIN properties p ON p.id = r.property_id AND p.account_id = p_account_id
   WHERE is_account_member(p_account_id)
-    AND (p_before IS NULL OR r.occurred_at < p_before)
+    AND (
+      p_before IS NULL
+      OR (p_before_id IS NULL AND r.occurred_at < p_before)
+      OR (r.occurred_at, r.id) < (p_before, p_before_id)
+    )
   ORDER BY r.occurred_at DESC, r.id DESC
   LIMIT LEAST(GREATEST(p_limit, 1), 100);
 $$;
@@ -200,5 +240,5 @@ AS $$
   WHERE is_account_member(p_account_id);
 $$;
 
-GRANT EXECUTE ON FUNCTION public.pulse_enquiries(UUID, TIMESTAMPTZ, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.pulse_enquiries(UUID, TIMESTAMPTZ, UUID, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.pulse_enquiry_counts(UUID, TIMESTAMPTZ) TO authenticated;

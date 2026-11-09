@@ -44,6 +44,7 @@ export interface PulseEnquiryRow {
 
 export interface PulseEnquiryCursor {
   before: string;
+  beforeId: string;
 }
 
 export type PulseEnquiryFilter = 'all' | PulseEnquiryKind;
@@ -192,13 +193,15 @@ export function filterPulseEnquiries(
 }
 
 /** The cursor for the page after `rows`, or null once a short page says
- *  the feed is exhausted. */
+ *  the feed is exhausted. It carries the id as well as the time: rows
+ *  filed in one transaction share a timestamp, and a page boundary that
+ *  fell inside such a batch would otherwise skip the rest of it. */
 export function nextPulseEnquiryCursor(
-  rows: Array<Pick<PulseEnquiryRow, 'occurred_at'>>
+  rows: Array<Pick<PulseEnquiryRow, 'occurred_at' | 'id'>>
 ): PulseEnquiryCursor | null {
   if (rows.length < PULSE_ENQUIRY_PAGE_SIZE) return null;
   const last = rows[rows.length - 1];
-  return last ? { before: last.occurred_at } : null;
+  return last ? { before: last.occurred_at, beforeId: last.id } : null;
 }
 
 export function pulseEnquiryCountsSince(now: Date = new Date()): string {
