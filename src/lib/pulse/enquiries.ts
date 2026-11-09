@@ -77,6 +77,12 @@ export const PULSE_ENQUIRY_KIND_LABELS: Record<PulseEnquiryKind, string> = {
   check_in: 'Check-ins sent',
 };
 
+const CHECK_IN_REPLY_LABELS: Record<string, string> = {
+  visit: 'Book a visit',
+  callback: 'Call me back',
+  not_for_me: 'Not for me',
+};
+
 const MISS_REASON_LABELS: Record<string, string> = {
   budget: 'budget',
   location: 'location',
@@ -164,7 +170,7 @@ export function describePulseEnquiry(row: PulseEnquiryRow): string {
     case 'check_in': {
       const response = text(row.detail.response);
       return response
-        ? `Check-in sent after viewing ${listing} — replied "${response}".`
+        ? `Check-in sent after viewing ${listing} — replied "${CHECK_IN_REPLY_LABELS[response] ?? response}".`
         : `Check-in sent after viewing ${listing} — no reply yet.`;
     }
   }
@@ -194,8 +200,10 @@ export function pulseEnquiryIsHot(
     case 'whatsapp_tap':
     case 'enquiry':
       return true;
-    case 'check_in':
-      return Boolean(text(row.detail.response));
+    case 'check_in': {
+      const response = text(row.detail.response);
+      return Boolean(response) && response !== 'not_for_me';
+    }
     default:
       return false;
   }

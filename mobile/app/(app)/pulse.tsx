@@ -883,6 +883,8 @@ function ActivityLine({ event }: { event: DedupedPulseEvent }) {
       ? formatDwellTime(event.metadata.duration_ms)
       : '';
   const { icon, tint, action } = describe(event.event_type, colors);
+  const shortlistRemoval =
+    event.event_type === 'shortlist' && event.metadata.action === 'remove';
 
   return (
     <View style={styles.eventLine}>
@@ -895,8 +897,8 @@ function ActivityLine({ event }: { event: DedupedPulseEvent }) {
           color: colors.textMuted,
         }}
       >
-        {action}
-        {event.event_type === 'open'
+        {shortlistRemoval ? `Removed ${what} from their shortlist` : action}
+        {event.event_type === 'open' || shortlistRemoval
           ? ''
           : event.event_type === 'search'
             ? searchQuery

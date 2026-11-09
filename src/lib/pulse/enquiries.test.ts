@@ -82,9 +82,14 @@ describe('[PLS-009] Pulse enquiries feed', () => {
     ).toMatch(/Sent their shortlist/);
     expect(
       describePulseEnquiry(
-        row({ kind: 'check_in', detail: { response: 'Book a visit' } })
+        row({ kind: 'check_in', detail: { response: 'visit' } })
       )
     ).toContain('replied "Book a visit"');
+    expect(
+      describePulseEnquiry(
+        row({ kind: 'check_in', detail: { response: 'not_for_me' } })
+      )
+    ).toContain('replied "Not for me"');
     expect(
       describePulseEnquiry(row({ kind: 'check_in', detail: {} }))
     ).toContain('no reply yet');
@@ -119,6 +124,18 @@ describe('[PLS-009] Pulse enquiries feed', () => {
     expect(pulseEnquiryIsHot(row({ kind: 'check_in', detail: {} }), now)).toBe(
       false
     );
+    expect(
+      pulseEnquiryIsHot(
+        row({ kind: 'check_in', detail: { response: 'callback' } }),
+        now
+      )
+    ).toBe(true);
+    expect(
+      pulseEnquiryIsHot(
+        row({ kind: 'check_in', detail: { response: 'not_for_me' } }),
+        now
+      )
+    ).toBe(false);
     expect(pulseEnquiryIsHot(row({ kind: 'shortlist' }), now)).toBe(true);
   });
 

@@ -16,8 +16,6 @@
 -- see is returned without its identity.
 -- ============================================================
 
-DROP FUNCTION IF EXISTS public.pulse_enquiries(UUID, TIMESTAMPTZ, INTEGER);
-
 CREATE OR REPLACE FUNCTION public.pulse_enquiries(
   p_account_id UUID,
   p_before TIMESTAMPTZ DEFAULT NULL,
@@ -111,7 +109,11 @@ AS $$
       e.created_at,
       e.contact_id,
       e.property_id,
-      e.metadata || jsonb_build_object('session_key', left(e.session_key, 8))
+      jsonb_build_object(
+        'action', e.metadata->>'action',
+        'shortlist', e.metadata->'shortlist' = 'true'::jsonb,
+        'session_key', left(e.session_key, 8)
+      )
     FROM showcase_events e
     WHERE e.account_id = p_account_id
       AND e.event_type IN ('shortlist', 'whatsapp_click')

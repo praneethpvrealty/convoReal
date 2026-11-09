@@ -4924,6 +4924,15 @@ describe('[PLS-009] mobile Showcase Pulse enquiries view reads the shared rules'
     );
   });
 
+  it('describes a shortlist removal as a removal on both surfaces', () => {
+    expect(read('mobile/app/(app)/pulse.tsx')).toContain(
+      'from their shortlist'
+    );
+    expect(read('src/app/(dashboard)/pulse/pulse-content.tsx')).toContain(
+      'their shortlist'
+    );
+  });
+
   it('names an icon for every kind and knows the two new activity event types', () => {
     const fetcher = read('mobile/lib/pulse-enquiries.ts');
     for (const kind of PULSE_ENQUIRY_KINDS) {
