@@ -20,6 +20,9 @@ import {
   ArrowRight,
   ChevronDown,
   Search,
+  Bookmark,
+  MessageCircle,
+  Inbox,
 } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
@@ -53,10 +56,17 @@ import {
 } from '@/lib/pulse/dedupe-feed';
 import { TabSkeleton } from '@/components/dashboard/skeleton';
 import { PropertyViewersDialog } from '@/components/pulse/property-viewers-dialog';
+import { EnquiriesPanel } from '@/components/pulse/enquiries-panel';
 import { formatInrCompact } from '@/lib/format/currency';
 import { formatDate } from '@/lib/format/date';
 
 type FeedFilter = 'all' | 'property_views' | 'identified';
+type PulseView = 'activity' | 'enquiries';
+
+const PULSE_VIEWS: Array<{ key: PulseView; label: string }> = [
+  { key: 'activity', label: 'Visitor activity' },
+  { key: 'enquiries', label: 'Enquiries & requests' },
+];
 
 const FEED_FILTERS: Array<{ key: FeedFilter; label: string }> = [
   { key: 'all', label: 'All Activity' },
@@ -101,6 +111,7 @@ export default function PulsePage() {
   );
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('all');
+  const [view, setView] = useState<PulseView>('activity');
   const [expandedVisitors, setExpandedVisitors] = useState<Set<string>>(
     new Set()
   );
@@ -213,6 +224,10 @@ export default function PulsePage() {
         return <MapPin className="size-4 text-amber-400" />;
       case 'search':
         return <Search className="text-primary size-4" />;
+      case 'shortlist':
+        return <Bookmark className="size-4 text-emerald-400" />;
+      case 'whatsapp_click':
+        return <MessageCircle className="size-4 text-green-400" />;
       default:
         return <MousePointerClick className="size-4 text-slate-400" />;
     }
@@ -266,6 +281,25 @@ export default function PulsePage() {
           <span>Searched the showcase catalog.</span>
         );
       }
+      case 'shortlist':
+        return event.metadata.action === 'remove' ? (
+          <span>
+            Removed <strong className="text-slate-200">{propertyTitle}</strong>{' '}
+            from their shortlist.
+          </span>
+        ) : (
+          <span>
+            Shortlisted{' '}
+            <strong className="text-slate-200">{propertyTitle}</strong>.
+          </span>
+        );
+      case 'whatsapp_click':
+        return (
+          <span>
+            Tapped WhatsApp on{' '}
+            <strong className="text-slate-200">{propertyTitle}</strong>.
+          </span>
+        );
       default:
         return <span>Interacted with the showcase link.</span>;
     }
@@ -397,330 +431,364 @@ export default function PulsePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            {/* Left/Middle: visitor activity */}
-            <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5 lg:col-span-8">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div
+            role="tablist"
+            aria-label="Pulse view"
+            className="flex flex-wrap items-center gap-1.5"
+          >
+            {PULSE_VIEWS.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                role="tab"
+                aria-selected={view === option.key}
+                onClick={() => setView(option.key)}
+                className={`flex cursor-pointer items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-all ${
+                  view === option.key
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-white'
+                }`}
+              >
+                {option.key === 'activity' ? (
+                  <TrendingUp className="size-3.5" />
+                ) : (
+                  <Inbox className="size-3.5" />
+                )}
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {view === 'enquiries' && accountId ? (
+            <EnquiriesPanel accountId={accountId} />
+          ) : (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+              {/* Left/Middle: visitor activity */}
+              <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5 lg:col-span-8">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-sm font-black tracking-wider text-white uppercase">
+                      <TrendingUp className="text-primary size-4" />
+                      Visitor Activity
+                      <InfoHint text="One card per visitor, with their latest action and expandable activity history." />
+                    </h2>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      Latest visitors first. Expand a visitor to see their full
+                      journey.
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                    {FEED_FILTERS.map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => setFeedFilter(f.key)}
+                        className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-[10px] font-bold transition-all ${
+                          feedFilter === f.key
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-white'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {showAnonymousNudge && (
+                  <button
+                    type="button"
+                    onClick={() => router.push('/inventory')}
+                    className="border-primary/25 bg-primary/5 hover:bg-primary/10 group flex w-full cursor-pointer items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left transition-all"
+                  >
+                    <UserCheck className="text-primary size-4 shrink-0" />
+                    <span className="text-[11px] leading-relaxed text-slate-300">
+                      Most of this activity is{' '}
+                      <strong className="text-white">Anonymous</strong>. Send
+                      links personally from{' '}
+                      <strong className="text-primary">
+                        Inventory → Share Showcase
+                      </strong>{' '}
+                      or a property&apos;s{' '}
+                      <strong className="text-primary">
+                        Share → Send personally (tracked)
+                      </strong>{' '}
+                      to see visitors by name here.
+                    </span>
+                    <ArrowRight className="text-primary ml-auto size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                  </button>
+                )}
+
+                {!feed || feed.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
+                    <Activity className="text-slate-650 mx-auto mb-3 size-8 animate-pulse" />
+                    <p className="text-xs font-bold text-slate-500">
+                      No clicks or engagement events logged yet
+                    </p>
+                  </div>
+                ) : visitorGroups.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
+                    <Activity className="text-slate-650 mx-auto mb-3 size-8" />
+                    <p className="text-xs font-bold text-slate-500">
+                      No events match this filter
+                    </p>
+                  </div>
+                ) : (
+                  <div className="max-h-[600px] space-y-3 overflow-y-auto pr-2">
+                    {visitorGroups.map((visitor) => {
+                      const evt = visitor.latestEvent;
+                      const avatarInit = evt.contact
+                        ? (evt.contact.name || evt.contact.phone || '?')
+                            .charAt(0)
+                            .toUpperCase()
+                        : '?';
+                      const isExpanded = expandedVisitors.has(visitor.id);
+                      const contactHref = visitorContactHref(evt);
+                      const hasEarlierActivity = visitor.events.length > 1;
+
+                      return (
+                        <div
+                          key={visitor.id}
+                          className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/20"
+                        >
+                          <div className="flex items-start gap-3 p-3.5">
+                            <Avatar className="size-9 shrink-0 border border-slate-800">
+                              <AvatarFallback
+                                className={`cursor-pointer text-[10px] font-black ${
+                                  evt.contact
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'bg-slate-800 text-slate-400'
+                                }`}
+                                onClick={() =>
+                                  evt.contact && handleOpenChat(evt.contact.id)
+                                }
+                              >
+                                {avatarInit}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-black text-white">
+                                    {contactHref ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => router.push(contactHref)}
+                                        className="hover:text-primary cursor-pointer hover:underline"
+                                      >
+                                        {getVisitorName(evt)}
+                                      </button>
+                                    ) : (
+                                      getVisitorName(evt)
+                                    )}
+                                    <NameTagBadge tag={evt.contact?.name_tag} />
+                                  </p>
+                                  <div className="mt-1 flex items-start gap-1.5 text-[11px] leading-relaxed font-medium text-slate-400">
+                                    <span className="mt-0.5 shrink-0">
+                                      {getEventIcon(evt.event_type)}
+                                    </span>
+                                    <span>{getEventDescription(evt)}</span>
+                                  </div>
+                                  <p className="mt-1 text-[10px] font-bold text-slate-500">
+                                    Last seen {formatTimeAgo(evt.created_at)}
+                                    {evt.repeatCount > 1
+                                      ? ` · ×${evt.repeatCount}`
+                                      : ''}
+                                  </p>
+                                </div>
+                                <span className="bg-primary/10 text-primary shrink-0 rounded-full px-2 py-1 text-[10px] font-black">
+                                  {visitor.activityCount} activit
+                                  {visitor.activityCount === 1 ? 'y' : 'ies'}
+                                </span>
+                              </div>
+                              {hasEarlierActivity && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleVisitor(visitor.id)}
+                                  aria-expanded={isExpanded}
+                                  className="text-primary hover:text-primary/80 mt-2 flex items-center gap-1 text-[10px] font-black"
+                                >
+                                  {isExpanded
+                                    ? 'Hide earlier activity'
+                                    : `View all ${visitor.activityCount} activities`}
+                                  <ChevronDown
+                                    className={`size-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                  />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {isExpanded && hasEarlierActivity && (
+                            <div className="space-y-3 border-t border-slate-800 bg-slate-950/30 px-3.5 py-3">
+                              {visitor.events
+                                .slice(1)
+                                .map((earlierEvent: DedupedShowcaseEvent) => (
+                                  <div
+                                    key={earlierEvent.id}
+                                    className="flex items-start gap-2.5 pl-12"
+                                  >
+                                    <span className="mt-0.5 shrink-0">
+                                      {getEventIcon(earlierEvent.event_type)}
+                                    </span>
+                                    <div className="min-w-0 text-[11px]">
+                                      <p className="leading-relaxed font-medium text-slate-400">
+                                        {getEventDescription(earlierEvent)}
+                                      </p>
+                                      <p className="mt-0.5 text-[10px] font-bold text-slate-500">
+                                        {formatTimeAgo(earlierEvent.created_at)}{' '}
+                                        · {earlierEvent.session_key.slice(0, 8)}
+                                        {earlierEvent.repeatCount > 1
+                                          ? ` · ×${earlierEvent.repeatCount}`
+                                          : ''}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {feedCursor && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={loadOlderActivity}
+                    disabled={loadingOlder}
+                    className="w-full cursor-pointer rounded-xl border border-slate-800 text-xs font-bold text-slate-400 hover:bg-slate-900/40 hover:text-white"
+                  >
+                    {loadingOlder ? (
+                      <RefreshCw className="mr-1.5 size-3.5 animate-spin" />
+                    ) : (
+                      <ChevronDown className="mr-1.5 size-3.5" />
+                    )}
+                    {loadingOlder
+                      ? 'Loading older activity...'
+                      : 'Load older activity'}
+                  </Button>
+                )}
+              </div>
+
+              {/* Right: Viewed Listings */}
+              <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5 lg:col-span-4">
                 <div>
                   <h2 className="flex items-center gap-2 text-sm font-black tracking-wider text-white uppercase">
-                    <TrendingUp className="text-primary size-4" />
-                    Visitor Activity
-                    <InfoHint text="One card per visitor, with their latest action and expandable activity history." />
+                    <Building className="text-primary size-4" />
+                    Viewed Listings
+                    {listings.length > 0 && (
+                      <span className="text-slate-500">
+                        ({listings.length})
+                      </span>
+                    )}
+                    <InfoHint text="Every property that received client views across all shared Showcase links. Sort by view count or by when it was last viewed." />
                   </h2>
                   <p className="mt-0.5 text-[11px] text-slate-500">
-                    Latest visitors first. Expand a visitor to see their full
-                    journey.
+                    All viewed properties on client showcases.
                   </p>
                 </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                  {FEED_FILTERS.map((f) => (
+
+                <div
+                  className="flex flex-wrap items-center gap-1.5"
+                  role="group"
+                  aria-label="Sort viewed listings"
+                >
+                  {PULSE_LISTING_SORTS.map((option) => (
                     <button
-                      key={f.key}
+                      key={option.key}
                       type="button"
-                      onClick={() => setFeedFilter(f.key)}
+                      aria-pressed={listingSort === option.key}
+                      onClick={() => setListingSort(option.key)}
                       className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-[10px] font-bold transition-all ${
-                        feedFilter === f.key
+                        listingSort === option.key
                           ? 'bg-primary text-primary-foreground border-primary'
                           : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-white'
                       }`}
                     >
-                      {f.label}
+                      {option.label}
                     </button>
                   ))}
                 </div>
-              </div>
 
-              {showAnonymousNudge && (
-                <button
-                  type="button"
-                  onClick={() => router.push('/inventory')}
-                  className="border-primary/25 bg-primary/5 hover:bg-primary/10 group flex w-full cursor-pointer items-center gap-2.5 rounded-lg border px-3.5 py-2.5 text-left transition-all"
-                >
-                  <UserCheck className="text-primary size-4 shrink-0" />
-                  <span className="text-[11px] leading-relaxed text-slate-300">
-                    Most of this activity is{' '}
-                    <strong className="text-white">Anonymous</strong>. Send
-                    links personally from{' '}
-                    <strong className="text-primary">
-                      Inventory → Share Showcase
-                    </strong>{' '}
-                    or a property&apos;s{' '}
-                    <strong className="text-primary">
-                      Share → Send personally (tracked)
-                    </strong>{' '}
-                    to see visitors by name here.
-                  </span>
-                  <ArrowRight className="text-primary ml-auto size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
-                </button>
-              )}
-
-              {!feed || feed.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
-                  <Activity className="text-slate-650 mx-auto mb-3 size-8 animate-pulse" />
-                  <p className="text-xs font-bold text-slate-500">
-                    No clicks or engagement events logged yet
+                {listingsQuery.isError ? (
+                  <p className="rounded-xl border border-dashed border-slate-800 py-6 text-center text-xs font-bold text-slate-500">
+                    Viewed listings could not be loaded. Refresh to retry.
                   </p>
-                </div>
-              ) : visitorGroups.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
-                  <Activity className="text-slate-650 mx-auto mb-3 size-8" />
-                  <p className="text-xs font-bold text-slate-500">
-                    No events match this filter
+                ) : listingsQuery.isPending ? (
+                  <p className="rounded-xl border border-dashed border-slate-800 py-6 text-center text-xs font-bold text-slate-500">
+                    Loading viewed listings...
                   </p>
-                </div>
-              ) : (
-                <div className="max-h-[600px] space-y-3 overflow-y-auto pr-2">
-                  {visitorGroups.map((visitor) => {
-                    const evt = visitor.latestEvent;
-                    const avatarInit = evt.contact
-                      ? (evt.contact.name || evt.contact.phone || '?')
-                          .charAt(0)
-                          .toUpperCase()
-                      : '?';
-                    const isExpanded = expandedVisitors.has(visitor.id);
-                    const contactHref = visitorContactHref(evt);
-                    const hasEarlierActivity = visitor.events.length > 1;
-
-                    return (
-                      <div
-                        key={visitor.id}
-                        className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/20"
-                      >
-                        <div className="flex items-start gap-3 p-3.5">
-                          <Avatar className="size-9 shrink-0 border border-slate-800">
-                            <AvatarFallback
-                              className={`cursor-pointer text-[10px] font-black ${
-                                evt.contact
-                                  ? 'bg-primary/10 text-primary'
-                                  : 'bg-slate-800 text-slate-400'
-                              }`}
-                              onClick={() =>
-                                evt.contact && handleOpenChat(evt.contact.id)
-                              }
-                            >
-                              {avatarInit}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="truncate text-xs font-black text-white">
-                                  {contactHref ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => router.push(contactHref)}
-                                      className="hover:text-primary cursor-pointer hover:underline"
-                                    >
-                                      {getVisitorName(evt)}
-                                    </button>
-                                  ) : (
-                                    getVisitorName(evt)
-                                  )}
-                                  <NameTagBadge tag={evt.contact?.name_tag} />
-                                </p>
-                                <div className="mt-1 flex items-start gap-1.5 text-[11px] leading-relaxed font-medium text-slate-400">
-                                  <span className="mt-0.5 shrink-0">
-                                    {getEventIcon(evt.event_type)}
-                                  </span>
-                                  <span>{getEventDescription(evt)}</span>
-                                </div>
-                                <p className="mt-1 text-[10px] font-bold text-slate-500">
-                                  Last seen {formatTimeAgo(evt.created_at)}
-                                  {evt.repeatCount > 1
-                                    ? ` · ×${evt.repeatCount}`
-                                    : ''}
-                                </p>
-                              </div>
-                              <span className="bg-primary/10 text-primary shrink-0 rounded-full px-2 py-1 text-[10px] font-black">
-                                {visitor.activityCount} activit
-                                {visitor.activityCount === 1 ? 'y' : 'ies'}
-                              </span>
-                            </div>
-                            {hasEarlierActivity && (
-                              <button
-                                type="button"
-                                onClick={() => toggleVisitor(visitor.id)}
-                                aria-expanded={isExpanded}
-                                className="text-primary hover:text-primary/80 mt-2 flex items-center gap-1 text-[10px] font-black"
-                              >
-                                {isExpanded
-                                  ? 'Hide earlier activity'
-                                  : `View all ${visitor.activityCount} activities`}
-                                <ChevronDown
-                                  className={`size-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                                />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {isExpanded && hasEarlierActivity && (
-                          <div className="space-y-3 border-t border-slate-800 bg-slate-950/30 px-3.5 py-3">
-                            {visitor.events
-                              .slice(1)
-                              .map((earlierEvent: DedupedShowcaseEvent) => (
-                                <div
-                                  key={earlierEvent.id}
-                                  className="flex items-start gap-2.5 pl-12"
-                                >
-                                  <span className="mt-0.5 shrink-0">
-                                    {getEventIcon(earlierEvent.event_type)}
-                                  </span>
-                                  <div className="min-w-0 text-[11px]">
-                                    <p className="leading-relaxed font-medium text-slate-400">
-                                      {getEventDescription(earlierEvent)}
-                                    </p>
-                                    <p className="mt-0.5 text-[10px] font-bold text-slate-500">
-                                      {formatTimeAgo(earlierEvent.created_at)} ·{' '}
-                                      {earlierEvent.session_key.slice(0, 8)}
-                                      {earlierEvent.repeatCount > 1
-                                        ? ` · ×${earlierEvent.repeatCount}`
-                                        : ''}
-                                    </p>
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {feedCursor && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={loadOlderActivity}
-                  disabled={loadingOlder}
-                  className="w-full cursor-pointer rounded-xl border border-slate-800 text-xs font-bold text-slate-400 hover:bg-slate-900/40 hover:text-white"
-                >
-                  {loadingOlder ? (
-                    <RefreshCw className="mr-1.5 size-3.5 animate-spin" />
-                  ) : (
-                    <ChevronDown className="mr-1.5 size-3.5" />
-                  )}
-                  {loadingOlder
-                    ? 'Loading older activity...'
-                    : 'Load older activity'}
-                </Button>
-              )}
-            </div>
-
-            {/* Right: Viewed Listings */}
-            <div className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-5 lg:col-span-4">
-              <div>
-                <h2 className="flex items-center gap-2 text-sm font-black tracking-wider text-white uppercase">
-                  <Building className="text-primary size-4" />
-                  Viewed Listings
-                  {listings.length > 0 && (
-                    <span className="text-slate-500">({listings.length})</span>
-                  )}
-                  <InfoHint text="Every property that received client views across all shared Showcase links. Sort by view count or by when it was last viewed." />
-                </h2>
-                <p className="mt-0.5 text-[11px] text-slate-500">
-                  All viewed properties on client showcases.
-                </p>
-              </div>
-
-              <div
-                className="flex flex-wrap items-center gap-1.5"
-                role="group"
-                aria-label="Sort viewed listings"
-              >
-                {PULSE_LISTING_SORTS.map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    aria-pressed={listingSort === option.key}
-                    onClick={() => setListingSort(option.key)}
-                    className={`cursor-pointer rounded-lg border px-2.5 py-1.5 text-[10px] font-bold transition-all ${
-                      listingSort === option.key
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-700 hover:text-white'
+                ) : listings.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
+                    <Building className="text-slate-650 mx-auto mb-3 size-8 animate-pulse" />
+                    <p className="text-xs font-bold text-slate-500">
+                      No properties viewed yet
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    className={`max-h-[560px] space-y-3 overflow-y-auto pr-1 transition-opacity ${
+                      listingsQuery.isPlaceholderData ? 'opacity-60' : ''
                     }`}
                   >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
-              {listingsQuery.isError ? (
-                <p className="rounded-xl border border-dashed border-slate-800 py-6 text-center text-xs font-bold text-slate-500">
-                  Viewed listings could not be loaded. Refresh to retry.
-                </p>
-              ) : listingsQuery.isPending ? (
-                <p className="rounded-xl border border-dashed border-slate-800 py-6 text-center text-xs font-bold text-slate-500">
-                  Loading viewed listings...
-                </p>
-              ) : listings.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
-                  <Building className="text-slate-650 mx-auto mb-3 size-8 animate-pulse" />
-                  <p className="text-xs font-bold text-slate-500">
-                    No properties viewed yet
-                  </p>
-                </div>
-              ) : (
-                <div
-                  className={`max-h-[560px] space-y-3 overflow-y-auto pr-1 transition-opacity ${
-                    listingsQuery.isPlaceholderData ? 'opacity-60' : ''
-                  }`}
-                >
-                  {listings.map((listing) => (
-                    <button
-                      type="button"
-                      key={listing.propertyId}
-                      onClick={() =>
-                        setViewersFor({
-                          id: listing.propertyId,
-                          title: listing.title,
-                        })
-                      }
-                      className="focus-visible:ring-primary w-full space-y-2 rounded-lg border border-slate-800 bg-slate-950/20 p-3 text-left transition-colors hover:border-slate-700 hover:bg-slate-950/40 focus:outline-none focus-visible:ring-1"
-                      title="See who viewed this listing"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <h4 className="truncate text-xs leading-tight font-black text-white">
-                            {listing.title}
-                          </h4>
-                          <span className="mt-0.5 block text-[9px] font-bold text-slate-500">
-                            {listing.propertyCode || 'No code'}
+                    {listings.map((listing) => (
+                      <button
+                        type="button"
+                        key={listing.propertyId}
+                        onClick={() =>
+                          setViewersFor({
+                            id: listing.propertyId,
+                            title: listing.title,
+                          })
+                        }
+                        className="focus-visible:ring-primary w-full space-y-2 rounded-lg border border-slate-800 bg-slate-950/20 p-3 text-left transition-colors hover:border-slate-700 hover:bg-slate-950/40 focus:outline-none focus-visible:ring-1"
+                        title="See who viewed this listing"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <h4 className="truncate text-xs leading-tight font-black text-white">
+                              {listing.title}
+                            </h4>
+                            <span className="mt-0.5 block text-[9px] font-bold text-slate-500">
+                              {listing.propertyCode || 'No code'}
+                            </span>
+                          </div>
+                          <span className="shrink-0 text-xs font-bold text-slate-300">
+                            {formatPrice(listing.price ?? undefined)}
                           </span>
                         </div>
-                        <span className="shrink-0 text-xs font-bold text-slate-300">
-                          {formatPrice(listing.price ?? undefined)}
-                        </span>
-                      </div>
 
-                      <div className="border-slate-850 flex items-center justify-between border-t pt-1.5 text-[10px] font-extrabold">
-                        <span className="flex items-center gap-1 text-slate-400">
-                          <Users className="size-3 text-sky-400" />
-                          {listing.uniqueViewsCount} unique visitor
-                          {listing.uniqueViewsCount === 1 ? '' : 's'}
-                        </span>
-                        <span className="flex items-center gap-1 text-slate-400">
-                          <Eye className="size-3 text-emerald-400" />
-                          {listing.viewsCount} view
-                          {listing.viewsCount === 1 ? '' : 's'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2 text-[10px] font-bold">
-                        <span className="flex items-center gap-1 text-slate-500">
-                          <Clock className="size-3" />
-                          Last viewed {formatTimeAgo(listing.lastViewedAt)}
-                        </span>
-                        <span className="text-primary/80 flex items-center gap-1">
-                          See viewers
-                          <ArrowRight className="size-3" />
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+                        <div className="border-slate-850 flex items-center justify-between border-t pt-1.5 text-[10px] font-extrabold">
+                          <span className="flex items-center gap-1 text-slate-400">
+                            <Users className="size-3 text-sky-400" />
+                            {listing.uniqueViewsCount} unique visitor
+                            {listing.uniqueViewsCount === 1 ? '' : 's'}
+                          </span>
+                          <span className="flex items-center gap-1 text-slate-400">
+                            <Eye className="size-3 text-emerald-400" />
+                            {listing.viewsCount} view
+                            {listing.viewsCount === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 text-[10px] font-bold">
+                          <span className="flex items-center gap-1 text-slate-500">
+                            <Clock className="size-3" />
+                            Last viewed {formatTimeAgo(listing.lastViewedAt)}
+                          </span>
+                          <span className="text-primary/80 flex items-center gap-1">
+                            See viewers
+                            <ArrowRight className="size-3" />
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 

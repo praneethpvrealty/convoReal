@@ -19,16 +19,19 @@ than a written entry. Newest first.
 
 #### 9 November 2026
 
-- **Greetings and broadcasts go out in seconds, and the card says how far
-  they got.** A Diwali greeting to 18 contacts took 28 minutes: the send
-  route started the dispatch without anything keeping it alive, so it froze
-  with the function and held the lease the sweep needed. It now runs through
-  `after()` in chunks of 20 for up to four minutes, with the five-minute sweep
-  still picking up anything left. A sent greeting reads Sending 3 of 18 until
-  its broadcast finishes, then Sent or the failure count, on web and mobile,
-  and Send again warns while the first send is still going out.
-
-#### 9 November 2026
+- **One place to see what showcase visitors asked for.** Showcase Pulse
+  gains an Enquiries & requests view on web and mobile: every enquiry,
+  exact-location and document request, fit rating with its miss reasons,
+  shortlist, WhatsApp tap and check-in sent, newest first, with 30-day
+  counts per kind that filter the list and a follow-up flag on what
+  deserves a call today. Until now a form enquiry went to the Inbox, Today
+  and a to-do, a location or document request to the approval panels, a
+  rating nowhere, and a shortlist or WhatsApp tap nowhere at all. The
+  activity feed also shows shortlists and WhatsApp taps, and the view
+  check-in cron now reports how many qualifying views it held back and
+  why (quiet hours, visitor still browsing, conversation busy, template
+  awaiting approval), which its log never said. **Migration required:**
+  `20261109101500_pulse_enquiries.sql`.
 
 - **Shortlists and WhatsApp taps on the showcase reach the agent.** A
   visitor's shortlist lived only in their browser and a WhatsApp tap went
@@ -56,6 +59,15 @@ than a written entry. Newest first.
   answer reaches the Inbox, Today and the agent's to-dos as a Website
   Inquiry that says which moment produced it. On one brokerage's showcase
   121 sessions in the last 30 days produced two form enquiries.
+
+- **Greetings and broadcasts go out in seconds, and the card says how far
+  they got.** A Diwali greeting to 18 contacts took 28 minutes: the send
+  route started the dispatch without anything keeping it alive, so it froze
+  with the function and held the lease the sweep needed. It now runs through
+  `after()` in chunks of 20 for up to four minutes, with the five-minute sweep
+  still picking up anything left. A sent greeting reads Sending 3 of 18 until
+  its broadcast finishes, then Sent or the failure count, on web and mobile,
+  and Send again warns while the first send is still going out.
 
 #### 8 November 2026
 
