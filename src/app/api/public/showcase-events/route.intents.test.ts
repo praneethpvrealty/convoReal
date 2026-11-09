@@ -18,6 +18,7 @@ let queues: Record<string, QueuedResponse[]>;
 let inserts: Array<{ table: string; rows: unknown }>;
 let upserts: Array<{ table: string; rows: unknown; options: unknown }>;
 let inFilters: Array<{ table: string; column: string; values: unknown }>;
+let eqFilters: Array<{ table: string; column: string; value: unknown }>;
 let identity: QueuedResponse;
 
 const { getCurrentAccount } = vi.hoisted(() => ({
@@ -41,7 +42,10 @@ vi.mock('@supabase/supabase-js', () => ({
       };
       const builder: { [k: string]: (...args: unknown[]) => unknown } = {
         select: () => builder,
-        eq: () => builder,
+        eq: (column: unknown, value: unknown) => {
+          eqFilters.push({ table, column: String(column), value });
+          return builder;
+        },
         is: () => builder,
         in: (column: unknown, values: unknown) => {
           inFilters.push({ table, column: String(column), values });
@@ -122,6 +126,7 @@ beforeEach(() => {
   inserts = [];
   upserts = [];
   inFilters = [];
+  eqFilters = [];
   identity = { data: [{ contact_id: null, via_contact_id: null }] };
   getCurrentAccount.mockRejectedValue(new Error('Unauthorized'));
 });
@@ -227,6 +232,19 @@ describe('[PRP-058] showcase-events beacon — shortlist and WhatsApp intents', 
       ])
     );
     expect(enquiryUpserts()).toEqual([]);
+  });
+
+  it('files only a listing the showcase publishes: in the account, published and Available', async () => {
+    identity = { data: [{ contact_id: CONTACT, via_contact_id: null }] };
+    await POST(beacon([{ type: 'whatsapp_click', property_id: PROPERTY }]));
+    const propertyFilters = eqFilters.filter((f) => f.table === 'properties');
+    expect(propertyFilters).toEqual(
+      expect.arrayContaining([
+        { table: 'properties', column: 'account_id', value: ACCOUNT },
+        { table: 'properties', column: 'is_published', value: true },
+        { table: 'properties', column: 'status', value: 'Available' },
+      ])
+    );
   });
 
   it('never files a listing that belongs to another account', async () => {

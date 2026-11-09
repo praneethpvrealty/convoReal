@@ -6,7 +6,8 @@
 -- beacon as showcase_events, and an approved exact-location request
 -- is recorded as an enquiry on that listing, since on the showcases
 -- measured it was the request visitors actually made (32 in 90 days
--- against 2 form enquiries).
+-- against 2 form enquiries). A teaser-page unlock (scope 'listing',
+-- migration 254) is not a location request and is left alone.
 -- ============================================================
 
 ALTER TABLE showcase_events
@@ -23,7 +24,9 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NEW.status <> 'approved' OR NEW.contact_id IS NULL THEN
+  IF NEW.status <> 'approved'
+     OR NEW.contact_id IS NULL
+     OR COALESCE(NEW.scope, 'location') <> 'location' THEN
     RETURN NEW;
   END IF;
 
@@ -56,4 +59,5 @@ FROM property_location_requests r
 JOIN properties p ON p.id = r.property_id AND p.account_id = r.account_id
 WHERE r.status = 'approved'
   AND r.contact_id IS NOT NULL
+  AND COALESCE(r.scope, 'location') = 'location'
 ON CONFLICT (contact_id, property_id) DO NOTHING;

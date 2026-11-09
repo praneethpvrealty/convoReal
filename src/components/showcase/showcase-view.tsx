@@ -273,6 +273,12 @@ export function ShowcaseView({
       action: adding ? 'add' : 'remove',
     });
   };
+  const clearShortlist = () => {
+    shortlist.ids.forEach((id) =>
+      trackerRef.current?.track('shortlist', id, { action: 'remove' })
+    );
+    shortlist.clear();
+  };
   const agencyDesign = isAgencyShowcaseDesign(showcaseStyle);
   const dealFloor = showcaseStyle === 'deal-floor';
   const motionEnabled = showcase3dEnabled && !agencyDesign;
@@ -3377,7 +3383,7 @@ export function ShowcaseView({
           phone={visitorPhone}
           email={visitorEmail}
           onRemove={toggleShortlist}
-          onClear={shortlist.clear}
+          onClear={clearShortlist}
           whatsappPhone={enquiryWhatsAppPhone()}
           onWhatsApp={(ids) =>
             ids.forEach((id) =>

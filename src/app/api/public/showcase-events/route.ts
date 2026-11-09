@@ -77,8 +77,10 @@ function sanitizeMetadata(event: BeaconEvent): Record<string, unknown> | null {
 /** A shortlist or a WhatsApp tap by a visitor the showcase knows is an
  *  enquiry on that listing, so it reaches Today, the contact's
  *  enquiries and the journey like a form enquiry would. The listing
- *  must belong to the account: the beacon is public, and a property id
- *  from another tenant must never be filed on this account's contact. */
+ *  must be one the showcase publishes for this account, as the
+ *  shortlist form requires: the beacon is public and the property id
+ *  comes from the browser, so a draft or another tenant's listing must
+ *  never be filed on this account's contact. */
 async function recordIntentEnquiries(
   db: ReturnType<typeof supabaseAdmin>,
   accountId: string,
@@ -101,6 +103,8 @@ async function recordIntentEnquiries(
     .from('properties')
     .select('id')
     .eq('account_id', accountId)
+    .eq('is_published', true)
+    .eq('status', 'Available')
     .in('id', propertyIds);
   if (ownedError) {
     console.error(

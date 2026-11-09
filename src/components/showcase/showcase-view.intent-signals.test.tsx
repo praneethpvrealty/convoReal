@@ -112,6 +112,26 @@ describe('[PRP-058] showcase intent signals', () => {
     });
   });
 
+  it('reports a removal for every listing when the shortlist is cleared', () => {
+    fireEvent.click(
+      screen.getAllByRole('button', {
+        name: /shortlist plot in jp nagar/i,
+        pressed: false,
+      })[0]
+    );
+    fireEvent.click(
+      document.querySelector('.fixed.inset-0.z-50 button') as HTMLElement
+    );
+    track.mockClear();
+    const bar = document.querySelector(
+      '[data-showcase-shortlist]'
+    ) as HTMLElement;
+    fireEvent.click(within(bar).getByRole('button', { name: /clear all/i }));
+    expect(track).toHaveBeenCalledWith('shortlist', 'prop-1', {
+      action: 'remove',
+    });
+  });
+
   it('reports a WhatsApp tap on the listing as an event', () => {
     const links = screen.getAllByRole('link', { name: /whatsapp inquiry/i });
     fireEvent.click(links[0]);
