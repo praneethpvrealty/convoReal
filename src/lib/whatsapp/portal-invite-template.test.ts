@@ -10,7 +10,11 @@ import {
   PORTAL_INVITE_TEMPLATE_NAME,
   portalInviteTemplateName,
 } from './portal-invite-template';
-import { templateBody } from './template-copy';
+import {
+  PORTAL_INVITE_PHRASES_BY_KEY,
+  portalInvitePhrase,
+  templateBody,
+} from './template-copy';
 import { validateTemplatePayload } from './template-validators';
 
 describe('portal invite templates', () => {
@@ -111,6 +115,54 @@ describe('buildPortalInviteTemplateParams', () => {
     );
   });
 
+  it('[CTM-002] fills a non-English variant with parameters in its own language', () => {
+    const params = buildPortalInviteTemplateParams({
+      contactName: 'Pramod Shivanna',
+      agentName: 'Lakshmi',
+      brandName: 'Aryavarta Ventures',
+      scope: 'vacant plot for sale in BTM 2nd Stage',
+      audience: 'buyer',
+      language: 'hi',
+    });
+    expect(params[1]).toBe('Aryavarta Ventures से Lakshmi');
+    expect(params[2]).toBe(
+      'यह आपके लिए पहले से vacant plot for sale in BTM 2nd Stage पर खुलता है — खोज बढ़ाने के लिए फ़िल्टर कभी भी बदलें।'
+    );
+    expect(params[2]).not.toMatch(/It already opens|filters/);
+    expect(
+      buildPortalInviteTemplateParams({
+        contactName: 'Nataraj',
+        agentName: null,
+        brandName: null,
+        scope: null,
+        audience: 'agent',
+        language: 'kn',
+      })[2]
+    ).toBe('ಪ್ರತಿ ಲಿಸ್ಟಿಂಗ್ ಅಲ್ಲಿದೆ — ಪ್ರತಿ ಕ್ಲೈಂಟ್‌ಗಾಗಿ ಫಿಲ್ಟರ್ ಮಾಡಿ.');
+  });
+
+  it('carries every phrase in every language with the placeholders English uses', () => {
+    const placeholders = (text: string) =>
+      [...text.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]).sort();
+    for (const [key, byLanguage] of Object.entries(
+      PORTAL_INVITE_PHRASES_BY_KEY
+    )) {
+      for (const language of LANGUAGE_CODES) {
+        const text = byLanguage[language];
+        expect(text, `${key} / ${language}`).toBeTruthy();
+        expect(placeholders(text), `${key} / ${language}`).toEqual(
+          placeholders(byLanguage.en)
+        );
+        if (language !== 'en') {
+          expect(text, `${key} / ${language}`).not.toBe(byLanguage.en);
+        }
+      }
+    }
+    expect(
+      portalInvitePhrase('sender_from', 'en', { agent: 'A', brand: 'B' })
+    ).toBe('A from B');
+  });
+
   it('never sends an empty parameter', () => {
     const params = buildPortalInviteTemplateParams({
       contactName: 'Housing Lead',
@@ -158,10 +210,16 @@ describe('buildPortalInviteFallbackSelection', () => {
     expect(text).toContain('your own share link');
   });
 
-  it('names the button in the language of the template it fills', () => {
-    expect(
-      buildPortalInviteFallbackSelection(inventory, null, 'buyer', 'hi')
-    ).toContain('कैटलॉग देखें');
+  it('[CTM-002] writes the fallback pointer in the language of the template it fills', () => {
+    const hindi = buildPortalInviteFallbackSelection(
+      inventory,
+      'vacant plot for sale in BTM 2nd Stage',
+      'buyer',
+      'hi'
+    );
+    expect(hindi).toContain('कैटलॉग देखें');
+    expect(hindi).toContain('हमारे पोर्टल पर 4 लिस्टिंग में');
+    expect(hindi).not.toMatch(/Tap |and more across/);
   });
 
   it('still points at the portal when nothing is published', () => {

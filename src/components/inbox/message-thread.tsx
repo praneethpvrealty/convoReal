@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { dealsHref } from '@/lib/deals/routes';
 import { createClient } from '@/lib/supabase/client';
 import { contactHandle } from '@/lib/contacts/reachability';
@@ -406,33 +407,25 @@ export function MessageThread({
 
   // A sent template bubble shows its buttons, so the agent can see that
   // the portal link or a quick reply went out. The row keeps only the
-  // template name; one read per distinct name resolves the labels.
+  // template name; one read per distinct name resolves the labels,
+  // scoped to the conversation's account so a member of two brokerages
+  // never sees the other account's buttons on a shared name.
   const templateNames = useMemo(() => templateNamesIn(messages), [messages]);
-  const templateNamesKey = templateNames.join('|');
-  const [templateRows, setTemplateRows] = useState<TemplateBubbleRow[]>([]);
-  useEffect(() => {
-    if (!templateNamesKey) {
-      setTemplateRows([]);
-      return;
-    }
-    const supabase = createClient();
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
+  const templateAccountId = conversation?.account_id ?? null;
+  const { data: templateRows } = useQuery({
+    queryKey: ['message-template-buttons', templateAccountId, templateNames],
+    enabled: Boolean(templateAccountId) && templateNames.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await createClient()
         .from('message_templates')
         .select('name, language, status, body_text, buttons')
-        .in('name', templateNamesKey.split('|'));
-      if (cancelled) return;
-      if (error) {
-        console.error('Failed to fetch template buttons:', error);
-        return;
-      }
-      setTemplateRows((data ?? []) as TemplateBubbleRow[]);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [templateNamesKey]);
+        .eq('account_id', templateAccountId)
+        .in('name', templateNames);
+      if (error) throw error;
+      return (data ?? []) as TemplateBubbleRow[];
+    },
+  });
 
   const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
@@ -1553,7 +1546,7 @@ export function MessageThread({
                           templateButtons={
                             msg.content_type === 'template'
                               ? templateBubbleButtons(
-                                  matchTemplateRow(templateRows, msg)
+                                  matchTemplateRow(templateRows ?? [], msg)
                                 )
                               : undefined
                           }

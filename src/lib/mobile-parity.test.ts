@@ -694,6 +694,8 @@ describe('the portal link invite is one server draft on both surfaces', () => {
       expect(source).toContain(
         "select('name, language, status, body_text, buttons')"
       );
+      expect(source).toContain(".eq('account_id', ");
+      expect(source).toContain("'message-template-buttons', templateAccountId");
     }
     for (const source of [mobileBubble, webBubble]) {
       expect(source).toContain('templateButtons');

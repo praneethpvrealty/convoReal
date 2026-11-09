@@ -380,6 +380,7 @@ export async function sendPortalInvite(args: {
       brandName,
       scope,
       audience,
+      language,
     });
   } else {
     const { data: published } = await db

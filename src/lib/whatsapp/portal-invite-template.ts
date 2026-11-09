@@ -16,6 +16,7 @@ import {
 import { categoryForType } from '@/lib/inventory-summary-builder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import {
+  portalInvitePhrase,
   templateBody,
   templateButtonLabel,
   templateFooter,
@@ -95,33 +96,40 @@ export interface PortalInviteTemplateInput {
   /** `describePortalInviteFilters()` output: "vacant plot for sale in BTM 2nd Stage". */
   scope?: string | null;
   audience: PortalInviteTemplateAudience;
+  /** The language of the template variant being filled, so the
+   *  parameters read in the same language as the body around them. */
+  language?: LanguageCode;
 }
 
 const clean = (value?: string | null) => value?.trim() || '';
 
 export function portalInviteSenderLabel(
   agentName?: string | null,
-  brandName?: string | null
+  brandName?: string | null,
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): string {
   const agent = clean(agentName);
   const brand = clean(brandName);
-  if (agent && brand) return `${agent} from ${brand}`;
+  if (agent && brand) {
+    return portalInvitePhrase('sender_from', language, { agent, brand });
+  }
   return agent || brand || BRANDING.name;
 }
 
 export function portalInviteScopeLine(
   scope: string | null | undefined,
-  audience: PortalInviteTemplateAudience
+  audience: PortalInviteTemplateAudience,
+  language: LanguageCode = DEFAULT_LANGUAGE
 ): string {
   const focus = clean(scope);
   if (audience === 'agent') {
     return focus
-      ? `It already opens on ${focus} — clear the filters to see the full inventory.`
-      : 'Every listing is there — filter it down for each client.';
+      ? portalInvitePhrase('agent_scope', language, { scope: focus })
+      : portalInvitePhrase('agent_no_scope', language);
   }
   return focus
-    ? `It already opens on ${focus} for you — change the filters any time to widen the search.`
-    : 'Use the filters at the top to narrow it down to exactly what you are looking for.';
+    ? portalInvitePhrase('buyer_scope', language, { scope: focus })
+    : portalInvitePhrase('buyer_no_scope', language);
 }
 
 /** Body params {{1}}..{{3}} of either portal invite template. */
@@ -131,6 +139,7 @@ export function buildPortalInviteTemplateParams({
   brandName,
   scope,
   audience,
+  language = DEFAULT_LANGUAGE,
 }: PortalInviteTemplateInput): [name: string, sender: string, scope: string] {
   const rawName = clean(contactName);
   const firstName =
@@ -138,11 +147,11 @@ export function buildPortalInviteTemplateParams({
   return [
     sanitizeTemplateParam(firstName, NAME_MAX_LENGTH) || 'there',
     sanitizeTemplateParam(
-      portalInviteSenderLabel(agentName, brandName),
+      portalInviteSenderLabel(agentName, brandName, language),
       SENDER_MAX_LENGTH
     ),
     sanitizeTemplateParam(
-      portalInviteScopeLine(scope, audience),
+      portalInviteScopeLine(scope, audience, language),
       SCOPE_MAX_LENGTH
     ),
   ];
@@ -173,8 +182,11 @@ export function buildPortalInviteFallbackSelection(
   const total = properties.length;
   const focus = clean(scope);
   const button = templateButtonLabel('browse_showcase', language);
-  const inventory = focus
-    ? `${focus.charAt(0).toUpperCase()}${focus.slice(1)} and more across ${total} listing${total === 1 ? '' : 's'} on our portal`
+  const lead = focus
+    ? portalInvitePhrase('fallback_focus', language, {
+        scope: focus,
+        count: total,
+      })
     : total > 0
       ? Object.entries(counts)
           .map(
@@ -182,11 +194,13 @@ export function buildPortalInviteFallbackSelection(
               `${label}: ${count} option${count === 1 ? '' : 's'}`
           )
           .join(' • ')
-      : 'Every listing we have on our portal';
-  const pointer =
-    audience === 'agent'
-      ? `Tap ${button} below to open the full inventory in agent view, filter it for your clients and forward any listing with your own share link.`
-      : `Tap ${button} below to filter by location, budget and property type, shortlist the ones you like and send your enquiry from the portal.`;
+      : portalInvitePhrase('fallback_all', language);
+  const inventory = `${lead.charAt(0).toUpperCase()}${lead.slice(1)}`;
+  const pointer = portalInvitePhrase(
+    audience === 'agent' ? 'fallback_agent_pointer' : 'fallback_buyer_pointer',
+    language,
+    { button }
+  );
   return sanitizeTemplateParam(
     `${inventory}. ${pointer}`,
     FALLBACK_SELECTION_MAX_LENGTH

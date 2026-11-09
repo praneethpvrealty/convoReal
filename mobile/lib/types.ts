@@ -69,6 +69,7 @@ export interface ContactNote {
 
 export interface Conversation {
   id: string;
+  account_id?: string;
   contact_id: string;
   status: ConversationStatus;
   close_reason?: ConversationCloseReason | null;

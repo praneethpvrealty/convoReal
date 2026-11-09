@@ -185,12 +185,14 @@ async function fetchLastCustomerMessage(
 /** The template rows behind the thread's template bubbles, so each can
  *  show its buttons. One read per distinct template name. */
 async function fetchTemplateRows(
+  accountId: string,
   names: string[]
 ): Promise<TemplateBubbleRow[]> {
   if (names.length === 0) return [];
   const { data, error } = await supabase
     .from('message_templates')
     .select('name, language, status, body_text, buttons')
+    .eq('account_id', accountId)
     .in('name', names);
   if (error) throw error;
   return (data ?? []) as TemplateBubbleRow[];
@@ -317,10 +319,11 @@ export default function ConversationScreen() {
     () => templateNamesIn(messages ?? []),
     [messages]
   );
+  const templateAccountId = conversation?.account_id ?? null;
   const { data: templateRows } = useQuery({
-    queryKey: ['message-template-buttons', templateNames],
-    queryFn: () => fetchTemplateRows(templateNames),
-    enabled: templateNames.length > 0,
+    queryKey: ['message-template-buttons', templateAccountId, templateNames],
+    queryFn: () => fetchTemplateRows(templateAccountId!, templateNames),
+    enabled: Boolean(templateAccountId) && templateNames.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
