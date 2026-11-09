@@ -5011,6 +5011,7 @@ export function ShowcaseView({
       {!isAgentMode && (
         <ShowcaseLeadBot
           variant="floating"
+          launcherHidden={Boolean(selectedProperty)}
           accountId={accountId}
           properties={properties}
           whatsappLink={catalogWhatsAppLink}

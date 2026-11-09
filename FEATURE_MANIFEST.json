@@ -2901,7 +2901,7 @@
         },
         {
           "id": "PRP-058",
-          "rule": "The public listing panel keeps WhatsApp, Exact location and Enquire in a footer that stays on screen while it scrolls, and lists similar properties only after the enquiry form. A visitor whose name and ten-digit number the showcase already holds enquires or requests the exact location with one tap and no form, and can edit those details back into the form. An anonymous visitor is asked for a WhatsApp number once a second listing is opened in the visit and again after a rating of 7 or more; either answer files a Website Inquiry on that listing naming the moment it came from, a dismissal is remembered on the device, and a known visitor or a co-broker view is never asked.",
+          "rule": "The public listing panel keeps WhatsApp, Exact location and Enquire in a footer that stays on screen while it scrolls, and lists similar properties only after the enquiry form. A visitor whose name and ten-digit number the showcase already holds enquires or requests the exact location with one tap and no form, and can edit those details back into the form. An anonymous visitor is asked for a WhatsApp number once a second listing is opened in the visit and again after a rating of 7 or more; either answer files a Website Inquiry on that listing naming the moment it came from, a dismissal is remembered on the device, and a known visitor or a co-broker view is never asked. While a listing is open the floating Find my property launcher is hidden so it never covers the footer, and it returns when the panel closes.",
           "tests": [
             {
               "file": "src/components/showcase/showcase-view.enquiry-footer.test.tsx",
@@ -2909,6 +2909,14 @@
             },
             {
               "file": "src/lib/showcase/visitor-capture.test.ts",
+              "case": "[PRP-058]"
+            },
+            {
+              "file": "src/components/showcase/showcase-view.launcher.test.tsx",
+              "case": "[PRP-058]"
+            },
+            {
+              "file": "src/components/chat/lead-bot.test.tsx",
               "case": "[PRP-058]"
             }
           ]

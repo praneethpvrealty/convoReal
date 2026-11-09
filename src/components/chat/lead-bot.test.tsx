@@ -30,3 +30,36 @@ describe('LeadBot', () => {
     }
   });
 });
+
+describe('[PRP-058] floating launcher yields the bottom edge', () => {
+  const props = {
+    variant: 'floating' as const,
+    title: 'Property assistant',
+    launcherLabel: 'Find my property',
+    messages: [{ id: '1', role: 'bot' as const, text: 'Hi there' }],
+    onChip: vi.fn(),
+    onSend: vi.fn(),
+  };
+
+  it('renders nothing while hidden and closed, so a listing footer is never covered', () => {
+    const { queryByRole } = render(<LeadBot {...props} launcherHidden />);
+    expect(queryByRole('button', { name: /find my property/i })).toBeNull();
+    expect(document.querySelector('[data-floating-lead-bot]')).toBeNull();
+  });
+
+  it('keeps an open chat on screen even while hidden', () => {
+    const { getByText } = render(
+      <LeadBot {...props} launcherHidden defaultOpen />
+    );
+    expect(getByText('Property assistant')).toBeTruthy();
+  });
+
+  it('shows the launcher again once no longer hidden', () => {
+    const { rerender, queryByRole, getByRole } = render(
+      <LeadBot {...props} launcherHidden />
+    );
+    expect(queryByRole('button', { name: /find my property/i })).toBeNull();
+    rerender(<LeadBot {...props} launcherHidden={false} />);
+    expect(getByRole('button', { name: /find my property/i })).toBeTruthy();
+  });
+});

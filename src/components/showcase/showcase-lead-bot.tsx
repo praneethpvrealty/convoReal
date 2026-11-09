@@ -44,6 +44,9 @@ interface ShowcaseLeadBotProps {
   onWhatsAppClick?: () => void;
   /** Fired when the visitor takes up the free buyer account. */
   onAccountClick?: () => void;
+  /** Floating only — hide the closed launcher while a listing panel owns
+   *  the bottom of the screen. */
+  launcherHidden?: boolean;
 }
 
 const SHOWCASE_ENGINE_FUNNEL = engineFunnel('showcase');
@@ -75,6 +78,7 @@ export function ShowcaseLeadBot({
   onSelectProperty,
   onWhatsAppClick,
   onAccountClick,
+  launcherHidden = false,
 }: ShowcaseLeadBotProps) {
   const sessionKey = useMemo(getShowcaseSessionKey, []);
   // Which funnel finished, so the closing state offers the right next
@@ -421,6 +425,7 @@ export function ShowcaseLeadBot({
       title="Property assistant"
       subtitle="Tell me what you need — I'll find it"
       launcherLabel="Find my property"
+      launcherHidden={launcherHidden}
       messages={bot.messages}
       chips={bot.chips}
       multiSelect={Boolean(bot.step?.multi)}
