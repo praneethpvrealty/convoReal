@@ -31,27 +31,28 @@ export function useKeyboardReveal(scrollRef: RefObject<ScrollView | null>) {
         const viewport = scrollRef.current?.getNativeScrollRef();
         if (!input || !viewport) return;
         const keyboardTop = event.endCoordinates.screenY;
-        viewport.measureInWindow((_x, viewportTop) => {
-          input.measureLayout(
-            viewport,
-            (_fieldX, fieldY, _width, height) => {
-              const fieldTop = viewportTop + fieldY;
-              const delta = keyboardRevealDelta({
-                fieldTop,
-                fieldBottom: fieldTop + height,
-                viewportTop,
-                keyboardTop,
-              });
-              if (delta > 0) {
-                scrollRef.current?.scrollTo({
-                  y: scrollY.current + delta,
-                  animated: true,
+        input.measureLayout(
+          viewport,
+          () => {
+            viewport.measureInWindow((_x, viewportTop) => {
+              input.measureInWindow((_fieldX, fieldTop, _width, height) => {
+                const delta = keyboardRevealDelta({
+                  fieldTop,
+                  fieldBottom: fieldTop + height,
+                  viewportTop,
+                  keyboardTop,
                 });
-              }
-            },
-            () => undefined
-          );
-        });
+                if (delta > 0) {
+                  scrollRef.current?.scrollTo({
+                    y: scrollY.current + delta,
+                    animated: true,
+                  });
+                }
+              });
+            });
+          },
+          () => undefined
+        );
       }
     );
     return () => subscription.remove();
