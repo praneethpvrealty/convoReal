@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -38,7 +37,6 @@ import {
 import { pickAndUploadFloorPlan } from '@/lib/floor-plan-upload';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { formatInr } from '@/lib/format';
-import { propertyEditKeyboardBehavior } from '@/lib/property-edit-keyboard';
 import { TagsField } from '@/components/tags-field';
 import { apiFetch, ApiError } from '@/lib/api';
 import { EKhataReviewSheet } from '@/components/e-khata-review-sheet';
@@ -81,6 +79,8 @@ import type { FloorTenancy } from '@shared/lib/inventory/floor-tenancies';
 import { validateListingCore } from '@shared/lib/inventory/listing-core-validation';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import { useDiscardGuard } from '@/lib/use-discard-guard';
+import { useHeaderHeight } from '@/lib/use-header-height';
+import { useKeyboardReveal } from '@/lib/use-keyboard-reveal';
 import { parseAmountInput } from '@shared/lib/format/currency';
 
 const STATUSES = [
@@ -201,6 +201,8 @@ function EditForm({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
   const dialog = useAppDialog();
   const scrollRef = useRef<ScrollView>(null);
+  const headerHeight = useHeaderHeight();
+  const onScroll = useKeyboardReveal(scrollRef);
   const [photosBusy, setPhotosBusy] = useState(false);
 
   const [images, setImages] = useState<string[]>(property.images ?? []);
@@ -659,13 +661,16 @@ function EditForm({ property }: { property: Property }) {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={propertyEditKeyboardBehavior(Platform.OS)}
+      behavior="padding"
+      keyboardVerticalOffset={headerHeight}
     >
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
         {error ? <Banner kind="error" text={error} /> : null}
 

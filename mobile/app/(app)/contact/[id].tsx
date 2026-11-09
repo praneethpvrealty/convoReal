@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -71,6 +70,7 @@ import { storagePublicUrl } from '@/lib/storage-url';
 import { phoneHints } from '@/lib/phone-hints';
 import { useAccountCountryCode } from '@/lib/use-account-currency';
 import { useHeaderHeight } from '@/lib/use-header-height';
+import { useKeyboardReveal } from '@/lib/use-keyboard-reveal';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { contactPhone } from '@shared/lib/format/phone';
 import {
@@ -429,6 +429,8 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const headerHeight = useHeaderHeight();
+  const onScroll = useKeyboardReveal(scrollRef);
   const source = resolveRequirementSource(contact);
   const {
     show: showDialog,
@@ -634,13 +636,16 @@ function ContactCard({ contact }: { contact: Contact }) {
     <KeyboardAvoidingView
       testID="contact-detail-screen"
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior="padding"
+      keyboardVerticalOffset={headerHeight}
     >
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl
             refreshing={pull.refreshing}
@@ -1767,6 +1772,8 @@ function ContactEditor({
 }) {
   const { colors, dark, fonts: f } = useTheme();
   const headerHeight = useHeaderHeight();
+  const scrollRef = useRef<ScrollView>(null);
+  const onScroll = useKeyboardReveal(scrollRef);
   const source = resolveRequirementSource(contact);
   const [name, setName] = useState(contact.name ?? '');
   const [salutation, setSalutation] = useState(contact.salutation ?? '');
@@ -2040,9 +2047,12 @@ function ContactEditor({
       keyboardVerticalOffset={headerHeight}
     >
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
         <View style={{ gap: spacing.sm }}>
           <SectionLabel text="Title" style={{ color: colors.textMuted }} />

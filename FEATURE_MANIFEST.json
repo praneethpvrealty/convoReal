@@ -2882,6 +2882,22 @@
             "mobile/app.config.js",
             "mobile/fingerprint.config.js"
           ]
+        },
+        {
+          "id": "PRP-057",
+          "rule": "A field tapped on the mobile Edit property or contact screen stays visible while the keyboard is up: the screen gives the keyboard its full height under the navigation header (KeyboardAvoidingView padding with the header height as its offset on both platforms, never the height behaviour, which under SDK 57 edge-to-edge left the bottom of the form under the keyboard and let the keyboard open and close on its own on a Samsung Fold), and when the keyboard opens or grows the focused field is scrolled to sit a margin above it, keeping its top in view when the field is taller than the space left (mobile/lib/keyboard-reveal.ts).",
+          "tests": [
+            {
+              "file": "mobile/lib/keyboard-reveal.test.ts",
+              "case": "[PRP-057]"
+            }
+          ],
+          "guards": [
+            "mobile/lib/keyboard-reveal.ts",
+            "mobile/lib/use-keyboard-reveal.ts",
+            "mobile/app/(app)/property-edit.tsx",
+            "mobile/app/(app)/contact/[id].tsx"
+          ]
         }
       ]
     },
