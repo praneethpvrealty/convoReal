@@ -36,6 +36,12 @@ import {
   botAutoPausedUntil,
   botPauseLabel,
 } from '@shared/lib/conversations/bot-pause';
+import {
+  matchTemplateRow,
+  templateBubbleButtons,
+  templateNamesIn,
+  type TemplateBubbleRow,
+} from '@shared/lib/conversations/template-bubble-buttons';
 import { setConversationBotPaused } from '@/lib/conversation-actions';
 import { ConversationMenu } from '@/components/conversation-menu';
 import { ConvoRealLoader } from '@/components/loader';
@@ -176,6 +182,22 @@ async function fetchLastCustomerMessage(
   return data ?? [];
 }
 
+/** The template rows behind the thread's template bubbles, so each can
+ *  show its buttons. One read per distinct template name. */
+async function fetchTemplateRows(
+  accountId: string,
+  names: string[]
+): Promise<TemplateBubbleRow[]> {
+  if (names.length === 0) return [];
+  const { data, error } = await supabase
+    .from('message_templates')
+    .select('name, language, status, body_text, buttons')
+    .eq('account_id', accountId)
+    .in('name', names);
+  if (error) throw error;
+  return (data ?? []) as TemplateBubbleRow[];
+}
+
 /** Every reaction in the thread — one bounded read, split per bubble in
  *  memory rather than a query per message. */
 async function fetchReactions(
@@ -291,6 +313,18 @@ export default function ConversationScreen() {
     queryKey: ['message-reactions', id],
     queryFn: () => fetchReactions(id),
     enabled: Boolean(id),
+  });
+
+  const templateNames = useMemo(
+    () => templateNamesIn(messages ?? []),
+    [messages]
+  );
+  const templateAccountId = conversation?.account_id ?? null;
+  const { data: templateRows } = useQuery({
+    queryKey: ['message-template-buttons', templateAccountId, templateNames],
+    queryFn: () => fetchTemplateRows(templateAccountId!, templateNames),
+    enabled: Boolean(templateAccountId) && templateNames.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Live updates for this thread. Reactions ride the same channel: a
@@ -837,6 +871,13 @@ export default function ConversationScreen() {
                   onReply={openReply}
                   onToggleReaction={applyReaction}
                   onQuotePress={jumpToMessage}
+                  templateButtons={
+                    item.message.content_type === 'template'
+                      ? templateBubbleButtons(
+                          matchTemplateRow(templateRows ?? [], item.message)
+                        )
+                      : undefined
+                  }
                 />
               )
             }

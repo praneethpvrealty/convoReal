@@ -44,6 +44,7 @@ import {
 import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
 import { FormattedText } from '@/components/formatted-text';
 import type { Message, MessageReaction, MessageStatus } from '@/lib/types';
+import type { TemplateBubbleButton } from '@shared/lib/conversations/template-bubble-buttons';
 
 const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
 
@@ -126,6 +127,69 @@ const MEDIA_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 /** Content types with no renderer of their own — they still say what
  *  they are rather than showing an empty bubble. */
 const UNRENDERED_TYPES = ['location', 'template', 'interactive'];
+
+const TEMPLATE_BUTTON_ICONS: Record<
+  TemplateBubbleButton['kind'],
+  keyof typeof Ionicons.glyphMap
+> = {
+  url: 'open-outline',
+  call: 'call-outline',
+  copy: 'copy-outline',
+  reply: 'return-down-back-outline',
+};
+
+/** The buttons under a sent template, as the contact sees them. Labels
+ *  only: a URL button's link was built for the contact, not the agent. */
+function TemplateButtons({
+  buttons,
+  outgoing,
+}: {
+  buttons: TemplateBubbleButton[];
+  outgoing: boolean;
+}) {
+  const { colors, fonts: f } = useTheme();
+  if (buttons.length === 0) return null;
+  const tint = outgoing ? colors.outgoingText : colors.primary;
+  return (
+    <View
+      accessibilityLabel="Template buttons"
+      style={[
+        styles.templateButtons,
+        {
+          borderTopColor: outgoing
+            ? 'rgba(255,255,255,0.2)'
+            : colors.glassBorder,
+        },
+      ]}
+    >
+      {buttons.map((button, index) => (
+        <View
+          key={`${button.kind}-${index}`}
+          style={[
+            styles.templateButton,
+            {
+              backgroundColor: outgoing
+                ? 'rgba(255,255,255,0.14)'
+                : colors.surfaceSunken,
+            },
+          ]}
+        >
+          <Ionicons
+            name={TEMPLATE_BUTTON_ICONS[button.kind]}
+            size={13}
+            color={tint}
+          />
+          <Text
+            numberOfLines={1}
+            style={{ color: tint, fontFamily: f.semibold, fontSize: 12.5 }}
+          >
+            {button.label}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
 
 /** True while an outgoing attachment is still being uploaded: the
  *  bubble is on screen (so the send is visibly happening) but there is
@@ -287,6 +351,7 @@ export function MessageBubble({
   onReply,
   onToggleReaction,
   onQuotePress,
+  templateButtons,
 }: {
   message: Message;
   parent?: Message;
@@ -295,6 +360,9 @@ export function MessageBubble({
   currentUserId?: string | null;
   /** Briefly tinted after the thread jumped here from a quote. */
   highlighted?: boolean;
+  /** The sent template's buttons, resolved by the thread from the
+   *  account's template rows; a message row keeps only the name. */
+  templateButtons?: TemplateBubbleButton[];
   onLongPress: (message: Message, x: number, y: number) => void;
   onReply: (message: Message) => void;
   onToggleReaction: (message: Message, emoji: string) => void;
@@ -547,6 +615,13 @@ export function MessageBubble({
                 />
               ) : null}
 
+              {message.content_type === 'template' && templateButtons ? (
+                <TemplateButtons
+                  buttons={templateButtons}
+                  outgoing={outgoing}
+                />
+              ) : null}
+
               <View style={styles.meta}>
                 {message.pinned_at ? (
                   <Ionicons
@@ -719,6 +794,21 @@ const styles = StyleSheet.create({
     gap: 10,
     minWidth: 190,
     paddingVertical: 2,
+  },
+  templateButtons: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    gap: 4,
+  },
+  templateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
   reactions: {
     flexDirection: 'row',

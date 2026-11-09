@@ -29,6 +29,24 @@ than a written entry. Newest first.
   now pad for the keyboard under the header, as the chat screen already did,
   and scroll the focused field to sit just above it whenever the keyboard
   opens or grows.
+- **Share Portal outside the 24-hour window now sends a portal invite, not
+  an inventory digest.** The closed-window path borrowed the
+  `property_selection_update` template, so a contact got "I've selected
+  these properties based on what you're looking for" followed by 116
+  residential, 111 commercial and 19 land options cut off mid-title, with no
+  mention of the portal and the link hidden in a button neither chat bubble
+  showed. Two Marketing templates, `property_portal_invite` and
+  `property_portal_agent_invite`, now carry the same wording as the free-text
+  invite — who is writing, what the portal opens on, and filter, shortlist
+  and enquire from the portal (or agent view and your own share link for a
+  co-broker) — with the attributed link in an "Open the portal" button, in
+  every product language behind the usual translation review. Submit them
+  from Settings → Templates. Until they are approved the old template still
+  goes out, but its body names what the portal holds and points at the
+  button instead of listing properties. A subdomain tenant's link now keeps
+  its account ref through the button. Sent template bubbles on web and mobile
+  show the template's buttons under the body, so the agent can see the link
+  went out.
 - **Greetings and broadcasts go out in seconds, and the card says how far
   they got.** A Diwali greeting to 18 contacts took 28 minutes: the send
   route started the dispatch without anything keeping it alive, so it froze

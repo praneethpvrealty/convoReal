@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { dealsHref } from '@/lib/deals/routes';
 import { createClient } from '@/lib/supabase/client';
 import { contactHandle } from '@/lib/contacts/reachability';
@@ -58,6 +59,12 @@ import { ForwardMessageDialog } from './forward-message-dialog';
 import { MessageComposer } from './message-composer';
 import { TemplatePicker, type TemplateIntent } from './template-picker';
 import { buildReplyPreview } from './reply-quote';
+import {
+  matchTemplateRow,
+  templateBubbleButtons,
+  templateNamesIn,
+  type TemplateBubbleRow,
+} from '@/lib/conversations/template-bubble-buttons';
 import { MessageThreadSkeleton } from '@/components/inbox/message-thread-skeleton';
 import { LoadError } from '@/components/ui/load-error';
 import { Skeleton } from '@/components/dashboard/skeleton';
@@ -397,6 +404,28 @@ export function MessageThread({
   });
 
   const lastConversationIdRef = useRef<string | null>(null);
+
+  // A sent template bubble shows its buttons, so the agent can see that
+  // the portal link or a quick reply went out. The row keeps only the
+  // template name; one read per distinct name resolves the labels,
+  // scoped to the conversation's account so a member of two brokerages
+  // never sees the other account's buttons on a shared name.
+  const templateNames = useMemo(() => templateNamesIn(messages), [messages]);
+  const templateAccountId = conversation?.account_id ?? null;
+  const { data: templateRows } = useQuery({
+    queryKey: ['message-template-buttons', templateAccountId, templateNames],
+    enabled: Boolean(templateAccountId) && templateNames.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await createClient()
+        .from('message_templates')
+        .select('name, language, status, body_text, buttons')
+        .eq('account_id', templateAccountId)
+        .in('name', templateNames);
+      if (error) throw error;
+      return (data ?? []) as TemplateBubbleRow[];
+    },
+  });
 
   const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
@@ -1514,6 +1543,13 @@ export function MessageThread({
                           reactions={msgReactions}
                           currentUserId={user?.id}
                           onToggleReaction={handlePillToggle}
+                          templateButtons={
+                            msg.content_type === 'template'
+                              ? templateBubbleButtons(
+                                  matchTemplateRow(templateRows ?? [], msg)
+                                )
+                              : undefined
+                          }
                         />
                       </MessageActions>
                     );

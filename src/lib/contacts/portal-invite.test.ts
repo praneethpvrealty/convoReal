@@ -171,6 +171,31 @@ Send me the ones your clients want to see and I'll take it forward with photos, 
 });
 
 describe('portalInviteButtonParams', () => {
+  it('[CTM-002] adds the account ref when a subdomain portal link is sent through a button submitted from the app origin', () => {
+    const buttons = [{ type: 'URL', url: 'https://www.convoreal.com/{{1}}' }];
+    expect(
+      portalInviteButtonParams(
+        buttons,
+        'https://aryavarta.convoreal.com/?mode=view&v=contact-4',
+        'acc-1'
+      )
+    ).toEqual({ 0: '?mode=view&v=contact-4&ref=acc-1' });
+    expect(
+      portalInviteButtonParams(
+        buttons,
+        'https://aryavarta.convoreal.com/',
+        'acc-1'
+      )
+    ).toEqual({ 0: '?ref=acc-1' });
+    expect(
+      portalInviteButtonParams(
+        buttons,
+        'https://www.convoreal.com/?ref=acc-1&v=contact-4',
+        'acc-1'
+      )
+    ).toEqual({ 0: '?ref=acc-1&v=contact-4' });
+  });
+
   it("[CTM-002] feeds the tracked query into the template's dynamic URL button only", () => {
     expect(
       portalInviteButtonParams(

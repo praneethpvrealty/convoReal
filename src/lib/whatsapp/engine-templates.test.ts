@@ -29,6 +29,8 @@ describe('missingEngineTemplates', () => {
       'property_share_feedback',
       'contact_number_update',
       'portfolio_access_notice',
+      'property_portal_invite',
+      'property_portal_agent_invite',
     ]);
   });
 
