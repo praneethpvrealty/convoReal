@@ -230,6 +230,12 @@ const IDENTITY_QUESTION = [
   /\b(?:are\s+you|means\s+you|you\s+are)\s+(?:an?\s+|the\s+)?(?:developer|builder|broker|agent|channel\s+partner|real\s*estate)/i,
 ];
 
+export function asksToBeCalled(text: string | null | undefined): boolean {
+  return /\bcall\s+(?:me|us)\b|\bcall\s*back\b|\b(?:give|gimme)\s+(?:me\s+)?a\s+call\b/i.test(
+    text || ''
+  );
+}
+
 export function asksWhoWeAre(text: string | null | undefined): boolean {
   const value = (text || '').trim();
   return Boolean(value) && IDENTITY_QUESTION.some((p) => p.test(value));
@@ -503,7 +509,7 @@ export async function handleOwnerInboundMessage(args: {
 
   const asksNumber = asksForContactNumber(text);
   let callback: OwnerCallback | null = null;
-  if (requestsHumanContact(text) && !asksNumber) {
+  if (requestsHumanContact(text) && (!asksNumber || asksToBeCalled(text))) {
     try {
       callback = await fileOwnerCallback(db, {
         accountId: args.accountId,

@@ -13,7 +13,7 @@ const OWNER_MESSAGE =
 const NOW = new Date('2026-11-10T02:32:14.000Z');
 
 function fakeDb(
-  openCallbacks: { id: string }[],
+  openCallbacks: { id: string; assigned_to?: string }[],
   insertError: unknown = null,
   updateError: unknown = null
 ) {
@@ -118,13 +118,23 @@ describe('[CNV-014] fileOwnerCallback', () => {
   });
 
   it('moves an open owner call-back to a newly named time instead of filing twice', async () => {
-    const { db, inserted, updated, query } = fakeDb([{ id: 'todo-1' }]);
+    const { db, inserted, updated, query } = fakeDb([
+      { id: 'todo-1', assigned_to: 'other-agent' },
+    ]);
     const result = await fileOwnerCallback(db, args);
     expect(query.ilike).toHaveBeenCalledWith('title', 'Call back % (owner)%');
     expect(result).toEqual({ filed: true, when: 'after 10:00 am today' });
     expect(updated).toEqual([{ due_date: '2026-11-10T04:30:00.000Z' }]);
     expect(inserted).toEqual([]);
-    expect(createNotification).not.toHaveBeenCalled();
+    expect(createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'other-agent',
+        title: 'Call back Chamraju (owner) after 10:00 am today',
+        whatsappText: expect.stringContaining(
+          'Owner changed their call-back time'
+        ),
+      })
+    );
   });
 
   it('confirms no time for a repeat request that names none', async () => {
@@ -136,12 +146,14 @@ describe('[CNV-014] fileOwnerCallback', () => {
     expect(result).toEqual({ filed: true, when: null });
     expect(updated).toEqual([]);
     expect(inserted).toEqual([]);
+    expect(createNotification).not.toHaveBeenCalled();
   });
 
   it('confirms no time when the open call-back could not be moved', async () => {
     const { db } = fakeDb([{ id: 'todo-1' }], null, { message: 'refused' });
     const result = await fileOwnerCallback(db, args);
     expect(result).toEqual({ filed: true, when: null });
+    expect(createNotification).not.toHaveBeenCalled();
   });
 
   it('reports a call-back it could not file, and still alerts the agent', async () => {

@@ -135,6 +135,23 @@ describe('[CNV-014] handleOwnerInboundMessage', () => {
     expect(sentText()).toContain("I've asked Praneeth to call you shortly.");
   });
 
+  it('files the call-back when the owner also asks for our number', async () => {
+    vi.mocked(fileOwnerCallback).mockResolvedValue({
+      filed: true,
+      when: 'at 4:00 pm tomorrow',
+    });
+    await handleOwnerInboundMessage({
+      ...args,
+      text: 'Please share your number and call me tomorrow at 4 pm',
+    });
+    expect(fileOwnerCallback).toHaveBeenCalledTimes(1);
+    expect(generateText).not.toHaveBeenCalled();
+    expect(sentText()).toContain('+919900000001');
+    expect(sentText()).toContain(
+      "I've asked Praneeth to call you at 4:00 pm tomorrow."
+    );
+  });
+
   it('files nothing for an ordinary question', async () => {
     vi.mocked(generateText).mockResolvedValue('This is about your listing.');
     await handleOwnerInboundMessage({

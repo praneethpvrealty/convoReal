@@ -70,9 +70,36 @@ export async function fileOwnerCallback(
   const requested = requestedCallTime(args.text, now);
   const when = requested?.label ?? null;
 
+  const name = args.contactName?.trim() || 'A property owner';
+  const about =
+    args.listingTitles.length === 1
+      ? ` about ${args.listingTitles[0]}`
+      : ' about their listings';
+  const alert = (userId: string, heading: string, timing: string) =>
+    createNotification({
+      accountId: args.accountId,
+      userId,
+      type: 'listing_interest',
+      title: `Call back ${name} (owner) ${timing}`,
+      body: `${name} (${args.contactPhone || 'no number'}) asked for a call${about}: "${args.text.slice(0, 300)}"`,
+      entityType: 'conversation',
+      entityId: args.conversationId,
+      link: `/inbox?conversation=${args.conversationId}`,
+      whatsappText: [
+        `📞 *${heading}*`,
+        `👤 ${name} (${args.contactPhone || 'no number'})`,
+        ...args.listingTitles.slice(0, 3).map((title) => `🏠 ${title}`),
+        `⏰ Call ${timing}`,
+        '',
+        args.text.slice(0, 300),
+        '',
+        BRIDGE_REPLY_HINT,
+      ].join('\n'),
+    });
+
   const { data: open, error: openError } = await db
     .from('todos')
-    .select('id')
+    .select('id, assigned_to')
     .eq('account_id', args.accountId)
     .eq('contact_id', args.contactId)
     .eq('completed', false)
@@ -80,25 +107,29 @@ export async function fileOwnerCallback(
     .ilike('title', 'Call back % (owner)%')
     .gte('created_at', new Date(now.getTime() - REPEAT_WINDOW_MS).toISOString())
     .limit(1);
-  const openId = openError ? null : ((open ?? [])[0]?.id as string | undefined);
-  if (openId) {
-    if (!requested) return { filed: true, when: null };
+  const openTodo = openError
+    ? null
+    : (((open ?? [])[0] as
+        { id: string; assigned_to: string | null } | undefined) ?? null);
+  if (openTodo) {
+    if (!requested || !when) return { filed: true, when: null };
     const { error: moveError } = await db
       .from('todos')
       .update({ due_date: requested.at.toISOString() })
-      .eq('id', openId)
+      .eq('id', openTodo.id)
       .eq('account_id', args.accountId);
     if (moveError) {
       console.error('[owner-callback] to-do reschedule failed:', moveError);
+      return { filed: true, when: null };
     }
-    return { filed: true, when: moveError ? null : when };
+    await alert(
+      openTodo.assigned_to || args.agentUserId,
+      'Owner changed their call-back time',
+      when
+    );
+    return { filed: true, when };
   }
 
-  const name = args.contactName?.trim() || 'A property owner';
-  const about =
-    args.listingTitles.length === 1
-      ? ` about ${args.listingTitles[0]}`
-      : ' about their listings';
   const { error: todoError } = await db.from('todos').insert({
     account_id: args.accountId,
     user_id: args.userId,
@@ -117,27 +148,11 @@ export async function fileOwnerCallback(
     console.error('[owner-callback] to-do insert failed:', todoError);
   }
 
-  const timing = when ?? 'within the hour';
-  await createNotification({
-    accountId: args.accountId,
-    userId: args.agentUserId,
-    type: 'listing_interest',
-    title: `Call back ${name} (owner) ${timing}`,
-    body: `${name} (${args.contactPhone || 'no number'}) asked for a call${about}: "${args.text.slice(0, 300)}"`,
-    entityType: 'conversation',
-    entityId: args.conversationId,
-    link: `/inbox?conversation=${args.conversationId}`,
-    whatsappText: [
-      '📞 *Owner asked for a call back*',
-      `👤 ${name} (${args.contactPhone || 'no number'})`,
-      ...args.listingTitles.slice(0, 3).map((title) => `🏠 ${title}`),
-      `⏰ Call ${timing}`,
-      '',
-      args.text.slice(0, 300),
-      '',
-      BRIDGE_REPLY_HINT,
-    ].join('\n'),
-  });
+  await alert(
+    args.agentUserId,
+    'Owner asked for a call back',
+    when ?? 'within the hour'
+  );
 
   return { filed: !todoError, when };
 }
