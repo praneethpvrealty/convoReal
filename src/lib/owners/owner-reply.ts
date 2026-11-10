@@ -227,7 +227,7 @@ const IDENTITY_QUESTION = [
   /\bwho\s+is\s+this(?:\s+(?:number|please|pls))?\s*[?.!]*\s*$/i,
   /\bwho\s+am\s+i\s+(?:speaking|talking|chatting)\b/i,
   new RegExp(
-    `\\b(?:know|tell|share|send|give|what(?:'s|\\s+is)?|may\\s+i|can\\s+i)\\b[^.?!\\n]{0,30}\\b(?:your|ur)\\s+${IDENTITY_SUBJECT}\\b`,
+    `\\b(?:(?:can|may|could)\\s+i\\s+(?:know|have|get|ask)|let\\s+me\\s+know|(?:tell|send|share|give)\\s+(?:me|us)|what(?:'s|\\s+is))\\b[^.?!\\n]{0,20}\\b(?:your|ur)\\s+${IDENTITY_SUBJECT}\\b`,
     'i'
   ),
   new RegExp(
@@ -236,7 +236,7 @@ const IDENTITY_QUESTION = [
   ),
   /\bintroduce\s+yoursel(?:f|ves)\b/i,
   /\bwhich\s+(?:company|agency|firm)\s+(?:(?:are|r)\s+(?:you|u)\b|is\s+this\s*[?.!]*\s*$)/i,
-  /\b(?:are\s+you|means\s+you)\s+(?:an?\s+|the\s+)?(?:developer|builder|broker|agent|channel\s+partner|real\s*estate)/i,
+  /\b(?:are\s+you|means\s+you)\s+(?:an?\s+|the\s+)?(?:developer|builder|broker|agent|channel\s+partner|real\s*estate)(?!\s+(?:who|that|which|for|of|from)\b)/i,
 ];
 
 export function asksToBeCalled(text: string | null | undefined): boolean {
