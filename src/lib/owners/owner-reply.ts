@@ -223,7 +223,7 @@ const IDENTITY_QUESTION_MAX_LENGTH = 160;
 const IDENTITY_SUBJECT =
   "(?:details?|name|designation|introduction|(?:company|agency|firm)(?:'s)?\\s+(?:name|details?))";
 const IDENTITY_QUESTION = [
-  /\bwho\s+(?:are|r)\s+(?:you|u)\b/i,
+  /\bwho\s+(?:are|r)\s+(?:you|u)(?:\s+(?:people|guys|all|exactly|please|pls|sir|madam))?(?=\s*(?:$|[?.!,]))/i,
   /\bwho\s+is\s+this(?:\s+(?:number|please|pls))?\s*[?.!]*\s*$/i,
   /\bwho\s+am\s+i\s+(?:speaking|talking|chatting)\b/i,
   new RegExp(
