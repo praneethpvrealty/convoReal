@@ -219,15 +219,24 @@ export interface OwnerReplyIdentity {
   agentPhone?: string | null;
 }
 
+const IDENTITY_QUESTION_MAX_LENGTH = 160;
+const IDENTITY_SUBJECT =
+  "(?:details?|name|designation|introduction|(?:company|agency|firm)(?:'s)?\\s+(?:name|details?))";
 const IDENTITY_QUESTION = [
   /\bwho\s+(?:are|r)\s+(?:you|u)\b/i,
   /\bwho\s+is\s+this(?:\s+(?:number|please|pls))?\s*[?.!]*\s*$/i,
   /\bwho\s+am\s+i\s+(?:speaking|talking|chatting)\b/i,
-  /\b(?:your|ur)\s+(?:details?|name|designation|introduction)\b/i,
-  /\b(?:your|ur)\s+(?:company|agency|firm)(?:'s)?\s+(?:name|details?)\b/i,
+  new RegExp(
+    `\\b(?:know|tell|share|send|give|what(?:'s|\\s+is)?|may\\s+i|can\\s+i)\\b[^.?!\\n]{0,30}\\b(?:your|ur)\\s+${IDENTITY_SUBJECT}\\b`,
+    'i'
+  ),
+  new RegExp(
+    `^\\W*(?:your|ur)\\s+${IDENTITY_SUBJECT}(?:\\s+(?:please|pls|plz))?\\s*[?.!]*\\s*$`,
+    'i'
+  ),
   /\bintroduce\s+yoursel(?:f|ves)\b/i,
   /\bwhich\s+(?:company|agency|firm)\s+(?:(?:are|r)\s+(?:you|u)\b|is\s+this\s*[?.!]*\s*$)/i,
-  /\b(?:are\s+you|means\s+you|you\s+are)\s+(?:an?\s+|the\s+)?(?:developer|builder|broker|agent|channel\s+partner|real\s*estate)/i,
+  /\b(?:are\s+you|means\s+you)\s+(?:an?\s+|the\s+)?(?:developer|builder|broker|agent|channel\s+partner|real\s*estate)/i,
 ];
 
 export function asksToBeCalled(text: string | null | undefined): boolean {
@@ -238,7 +247,11 @@ export function asksToBeCalled(text: string | null | undefined): boolean {
 
 export function asksWhoWeAre(text: string | null | undefined): boolean {
   const value = (text || '').trim();
-  return Boolean(value) && IDENTITY_QUESTION.some((p) => p.test(value));
+  return (
+    Boolean(value) &&
+    value.length <= IDENTITY_QUESTION_MAX_LENGTH &&
+    IDENTITY_QUESTION.some((pattern) => pattern.test(value))
+  );
 }
 
 function displayPhone(phone: string): string {

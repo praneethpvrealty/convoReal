@@ -307,6 +307,8 @@ describe('[CNV-014] an owner asking who we are', () => {
       'Which company is this',
       'who is this?',
       'What is your company name',
+      'Your name please',
+      'Are you a broker or the builder?',
     ]) {
       expect(asksWhoWeAre(text), text).toBe(true);
     }
@@ -317,6 +319,9 @@ describe('[CNV-014] an owner asking who we are', () => {
       'Who is this buyer you mentioned',
       'Which company is the buyer from?',
       'I will come to your office tomorrow',
+      'I sent your details to my brother yesterday',
+      'You are the agent, you tell me what price it will fetch',
+      'Put your name board on the site',
       'Hi we will discuss regarding the above property 2 Acre 4 guntas & 3 acre IVC road...call me after 10.00 a.m today',
     ]) {
       expect(asksWhoWeAre(text), text).toBe(false);
