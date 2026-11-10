@@ -215,8 +215,10 @@ const FEATURE_FRESH_MS = 30 * 24 * 60 * 60 * 1000;
 const FEATURE_FRESH_MIN = 3;
 const IST_OFFSET_MS = 330 * 60 * 1000;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function istDayNumber(now: number): number {
-  return Math.floor((now + IST_OFFSET_MS) / (24 * 60 * 60 * 1000));
+  return Math.floor((now + IST_OFFSET_MS) / DAY_MS);
 }
 
 function createdAt(property: Property): number {
@@ -239,11 +241,13 @@ export function featuredProperty(
     )
     .sort((a, b) => createdAt(b) - createdAt(a) || a.id.localeCompare(b.id));
   if (candidates.length === 0) return null;
+  const day = istDayNumber(now);
+  const dayStart = day * DAY_MS - IST_OFFSET_MS;
   const fresh = candidates.filter(
-    (property) => now - createdAt(property) <= FEATURE_FRESH_MS
+    (property) => dayStart - createdAt(property) <= FEATURE_FRESH_MS
   );
   const pool = fresh.length >= FEATURE_FRESH_MIN ? fresh : candidates;
-  return pool[istDayNumber(now) % pool.length];
+  return pool[day % pool.length];
 }
 
 export function quickPickOrder(properties: Property[]): Property[] {

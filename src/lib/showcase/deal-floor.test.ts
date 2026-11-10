@@ -225,6 +225,20 @@ describe('deal floor board', () => {
     expect(seen).toEqual(new Set(['new', 'old-1', 'old-2']));
   });
 
+  it('keeps the same feature all IST day while a listing ages out of the fresh window', () => {
+    const listings = [
+      property({ id: 'f1', created_at: '2026-10-11T02:00:00Z' }),
+      property({ id: 'f2', created_at: '2026-11-01T00:00:00Z' }),
+      property({ id: 'f3', created_at: '2026-11-02T00:00:00Z' }),
+      property({ id: 'old', created_at: '2026-05-01T00:00:00Z' }),
+    ];
+    const morning = Date.parse('2026-11-10T00:30:00Z');
+    const evening = Date.parse('2026-11-10T17:30:00Z');
+    expect(featuredProperty(listings, evening)?.id).toBe(
+      featuredProperty(listings, morning)?.id
+    );
+  });
+
   it('never features a generated flyer as the cover photo', () => {
     const flyer = 'property-images/acct-1/flyer-1790404259306-ryacz.png';
     const photo = 'property-images/acct-1/photo.jpg';
