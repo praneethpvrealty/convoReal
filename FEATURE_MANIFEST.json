@@ -6165,6 +6165,36 @@
             "src/lib/contacts/seed-from-listing.ts",
             "src/lib/whatsapp/inbound/chain/steps/preference-next-step-tap.ts"
           ]
+        },
+        {
+          "id": "CNV-014",
+          "rule": "A contact writing as the owner of a listing is never answered by the buyer property-interest step: a message that names none of the account's listings, or names one of their own, goes to the owner reply, and only a listing they do not own is treated as a buyer's reference. A request for our own details (\"your details\") is not a listing reference for anyone. An owner who asks who we are, who the team is, or for our number is told deterministically: the account's name, that it is a real-estate brokerage representing their listing(s), the assigned agent's name and WhatsApp number, and their listings. An owner who asks for a call gets a high-priority to-do for the assigned agent due at the IST time they named (within the hour when they named none) and an alert to that agent, filed before the reply is sent and at most once per open owner call-back (a repeat that names a new time moves that to-do, and one that names none confirms no time); the reply confirms a call or a time only when the facts say the call-back was logged.",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/inbound/chain/specific-property-interest-step.test.ts",
+              "case": "[CNV-014]"
+            },
+            {
+              "file": "src/lib/whatsapp/property-interest.test.ts",
+              "case": "[CNV-014]"
+            },
+            {
+              "file": "src/lib/owners/owner-reply.test.ts",
+              "case": "[CNV-014]"
+            },
+            {
+              "file": "src/lib/owners/owner-reply-handler.test.ts",
+              "case": "[CNV-014]"
+            },
+            {
+              "file": "src/lib/owners/owner-callback.test.ts",
+              "case": "[CNV-014]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/inbound/chain/steps/index.ts",
+            "src/lib/owners/owner-callback.ts"
+          ]
         }
       ]
     },

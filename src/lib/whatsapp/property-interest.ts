@@ -83,7 +83,7 @@ export function isDirectPropertyInterest(text?: string | null): boolean {
   const sawListing =
     /\b(?:i|we)\s+(?:saw|have seen|had seen|noticed|liked)\b/i.test(value);
   const refersBack =
-    /\b(?:interested|interest|details?|information)\b[^.!?\n]{0,60}\b(?:that|this|the)\s+(?:one|property|listing)?\b/i.test(
+    /(?<!\b(?:your|ur)\s+)\b(?:interested|interest|details?|information)\b[^.!?\n]{0,60}\b(?:that|this|the)\s+(?:one|property|listing)?\b/i.test(
       value
     );
   const asksAboutReference =

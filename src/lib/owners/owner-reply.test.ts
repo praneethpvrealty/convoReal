@@ -10,6 +10,8 @@ import {
   claimsSubscriptionChange,
   speaksAsBuyer,
   BUYER_CONTEXT_WINDOW_MS,
+  asksWhoWeAre,
+  buildOwnerIdentityReply,
 } from './owner-reply';
 import type { SubjectThread } from '@/lib/learning/subject';
 import type { OwnerDigest } from './owner-digest';
@@ -293,5 +295,97 @@ describe('[CNV-012] speaksAsBuyer', () => {
         Date.parse('2026-10-28T04:49:00Z') + BUYER_CONTEXT_WINDOW_MS + 1
       )
     ).toBe(false);
+  });
+});
+
+describe('[CNV-014] an owner asking who we are', () => {
+  it('recognises the question however it is put', () => {
+    for (const text of [
+      "Can I know your details please of  the same what's app number",
+      'Your team means you developer Or the channel partner Or real estate representative',
+      'Who are you?',
+      'Which company is this',
+      'who is this?',
+      'What is your company name',
+      'Your name please',
+      'Please tell me your name and company name',
+      'Who are you people? I never listed with anyone',
+      'Are you a broker or the builder?',
+    ]) {
+      expect(asksWhoWeAre(text), text).toBe(true);
+    }
+    for (const text of [
+      'Which land are you talking about',
+      'any update?',
+      'Who is that buyer who visited?',
+      'Who is this buyer you mentioned',
+      'Which company is the buyer from?',
+      'I will come to your office tomorrow',
+      'I sent your details to my brother yesterday',
+      'You are the agent, you tell me what price it will fetch',
+      'Put your name board on the site',
+      'Who are you sending for the site visit?',
+      'Can I send your details to the buyer directly?',
+      'Please share your details with my lawyer',
+      'Are you the agent who visited the site yesterday?',
+      'Who are you showing the land to this week',
+      'Hi we will discuss regarding the above property 2 Acre 4 guntas & 3 acre IVC road...call me after 10.00 a.m today',
+    ]) {
+      expect(asksWhoWeAre(text), text).toBe(false);
+    }
+  });
+
+  it('answers with the agency, the agent and their number', () => {
+    const reply = buildOwnerIdentityReply('Chamraju R', [listing()], {
+      agencyName: 'Aryavarta Ventures',
+      agentName: 'Praneeth',
+      agentPhone: '919900000001',
+    });
+    expect(reply).toContain('Hi Chamraju');
+    expect(reply).toContain('*Aryavarta Ventures*');
+    expect(reply).toContain('real-estate brokerage');
+    expect(reply).toContain('*Praneeth* — +919900000001');
+    expect(reply).toContain('(PROP-1006)');
+  });
+
+  it('never leaves the agent blank when none is on file', () => {
+    const reply = buildOwnerIdentityReply('Chamraju', [listing()], {});
+    expect(reply).toContain('Your agent will follow up with you personally.');
+    expect(reply).not.toContain('**');
+  });
+
+  it('gives the model the agency, the agent and the logged call-back', () => {
+    const prompt = buildOwnerReplyPrompt(
+      'Chamraju',
+      [listing()],
+      null,
+      'granted',
+      'call me after 10.00 a.m today',
+      {
+        agencyName: 'Aryavarta Ventures',
+        agentName: 'Praneeth',
+        agentPhone: '919900000001',
+      },
+      { filed: true, when: 'after 10:00 am today' }
+    );
+    expect(prompt).toContain('Our agency: Aryavarta Ventures');
+    expect(prompt).toContain('Praneeth, phone +919900000001');
+    expect(prompt).toContain(
+      'Call-back: logged for Praneeth, requested time after 10:00 am today (IST).'
+    );
+  });
+
+  it('tells the model not to promise a time when the call-back was not logged', () => {
+    const prompt = buildOwnerReplyPrompt(
+      'Chamraju',
+      [listing()],
+      null,
+      'granted',
+      'call me',
+      {},
+      { filed: false, when: null }
+    );
+    expect(prompt).toContain('could not be logged');
+    expect(prompt).toContain('do not promise a time');
   });
 });
