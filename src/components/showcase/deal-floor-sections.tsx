@@ -721,6 +721,7 @@ interface DealFloorBoardProps {
   formatPrice: (amount: number) => string;
   onOpen: (property: Property) => void;
   newCount: number;
+  newPreviews: Property[];
   recentOnly: boolean;
   onSeeNew: () => void;
   localities: Array<{ name: string; count: number }>;
@@ -736,6 +737,7 @@ export function DealFloorBoard({
   formatPrice,
   onOpen,
   newCount,
+  newPreviews,
   recentOnly,
   onSeeNew,
   localities,
@@ -798,7 +800,29 @@ export function DealFloorBoard({
           onClick={onSeeNew}
         >
           <span className="df-eyebrow">New this week</span>
-          <span className="df-serif df-tile-number">{newCount}</span>
+          <span className="df-tile-new-row">
+            <span className="df-serif df-tile-number">{newCount}</span>
+            {newPreviews.length > 0 && (
+              <span className="df-tile-thumbs" data-new-previews>
+                {newCount > newPreviews.length && (
+                  <span className="df-tile-thumb-more">
+                    +{newCount - newPreviews.length}
+                  </span>
+                )}
+                {[...newPreviews].reverse().map((property) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={property.id}
+                    src={storagePublicUrl(
+                      featuredCover(property) ?? property.images[0]
+                    )}
+                    alt=""
+                    loading="lazy"
+                  />
+                ))}
+              </span>
+            )}
+          </span>
           <span className="df-tile-link">
             {recentOnly ? 'Show everything' : 'See them'}
             <ArrowRight className="size-4" />

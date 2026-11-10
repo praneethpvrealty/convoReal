@@ -9,6 +9,7 @@ import {
   isFlyerImage,
   parentLocality,
   newThisWeek,
+  newThisWeekPreviews,
   plotFaceDetails,
   quickPickOrder,
   tasteSummary,
@@ -245,6 +246,36 @@ describe('deal floor board', () => {
     expect(featuredProperty(listings, evening)?.id).toBe(
       featuredProperty(listings, morning)?.id
     );
+  });
+
+  it('previews the newest photographed listings of the week', () => {
+    const now = Date.parse('2026-11-10T06:30:00Z');
+    const flyer = 'property-images/acct-1/flyer-1.png';
+    const listings = [
+      property({ id: 'mon', created_at: '2026-11-09T00:00:00Z' }),
+      property({ id: 'sun', created_at: '2026-11-08T00:00:00Z' }),
+      property({ id: 'sat', created_at: '2026-11-07T00:00:00Z' }),
+      property({ id: 'fri', created_at: '2026-11-06T00:00:00Z' }),
+      property({ id: 'bare', created_at: '2026-11-10T00:00:00Z', images: [] }),
+      property({
+        id: 'flyer',
+        created_at: '2026-11-10T01:00:00Z',
+        images: [flyer],
+      }),
+      property({ id: 'old', created_at: '2026-10-01T00:00:00Z' }),
+    ];
+    expect(newThisWeekPreviews(listings, now).map((p) => p.id)).toEqual([
+      'mon',
+      'sun',
+      'sat',
+    ]);
+    expect(newThisWeek(listings, now)).toBe(6);
+    expect(newThisWeekPreviews(listings, now, 5).map((p) => p.id)).toEqual([
+      'mon',
+      'sun',
+      'sat',
+      'fri',
+    ]);
   });
 
   it('never features a generated flyer as the cover photo', () => {

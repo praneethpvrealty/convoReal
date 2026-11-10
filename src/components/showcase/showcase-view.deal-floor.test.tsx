@@ -19,6 +19,7 @@ import {
   within,
 } from '@testing-library/react';
 import type { Property, ShowcaseSettings } from '@/types';
+import { featuredProperty } from '@/lib/showcase/deal-floor';
 
 beforeAll(() => {
   vi.stubGlobal(
@@ -384,18 +385,24 @@ describe('Deal Floor showcase design [PRP-020]', () => {
     expect(face).toBeTruthy();
   });
 
-  it('features the priciest photographed sale listing and counts localities on the board', () => {
+  it("features today's rotation pick and counts localities on the board", () => {
     renderDealFloor();
     const board = within(
       screen.getByRole('region', { name: 'This week on the floor' })
     );
     const featured = board.getByRole('button', { name: /Featured/ });
-    expect(featured.textContent).toContain(building.title);
-    expect(featured.textContent).toContain('₹32 Cr');
+    const expected = featuredProperty([villa, plot, building, rental]);
+    expect(expected).not.toBeNull();
+    expect(featured.textContent).toContain(expected?.title);
 
     const grid = () => within(screen.getByLabelText('Property listings'));
     const newTile = board.getByRole('button', { name: /New this week/ });
     expect(newTile.textContent).toContain('1');
+    const thumbs = newTile.querySelectorAll('[data-new-previews] img');
+    expect(thumbs).toHaveLength(1);
+    expect(thumbs[0].getAttribute('src')).toContain(
+      'property-images/acct-1/img.jpg'
+    );
     fireEvent.click(newTile);
     expect(screen.getByRole('button', { name: /See 1 match$/ })).toBeTruthy();
     expect(grid().queryByText(plot.title)).toBeNull();

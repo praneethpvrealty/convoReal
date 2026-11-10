@@ -120,6 +120,7 @@ import {
   featuredProperty,
   listedThisWeek,
   newThisWeek,
+  newThisWeekPreviews,
   topLocalities,
   withinBudget,
 } from '@/lib/showcase/deal-floor';
@@ -1369,6 +1370,10 @@ export function ShowcaseView({
     () => (dealFloor ? newThisWeek(properties) : 0),
     [dealFloor, properties]
   );
+  const dealFloorNewPreviews = useMemo(
+    () => (dealFloor ? newThisWeekPreviews(properties) : []),
+    [dealFloor, properties]
+  );
   const dealFloorChips: DealFloorChip[] = [];
   if (dealFloor) {
     const term = searchQuery.trim();
@@ -2268,6 +2273,7 @@ export function ShowcaseView({
                 formatPrice={formatPrice}
                 onOpen={openPropertyModal}
                 newCount={dealFloorNewCount}
+                newPreviews={dealFloorNewPreviews}
                 recentOnly={recentOnly}
                 onSeeNew={() => {
                   setSortBy('newest');
