@@ -305,12 +305,18 @@ describe('[CNV-014] an owner asking who we are', () => {
       'Your team means you developer Or the channel partner Or real estate representative',
       'Who are you?',
       'Which company is this',
+      'who is this?',
+      'What is your company name',
     ]) {
       expect(asksWhoWeAre(text), text).toBe(true);
     }
     for (const text of [
       'Which land are you talking about',
       'any update?',
+      'Who is that buyer who visited?',
+      'Who is this buyer you mentioned',
+      'Which company is the buyer from?',
+      'I will come to your office tomorrow',
       'Hi we will discuss regarding the above property 2 Acre 4 guntas & 3 acre IVC road...call me after 10.00 a.m today',
     ]) {
       expect(asksWhoWeAre(text), text).toBe(false);

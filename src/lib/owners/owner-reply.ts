@@ -221,11 +221,12 @@ export interface OwnerReplyIdentity {
 
 const IDENTITY_QUESTION = [
   /\bwho\s+(?:are|r)\s+(?:you|u)\b/i,
-  /\bwho\s+is\s+th(?:is|at)\b/i,
+  /\bwho\s+is\s+this(?:\s+(?:number|please|pls))?\s*[?.!]*\s*$/i,
   /\bwho\s+am\s+i\s+(?:speaking|talking|chatting)\b/i,
-  /\b(?:your|ur)\s+(?:details?|name|company|agency|firm|office|designation|introduction)\b/i,
+  /\b(?:your|ur)\s+(?:details?|name|designation|introduction)\b/i,
+  /\b(?:your|ur)\s+(?:company|agency|firm)(?:'s)?\s+(?:name|details?)\b/i,
   /\bintroduce\s+yoursel(?:f|ves)\b/i,
-  /\bwhich\s+(?:company|agency|firm)\b/i,
+  /\bwhich\s+(?:company|agency|firm)\s+(?:(?:are|r)\s+(?:you|u)\b|is\s+this\s*[?.!]*\s*$)/i,
   /\b(?:are\s+you|means\s+you|you\s+are)\s+(?:an?\s+|the\s+)?(?:developer|builder|broker|agent|channel\s+partner|real\s*estate)/i,
 ];
 

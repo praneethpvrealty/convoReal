@@ -12,13 +12,24 @@ const OWNER_MESSAGE =
   'Hi we will discuss regarding the above property 2 Acre 4 guntas & 3 acre IVC road...call me after 10.00 a.m today';
 const NOW = new Date('2026-11-10T02:32:14.000Z');
 
-function fakeDb(openCallbacks: { id: string }[], insertError: unknown = null) {
+function fakeDb(
+  openCallbacks: { id: string }[],
+  insertError: unknown = null,
+  updateError: unknown = null
+) {
   const inserted: Record<string, unknown>[] = [];
   const query: Record<string, unknown> = {};
   for (const method of ['select', 'eq', 'ilike', 'gte']) {
     query[method] = vi.fn(() => query);
   }
   query.limit = vi.fn(async () => ({ data: openCallbacks, error: null }));
+  const updated: Record<string, unknown>[] = [];
+  query.update = vi.fn((row: Record<string, unknown>) => {
+    updated.push(row);
+    return {
+      eq: vi.fn(() => ({ eq: vi.fn(async () => ({ error: updateError })) })),
+    };
+  });
   query.insert = vi.fn(async (row: Record<string, unknown>) => {
     inserted.push(row);
     return { error: insertError };
@@ -26,6 +37,8 @@ function fakeDb(openCallbacks: { id: string }[], insertError: unknown = null) {
   return {
     db: { from: vi.fn(() => query) } as unknown as SupabaseClient,
     inserted,
+    updated,
+    query,
   };
 }
 
@@ -104,12 +117,31 @@ describe('[CNV-014] fileOwnerCallback', () => {
     expect(inserted[0].due_date).toBe('2026-11-10T03:32:14.000Z');
   });
 
-  it('does not file or alert twice for one open request', async () => {
-    const { db, inserted } = fakeDb([{ id: 'todo-1' }]);
+  it('moves an open owner call-back to a newly named time instead of filing twice', async () => {
+    const { db, inserted, updated, query } = fakeDb([{ id: 'todo-1' }]);
     const result = await fileOwnerCallback(db, args);
-    expect(result.filed).toBe(true);
+    expect(query.ilike).toHaveBeenCalledWith('title', 'Call back % (owner)%');
+    expect(result).toEqual({ filed: true, when: 'after 10:00 am today' });
+    expect(updated).toEqual([{ due_date: '2026-11-10T04:30:00.000Z' }]);
     expect(inserted).toEqual([]);
     expect(createNotification).not.toHaveBeenCalled();
+  });
+
+  it('confirms no time for a repeat request that names none', async () => {
+    const { db, inserted, updated } = fakeDb([{ id: 'todo-1' }]);
+    const result = await fileOwnerCallback(db, {
+      ...args,
+      text: 'Please call me',
+    });
+    expect(result).toEqual({ filed: true, when: null });
+    expect(updated).toEqual([]);
+    expect(inserted).toEqual([]);
+  });
+
+  it('confirms no time when the open call-back could not be moved', async () => {
+    const { db } = fakeDb([{ id: 'todo-1' }], null, { message: 'refused' });
+    const result = await fileOwnerCallback(db, args);
+    expect(result).toEqual({ filed: true, when: null });
   });
 
   it('reports a call-back it could not file, and still alerts the agent', async () => {
