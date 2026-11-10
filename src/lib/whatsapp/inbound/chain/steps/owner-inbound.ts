@@ -21,6 +21,8 @@ export async function ownerInbound(
     isPropertyOwnerSender,
     inboundText,
     flowConsumed,
+    assignedAgentUserId,
+    senderPhone,
   } = ctx;
   if (
     !flowConsumed &&
@@ -39,6 +41,8 @@ export async function ownerInbound(
           .preferred_language ?? null,
       text: message.button?.text ?? inboundText,
       listings: ownedListings,
+      agentUserId: assignedAgentUserId,
+      contactPhone: contactRecord.phone || senderPhone,
     });
     if (ownerHandled) {
       // The owner's window is open — the one moment their digest consent

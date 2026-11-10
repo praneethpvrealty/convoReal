@@ -17,6 +17,22 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 10 November 2026
+
+- **A property owner who asks who they are talking to is now told.** An
+  owner replied to an update with "Can I know your details please" and was
+  answered as a buyer whose property could not be identified; asked again
+  whether "the team" was a developer, a channel partner or a representative,
+  the bot answered without naming anyone. The buyer property-interest step
+  no longer runs for an owner writing about their own listings, and the
+  owner reply now states the brokerage's name, the assigned agent's name and
+  WhatsApp number, and the owner's listings.
+- **An owner's "call me after 10" is now a to-do, not just a promise.** The
+  bot confirmed the call and told nobody. A call request from an owner now
+  files a high-priority to-do for the assigned agent, due at the time the
+  owner named, and alerts that agent on WhatsApp before the reply goes out;
+  the reply only confirms a call when one was logged.
+
 #### 9 November 2026
 
 - **The Find my property bubble no longer sits on the Enquire button.**

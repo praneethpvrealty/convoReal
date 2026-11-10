@@ -46,6 +46,17 @@ describe('specific property interest detection', () => {
     ).toBe(false);
   });
 
+  it('[CNV-014] does not read a request for our own details as a listing reference', () => {
+    expect(
+      isDirectPropertyInterest(
+        "Can I know your details please of  the same what's app number"
+      )
+    ).toBe(false);
+    expect(isDirectPropertyInterest('Send me details of the property')).toBe(
+      true
+    );
+  });
+
   it('normalises the acreage into square feet', () => {
     expect(mentionedAreaSqft('1acre in Akshaynagar')).toBe(43_560);
   });

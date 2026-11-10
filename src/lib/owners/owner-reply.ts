@@ -28,6 +28,12 @@ import {
   OWNER_DIGEST_CONSENT_TEMPLATE_NAME,
   OWNER_DIGEST_TEMPLATE_NAME,
 } from '@/lib/whatsapp/owner-digest-template';
+import {
+  asksForContactNumber,
+  requestsHumanContact,
+} from '@/lib/ai/lead-question';
+import { resolveAssignedAgent } from '@/lib/voice/assigned-agent';
+import { fileOwnerCallback, type OwnerCallback } from './owner-callback';
 
 /**
  * Contextual replies to PROPERTY OWNERS on WhatsApp.
@@ -207,6 +213,85 @@ export function buildOwnerFallbackReply(
   return lines.join('\n');
 }
 
+export interface OwnerReplyIdentity {
+  agencyName?: string | null;
+  agentName?: string | null;
+  agentPhone?: string | null;
+}
+
+const IDENTITY_QUESTION = [
+  /\bwho\s+(?:are|r)\s+(?:you|u)\b/i,
+  /\bwho\s+is\s+th(?:is|at)\b/i,
+  /\bwho\s+am\s+i\s+(?:speaking|talking|chatting)\b/i,
+  /\b(?:your|ur)\s+(?:details?|name|company|agency|firm|office|designation|introduction)\b/i,
+  /\bintroduce\s+yoursel(?:f|ves)\b/i,
+  /\bwhich\s+(?:company|agency|firm)\b/i,
+  /\b(?:are\s+you|means\s+you|you\s+are)\s+(?:an?\s+|the\s+)?(?:developer|builder|broker|agent|channel\s+partner|real\s*estate)/i,
+];
+
+export function asksWhoWeAre(text: string | null | undefined): boolean {
+  const value = (text || '').trim();
+  return Boolean(value) && IDENTITY_QUESTION.some((p) => p.test(value));
+}
+
+function displayPhone(phone: string): string {
+  const digits = phone.trim();
+  return /^\d{11,}$/.test(digits) ? `+${digits}` : digits;
+}
+
+export function buildOwnerCallbackLine(
+  callback: OwnerCallback,
+  agentName?: string | null
+): string {
+  const who = agentName?.trim() || 'your agent';
+  return callback.filed
+    ? `I've asked ${who} to call you${callback.when ? ` ${callback.when}` : ' shortly'}.`
+    : `I've passed your request for a call to ${who}.`;
+}
+
+export function buildOwnerIdentityReply(
+  contactName: string | null | undefined,
+  listings: OwnedListing[],
+  identity: OwnerReplyIdentity,
+  callback: OwnerCallback | null = null
+): string {
+  const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
+  const yours = listings.length === 1 ? 'your listing' : 'your listings';
+  const agency = identity.agencyName?.trim();
+  const agentName = identity.agentName?.trim();
+  const agentPhone = identity.agentPhone?.trim();
+  const lines = [
+    `Hi ${firstName}, this is the WhatsApp assistant of ${
+      agency ? `*${agency}*, ` : ''
+    }the real-estate brokerage representing ${yours} to buyers and developers.`,
+  ];
+  if (agentName || agentPhone) {
+    lines.push(
+      '',
+      `Your agent here is ${[
+        agentName ? `*${agentName}*` : '',
+        agentPhone ? displayPhone(agentPhone) : '',
+      ]
+        .filter(Boolean)
+        .join(' — ')}. You can call or message them directly.`
+    );
+  } else {
+    lines.push('', 'Your agent will follow up with you personally.');
+  }
+  if (callback) lines.push(buildOwnerCallbackLine(callback, agentName));
+  lines.push(
+    '',
+    `${listings.length === 1 ? 'Your listing' : 'Your listings'} with us:`
+  );
+  for (const listing of listings.slice(0, 3)) {
+    lines.push(
+      `• *${listing.title}*${listing.property_code ? ` (${listing.property_code})` : ''}`
+    );
+  }
+  if (listings.length > 3) lines.push(`…and ${listings.length - 3} more.`);
+  return lines.join('\n');
+}
+
 const OWNER_REPLY_SCRIPTS: Record<LanguageCode, RegExp> = {
   en: /[A-Za-z]/,
   hi: /[\u0900-\u097f]/,
@@ -271,6 +356,8 @@ function ownerReplySystem(language: LanguageCode): string {
     'WhatsApp formatting only: *bold* and "•" bullets — no markdown headers, no links unless given in the facts.',
     'Use ONLY the facts provided. Never invent buyer names, counts, offers, prices or appointments.',
     'If the owner asks which property this is about, name their listing(s).',
+    'If the owner asks who you are, who "the team" is, or for your details, say you are the WhatsApp assistant of the agency named in the facts, a real-estate brokerage representing their listing(s) to buyers and developers, and give their agent\'s name and phone number from the facts.',
+    "Never promise a call, a meeting or a time unless the facts say a call-back was logged; when they do, confirm it with the agent's name and the requested time.",
     'If the question needs information not in the facts (negotiations, legal, documents, specific buyers), say their agent will follow up personally.',
     'Never treat the owner as a buyer and never offer to find them a property.',
     'You cannot change their update subscription. Never say they have been subscribed, unsubscribed or that a request was processed; if they want updates stopped or started, tell them to reply STOP UPDATES or START UPDATES.',
@@ -282,8 +369,29 @@ export function buildOwnerReplyPrompt(
   listings: OwnedListing[],
   digest: OwnerDigest | null,
   digestConsent: string | null | undefined,
-  ownerMessage: string
+  ownerMessage: string,
+  identity: OwnerReplyIdentity = {},
+  callback: OwnerCallback | null = null
 ): string {
+  const agentName = identity.agentName?.trim();
+  const agentPhone = identity.agentPhone?.trim();
+  const identityLines = [
+    `Our agency: ${identity.agencyName?.trim() || 'name not on file'}`,
+    `The owner's agent at our agency: ${
+      [agentName, agentPhone ? `phone ${displayPhone(agentPhone)}` : '']
+        .filter(Boolean)
+        .join(', ') || 'not on file'
+    }`,
+    ...(callback
+      ? [
+          callback.filed
+            ? `Call-back: logged for ${agentName || 'their agent'}${
+                callback.when ? `, requested time ${callback.when} (IST)` : ''
+              }.`
+            : 'Call-back: the owner asked for a call but it could not be logged. Say the message was passed to their agent; do not promise a time.',
+        ]
+      : []),
+  ];
   const listingLines = listings.map((listing) => {
     const loc = listingLocation(listing);
     return `- "${listing.title}"${listing.property_code ? ` (code ${listing.property_code})` : ''}${
@@ -328,6 +436,7 @@ export function buildOwnerReplyPrompt(
   return [
     'FACTS',
     `Owner name: ${contactName?.trim() || 'unknown'}`,
+    ...identityLines,
     'Their listings with our agency:',
     ...listingLines,
     'Tracked listing activity in the last 7 days:',
@@ -352,6 +461,8 @@ export async function handleOwnerInboundMessage(args: {
   preferredLanguage?: string | null;
   text: string;
   listings: OwnedListing[];
+  agentUserId?: string | null;
+  contactPhone?: string | null;
 }): Promise<boolean> {
   const text = (args.text || '').trim();
   if (!text || args.listings.length === 0) return false;
@@ -370,9 +481,56 @@ export async function handleOwnerInboundMessage(args: {
     console.error('[owner-reply] activity lookup failed:', err);
   }
 
+  const agentUserId = args.agentUserId || args.userId;
+  const [agencyName, agent] = await Promise.all([
+    db
+      .from('accounts')
+      .select('name')
+      .eq('id', args.accountId)
+      .maybeSingle()
+      .then(
+        ({ data }) => (data?.name as string | undefined) ?? null,
+        () => null
+      ),
+    resolveAssignedAgent(db, args.accountId, agentUserId).catch(() => null),
+  ]);
+  const identity: OwnerReplyIdentity = {
+    agencyName,
+    agentName: agent?.name || null,
+    agentPhone: agent?.phone || null,
+  };
+
+  const asksNumber = asksForContactNumber(text);
+  let callback: OwnerCallback | null = null;
+  if (requestsHumanContact(text) && !asksNumber) {
+    try {
+      callback = await fileOwnerCallback(db, {
+        accountId: args.accountId,
+        userId: args.userId,
+        agentUserId,
+        contactId: args.contactId,
+        contactName: args.contactName,
+        contactPhone: args.contactPhone ?? null,
+        conversationId: args.conversationId,
+        text,
+        listingTitles: args.listings.map((listing) => listing.title),
+      });
+    } catch (err) {
+      console.error('[owner-reply] call-back not filed:', err);
+      callback = { filed: false, when: null };
+    }
+  }
+
   let reply: string;
   if (isTellMeMoreText(text) && digest && hasUpdates(digest)) {
     reply = buildOwnerDigestMessage(digest, 'this week');
+  } else if (asksNumber || asksWhoWeAre(text)) {
+    reply = buildOwnerIdentityReply(
+      args.contactName,
+      args.listings,
+      identity,
+      callback
+    );
   } else {
     try {
       const accountLanguage = await accountDefaultLanguage(db, args.accountId);
@@ -386,7 +544,9 @@ export async function handleOwnerInboundMessage(args: {
         args.listings,
         digest,
         args.digestConsent,
-        text
+        text,
+        identity,
+        callback
       );
       reply = (
         await generateText(prompt, ownerReplySystem(replyLanguage), {
@@ -413,6 +573,9 @@ export async function handleOwnerInboundMessage(args: {
     } catch (err) {
       console.error('[owner-reply] AI reply failed, using fallback:', err);
       reply = buildOwnerFallbackReply(args.contactName, args.listings, digest);
+      if (callback) {
+        reply = `${reply}\n\n${buildOwnerCallbackLine(callback, identity.agentName)}`;
+      }
     }
   }
 

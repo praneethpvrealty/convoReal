@@ -38,7 +38,13 @@ export async function specificPropertyInterest(
     contactRecord,
     conversation,
     assignedAgentUserId,
+    ownedListings,
+    isPropertyOwnerSender,
   } = ctx;
+  const ownerAboutOwnListing =
+    isPropertyOwnerSender &&
+    (!enquiryPropertyId ||
+      ownedListings.some((listing) => listing.id === enquiryPropertyId));
   // A buyer referring to one listing they already saw is not giving us
   // a new requirement. Resolve the locality + size (or Meta catalog
   // retailer id), acknowledge that exact property, send its complete
@@ -46,6 +52,7 @@ export async function specificPropertyInterest(
   // property-code showcase CTA keeps its approval-card flow below.
   if (
     !ownerCheck.isOwner &&
+    !ownerAboutOwnListing &&
     specificPropertyInterest &&
     (message.type === 'order' || !enquiryIsDeliberate)
   ) {
