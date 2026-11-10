@@ -1,4 +1,5 @@
 import type { Property } from '@/types';
+import { cityKeys, matchesSelectedLocation } from './location-search';
 
 export interface DealFloorKind {
   key: string;
@@ -144,42 +145,109 @@ export function newThisWeek(properties: Property[], now = Date.now()): number {
   return properties.filter((property) => listedThisWeek(property, now)).length;
 }
 
+const LOCALITY_SUBDIVISION =
+  /(?:^|[\s-]+)(?:(?:\d+(?:st|nd|rd|th)?|[ivx]+)\s+(?:block|sector|phase|stage)|(?:block|sector|phase|stage)\s*(?:\d+|[ivx]+))\b.*$/i;
+
+export function parentLocality(value: string): string {
+  const name = value.trim().replace(/\s+/g, ' ');
+  return name.replace(LOCALITY_SUBDIVISION, '').trim();
+}
+
+function localityNames(property: Property): string[] {
+  const source = property.sublocality?.trim()
+    ? property.sublocality
+    : property.location?.split(',')[0];
+  if (!source?.trim()) return [];
+  return source
+    .split(',')
+    .map(parentLocality)
+    .filter((name) => /[a-z]/i.test(name));
+}
+
 export function topLocalities(
   properties: Property[],
   limit = 4
 ): Array<{ name: string; count: number }> {
-  const counts = new Map<string, { name: string; count: number }>();
+  const cities = cityKeys(properties);
+  const names = new Map<string, string>();
   for (const property of properties) {
-    const raw = (
-      property.sublocality ||
-      property.location?.split(',')[0] ||
-      property.city ||
-      ''
-    ).trim();
-    if (!raw) continue;
-    const key = raw.toLocaleLowerCase();
-    const entry = counts.get(key) ?? { name: raw, count: 0 };
-    entry.count += 1;
-    counts.set(key, entry);
+    for (const name of localityNames(property)) {
+      const key = name.toLocaleLowerCase();
+      if (!cities.has(key) && !names.has(key)) names.set(key, name);
+    }
   }
-  return [...counts.values()]
-    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
-    .slice(0, limit);
+  const ranked = [...names.values()]
+    .map((name) => ({
+      name,
+      count: properties.filter((property) =>
+        matchesSelectedLocation(property, [name])
+      ).length,
+    }))
+    .sort(
+      (a, b) =>
+        b.count - a.count ||
+        a.name.length - b.name.length ||
+        a.name.localeCompare(b.name)
+    );
+  const picked: Array<{ name: string; count: number }> = [];
+  for (const entry of ranked) {
+    if (picked.length >= limit) break;
+    const key = entry.name.toLocaleLowerCase();
+    const overlaps = picked.some((chosen) => {
+      const other = chosen.name.toLocaleLowerCase();
+      return key.includes(other) || other.includes(key);
+    });
+    if (!overlaps) picked.push(entry);
+  }
+  return picked;
 }
 
-export function featuredProperty(properties: Property[]): Property | null {
-  const candidates = properties.filter(
-    (property) =>
-      property.status === 'Available' &&
-      !property.teaser_gated &&
-      (property.images?.length ?? 0) > 0 &&
-      (property.listing_type || 'Sale') === 'Sale' &&
-      property.price > 0
-  );
+export function isFlyerImage(path: string): boolean {
+  const file = path.split('?')[0].split('/').pop() ?? '';
+  return /^flyer-/i.test(file);
+}
+
+export function featuredCover(property: Property): string | null {
+  return (property.images ?? []).find((image) => !isFlyerImage(image)) ?? null;
+}
+
+const FEATURE_FRESH_MS = 30 * 24 * 60 * 60 * 1000;
+const FEATURE_FRESH_MIN = 3;
+const IST_OFFSET_MS = 330 * 60 * 1000;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function istDayNumber(now: number): number {
+  return Math.floor((now + IST_OFFSET_MS) / DAY_MS);
+}
+
+function createdAt(property: Property): number {
+  const created = new Date(property.created_at).getTime();
+  return Number.isFinite(created) ? created : 0;
+}
+
+export function featuredProperty(
+  properties: Property[],
+  now = Date.now()
+): Property | null {
+  const candidates = properties
+    .filter(
+      (property) =>
+        property.status === 'Available' &&
+        !property.teaser_gated &&
+        featuredCover(property) !== null &&
+        (property.listing_type || 'Sale') === 'Sale' &&
+        property.price > 0
+    )
+    .sort((a, b) => createdAt(b) - createdAt(a) || a.id.localeCompare(b.id));
   if (candidates.length === 0) return null;
-  return candidates.reduce((best, property) =>
-    property.price > best.price ? property : best
+  const day = istDayNumber(now);
+  const dayStart = day * DAY_MS - IST_OFFSET_MS;
+  const fresh = candidates.filter(
+    (property) => dayStart - createdAt(property) <= FEATURE_FRESH_MS
   );
+  const pool = fresh.length >= FEATURE_FRESH_MIN ? fresh : candidates;
+  return pool[day % pool.length];
 }
 
 export function quickPickOrder(properties: Property[]): Property[] {

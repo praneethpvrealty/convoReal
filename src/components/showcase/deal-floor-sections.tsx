@@ -32,6 +32,7 @@ import {
   DEAL_FLOOR_BUDGETS,
   dealFloorLocality,
   dealFloorPriceLabel,
+  featuredCover,
   MATCH_REPORT_SHORTLIST,
   type DealFloorKindCount,
 } from '@/lib/showcase/deal-floor';
@@ -766,7 +767,9 @@ export function DealFloorBoard({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={storagePublicUrl(featured.images[0])}
+              src={storagePublicUrl(
+                featuredCover(featured) ?? featured.images[0]
+              )}
               alt={featured.title}
               loading="lazy"
             />
