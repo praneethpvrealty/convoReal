@@ -145,6 +145,20 @@ export function newThisWeek(properties: Property[], now = Date.now()): number {
   return properties.filter((property) => listedThisWeek(property, now)).length;
 }
 
+export function newThisWeekPreviews(
+  properties: Property[],
+  now = Date.now(),
+  limit = 3
+): Property[] {
+  return properties
+    .filter(
+      (property) =>
+        listedThisWeek(property, now) && featuredCover(property) !== null
+    )
+    .sort((a, b) => createdAt(b) - createdAt(a) || a.id.localeCompare(b.id))
+    .slice(0, limit);
+}
+
 const LOCALITY_SUBDIVISION =
   /(?:^|[\s-]+)(?:(?:\d+(?:st|nd|rd|th)?|[ivx]+)\s+(?:block|sector|phase|stage)|(?:block|sector|phase|stage)\s*(?:\d+|[ivx]+))\b.*$/i;
 

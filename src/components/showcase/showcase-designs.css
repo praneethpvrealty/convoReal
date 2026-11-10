@@ -1157,6 +1157,45 @@
   background: transparent;
   cursor: pointer;
 }
+[data-showcase-design='deal-floor'] .df-tile-new {
+  container-type: inline-size;
+}
+[data-showcase-design='deal-floor'] .df-tile-new-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+[data-showcase-design='deal-floor'] .df-tile-thumbs {
+  --df-thumb: clamp(2rem, 16cqi, 3.5rem);
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  padding-bottom: 0.4rem;
+}
+[data-showcase-design='deal-floor'] .df-tile-thumbs > img,
+[data-showcase-design='deal-floor'] .df-tile-thumb-more {
+  width: var(--df-thumb);
+  height: var(--df-thumb);
+  flex: none;
+  border-radius: 0.85rem;
+  border: 2px solid var(--showcase-panel);
+  object-fit: cover;
+}
+[data-showcase-design='deal-floor'] .df-tile-thumbs > * + * {
+  margin-right: calc(var(--df-thumb) * -0.3);
+}
+[data-showcase-design='deal-floor'] .df-tile-thumb-more {
+  display: grid;
+  place-items: center;
+  background: var(--showcase-line);
+  color: var(--showcase-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
 [data-showcase-design='deal-floor'] .df-tile-new[aria-pressed='true'] {
   border-color: var(--primary);
 }
