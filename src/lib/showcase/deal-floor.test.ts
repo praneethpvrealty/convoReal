@@ -4,7 +4,10 @@ import {
   DEAL_FLOOR_BUDGETS,
   dealFloorKindCounts,
   dealFloorKindTypes,
+  featuredCover,
   featuredProperty,
+  isFlyerImage,
+  parentLocality,
   newThisWeek,
   plotFaceDetails,
   quickPickOrder,
@@ -123,22 +126,114 @@ describe('deal floor board', () => {
       )
     ).toEqual([
       { name: 'HSR Layout', count: 2 },
-      { name: 'Mysuru', count: 1 },
+      { name: 'Whitefield', count: 1 },
     ]);
   });
 
-  it('features the priciest available photographed sale listing', () => {
-    const pricey = property({ id: 'pricey', price: 650_000_000 });
-    expect(
-      featuredProperty([
-        property({ price: 900_000_000, images: [] }),
-        property({ price: 800_000_000, status: 'Under Contract' }),
-        property({ price: 700_000_000, teaser_gated: true }),
-        pricey,
-        property({ price: 100 }),
-      ])?.id
-    ).toBe('pricey');
+  it('folds blocks, sectors and phases into their locality and never lists the city', () => {
+    const listings = [
+      property({ location: '', sublocality: 'Koramangala', city: 'Bangalore' }),
+      property({
+        location: '',
+        sublocality: 'Koramangala 1st Block',
+        city: 'Bangalore',
+      }),
+      property({
+        location: '',
+        sublocality: 'Venkatapura, Koramangala 8th Block',
+        city: 'Bangalore',
+      }),
+      property({
+        location: '',
+        sublocality: 'Koramangala East',
+        city: 'Bengaluru',
+      }),
+      property({
+        location: '',
+        sublocality: 'HSR Layout 2nd Sector',
+        city: 'Bangalore',
+      }),
+      property({ location: '', sublocality: 'HSR Layout', city: 'Bengaluru' }),
+      property({
+        sublocality: undefined,
+        location: 'Bengaluru',
+        city: 'Bengaluru',
+      }),
+      property({
+        sublocality: undefined,
+        location: 'Bangalore, Karnataka',
+        city: '',
+      }),
+      property({
+        sublocality: undefined,
+        location: '1st Sector, HSR',
+        city: 'Bangalore',
+      }),
+    ];
+    const ranked = topLocalities(listings, 4);
+    expect(ranked).toEqual([
+      { name: 'Koramangala', count: 4 },
+      { name: 'HSR Layout', count: 2 },
+      { name: 'Venkatapura', count: 1 },
+    ]);
+    expect(ranked.map((entry) => entry.name)).not.toContain('Bangalore');
+    expect(parentLocality('JP Nagar 3rd Phase')).toBe('JP Nagar');
+    expect(parentLocality('BTM Layout 2nd Stage')).toBe('BTM Layout');
+    expect(parentLocality('Electronic City Phase 1')).toBe('Electronic City');
+    expect(parentLocality('Whitefield')).toBe('Whitefield');
+  });
+
+  it('features a different photographed sale listing each IST day', () => {
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.parse('2026-11-10T06:30:00Z');
+    const listings = [
+      property({ id: 'a', created_at: '2026-11-01T00:00:00Z' }),
+      property({ id: 'b', created_at: '2026-11-02T00:00:00Z' }),
+      property({ id: 'c', created_at: '2026-11-03T00:00:00Z' }),
+      property({ id: 'old', created_at: '2026-01-01T00:00:00Z', price: 9e12 }),
+      property({ id: 'no-photo', images: [] }),
+      property({ id: 'sold', status: 'Under Contract' }),
+      property({ id: 'gated', teaser_gated: true }),
+      property({ id: 'rent', listing_type: 'Rent' }),
+      property({ id: 'free', price: 0 }),
+    ];
+    const week = Array.from(
+      { length: 3 },
+      (_, offset) => featuredProperty(listings, now + offset * day)?.id
+    );
+    expect(new Set(week)).toEqual(new Set(['a', 'b', 'c']));
+    expect(featuredProperty(listings, now)?.id).toBe(
+      featuredProperty(listings, now + 60 * 60 * 1000)?.id
+    );
     expect(featuredProperty([property({ images: [] })])).toBeNull();
+  });
+
+  it('falls back to every eligible listing when few are fresh', () => {
+    const now = Date.parse('2026-11-10T06:30:00Z');
+    const listings = [
+      property({ id: 'new', created_at: '2026-11-05T00:00:00Z' }),
+      property({ id: 'old-1', created_at: '2026-03-01T00:00:00Z' }),
+      property({ id: 'old-2', created_at: '2026-04-01T00:00:00Z' }),
+    ];
+    const seen = new Set(
+      Array.from(
+        { length: 3 },
+        (_, offset) =>
+          featuredProperty(listings, now + offset * 24 * 60 * 60 * 1000)?.id
+      )
+    );
+    expect(seen).toEqual(new Set(['new', 'old-1', 'old-2']));
+  });
+
+  it('never features a generated flyer as the cover photo', () => {
+    const flyer = 'property-images/acct-1/flyer-1790404259306-ryacz.png';
+    const photo = 'property-images/acct-1/photo.jpg';
+    expect(isFlyerImage(flyer)).toBe(true);
+    expect(isFlyerImage(photo)).toBe(false);
+    expect(featuredCover(property({ images: [flyer, photo] }))).toBe(photo);
+    expect(
+      featuredProperty([property({ id: 'flyer-only', images: [flyer] })])
+    ).toBeNull();
   });
 });
 

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LeadBot } from '@/components/chat/lead-bot';
@@ -61,5 +61,47 @@ describe('[PRP-058] floating launcher yields the bottom edge', () => {
     expect(queryByRole('button', { name: /find my property/i })).toBeNull();
     rerender(<LeadBot {...props} launcherHidden={false} />);
     expect(getByRole('button', { name: /find my property/i })).toBeTruthy();
+  });
+});
+
+describe('[PRP-020] floating launcher shrinks once the page scrolls', () => {
+  const props = {
+    variant: 'floating' as const,
+    title: 'Property assistant',
+    launcherLabel: 'Find my property',
+    messages: [{ id: '1', role: 'bot' as const, text: 'Hi there' }],
+    onChip: vi.fn(),
+    onSend: vi.fn(),
+  };
+
+  function scrollTo(y: number) {
+    Object.defineProperty(window, 'scrollY', { value: y, configurable: true });
+    window.dispatchEvent(new Event('scroll'));
+  }
+
+  afterEach(() => scrollTo(0));
+
+  it('drops to its icon below the fold and keeps its accessible name', () => {
+    const { getByRole } = render(
+      <LeadBot {...props} launcherCompactOnScroll />
+    );
+    const launcher = getByRole('button', { name: /find my property/i });
+    expect(launcher.textContent).toContain('Find my property');
+    act(() => scrollTo(600));
+    const compact = getByRole('button', { name: /find my property/i });
+    expect(compact.textContent).toBe('');
+    expect(compact.getAttribute('data-compact')).toBe('true');
+    act(() => scrollTo(0));
+    expect(
+      getByRole('button', { name: /find my property/i }).textContent
+    ).toContain('Find my property');
+  });
+
+  it('keeps its label when not asked to shrink', () => {
+    const { getByRole } = render(<LeadBot {...props} />);
+    act(() => scrollTo(600));
+    expect(
+      getByRole('button', { name: /find my property/i }).textContent
+    ).toContain('Find my property');
   });
 });

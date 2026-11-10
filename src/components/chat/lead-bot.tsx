@@ -14,6 +14,8 @@ export interface BotMessage {
   attachment?: ReactNode;
 }
 
+const LAUNCHER_COMPACT_AFTER = 240;
+
 interface LeadBotProps {
   /** 'floating' launches from a corner bubble; 'inline' sits in the page. */
   variant: 'floating' | 'inline';
@@ -40,6 +42,9 @@ interface LeadBotProps {
   /** Floating only — keep the closed launcher off screen while another
    *  surface owns the bottom edge; an open chat stays where it is. */
   launcherHidden?: boolean;
+  /** Floating only — shrink the closed launcher to its icon once the page
+   *  scrolls, so it stops covering the content underneath. */
+  launcherCompactOnScroll?: boolean;
 }
 
 export function LeadBot({
@@ -61,10 +66,20 @@ export function LeadBot({
   launcherLabel = 'Chat with us',
   defaultOpen = false,
   launcherHidden = false,
+  launcherCompactOnScroll = false,
 }: LeadBotProps) {
   const [open, setOpen] = useState(variant === 'inline' || defaultOpen);
+  const [scrolled, setScrolled] = useState(false);
   const [draft, setDraft] = useState('');
   const threadRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (variant !== 'floating' || !launcherCompactOnScroll) return;
+    const update = () => setScrolled(window.scrollY > LAUNCHER_COMPACT_AFTER);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, [variant, launcherCompactOnScroll]);
 
   useEffect(() => {
     const thread = threadRef.current;
@@ -199,6 +214,7 @@ export function LeadBot({
   }
 
   if (!open && launcherHidden) return null;
+  const compact = launcherCompactOnScroll && scrolled;
 
   return (
     <div
@@ -236,10 +252,16 @@ export function LeadBot({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="bg-primary hover:bg-primary-hover text-primary-foreground shadow-primary/30 flex cursor-pointer items-center gap-2 rounded-full py-3 pr-4 pl-3 text-xs font-bold shadow-2xl transition-all hover:scale-105"
+          aria-label={compact ? launcherLabel : undefined}
+          title={compact ? launcherLabel : undefined}
+          data-compact={compact || undefined}
+          className={cn(
+            'bg-primary hover:bg-primary-hover text-primary-foreground shadow-primary/30 flex cursor-pointer items-center gap-2 rounded-full text-xs font-bold shadow-2xl transition-all hover:scale-105',
+            compact ? 'p-3' : 'py-3 pr-4 pl-3'
+          )}
         >
           <MessageCircle className="size-4" />
-          {launcherLabel}
+          {!compact && launcherLabel}
         </button>
       )}
     </div>

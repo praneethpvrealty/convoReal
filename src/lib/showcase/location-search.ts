@@ -12,7 +12,7 @@ function propertyLocationValues(property: Property) {
 
 const CITY_ALIASES = [['bangalore', 'bengaluru']];
 
-function cityKeys(properties: Property[]) {
+export function cityKeys(properties: Property[]) {
   const keys = new Set<string>();
   for (const property of properties) {
     if (property.city?.trim()) keys.add(normalized(property.city));
