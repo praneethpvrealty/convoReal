@@ -181,6 +181,14 @@ describe('deal floor board', () => {
     expect(parentLocality('BTM Layout 2nd Stage')).toBe('BTM Layout');
     expect(parentLocality('Electronic City Phase 1')).toBe('Electronic City');
     expect(parentLocality('Whitefield')).toBe('Whitefield');
+    expect(parentLocality('Sector 2')).toBe('');
+    expect(parentLocality('1st Block')).toBe('');
+    expect(
+      topLocalities([
+        property({ location: '', sublocality: 'HSR Layout, Sector 2' }),
+        property({ location: '', sublocality: 'Jayanagar, 4th Block' }),
+      ]).map((entry) => entry.name)
+    ).toEqual(['Jayanagar', 'HSR Layout']);
   });
 
   it('features a different photographed sale listing each IST day', () => {

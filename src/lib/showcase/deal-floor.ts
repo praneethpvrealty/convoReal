@@ -146,11 +146,11 @@ export function newThisWeek(properties: Property[], now = Date.now()): number {
 }
 
 const LOCALITY_SUBDIVISION =
-  /[\s-]+(?:(?:\d+(?:st|nd|rd|th)?|[ivx]+)\s+(?:block|sector|phase|stage)|(?:block|sector|phase|stage)\s*(?:\d+|[ivx]+))\b.*$/i;
+  /(?:^|[\s-]+)(?:(?:\d+(?:st|nd|rd|th)?|[ivx]+)\s+(?:block|sector|phase|stage)|(?:block|sector|phase|stage)\s*(?:\d+|[ivx]+))\b.*$/i;
 
 export function parentLocality(value: string): string {
   const name = value.trim().replace(/\s+/g, ' ');
-  return name.replace(LOCALITY_SUBDIVISION, '').trim() || name;
+  return name.replace(LOCALITY_SUBDIVISION, '').trim();
 }
 
 function localityNames(property: Property): string[] {
@@ -161,7 +161,7 @@ function localityNames(property: Property): string[] {
   return source
     .split(',')
     .map(parentLocality)
-    .filter((name) => /[a-z]/i.test(name) && !/^\d/.test(name));
+    .filter((name) => /[a-z]/i.test(name));
 }
 
 export function topLocalities(
