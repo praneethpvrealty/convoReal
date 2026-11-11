@@ -106,6 +106,7 @@ import {
   type ThemeColors,
 } from '@/lib/theme';
 import type { Contact, Property } from '@/lib/types';
+import { listingStatusLabel } from '@shared/lib/inventory/listing-status-label';
 
 /** Scroll clearance so content ends above the sticky price bar. */
 const BOTTOM_BAR_CLEARANCE = 110;
@@ -535,7 +536,14 @@ export default function PropertyDetailScreen() {
               <Tag label={property.listing_type} />
             ) : null}
             {property.type ? <Tag label={property.type} /> : null}
-            {property.status ? <Tag label={property.status} /> : null}
+            {property.status ? (
+              <Tag
+                label={listingStatusLabel(
+                  property.status,
+                  property.listing_type
+                )}
+              />
+            ) : null}
             {property.listing_source === 'agent' ? (
               <Tag label="Agent Referred" color={colors.readTick} />
             ) : null}

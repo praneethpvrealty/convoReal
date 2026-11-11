@@ -33,6 +33,7 @@ import { formatCurrency } from '@/lib/currency-utils';
 import { CreditMeter } from '@/components/layout/credit-meter';
 import { NotificationBell } from '@/components/layout/notification-bell';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { listingStatusLabel } from '@/lib/inventory/listing-status-label';
 
 // Only sections whose name differs from their slug need an entry. The rest
 // are derived, so a screen added tomorrow is titled correctly instead of
@@ -96,7 +97,13 @@ export function Header({ onOpenSidebar }: HeaderProps) {
     { id: string; title: string; value: number | null; currency: string }[]
   >([]);
   const [propertiesResults, setPropertiesResults] = useState<
-    { id: string; title: string; location: string | null; status: string }[]
+    {
+      id: string;
+      title: string;
+      location: string | null;
+      status: string;
+      listing_type: string | null;
+    }[]
   >([]);
   const [searching, setSearching] = useState(false);
   const [searchFailed, setSearchFailed] = useState(false);
@@ -155,7 +162,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             .limit(5),
           supabase
             .from('properties')
-            .select('id, title, location, status')
+            .select('id, title, location, status, listing_type')
             .eq('account_id', profile?.account_id)
             .or(`title.ilike.${pattern},location.ilike.${pattern}`)
             .limit(5),
@@ -355,7 +362,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
                         <p className="mt-0.5 truncate text-xs text-slate-400">
                           {p.location} ·{' '}
                           <span className="text-primary font-medium">
-                            {p.status}
+                            {listingStatusLabel(p.status, p.listing_type)}
                           </span>
                         </p>
                       </div>
