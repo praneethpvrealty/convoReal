@@ -92,9 +92,15 @@ export function PortfolioValueCard() {
 
 interface PropertyValuePanelProps {
   propertyId: string;
+  status: string | null;
+  listingType: string | null;
 }
 
-export function PropertyValuePanel({ propertyId }: PropertyValuePanelProps) {
+export function PropertyValuePanel({
+  propertyId,
+  status,
+  listingType,
+}: PropertyValuePanelProps) {
   const { data, isPending, isError } = useQuery({
     queryKey: VALUE_QUERY_KEY,
     queryFn: fetchPortfolioValue,
@@ -115,7 +121,7 @@ export function PropertyValuePanel({ propertyId }: PropertyValuePanelProps) {
           <p className="text-muted-foreground text-xs">Loading value…</p>
         ) : !value ? (
           <p className="text-muted-foreground text-xs font-semibold">
-            {missingValueMessage(data.truncated)}
+            {missingValueMessage(status, listingType)}
           </p>
         ) : (
           <PropertyValueRows key={value.declared ?? 'unset'} value={value} />

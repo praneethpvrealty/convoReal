@@ -22,6 +22,10 @@ function makeDb(): SupabaseClient {
       calls.push(call);
       const builder: Record<string, unknown> = {
         select: () => builder,
+        or: (filter: string) => (
+          call.filters.push(['or', filter, null]),
+          builder
+        ),
         order: (_c: string, o?: { referencedTable?: string }) => (
           o?.referencedTable && embedOptions.push(['order', o.referencedTable]),
           builder
@@ -166,6 +170,17 @@ describe('loadOwnerPortfolioValue', () => {
     const query = calls.find((c) => c.table === 'properties');
     expect(query?.filters).toContainEqual(['in', 'owner_contact_id', ['c-a']]);
     expect(query?.filters).toContainEqual(['neq', 'listing_source', 'agent']);
+  });
+
+  it('[PVL-003] leaves sold properties out in the query, so they take no place in the 100 counted', async () => {
+    tables.properties = [property({})];
+    await loadOwnerPortfolioValue(ctx([['acct-a', 'c-a']]), makeDb(), NOW);
+    const query = calls.find((c) => c.table === 'properties');
+    expect(query?.filters).toContainEqual([
+      'or',
+      'status.is.null,status.neq.Sold,listing_type.in.("Rent","Built to Suit")',
+      null,
+    ]);
   });
 
   it("[PVL-003] reads only the figure the caller set, never another owner's", async () => {

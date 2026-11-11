@@ -20,6 +20,9 @@ import { toSquareFeet } from '@/lib/area-units';
 
 export const VALUE_PROPERTY_LIMIT = 100;
 
+export const STILL_OWNED_FILTER =
+  'status.is.null,status.neq.Sold,listing_type.in.("Rent","Built to Suit")';
+
 const VALUE_SELECT =
   'id, account_id, title, status, listing_type, price, city, sublocality, locality_canonical, type, area_sqft, area_unit, declared:owner_property_values(declared_value), guidance:property_guidance_values(total_value, created_at)';
 
@@ -74,6 +77,7 @@ export async function loadOwnerPortfolioValue(
     .select(VALUE_SELECT)
     .in('owner_contact_id', contactIds)
     .neq('listing_source', 'agent')
+    .or(STILL_OWNED_FILTER)
     .eq('declared.den_user_id', ctx.denUserId)
     .order('created_at', { ascending: false })
     .order('created_at', { referencedTable: 'guidance', ascending: false })

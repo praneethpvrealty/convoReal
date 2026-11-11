@@ -4,6 +4,7 @@ import {
   MAX_DECLARED_VALUE,
   buildPropertyValue,
   isStillOwned,
+  missingValueMessage,
   parseDeclaredValue,
   portfolioTotals,
   valuedSummary,
@@ -111,6 +112,8 @@ describe('isStillOwned', () => {
     expect(isStillOwned('Sold', null)).toBe(false);
     expect(isStillOwned('Sold', 'Rent')).toBe(true);
     expect(isStillOwned('Sold', 'Built to Suit')).toBe(true);
+    expect(missingValueMessage('Sold', 'Sale')).toContain('sold property');
+    expect(missingValueMessage('Available', 'Sale')).toContain('older');
   });
 });
 

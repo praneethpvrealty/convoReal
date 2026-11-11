@@ -49,8 +49,11 @@ export function isStillOwned(
   return listingType === 'Rent' || listingType === 'Built to Suit';
 }
 
-export function missingValueMessage(truncated: boolean): string {
-  return truncated
+export function missingValueMessage(
+  status: string | null | undefined,
+  listingType: string | null | undefined
+): string {
+  return isStillOwned(status, listingType)
     ? 'This property is older than the most recent ones counted in your portfolio value.'
     : 'A sold property is no longer counted in your portfolio value.';
 }

@@ -204,7 +204,11 @@ export function DenPropertyDetailContent() {
         </CardContent>
       </Card>
 
-      <PropertyValuePanel propertyId={property.id} />
+      <PropertyValuePanel
+        propertyId={property.id}
+        status={property.status}
+        listingType={property.listing_type ?? null}
+      />
 
       <Card>
         <CardHeader className="pb-2">
