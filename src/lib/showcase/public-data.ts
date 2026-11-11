@@ -93,10 +93,12 @@ function requireShowcaseProperties(
 // idempotent, so one more attempt is the whole remedy; a database error
 // has a real status and is not retried.
 async function readShowcaseCatalogue<T extends { status: number }>(
-  query: PromiseLike<T>
+  query: PromiseLike<T> & { abortSignal(signal: AbortSignal): PromiseLike<T> }
 ): Promise<T> {
   const first = await query;
-  return first.status === 0 ? query : first;
+  return first.status === 0
+    ? query.abortSignal(new AbortController().signal)
+    : first;
 }
 
 export function resolveSubdomainFromHost(host: string): string | null {

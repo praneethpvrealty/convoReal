@@ -26,6 +26,8 @@ const state = {
 vi.mock('@/lib/supabase/admin', () => {
   const builder = (table: string) => {
     let isVersionProbe = false;
+    let memoisedDeadResponse = false;
+    let bypassesFetchMemo = false;
 
     const self = {
       select: (_columns: string, options?: { count?: string }) => {
@@ -62,14 +64,20 @@ vi.mock('@/lib/supabase/admin', () => {
                 : { updated_at: state.settingsUpdatedAt },
           error: table === 'showcase_share_links' ? state.shareError : null,
         }),
+      abortSignal: () => {
+        bypassesFetchMemo = true;
+        return self;
+      },
       then: (resolve: (value: unknown) => unknown) => {
         if (table === 'properties' && !isVersionProbe) state.catalogueFetches++;
+        const replaysDeadResponse = memoisedDeadResponse && !bypassesFetchMemo;
         if (
           table === 'properties' &&
           !isVersionProbe &&
-          state.catalogueTransportFailures > 0
+          (replaysDeadResponse || state.catalogueTransportFailures > 0)
         ) {
-          state.catalogueTransportFailures--;
+          if (!replaysDeadResponse) state.catalogueTransportFailures--;
+          memoisedDeadResponse = true;
           return Promise.resolve({
             data: null,
             error: {
