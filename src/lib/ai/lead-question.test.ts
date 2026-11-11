@@ -37,6 +37,8 @@ import {
   EXACT_LOCATION_OFFER_TEXT,
   EXACT_LOCATION_ON_REQUEST_TEXT,
   EXACT_LOCATION_HANDOVER_TEXT,
+  LOCATION_REST_HANDOVER_TEXT,
+  asksBeyondLocation,
 } from './lead-question';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -1377,6 +1379,36 @@ describe('[INB-050] exact location of a guarded listing on WhatsApp', () => {
     expect(res.text).toContain('₹34.50 Cr');
     expect(res.text).toContain(EXACT_LOCATION_FILED_TEXT);
     expect(res.text).not.toContain('Plot 12');
+  });
+
+  it('hands the rest of a combined question to a person when the listing cannot answer it', async () => {
+    const requestExactLocation = vi.fn().mockResolvedValue('filed');
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question:
+        'Share the exact location and will the owner accept staggered payments?',
+      property: guarded,
+      requestExactLocation,
+    });
+    expect(requestExactLocation).toHaveBeenCalledTimes(1);
+    expect(res.source).toBe('handover');
+    expect(res.text).toContain(EXACT_LOCATION_FILED_TEXT);
+    expect(res.text).toContain(LOCATION_REST_HANDOVER_TEXT);
+  });
+
+  it('sees nothing beyond a plain location ask', () => {
+    for (const text of [
+      'Pls share location',
+      'I had asked for the exact location',
+      'Can u share the exact location?',
+      'send google maps pin',
+      'Where is it?',
+    ]) {
+      expect(asksBeyondLocation(text), text).toBe(false);
+    }
+    expect(
+      asksBeyondLocation('exact location and is there a good school nearby?')
+    ).toBe(true);
   });
 
   it('does not file a second request while one is pending or already sent', async () => {

@@ -122,6 +122,26 @@ export function asksExactLocation(text: string): boolean {
   return EXACT_LOCATION_PATTERNS.some((re) => re.test(text));
 }
 
+const LOCATION_ASK_FILLER = new Set(
+  'a an and also any are can could do does for get had has have i if is it its kindly me need of on or pls plz please property plot site share send give forward drop tell the this to u us want what where whereabouts which you exact exactly precise actual full correct location loc address spot pin google map maps link live located situated asked asking again already sir madam hi hello ok okay thanks thank'.split(
+    ' '
+  )
+);
+
+/** Whether a location ask carries another question the location
+ *  answer does not cover ("…and is there a school nearby?"). */
+export function asksBeyondLocation(text: string): boolean {
+  const rest = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w && !LOCATION_ASK_FILLER.has(w));
+  return rest.length >= 2;
+}
+
+export const LOCATION_REST_HANDOVER_TEXT =
+  "I'll check the rest of your question with the team and come right back to you.";
+
 export const EXACT_LOCATION_FILED_TEXT =
   "I've asked the team for the exact location — you'll get it here on WhatsApp as soon as it's approved.";
 export const EXACT_LOCATION_PENDING_TEXT =
@@ -1042,26 +1062,30 @@ export async function answerLeadQuestion(args: {
       explicit && args.requestExactLocation
         ? await args.requestExactLocation()
         : null;
-    if (explicit && args.requestExactLocation && !outcome) {
-      return {
-        text: `${
-          structured.answer && structured.intent !== 'location'
-            ? `${structured.answer}\n\n`
-            : ''
-        }${locality} ${EXACT_LOCATION_HANDOVER_TEXT}`,
-        source: 'handover',
-        intent: 'exact_location_request',
-      };
-    }
     const otherAnswer =
       structured.answer && structured.intent !== 'location'
         ? `${structured.answer}\n\n`
         : '';
+    if (explicit && args.requestExactLocation && !outcome) {
+      return {
+        text: `${otherAnswer}${locality} ${EXACT_LOCATION_HANDOVER_TEXT}`,
+        source: 'handover',
+        intent: 'exact_location_request',
+      };
+    }
+    const text = `${otherAnswer}${locality} ${guardedLocationFollowUp(
+      outcome,
+      Boolean(args.requestExactLocation)
+    )}`;
+    if (!otherAnswer && asksBeyondLocation(question)) {
+      return {
+        text: `${text} ${LOCATION_REST_HANDOVER_TEXT}`,
+        source: 'handover',
+        intent: outcome ? 'exact_location_request' : 'location',
+      };
+    }
     return {
-      text: `${otherAnswer}${locality} ${guardedLocationFollowUp(
-        outcome,
-        Boolean(args.requestExactLocation)
-      )}`,
+      text,
       source: 'listing',
       intent: outcome ? 'exact_location_request' : 'location',
     };
