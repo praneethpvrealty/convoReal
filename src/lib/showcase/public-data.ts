@@ -91,12 +91,16 @@ function requireShowcaseProperties(
 // Next ends a HEAD response as soon as the shell renders and the
 // catalogue query, still streaming, loses its socket. The read is
 // idempotent, so one more attempt is the whole remedy; a database error
-// has a real status and is not retried.
+// has a real status and is not retried. The retry carries a signal
+// because Next memoises identical GETs within a render and would answer
+// an unchanged request with a clone of the same dead response.
 async function readShowcaseCatalogue<T extends { status: number }>(
-  query: PromiseLike<T>
+  query: PromiseLike<T> & { abortSignal(signal: AbortSignal): PromiseLike<T> }
 ): Promise<T> {
   const first = await query;
-  return first.status === 0 ? query : first;
+  return first.status === 0
+    ? query.abortSignal(new AbortController().signal)
+    : first;
 }
 
 export function resolveSubdomainFromHost(host: string): string | null {
