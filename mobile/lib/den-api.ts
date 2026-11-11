@@ -1,3 +1,5 @@
+import type { PortfolioValue } from '@shared/lib/den/value-view';
+
 import { apiFetch } from '@/lib/api';
 
 /**
@@ -123,5 +125,23 @@ export function deleteDenAccount() {
   return apiFetch<{ ok: boolean }>('/api/den/account', {
     method: 'DELETE',
     body: JSON.stringify({ confirm: 'DELETE' }),
+  });
+}
+
+export function fetchDenValue() {
+  return apiFetch<PortfolioValue>('/api/den/value');
+}
+
+/** `null` clears the owner's own figure for that property. */
+export function saveDenDeclaredValue(
+  propertyId: string,
+  declaredValue: number | null
+) {
+  return apiFetch<PortfolioValue>('/api/den/value', {
+    method: 'PUT',
+    body: JSON.stringify({
+      property_id: propertyId,
+      declared_value: declaredValue,
+    }),
   });
 }

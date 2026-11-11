@@ -18,6 +18,7 @@ import { createClient } from '@/lib/supabase/server';
 import { UnauthorizedError } from '@/lib/auth/account';
 import { PhoneUnverifiedError, toDenErrorResponse } from '@/lib/den/auth';
 import { completeDenAuth } from '@/lib/den/linking';
+import { normalizeReferralSource } from '@/lib/den/referral';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
@@ -41,11 +42,13 @@ export async function POST(request: NextRequest) {
     }
 
     let displayName: string | null = null;
+    let referralSource: string | null = null;
     try {
       const body = await request.json();
       if (typeof body?.display_name === 'string') {
         displayName = body.display_name.trim().slice(0, 120) || null;
       }
+      referralSource = normalizeReferralSource(body?.referral_source);
     } catch {
       // Empty body is fine.
     }
@@ -61,6 +64,7 @@ export async function POST(request: NextRequest) {
       authUserId: user.id,
       phone: user.phone.startsWith('+') ? user.phone : `+${user.phone}`,
       displayName,
+      referralSource,
     });
 
     return NextResponse.json({

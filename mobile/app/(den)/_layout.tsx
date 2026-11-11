@@ -52,6 +52,7 @@ export default function DenLayout() {
         name="den/guidance-value"
         options={{ title: 'Guidance value' }}
       />
+      <Stack.Screen name="den/value" options={{ title: 'Portfolio value' }} />
       <Stack.Screen name="den/settings" options={{ title: 'Den Settings' }} />
     </Stack>
   );

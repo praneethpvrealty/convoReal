@@ -471,7 +471,13 @@ them by construction; their data access happens through `/api/den/*`
   verified WhatsApp `phone` + `phone_normalized` (last-10 digits), display
   name and notification preferences (`notify_matches`, `notify_bids`,
   `digest_frequency`). Self-select/update RLS only; inserts are
-  service-role.
+  service-role. `referral_source` is the partner slug from the sign-in
+  link (`/den/login?ref=<partner>`), written once when the row is created.
+- `owner_property_values`: The value an owner states for one of their own
+  properties (`property_id` unique, `declared_value` in rupees,
+  `den_user_id` of the owner who set it). RLS is on with **no policy**:
+  the figure is the owner's private one and is read and written only by
+  `/api/den/value` under the caller's `DenContext`.
 - `den_contact_links`: Bridge from a Den user to tenant-scoped `contacts`
   rows matched by phone (one per account — the same owner may be managed by
   several agencies). `status` active/revoked; unique `(den_user_id,
