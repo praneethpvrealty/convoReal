@@ -402,17 +402,17 @@ describe('the webhook wires the card up', () => {
 
   it('[PRP-014] warns the buyer when the listing they named is not available', () => {
     expect(source).toMatch(
-      /appendListingStatusNote\(\s*buildEnquiryAckText\(contactRecord\.name, enquiryPropertyTitle\),\s*enquiryPropertyStatus\s*\)/
+      /appendListingStatusNote\(\s*buildEnquiryAckText\(contactRecord\.name, enquiryPropertyTitle\),\s*enquiryPropertyStatus,\s*enquiryPropertyListingType\s*\)/
     );
     expect(source).toMatch(
-      /appendListingStatusNote\(\s*buildPropertyInterestAck\([\s\S]*?\),\s*enquiryPropertyStatus\s*\)/
+      /appendListingStatusNote\(\s*buildPropertyInterestAck\([\s\S]*?\),\s*enquiryPropertyStatus,\s*enquiryPropertyListingType\s*\)/
     );
     expect(source).toContain('enquiryPropertyStatus = matchedProperty.status');
   });
 
   it('[PRP-014] answers an enquiry on an unavailable listing with its status and a requirements nudge instead of its details', () => {
     expect(source).toMatch(
-      /const unavailableReply = await unavailableListingReplyWithShowcase\(\{[^}]*contactName: contactRecord\.name,\s*propertyTitle: enquiryPropertyTitle,\s*status: enquiryPropertyStatus,\s*\}\);[\s\S]*?text:\s*unavailableReply\s*\?\?\s*appendListingStatusNote\(\s*buildEnquiryAckText/
+      /const unavailableReply = await unavailableListingReplyWithShowcase\(\{[^}]*contactName: contactRecord\.name,\s*propertyTitle: enquiryPropertyTitle,\s*status: enquiryPropertyStatus,\s*listingType: enquiryPropertyListingType,\s*\}\);[\s\S]*?text:\s*unavailableReply\s*\?\?\s*appendListingStatusNote\(\s*buildEnquiryAckText/
     );
     expect(source).toMatch(
       /if \(unavailableReply && ack\.success\) \{\s*await sendRequirementConfirmAfterRegret\(/
@@ -428,7 +428,7 @@ describe('the webhook wires the card up', () => {
       replyHandler.indexOf('async function handleEnquiryCardReply(')
     );
     const guard = handler.indexOf('if (unavailable) {');
-    expect(handler).toContain(".select('title, status')");
+    expect(handler).toContain(".select('title, status, listing_type')");
     expect(guard).toBeGreaterThan(-1);
     expect(guard).toBeLessThan(handler.indexOf('sendSubjectPhotos('));
     expect(guard).toBeLessThan(handler.indexOf('handlePropertyShareYesReply('));

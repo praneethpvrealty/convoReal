@@ -76,6 +76,10 @@ import type { Property } from '@/lib/types';
 // The row shape the server sanitizes into. Type-only, so nothing from
 // the web lib reaches the bundle.
 import type { FloorTenancy } from '@shared/lib/inventory/floor-tenancies';
+import {
+  closedPriceLabel,
+  listingStatusLabel,
+} from '@shared/lib/inventory/listing-status-label';
 import { validateListingCore } from '@shared/lib/inventory/listing-core-validation';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import { useDiscardGuard } from '@/lib/use-discard-guard';
@@ -757,7 +761,7 @@ function EditForm({ property }: { property: Property }) {
           {STATUSES.map((s) => (
             <ChoiceChip
               key={s}
-              label={s}
+              label={listingStatusLabel(s, listingType)}
               selected={status === s}
               onPress={() => setStatus(s)}
             />
@@ -767,11 +771,19 @@ function EditForm({ property }: { property: Property }) {
         {status === 'Sold' ? (
           <View style={{ gap: 4 }}>
             <TextField
-              label="Final sale price (₹)"
+              label={`${closedPriceLabel(listingType)} (₹)`}
               value={soldPrice}
               onChangeText={setSoldPrice}
               keyboardType="numeric"
-              placeholder={num(price) ? `e.g. ${num(price)}` : 'e.g. 8500000'}
+              placeholder={
+                isRent
+                  ? num(rent)
+                    ? `e.g. ${num(rent)}`
+                    : 'e.g. 45000'
+                  : num(price)
+                    ? `e.g. ${num(price)}`
+                    : 'e.g. 8500000'
+              }
             />
             <PriceHint value={soldPrice} />
             <Text style={{ fontSize: 11.5, color: colors.textFaint }}>

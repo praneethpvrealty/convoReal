@@ -52,7 +52,7 @@ export async function handleEnquiryCardReply(
 
   const { data: propertyRow } = await admin
     .from('properties')
-    .select('title, status')
+    .select('title, status, listing_type')
     .eq('id', action.propertyId)
     .eq('account_id', accountId)
     .maybeSingle();
@@ -126,6 +126,7 @@ export async function handleEnquiryCardReply(
     property: {
       title: propertyRow?.title ?? null,
       status: propertyRow?.status,
+      listing_type: propertyRow?.listing_type,
     },
   });
   if (unavailable === 'failed') {

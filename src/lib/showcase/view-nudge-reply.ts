@@ -88,7 +88,7 @@ export async function handleViewNudgeReply(args: {
   const propertyRead = await readWithRetry(() =>
     db
       .from('properties')
-      .select('id, title, user_id, status')
+      .select('id, title, user_id, status, listing_type')
       .eq('id', propertyId)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -148,6 +148,7 @@ export async function handleViewNudgeReply(args: {
       contactName: contact.name,
       propertyTitle: property.title as string | null,
       status: property.status as string | null,
+      listingType: property.listing_type as string | null,
     });
     const notice = await sendWhatsAppMessageAndPersist({
       accountId,

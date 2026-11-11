@@ -8,6 +8,10 @@ import {
   PROPERTY_STATUSES,
   propertyTypeGroupsFor,
 } from '@/lib/inventory/property-options';
+import {
+  closedPriceLabel,
+  listingStatusLabel,
+} from '@/lib/inventory/listing-status-label';
 import type { SetPropertyFormField } from '@/hooks/usePropertyForm';
 import type { PropertyFormValues } from '@/lib/inventory/property-form-state';
 
@@ -448,7 +452,7 @@ export function BasicsSection({
           >
             {PROPERTY_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {listingStatusLabel(s, listingType)}
               </option>
             ))}
           </select>
@@ -507,7 +511,7 @@ export function BasicsSection({
       {isEdit && status === 'Sold' && (
         <div className="col-span-2 space-y-1.5">
           <Label htmlFor="prop-sold-price" className="text-slate-300">
-            Final sale price
+            {closedPriceLabel(listingType)}
           </Label>
           <Input
             id="prop-sold-price"
@@ -515,7 +519,15 @@ export function BasicsSection({
             min="0"
             value={soldPrice}
             onChange={(e) => set('soldPrice', e.target.value)}
-            placeholder={price ? `e.g. ${price}` : 'e.g. 8500000'}
+            placeholder={
+              listingStatusLabel('Sold', listingType) === 'Sold'
+                ? price
+                  ? `e.g. ${price}`
+                  : 'e.g. 8500000'
+                : rentPerMonth
+                  ? `e.g. ${rentPerMonth}`
+                  : 'e.g. 45000'
+            }
             className="border-slate-700 bg-slate-800 text-white"
           />
           <PriceHint value={soldPrice} />

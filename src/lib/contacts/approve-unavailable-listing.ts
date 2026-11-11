@@ -69,11 +69,13 @@ export async function tellApprovedLeadListingUnavailable(args: {
     contactName,
     property.title,
     property.status,
-    showcaseUrl
+    showcaseUrl,
+    property.listing_type
   );
   const [withBrief, handoff] = toldVariants;
   const status = (property.status ?? '').trim();
-  const label = listingAvailabilityNotice(status)?.label ?? status;
+  const label =
+    listingAvailabilityNotice(status, property.listing_type)?.label ?? status;
 
   let toldByTemplate = false;
   if (conversation) {

@@ -27,6 +27,7 @@ export interface InboundChainPayload {
   enquiryIsDeliberate: boolean;
   enquiryPropertyTitle: string | null;
   enquiryPropertyStatus?: string | null;
+  enquiryPropertyListingType?: string | null;
   specificPropertyInterest: boolean;
   propertyReferenceNeedsAgent: boolean;
   isFirstInboundMessage: boolean;
@@ -49,6 +50,7 @@ export interface InboundChainContext {
   enquiryIsDeliberate: boolean;
   enquiryPropertyTitle: string | null;
   enquiryPropertyStatus: string | null;
+  enquiryPropertyListingType: string | null;
   specificPropertyInterest: boolean;
   propertyReferenceNeedsAgent: boolean;
   ownerCheck: InboundChainPayload['ownerCheck'];

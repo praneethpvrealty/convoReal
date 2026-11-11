@@ -32,6 +32,7 @@ export async function specificPropertyInterest(
     enquiryIsDeliberate,
     enquiryPropertyTitle,
     enquiryPropertyStatus,
+    enquiryPropertyListingType,
     specificPropertyInterest,
     propertyReferenceNeedsAgent,
     ownerCheck,
@@ -62,7 +63,10 @@ export async function specificPropertyInterest(
       const visitRequested = isInboundVisitRequest(contentText || '');
       const ownerContactRequested = requestsHumanContact(contentText);
       const actionRequested = visitRequested || ownerContactRequested;
-      const statusAgentLine = listingStatusAgentLine(enquiryPropertyStatus);
+      const statusAgentLine = listingStatusAgentLine(
+        enquiryPropertyStatus,
+        enquiryPropertyListingType
+      );
       const unavailableReply = await unavailableListingReplyWithShowcase({
         db: admin,
         accountId,
@@ -70,6 +74,7 @@ export async function specificPropertyInterest(
         contactName: contactRecord.name,
         propertyTitle: enquiryPropertyTitle,
         status: enquiryPropertyStatus,
+        listingType: enquiryPropertyListingType,
       });
       const ack = await sendWhatsAppMessageAndPersist({
         accountId,
@@ -87,7 +92,8 @@ export async function specificPropertyInterest(
               enquiryPropertyTitle,
               statusAgentLine ? {} : { visitRequested, ownerContactRequested }
             ),
-            enquiryPropertyStatus
+            enquiryPropertyStatus,
+            enquiryPropertyListingType
           ),
       });
       if (unavailableReply && ack.success) {

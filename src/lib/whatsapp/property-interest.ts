@@ -20,7 +20,8 @@ export type PropertyInterestCandidate = Pick<
   | 'location'
   | 'project'
   | 'tags'
->;
+> &
+  Partial<Pick<Property, 'listing_type'>>;
 
 export type PropertyReferenceResolution<T extends PropertyInterestCandidate> =
   | {

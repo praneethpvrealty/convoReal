@@ -249,11 +249,12 @@ export async function POST(request: Request) {
       title: string;
       property_code: string | null;
       status: string | null;
+      listing_type: string | null;
     } | null = null;
     if (property_id) {
       const { data: prop, error: propErr } = await supabase
         .from('properties')
-        .select('id, title, property_code, status')
+        .select('id, title, property_code, status, listing_type')
         .eq('id', property_id)
         .eq('account_id', accountId)
         .maybeSingle();
@@ -352,7 +353,7 @@ export async function POST(request: Request) {
 
     const availabilityNote =
       propertyRow && availability_note === true
-        ? listingStatusNote(propertyRow.status)
+        ? listingStatusNote(propertyRow.status, propertyRow.listing_type)
         : null;
 
     const results: BroadcastResult[] = [];

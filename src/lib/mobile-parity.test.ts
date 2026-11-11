@@ -1574,8 +1574,12 @@ describe('[PRP-048] the mobile share sheet asks before an off-market listing is 
     expect(sheet).toContain(
       "from '@shared/lib/inventory/listing-availability'"
     );
-    expect(sheet).toContain('unavailableListingSharePrompt(property.status)');
-    expect(dialog).toContain('unavailableListingSharePrompt(property.status)');
+    expect(sheet).toMatch(
+      /unavailableListingSharePrompt\(\s*property\.status,\s*property\.listing_type\s*\)/
+    );
+    expect(dialog).toMatch(
+      /unavailableListingSharePrompt\(\s*property\.status,\s*property\.listing_type\s*\)/
+    );
   });
 
   it('offers both choices and hides the composer until one is made', () => {

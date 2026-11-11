@@ -27,6 +27,7 @@ import {
   PropertyActionsMenu,
   type PropertyActionHandlers,
 } from '@/components/inventory/property-actions-menu';
+import { listingStatusLabel } from '@/lib/inventory/listing-status-label';
 import { PropertyConstructionLoader } from '@/components/ui/property-construction-loader';
 import {
   ArrowDown,
@@ -352,7 +353,7 @@ export function PropertyTable({
                       'border-slate-700 bg-slate-800 text-slate-300'
                     }`}
                   >
-                    {property.status}
+                    {listingStatusLabel(property.status, property.listing_type)}
                   </span>
                 </TableCell>
                 <TableCell>

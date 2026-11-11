@@ -134,6 +134,7 @@ interface PhotoSubjectRow {
   id: string;
   title: string | null;
   status: string | null;
+  listing_type: string | null;
   images: string[] | null;
   property_code: string | null;
   video_url: string | null;
@@ -168,7 +169,9 @@ export async function sendSubjectPhotos(
 
   const { data } = await db
     .from('properties')
-    .select('id, title, status, images, property_code, video_url, video_status')
+    .select(
+      'id, title, status, listing_type, images, property_code, video_url, video_status'
+    )
     .eq('account_id', accountId)
     .in('id', propertyIds);
 

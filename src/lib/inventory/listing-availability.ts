@@ -1,8 +1,15 @@
 /**
  * The wording for a listing that is not Available, shared by the bot's
  * replies, the web share dialog and the mobile share sheet. Mobile
- * bundles this file through `@shared/`, so it imports nothing.
+ * bundles this file through `@shared/`, so it imports only its
+ * import-free neighbour.
  */
+
+import {
+  closedStatusPhrase,
+  closedStatusWord,
+  listingStatusLabel,
+} from './listing-status-label';
 
 export interface ListingAvailabilityNotice {
   status: string;
@@ -26,9 +33,18 @@ const UNAVAILABLE_PHRASES: Record<string, { label: string; phrase: string }> = {
   },
 };
 
-function unavailablePhrase(status: string | null | undefined) {
+function unavailablePhrase(
+  status: string | null | undefined,
+  listingType?: string | null
+) {
   const value = (status ?? '').trim();
   if (!value || value === 'Available') return null;
+  if (value === 'Sold') {
+    return {
+      label: closedStatusWord(listingType),
+      phrase: `already ${closedStatusPhrase(listingType)}`,
+    };
+  }
   return (
     UNAVAILABLE_PHRASES[value] ?? {
       label: value,
@@ -38,9 +54,10 @@ function unavailablePhrase(status: string | null | undefined) {
 }
 
 export function listingAvailabilityNotice(
-  status: string | null | undefined
+  status: string | null | undefined,
+  listingType?: string | null
 ): ListingAvailabilityNotice | null {
-  const entry = unavailablePhrase(status);
+  const entry = unavailablePhrase(status, listingType);
   if (!entry) return null;
   return {
     status: (status ?? '').trim(),
@@ -50,26 +67,29 @@ export function listingAvailabilityNotice(
 }
 
 export function listingStatusInquiryLine(
-  status: string | null | undefined
+  status: string | null | undefined,
+  listingType?: string | null
 ): string | null {
-  const notice = listingAvailabilityNotice(status);
+  const notice = listingAvailabilityNotice(status, listingType);
   if (!notice) return null;
-  return `I see it is marked "${notice.status}" — could you share its latest status?`;
+  return `I see it is marked "${listingStatusLabel(notice.status, listingType)}" — could you share its latest status?`;
 }
 
 export function listingStatusNote(
-  status: string | null | undefined
+  status: string | null | undefined,
+  listingType?: string | null
 ): string | null {
-  const entry = unavailablePhrase(status);
+  const entry = unavailablePhrase(status, listingType);
   if (!entry) return null;
   return `Please note: this property is ${entry.phrase}. Our team will check the latest status with the owner and update you here.`;
 }
 
 export function appendListingStatusNote(
   text: string,
-  status: string | null | undefined
+  status: string | null | undefined,
+  listingType?: string | null
 ): string {
-  const note = listingStatusNote(status);
+  const note = listingStatusNote(status, listingType);
   return note ? `${text}\n\n${note}` : text;
 }
 
@@ -89,10 +109,11 @@ export interface UnavailableSharePrompt {
  *  the availability note the bot would have sent. The agent sees the
  *  exact note so the choice is between two known messages. */
 export function unavailableListingSharePrompt(
-  status: string | null | undefined
+  status: string | null | undefined,
+  listingType?: string | null
 ): UnavailableSharePrompt | null {
-  const notice = listingAvailabilityNotice(status);
-  const note = listingStatusNote(status);
+  const notice = listingAvailabilityNotice(status, listingType);
+  const note = listingStatusNote(status, listingType);
   if (!notice || !note) return null;
   return {
     status: notice.status,
@@ -106,9 +127,10 @@ export function unavailableListingSharePrompt(
 /** The caveat that rides on any other answer about an unavailable
  *  listing, so a buyer told its price is also told it is not for sale. */
 export function listingStatusCaveat(
-  status: string | null | undefined
+  status: string | null | undefined,
+  listingType?: string | null
 ): string | null {
-  const entry = unavailablePhrase(status);
+  const entry = unavailablePhrase(status, listingType);
   if (!entry) return null;
   return `Please note: this property is ${entry.phrase}.`;
 }
@@ -116,9 +138,10 @@ export function listingStatusCaveat(
 /** What the model is told about availability, worded so it cannot be
  *  read as a sale listing that is open. */
 export function listingAvailabilityContext(
-  status: string | null | undefined
+  status: string | null | undefined,
+  listingType?: string | null
 ): string {
-  const entry = unavailablePhrase(status);
+  const entry = unavailablePhrase(status, listingType);
   if (!entry) return 'Available';
   const value = (status ?? '').trim();
   return value === 'Pending Review'
@@ -127,9 +150,10 @@ export function listingAvailabilityContext(
 }
 
 export function listingStatusAgentLine(
-  status: string | null | undefined
+  status: string | null | undefined,
+  listingType?: string | null
 ): string | null {
-  const notice = listingAvailabilityNotice(status);
+  const notice = listingAvailabilityNotice(status, listingType);
   if (!notice) return null;
-  return `⚠️ Listing is marked "${notice.status}" — confirm the latest status with the owner before promising a visit.`;
+  return `⚠️ Listing is marked "${listingStatusLabel(notice.status, listingType)}" — confirm the latest status with the owner before promising a visit.`;
 }

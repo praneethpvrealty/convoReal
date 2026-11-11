@@ -1186,7 +1186,7 @@ function PropertyCard({
                 },
               ]}
             >
-              {listingCardStatus(property.status)}
+              {listingCardStatus(property.status, property.listing_type)}
             </Text>
           </View>
         ) : null}

@@ -79,6 +79,7 @@ import {
   isRawLandType,
   isApartmentType,
 } from '@/lib/inventory/property-options';
+import { listingStatusLabel } from '@/lib/inventory/listing-status-label';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import {
   E_KHATA_MAX_BYTES,
@@ -1651,7 +1652,7 @@ export function PropertyForm({
                                 }`
                           }
                         >
-                          {status}
+                          {listingStatusLabel(status, listingType)}
                         </Badge>
                         {listingSource === 'agent' && (
                           <Badge className="rounded border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-sky-400 uppercase">

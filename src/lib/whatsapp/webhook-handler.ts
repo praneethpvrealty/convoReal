@@ -824,6 +824,7 @@ async function processMessage(
   let enquiryIsDeliberate = false;
   let enquiryPropertyTitle: string | null = null;
   let enquiryPropertyStatus: string | null = null;
+  let enquiryPropertyListingType: string | null = null;
   const specificPropertyInterest =
     message.type === 'order' || isDirectPropertyInterest(contentText);
   let propertyReferenceNeedsAgent = false;
@@ -832,7 +833,7 @@ async function processMessage(
       const { data: properties, error: propertiesError } = await supabaseAdmin()
         .from('properties')
         .select(
-          'id, title, property_code, status, is_published, land_area, land_area_unit, area_sqft, area_unit, sublocality, locality_canonical, location, project, tags'
+          'id, title, property_code, status, listing_type, is_published, land_area, land_area_unit, area_sqft, area_unit, sublocality, locality_canonical, location, project, tags'
         )
         .eq('account_id', accountId)
         .eq('is_published', true);
@@ -864,6 +865,7 @@ async function processMessage(
           enquiryPropertyId = matchedProperty.id;
           enquiryPropertyTitle = matchedProperty.title;
           enquiryPropertyStatus = matchedProperty.status ?? null;
+          enquiryPropertyListingType = matchedProperty.listing_type ?? null;
           await supabaseAdmin()
             .from('contacts')
             .update({
@@ -1025,6 +1027,7 @@ async function processMessage(
       enquiryIsDeliberate,
       enquiryPropertyTitle,
       enquiryPropertyStatus,
+      enquiryPropertyListingType,
       specificPropertyInterest,
       propertyReferenceNeedsAgent,
       isFirstInboundMessage,
@@ -1297,6 +1300,7 @@ export interface PropertyRow {
   id: string;
   title: string;
   status?: string | null;
+  listing_type?: string | null;
   price: number | string | null;
   area_sqft: number | null;
   area_unit: string | null;

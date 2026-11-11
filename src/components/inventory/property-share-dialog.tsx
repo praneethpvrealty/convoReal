@@ -286,7 +286,7 @@ export function PropertyShareDialog({
   // and there the note can only follow the template as free text.
   const [broadcastAcknowledged, setBroadcastAcknowledged] = useState(false);
   const sharePrompt = property
-    ? unavailableListingSharePrompt(property.status)
+    ? unavailableListingSharePrompt(property.status, property.listing_type)
     : null;
   const step =
     sharePrompt && unavailableShare === null
@@ -495,7 +495,11 @@ export function PropertyShareDialog({
     });
     const noted =
       unavailableShare === 'with_note'
-        ? appendListingStatusNote(message, property.status)
+        ? appendListingStatusNote(
+            message,
+            property.status,
+            property.listing_type
+          )
         : message;
     return offerInventoryOnboarding && audienceTab === 'agent'
       ? `${noted}\n\n♻️ Want to share this with your own name or agency? Open the property and tap “Request ConvoReal invite”. Once onboarded, it will be added to your inventory for review.`
