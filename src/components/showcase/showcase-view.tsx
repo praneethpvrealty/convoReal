@@ -443,7 +443,8 @@ export function ShowcaseView({
   const isVideoSlide = detailHasVideo && activeImageIdx >= detailImages.length;
   const detailTouchXRef = useRef<number | null>(null);
   const selectedAvailabilityNotice = listingAvailabilityNotice(
-    selectedProperty?.status
+    selectedProperty?.status,
+    selectedProperty?.listing_type
   );
 
   // Pulse: record property views with dwell time. Runs on every
@@ -1171,7 +1172,10 @@ export function ShowcaseView({
         .replace('{property_code}', '');
     }
 
-    const statusLine = listingStatusInquiryLine(property.status);
+    const statusLine = listingStatusInquiryLine(
+      property.status,
+      property.listing_type
+    );
     if (statusLine) message += ` ${statusLine}`;
 
     const cleanPhone =
@@ -2968,7 +2972,12 @@ export function ShowcaseView({
 
                         {listingAvailabilityNotice(property.status) && (
                           <div className="absolute bottom-3 left-3 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-extrabold tracking-wider text-slate-950 uppercase shadow-md">
-                            {listingAvailabilityNotice(property.status)?.label}
+                            {
+                              listingAvailabilityNotice(
+                                property.status,
+                                property.listing_type
+                              )?.label
+                            }
                           </div>
                         )}
 

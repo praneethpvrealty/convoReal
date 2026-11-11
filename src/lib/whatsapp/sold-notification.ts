@@ -33,6 +33,11 @@ import {
   pickEnquiryNoticeTemplate,
 } from '@/lib/whatsapp/enquiry-notice-template';
 import { enquiryNoticeSendParams } from '@/app/api/leads/email-webhook/unavailable-listing';
+import {
+  closedStatusPhrase,
+  closedStatusWord,
+  listingStatusLabel,
+} from '@/lib/inventory/listing-status-label';
 import type { MessageTemplate, Property } from '@/types';
 
 export const SOLD_PRICE_BUTTON_PREFIX = 'sold_price:';
@@ -51,8 +56,11 @@ export type BuyerVisiblePropertyStatus =
 
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
-export function buildSoldNotificationBody(title: string): string {
-  return buildPropertyStatusNotificationBody(title, 'Sold');
+export function buildSoldNotificationBody(
+  title: string,
+  listingType?: string | null
+): string {
+  return buildPropertyStatusNotificationBody(title, 'Sold', listingType);
 }
 
 const STATUS_DETAILS: Record<BuyerVisiblePropertyStatus, string> = {
@@ -78,24 +86,52 @@ export function shouldNotifyBuyersOfPropertyStatus(
   );
 }
 
+/** What the status means, worded for a let listing when it closes. */
+export function propertyStatusDetail(
+  status: BuyerVisiblePropertyStatus,
+  listingType?: string | null
+): string {
+  return status === 'Sold' && soldAsLet(listingType)
+    ? `This property is no longer available — it has been ${closedStatusPhrase(listingType)}.`
+    : STATUS_DETAILS[status];
+}
+
+/** A let listing that closes was rented or leased, never sold: its
+ *  notice names that, and travels on the status template, whose words
+ *  are parameters, since the sold template says "sold" in its body. */
+export function soldAsLet(listingType: string | null | undefined): boolean {
+  return closedStatusWord(listingType) !== 'Sold';
+}
+
+export function closedPriceButtonTitle(listingType?: string | null): string {
+  return soldAsLet(listingType) ? 'Check final rent' : 'Check sold price';
+}
+
 export function buildPropertyStatusNotificationBody(
   title: string,
-  status: BuyerVisiblePropertyStatus
+  status: BuyerVisiblePropertyStatus,
+  listingType?: string | null
 ): string {
   return (
     `🔔 *Update on a property you showed interest in*\n\n` +
     `*${title}*\n\n` +
-    `*New status:* ${status}\n` +
-    STATUS_DETAILS[status]
+    `*New status:* ${listingStatusLabel(status, listingType)}\n` +
+    propertyStatusDetail(status, listingType)
   );
 }
 
 export function buildSoldPriceReply(
   title: string,
   soldPrice: number | null | undefined,
-  currency: string = 'INR'
+  currency: string = 'INR',
+  listingType?: string | null
 ): string {
   const formatted = formatShareAmount(soldPrice, currency);
+  if (soldAsLet(listingType)) {
+    return formatted
+      ? `💰 *${title}* was ${closedStatusPhrase(listingType)} for *${formatted}* a month.`
+      : `The final rent for *${title}* hasn't been disclosed — the rent is hidden.`;
+  }
   if (!formatted) {
     return `The final sale price for *${title}* hasn't been disclosed — the price is hidden.`;
   }
@@ -278,13 +314,12 @@ export function pickStatusNoticeTemplate<
  */
 async function ensureStatusUpdateTemplate(
   accountId: string,
-  status: BuyerVisiblePropertyStatus
+  onSoldTemplate: boolean
 ): Promise<MessageTemplate | null> {
   const db = supabaseAdmin();
-  const templateName =
-    status === 'Sold'
-      ? SOLD_UPDATE_TEMPLATE_NAME
-      : PROPERTY_STATUS_UPDATE_TEMPLATE_NAME;
+  const templateName = onSoldTemplate
+    ? SOLD_UPDATE_TEMPLATE_NAME
+    : PROPERTY_STATUS_UPDATE_TEMPLATE_NAME;
 
   const { data: rows } = await db
     .from('message_templates')
@@ -322,10 +357,9 @@ async function ensureStatusUpdateTemplate(
       .maybeSingle();
     if (!account?.owner_user_id) return null;
 
-    const payload =
-      status === 'Sold'
-        ? buildSoldUpdateTemplatePayload()
-        : buildPropertyStatusUpdateTemplatePayload();
+    const payload = onSoldTemplate
+      ? buildSoldUpdateTemplatePayload()
+      : buildPropertyStatusUpdateTemplatePayload();
     const meta = await submitMessageTemplate({
       wabaId: config.waba_id as string,
       accessToken: decrypt(config.access_token as string),
@@ -393,7 +427,7 @@ export async function notifyBuyersOfPropertyStatus(
   const { data: property } = await db
     .from('properties')
     .select(
-      'id, title, owner_contact_id, status, bedrooms, sublocality, city, location'
+      'id, title, owner_contact_id, status, listing_type, bedrooms, sublocality, city, location'
     )
     .eq('id', propertyId)
     .eq('account_id', accountId)
@@ -463,7 +497,12 @@ export async function notifyBuyersOfPropertyStatus(
   if (audience.length === 0)
     return { notified: 0, viaTemplate: 0, skipped: 0, audience: 0 };
 
-  const statusTemplate = await ensureStatusUpdateTemplate(accountId, status);
+  const listingType = property.listing_type as string | null;
+  const onSoldTemplate = status === 'Sold' && !soldAsLet(listingType);
+  const statusTemplate = await ensureStatusUpdateTemplate(
+    accountId,
+    onSoldTemplate
+  );
   const { data: enquiryRows } = statusTemplate
     ? { data: null }
     : await db
@@ -515,13 +554,13 @@ export async function notifyBuyersOfPropertyStatus(
   const accountLanguage = await accountDefaultLanguage(db, accountId);
 
   const title = (property.title as string) || 'Property';
-  const body = buildPropertyStatusNotificationBody(title, status);
+  const body = buildPropertyStatusNotificationBody(title, status, listingType);
   const buttons =
     status === 'Sold'
       ? [
           {
             id: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`,
-            title: 'Check sold price',
+            title: closedPriceButtonTitle(listingType),
           },
           {
             id: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
@@ -605,13 +644,13 @@ export async function notifyBuyersOfPropertyStatus(
           )
         : truncateParametersToBudget(
             localised.body_text,
-            status === 'Sold'
+            onSoldTemplate
               ? buildSoldUpdateParams(nameById.get(contactId) ?? null, title)
               : buildPropertyStatusUpdateParams(
                   nameById.get(contactId) ?? null,
                   title,
-                  status,
-                  STATUS_DETAILS[status]
+                  listingStatusLabel(status, listingType),
+                  propertyStatusDetail(status, listingType)
                 )
           );
     const result = await sendWhatsAppMessageAndPersist({
@@ -630,13 +669,12 @@ export async function notifyBuyersOfPropertyStatus(
         ...(choice?.kind === 'enquiry'
           ? {}
           : {
-              buttonParams:
-                status === 'Sold'
-                  ? {
-                      0: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`,
-                      1: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
-                    }
-                  : { 0: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}` },
+              buttonParams: onSoldTemplate
+                ? {
+                    0: `${SOLD_PRICE_BUTTON_PREFIX}${propertyId}`,
+                    1: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}`,
+                  }
+                : { 0: `${SOLD_SIMILAR_BUTTON_PREFIX}${propertyId}` },
             }),
       },
       templateRow: localised,

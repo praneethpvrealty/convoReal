@@ -24,6 +24,7 @@ export async function deliberateEnquiry(
     enquiryIsDeliberate,
     enquiryPropertyTitle,
     enquiryPropertyStatus,
+    enquiryPropertyListingType,
     ownerCheck,
     contactRecord,
     conversation,
@@ -96,6 +97,7 @@ export async function deliberateEnquiry(
       contactName: contactRecord.name,
       propertyTitle: enquiryPropertyTitle,
       status: enquiryPropertyStatus,
+      listingType: enquiryPropertyListingType,
     });
     const ack = await sendWhatsAppMessageAndPersist({
       accountId,
@@ -108,7 +110,8 @@ export async function deliberateEnquiry(
         unavailableReply ??
         appendListingStatusNote(
           buildEnquiryAckText(contactRecord.name, enquiryPropertyTitle),
-          enquiryPropertyStatus
+          enquiryPropertyStatus,
+          enquiryPropertyListingType
         ),
     });
     if (unavailableReply && ack.success) {

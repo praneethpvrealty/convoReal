@@ -183,6 +183,7 @@ import { SearchablePropertySelect } from '@/components/ui/searchable-property-se
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 import { formatCurrency } from '@/lib/format/currency';
 import { getInitials } from '@/lib/format/text';
+import { listingStatusLabel } from '@/lib/inventory/listing-status-label';
 
 const NO_PROPERTIES: Property[] = [];
 const NO_PICKER_PROPERTIES: PickerProperty[] = [];
@@ -2462,7 +2463,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                     {formatCurrency(prop.price)}
                                   </span>
                                   <span className="rounded border border-slate-700 bg-slate-800 px-1 py-0 text-[9px] text-slate-300 uppercase">
-                                    {prop.status}
+                                    {listingStatusLabel(
+                                      prop.status,
+                                      prop.listing_type
+                                    )}
                                   </span>
                                 </div>
                               </div>
@@ -3120,7 +3124,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                           {formatCurrency(prop.price)}
                                         </span>
                                         <span className="py-0.2 rounded border border-slate-700 bg-slate-800 px-1.5 text-[9px] font-semibold text-slate-300 uppercase">
-                                          {prop.status}
+                                          {listingStatusLabel(
+                                            prop.status,
+                                            prop.listing_type
+                                          )}
                                         </span>
                                         {propertyMessageStatus[prop.id]
                                           ?.sent && (
@@ -3226,7 +3233,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                               {formatCurrency(prop.price)}
                                             </span>
                                             <span className="py-0.2 text-slate-350 rounded border border-slate-700 bg-slate-800 px-1.5 text-[9px] font-semibold uppercase">
-                                              {prop.status}
+                                              {listingStatusLabel(
+                                                prop.status,
+                                                prop.listing_type
+                                              )}
                                             </span>
                                           </div>
                                           <span className="text-[9px] text-slate-500">
@@ -3336,7 +3346,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                         {formatCurrency(prop.price)}
                                       </span>
                                       <span className="py-0.2 rounded border border-slate-700 bg-slate-800 px-1.5 text-[9px] font-semibold text-slate-300 uppercase">
-                                        {prop.status}
+                                        {listingStatusLabel(
+                                          prop.status,
+                                          prop.listing_type
+                                        )}
                                       </span>
                                     </div>
                                   </div>

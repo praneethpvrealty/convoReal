@@ -21,7 +21,11 @@ export async function replyListingUnavailableOnce(args: {
   toPhone?: string;
   /** Looked up when not supplied. */
   contactName?: string | null;
-  property: { title: string | null; status: string | null | undefined };
+  property: {
+    title: string | null;
+    status: string | null | undefined;
+    listing_type?: string | null;
+  };
 }): Promise<UnavailableListingReplyOutcome | null> {
   const { db, accountId, userId, contactId, conversationId, property } = args;
   if (!unavailableListingReply(null, property.title, property.status))
@@ -46,6 +50,7 @@ export async function replyListingUnavailableOnce(args: {
     contactName,
     propertyTitle: property.title,
     status: property.status,
+    listingType: property.listing_type,
   });
   if (!built) return null;
   const { reply, variants } = built;

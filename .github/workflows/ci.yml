@@ -131,6 +131,7 @@ jobs:
               - 'src/lib/inventory/card-badges.ts'
               - 'src/lib/inventory/catalog-product-share.ts'
               - 'src/lib/inventory/listing-availability.ts'
+              - 'src/lib/inventory/listing-status-label.ts'
               - 'src/lib/inventory/share-log-request.ts'
               - 'src/lib/inventory/location-privacy.ts'
               - 'src/lib/inventory/property-options.ts'

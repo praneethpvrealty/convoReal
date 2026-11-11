@@ -126,7 +126,10 @@ export function PropertyShareSheet({
   // (web parity: property-share-dialog).
   const [unavailableShare, setUnavailableShare] =
     useState<UnavailableShareChoice | null>(null);
-  const sharePrompt = unavailableListingSharePrompt(property.status);
+  const sharePrompt = unavailableListingSharePrompt(
+    property.status,
+    property.listing_type
+  );
   const sharePromptNote = sharePrompt?.note ?? null;
   const [askedFor, setAskedFor] = useState({ visible, id: property.id });
   if (askedFor.visible !== visible || askedFor.id !== property.id) {

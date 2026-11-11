@@ -411,7 +411,7 @@ export function PropertyList({
                           }`
                     }
                   >
-                    {listingCardStatus(property.status)}
+                    {listingCardStatus(property.status, property.listing_type)}
                   </Badge>
                 )}
                 {property.listing_source === 'agent' && (

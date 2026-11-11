@@ -2954,6 +2954,25 @@
             "supabase/migrations/20261109093000_showcase_event_types.sql",
             "supabase/migrations/20261109093001_location_request_enquiry.sql"
           ]
+        },
+        {
+          "id": "PRP-060",
+          "rule": "A Rent or Built to Suit listing whose deal closes is stored as Sold like any other, and reads Rented or Leased everywhere a person sees it: the status choice and the closing-price field (Final rent / month) on the web and mobile edit forms, the card and table badge, the showcase badge, the share prompt and note, the bot's regret and availability answer, and the status update sent to interested contacts, which says rented out or leased out and travels on the property_status_update template rather than the sold template whose body says sold.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/listing-status-label.test.ts",
+              "case": "[PRP-060]"
+            },
+            {
+              "file": "src/lib/whatsapp/sold-notification.test.ts",
+              "case": "[PRP-060]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/listing-status-label.ts",
+            "src/lib/inventory/listing-availability.ts",
+            "src/lib/whatsapp/sold-notification.ts"
+          ]
         }
       ]
     },

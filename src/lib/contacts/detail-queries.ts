@@ -35,7 +35,7 @@ export type PropertyMessageStatus = Record<
 >;
 
 export const PROPERTY_PICKER_COLUMNS =
-  'id, title, property_code, location, sublocality, city, state, project, tags, price, type, status, bedrooms, area_sqft, area_unit, images';
+  'id, title, property_code, location, sublocality, city, state, project, tags, price, type, listing_type, status, bedrooms, area_sqft, area_unit, images';
 
 export type PickerProperty = Pick<
   Property,
@@ -51,6 +51,7 @@ export type PickerProperty = Pick<
   | 'price'
   | 'type'
   | 'status'
+  | 'listing_type'
   | 'bedrooms'
   | 'area_sqft'
   | 'area_unit'

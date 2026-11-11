@@ -95,7 +95,8 @@ export async function sendUnavailableListingReply({
     (property as Property).title,
     (property as Property).status,
     showcaseUrl,
-    briefOnFile
+    briefOnFile,
+    (property as Property).listing_type
   );
   if (!reply) return 'available';
 

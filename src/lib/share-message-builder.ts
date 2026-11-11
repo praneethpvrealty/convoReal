@@ -434,7 +434,8 @@ export function buildInquiryDetailsMessage(input: {
     ]
       .filter(Boolean)
       .join('\n\n'),
-    property.status
+    property.status,
+    property.listing_type
   );
 }
 

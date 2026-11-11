@@ -3,6 +3,8 @@ import {
   buildSoldNotificationBody,
   buildPropertyStatusNotificationBody,
   buildSoldPriceReply,
+  closedPriceButtonTitle,
+  soldAsLet,
   dedupeAudience,
   usableStatusUpdateTemplate,
   pickStatusNoticeTemplate,
@@ -21,6 +23,27 @@ describe('buildSoldNotificationBody', () => {
 });
 
 describe('property status notifications', () => {
+  it('[PRP-060] tells a tenant the listing was rented, on the status template', () => {
+    const body = buildPropertyStatusNotificationBody(
+      'Hebbal 3BHK',
+      'Sold',
+      'Rent'
+    );
+    expect(body).toContain('*New status:* Rented');
+    expect(body).toContain('it has been rented out');
+    expect(body.toLowerCase()).not.toContain('sold');
+    expect(soldAsLet('Rent')).toBe(true);
+    expect(soldAsLet('Built to Suit')).toBe(true);
+    expect(soldAsLet('Sale')).toBe(false);
+    expect(closedPriceButtonTitle('Rent')).toBe('Check final rent');
+    expect(buildSoldPriceReply('Hebbal 3BHK', 220000, 'INR', 'Rent')).toMatch(
+      /was rented out for .* a month/
+    );
+    expect(buildSoldPriceReply('Hebbal 3BHK', null, 'INR', 'Rent')).toContain(
+      'final rent'
+    );
+  });
+
   it.each([
     ['Available', 'available again', false],
     ['Under Contract', 'under contract', false],

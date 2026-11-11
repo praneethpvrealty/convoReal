@@ -1,5 +1,6 @@
 import { leadFirstName } from '@/lib/contacts/lead-placeholder';
 import { listingTitleForMessage } from '@/lib/inventory/listing-title';
+import { closedStatusPhrase } from './listing-status-label';
 export {
   type ListingAvailabilityNotice,
   listingAvailabilityNotice,
@@ -94,7 +95,8 @@ export function unavailableListingReply(
   propertyTitle: string | null | undefined,
   status: string | null | undefined,
   showcaseUrl?: string | null,
-  briefOnFile?: boolean
+  briefOnFile?: boolean,
+  listingType?: string | null
 ): string | null {
   const value = (status ?? '').trim();
   if (!value || value === 'Available' || value === 'Pending Review')
@@ -106,7 +108,7 @@ export function unavailableListingReply(
   const nudge = unavailableNudge(briefOnFile);
   const browse = showcaseUrl ? `\n\n${showcaseBrowseLine(showcaseUrl)}` : '';
   if (value === 'Sold') {
-    return `${greeting} for your interest in ${subject}. I'm sorry — this property has already been sold. I'd be glad to find you something similar. ${nudge}${browse}`;
+    return `${greeting} for your interest in ${subject}. I'm sorry — this property has already been ${closedStatusPhrase(listingType)}. I'd be glad to find you something similar. ${nudge}${browse}`;
   }
   const phrase =
     ENQUIRY_STATUS_PHRASES[value] ?? `marked ${value.toLowerCase()} right now`;
@@ -119,7 +121,8 @@ export function unavailableListingReplyVariants(
   contactName: string | null | undefined,
   propertyTitle: string | null | undefined,
   status: string | null | undefined,
-  showcaseUrl?: string | null
+  showcaseUrl?: string | null,
+  listingType?: string | null
 ): string[] {
   return [true, false]
     .map((briefOnFile) =>
@@ -128,7 +131,8 @@ export function unavailableListingReplyVariants(
         propertyTitle,
         status,
         showcaseUrl,
-        briefOnFile
+        briefOnFile,
+        listingType
       )
     )
     .filter((reply): reply is string => reply !== null);
@@ -161,7 +165,7 @@ export function listingAvailabilityAnswer(
     return "This listing is still being verified, so I can't confirm its availability just yet. I'll update you here as soon as it is confirmed.";
   }
   if (value === 'Sold') {
-    return `I'm sorry — this property has already been sold. I'd be glad to find you something similar. ${nudge}`;
+    return `I'm sorry — this property has already been ${closedStatusPhrase(listingType)}. I'd be glad to find you something similar. ${nudge}`;
   }
   const phrase =
     ENQUIRY_STATUS_PHRASES[value] ?? `marked ${value.toLowerCase()} right now`;

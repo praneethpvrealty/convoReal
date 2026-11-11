@@ -17,6 +17,16 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 11 November 2026
+
+- **A rental that closes now reads Rented, not Sold.** The edit form on web
+  and mobile offered only Sold for a For Rent listing, and its card, its
+  showcase badge and the WhatsApp update to interested contacts all said the
+  flat had been sold. A For Rent listing now shows Rented and a Built to Suit
+  listing Leased, the closing-price field asks for the final rent per month,
+  and buyers are told the property has been rented out. The stored status is
+  unchanged, so filters, deal sync and market stats behave as before.
+
 #### 10 November 2026
 
 - **A property owner who asks who they are talking to is now told.** An

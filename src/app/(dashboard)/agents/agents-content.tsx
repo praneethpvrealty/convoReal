@@ -36,6 +36,7 @@ import {
 import { readStored, writeStored } from '@/lib/safe-storage';
 import { formatCurrency } from '@/lib/format/currency';
 import { getInitials } from '@/lib/format/text';
+import { listingStatusLabel } from '@/lib/inventory/listing-status-label';
 
 export default function AgentsPage() {
   const supabase = createClient();
@@ -599,7 +600,10 @@ export default function AgentsPage() {
                             )}
                             <div className="absolute top-2 left-2">
                               <span className="py-0.2 rounded border border-slate-800 bg-slate-950/80 px-1.5 text-[8px] font-semibold tracking-wider text-slate-300 uppercase">
-                                {prop.status}
+                                {listingStatusLabel(
+                                  prop.status,
+                                  prop.listing_type
+                                )}
                               </span>
                             </div>
                           </div>

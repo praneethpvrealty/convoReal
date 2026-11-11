@@ -497,7 +497,10 @@ export function answerFromPropertyData(
       }));
       const missing = responded.find((r) => !r.answer);
       if (missing) return { answer: null, intent: missing.intent };
-      const caveat = listingStatusCaveat(property.status);
+      const caveat = listingStatusCaveat(
+        property.status,
+        property.listing_type
+      );
       const text = [...new Set(responded.map((r) => r.answer))].join(' ');
       return {
         answer: caveat ? `${text} ${caveat}` : text,
@@ -515,7 +518,7 @@ export function answerFromPropertyData(
       // told it is under contract, in the same breath.
       const caveat =
         answer && m.intent !== 'availability'
-          ? listingStatusCaveat(property.status)
+          ? listingStatusCaveat(property.status, property.listing_type)
           : null;
       return {
         answer: caveat ? `${answer} ${caveat}` : answer,
@@ -548,7 +551,7 @@ export function buildPropertyContext(property: QaProperty): string {
   add('Title', p.title);
   add('Type', p.type);
   add('Listing', p.listing_type);
-  add('Availability', listingAvailabilityContext(p.status));
+  add('Availability', listingAvailabilityContext(p.status, p.listing_type));
   if (isRentLike(p)) {
     add('Rent (per month)', p.rent_per_month ? inr(p.rent_per_month) : null);
     add('Maintenance (per month)', p.maintenance ? inr(p.maintenance) : null);

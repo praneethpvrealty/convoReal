@@ -375,6 +375,7 @@ function tap(buttonText: string): InboundChainContext {
     enquiryIsDeliberate: false,
     enquiryPropertyTitle: null,
     enquiryPropertyStatus: null,
+    enquiryPropertyListingType: null,
     specificPropertyInterest: false,
     propertyReferenceNeedsAgent: false,
     ownerCheck: { isOwner: false } as InboundChainContext['ownerCheck'],

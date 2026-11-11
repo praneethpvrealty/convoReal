@@ -67,7 +67,11 @@ export async function handlePropertyShareYesReply(
       contactId,
       conversationId,
       toPhone,
-      property: { title: typedProperty.title, status: typedProperty.status },
+      property: {
+        title: typedProperty.title,
+        status: typedProperty.status,
+        listing_type: typedProperty.listing_type,
+      },
     });
     if (unavailable === 'failed') return false;
     if (unavailable) return 'unavailable';
@@ -379,7 +383,7 @@ export async function handleSoldPriceReply(
   try {
     const { data: property } = await supabaseAdmin()
       .from('properties')
-      .select('title, sold_price')
+      .select('title, sold_price, listing_type')
       .eq('id', propertyId)
       .eq('account_id', accountId)
       .maybeSingle();
@@ -412,7 +416,8 @@ export async function handleSoldPriceReply(
       text: buildSoldPriceReply(
         (property.title as string) || 'This property',
         property.sold_price as number | null,
-        currency
+        currency,
+        property.listing_type as string | null
       ),
       senderType: 'bot',
     });
@@ -644,7 +649,7 @@ export async function handleShortlistPropertyReply(
     const db = supabaseAdmin();
     const { data: property } = await db
       .from('properties')
-      .select('id, title, status')
+      .select('id, title, status, listing_type')
       .eq('id', propertyId)
       .eq('account_id', accountId)
       .maybeSingle();
@@ -657,7 +662,11 @@ export async function handleShortlistPropertyReply(
       contactId,
       conversationId,
       toPhone,
-      property: { title: property.title, status: property.status },
+      property: {
+        title: property.title,
+        status: property.status,
+        listing_type: property.listing_type,
+      },
     });
     if (unavailable) return unavailable !== 'failed';
 

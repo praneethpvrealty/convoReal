@@ -18,6 +18,7 @@ export interface UnavailableListingReplyArgs {
   contactName: string | null | undefined;
   propertyTitle: string | null | undefined;
   status: string | null | undefined;
+  listingType?: string | null;
 }
 
 /** The reply to send, and every wording a thread may already hold —
@@ -37,7 +38,8 @@ export async function unavailableListingReplyWithShowcaseVariants(
     propertyTitle,
     status,
     showcaseUrl,
-    briefOnFile
+    briefOnFile,
+    args.listingType
   );
   if (!reply) return null;
   return {
@@ -46,7 +48,8 @@ export async function unavailableListingReplyWithShowcaseVariants(
       contactName,
       propertyTitle,
       status,
-      showcaseUrl
+      showcaseUrl,
+      args.listingType
     ),
   };
 }
