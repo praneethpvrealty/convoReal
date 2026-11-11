@@ -38,6 +38,7 @@ export interface PortfolioValueTotals {
 export interface PortfolioValue {
   properties: PropertyValue[];
   totals: PortfolioValueTotals;
+  truncated: boolean;
 }
 
 export function isStillOwned(
@@ -46,6 +47,12 @@ export function isStillOwned(
 ): boolean {
   if ((status ?? '').trim() !== 'Sold') return true;
   return listingType === 'Rent' || listingType === 'Built to Suit';
+}
+
+export function missingValueMessage(truncated: boolean): string {
+  return truncated
+    ? 'This property is older than the most recent ones counted in your portfolio value.'
+    : 'A sold property is no longer counted in your portfolio value.';
 }
 
 export function parseDeclaredValue(raw: unknown): number | null | undefined {
@@ -118,8 +125,13 @@ export function portfolioTotals(values: PropertyValue[]): PortfolioValueTotals {
   return totals;
 }
 
-export function valuedSummary(totals: PortfolioValueTotals): string {
+export function valuedSummary(
+  totals: PortfolioValueTotals,
+  truncated = false
+): string {
   if (totals.properties === 0) return 'No properties yet';
+  if (truncated)
+    return `From ${totals.valued} of your ${totals.properties} most recent properties; older ones are not counted`;
   if (totals.valued === 0) return 'Add a value to any property to start';
   if (totals.valued === totals.properties)
     return totals.properties === 1

@@ -60,7 +60,7 @@ export async function loadOwnerPortfolioValue(
 ): Promise<PortfolioValue> {
   const contactIds = ctx.links.map((l) => l.contactId);
   if (contactIds.length === 0) {
-    return { properties: [], totals: portfolioTotals([]) };
+    return { properties: [], totals: portfolioTotals([]), truncated: false };
   }
 
   const { data, error } = await db
@@ -68,21 +68,23 @@ export async function loadOwnerPortfolioValue(
     .select(VALUE_SELECT)
     .in('owner_contact_id', contactIds)
     .neq('listing_source', 'agent')
+    .eq('declared.den_user_id', ctx.denUserId)
     .order('created_at', { ascending: false })
-    .order('created_at', {
-      referencedTable: 'property_guidance_values',
-      ascending: false,
-    })
-    .limit(1, { referencedTable: 'property_guidance_values' })
-    .limit(VALUE_PROPERTY_LIMIT);
+    .order('created_at', { referencedTable: 'guidance', ascending: false })
+    .limit(1, { referencedTable: 'guidance' })
+    .limit(VALUE_PROPERTY_LIMIT + 1);
   if (error) throw error;
 
   const linkedAccounts = new Set(ctx.links.map((l) => l.accountId));
-  const rows = ((data ?? []) as unknown as ValueRow[]).filter(
-    (row) =>
-      linkedAccounts.has(row.account_id) &&
-      isStillOwned(row.status, row.listing_type)
-  );
+  const fetched = (data ?? []) as unknown as ValueRow[];
+  const truncated = fetched.length > VALUE_PROPERTY_LIMIT;
+  const rows = fetched
+    .slice(0, VALUE_PROPERTY_LIMIT)
+    .filter(
+      (row) =>
+        linkedAccounts.has(row.account_id) &&
+        isStillOwned(row.status, row.listing_type)
+    );
 
   const cellsByPlacement = await loadMarketCells(db, rows, now);
   const agencyByAccount = new Map(
@@ -112,7 +114,7 @@ export async function loadOwnerPortfolioValue(
     });
   });
 
-  return { properties, totals: portfolioTotals(properties) };
+  return { properties, totals: portfolioTotals(properties), truncated };
 }
 
 async function loadMarketCells(
@@ -195,7 +197,7 @@ export async function saveOwnerDeclaredValue(
       .from('owner_property_values')
       .delete()
       .eq('property_id', propertyId)
-      .eq('account_id', property.account_id as string);
+      .eq('den_user_id', ctx.denUserId);
     if (error) throw error;
     return 'cleared';
   }

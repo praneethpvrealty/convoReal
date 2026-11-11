@@ -89,7 +89,7 @@ export default function DenValueScreen() {
             {totals.valued > 0 ? formatInr(totals.estimate) : '—'}
           </Text>
           <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-            {valuedSummary(totals)}
+            {valuedSummary(totals, value.data?.truncated)}
           </Text>
           {totals.guidance_count > 0 ? (
             <Text style={{ fontSize: 12.5, color: colors.textMuted }}>

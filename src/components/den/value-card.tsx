@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   VALUE_SOURCE_LABELS,
+  missingValueMessage,
   valuedSummary,
   type PortfolioValue,
   type PropertyValue,
@@ -67,7 +68,7 @@ export function PortfolioValueCard() {
             {totals.valued > 0 ? formatINR(totals.estimate) : '—'}
           </p>
           <p className="text-muted-foreground text-[11px] font-medium">
-            {valuedSummary(totals)}
+            {valuedSummary(totals, data.truncated)}
           </p>
         </div>
         <div className="text-muted-foreground flex flex-col gap-0.5 text-[11px] font-semibold">
@@ -114,7 +115,7 @@ export function PropertyValuePanel({ propertyId }: PropertyValuePanelProps) {
           <p className="text-muted-foreground text-xs">Loading value…</p>
         ) : !value ? (
           <p className="text-muted-foreground text-xs font-semibold">
-            A sold property is no longer counted in your portfolio value.
+            {missingValueMessage(data.truncated)}
           </p>
         ) : (
           <PropertyValueRows key={value.declared ?? 'unset'} value={value} />

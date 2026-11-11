@@ -147,7 +147,7 @@ export default function DenHomeScreen() {
                 {valueTotals.valued > 0 ? formatInr(valueTotals.estimate) : '—'}
               </Text>
               <Text style={{ fontSize: 12, color: colors.textMuted }}>
-                {valuedSummary(valueTotals)}
+                {valuedSummary(valueTotals, value.data?.truncated)}
               </Text>
             </View>
             <Ionicons

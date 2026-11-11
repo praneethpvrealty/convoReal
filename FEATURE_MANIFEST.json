@@ -6918,10 +6918,14 @@
       "invariants": [
         {
           "id": "PVL-001",
-          "rule": "Portfolio shows each property's value from named sources that are never blended: the owner's own value, their expected sale price, a market range and the saved guidance value. A property counts toward the portfolio total at the first of those that exists, in that order, and the source is named beside the figure; a property with none counts as nothing and the total says how many properties it covers. A rent figure is never read as the value of a let property. Web (the value card on the Portfolio home and the panel on a property) and mobile (the Portfolio value screen) render the same GET /api/den/value response.",
+          "rule": "Portfolio shows each property's value from named sources that are never blended: the owner's own value, their expected sale price, a market range and the saved guidance value. A property counts toward the portfolio total at the first of those that exists, in that order, and the source is named beside the figure; a property with none counts as nothing and the total says how many properties it covers. A rent figure is never read as the value of a let property. The response counts an owner's 100 most recent properties; with more, it is flagged as truncated and both surfaces say older ones are not counted. Web (the value card on the Portfolio home and the panel on a property) and mobile (the Portfolio value screen) render the same GET /api/den/value response.",
           "tests": [
             {
               "file": "src/lib/den/value-view.test.ts",
+              "case": "[PVL-001]"
+            },
+            {
+              "file": "src/lib/den/value.test.ts",
               "case": "[PVL-001]"
             }
           ]
@@ -6942,7 +6946,7 @@
         },
         {
           "id": "PVL-003",
-          "rule": "The owner's own value is written only by PUT /api/den/value, for a property the caller owns, as a positive rupee amount of at most 1 lakh crore or null to clear it; anything else is refused and a property that is not theirs answers 404 with nothing written. It is stored in owner_property_values, which has row-level security on and no policy, so no staff session, buyer or public page can read it. A sold property leaves the portfolio value; a let or leased one, stored with the same closed status, stays.",
+          "rule": "The owner's own value is written only by PUT /api/den/value, for a property the caller owns, as a positive rupee amount of at most 1 lakh crore or null to clear it; anything else is refused and a property that is not theirs answers 404 with nothing written. It is stored in owner_property_values, which has row-level security on and no policy, so no staff session, buyer or public page can read it, and holds one figure per property that belongs to the owner identity that set it: the read returns it only to that identity, a clear removes only the caller's own figure, and a save by the property's current owner replaces a figure left by a previous one without ever showing it. A sold property leaves the portfolio value; a let or leased one, stored with the same closed status, stays.",
           "tests": [
             {
               "file": "src/lib/den/value-view.test.ts",

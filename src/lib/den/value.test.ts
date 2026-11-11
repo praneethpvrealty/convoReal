@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { DenContext } from './auth';
+import { valuedSummary } from './value-view';
 
 interface Call {
   table: string;
@@ -12,6 +13,7 @@ interface Call {
 
 let tables: Record<string, Record<string, unknown>[]>;
 let calls: Call[];
+let embedOptions: Array<[string, string]>;
 
 function makeDb(): SupabaseClient {
   return {
@@ -20,8 +22,14 @@ function makeDb(): SupabaseClient {
       calls.push(call);
       const builder: Record<string, unknown> = {
         select: () => builder,
-        order: () => builder,
-        limit: () => builder,
+        order: (_c: string, o?: { referencedTable?: string }) => (
+          o?.referencedTable && embedOptions.push(['order', o.referencedTable]),
+          builder
+        ),
+        limit: (_n: number, o?: { referencedTable?: string }) => (
+          o?.referencedTable && embedOptions.push(['limit', o.referencedTable]),
+          builder
+        ),
         delete: () => ((call.op = 'delete'), builder),
         upsert: (payload: unknown) => (
           (call.op = 'upsert'),
@@ -55,6 +63,7 @@ function makeDb(): SupabaseClient {
       const rows = () =>
         (tables[table] ?? []).filter((row) =>
           call.filters.every(([op, column, value]) => {
+            if (column.includes('.')) return true;
             if (op === 'eq') return row[column] === value;
             if (op === 'neq') return row[column] !== value;
             if (op === 'in') return (value as unknown[]).includes(row[column]);
@@ -124,6 +133,7 @@ const cell = {
 
 beforeEach(() => {
   calls = [];
+  embedOptions = [];
   tables = {
     properties: [],
     accounts: [],
@@ -155,6 +165,42 @@ describe('loadOwnerPortfolioValue', () => {
     const query = calls.find((c) => c.table === 'properties');
     expect(query?.filters).toContainEqual(['in', 'owner_contact_id', ['c-a']]);
     expect(query?.filters).toContainEqual(['neq', 'listing_source', 'agent']);
+  });
+
+  it("[PVL-003] reads only the figure the caller set, never another owner's", async () => {
+    tables.properties = [property({})];
+    await loadOwnerPortfolioValue(ctx([['acct-a', 'c-a']]), makeDb(), NOW);
+    const query = calls.find((c) => c.table === 'properties');
+    expect(query?.filters).toContainEqual([
+      'eq',
+      'declared.den_user_id',
+      'den-1',
+    ]);
+  });
+
+  it('[PVL-001] orders and limits the guidance embed by its alias', async () => {
+    tables.properties = [property({})];
+    await loadOwnerPortfolioValue(ctx([['acct-a', 'c-a']]), makeDb(), NOW);
+    expect(embedOptions).toEqual([
+      ['order', 'guidance'],
+      ['limit', 'guidance'],
+    ]);
+  });
+
+  it('[PVL-001] says so when an owner has more properties than it counts', async () => {
+    tables.properties = Array.from({ length: 101 }, (_, i) =>
+      property({ id: `p${i}` })
+    );
+    const result = await loadOwnerPortfolioValue(
+      ctx([['acct-a', 'c-a']]),
+      makeDb(),
+      NOW
+    );
+    expect(result.truncated).toBe(true);
+    expect(result.properties).toHaveLength(100);
+    expect(valuedSummary(result.totals, result.truncated)).toContain(
+      'most recent properties'
+    );
   });
 
   it('[PVL-004] shows a market range only under an agency that shares data', async () => {
@@ -266,7 +312,7 @@ describe('saveOwnerDeclaredValue', () => {
     expect(write?.op).toBe('delete');
     expect(write?.filters).toEqual([
       ['eq', 'property_id', 'p1'],
-      ['eq', 'account_id', 'acct-a'],
+      ['eq', 'den_user_id', 'den-1'],
     ]);
   });
 });
