@@ -118,24 +118,34 @@ const OFFERS_OWN_LOCATION =
  *  asking for where the listing actually is, not which area it is in.
  *  "I'll share my location" offers the lead's own. */
 export function asksExactLocation(text: string): boolean {
-  if (OFFERS_OWN_LOCATION.test(text)) return false;
-  return EXACT_LOCATION_PATTERNS.some((re) => re.test(text));
+  return text
+    .split(/[,.;!?\n]+|\b(?:and|also|then|but)\b/i)
+    .some(
+      (clause) =>
+        !OFFERS_OWN_LOCATION.test(clause) &&
+        EXACT_LOCATION_PATTERNS.some((re) => re.test(clause))
+    );
 }
 
 const LOCATION_ASK_FILLER = new Set(
-  'a an and also any are can could do does for get had has have i if is it its kindly me need of on or pls plz please property plot site share send give forward drop tell the this to u us want what where whereabouts which you exact exactly precise actual full correct location loc address spot pin google map maps link live located situated asked asking again already sir madam hi hello ok okay thanks thank'.split(
+  'a an and also any are at can could do does for get had has have i if in is it its kindly me need of on or pls plz please property plot site share send give forward drop tell the this to u us want what where whereabouts which you exact exactly precise actual full correct location loc address spot pin google map maps link live located situated area locality city town part side near asked asking again already sir madam hi hello ok okay thanks thank'.split(
     ' '
   )
 );
 
 /** Whether a location ask carries another question the location
  *  answer does not cover ("…and is there a school nearby?"). */
-export function asksBeyondLocation(text: string): boolean {
-  const rest = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter((w) => w && !LOCATION_ASK_FILLER.has(w));
+export function asksBeyondLocation(text: string, place = ''): boolean {
+  const words = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+  const placeWords = new Set(words(place));
+  const rest = words(text).filter(
+    (w) => !LOCATION_ASK_FILLER.has(w) && !placeWords.has(w)
+  );
   return rest.length >= 2;
 }
 
@@ -1077,7 +1087,11 @@ export async function answerLeadQuestion(args: {
       outcome,
       Boolean(args.requestExactLocation)
     )}`;
-    if (!otherAnswer && asksBeyondLocation(question)) {
+    if (
+      explicit &&
+      !otherAnswer &&
+      asksBeyondLocation(question, localityLabel(property))
+    ) {
       return {
         text: `${text} ${LOCATION_REST_HANDOVER_TEXT}`,
         source: 'handover',

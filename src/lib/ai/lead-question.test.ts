@@ -1321,6 +1321,9 @@ describe('[INB-050] exact location of a guarded listing on WhatsApp', () => {
       'send google maps pin',
       'location pin pls',
       'exact address please',
+      "Please share the exact location, I'll send my budget after",
+      "Send exact location pls, I'll share my number",
+      'can i send my number, also share exact location',
     ]) {
       expect(asksExactLocation(text), text).toBe(true);
     }
@@ -1409,6 +1412,23 @@ describe('[INB-050] exact location of a guarded listing on WhatsApp', () => {
     expect(
       asksBeyondLocation('exact location and is there a good school nearby?')
     ).toBe(true);
+  });
+
+  it('answers a plain area question without a handover', async () => {
+    for (const question of [
+      'Which area is it in?',
+      'Where is it located in Bangalore?',
+      'What area is this in?',
+    ]) {
+      const res = await answerLeadQuestion({
+        accountId: 'a1',
+        question,
+        property: guarded,
+        requestExactLocation: vi.fn(),
+      });
+      expect(res.source, question).toBe('listing');
+      expect(res.text).not.toContain(LOCATION_REST_HANDOVER_TEXT);
+    }
   });
 
   it('does not file a second request while one is pending or already sent', async () => {
