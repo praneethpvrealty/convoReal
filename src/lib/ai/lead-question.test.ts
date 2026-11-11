@@ -1327,6 +1327,10 @@ describe('[INB-050] exact location of a guarded listing on WhatsApp', () => {
       'Which part of Whitefield?',
       'Looking for a plot in a good location',
       'Could you share me an appropriate number to discuss',
+      "I'll share my location",
+      'let me send my address',
+      'can I give my location for pickup',
+      'Sharing our address for the agreement, please send the price',
     ]) {
       expect(asksExactLocation(text), text).toBe(false);
     }
@@ -1361,6 +1365,18 @@ describe('[INB-050] exact location of a guarded listing on WhatsApp', () => {
     expect(res.text).toContain(EXACT_LOCATION_FILED_TEXT);
     expect(res.text).not.toContain('Plot 12');
     expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('keeps the answer to the rest of a combined question', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Pls share the price and exact location',
+      property: guarded,
+      requestExactLocation: vi.fn().mockResolvedValue('filed'),
+    });
+    expect(res.text).toContain('₹34.50 Cr');
+    expect(res.text).toContain(EXACT_LOCATION_FILED_TEXT);
+    expect(res.text).not.toContain('Plot 12');
   });
 
   it('does not file a second request while one is pending or already sent', async () => {

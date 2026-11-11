@@ -1417,7 +1417,7 @@ export async function fileChatLocationRequest(
 
   const { data: recent, error: recentErr } = await admin
     .from('property_location_requests')
-    .select('id, status, share_token_expires_at')
+    .select('id, status, share_token_expires_at, share_sent_at')
     .eq('account_id', args.accountId)
     .eq('property_id', args.propertyId)
     .eq('requester_phone', phone)
@@ -1431,18 +1431,17 @@ export async function fileChatLocationRequest(
   const rows = (recent ?? []) as Array<{
     status: string;
     share_token_expires_at: string | null;
+    share_sent_at: string | null;
   }>;
   if (rows.some((r) => r.status === 'pending')) return 'pending';
-  if (
-    rows.some(
-      (r) =>
-        r.status === 'approved' &&
-        r.share_token_expires_at !== null &&
-        new Date(r.share_token_expires_at).getTime() > Date.now()
-    )
-  ) {
-    return 'sent';
-  }
+  const liveApproved = rows.filter(
+    (r) =>
+      r.status === 'approved' &&
+      r.share_token_expires_at !== null &&
+      new Date(r.share_token_expires_at).getTime() > Date.now()
+  );
+  if (liveApproved.some((r) => r.share_sent_at !== null)) return 'sent';
+  if (liveApproved.length > 0) return null;
 
   const { data: request, error } = await admin
     .from('property_location_requests')

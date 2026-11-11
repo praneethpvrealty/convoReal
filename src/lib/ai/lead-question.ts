@@ -107,13 +107,18 @@ const EXACT_LOCATION_PATTERNS = [
   /\b(google\s*)?maps?\s*(pin|link|location)\b/i,
   /\blocation\s*(pin|link)\b/i,
   /\b(pin|live)\s+location\b/i,
-  /\b(share|send|give|forward|drop)\b[^.?!\n]{0,20}\b(location|address|loc)\b/i,
+  /\b(share|send|give|forward|drop)\b(?:(?!\b(?:my|our|mine)\b)[^.?!\n]){0,20}\b(location|address|loc)\b/i,
   /\b(location|address)\s+(pls|plz|please|kindly)\b/i,
 ];
 
+const OFFERS_OWN_LOCATION =
+  /\b(i'?ll|i will|i can|can i|let me|i'?m|i am|shall i)\s+(share|send|give|forward|drop)\b|\b(my|our)\s+(live\s+)?(location|address)\b/i;
+
 /** "Pls share location", "exact address?", "send the maps pin": a lead
- *  asking for where the listing actually is, not which area it is in. */
+ *  asking for where the listing actually is, not which area it is in.
+ *  "I'll share my location" offers the lead's own. */
 export function asksExactLocation(text: string): boolean {
+  if (OFFERS_OWN_LOCATION.test(text)) return false;
   return EXACT_LOCATION_PATTERNS.some((re) => re.test(text));
 }
 
@@ -1039,13 +1044,21 @@ export async function answerLeadQuestion(args: {
         : null;
     if (explicit && args.requestExactLocation && !outcome) {
       return {
-        text: `${locality} ${EXACT_LOCATION_HANDOVER_TEXT}`,
+        text: `${
+          structured.answer && structured.intent !== 'location'
+            ? `${structured.answer}\n\n`
+            : ''
+        }${locality} ${EXACT_LOCATION_HANDOVER_TEXT}`,
         source: 'handover',
         intent: 'exact_location_request',
       };
     }
+    const otherAnswer =
+      structured.answer && structured.intent !== 'location'
+        ? `${structured.answer}\n\n`
+        : '';
     return {
-      text: `${locality} ${guardedLocationFollowUp(
+      text: `${otherAnswer}${locality} ${guardedLocationFollowUp(
         outcome,
         Boolean(args.requestExactLocation)
       )}`,

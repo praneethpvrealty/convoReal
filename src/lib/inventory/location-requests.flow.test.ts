@@ -811,12 +811,17 @@ describe('[INB-050] fileChatLocationRequest', () => {
     expect(sent).toHaveLength(0);
   });
 
-  it('points back at an approved link that is still valid, and files after it expires', async () => {
+  it('points back at an approved link only once it was delivered, and files after it expires', async () => {
     const tables = freshTables();
     await fileChatLocationRequest(fakeAdmin(tables), args);
     const row = tables.property_location_requests[0];
     row.status = 'approved';
     row.share_token_expires_at = new Date(Date.now() + 3600_000).toISOString();
+    row.share_sent_at = null;
+    expect(await fileChatLocationRequest(fakeAdmin(tables), args)).toBeNull();
+    expect(tables.property_location_requests).toHaveLength(1);
+
+    row.share_sent_at = new Date().toISOString();
     expect(await fileChatLocationRequest(fakeAdmin(tables), args)).toBe('sent');
     expect(tables.property_location_requests).toHaveLength(1);
 
