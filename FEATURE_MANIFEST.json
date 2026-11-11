@@ -6932,7 +6932,7 @@
         },
         {
           "id": "PVL-002",
-          "rule": "A market range is the property's area times the 25th, 50th and 75th percentile asking price per sq.ft of its market cell (same city, locality and property type, sale listings), taken from the newest month in the last six that has at least five listings with both a price and an area. Below that floor, or without an area, there is no range and the screen says why; a range is always labelled as asking prices, not registered sales.",
+          "rule": "A market range is the property's area, converted to sq.ft from the unit it was entered in, times the 25th, 50th and 75th percentile asking price per sq.ft of its market cell (same city, locality and property type, sale listings), where each listing's rate is its price over its own area in sq.ft, taken from the newest month in the last six that has at least five listings with both a price and an area. Below that floor, or without an area, there is no range and the screen says why; a range is always labelled as asking prices, not registered sales.",
           "tests": [
             {
               "file": "src/lib/market/valuation.test.ts",
@@ -6940,6 +6940,10 @@
             },
             {
               "file": "src/lib/market/stats-engine.test.ts",
+              "case": "[PVL-002]"
+            },
+            {
+              "file": "src/lib/den/value.test.ts",
               "case": "[PVL-002]"
             }
           ]

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MarketStatsConfig } from './stats-config';
 import { canonicalCity, normalizeToken } from './city';
+import { toSquareFeet } from '@/lib/area-units';
 
 export { normalizeToken };
 
@@ -43,6 +44,7 @@ interface PropertyRow {
   listing_type: string | null;
   price: number | null;
   area_sqft: number | null;
+  area_unit: string | null;
   status: string | null;
   sold_price: number | null;
   created_at: string;
@@ -211,7 +213,7 @@ export async function runMarketStats(
 
   const cells = new Map<string, Cell>();
   const PROP_COLS =
-    'account_id, city, sublocality, locality_canonical, type, listing_type, price, area_sqft, status, sold_price, created_at, status_changed_at';
+    'account_id, city, sublocality, locality_canonical, type, listing_type, price, area_sqft, area_unit, status, sold_price, created_at, status_changed_at';
 
   // 2. Supply — two simple queries instead of one .or(): (a) listings
   //    created in the window, (b) listings SOLD in the window (their
@@ -265,13 +267,9 @@ export async function runMarketStats(
       cell.prices.push(row.price);
     if (typeof row.area_sqft === 'number' && row.area_sqft > 0)
       cell.areas.push(row.area_sqft);
-    if (
-      typeof row.price === 'number' &&
-      row.price > 0 &&
-      typeof row.area_sqft === 'number' &&
-      row.area_sqft > 0
-    )
-      cell.pricesPerSqft.push(row.price / row.area_sqft);
+    const sqft = toSquareFeet(row.area_sqft, row.area_unit);
+    if (typeof row.price === 'number' && row.price > 0 && sqft)
+      cell.pricesPerSqft.push(row.price / sqft);
   }
 
   // Sale outcomes bucket by the month the status flipped to Sold

@@ -88,6 +88,7 @@ function property(accountId: string, over: Record<string, unknown> = {}) {
     listing_type: 'Sale',
     price: 8_000_000,
     area_sqft: 1200,
+    area_unit: 'Sq.Ft.',
     status: 'Available',
     sold_price: null,
     created_at: `${THIS_MONTH}-05T00:00:00.000Z`,
@@ -313,7 +314,11 @@ describe('runMarketStats — city names and price per sq.ft', () => {
     store.properties = [
       property('a1', { price: 5_000_000, area_sqft: 1000 }),
       property('a1', { price: 7_000_000, area_sqft: 1000 }),
-      property('a1', { price: 9_000_000, area_sqft: 1000 }),
+      property('a1', {
+        price: 9_000_000,
+        area_sqft: 1000 / 10.7639,
+        area_unit: 'Sq.Mtr.',
+      }),
       property('a1', { price: 9_000_000, area_sqft: null }),
       property('a1', { price: null, area_sqft: 1000 }),
     ];
@@ -323,7 +328,7 @@ describe('runMarketStats — city names and price per sq.ft', () => {
       priced_count: 3,
       median_price_per_sqft: 7000,
       p25_price_per_sqft: 6000,
-      p75_price_per_sqft: 8000,
     });
+    expect(store.market_stats[0].p75_price_per_sqft).toBeCloseTo(8000, 0);
   });
 });

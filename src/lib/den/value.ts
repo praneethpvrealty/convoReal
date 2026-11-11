@@ -16,11 +16,12 @@ import {
   type MarketPlacement,
   type MarketRateCell,
 } from '@/lib/market/valuation';
+import { toSquareFeet } from '@/lib/area-units';
 
 export const VALUE_PROPERTY_LIMIT = 100;
 
 const VALUE_SELECT =
-  'id, account_id, title, status, listing_type, price, city, sublocality, locality_canonical, type, area_sqft, declared:owner_property_values(declared_value), guidance:property_guidance_values(total_value, created_at)';
+  'id, account_id, title, status, listing_type, price, city, sublocality, locality_canonical, type, area_sqft, area_unit, declared:owner_property_values(declared_value), guidance:property_guidance_values(total_value, created_at)';
 
 interface ValueRow {
   id: string;
@@ -34,6 +35,7 @@ interface ValueRow {
   locality_canonical: string | null;
   type: string | null;
   area_sqft: number | string | null;
+  area_unit: string | null;
   declared:
     | { declared_value: number | string }[]
     | { declared_value: number | string }
@@ -46,6 +48,10 @@ function amount(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function sqft(row: ValueRow): number | null {
+  return toSquareFeet(amount(row.area_sqft), row.area_unit);
 }
 
 function first<T>(value: T[] | T | null | undefined): T | null {
@@ -110,7 +116,7 @@ export async function loadOwnerPortfolioValue(
         guidanceTotal !== null
           ? { total: guidanceTotal, saved_at: guidance?.created_at ?? null }
           : null,
-      market: marketRange(amount(row.area_sqft), cells),
+      market: marketRange(sqft(row), cells),
     });
   });
 
@@ -143,7 +149,7 @@ async function loadMarketCells(
   const accountsByPlacement = new Map<string, Set<string>>();
   for (const row of rows) {
     if (!consentingIds.has(row.account_id)) continue;
-    if (amount(row.area_sqft) === null) continue;
+    if (sqft(row) === null) continue;
     const placement = marketPlacement(row);
     if (!placement) continue;
     const key = placementKey(placement);

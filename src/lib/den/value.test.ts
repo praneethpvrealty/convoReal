@@ -113,6 +113,7 @@ const property = (over: Record<string, unknown>) => ({
   locality_canonical: null,
   type: 'Apartment',
   area_sqft: 1000,
+  area_unit: 'Sq.Ft.',
   declared: null,
   guidance: [],
   ...over,
@@ -232,6 +233,19 @@ describe('loadOwnerPortfolioValue', () => {
       comparables: 6,
     });
     expect(byId.get('private')?.market).toBeNull();
+  });
+
+  it('[PVL-002] converts an area entered in another unit before pricing it', async () => {
+    tables.accounts = [{ id: 'acct-a', data_sharing_consent: true }];
+    tables.properties = [property({ area_sqft: 100, area_unit: 'Sq.Mtr.' })];
+    const result = await loadOwnerPortfolioValue(
+      ctx([['acct-a', 'c-a']]),
+      makeDb(),
+      NOW
+    );
+    const mid = result.properties[0].market?.mid ?? 0;
+    expect(mid).toBeGreaterThan(9_600_000);
+    expect(mid).toBeLessThan(9_800_000);
   });
 
   it('[PVL-004] never queries market cells when no agency shares data', async () => {
