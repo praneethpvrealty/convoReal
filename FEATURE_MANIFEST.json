@@ -931,6 +931,25 @@
             "src/lib/whatsapp/inbound/chain/run.ts",
             "supabase/migrations/20261108073500_contact_notes_system_author.sql"
           ]
+        },
+        {
+          "id": "INB-050",
+          "rule": "A lead who asks on WhatsApp for the exact location of a guarded listing in their thread (\"Pls share location\", \"I had asked for the exact location\", \"send the maps pin\") is never told only that the address is shared on request: the bot answers with the locality and files a direct location request for that lead and listing, the same request the showcase's Exact location button files, which reaches the listing side's approval queue (in-app, push and the WhatsApp Approve/Reject ping) and, once approved, reaches the lead on the location reveal template. A request already pending is not filed again and the lead is told it is with the team; a lead whose approved link is still valid is pointed back at it; a listing that is not live files nothing; and when the request cannot be filed the question is handed to a person. A question about the area alone (\"Where is it?\") gets the locality and an offer to request the exact address, without filing one. The street address, pin and coordinates of a guarded listing never appear in the bot's reply, and the public showcase Q&A, which cannot file a request, keeps saying the address is shared on request.",
+          "tests": [
+            {
+              "file": "src/lib/ai/lead-question.test.ts",
+              "case": "[INB-050]"
+            },
+            {
+              "file": "src/lib/inventory/location-requests.flow.test.ts",
+              "case": "[INB-050]"
+            }
+          ],
+          "guards": [
+            "src/lib/ai/lead-question.ts",
+            "src/lib/inventory/location-requests.ts",
+            "src/lib/whatsapp/inbound/chain/steps/lead-question.ts"
+          ]
         }
       ]
     },

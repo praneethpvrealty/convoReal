@@ -1392,3 +1392,78 @@ export async function recordReshareLink(
     console.error('[location-requests] Reshare insert failed:', error);
   }
 }
+
+export type ChatLocationRequestOutcome = 'filed' | 'pending' | 'sent';
+
+/** A lead asking on WhatsApp for the exact location of a guarded
+ *  listing in their thread: the same direct request the showcase's
+ *  Exact location button files, so the listing side gets it in their
+ *  approval queue and an approval reaches the lead on the reveal
+ *  template. A request already pending is not filed again, and a lead
+ *  whose approved link is still valid is pointed back at it. Returns
+ *  null when nothing could be filed. */
+export async function fileChatLocationRequest(
+  admin: SupabaseClient,
+  args: {
+    accountId: string;
+    propertyId: string;
+    contactId: string;
+    requesterName: string | null;
+    requesterPhone: string;
+  }
+): Promise<ChatLocationRequestOutcome | null> {
+  const phone = normalizePhoneWithCountryCode(args.requesterPhone);
+  if (!phone) return null;
+
+  const { data: recent, error: recentErr } = await admin
+    .from('property_location_requests')
+    .select('id, status, share_token_expires_at')
+    .eq('account_id', args.accountId)
+    .eq('property_id', args.propertyId)
+    .eq('requester_phone', phone)
+    .in('status', ['pending', 'approved'])
+    .order('created_at', { ascending: false })
+    .limit(5);
+  if (recentErr) {
+    console.error('[location-requests] Chat request lookup failed:', recentErr);
+    return null;
+  }
+  const rows = (recent ?? []) as Array<{
+    status: string;
+    share_token_expires_at: string | null;
+  }>;
+  if (rows.some((r) => r.status === 'pending')) return 'pending';
+  if (
+    rows.some(
+      (r) =>
+        r.status === 'approved' &&
+        r.share_token_expires_at !== null &&
+        new Date(r.share_token_expires_at).getTime() > Date.now()
+    )
+  ) {
+    return 'sent';
+  }
+
+  const { data: request, error } = await admin
+    .from('property_location_requests')
+    .insert({
+      account_id: args.accountId,
+      property_id: args.propertyId,
+      contact_id: args.contactId,
+      requester_name: args.requesterName?.trim() || phone,
+      requester_phone: phone,
+      status: 'pending',
+      scope: 'location',
+    })
+    .select(
+      'id, account_id, property_id, requester_name, requester_phone, via_contact_id, scope'
+    )
+    .single();
+  if (error || !request) {
+    console.error('[location-requests] Chat request insert failed:', error);
+    return null;
+  }
+
+  await notifyOwnerQueue(admin, request as LocationRequestRow);
+  return 'filed';
+}

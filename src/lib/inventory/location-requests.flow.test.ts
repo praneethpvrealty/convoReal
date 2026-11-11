@@ -59,6 +59,7 @@ import {
   closeRequestWithRedirect,
   sweepConsentTimeouts,
   resolveNextIntermediary,
+  fileChatLocationRequest,
   CONSENT_APPROVE_PREFIX,
   CONSENT_DECLINE_PREFIX,
   OWNER_APPROVE_PREFIX,
@@ -758,5 +759,71 @@ describe('reveal delivery outside the 24-hour window', () => {
     expect(row.status).toBe('approved');
     expect(row.share_sent_at).toBeUndefined();
     expect(sent.some((m) => m.kind === 'template')).toBe(false);
+  });
+});
+
+describe('[INB-050] fileChatLocationRequest', () => {
+  beforeEach(() => {
+    sent.length = 0;
+    notified.length = 0;
+  });
+
+  const args = {
+    accountId: ACCOUNT,
+    propertyId: PROPERTY,
+    contactId: 'contact-lead',
+    requesterName: 'Arjun',
+    requesterPhone: '919876543210',
+  };
+
+  it("files a direct request and puts it in the listing side's queue", async () => {
+    const tables = freshTables();
+    const outcome = await fileChatLocationRequest(fakeAdmin(tables), args);
+    expect(outcome).toBe('filed');
+    const rows = tables.property_location_requests;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      account_id: ACCOUNT,
+      property_id: PROPERTY,
+      contact_id: 'contact-lead',
+      requester_name: 'Arjun',
+      status: 'pending',
+      scope: 'location',
+    });
+    expect(String(rows[0].requester_phone)).toContain('9876543210');
+    expect(notified.some((n) => n.type === 'location_request')).toBe(true);
+    expect(
+      sent.some((m) =>
+        m.interactiveButtons?.some((b) => b.id.startsWith(OWNER_APPROVE_PREFIX))
+      )
+    ).toBe(true);
+  });
+
+  it('does not file again while a request is pending', async () => {
+    const tables = freshTables();
+    await fileChatLocationRequest(fakeAdmin(tables), args);
+    sent.length = 0;
+    notified.length = 0;
+    const outcome = await fileChatLocationRequest(fakeAdmin(tables), args);
+    expect(outcome).toBe('pending');
+    expect(tables.property_location_requests).toHaveLength(1);
+    expect(notified).toHaveLength(0);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('points back at an approved link that is still valid, and files after it expires', async () => {
+    const tables = freshTables();
+    await fileChatLocationRequest(fakeAdmin(tables), args);
+    const row = tables.property_location_requests[0];
+    row.status = 'approved';
+    row.share_token_expires_at = new Date(Date.now() + 3600_000).toISOString();
+    expect(await fileChatLocationRequest(fakeAdmin(tables), args)).toBe('sent');
+    expect(tables.property_location_requests).toHaveLength(1);
+
+    row.share_token_expires_at = new Date(Date.now() - 3600_000).toISOString();
+    expect(await fileChatLocationRequest(fakeAdmin(tables), args)).toBe(
+      'filed'
+    );
+    expect(tables.property_location_requests).toHaveLength(2);
   });
 });
