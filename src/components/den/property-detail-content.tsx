@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 
 import { DealModeToggle } from './deal-mode-toggle';
+import { PropertyValuePanel } from './value-card';
 import { formatINR } from './format';
 import type { DenProperty } from './properties-content';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -202,6 +203,8 @@ export function DenPropertyDetailContent() {
           )}
         </CardContent>
       </Card>
+
+      <PropertyValuePanel propertyId={property.id} />
 
       <Card>
         <CardHeader className="pb-2">

@@ -291,3 +291,39 @@ describe('runMarketStats — replace semantics', () => {
     expect(store.market_stats).toHaveLength(0); // window replaced, cell gone
   });
 });
+
+describe('runMarketStats — city names and price per sq.ft', () => {
+  it('[PVL-005] pools Bangalore and Bengaluru listings into one cell', async () => {
+    store.accounts = [account('a1'), account('a2')];
+    store.properties = [
+      property('a1', { city: 'Bangalore' }),
+      property('a2', { city: ' bengaluru ' }),
+    ];
+    await runMarketStats(makeAdmin(store), cfg({ k_threshold: 2 }), NOW);
+    expect(store.market_stats).toHaveLength(1);
+    expect(store.market_stats[0]).toMatchObject({
+      city: 'bengaluru',
+      listings_count: 2,
+      accounts_count: 2,
+    });
+  });
+
+  it('[PVL-002] writes per-sq.ft quantiles from listings with a price and an area', async () => {
+    store.accounts = [account('a1')];
+    store.properties = [
+      property('a1', { price: 5_000_000, area_sqft: 1000 }),
+      property('a1', { price: 7_000_000, area_sqft: 1000 }),
+      property('a1', { price: 9_000_000, area_sqft: 1000 }),
+      property('a1', { price: 9_000_000, area_sqft: null }),
+      property('a1', { price: null, area_sqft: 1000 }),
+    ];
+    await runMarketStats(makeAdmin(store), cfg({ k_threshold: 1 }), NOW);
+    expect(store.market_stats[0]).toMatchObject({
+      listings_count: 5,
+      priced_count: 3,
+      median_price_per_sqft: 7000,
+      p25_price_per_sqft: 6000,
+      p75_price_per_sqft: 8000,
+    });
+  });
+});

@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/card';
 import { KeyRound, Phone, ArrowLeft } from 'lucide-react';
 import { reloadTo } from '@/lib/navigation';
+import { rememberReferralSource } from '@/lib/den/referral';
 
 const cleanPhoneInput = toAuthPhone;
 
@@ -34,6 +35,10 @@ export default function DenLoginPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    rememberReferralSource(window.location.search);
+  }, []);
 
   useEffect(() => {
     if (countdown <= 0) return;

@@ -15,6 +15,7 @@
 
 import { normalizePhone } from '@/lib/whatsapp/phone-utils';
 import { denAdmin, type DenContactLink } from './auth';
+import { normalizeReferralSource } from './referral';
 
 export interface CompleteDenAuthResult {
   denUserId: string;
@@ -29,6 +30,9 @@ export async function completeDenAuth(args: {
   /** Verified phone from auth.users (E.164-ish). */
   phone: string;
   displayName?: string | null;
+  /** Partner link the owner arrived through. Stored once, when the
+   *  den_users row is created; a later sign-in never rewrites it. */
+  referralSource?: string | null;
 }): Promise<CompleteDenAuthResult> {
   const db = denAdmin();
   const phone = args.phone;
@@ -64,6 +68,7 @@ export async function completeDenAuth(args: {
         phone,
         phone_normalized: last10,
         display_name: args.displayName || null,
+        referral_source: normalizeReferralSource(args.referralSource),
       })
       .select('id')
       .single();

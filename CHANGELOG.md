@@ -19,6 +19,26 @@ than a written entry. Newest first.
 
 #### 11 November 2026
 
+- **Portfolio now shows owners what their properties are worth.** The
+  Portfolio home on web and mobile carries a portfolio value, and each
+  property shows where its figure comes from: the owner's own value, which
+  only they can see and can set or clear, the guidance value on file, and a
+  market range. The market range appears only when at least five comparable
+  listings in the locality have a price and an area, and is labelled as
+  asking prices; until then the screen says there is no range rather than
+  showing a guess. A sold property leaves the total and a let one stays.
+  **Migration required:** `20261111124700_portfolio_value.sql`.
+- **Bangalore and Bengaluru are one city in market stats.** Listings typed
+  with the older name were counted as a different city from the rest, which
+  split the comparables in every locality. The stats job, the market range
+  and the account's own medians now fold renamed cities into one.
+  **Migration required:**
+  `20261111124701_account_locality_medians_city_alias.sql`.
+- **A Portfolio sign-in link can name the partner it came from.**
+  `/den/login?ref=<partner>` records the partner on the owner's Portfolio
+  identity when it is first created, so sign-ups from a partner can be
+  counted.
+
 - **A rental that closes now reads Rented, not Sold.** The edit form on web
   and mobile offered only Sold for a For Rent listing, and its card, its
   showcase badge and the WhatsApp update to interested contacts all said the

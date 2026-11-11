@@ -6910,6 +6910,98 @@
           ]
         }
       ]
+    },
+    {
+      "id": "portfolio-value",
+      "name": "Portfolio value — what an owner's properties are worth, from their own figure, guidance value and a market range",
+      "surfaces": ["web", "mobile"],
+      "invariants": [
+        {
+          "id": "PVL-001",
+          "rule": "Portfolio shows each property's value from named sources that are never blended: the owner's own value, their expected sale price, a market range and the saved guidance value. A property counts toward the portfolio total at the first of those that exists, in that order, and the source is named beside the figure; a property with none counts as nothing and the total says how many properties it covers. A rent figure is never read as the value of a let property. Web (the value card on the Portfolio home and the panel on a property) and mobile (the Portfolio value screen) render the same GET /api/den/value response.",
+          "tests": [
+            {
+              "file": "src/lib/den/value-view.test.ts",
+              "case": "[PVL-001]"
+            }
+          ]
+        },
+        {
+          "id": "PVL-002",
+          "rule": "A market range is the property's area times the 25th, 50th and 75th percentile asking price per sq.ft of its market cell (same city, locality and property type, sale listings), taken from the newest month in the last six that has at least five listings with both a price and an area. Below that floor, or without an area, there is no range and the screen says why; a range is always labelled as asking prices, not registered sales.",
+          "tests": [
+            {
+              "file": "src/lib/market/valuation.test.ts",
+              "case": "[PVL-002]"
+            },
+            {
+              "file": "src/lib/market/stats-engine.test.ts",
+              "case": "[PVL-002]"
+            }
+          ]
+        },
+        {
+          "id": "PVL-003",
+          "rule": "The owner's own value is written only by PUT /api/den/value, for a property the caller owns, as a positive rupee amount of at most 1 lakh crore or null to clear it; anything else is refused and a property that is not theirs answers 404 with nothing written. It is stored in owner_property_values, which has row-level security on and no policy, so no staff session, buyer or public page can read it. A sold property leaves the portfolio value; a let or leased one, stored with the same closed status, stays.",
+          "tests": [
+            {
+              "file": "src/lib/den/value-view.test.ts",
+              "case": "[PVL-003]"
+            },
+            {
+              "file": "src/lib/den/value.test.ts",
+              "case": "[PVL-003]"
+            }
+          ],
+          "guards": ["supabase/migrations/20261111124700_portfolio_value.sql"]
+        },
+        {
+          "id": "PVL-004",
+          "rule": "GET /api/den/value returns only listings whose owner contact is one of the caller's active links, never an agent-referred listing or another owner's. Market cells are the anonymized k-anonymous rollups and are read only for a property whose managing agency has opted into data sharing; with no such agency the market table is not queried at all.",
+          "tests": [
+            {
+              "file": "src/lib/den/value.test.ts",
+              "case": "[PVL-004]"
+            }
+          ]
+        },
+        {
+          "id": "PVL-005",
+          "rule": "Market stats treat a city's older or alternate name as the same city: Bangalore, Bengalooru and Bengaluru Urban are Bengaluru, and likewise for the other renamed cities in CITY_ALIASES. The stats engine, the per-property market lookup and the account's own medians (account_locality_medians) use the same list, so listings are never split across two spellings.",
+          "tests": [
+            {
+              "file": "src/lib/market/city.test.ts",
+              "case": "[PVL-005]"
+            },
+            {
+              "file": "src/lib/market/stats-engine.test.ts",
+              "case": "[PVL-005]"
+            },
+            {
+              "file": "src/lib/market/valuation.test.ts",
+              "case": "[PVL-005]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261111124701_account_locality_medians_city_alias.sql"
+          ]
+        },
+        {
+          "id": "PVL-006",
+          "rule": "A Portfolio sign-in link may carry ?ref=<partner>, a lowercase slug of at most 40 letters, digits, hyphens or underscores. The web sign-in page remembers it through the WhatsApp or Google sign-in and it is stored on den_users.referral_source once, when the owner's Portfolio identity is created; a malformed value is dropped and a later sign-in never rewrites it.",
+          "tests": [
+            {
+              "file": "src/lib/den/referral.test.ts",
+              "case": "[PVL-006]"
+            },
+            {
+              "file": "src/lib/den/linking.test.ts",
+              "case": "[PVL-006]"
+            }
+          ],
+          "guards": ["supabase/migrations/20261111124700_portfolio_value.sql"]
+        }
+      ]
     }
   ]
 }

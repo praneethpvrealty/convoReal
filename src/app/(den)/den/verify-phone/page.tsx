@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/client';
 import { toAuthPhone } from '@/lib/whatsapp/phone-utils';
+import { postDenAuthComplete } from '@/lib/den/referral';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -101,7 +102,7 @@ export default function DenVerifyPhonePage() {
       return;
     }
     // Finish Den identity + contact linking, then enter.
-    await fetch('/api/den/auth/complete', { method: 'POST' }).catch(() => null);
+    await postDenAuthComplete().catch(() => null);
     reloadTo('/den');
   };
 

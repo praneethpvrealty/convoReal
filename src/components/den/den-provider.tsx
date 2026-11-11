@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/client';
 import { reloadTo } from '@/lib/navigation';
+import { postDenAuthComplete } from '@/lib/den/referral';
 import { markDeliberateSignOut } from '@/lib/auth/deliberate-sign-out';
 
 export interface DenLink {
@@ -104,9 +105,7 @@ export function DenProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const completeRes = await fetch('/api/den/auth/complete', {
-        method: 'POST',
-      });
+      const completeRes = await postDenAuthComplete();
       if (cancelled) return;
       if (completeRes.status === 401) {
         router.replace('/den/login');

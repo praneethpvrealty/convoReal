@@ -13,9 +13,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { valuedSummary } from '@shared/lib/den/value-view';
+
 import { DenSellerPageCard } from '@/components/den-seller-page-card';
 import { EmptyState, FilterChip, Tag } from '@/components/ui';
-import { fetchDenBids, fetchDenDashboard, fetchDenMe } from '@/lib/den-api';
+import {
+  fetchDenBids,
+  fetchDenDashboard,
+  fetchDenMe,
+  fetchDenValue,
+} from '@/lib/den-api';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { formatInr } from '@/lib/format';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -37,9 +44,16 @@ export default function DenHomeScreen() {
     queryFn: () => fetchDenDashboard(days),
   });
   const bids = useQuery({ queryKey: ['den-bids'], queryFn: fetchDenBids });
+  const value = useQuery({ queryKey: ['den-value'], queryFn: fetchDenValue });
   const pull = usePullRefresh(() =>
-    Promise.all([me.refetch(), dashboard.refetch(), bids.refetch()])
+    Promise.all([
+      me.refetch(),
+      dashboard.refetch(),
+      bids.refetch(),
+      value.refetch(),
+    ])
   );
+  const valueTotals = value.data?.totals;
 
   const pendingBids = (bids.data?.bids ?? []).filter(
     (b) => b.status === 'pending'
@@ -104,6 +118,46 @@ export default function DenHomeScreen() {
         pages={me.data?.seller_pages ?? []}
         hasProperties={(me.data?.property_count ?? 0) > 0}
       />
+
+      {valueTotals && valueTotals.properties > 0 ? (
+        <Link href="/(den)/den/value" asChild>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Portfolio value"
+            style={StyleSheet.flatten([
+              styles.bidsCard,
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.primary,
+              },
+            ])}
+          >
+            <Ionicons name="wallet-outline" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                Portfolio value
+              </Text>
+              <Text
+                style={{
+                  fontSize: 20,
+                  fontFamily: f.extrabold,
+                  color: colors.text,
+                }}
+              >
+                {valueTotals.valued > 0 ? formatInr(valueTotals.estimate) : '—'}
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                {valuedSummary(valueTotals)}
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={17}
+              color={colors.textFaint}
+            />
+          </Pressable>
+        </Link>
+      ) : null}
 
       {/* Offers entry */}
       <Link href="/(den)/den/bids" asChild>

@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { MarketStatsConfig } from './stats-config';
+import { canonicalCity, normalizeToken } from './city';
+
+export { normalizeToken };
 
 /**
  * Anonymized market-stats aggregation engine.
@@ -67,6 +70,7 @@ interface Cell {
   listing_type: string;
   prices: number[];
   areas: number[];
+  pricesPerSqft: number[];
   soldPrices: number[];
   daysToSell: number[];
   budgets: number[];
@@ -85,11 +89,13 @@ export function median(values: number[]): number | null {
     : sorted[mid];
 }
 
-/** Lowercase + whitespace-collapsed so "Whitefield " and "whitefield"
- *  land in the same cell. Consumers can title-case for display. */
-export function normalizeToken(raw: string | null | undefined): string | null {
-  const t = (raw ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
-  return t.length > 0 ? t : null;
+export function quantile(values: number[], q: number): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
 /** First day of a timestamp's month, as a DATE string. */
@@ -137,6 +143,7 @@ function getCell(
       ...dims,
       prices: [],
       areas: [],
+      pricesPerSqft: [],
       soldPrices: [],
       daysToSell: [],
       budgets: [],
@@ -232,7 +239,7 @@ export async function runMarketStats(
   }
 
   const dimsFor = (row: PropertyRow, month: string) => {
-    const city = normalizeToken(row.city);
+    const city = canonicalCity(row.city);
     const locality =
       normalizeToken(row.locality_canonical) ?? normalizeToken(row.sublocality);
     const type = normalizeToken(row.type);
@@ -258,6 +265,13 @@ export async function runMarketStats(
       cell.prices.push(row.price);
     if (typeof row.area_sqft === 'number' && row.area_sqft > 0)
       cell.areas.push(row.area_sqft);
+    if (
+      typeof row.price === 'number' &&
+      row.price > 0 &&
+      typeof row.area_sqft === 'number' &&
+      row.area_sqft > 0
+    )
+      cell.pricesPerSqft.push(row.price / row.area_sqft);
   }
 
   // Sale outcomes bucket by the month the status flipped to Sold
@@ -353,6 +367,10 @@ export async function runMarketStats(
       listings_count: cell.side === 'supply' ? cell.listingsCount : null,
       median_price: median(cell.prices),
       median_area_sqft: median(cell.areas),
+      priced_count: cell.side === 'supply' ? cell.pricesPerSqft.length : null,
+      median_price_per_sqft: quantile(cell.pricesPerSqft, 0.5),
+      p25_price_per_sqft: quantile(cell.pricesPerSqft, 0.25),
+      p75_price_per_sqft: quantile(cell.pricesPerSqft, 0.75),
       sold_count: cell.side === 'supply' ? cell.soldCount : null,
       median_sold_price: median(cell.soldPrices),
       median_days_to_sell: median(cell.daysToSell),
