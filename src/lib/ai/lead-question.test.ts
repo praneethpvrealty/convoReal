@@ -30,6 +30,15 @@ import {
   isHandoverText,
   previousLeadQuestion,
   questionSubjectProperties,
+  asksExactLocation,
+  EXACT_LOCATION_FILED_TEXT,
+  EXACT_LOCATION_PENDING_TEXT,
+  EXACT_LOCATION_SENT_TEXT,
+  EXACT_LOCATION_OFFER_TEXT,
+  EXACT_LOCATION_ON_REQUEST_TEXT,
+  EXACT_LOCATION_HANDOVER_TEXT,
+  LOCATION_REST_HANDOVER_TEXT,
+  asksBeyondLocation,
 } from './lead-question';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -1283,5 +1292,192 @@ describe("[INB-038] a lead's message is read for what it asks", () => {
         listingAlreadySent: false,
       })
     ).toBe(false);
+  });
+});
+
+describe('[INB-050] exact location of a guarded listing on WhatsApp', () => {
+  const guarded = {
+    ...property,
+    type: 'Land',
+    location: 'Plot 12, 3rd Cross, Banashankari 6th Stage',
+    sublocality: 'Banashankari 6th Stage',
+    city: 'Bangalore',
+    location_privacy: 'locality',
+  } as unknown as QaProperty;
+
+  beforeEach(() => {
+    vi.mocked(burnCredits).mockResolvedValue({ deficit: 0 } as never);
+    vi.mocked(generateText).mockResolvedValue('');
+  });
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reads a request for the exact location, and not a question about the area', () => {
+    for (const text of [
+      'Pls share location',
+      'I had asked for the exact location',
+      'Can u share the exact location?',
+      'send google maps pin',
+      'location pin pls',
+      'exact address please',
+      "Please share the exact location, I'll send my budget after",
+      "Send exact location pls, I'll share my number",
+      'can i send my number, also share exact location',
+    ]) {
+      expect(asksExactLocation(text), text).toBe(true);
+    }
+    for (const text of [
+      'Where is it?',
+      'Which part of Whitefield?',
+      'Looking for a plot in a good location',
+      'Could you share me an appropriate number to discuss',
+      "I'll share my location",
+      'let me send my address',
+      'can I give my location for pickup',
+      'Sharing our address for the agreement, please send the price',
+    ]) {
+      expect(asksExactLocation(text), text).toBe(false);
+    }
+  });
+
+  it('files the request and tells the lead it went to the team', async () => {
+    const requestExactLocation = vi.fn().mockResolvedValue('filed');
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Pls share location',
+      property: guarded,
+      requestExactLocation,
+    });
+    expect(requestExactLocation).toHaveBeenCalledTimes(1);
+    expect(res.source).toBe('listing');
+    expect(res.intent).toBe('exact_location_request');
+    expect(res.text).toContain('Banashankari 6th Stage');
+    expect(res.text).not.toContain('Plot 12');
+    expect(res.text).toContain(EXACT_LOCATION_FILED_TEXT);
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('files a request phrased without a question or a field name', async () => {
+    const requestExactLocation = vi.fn().mockResolvedValue('filed');
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'send google maps pin',
+      property: guarded,
+      requestExactLocation,
+    });
+    expect(requestExactLocation).toHaveBeenCalledTimes(1);
+    expect(res.text).toContain(EXACT_LOCATION_FILED_TEXT);
+    expect(res.text).not.toContain('Plot 12');
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('keeps the answer to the rest of a combined question', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Pls share the price and exact location',
+      property: guarded,
+      requestExactLocation: vi.fn().mockResolvedValue('filed'),
+    });
+    expect(res.text).toContain('₹34.50 Cr');
+    expect(res.text).toContain(EXACT_LOCATION_FILED_TEXT);
+    expect(res.text).not.toContain('Plot 12');
+  });
+
+  it('hands the rest of a combined question to a person when the listing cannot answer it', async () => {
+    const requestExactLocation = vi.fn().mockResolvedValue('filed');
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question:
+        'Share the exact location and will the owner accept staggered payments?',
+      property: guarded,
+      requestExactLocation,
+    });
+    expect(requestExactLocation).toHaveBeenCalledTimes(1);
+    expect(res.source).toBe('handover');
+    expect(res.text).toContain(EXACT_LOCATION_FILED_TEXT);
+    expect(res.text).toContain(LOCATION_REST_HANDOVER_TEXT);
+  });
+
+  it('sees nothing beyond a plain location ask', () => {
+    for (const text of [
+      'Pls share location',
+      'I had asked for the exact location',
+      'Can u share the exact location?',
+      'send google maps pin',
+      'Where is it?',
+    ]) {
+      expect(asksBeyondLocation(text), text).toBe(false);
+    }
+    expect(
+      asksBeyondLocation('exact location and is there a good school nearby?')
+    ).toBe(true);
+  });
+
+  it('answers a plain area question without a handover', async () => {
+    for (const question of [
+      'Which area is it in?',
+      'Where is it located in Bangalore?',
+      'What area is this in?',
+    ]) {
+      const res = await answerLeadQuestion({
+        accountId: 'a1',
+        question,
+        property: guarded,
+        requestExactLocation: vi.fn(),
+      });
+      expect(res.source, question).toBe('listing');
+      expect(res.text).not.toContain(LOCATION_REST_HANDOVER_TEXT);
+    }
+  });
+
+  it('does not file a second request while one is pending or already sent', async () => {
+    for (const [outcome, line] of [
+      ['pending', EXACT_LOCATION_PENDING_TEXT],
+      ['sent', EXACT_LOCATION_SENT_TEXT],
+    ] as const) {
+      const res = await answerLeadQuestion({
+        accountId: 'a1',
+        question: 'I had asked for the exact location',
+        property: guarded,
+        requestExactLocation: vi.fn().mockResolvedValue(outcome),
+      });
+      expect(res.text).toContain(line);
+      expect(res.source).toBe('listing');
+    }
+  });
+
+  it('hands over to a person when the request cannot be filed', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Pls share location',
+      property: guarded,
+      requestExactLocation: vi.fn().mockResolvedValue(null),
+    });
+    expect(res.source).toBe('handover');
+    expect(res.text).toContain(EXACT_LOCATION_HANDOVER_TEXT);
+    expect(res.text).not.toContain(EXACT_LOCATION_ON_REQUEST_TEXT);
+  });
+
+  it('answers an area question with the locality and offers the request without filing it', async () => {
+    const requestExactLocation = vi.fn();
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Where is it?',
+      property: guarded,
+      requestExactLocation,
+    });
+    expect(requestExactLocation).not.toHaveBeenCalled();
+    expect(res.text).toContain(EXACT_LOCATION_OFFER_TEXT);
+  });
+
+  it('keeps "shared on request" where no request can be filed', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Pls share location',
+      property: guarded,
+    });
+    expect(res.text).toContain(EXACT_LOCATION_ON_REQUEST_TEXT);
+    expect(res.text).not.toContain('Plot 12');
   });
 });

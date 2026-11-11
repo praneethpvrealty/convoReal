@@ -1,5 +1,6 @@
 import {
   answerLeadQuestion,
+  asksExactLocation,
   isHandoverText,
   looksLikeQuestion,
   mergeLeadAnswers,
@@ -35,6 +36,7 @@ import {
   sendRequirementConfirmAfterRegret,
 } from '@/lib/whatsapp/unavailable-brief-followup';
 import { createNotification } from '@/lib/notifications/create';
+import { fileChatLocationRequest } from '@/lib/inventory/location-requests';
 import { relayLeadMessageToBridgedAgent } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { withListingLink } from '@/lib/whatsapp/listing-link-reply';
@@ -112,6 +114,9 @@ export async function leadQuestion(
           // "Location road width" names the field it wants and nothing
           // else: not question-shaped, but a question about the listing.
           asksListingAttribute(inboundText) ||
+          // "I had asked for the exact location" is neither, but it asks
+          // for the guarded address only the listing side can release.
+          asksExactLocation(inboundText) ||
           asksDetailsOfDescribedListing(inboundText) ||
           // "It doesn't seem to be a 30-50 plot" disputes the listing's
           // record: not a question by shape, but about the listing, and
@@ -234,6 +239,19 @@ export async function leadQuestion(
             botInstructions,
             contactPhone: showcaseSettings?.contact_phone ?? null,
             briefOnFile,
+            requestExactLocation:
+              subject && isListingLive(subject)
+                ? () =>
+                    fileChatLocationRequest(admin, {
+                      accountId,
+                      propertyId: subject.id,
+                      contactId: contactRecord.id,
+                      requesterName:
+                        (contactRecord as { name?: string | null }).name ??
+                        null,
+                      requesterPhone: senderPhone,
+                    })
+                : undefined,
           });
         })
       );

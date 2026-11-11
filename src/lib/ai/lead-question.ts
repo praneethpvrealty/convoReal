@@ -100,6 +100,83 @@ export function isHandoverText(text: string | null | undefined): boolean {
   ].some((line) => t.includes(line));
 }
 
+export type ExactLocationRequestOutcome = 'filed' | 'pending' | 'sent';
+
+const EXACT_LOCATION_PATTERNS = [
+  /\b(exact|precise|actual|full|correct)\s+(location|address|loc|spot)\b/i,
+  /\b(google\s*)?maps?\s*(pin|link|location)\b/i,
+  /\blocation\s*(pin|link)\b/i,
+  /\b(pin|live)\s+location\b/i,
+  /\b(share|send|give|forward|drop)\b(?:(?!\b(?:my|our|mine)\b)[^.?!\n]){0,20}\b(location|address|loc)\b/i,
+  /\b(location|address)\s+(pls|plz|please|kindly)\b/i,
+];
+
+const OFFERS_OWN_LOCATION =
+  /\b(i'?ll|i will|i can|can i|let me|i'?m|i am|shall i)\s+(share|send|give|forward|drop)\b|\b(my|our)\s+(live\s+)?(location|address)\b/i;
+
+/** "Pls share location", "exact address?", "send the maps pin": a lead
+ *  asking for where the listing actually is, not which area it is in.
+ *  "I'll share my location" offers the lead's own. */
+export function asksExactLocation(text: string): boolean {
+  return text
+    .split(/[,.;!?\n]+|\b(?:and|also|then|but)\b/i)
+    .some(
+      (clause) =>
+        !OFFERS_OWN_LOCATION.test(clause) &&
+        EXACT_LOCATION_PATTERNS.some((re) => re.test(clause))
+    );
+}
+
+const LOCATION_ASK_FILLER = new Set(
+  'a an and also any are at can could do does for get had has have i if in is it its kindly me need of on or pls plz please property plot site share send give forward drop tell the this to u us want what where whereabouts which you exact exactly precise actual full correct location loc address spot pin google map maps link live located situated area locality city town part side near asked asking again already sir madam hi hello ok okay thanks thank'.split(
+    ' '
+  )
+);
+
+/** Whether a location ask carries another question the location
+ *  answer does not cover ("…and is there a school nearby?"). */
+export function asksBeyondLocation(text: string, place = ''): boolean {
+  const words = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+  const placeWords = new Set(words(place));
+  const rest = words(text).filter(
+    (w) => !LOCATION_ASK_FILLER.has(w) && !placeWords.has(w)
+  );
+  return rest.length >= 2;
+}
+
+export const LOCATION_REST_HANDOVER_TEXT =
+  "I'll check the rest of your question with the team and come right back to you.";
+
+export const EXACT_LOCATION_FILED_TEXT =
+  "I've asked the team for the exact location — you'll get it here on WhatsApp as soon as it's approved.";
+export const EXACT_LOCATION_PENDING_TEXT =
+  "Your request for the exact location is already with the team — you'll get it here on WhatsApp as soon as it's approved.";
+export const EXACT_LOCATION_SENT_TEXT =
+  'The exact location was approved and sent to you here — open the link in that message.';
+export const EXACT_LOCATION_OFFER_TEXT =
+  'Reply "exact location" and I\'ll request the exact address for you.';
+export const EXACT_LOCATION_HANDOVER_TEXT =
+  "I'll get the exact location from the team and come right back to you.";
+export const EXACT_LOCATION_ON_REQUEST_TEXT =
+  'The exact address is shared on request.';
+
+function guardedLocationFollowUp(
+  outcome: ExactLocationRequestOutcome | null,
+  canRequest: boolean
+): string {
+  if (outcome === 'filed') return EXACT_LOCATION_FILED_TEXT;
+  if (outcome === 'pending') return EXACT_LOCATION_PENDING_TEXT;
+  if (outcome === 'sent') return EXACT_LOCATION_SENT_TEXT;
+  return canRequest
+    ? EXACT_LOCATION_OFFER_TEXT
+    : EXACT_LOCATION_ON_REQUEST_TEXT;
+}
+
 export type LeadAnswerSource = 'listing' | 'ai' | 'handover';
 
 export interface LeadAnswer {
@@ -884,6 +961,10 @@ export async function answerLeadQuestion(args: {
   /** The buyer has a saved requirement: an unavailable listing's
    *  availability answer offers to confirm it rather than ask again. */
   briefOnFile?: boolean;
+  /** Files the lead's request for a guarded listing's exact location
+   *  with the listing side. Only WhatsApp passes it; without it a
+   *  guarded location answer says the address is shared on request. */
+  requestExactLocation?: () => Promise<ExactLocationRequestOutcome | null>;
 }): Promise<LeadAnswer> {
   const { accountId, question, property } = args;
   // Before the listing check: a lead asking to be called is asking for
@@ -978,12 +1059,57 @@ export async function answerLeadQuestion(args: {
     }
     return { text: HANDOVER_TEXT, source: 'handover', intent: 'more_listings' };
   }
+  if (
+    guarded &&
+    (structured.intent === 'location' || asksExactLocation(question))
+  ) {
+    const locality =
+      structured.intent === 'location' && structured.answer
+        ? structured.answer
+        : `It's located in ${localityLabel(property)}.`;
+    const explicit = asksExactLocation(question);
+    const outcome =
+      explicit && args.requestExactLocation
+        ? await args.requestExactLocation()
+        : null;
+    const otherAnswer =
+      structured.answer && structured.intent !== 'location'
+        ? `${structured.answer}\n\n`
+        : '';
+    if (explicit && args.requestExactLocation && !outcome) {
+      return {
+        text: `${otherAnswer}${locality} ${EXACT_LOCATION_HANDOVER_TEXT}`,
+        source: 'handover',
+        intent: 'exact_location_request',
+      };
+    }
+    const text = `${otherAnswer}${locality} ${guardedLocationFollowUp(
+      outcome,
+      Boolean(args.requestExactLocation)
+    )}`;
+    if (
+      explicit &&
+      !otherAnswer &&
+      asksBeyondLocation(question, localityLabel(property))
+    ) {
+      return {
+        text: `${text} ${LOCATION_REST_HANDOVER_TEXT}`,
+        source: 'handover',
+        intent: outcome ? 'exact_location_request' : 'location',
+      };
+    }
+    return {
+      text,
+      source: 'listing',
+      intent: outcome ? 'exact_location_request' : 'location',
+    };
+  }
   if (structured.answer) {
-    const text =
-      guarded && structured.intent === 'location'
-        ? `${structured.answer} The exact address is shared on request.`
-        : structured.answer;
-    return { text, source: 'listing', intent: structured.intent };
+    return {
+      text: structured.answer,
+      source: 'listing',
+      intent: structured.intent,
+    };
   }
 
   // Soft burn before the call: an account out of credits hands over to
