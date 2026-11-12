@@ -50,3 +50,53 @@ export function rejectPropertyVideo(
   }
   return null;
 }
+
+function megabytes(bytes: number): string {
+  return (bytes / (1024 * 1024)).toFixed(0);
+}
+
+export function walkthroughTooLargeReply(
+  bytes: number,
+  maxBytes: number
+): string {
+  return (
+    `⚠️ *Video too large.* This one is ${megabytes(bytes)} MB and walkthroughs up to ` +
+    `${propertyVideoMaxMegabytes(maxBytes)} MB are accepted on your plan. ` +
+    `Please send a shorter or compressed MP4.`
+  );
+}
+
+export function isStorageTooLargeError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  return /maximum allowed size|payload too large|entitytoolarge/i.test(message);
+}
+
+export function walkthroughUploadFailedReply(
+  err: unknown,
+  bytes: number,
+  maxBytes: number
+): string {
+  if (isStorageTooLargeError(err)) {
+    return (
+      `❌ *Video too large to store.* This one is ${megabytes(bytes)} MB; ` +
+      `walkthroughs up to ${propertyVideoMaxMegabytes(maxBytes)} MB are accepted on your plan. ` +
+      `Please send a shorter or compressed MP4.`
+    );
+  }
+  return (
+    `❌ *Failed to upload video.* Please send the walkthrough again as an MP4 ` +
+    `(up to ${propertyVideoMaxMegabytes(maxBytes)} MB).`
+  );
+}
+
+export function walkthroughDroppedNote(
+  bytes: number | null,
+  maxBytes: number
+): string {
+  if (!bytes) return '';
+  return (
+    `\n\n_🎬 The ${megabytes(bytes)} MB video was too large to store ` +
+    `(limit ${propertyVideoMaxMegabytes(maxBytes)} MB), so the listing has no walkthrough yet. ` +
+    `Send a shorter or compressed MP4 to attach one._`
+  );
+}

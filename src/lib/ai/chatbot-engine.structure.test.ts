@@ -357,3 +357,39 @@ describe('[INB-028] chatbot refunds', () => {
     expect(ekhata).not.toContain('.catch(() => undefined)');
   });
 });
+
+describe('[MED-003] walkthrough videos sent on WhatsApp', () => {
+  const activeSession = source.slice(
+    source.indexOf('if (isVideoMsg) {'),
+    source.indexOf('// Handle document upload inside active session')
+  );
+  const freshIntake = source.slice(
+    source.indexOf('} else if (isVideoMsg) {'),
+    source.indexOf("mediaMimeType === 'application/pdf' &&")
+  );
+
+  it('size the video against the account plan before uploading it into an open draft', () => {
+    const limit = activeSession.indexOf(
+      'videoMaxBytes = await walkthroughMaxBytes(accountId);'
+    );
+    const upload = activeSession.indexOf('await uploadPropertyVideo(');
+    expect(limit).toBeGreaterThan(-1);
+    expect(limit).toBeLessThan(upload);
+    expect(activeSession).toContain(
+      'walkthroughTooLargeReply(videoBytes, videoMaxBytes)'
+    );
+    expect(activeSession).toContain('walkthroughUploadFailedReply(');
+    expect(source).not.toContain('under 16MB');
+  });
+
+  it('keep a fresh listing when its video is too large, and say so in the draft card', () => {
+    expect(freshIntake).toContain(
+      'videoMaxBytes = await walkthroughMaxBytes(accountId);'
+    );
+    expect(freshIntake).toContain('mediaBuffer.length <= videoMaxBytes');
+    expect(freshIntake).toContain('droppedVideoBytes = mediaBuffer.length;');
+    expect(source).toContain(
+      'walkthroughDroppedNote(droppedVideoBytes, videoMaxBytes)'
+    );
+  });
+});

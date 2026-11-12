@@ -68,7 +68,14 @@ import {
   sanitizeFloorPlans,
   plansWithImages,
 } from '@/lib/inventory/floor-plans';
-import { checkAccountPropertyLimit } from '@/lib/billing/gates';
+import { checkAccountPropertyLimit, getAccountPlan } from '@/lib/billing/gates';
+import {
+  PROPERTY_VIDEO_STARTER_MAX_BYTES,
+  propertyVideoMaxBytes,
+  walkthroughDroppedNote,
+  walkthroughTooLargeReply,
+  walkthroughUploadFailedReply,
+} from '@/lib/inventory/property-video';
 import { burnCredits } from '@/lib/credits/burn';
 import { newBurnKey, refundBurn } from '@/lib/credits/refund-burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
@@ -534,6 +541,12 @@ async function touchDraftSession(sessionId: string): Promise<void> {
       err
     );
   }
+}
+
+async function walkthroughMaxBytes(accountId: string): Promise<number> {
+  return propertyVideoMaxBytes(
+    await getAccountPlan(supabaseAdmin(), accountId)
+  );
 }
 
 /** Start of the dropped-brochure note, so the header rewrites in
@@ -2546,6 +2559,8 @@ export async function processOwnerChatbotMessage(
       );
       await touchDraftSession(propSession.id);
 
+      let videoBytes = 0;
+      let videoMaxBytes = PROPERTY_VIDEO_STARTER_MAX_BYTES;
       try {
         const { buffer, mimeType } = await loadInboundMedia();
         if (!mimeType?.includes('mp4')) {
@@ -2558,6 +2573,28 @@ export async function processOwnerChatbotMessage(
             text: reply,
           });
           await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          return true;
+        }
+        videoBytes = buffer!.length;
+        videoMaxBytes = await walkthroughMaxBytes(accountId);
+        if (videoBytes > videoMaxBytes) {
+          const reply = walkthroughTooLargeReply(videoBytes, videoMaxBytes);
+          const sendRes = await sendTextMessage({
+            phoneNumberId,
+            accessToken,
+            to: contactRecord.phone,
+            text: reply,
+          });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          sendPropertyDraftPreviewDebounced(
+            propSession.id,
+            new Date().toISOString(),
+            phoneNumberId,
+            accessToken,
+            contactRecord.phone,
+            '📝 *Draft Listing:*',
+            conversation.id
+          );
           return true;
         }
         const publicUrl = await uploadPropertyVideo(
@@ -2621,8 +2658,11 @@ export async function processOwnerChatbotMessage(
         return true;
       } catch (err) {
         console.error('[chatbot-engine] Error processing video upload:', err);
-        const reply =
-          "❌ *Failed to upload video.* Please make sure it's an MP4 under 16MB and try again.";
+        const reply = walkthroughUploadFailedReply(
+          err,
+          videoBytes,
+          videoMaxBytes
+        );
         const sendRes = await sendTextMessage({
           phoneNumberId,
           accessToken,
@@ -3843,6 +3883,8 @@ export async function processOwnerChatbotMessage(
         // Its contents still made it in; the sender is told which half
         // was kept so a missing document is never a silent surprise.
         let droppedBrochureBytes: number | null = null;
+        let droppedVideoBytes: number | null = null;
+        let videoMaxBytes = PROPERTY_VIDEO_STARTER_MAX_BYTES;
 
         if (isMediaMsg && mediaBuffer && mediaMimeType) {
           if (isImageMsg) {
@@ -3863,10 +3905,28 @@ export async function processOwnerChatbotMessage(
             // Video bytes don't go to Gemini — parse the caption text,
             // and upload the walkthrough in parallel (mp4 only; the
             // property-videos bucket rejects other formats).
+            videoMaxBytes = await walkthroughMaxBytes(accountId);
+            const fits =
+              mediaMimeType.includes('mp4') &&
+              mediaBuffer.length <= videoMaxBytes;
+            if (mediaMimeType.includes('mp4') && !fits) {
+              droppedVideoBytes = mediaBuffer.length;
+            }
             const [parsed, videoUrl] = await Promise.all([
               parseListingFromImageOrText(cleanedText),
-              mediaMimeType.includes('mp4')
-                ? uploadPropertyVideo(accountId, mediaBuffer, mediaMimeType)
+              fits
+                ? uploadPropertyVideo(
+                    accountId,
+                    mediaBuffer,
+                    mediaMimeType
+                  ).catch((err: unknown) => {
+                    console.error(
+                      '[chatbot-engine] Walkthrough upload failed; keeping the listing:',
+                      err
+                    );
+                    droppedVideoBytes = mediaBuffer.length;
+                    return null;
+                  })
                 : Promise.resolve(null),
             ]);
             parsedDraft = parsed;
@@ -4186,7 +4246,8 @@ export async function processOwnerChatbotMessage(
                   accessToken,
                   contactRecord.phone,
                   `📝 *Listing details and photos merged into draft!*` +
-                    brochureDroppedNote(droppedBrochureBytes),
+                    brochureDroppedNote(droppedBrochureBytes) +
+                    walkthroughDroppedNote(droppedVideoBytes, videoMaxBytes),
                   conversation.id
                 );
                 return true;
@@ -4224,7 +4285,8 @@ export async function processOwnerChatbotMessage(
             (filedContact?.created
               ? `📝 *Draft Property Listing Created!*\n👤 _Saved ${filedContact.name} to Contacts._`
               : `📝 *Draft Property Listing Created!*`) +
-              brochureDroppedNote(droppedBrochureBytes),
+              brochureDroppedNote(droppedBrochureBytes) +
+              walkthroughDroppedNote(droppedVideoBytes, videoMaxBytes),
             conversation.id
           );
         }

@@ -17,6 +17,21 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 12 November 2026
+
+- **Listing videos play on the Showcase again.** A walkthrough attached to a
+  listing, whether sent on WhatsApp, uploaded on web or mobile, or generated,
+  was saved but never shown: the Showcase gallery plays a video only once it
+  is marked ready, and the public listing payload left that flag out. The
+  flag now travels with the video, so the gallery's last slide plays the
+  stored file, or the unlisted YouTube copy when there is one.
+- **The WhatsApp intake bot says why a video was refused.** A walkthrough is
+  checked against the plan's limit (16 MB on Starter, 100 MB on paid plans)
+  before upload, and a refusal names the file's size and that limit instead
+  of a fixed "under 16MB". A video too large for a fresh listing no longer
+  fails the whole listing; the draft is created and the card says the video
+  was dropped.
+
 #### 11 November 2026
 
 - **Portfolio now shows owners what their properties are worth.** The

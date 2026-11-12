@@ -1776,6 +1776,36 @@
             "supabase/migrations/20260916050000_premium_property_video_100mb.sql",
             ".github/workflows/eas-update.yml"
           ]
+        },
+        {
+          "id": "MED-002",
+          "rule": "A listing whose walkthrough is ready plays in the Showcase detail gallery as the last slide, the unlisted YouTube copy preferred over the stored file once that is ready too. The public listing view carries video_status and youtube_status beside video_url and youtube_video_id, because the gallery gates playback on those flags and a payload without them shows no video at all; a walkthrough still queued, processing or failed shows nothing.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/location-guard.test.ts",
+              "case": "[MED-002]"
+            },
+            {
+              "file": "src/components/showcase/showcase-view.video.test.tsx",
+              "case": "[MED-002]"
+            }
+          ],
+          "guards": ["src/lib/inventory/location-guard.ts"]
+        },
+        {
+          "id": "MED-003",
+          "rule": "A walkthrough video sent to the WhatsApp intake bot is sized against the account's plan limit before it is uploaded, and a refusal names the file's size and that limit rather than a fixed 16 MB. Into an open draft, an oversized video or a storage size refusal leaves the draft as it was and re-sends the draft card; opening a fresh draft, the listing is still created and the draft card says the video was dropped and why. A storage refusal is never reported as a parse failure.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/property-video.test.ts",
+              "case": "[MED-003]"
+            },
+            {
+              "file": "src/lib/ai/chatbot-engine.structure.test.ts",
+              "case": "[MED-003]"
+            }
+          ],
+          "guards": ["src/lib/inventory/property-video.ts"]
         }
       ]
     },
