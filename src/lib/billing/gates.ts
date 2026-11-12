@@ -325,3 +325,21 @@ export async function accountHasApiAccess(
   }
   return Boolean((data as { has_api_access?: boolean } | null)?.has_api_access);
 }
+
+/**
+ * The plan an account is on, read through a service-role client for
+ * the paths that have no request context — the WhatsApp intake bot
+ * sizes a walkthrough against it before uploading.
+ */
+export async function getAccountPlan(
+  supabase: SupabaseClient,
+  accountId: string
+): Promise<Plan> {
+  const { data, error } = await supabase
+    .from('account_plan_limits')
+    .select('plan')
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (error) throw error;
+  return ((data as { plan: Plan } | null)?.plan ?? 'starter') as Plan;
+}

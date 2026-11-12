@@ -187,6 +187,23 @@ describe('toPublicPropertyView', () => {
     }
   });
 
+  it('[MED-002] carries the walkthrough and its readiness, which the showcase gates playback on', () => {
+    const withVideo = {
+      ...guardedProperty,
+      video_url: 'property-videos/a1/wa-1.mp4',
+      video_status: 'ready',
+      youtube_video_id: 'yt-1',
+      youtube_status: 'ready',
+    } as unknown as Property;
+    const view = toPublicPropertyView(withVideo, {
+      revealExact: false,
+    }) as unknown as Record<string, unknown>;
+    expect(view.video_url).toBe('property-videos/a1/wa-1.mp4');
+    expect(view.video_status).toBe('ready');
+    expect(view.youtube_video_id).toBe('yt-1');
+    expect(view.youtube_status).toBe('ready');
+  });
+
   it('a location grant overrides the type guard', () => {
     const view = toPublicPropertyView(guardedProperty, {
       revealExact: false,

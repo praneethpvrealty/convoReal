@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { checkPlanLimit, getPlanLimits } from './gates';
+import { checkPlanLimit, getAccountPlan, getPlanLimits } from './gates';
 import { PLAN_CONFIG } from './plan-config';
 import type { AccountContext } from '@/lib/auth/account';
 
@@ -152,5 +152,39 @@ describe('checkPlanLimit — feature flags on starter fallback', () => {
   it('gates meta_ads on the same flag as AI', async () => {
     const gate = await checkPlanLimit(makeCtx({}), 'meta_ads');
     expect(gate.allowed).toBe(false);
+  });
+});
+
+describe('[MED-003] getAccountPlan', () => {
+  function db(result: { data: unknown; error: unknown }) {
+    const builder: Record<string, unknown> = {
+      select: () => builder,
+      eq: () => builder,
+      maybeSingle: () => Promise.resolve(result),
+    };
+    return { from: () => builder } as unknown as Parameters<
+      typeof getAccountPlan
+    >[0];
+  }
+
+  it('returns the plan on the row', async () => {
+    await expect(
+      getAccountPlan(db({ data: { plan: 'agency' }, error: null }), 'acc-1')
+    ).resolves.toBe('agency');
+  });
+
+  it('defaults to starter only for a missing row', async () => {
+    await expect(
+      getAccountPlan(db({ data: null, error: null }), 'acc-1')
+    ).resolves.toBe('starter');
+  });
+
+  it('surfaces a read error instead of downgrading the plan', async () => {
+    await expect(
+      getAccountPlan(
+        db({ data: null, error: new Error('connection reset') }),
+        'acc-1'
+      )
+    ).rejects.toThrow('connection reset');
   });
 });
