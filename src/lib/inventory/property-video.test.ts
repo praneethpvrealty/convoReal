@@ -128,4 +128,24 @@ describe('[MED-003] WhatsApp walkthrough size replies', () => {
     expect(note).toContain('limit 16 MB');
     expect(note).toContain('no walkthrough yet');
   });
+
+  it('tells a fresh draft an upload failure apart from an oversized file', () => {
+    const note = walkthroughDroppedNote(
+      10 * MB,
+      PROPERTY_VIDEO_PREMIUM_MAX_BYTES,
+      'failed'
+    );
+    expect(note).toContain('could not be uploaded');
+    expect(note).toContain('Send it again');
+    expect(note).not.toContain('too large');
+  });
+
+  it('rounds a refused size up so it never reads as equal to the limit', () => {
+    const reply = walkthroughTooLargeReply(
+      17_196_646,
+      PROPERTY_VIDEO_MAX_BYTES
+    );
+    expect(reply).toContain('This one is 17 MB');
+    expect(reply).toContain('up to 16 MB');
+  });
 });

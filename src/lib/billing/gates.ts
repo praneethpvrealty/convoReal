@@ -335,10 +335,11 @@ export async function getAccountPlan(
   supabase: SupabaseClient,
   accountId: string
 ): Promise<Plan> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('account_plan_limits')
     .select('plan')
     .eq('account_id', accountId)
     .maybeSingle();
+  if (error) throw error;
   return ((data as { plan: Plan } | null)?.plan ?? 'starter') as Plan;
 }

@@ -70,8 +70,11 @@ import {
 } from '@/lib/inventory/floor-plans';
 import { checkAccountPropertyLimit, getAccountPlan } from '@/lib/billing/gates';
 import {
+  PROPERTY_VIDEO_PREMIUM_MAX_BYTES,
   PROPERTY_VIDEO_STARTER_MAX_BYTES,
   propertyVideoMaxBytes,
+  type WalkthroughDropReason,
+  isStorageTooLargeError,
   walkthroughDroppedNote,
   walkthroughTooLargeReply,
   walkthroughUploadFailedReply,
@@ -544,9 +547,14 @@ async function touchDraftSession(sessionId: string): Promise<void> {
 }
 
 async function walkthroughMaxBytes(accountId: string): Promise<number> {
-  return propertyVideoMaxBytes(
-    await getAccountPlan(supabaseAdmin(), accountId)
-  );
+  try {
+    return propertyVideoMaxBytes(
+      await getAccountPlan(supabaseAdmin(), accountId)
+    );
+  } catch (err) {
+    console.error('[chatbot-engine] Plan lookup failed for walkthrough:', err);
+    return PROPERTY_VIDEO_PREMIUM_MAX_BYTES;
+  }
 }
 
 /** Start of the dropped-brochure note, so the header rewrites in
@@ -3884,6 +3892,7 @@ export async function processOwnerChatbotMessage(
         // was kept so a missing document is never a silent surprise.
         let droppedBrochureBytes: number | null = null;
         let droppedVideoBytes: number | null = null;
+        let droppedVideoReason: WalkthroughDropReason = 'too_large';
         let videoMaxBytes = PROPERTY_VIDEO_STARTER_MAX_BYTES;
 
         if (isMediaMsg && mediaBuffer && mediaMimeType) {
@@ -3925,6 +3934,9 @@ export async function processOwnerChatbotMessage(
                       err
                     );
                     droppedVideoBytes = mediaBuffer.length;
+                    droppedVideoReason = isStorageTooLargeError(err)
+                      ? 'too_large'
+                      : 'failed';
                     return null;
                   })
                 : Promise.resolve(null),
@@ -4247,7 +4259,11 @@ export async function processOwnerChatbotMessage(
                   contactRecord.phone,
                   `📝 *Listing details and photos merged into draft!*` +
                     brochureDroppedNote(droppedBrochureBytes) +
-                    walkthroughDroppedNote(droppedVideoBytes, videoMaxBytes),
+                    walkthroughDroppedNote(
+                      droppedVideoBytes,
+                      videoMaxBytes,
+                      droppedVideoReason
+                    ),
                   conversation.id
                 );
                 return true;
@@ -4286,7 +4302,11 @@ export async function processOwnerChatbotMessage(
               ? `📝 *Draft Property Listing Created!*\n👤 _Saved ${filedContact.name} to Contacts._`
               : `📝 *Draft Property Listing Created!*`) +
               brochureDroppedNote(droppedBrochureBytes) +
-              walkthroughDroppedNote(droppedVideoBytes, videoMaxBytes),
+              walkthroughDroppedNote(
+                droppedVideoBytes,
+                videoMaxBytes,
+                droppedVideoReason
+              ),
             conversation.id
           );
         }

@@ -388,8 +388,12 @@ describe('[MED-003] walkthrough videos sent on WhatsApp', () => {
     );
     expect(freshIntake).toContain('mediaBuffer.length <= videoMaxBytes');
     expect(freshIntake).toContain('droppedVideoBytes = mediaBuffer.length;');
-    expect(source).toContain(
-      'walkthroughDroppedNote(droppedVideoBytes, videoMaxBytes)'
+    expect(freshIntake).toContain('isStorageTooLargeError(err)');
+    expect(source).toMatch(
+      /async function walkthroughMaxBytes[\s\S]*?catch \(err\)[\s\S]*?return PROPERTY_VIDEO_PREMIUM_MAX_BYTES;/
+    );
+    expect(source).toMatch(
+      /walkthroughDroppedNote\(\s*droppedVideoBytes,\s*videoMaxBytes,\s*droppedVideoReason\s*\)/
     );
   });
 });

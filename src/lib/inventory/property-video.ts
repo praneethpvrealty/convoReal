@@ -52,8 +52,10 @@ export function rejectPropertyVideo(
 }
 
 function megabytes(bytes: number): string {
-  return (bytes / (1024 * 1024)).toFixed(0);
+  return String(Math.ceil(bytes / (1024 * 1024)));
 }
+
+export type WalkthroughDropReason = 'too_large' | 'failed';
 
 export function walkthroughTooLargeReply(
   bytes: number,
@@ -91,9 +93,16 @@ export function walkthroughUploadFailedReply(
 
 export function walkthroughDroppedNote(
   bytes: number | null,
-  maxBytes: number
+  maxBytes: number,
+  reason: WalkthroughDropReason = 'too_large'
 ): string {
   if (!bytes) return '';
+  if (reason === 'failed') {
+    return (
+      `\n\n_🎬 The video could not be uploaded, so the listing has no walkthrough yet. ` +
+      `Send it again to attach one._`
+    );
+  }
   return (
     `\n\n_🎬 The ${megabytes(bytes)} MB video was too large to store ` +
     `(limit ${propertyVideoMaxMegabytes(maxBytes)} MB), so the listing has no walkthrough yet. ` +
