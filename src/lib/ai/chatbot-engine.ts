@@ -2570,6 +2570,7 @@ export async function processOwnerChatbotMessage(
       let videoBytes = 0;
       let videoMaxBytes = PROPERTY_VIDEO_STARTER_MAX_BYTES;
       try {
+        videoMaxBytes = await walkthroughMaxBytes(accountId);
         const { buffer, mimeType } = await loadInboundMedia();
         if (!mimeType?.includes('mp4')) {
           const reply =
@@ -2584,7 +2585,6 @@ export async function processOwnerChatbotMessage(
           return true;
         }
         videoBytes = buffer!.length;
-        videoMaxBytes = await walkthroughMaxBytes(accountId);
         if (videoBytes > videoMaxBytes) {
           const reply = walkthroughTooLargeReply(videoBytes, videoMaxBytes);
           const sendRes = await sendTextMessage({

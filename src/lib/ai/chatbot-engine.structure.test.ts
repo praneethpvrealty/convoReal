@@ -372,9 +372,11 @@ describe('[MED-003] walkthrough videos sent on WhatsApp', () => {
     const limit = activeSession.indexOf(
       'videoMaxBytes = await walkthroughMaxBytes(accountId);'
     );
+    const download = activeSession.indexOf('await loadInboundMedia();');
     const upload = activeSession.indexOf('await uploadPropertyVideo(');
     expect(limit).toBeGreaterThan(-1);
-    expect(limit).toBeLessThan(upload);
+    expect(limit).toBeLessThan(download);
+    expect(download).toBeLessThan(upload);
     expect(activeSession).toContain(
       'walkthroughTooLargeReply(videoBytes, videoMaxBytes)'
     );
