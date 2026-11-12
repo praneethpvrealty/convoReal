@@ -10,6 +10,7 @@
 import { postShareLog } from '@shared/lib/inventory/share-log-request';
 
 import { apiFetch, ApiError, isRateLimited, isTimeout } from '@/lib/api';
+import { whenAppActive } from '@/lib/app-foreground';
 import { currentUserId, ensureProfile } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
 import type { Contact, Property } from '@/lib/types';
@@ -34,23 +35,33 @@ export async function logExternalShare(
   // account and the user from the session it is called with. It must
   // not wait on the profile below, which is what left a share unrecorded
   // whenever the store had not loaded one.
-  const ledger = postShareLog(
-    (body) =>
-      apiFetch('/api/properties/share-log', {
-        method: 'POST',
-        body,
-      }),
-    {
-      property_id: property.id,
-      recipients: [
-        {
-          contact_id: contact.id,
-          classification: contact.classification ?? null,
-        },
-      ],
-      channel: 'whatsapp',
-    }
-  );
+  // The caller hands off to WhatsApp straight after this starts, and the
+  // OS suspends the app with the request in flight: the server records
+  // the share but the answer never arrives. A failed round is posted
+  // again once the app is back in front; the write is idempotent.
+  const postLedger = () =>
+    postShareLog(
+      (body) =>
+        apiFetch('/api/properties/share-log', {
+          method: 'POST',
+          body,
+        }),
+      {
+        property_id: property.id,
+        recipients: [
+          {
+            contact_id: contact.id,
+            classification: contact.classification ?? null,
+          },
+        ],
+        channel: 'whatsapp',
+      }
+    );
+  const ledger = postLedger().then(async (first) => {
+    if (first.complete) return first;
+    await whenAppActive();
+    return postLedger();
+  });
   const [profile, userId] = await Promise.all([
     ensureProfile(),
     currentUserId(),

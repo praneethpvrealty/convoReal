@@ -21,6 +21,7 @@ vi.mock('./auth-store', () => ({
   currentUserId: async () => null,
 }));
 vi.mock('./supabase', () => ({ supabase: {} }));
+vi.mock('./app-foreground', () => ({ whenAppActive: async () => {} }));
 
 const { apiFetch } = await import('./api');
 const { sendPropertyViaEngineMany } = await import('./property-share-actions');

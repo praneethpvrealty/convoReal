@@ -18,6 +18,9 @@ vi.mock('./api', () => ({
   isTimeout: () => false,
   isRateLimited: () => false,
 }));
+vi.mock('./app-foreground', () => ({
+  whenAppActive: vi.fn(async () => {}),
+}));
 vi.mock('./auth-store', () => ({
   ensureProfile: vi.fn(),
   currentUserId: vi.fn(),
@@ -40,6 +43,7 @@ vi.mock('./supabase', () => ({
 }));
 
 const { apiFetch } = await import('./api');
+const { whenAppActive } = await import('./app-foreground');
 const { ensureProfile, currentUserId } = await import('./auth-store');
 const { logExternalShare } = await import('./property-share-actions');
 
@@ -58,6 +62,7 @@ beforeEach(() => {
   vi.mocked(apiFetch).mockReset();
   vi.mocked(ensureProfile).mockReset();
   vi.mocked(currentUserId).mockReset();
+  vi.mocked(whenAppActive).mockClear();
 });
 
 describe('[JRN-021] logExternalShare', () => {
@@ -115,6 +120,22 @@ describe('[JRN-021] logExternalShare', () => {
     });
 
     await expect(logExternalShare(contact, property)).resolves.toBe(false);
-    expect(apiFetch).toHaveBeenCalledTimes(3);
+    expect(apiFetch).toHaveBeenCalledTimes(6);
+    expect(whenAppActive).toHaveBeenCalledTimes(1);
+  });
+
+  it('posts the ledger again once the app returns from the WhatsApp hand-off', async () => {
+    vi.mocked(ensureProfile).mockResolvedValue(null);
+    vi.mocked(currentUserId).mockResolvedValue(null);
+    const lost = new Error('Network request failed');
+    vi.mocked(apiFetch)
+      .mockRejectedValueOnce(lost)
+      .mockRejectedValueOnce(lost)
+      .mockRejectedValueOnce(lost)
+      .mockResolvedValue({ data: { recorded: 1, failed: [] } });
+
+    await expect(logExternalShare(contact, property)).resolves.toBe(true);
+    expect(whenAppActive).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledTimes(4);
   });
 });
