@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         contactId
           ? ctx.supabase
               .from('contacts')
-              .select('id, name, assigned_agent_id')
+              .select('id, name')
               .eq('id', contactId)
               .eq('account_id', ctx.accountId)
               .maybeSingle()
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     const sender = await resolveMessageSender(
       ctx.supabase,
       ctx.accountId,
-      [ctx.userId, contact?.assigned_agent_id as string | null | undefined],
+      [ctx.userId],
       brandName
     );
 

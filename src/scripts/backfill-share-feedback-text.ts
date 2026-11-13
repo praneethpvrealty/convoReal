@@ -27,11 +27,7 @@ import {
   SHARE_FEEDBACK_TEMPLATE_NAME,
   SHARE_FEEDBACK_TEMPLATE_NAMES,
 } from '@/lib/whatsapp/share-feedback-template';
-import {
-  messageSenderLabel,
-  resolveMessageSender,
-  type MessageSender,
-} from '@/lib/whatsapp/message-sender';
+import { bodyPlaceholderCount } from '@/lib/whatsapp/template-language';
 
 interface FeedbackMessageRow {
   id: string;
@@ -86,15 +82,6 @@ interface ApprovedTemplate {
 }
 
 const approvedTemplates = new Map<string, ApprovedTemplate | null>();
-const senders = new Map<string, MessageSender>();
-
-async function accountSender(account: string): Promise<MessageSender> {
-  const cached = senders.get(account);
-  if (cached) return cached;
-  const sender = await resolveMessageSender(supabase, account, []);
-  senders.set(account, sender);
-  return sender;
-}
 
 async function loadContact(
   account: string,
@@ -147,17 +134,14 @@ function contactSalutation(
 async function renderFor(
   account: string,
   contactId: string | null
-): Promise<string> {
+): Promise<string | null> {
   const contact = await loadContact(account, contactId);
   const template = await approvedTemplate(account);
+  if (bodyPlaceholderCount(template?.body_text) !== 1) return null;
   const language = template?.language || contact?.preferred_language || 'en_US';
   const params =
     applySalutationToTemplateParams(
-      buildShareFeedbackParams(
-        contact?.name,
-        messageSenderLabel(await accountSender(account), language),
-        template?.body_text
-      ),
+      buildShareFeedbackParams(contact?.name, '', template?.body_text),
       contact?.name,
       contactSalutation(contact?.salutation)
     ) ?? [];
@@ -200,6 +184,10 @@ async function backfillMessages() {
         row.account_id,
         row.conversations?.contact_id ?? null
       );
+      if (text === null) {
+        console.log(`  skipped ${row.id}: no unsigned approved body to render`);
+        continue;
+      }
       if (dryRun) {
         console.log(`  [dry-run] ${row.id}: ${JSON.stringify(text)}`);
         continue;
@@ -241,6 +229,12 @@ async function backfillPreviews() {
       conversation.account_id,
       conversation.contact_id
     );
+    if (text === null) {
+      console.log(
+        `  skipped preview ${conversation.id}: no unsigned approved body to render`
+      );
+      continue;
+    }
     if (dryRun) {
       console.log(
         `  [dry-run] preview ${conversation.id}: ${JSON.stringify(text)}`
