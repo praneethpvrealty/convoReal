@@ -3029,7 +3029,7 @@
         },
         {
           "id": "PRP-061",
-          "rule": "A listing is never sent to the same contact twice by accident: POST /api/whatsapp/share-property refuses with 409 RECENTLY_SHARED and shared_at, sending nothing and writing nothing, when the share ledger last sent that contact×property within the last 24 hours (whichever path wrote it — an instant buyer alert, a digest, another share; every ledger writer stamps last_shared_at on each send, because the row itself is kept once per pair, and rows older than the column fall back to created_at), and sends only when the request carries confirm_resend: true. The web Matches tab reports such a recipient as Not sent again with when it went and offers Send again to them; the web contact page offers Send anyway; the mobile share sheet asks before a single send (and on the server's refusal) and offers Send again to the held-back recipients of a multi-contact send, never retrying them as transient failures.",
+          "rule": "A listing is never sent to the same contact twice by accident: POST /api/whatsapp/share-property refuses with 409 RECENTLY_SHARED and shared_at, sending nothing and writing nothing, when the share ledger last sent that contact×property within the last 24 hours (whichever path wrote it — an instant buyer alert, a digest, another share; every ledger writer stamps last_shared_at on each send, because the row itself is kept once per pair, and rows older than the column fall back to created_at), and sends only when the request carries confirm_resend: true. The web Matches tab reports such a recipient as Not sent again with when it went and offers Send again to them; the web contact page offers Send anyway; the mobile share sheet asks before a single send, explains a server refusal in the sheet or, once the agent is already in the thread, as an Already sent notice there, and offers Send again to the held-back recipients of a multi-contact send, never retrying them as transient failures; the multi-contact send counts a recipient as reached when last_shared_at (or created_at) falls inside the batch, so a send whose answer was lost is neither retried nor reported as held back.",
           "tests": [
             {
               "file": "src/app/api/whatsapp/share-property/route.test.ts",
@@ -3049,6 +3049,10 @@
             },
             {
               "file": "src/lib/whatsapp/share-property-send.test.ts",
+              "case": "[PRP-061]"
+            },
+            {
+              "file": "mobile/lib/pending-share.test.ts",
               "case": "[PRP-061]"
             }
           ],

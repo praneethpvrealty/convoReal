@@ -114,6 +114,19 @@ describe('staged shares', () => {
 });
 
 describe('shareOutcomeNotice', () => {
+  it('[PRP-061] tells the agent in the thread when the listing went out recently', () => {
+    const sharedAt = new Date(Date.now() - 5 * 60_000).toISOString();
+    const notice = shareOutcomeNotice(
+      { sent: false, recentlySharedAt: sharedAt },
+      'Karthik'
+    );
+    expect(notice?.title).toBe('Already sent');
+    expect(notice?.message).toContain(
+      'Karthik already got this listing 5 min ago.'
+    );
+    expect(notice?.message).toContain('Nothing was sent again');
+  });
+
   it('says nothing about a share that went out', () => {
     expect(
       shareOutcomeNotice({ sent: true, channel: 'freeform' }, 'Salman')

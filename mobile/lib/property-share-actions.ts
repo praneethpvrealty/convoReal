@@ -242,7 +242,7 @@ async function recentlyConfirmedShares(
     .eq('account_id', accountId)
     .eq('property_id', propertyId)
     .in('contact_id', contactIds)
-    .gte('created_at', sinceIso);
+    .or(recentShareFilter(sinceIso));
   if (error) return new Set();
   return new Set((data ?? []).map((row) => row.contact_id as string));
 }

@@ -1,5 +1,10 @@
 import { useMemo, useSyncExternalStore } from 'react';
 
+import {
+  RECENT_SHARE_WINDOW_HOURS,
+  recentShareNotice,
+} from '@shared/lib/inventory/recent-share';
+
 import type { EngineSendOutcome } from '@/lib/property-share-actions';
 import type { Message } from '@/lib/types';
 
@@ -147,6 +152,15 @@ export function shareOutcomeNotice(
   contactLabel: string
 ): { title: string; message: string } | null {
   if (outcome.sent) return null;
+  if (outcome.recentlySharedAt !== undefined) {
+    const when = outcome.recentlySharedAt
+      ? recentShareNotice(contactLabel, outcome.recentlySharedAt)
+      : `${contactLabel} already got this listing in the last ${RECENT_SHARE_WINDOW_HOURS} hours.`;
+    return {
+      title: 'Already sent',
+      message: `${when} Nothing was sent again. Share it once more to send it anyway.`,
+    };
+  }
   if (outcome.templateStatus) {
     const pending = outcome.templateStatus === 'PENDING';
     return {
