@@ -5,6 +5,7 @@ import { Loader2, MessageCircle, Send, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { controlsUnderBox, launcherLift } from '@/lib/chat/launcher-dodge';
 
 export interface BotMessage {
   id: string;
@@ -45,6 +46,9 @@ interface LeadBotProps {
   /** Floating only — shrink the closed launcher to its icon once the page
    *  scrolls, so it stops covering the content underneath. */
   launcherCompactOnScroll?: boolean;
+  /** Floating only — lift the closed launcher above a button, link or field
+   *  that scrolls underneath it, and drop it back once the corner is clear. */
+  launcherDodgesControls?: boolean;
 }
 
 export function LeadBot({
@@ -67,9 +71,13 @@ export function LeadBot({
   defaultOpen = false,
   launcherHidden = false,
   launcherCompactOnScroll = false,
+  launcherDodgesControls = false,
 }: LeadBotProps) {
   const [open, setOpen] = useState(variant === 'inline' || defaultOpen);
   const [scrolled, setScrolled] = useState(false);
+  const [lift, setLift] = useState(0);
+  const floatingRef = useRef<HTMLDivElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
   const [draft, setDraft] = useState('');
   const threadRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +88,57 @@ export function LeadBot({
     window.addEventListener('scroll', update, { passive: true });
     return () => window.removeEventListener('scroll', update);
   }, [variant, launcherCompactOnScroll]);
+
+  const dodging =
+    variant === 'floating' &&
+    launcherDodgesControls &&
+    !open &&
+    !launcherHidden;
+
+  useEffect(() => {
+    if (!dodging) return;
+    let frame = 0;
+    let pending = false;
+    const measure = () => {
+      pending = false;
+      const container = floatingRef.current;
+      const launcher = launcherRef.current;
+      if (!container || !launcher) return;
+      const rect = launcher.getBoundingClientRect();
+      const bottom = container.offsetTop + container.offsetHeight;
+      const rest = {
+        top: bottom - launcher.offsetHeight,
+        bottom,
+        left: rect.left,
+        right: rect.right,
+      };
+      const next = launcherLift(
+        rest,
+        (box) => controlsUnderBox(box, container),
+        Math.min(240, window.innerHeight * 0.4)
+      );
+      setLift(next);
+    };
+    const schedule = () => {
+      if (pending) return;
+      pending = true;
+      if (typeof window.requestAnimationFrame === 'function') {
+        frame = window.requestAnimationFrame(measure);
+      } else {
+        measure();
+      }
+    };
+    measure();
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    return () => {
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+      if (pending && typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(frame);
+      }
+    };
+  }, [dodging, scrolled]);
 
   useEffect(() => {
     const thread = threadRef.current;
@@ -215,11 +274,17 @@ export function LeadBot({
 
   if (!open && launcherHidden) return null;
   const compact = launcherCompactOnScroll && scrolled;
+  const appliedLift = dodging ? lift : 0;
 
   return (
     <div
+      ref={floatingRef}
       data-floating-lead-bot
-      className="fixed right-4 bottom-4 z-50 flex flex-col items-end gap-3 print:hidden"
+      data-lift={appliedLift || undefined}
+      style={
+        appliedLift ? { transform: `translateY(-${appliedLift}px)` } : undefined
+      }
+      className="fixed right-4 bottom-4 z-50 flex flex-col items-end gap-3 motion-safe:transition-transform motion-safe:duration-200 print:hidden"
     >
       {open && (
         <div className="animate-zoom-in w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-slate-800 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-xl">
@@ -250,6 +315,7 @@ export function LeadBot({
 
       {!open && (
         <button
+          ref={launcherRef}
           type="button"
           onClick={() => setOpen(true)}
           aria-label={compact ? launcherLabel : undefined}

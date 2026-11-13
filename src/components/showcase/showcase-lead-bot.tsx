@@ -427,6 +427,7 @@ export function ShowcaseLeadBot({
       launcherLabel="Find my property"
       launcherHidden={launcherHidden}
       launcherCompactOnScroll
+      launcherDodgesControls
       messages={bot.messages}
       chips={bot.chips}
       multiSelect={Boolean(bot.step?.multi)}

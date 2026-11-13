@@ -105,3 +105,92 @@ describe('[PRP-020] floating launcher shrinks once the page scrolls', () => {
     ).toContain('Find my property');
   });
 });
+
+describe('[PRP-020] floating launcher moves off controls underneath it', () => {
+  const props = {
+    variant: 'floating' as const,
+    title: 'Property assistant',
+    launcherLabel: 'Find my property',
+    messages: [{ id: '1', role: 'bot' as const, text: 'Hi there' }],
+    onChip: vi.fn(),
+    onSend: vi.fn(),
+  };
+
+  function rect(top: number, bottom: number) {
+    return {
+      top,
+      bottom,
+      left: 300,
+      right: 348,
+      width: 48,
+      height: bottom - top,
+      x: 300,
+      y: top,
+      toJSON: () => ({}),
+    } as DOMRect;
+  }
+
+  it('lifts above a button that scrolls under it and drops back once clear', () => {
+    const control = document.createElement('button');
+    document.body.appendChild(control);
+    control.getBoundingClientRect = () => rect(720, 768);
+    let covered = true;
+    const original = document.elementsFromPoint;
+    document.elementsFromPoint = (x: number, y: number) =>
+      covered && y >= 720 && y <= 768 ? [control] : [];
+    const originalFrame = window.requestAnimationFrame;
+    window.requestAnimationFrame = (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    };
+    try {
+      const { getByRole } = render(
+        <LeadBot {...props} launcherDodgesControls />
+      );
+      const launcher = getByRole('button', { name: /find my property/i });
+      const container = document.querySelector<HTMLElement>(
+        '[data-floating-lead-bot]'
+      );
+      const lift = () => container?.getAttribute('data-lift');
+      const layout = (element: HTMLElement, values: Record<string, number>) => {
+        for (const [key, value] of Object.entries(values)) {
+          Object.defineProperty(element, key, {
+            value,
+            configurable: true,
+          });
+        }
+      };
+      if (container) layout(container, { offsetTop: 640, offsetHeight: 108 });
+      layout(launcher, { offsetHeight: 48 });
+      launcher.getBoundingClientRect = () => {
+        const current = Number(lift() ?? 0);
+        return rect(700 - current, 748 - current);
+      };
+      act(() => {
+        window.dispatchEvent(new Event('scroll'));
+      });
+      expect(lift()).toBe('36');
+      covered = false;
+      act(() => {
+        window.dispatchEvent(new Event('scroll'));
+      });
+      expect(lift()).toBeNull();
+    } finally {
+      document.elementsFromPoint = original;
+      window.requestAnimationFrame = originalFrame;
+      control.remove();
+    }
+  });
+
+  it('does not move when the page has not asked it to dodge', () => {
+    render(<LeadBot {...props} />);
+    act(() => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+    expect(
+      document
+        .querySelector('[data-floating-lead-bot]')
+        ?.getAttribute('data-lift')
+    ).toBeNull();
+  });
+});
