@@ -47,6 +47,10 @@ import {
 import type { SharePropertyPreview } from '@/lib/whatsapp/share-property-preview';
 import { postPropertyShare } from '@/lib/whatsapp/share-property-request';
 import {
+  RECENTLY_SHARED_CODE,
+  sharedAgoLabel,
+} from '@/lib/inventory/recent-share';
+import {
   buildPropertyShareMessage,
   showcaseOriginForHost,
 } from '@/lib/share-message-builder';
@@ -160,13 +164,17 @@ export function PropertyMatchesTab({
   >({});
   const [broadcastResults, setBroadcastResults] = useState<
     Array<{
+      contactId?: string;
       name: string;
       phone: string;
-      status: 'sent' | 'failed';
+      status: 'sent' | 'failed' | 'already_sent';
       error?: string;
     }>
   >([]);
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
+  const alreadySentIds = broadcastResults.flatMap((row) =>
+    row.status === 'already_sent' && row.contactId ? [row.contactId] : []
+  );
   const [selectedBroadcastImage, setSelectedBroadcastImage] =
     useState<string>('');
   const [customTemplateMode, setCustomTemplateMode] = useState(false);
@@ -529,13 +537,14 @@ export function PropertyMatchesTab({
     );
   }, [property, title, price, sublocality, city, images]);
 
-  async function handleSendEngineShare() {
-    if (!property || selectedContactIds.length === 0) return;
+  async function handleSendEngineShare(
+    resend: { contactIds: string[] } | null = null
+  ) {
+    const targetIds = resend?.contactIds ?? selectedContactIds;
+    if (!property || targetIds.length === 0) return;
     setSendingBroadcast(true);
     setBroadcastStep('sending');
-    const selectedContacts = contacts.filter((c) =>
-      selectedContactIds.includes(c.id)
-    );
+    const selectedContacts = contacts.filter((c) => targetIds.includes(c.id));
     const origin =
       typeof window !== 'undefined'
         ? showcaseOriginForHost(
@@ -563,18 +572,30 @@ export function PropertyMatchesTab({
         agentPhone: profile?.phone || undefined,
       });
       const entry = {
+        contactId: contact.id,
         name: contact.name || 'Unknown',
         phone: contact.phone ?? '',
       };
       try {
-        const { ok, data, error } = await postPropertyShare({
+        const { ok, data, error, code, sharedAt } = await postPropertyShare({
           contact_id: contact.id,
           property_id: property.id,
           message,
           ...(selectedBroadcastImage
             ? { header_image: selectedBroadcastImage }
             : {}),
+          ...(resend ? { confirm_resend: true } : {}),
         });
+        if (code === RECENTLY_SHARED_CODE) {
+          results.push({
+            ...entry,
+            status: 'already_sent',
+            error: sharedAt
+              ? `Already sent ${sharedAgoLabel(sharedAt)}`
+              : 'Already sent in the last 24 hours',
+          });
+          continue;
+        }
         if (!ok) throw new Error(error || 'Send failed');
         if (data?.sent) {
           delivered += 1;
@@ -595,7 +616,14 @@ export function PropertyMatchesTab({
       }
     }
     if (delivered > 0) void fetchShareLog();
-    setBroadcastResults(results);
+    setBroadcastResults((previous) =>
+      resend
+        ? previous.map(
+            (row) =>
+              results.find((next) => next.contactId === row.contactId) ?? row
+          )
+        : results
+    );
     setBroadcastStep('results');
     setSendingBroadcast(false);
   }
@@ -1585,8 +1613,10 @@ export function PropertyMatchesTab({
                         ? !enginePreview || unsavedShareEdits
                         : !selectedTemplate)
                     }
-                    onClick={
-                      engineShare ? handleSendEngineShare : handleSendBroadcast
+                    onClick={() =>
+                      engineShare
+                        ? void handleSendEngineShare()
+                        : void handleSendBroadcast()
                     }
                     className="bg-primary hover:bg-primary/95 text-primary-foreground flex items-center gap-1.5 font-semibold"
                   >
@@ -1655,6 +1685,17 @@ export function PropertyMatchesTab({
                           <Badge className="border border-green-500/20 bg-green-500/10 text-[10px] font-bold text-green-400">
                             Success
                           </Badge>
+                        ) : res.status === 'already_sent' ? (
+                          <div className="flex flex-col items-end">
+                            <Badge className="border border-amber-500/20 bg-amber-500/10 text-[10px] font-bold text-amber-400">
+                              Not sent again
+                            </Badge>
+                            {res.error && (
+                              <span className="mt-0.5 text-[9px] text-amber-400/80">
+                                {res.error}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <div className="flex flex-col items-end">
                             <Badge className="border border-red-500/20 bg-red-500/10 text-[10px] font-bold text-red-400">
@@ -1672,7 +1713,20 @@ export function PropertyMatchesTab({
                   ))}
                 </div>
 
-                <div className="border-slate-850 flex justify-end border-t pt-4">
+                <div className="border-slate-850 flex justify-end gap-2 border-t pt-4">
+                  {alreadySentIds.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        void handleSendEngineShare({
+                          contactIds: alreadySentIds,
+                        })
+                      }
+                    >
+                      Send again to {alreadySentIds.length}
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     onClick={() => {

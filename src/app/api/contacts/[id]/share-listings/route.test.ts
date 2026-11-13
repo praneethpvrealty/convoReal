@@ -24,6 +24,7 @@ function makeDb(
         select: () => builder,
         eq: () => builder,
         in: () => builder,
+        update: () => builder,
         upsert: (rows: unknown) => {
           sink.push({ table, rows });
           return builder;

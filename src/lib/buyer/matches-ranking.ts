@@ -58,6 +58,20 @@ export interface CuratedMatch {
  *  buyer — the same floor the Deal Mode sweep uses. */
 export const MIN_BUYER_MATCH_SCORE = 60;
 
+/** A match pushed to a buyer unprompted needs the place to fit (or the
+ *  buyer waived it) or the price inside a budget they stated: type and
+ *  size alone sent a Rajankunte site to a Huskur villa-plot buyer. */
+export function isAlertWorthyMatch(details: MatchDetails): boolean {
+  return (
+    details.location === 'match' ||
+    details.location === 'partial' ||
+    details.project === 'match' ||
+    details.named_area === 'match' ||
+    details.location_waived === true ||
+    details.budget === 'match'
+  );
+}
+
 export function matchReasons(details: MatchDetails): string[] {
   const reasons: string[] = [];
   // Leads, and takes the place of the location line: a named-project

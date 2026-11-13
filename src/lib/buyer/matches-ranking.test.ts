@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   curateForBuyer,
   hasBuyerBrief,
+  isAlertWorthyMatch,
   matchReasons,
   mergeCuratedFeeds,
   MIN_BUYER_MATCH_SCORE,
@@ -343,5 +344,80 @@ describe('hasBuyerBrief', () => {
     expect(
       hasBuyerBrief(buyer({ requirements: '   ', areas_of_interest: [] }))
     ).toBe(false);
+  });
+});
+
+describe('isAlertWorthyMatch', () => {
+  const plotBuyer = buyer({
+    pref_property_types: ['Residential Plot'],
+    pref_property_categories: ['residential', 'plot'],
+    pref_land_area_min_sqft: 10_000,
+    pref_extracted_at: '2026-10-31T00:00:00Z',
+  });
+  const site = (overrides: Partial<Property>) =>
+    property({
+      id: 'site',
+      type: 'Residential Plot',
+      land_area: 58_000,
+      land_area_unit: 'sqft',
+      price: 185_600_000,
+      sublocality: 'Rajankunte',
+      location: 'Rajankunte',
+      ...overrides,
+    });
+
+  it('[RDR-004] keeps a type-and-size match on the portal but never pushes it', () => {
+    const [match] = curateForBuyer([site({})], plotBuyer);
+    expect(match).toBeDefined();
+    expect(isAlertWorthyMatch(match.details)).toBe(false);
+  });
+
+  it('[RDR-004] pushes once the listing is in the area the buyer named', () => {
+    const [match] = curateForBuyer(
+      [site({})],
+      buyer({ ...plotBuyer, areas_of_interest: ['Rajankunte'] })
+    );
+    expect(match).toBeDefined();
+    expect(isAlertWorthyMatch(match.details)).toBe(true);
+  });
+
+  it('[RDR-004] pushes to a buyer who said any area will do', () => {
+    const [match] = curateForBuyer(
+      [site({})],
+      buyer({ ...plotBuyer, areas_of_interest: ['Huskur', 'Anywhere'] })
+    );
+    expect(match).toBeDefined();
+    expect(match.details.location_waived).toBe(true);
+    expect(isAlertWorthyMatch(match.details)).toBe(true);
+  });
+
+  it('[RDR-004] pushes to a buyer whose only area is Anywhere', () => {
+    const [match] = curateForBuyer(
+      [site({})],
+      buyer({ ...plotBuyer, areas_of_interest: ['Anywhere'] })
+    );
+    expect(match).toBeDefined();
+    expect(match.details.location_waived).toBe(true);
+    expect(isAlertWorthyMatch(match.details)).toBe(true);
+  });
+
+  it('[RDR-004] pushes to a buyer who wrote that any location will do', () => {
+    const [match] = curateForBuyer(
+      [site({})],
+      buyer({ ...plotBuyer, requirements: 'Plot, any location' })
+    );
+    expect(match).toBeDefined();
+    expect(match.details.location_waived).toBe(true);
+    expect(isAlertWorthyMatch(match.details)).toBe(true);
+  });
+
+  it('[RDR-004] pushes when the price sits inside a budget the buyer stated', () => {
+    const [match] = curateForBuyer(
+      [site({})],
+      buyer({ ...plotBuyer, max_budget: 200_000_000 })
+    );
+    expect(match).toBeDefined();
+    expect(match.details.budget).toBe('match');
+    expect(isAlertWorthyMatch(match.details)).toBe(true);
   });
 });

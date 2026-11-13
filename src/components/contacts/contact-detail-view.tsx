@@ -69,6 +69,11 @@ import {
 } from '@/lib/contacts/lead-temp';
 import { hasPhone } from '@/lib/contacts/reachability';
 import { formatAuditDateTime } from '@/lib/audit-timestamps';
+import {
+  RECENT_SHARE_WINDOW_HOURS,
+  recentShareNotice,
+  RECENTLY_SHARED_CODE,
+} from '@/lib/inventory/recent-share';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   LANGUAGE_CODES,
@@ -1354,7 +1359,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // template instead of dead-ending. Only when the window is closed AND
   // no approved template exists does this throw, so the caller falls back
   // to manual template selection.
-  async function sendPropertyDetailsHelper() {
+  async function sendPropertyDetailsHelper(confirmResend = false) {
     if (!contactId || !inquiredProperty) return;
 
     const showcaseBase = getShowcaseBaseUrl();
@@ -1373,23 +1378,49 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         contact_id: contactId,
         property_id: inquiredProperty.id,
         message: messageText,
+        ...(confirmResend ? { confirm_resend: true } : {}),
       }),
     });
 
     const payload = await res.json().catch(() => ({}));
+    if (res.status === 409 && payload?.code === RECENTLY_SHARED_CODE) {
+      return {
+        recentlySharedAt:
+          (payload?.data?.shared_at as string | undefined) ?? '',
+      };
+    }
     if (!res.ok) {
       throw new Error(payload?.error || 'Failed to send WhatsApp message');
     }
     if (!payload?.data?.sent) {
       throw new Error(CUSTOMER_WINDOW_EXPIRED_MESSAGE);
     }
-    return payload.data.channel as 'freeform' | 'template' | undefined;
+    return {
+      channel: payload.data.channel as 'freeform' | 'template' | undefined,
+    };
   }
 
-  async function handleSendPropertyDetails() {
+  async function handleSendPropertyDetails(confirmResend = false) {
     setApproving(true);
     try {
-      const channel = await sendPropertyDetailsHelper();
+      const result = await sendPropertyDetailsHelper(confirmResend);
+      if (!result) return;
+      if ('recentlySharedAt' in result) {
+        const name = contact?.name || 'This contact';
+        toast.warning(
+          result.recentlySharedAt
+            ? recentShareNotice(name, result.recentlySharedAt)
+            : `${name} already got this listing in the last ${RECENT_SHARE_WINDOW_HOURS} hours.`,
+          {
+            action: {
+              label: 'Send anyway',
+              onClick: () => void handleSendPropertyDetails(true),
+            },
+          }
+        );
+        return;
+      }
+      const { channel } = result;
       toast.success(
         channel === 'template'
           ? 'Chat is past the 24-hour window — details sent as the approved property template.'
@@ -2686,7 +2717,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                               <Button
                                 size="xs"
                                 variant="outline"
-                                onClick={handleSendPropertyDetails}
+                                onClick={() => void handleSendPropertyDetails()}
                                 disabled={approving}
                                 className="text-slate-350 flex h-6 cursor-pointer items-center gap-1 border-slate-800 bg-slate-900 px-2 py-0 text-[10px]"
                               >

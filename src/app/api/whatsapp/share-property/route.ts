@@ -6,10 +6,16 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { sendPropertyToContact } from '@/lib/whatsapp/share-property-send';
+import { findRecentShare } from '@/lib/whatsapp/recent-share';
+import {
+  RECENT_SHARE_WINDOW_HOURS,
+  RECENTLY_SHARED_CODE,
+} from '@/lib/inventory/recent-share';
 import type { Property } from '@/types';
 
 // POST /api/whatsapp/share-property
-// Body: { contact_id: string, property_id: string, message: string }
+// Body: { contact_id: string, property_id: string, message: string,
+//         header_image?: string, confirm_resend?: boolean }
 //
 // One property share to one contact through the account's WhatsApp
 // Business number. The template-first send rules live in
@@ -34,6 +40,7 @@ export async function POST(request: NextRequest) {
       property_id?: string;
       message?: string;
       header_image?: string;
+      confirm_resend?: boolean;
     } | null;
     const requestedHeader =
       typeof body?.header_image === 'string' ? body.header_image.trim() : '';
@@ -78,6 +85,24 @@ export async function POST(request: NextRequest) {
         { error: 'Property not found' },
         { status: 404 }
       );
+
+    if (body?.confirm_resend !== true) {
+      const sharedAt = await findRecentShare(ctx.supabase, {
+        accountId: ctx.accountId,
+        propertyId,
+        contactId,
+      });
+      if (sharedAt) {
+        return NextResponse.json(
+          {
+            error: `This listing was already sent to this contact in the last ${RECENT_SHARE_WINDOW_HOURS} hours`,
+            code: RECENTLY_SHARED_CODE,
+            data: { shared_at: sharedAt },
+          },
+          { status: 409 }
+        );
+      }
+    }
 
     const listing = property as Property;
     const headerImage =

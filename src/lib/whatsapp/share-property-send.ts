@@ -104,6 +104,8 @@ export async function logPropertyShare(
   if (error) {
     recorded = false;
     console.error('[share-property-send] share ledger failed:', error.message);
+  } else {
+    await stampLastShared(db, accountId, contactId, [propertyId]);
   }
 
   try {
@@ -146,6 +148,25 @@ export async function logPropertyShare(
  * Best-effort, like its single-row twin: a ledger failure must never
  * turn a delivered message into a reported error.
  */
+async function stampLastShared(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  propertyIds: string[]
+): Promise<void> {
+  const { error } = await db
+    .from('property_shares')
+    .update({ last_shared_at: new Date().toISOString() })
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .in('property_id', propertyIds);
+  if (error)
+    console.error(
+      '[share-property-send] last-shared stamp failed:',
+      error.message
+    );
+}
+
 export async function logListingsSent(
   db: SupabaseClient,
   accountId: string,
@@ -182,6 +203,7 @@ export async function logListingsSent(
         '[share-property-send] bot share ledger failed:',
         error.message
       );
+    else await stampLastShared(db, accountId, contactId, unique);
     const capture = await captureJourneyItems(db, {
       accountId,
       userId,
