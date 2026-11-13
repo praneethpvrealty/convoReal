@@ -109,7 +109,7 @@ async function approvedTemplate(
     return approvedTemplates.get(account) ?? null;
   const { data, error } = await supabase
     .from('message_templates')
-    .select('name, language, category, body_text')
+    .select('name, language, category, status, body_text')
     .eq('account_id', account)
     .in('name', SHARE_FEEDBACK_TEMPLATE_NAMES)
     .eq('status', 'APPROVED');

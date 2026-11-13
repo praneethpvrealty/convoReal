@@ -220,7 +220,7 @@ async function sendShareFeedback(
 
   const { data: templates } = await db
     .from('message_templates')
-    .select('name, language, category, body_text')
+    .select('name, language, category, status, body_text')
     .eq('account_id', share.account_id)
     .in('name', SHARE_FEEDBACK_TEMPLATE_NAMES)
     .eq('status', 'APPROVED');

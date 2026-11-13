@@ -118,6 +118,7 @@ function makeDb(
     const filters: Record<string, unknown> = {};
     const ors: string[] = [];
     const lowerBounds: [string, string][] = [];
+    let columns: string[] | null = null;
     let patch: Row | null = null;
     const applyPatch = () => {
       const rows = state.shares.filter(
@@ -129,7 +130,10 @@ function makeDb(
       return rows;
     };
     const b: Record<string, unknown> = {
-      select: () => b,
+      select: (cols?: string) => {
+        columns = cols ? cols.split(',').map((c) => c.trim()) : null;
+        return b;
+      },
       eq: (column: string, value: unknown) => {
         filters[column] = value;
         return b;
@@ -233,8 +237,13 @@ function makeDb(
           }).then(resolve);
         }
         if (table === 'message_templates') {
+          const selected = columns;
           return Promise.resolve({
-            data: opts.templates ?? [],
+            data: (opts.templates ?? []).map((row) =>
+              selected
+                ? Object.fromEntries(selected.map((c) => [c, row[c]]))
+                : row
+            ),
             error: null,
           }).then(resolve);
         }
