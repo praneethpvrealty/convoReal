@@ -47,12 +47,12 @@ describe('renderShareTemplateBody', () => {
 });
 
 describe('buildSharePropertyPreview', () => {
-  it('[PRP-012] renders the same template and params the send path would use', () => {
+  it('[PRP-012] renders the same template and params the send path would use, signed by the agent and the firm', () => {
     const preview = buildSharePropertyPreview({
       candidates: [textTemplate, photoTemplate],
       property,
       contactName: 'Rajath Kumar',
-      brandName: 'Acme Realty',
+      sender: { agentName: 'Ravi Kumar', brandName: 'Acme Realty' },
       brandImage: null,
     });
     expect(preview.template).toMatchObject({
@@ -61,7 +61,7 @@ describe('buildSharePropertyPreview', () => {
       header_type: 'image',
     });
     expect(preview.preview).toContain(
-      'Hi Rajath, Acme Realty shares Commercial BDA Property in HSR Layout'
+      'Hi Rajath, Ravi Kumar from Acme Realty shares Commercial BDA Property in HSR Layout'
     );
     expect(preview.preview).toContain('HSR Layout Sector 2, Bangalore');
     expect(preview.unsent_reason).toBeNull();
@@ -73,7 +73,7 @@ describe('buildSharePropertyPreview', () => {
       candidates: [textTemplate],
       property: { ...property, images: [] } as Property,
       contactName: null,
-      brandName: null,
+      sender: { agentName: null, brandName: null },
       brandImage: null,
     });
     expect(preview.template?.label).toBe('Listing details');
@@ -85,7 +85,7 @@ describe('buildSharePropertyPreview', () => {
       candidates: [],
       property,
       contactName: 'Rajath',
-      brandName: null,
+      sender: { agentName: null, brandName: null },
       brandImage: null,
     });
     expect(none.template).toBeNull();
@@ -98,7 +98,7 @@ describe('buildSharePropertyPreview', () => {
       candidates: [{ ...textTemplate, status: 'PENDING' } as MessageTemplate],
       property,
       contactName: 'Rajath',
-      brandName: null,
+      sender: { agentName: null, brandName: null },
       brandImage: null,
     });
     expect(pending.template).toBeNull();

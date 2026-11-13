@@ -27,6 +27,11 @@ import {
   SHARE_FEEDBACK_TEMPLATE_NAME,
   SHARE_FEEDBACK_TEMPLATE_NAMES,
 } from '@/lib/whatsapp/share-feedback-template';
+import {
+  messageSenderLabel,
+  resolveMessageSender,
+  type MessageSender,
+} from '@/lib/whatsapp/message-sender';
 
 interface FeedbackMessageRow {
   id: string;
@@ -75,7 +80,21 @@ interface ContactRow {
 }
 
 const contacts = new Map<string, ContactRow | null>();
-const approvedLanguages = new Map<string, string | null>();
+interface ApprovedTemplate {
+  language: string | null;
+  body_text: string | null;
+}
+
+const approvedTemplates = new Map<string, ApprovedTemplate | null>();
+const senders = new Map<string, MessageSender>();
+
+async function accountSender(account: string): Promise<MessageSender> {
+  const cached = senders.get(account);
+  if (cached) return cached;
+  const sender = await resolveMessageSender(supabase, account, []);
+  senders.set(account, sender);
+  return sender;
+}
 
 async function loadContact(
   account: string,
@@ -96,14 +115,14 @@ async function loadContact(
   return contact;
 }
 
-async function approvedTemplateLanguage(
+async function approvedTemplate(
   account: string
-): Promise<string | null> {
-  if (approvedLanguages.has(account))
-    return approvedLanguages.get(account) ?? null;
+): Promise<ApprovedTemplate | null> {
+  if (approvedTemplates.has(account))
+    return approvedTemplates.get(account) ?? null;
   const { data, error } = await supabase
     .from('message_templates')
-    .select('name, language, category')
+    .select('name, language, category, body_text')
     .eq('account_id', account)
     .in('name', SHARE_FEEDBACK_TEMPLATE_NAMES)
     .eq('status', 'APPROVED');
@@ -111,9 +130,12 @@ async function approvedTemplateLanguage(
     throw new Error(
       `Failed to load templates for ${account}: ${error.message}`
     );
-  const language = pickShareFeedbackTemplate(data ?? [])?.language ?? null;
-  approvedLanguages.set(account, language);
-  return language;
+  const row = pickShareFeedbackTemplate(data ?? []);
+  const template = row
+    ? { language: row.language ?? null, body_text: row.body_text ?? null }
+    : null;
+  approvedTemplates.set(account, template);
+  return template;
 }
 
 function contactSalutation(
@@ -127,17 +149,19 @@ async function renderFor(
   contactId: string | null
 ): Promise<string> {
   const contact = await loadContact(account, contactId);
-  const language =
-    (await approvedTemplateLanguage(account)) ||
-    contact?.preferred_language ||
-    'en_US';
+  const template = await approvedTemplate(account);
+  const language = template?.language || contact?.preferred_language || 'en_US';
   const params =
     applySalutationToTemplateParams(
-      buildShareFeedbackParams(contact?.name),
+      buildShareFeedbackParams(
+        contact?.name,
+        messageSenderLabel(await accountSender(account), language),
+        template?.body_text
+      ),
       contact?.name,
       contactSalutation(contact?.salutation)
     ) ?? [];
-  return renderShareFeedbackBody(params, language);
+  return renderShareFeedbackBody(params, language, template?.body_text);
 }
 
 async function fetchMessagePage(

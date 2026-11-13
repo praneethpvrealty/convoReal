@@ -7,6 +7,10 @@ import { isWithinCustomerWindow } from '@/lib/whatsapp/customer-window';
 import { templateButtonLabel } from '@/lib/whatsapp/template-copy';
 import { resolveSendLanguage } from '@/lib/whatsapp/template-language';
 import type { InteractiveButton } from '@/lib/whatsapp/meta-api';
+import {
+  messageSenderLabel,
+  resolveMessageSender,
+} from '@/lib/whatsapp/message-sender';
 
 export function shareFeedbackButtons(propertyId: string): InteractiveButton[] {
   return [
@@ -82,6 +86,7 @@ export async function processShareFeedbackFollowups(
       contact_id,
       property_id,
       created_at,
+      created_by,
       contacts!inner(id, name)
     `
     )
@@ -158,6 +163,7 @@ async function sendShareFeedback(
     contact_id: string;
     property_id: string | null;
     created_at: string;
+    created_by?: string | null;
   }
 ): Promise<'sent' | 'skipped' | 'retry'> {
   const { conversation, error: replyError } = await lookupConversation<{
@@ -198,7 +204,7 @@ async function sendShareFeedback(
 
   const { data: contact } = await db
     .from('contacts')
-    .select('name, preferred_language')
+    .select('name, preferred_language, assigned_agent_id')
     .eq('id', share.contact_id)
     .maybeSingle();
   if (!contact) return 'retry';
@@ -206,6 +212,7 @@ async function sendShareFeedback(
   const {
     buildShareFeedbackParams,
     buildShareFeedbackButtonsBody,
+    shareFeedbackFirstName,
     pickShareFeedbackTemplate,
     renderShareFeedbackBody,
     SHARE_FEEDBACK_TEMPLATE_NAMES,
@@ -213,7 +220,7 @@ async function sendShareFeedback(
 
   const { data: templates } = await db
     .from('message_templates')
-    .select('name, language, category')
+    .select('name, language, category, body_text')
     .eq('account_id', share.account_id)
     .in('name', SHARE_FEEDBACK_TEMPLATE_NAMES)
     .eq('status', 'APPROVED');
@@ -223,7 +230,15 @@ async function sendShareFeedback(
   const templateLanguage =
     templateRow?.language || contact.preferred_language || 'en_US';
 
-  const params = buildShareFeedbackParams(contact.name);
+  const sender = await resolveMessageSender(db, share.account_id, [
+    share.created_by,
+    contact.assigned_agent_id as string | null | undefined,
+  ]);
+  const params = buildShareFeedbackParams(
+    contact.name,
+    messageSenderLabel(sender, templateLanguage),
+    templateRow?.body_text as string | null | undefined
+  );
 
   let property: { id: string; title: string | null } | null = null;
   if (
@@ -258,8 +273,9 @@ async function sendShareFeedback(
           senderType: 'bot',
           interactiveType: 'buttons',
           interactiveBody: buildShareFeedbackButtonsBody(
-            params[0],
-            property.title
+            shareFeedbackFirstName(contact.name),
+            property.title,
+            messageSenderLabel(sender, 'en')
           ),
           interactiveButtons: shareFeedbackButtons(property.id),
           customDbClient: db,
@@ -273,7 +289,11 @@ async function sendShareFeedback(
           templateName,
           templateLanguage,
           templateParams: params,
-          text: renderShareFeedbackBody(params, templateLanguage),
+          text: renderShareFeedbackBody(
+            params,
+            templateLanguage,
+            templateRow?.body_text as string | null | undefined
+          ),
           customDbClient: db,
         });
     if (result?.success === false) {

@@ -8,6 +8,10 @@ import {
   shareUnsentReason,
 } from '@/lib/whatsapp/property-share-template';
 import type { MessageTemplate, Property } from '@/types';
+import {
+  messageSenderLabel,
+  type MessageSender,
+} from '@/lib/whatsapp/message-sender';
 
 export interface SharePropertyPreview {
   template: {
@@ -38,11 +42,11 @@ export function buildSharePropertyPreview(opts: {
   candidates: MessageTemplate[];
   property: Property;
   contactName: string | null;
-  brandName: string | null;
+  sender: MessageSender;
   brandImage: string | null;
   language?: LanguageCode;
 }): SharePropertyPreview {
-  const { candidates, property, contactName, brandName, brandImage } = opts;
+  const { candidates, property, contactName, sender, brandImage } = opts;
   const images = (property.images ?? []).filter(
     (img) => img && img.trim().length > 0
   );
@@ -68,7 +72,12 @@ export function buildSharePropertyPreview(opts: {
     };
   }
   const params = truncateParametersToBudget(template.body_text, [
-    ...propertyShareParams(template.name, contactName, property, brandName),
+    ...propertyShareParams(
+      template.name,
+      contactName,
+      property,
+      messageSenderLabel(sender, template.language)
+    ),
   ]);
   return {
     template: {

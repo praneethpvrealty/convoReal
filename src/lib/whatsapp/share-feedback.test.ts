@@ -90,6 +90,8 @@ function makeDb(
     failMarks?: number;
     contactLanguage?: string | null;
     accountLanguage?: string | null;
+    templates?: Row[];
+    assignedAgentId?: string | null;
   } = {}
 ) {
   const state = {
@@ -105,6 +107,7 @@ function makeDb(
         recipient_kind: 'buyer',
         feedback_status: 'pending',
         feedback_sent_at: null,
+        created_by: 'agent-1',
         contacts: { id: CONTACT_ID, name: 'Asha' },
         ...opts.share,
       } as Row,
@@ -159,9 +162,23 @@ function makeDb(
         }
         if (table === 'accounts') {
           return {
-            data: { default_language: opts.accountLanguage ?? null },
+            data: {
+              default_language: opts.accountLanguage ?? null,
+              name: 'Acme Realty',
+            },
             error: null,
           };
+        }
+        if (table === 'profiles') {
+          const names: Record<string, string> = {
+            'agent-1': 'Ravi Kumar',
+            'agent-2': 'Meera Rao',
+          };
+          const name =
+            filters.account_role === 'owner'
+              ? 'Praneeth PV'
+              : names[String(filters.user_id)];
+          return { data: name ? { full_name: name } : null, error: null };
         }
         if (table === 'conversations') {
           return {
@@ -179,6 +196,7 @@ function makeDb(
           return {
             data: {
               name: 'Asha',
+              assigned_agent_id: opts.assignedAgentId ?? null,
               preferred_language:
                 opts.contactLanguage === undefined
                   ? 'en'
@@ -215,7 +233,10 @@ function makeDb(
           }).then(resolve);
         }
         if (table === 'message_templates') {
-          return Promise.resolve({ data: [], error: null }).then(resolve);
+          return Promise.resolve({
+            data: opts.templates ?? [],
+            error: null,
+          }).then(resolve);
         }
         return Promise.resolve({ data: null, error: null }).then(resolve);
       },
@@ -257,10 +278,61 @@ describe('processShareFeedbackFollowups', () => {
     expect(h.send).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'template',
+        templateParams: ['Asha', 'Ravi Kumar from Acme Realty'],
+        text: 'Hi Asha, this is Ravi Kumar from Acme Realty, following up on the property I shared earlier.\n\nDid it match what you are looking for?',
+      })
+    );
+  });
+
+  it('[INB-022] keeps the parameter count of an account still on the unsigned approved template', async () => {
+    const body =
+      'Hi {{1}}, following up on the property I shared earlier.\n\nDid it match what you are looking for?';
+    const db = makeDb({
+      lastCustomerMessageAt: null,
+      templates: [
+        {
+          name: 'property_share_feedback',
+          language: 'en',
+          category: 'UTILITY',
+          status: 'APPROVED',
+          body_text: body,
+        },
+      ],
+    });
+
+    await processShareFeedbackFollowups(db as never);
+
+    expect(h.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'template',
         templateParams: ['Asha'],
         text: 'Hi Asha, following up on the property I shared earlier.\n\nDid it match what you are looking for?',
       })
     );
+  });
+
+  it('[INB-022] signs a bot share with the assigned agent, else the account owner', async () => {
+    const assigned = makeDb({
+      lastCustomerMessageAt: null,
+      share: { created_by: null },
+      assignedAgentId: 'agent-2',
+    });
+    await processShareFeedbackFollowups(assigned as never);
+    expect(h.send.mock.calls[0][0].templateParams).toEqual([
+      'Asha',
+      'Meera Rao from Acme Realty',
+    ]);
+
+    h.send.mockClear();
+    const unassigned = makeDb({
+      lastCustomerMessageAt: null,
+      share: { created_by: null },
+    });
+    await processShareFeedbackFollowups(unassigned as never);
+    expect(h.send.mock.calls[0][0].templateParams).toEqual([
+      'Asha',
+      'Praneeth PV from Acme Realty',
+    ]);
   });
 
   it('[INB-022] retries recording the prompt id when the first write fails', async () => {
@@ -293,7 +365,7 @@ describe('processShareFeedbackFollowups', () => {
       interactiveType: 'buttons',
     });
     expect(sent.interactiveBody).toBe(
-      'Hi Asha, following up on *35x80 Commercial Corner Plot on Kolar Main Road*, which I shared earlier.\n\nDid it match what you are looking for?'
+      'Hi Asha, this is Ravi Kumar from Acme Realty, following up on *35x80 Commercial Corner Plot on Kolar Main Road*, which I shared earlier.\n\nDid it match what you are looking for?'
     );
     expect(sent.interactiveButtons).toEqual([
       { id: `lfb_y_${PROPERTY_ID}`, title: "It's perfect" },

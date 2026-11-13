@@ -18,6 +18,10 @@ import {
   shareHeaderImage,
 } from '@/lib/whatsapp/property-share-template';
 import {
+  messageSenderLabel,
+  resolveMessageSender,
+} from '@/lib/whatsapp/message-sender';
+import {
   accountBrandImage,
   accountBrandName,
   accountPropertyShowcaseUrl,
@@ -443,11 +447,12 @@ export async function sendPropertyToContact(opts: {
   // Param count follows the template's NAME: the signed revisions
   // carry the brokerage as {{2}}, their approved predecessors do not,
   // and Meta rejects a send that hands either the wrong number.
+  const sender = await resolveMessageSender(db, accountId, [userId], brandName);
   const params = propertyShareParams(
     alertTemplate.name,
     contactName,
     property,
-    brandName
+    messageSenderLabel(sender, alertTemplate.language)
   );
   const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [
     ...params,

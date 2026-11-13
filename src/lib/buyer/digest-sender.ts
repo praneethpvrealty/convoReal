@@ -42,6 +42,10 @@ import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import {
+  messageSenderLabel,
+  resolveMessageSender,
+} from '@/lib/whatsapp/message-sender';
+import {
   buildConsentRequestMessage,
   buildMatchDigestMessage,
   MAX_DIGEST_MATCHES,
@@ -375,6 +379,12 @@ async function runAccount(
         accountBrandImage(db, accountId),
         accountBrandName(db, accountId),
       ]);
+      const sender = await resolveMessageSender(
+        db,
+        accountId,
+        [buyer.assigned_agent_id],
+        brandName
+      );
       const showcaseUrl = await accountPropertiesShowcaseUrl(
         db,
         accountId,
@@ -389,6 +399,7 @@ async function runAccount(
           contactName: buyer.name,
           matches,
           portalUrl: showcaseUrl,
+          senderLabel: messageSenderLabel(sender, 'en'),
         }),
         templateName: PROPERTY_SHARE_TEMPLATE_NAMES,
         pickTemplate: (rows) =>
@@ -396,7 +407,12 @@ async function runAccount(
         // The params must match whichever name pickTemplate lands on,
         // so they are built from it rather than assumed.
         buildParams: (template) =>
-          propertyShareParams(template.name, buyer.name, top, brandName),
+          propertyShareParams(
+            template.name,
+            buyer.name,
+            top,
+            messageSenderLabel(sender, template.language)
+          ),
         // The URL button carries the listing so a tap opens straight to
         // it — same v= attribution as every other property-share send.
         buildButtonParams: (template) => {

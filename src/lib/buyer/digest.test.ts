@@ -89,6 +89,20 @@ describe('buildMatchDigestMessage', () => {
     expect(text).toContain(portalUrl);
   });
 
+  it('introduces the agent and the firm before the listings', () => {
+    const text = buildMatchDigestMessage({
+      contactName: 'Nitesh Reddy',
+      matches: [match({ id: 'a' }, 88)],
+      portalUrl,
+      senderLabel: 'Ravi Kumar from Aryavarta Ventures',
+    });
+    expect(
+      text.startsWith(
+        "Hi Nitesh 👋\n\nThis is Ravi Kumar from Aryavarta Ventures. One new listing matches what you're looking for:"
+      )
+    ).toBe(true);
+  });
+
   it('always carries the opt-out', () => {
     const text = buildMatchDigestMessage({
       contactName: null,
