@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
+import {
+  messageSenderLabel,
+  resolveMessageSender,
+} from '@/lib/whatsapp/message-sender';
 import { getMatchingContacts, type MatchingResult } from '@/lib/matching';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { resolveQuietPeriod } from '@/lib/notifications/quiet-hours';
@@ -282,6 +286,12 @@ export async function deliverRealtimeBuyerAlerts(
       images: listing.images,
       brandImage,
     });
+    const sender = await resolveMessageSender(
+      db,
+      accountId,
+      [buyer.assigned_agent_id],
+      brandName
+    );
     const text = buildMatchDigestMessage({
       contactName: buyer.name,
       matches: [
@@ -293,6 +303,7 @@ export async function deliverRealtimeBuyerAlerts(
         },
       ],
       portalUrl,
+      senderLabel: messageSenderLabel(sender, 'en'),
     });
     const delivered = await sendDenNotification(db, {
       accountId,
@@ -304,7 +315,12 @@ export async function deliverRealtimeBuyerAlerts(
           hasImage: Boolean(headerImage),
         }),
       buildParams: (template) =>
-        propertyShareParams(template.name, buyer.name, listing, brandName),
+        propertyShareParams(
+          template.name,
+          buyer.name,
+          listing,
+          messageSenderLabel(sender, template.language)
+        ),
       buildButtonParams: (template) => {
         const buttonParams: Record<number, string> = {};
         (template.buttons ?? []).forEach((button, index) => {

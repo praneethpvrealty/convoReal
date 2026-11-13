@@ -6,6 +6,7 @@ interface QueuedResponse {
 }
 
 let queues: Record<string, QueuedResponse[]>;
+let lookups: Record<string, Record<string, unknown>[]>;
 
 function makeDb() {
   return {
@@ -14,9 +15,15 @@ function makeDb() {
         data: null,
         error: null,
       };
+      const filters: Record<string, unknown> = {};
+      (lookups[table] ??= []).push(filters);
       const builder: { [k: string]: (...args: unknown[]) => unknown } = {
         select: () => builder,
-        eq: () => builder,
+        eq: (column: unknown, value: unknown) => {
+          filters[String(column)] = value;
+          return builder;
+        },
+        limit: () => builder,
         in: () => builder,
         order: () => builder,
         maybeSingle: () => Promise.resolve(response),
@@ -89,6 +96,7 @@ function request(query: string) {
 
 beforeEach(() => {
   queues = {};
+  lookups = {};
 });
 
 describe('share-property preview', () => {
@@ -122,6 +130,34 @@ describe('share-property preview', () => {
     );
     expect(data.images).toEqual(PROPERTY.images);
     expect(data.unsent_reason).toBeNull();
+  });
+
+  it('[PRP-012] signs the preview with the sharing agent, the same sender the send resolves', async () => {
+    queues.properties = [{ data: PROPERTY, error: null }];
+    queues.contacts = [
+      { data: { id: 'contact-1', name: 'Rajath Kumar' }, error: null },
+    ];
+    queues.message_templates = [
+      {
+        data: [
+          {
+            ...APPROVED_TEMPLATE,
+            name: 'listing_details_notice',
+            body_text: 'Hi {{1}}, from {{2}}: {{3}} — {{4}} at {{5}}.',
+          },
+        ],
+        error: null,
+      },
+    ];
+    queues.profiles = [{ data: { full_name: 'Ravi Kumar' }, error: null }];
+
+    const { data } = await (
+      await GET(request('?property_id=prop-1&contact_id=contact-1'))
+    ).json();
+    expect(data.preview).toContain('from Ravi Kumar from Acme Realty:');
+    expect(lookups.profiles).toEqual([
+      { account_id: 'acc-1', user_id: 'user-1' },
+    ]);
   });
 
   it('[PRP-012] names the reason a closed window cannot be served', async () => {

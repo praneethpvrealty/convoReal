@@ -6,6 +6,7 @@ import {
 } from '@/lib/showcase/account-showcase-url';
 import { PROPERTY_SHARE_TEMPLATE_NAMES } from '@/lib/whatsapp/property-share-template';
 import { buildSharePropertyPreview } from '@/lib/whatsapp/share-property-preview';
+import { resolveMessageSender } from '@/lib/whatsapp/message-sender';
 import { resolveSendLanguage } from '@/lib/whatsapp/template-language';
 import type { MessageTemplate, Property } from '@/types';
 
@@ -71,13 +72,19 @@ export async function GET(request: NextRequest) {
       resolveSendLanguage(ctx.supabase, ctx.accountId, contactId || null),
     ]);
     if (templateErr) throw templateErr;
+    const sender = await resolveMessageSender(
+      ctx.supabase,
+      ctx.accountId,
+      [ctx.userId],
+      brandName
+    );
 
     return NextResponse.json({
       data: buildSharePropertyPreview({
         candidates: (templateRows ?? []) as MessageTemplate[],
         property: property as Property,
         contactName: (contact?.name as string | null) ?? null,
-        brandName,
+        sender,
         brandImage,
         language,
       }),

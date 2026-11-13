@@ -17,6 +17,18 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 13 November 2026
+
+- **Property messages now say who is writing.** The share follow-up ("Did it
+  match what you are looking for?"), the buyer match digest and real-time
+  alerts, and every listing-share template sent from a share or Match Radar
+  introduce the sender as "<agent> from <firm>" — the agent who shared, else
+  the contact's assigned agent, else the account owner — instead of an
+  unsigned message from an unknown number. The share follow-up template
+  gains a `{{2}}` for this: Settings → WhatsApp templates offers the new
+  wording as an update, and until an account adopts it and Meta re-approves
+  it, sends keep matching the one-parameter body that is approved.
+
 #### 12 November 2026
 
 - **Listing videos play on the Showcase again.** A walkthrough attached to a

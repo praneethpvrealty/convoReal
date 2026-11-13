@@ -16,6 +16,10 @@ import {
   shareHeaderImage,
 } from '@/lib/whatsapp/property-share-template';
 import {
+  messageSenderLabel,
+  resolveMessageSender,
+} from '@/lib/whatsapp/message-sender';
+import {
   resolveSendLanguage,
   isLanguageFallback,
   warnLanguageFallback,
@@ -298,6 +302,12 @@ export async function POST(request: NextRequest) {
         accountBrandImage(db, ctx.accountId),
         accountBrandName(db, ctx.accountId),
       ]);
+      const sender = await resolveMessageSender(
+        db,
+        ctx.accountId,
+        [ctx.userId],
+        brandName
+      );
       /** Whether ANY of these alerts can go out at all, for the
        *  "templateMissing" report — the per-property choice happens at
        *  send time, once the header image is known. */
@@ -411,7 +421,7 @@ export async function POST(request: NextRequest) {
           alertTemplate.name,
           contactName,
           property,
-          brandName
+          messageSenderLabel(sender, alertTemplate.language)
         );
         const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [
           ...params,

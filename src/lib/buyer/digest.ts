@@ -77,6 +77,7 @@ export interface DigestMessageArgs {
   /** Deep link to the buyer's own matches page. */
   portalUrl: string;
   enquiredPropertyId?: string | null;
+  senderLabel?: string | null;
 }
 
 /**
@@ -90,13 +91,15 @@ export function buildMatchDigestMessage(args: DigestMessageArgs): string {
     args.enquiredPropertyId &&
     matches.some((match) => match.property.id === args.enquiredPropertyId)
   );
+  const sender = args.senderLabel?.trim();
+  const greeting = `Hi ${firstName(args.contactName)} 👋\n\n${sender ? `This is ${sender}. ` : ''}`;
   const heading = includesEnquiry
     ? matches.length === 1
-      ? `Hi ${firstName(args.contactName)} 👋\n\nHere's the property you enquired about:`
-      : `Hi ${firstName(args.contactName)} 👋\n\nHere's the property you enquired about, followed by the closest available options:`
+      ? `${greeting}Here's the property you enquired about:`
+      : `${greeting}Here's the property you enquired about, followed by the closest available options:`
     : matches.length === 1
-      ? `Hi ${firstName(args.contactName)} 👋\n\nOne new listing matches what you're looking for:`
-      : `Hi ${firstName(args.contactName)} 👋\n\n${matches.length} new listings match what you're looking for:`;
+      ? `${greeting}One new listing matches what you're looking for:`
+      : `${greeting}${matches.length} new listings match what you're looking for:`;
 
   const items = matches.map((match, index) => {
     const price = digestPriceLabel(match.property);
