@@ -3026,6 +3026,33 @@
             "src/lib/inventory/listing-availability.ts",
             "src/lib/whatsapp/sold-notification.ts"
           ]
+        },
+        {
+          "id": "PRP-061",
+          "rule": "A listing is never sent to the same contact twice by accident: POST /api/whatsapp/share-property refuses with 409 RECENTLY_SHARED and shared_at, sending nothing and writing nothing, when the share ledger already holds that contact×property within the last 24 hours (whichever path wrote it — an instant buyer alert, a digest, another share), and sends only when the request carries confirm_resend: true. The web Matches tab reports such a recipient as Not sent again with when it went and offers Send again to them; the web contact page offers Send anyway; the mobile share sheet asks before a single send (and on the server's refusal) and offers Send again to the held-back recipients of a multi-contact send, never retrying them as transient failures.",
+          "tests": [
+            {
+              "file": "src/app/api/whatsapp/share-property/route.test.ts",
+              "case": "[PRP-061]"
+            },
+            {
+              "file": "src/lib/inventory/recent-share.test.ts",
+              "case": "[PRP-061]"
+            },
+            {
+              "file": "src/lib/whatsapp/share-property-request.test.ts",
+              "case": "[PRP-061]"
+            },
+            {
+              "file": "mobile/lib/recent-share.test.ts",
+              "case": "[PRP-061]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/recent-share.ts",
+            "mobile/components/property-share-sheet.tsx",
+            "mobile/lib/property-share-actions.ts"
+          ]
         }
       ]
     },
@@ -5956,7 +5983,7 @@
         },
         {
           "id": "RDR-003",
-          "rule": "A brief that states only a property type and a size (\"Residential plot 4000 sqft\", any area, no budget) is matched on every listing of that type whose size fits the stated band exactly: a type match (45) plus an exact size fit (15) meets the floor of 60 that Match Radar, buyer alerts, the buyer portal, buyer digests, bot shortlist replies and the Deal Mode sweep all read from the one shared scorer, so the buyer sees the same listings on every surface. A near-miss size, a larger alternative, or a type-only brief stays below the floor, so a brief with no size still surfaces nothing by itself.",
+          "rule": "A brief that states only a property type and a size (\"Residential plot 4000 sqft\", no area, no budget) is matched on every listing of that type whose size fits the stated band exactly: a type match (45) plus an exact size fit (15) meets the floor of 60 that Match Radar, buyer alerts, the buyer portal, buyer digests, bot shortlist replies and the Deal Mode sweep all read from the one shared scorer. Match Radar, the buyer portal and bot shortlist replies show such a match; instant buyer alerts and buyer digests push it only under RDR-004. A near-miss size, a larger alternative, or a type-only brief stays below the floor, so a brief with no size still surfaces nothing by itself.",
           "tests": [
             {
               "file": "src/lib/radar/engine.test.ts",
@@ -5971,6 +5998,21 @@
               "case": "[RDR-003]"
             }
           ]
+        },
+        {
+          "id": "RDR-004",
+          "rule": "A listing is pushed to a buyer unprompted (an instant new-listing alert or the daily buyer digest) only when it fits where they want to buy or what they want to spend: its location matches their area or city, it is a project or locality they named, they said any area will do (a placeholder area such as Anywhere, a location-free phrase, or a yield-led commercial brief, recorded as location_waived), or its price sits inside a budget they stated. A match on property type and size alone still shows in Match Radar and the buyer portal but is never queued as an alert, is cancelled if it was queued before, and is left out of the digest.",
+          "tests": [
+            {
+              "file": "src/lib/buyer/matches-ranking.test.ts",
+              "case": "[RDR-004]"
+            },
+            {
+              "file": "src/lib/buyer/realtime-alerts.test.ts",
+              "case": "[RDR-004]"
+            }
+          ],
+          "guards": ["src/lib/buyer/digest-sender.ts", "src/lib/matching.ts"]
         }
       ]
     },

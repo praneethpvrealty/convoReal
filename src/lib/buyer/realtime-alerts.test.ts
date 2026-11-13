@@ -24,7 +24,10 @@ function chain(result: unknown) {
   return current;
 }
 
-function match(contact: Contact): MatchingResult {
+function match(
+  contact: Contact,
+  details: Partial<MatchingResult['details']> = {}
+): MatchingResult {
   return {
     contact,
     score: 80,
@@ -34,6 +37,7 @@ function match(contact: Contact): MatchingResult {
       budget: 'match',
       bhk: 'match',
       roi: 'unknown',
+      ...details,
     },
     matchedFields: { budget: true, area: true, interest: true },
   };
@@ -96,6 +100,30 @@ describe('enqueueRealtimeBuyerAlerts', () => {
       ],
       expect.objectContaining({ ignoreDuplicates: true })
     );
+  });
+
+  it('[RDR-004] does not queue a buyer the listing fits on type and size alone', async () => {
+    const from = vi.fn();
+    const db = { from } as unknown as SupabaseClient;
+    const property = {
+      id: 'property-1',
+      status: 'Available',
+      is_published: true,
+    } as Property;
+    const buyer = {
+      id: 'contact-1',
+      phone: '+919999999999',
+      status: 'active',
+      requirement_active: true,
+      buyer_alerts_consent: 'granted',
+    } as Contact;
+
+    await expect(
+      enqueueRealtimeBuyerAlerts(db, 'account-1', property, [
+        match(buyer, { location: 'unknown', budget: 'unknown', size: 'match' }),
+      ])
+    ).resolves.toBe(0);
+    expect(from).not.toHaveBeenCalled();
   });
 
   it('does not queue a draft listing', async () => {

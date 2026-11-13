@@ -658,3 +658,35 @@ describe('share-property — channel selection', () => {
     expect(dispatcherCalls).toHaveLength(1);
   });
 });
+
+describe('share-property — recent duplicate guard', () => {
+  it('[PRP-061] refuses a listing the contact already got in the last 24 hours, sending nothing', async () => {
+    primeLookups({ windowOpen: true });
+    ctxQueues.property_shares = [
+      { data: { created_at: '2026-11-13T13:00:00.000Z' }, error: null },
+    ];
+
+    const res = await POST(request(shareBody()));
+    const json = await res.json();
+
+    expect(res.status).toBe(409);
+    expect(json.code).toBe('RECENTLY_SHARED');
+    expect(json.data).toEqual({ shared_at: '2026-11-13T13:00:00.000Z' });
+    expect(dispatcherCalls).toHaveLength(0);
+    expect(adminInserts.some((i) => i.table === 'property_shares')).toBe(false);
+  });
+
+  it('[PRP-061] sends again once the agent confirms the resend', async () => {
+    primeLookups({ windowOpen: true });
+    ctxQueues.property_shares = [
+      { data: { created_at: '2026-11-13T13:00:00.000Z' }, error: null },
+    ];
+
+    const res = await POST(request({ ...shareBody(), confirm_resend: true }));
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.data.sent).toBe(true);
+    expect(dispatcherCalls.length).toBeGreaterThan(0);
+  });
+});

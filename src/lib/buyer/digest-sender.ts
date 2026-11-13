@@ -38,7 +38,11 @@ import {
   accountBrandName,
   accountPropertiesShowcaseUrl,
 } from '@/lib/showcase/account-showcase-url';
-import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
+import {
+  curateForBuyer,
+  hasBuyerBrief,
+  isAlertWorthyMatch,
+} from './matches-ranking';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 import {
@@ -48,7 +52,6 @@ import {
 import {
   buildConsentRequestMessage,
   buildMatchDigestMessage,
-  MAX_DIGEST_MATCHES,
   REPEAT_SUPPRESSION_DAYS,
   selectUnsentMatches,
 } from './digest';
@@ -298,9 +301,9 @@ async function runAccount(
     }
 
     try {
-      const ranked = curateForBuyer(pool, buyer, {
-        limit: MAX_DIGEST_MATCHES * 3,
-      });
+      const ranked = curateForBuyer(pool, buyer).filter((match) =>
+        isAlertWorthyMatch(match.details)
+      );
       const sentIds = sentIdsByBuyer.get(buyer.id) ?? new Set<string>();
       const matches = selectUnsentMatches(ranked, sentIds);
 

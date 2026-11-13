@@ -90,4 +90,24 @@ describe('postPropertyShare', () => {
       error: 'Contact not found',
     });
   });
+
+  it('[PRP-061] reports a recent duplicate with when it went, without retrying', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(409, {
+        error: 'Already sent',
+        code: 'RECENTLY_SHARED',
+        data: { shared_at: '2026-11-13T13:00:00.000Z' },
+      })
+    );
+    const sleep = vi.fn(async () => {});
+    const result = await postPropertyShare(body, { fetchImpl, sleep });
+    expect(result).toEqual({
+      ok: false,
+      status: 409,
+      error: 'Already sent',
+      code: 'RECENTLY_SHARED',
+      sharedAt: '2026-11-13T13:00:00.000Z',
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
 });

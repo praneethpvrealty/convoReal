@@ -213,6 +213,11 @@ export interface MatchDetails {
    *  the area keeps a listing in past the type gate and leads the
    *  buyer-facing order — see compareForBuyer. */
   named_area?: MatchVerdict;
+  /** The listing sits outside every area the contact named, but they
+   *  said any area will do (a placeholder area, a location-free phrase
+   *  or a yield-led commercial brief), so location reads 'unknown' by
+   *  their choice rather than for want of a brief. */
+  location_waived?: boolean;
 }
 
 export interface MatchingResult {
@@ -1401,6 +1406,7 @@ function matchContactsSingleProfile(
     // say; a named-project match satisfies location outright.
     if (namedAreaHit || projectMatch) locationVerdict = 'match';
 
+    let locationWaived = false;
     if (locationVerdict === 'mismatch') {
       // Yield-focused commercial purchases are location-agnostic
       const yieldBypass =
@@ -1412,6 +1418,7 @@ function matchContactsSingleProfile(
       );
       if (yieldBypass || textBypass || anyAreaAccepted) {
         locationVerdict = 'unknown';
+        locationWaived = true;
       } else {
         continue;
       }
@@ -1637,6 +1644,7 @@ function matchContactsSingleProfile(
         size_fit: sizeFit,
         project: projectMatch ? 'match' : 'unknown',
         named_area: namedAreaHit ? 'match' : 'unknown',
+        ...(locationWaived ? { location_waived: true } : {}),
       },
       matchedFields: {
         budget: budgetVerdict === 'match',

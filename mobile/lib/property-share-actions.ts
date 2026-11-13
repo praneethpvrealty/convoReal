@@ -8,6 +8,10 @@
 // unapproved template comes back unsent.
 
 import { postShareLog } from '@shared/lib/inventory/share-log-request';
+import {
+  recentShareRefusal,
+  recentShareSince,
+} from '@shared/lib/inventory/recent-share';
 
 import { apiFetch, ApiError, isRateLimited, isTimeout } from '@/lib/api';
 import { whenAppActive } from '@/lib/app-foreground';
@@ -135,6 +139,10 @@ export interface EngineSendOutcome {
   /** Seconds until the send rate limit resets. Set only on the first
    *  attempt — a retried share reports its real verdict. */
   rateLimitedFor?: number;
+  /** The server held the send back because this contact already got the
+   *  listing in the last 24 hours; resend with confirmResend. Empty when
+   *  the refusal did not say when. */
+  recentlySharedAt?: string;
 }
 
 /** Send a property share through the account's WhatsApp Business number
@@ -145,23 +153,31 @@ export async function sendPropertyViaEngine(
   contact: Contact,
   property: Property,
   message: string,
-  headerImage?: string | null
+  headerImage?: string | null,
+  confirmResend = false
 ): Promise<EngineSendOutcome> {
-  const outcome = await attemptShare(contact, property, message, headerImage);
+  const outcome = await attemptShare(
+    contact,
+    property,
+    message,
+    headerImage,
+    confirmResend
+  );
   // A 429 is the server asking us to wait, not a share that failed.
   // Reporting it as one is what turned a 31-contact fan-out into 30
   // "could not send" lines for messages that were never attempted.
   if (!outcome.rateLimitedFor) return outcome;
   const wait = Math.min(outcome.rateLimitedFor * 1000, MAX_RETRY_WAIT_MS);
   await new Promise((resolve) => setTimeout(resolve, wait));
-  return attemptShare(contact, property, message, headerImage);
+  return attemptShare(contact, property, message, headerImage, confirmResend);
 }
 
 async function attemptShare(
   contact: Contact,
   property: Property,
   message: string,
-  headerImage?: string | null
+  headerImage: string | null | undefined,
+  confirmResend: boolean
 ): Promise<EngineSendOutcome> {
   try {
     const res = await apiFetch<{
@@ -179,6 +195,7 @@ async function attemptShare(
         property_id: property.id,
         message,
         ...(headerImage ? { header_image: headerImage } : {}),
+        ...(confirmResend ? { confirm_resend: true } : {}),
       }),
     });
     const d = res.data;
@@ -189,6 +206,15 @@ async function attemptShare(
       ...(d.sent ? {} : { templateStatus: d.template_status ?? 'NONE' }),
     };
   } catch (e) {
+    const refusal =
+      e instanceof ApiError ? recentShareRefusal(e.code, e.data) : null;
+    if (refusal) {
+      return {
+        sent: false,
+        recentlySharedAt: refusal.sharedAt ?? '',
+        error: e instanceof Error ? e.message : 'Already sent',
+      };
+    }
     return {
       sent: false,
       ...(isTimeout(e) ? { timedOut: true } : {}),
@@ -237,7 +263,8 @@ export async function sendPropertyViaEngineMany(
   property: Property,
   messageFor: (contact: Contact) => string,
   onProgress?: (done: number, total: number) => void,
-  headerImage?: string | null
+  headerImage?: string | null,
+  confirmResend = false
 ): Promise<Map<string, EngineSendOutcome>> {
   const outcomes = new Map<string, EngineSendOutcome>();
   const startedAt = new Date(Date.now() - 5000).toISOString();
@@ -250,7 +277,8 @@ export async function sendPropertyViaEngineMany(
         contact,
         property,
         messageFor(contact),
-        headerImage
+        headerImage,
+        confirmResend
       );
       outcomes.set(contact.id, outcome);
       onProgress?.(++done, contacts.length);
@@ -274,7 +302,12 @@ export async function sendPropertyViaEngineMany(
 
   const retryable = contacts.filter((contact) => {
     const outcome = outcomes.get(contact.id);
-    return outcome && !outcome.sent && !outcome.templateStatus;
+    return (
+      outcome &&
+      !outcome.sent &&
+      !outcome.templateStatus &&
+      outcome.recentlySharedAt === undefined
+    );
   });
   if (retryable.length > 0) {
     await new Promise((resolve) =>
@@ -297,7 +330,8 @@ export async function sendPropertyViaEngineMany(
           contact,
           property,
           messageFor(contact),
-          headerImage
+          headerImage,
+          confirmResend
         )
       );
     }
@@ -343,4 +377,27 @@ export async function fetchSharePropertyPreview(
     `/api/whatsapp/share-property/preview?${query.toString()}`
   );
   return res.data;
+}
+
+/** When this contact last got the listing inside the duplicate window,
+ *  ISO, or null. Asked before a single send, so a recent duplicate is
+ *  confirmed before the agent is taken to the thread. */
+export async function recentShareFor(
+  contactId: string,
+  propertyId: string
+): Promise<string | null> {
+  const accountId = (await ensureProfile())?.account_id;
+  if (!accountId) return null;
+  const { data, error } = await supabase
+    .from('property_shares')
+    .select('created_at')
+    .eq('account_id', accountId)
+    .eq('property_id', propertyId)
+    .eq('contact_id', contactId)
+    .gte('created_at', recentShareSince())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (data.created_at as string | null) ?? null;
 }

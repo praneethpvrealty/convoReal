@@ -1,3 +1,5 @@
+import { RECENTLY_SHARED_CODE } from '@/lib/inventory/recent-share';
+
 const MAX_RETRY_WAIT_MS = 70_000;
 
 export interface SharePropertyRequestBody {
@@ -5,6 +7,7 @@ export interface SharePropertyRequestBody {
   property_id: string;
   message: string;
   header_image?: string;
+  confirm_resend?: boolean;
 }
 
 export interface SharePropertyResult {
@@ -12,6 +15,8 @@ export interface SharePropertyResult {
   status: number;
   data?: { sent?: boolean; channel?: string; template_status?: string };
   error?: string;
+  code?: string;
+  sharedAt?: string;
 }
 
 type Attempt = SharePropertyResult & { retryAfterSec?: number };
@@ -34,8 +39,9 @@ export async function postPropertyShare(
       body: JSON.stringify(body),
     });
     const payload = (await response.json().catch(() => null)) as {
-      data?: SharePropertyResult['data'];
+      data?: SharePropertyResult['data'] & { shared_at?: string };
       error?: string;
+      code?: string;
       retry_after_seconds?: number;
     } | null;
     if (response.status === 429) {
@@ -45,6 +51,17 @@ export async function postPropertyShare(
         status: 429,
         error: 'Rate limit exceeded',
         retryAfterSec: Number.isFinite(hinted) && hinted > 0 ? hinted : 60,
+      };
+    }
+    if (response.status === 409 && payload?.code === RECENTLY_SHARED_CODE) {
+      return {
+        ok: false,
+        status: 409,
+        error: payload.error || 'Already sent',
+        code: RECENTLY_SHARED_CODE,
+        ...(payload.data?.shared_at
+          ? { sharedAt: payload.data.shared_at }
+          : {}),
       };
     }
     return {
@@ -63,5 +80,7 @@ export async function postPropertyShare(
     status: second.status,
     data: second.data,
     ...(second.error ? { error: second.error } : {}),
+    ...(second.code ? { code: second.code } : {}),
+    ...(second.sharedAt ? { sharedAt: second.sharedAt } : {}),
   };
 }

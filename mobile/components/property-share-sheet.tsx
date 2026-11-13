@@ -40,6 +40,7 @@ import { supabase } from '@/lib/supabase';
 import {
   fetchSharePropertyPreview,
   logExternalShare,
+  recentShareFor,
   sendPropertyViaEngine,
   sendPropertyViaEngineMany,
   type SharePropertyPreview,
@@ -55,6 +56,10 @@ import {
   type ShareTone,
 } from '@/lib/share-message';
 import { findContactThread } from '@/lib/open-chat';
+import {
+  RECENT_SHARE_WINDOW_HOURS,
+  recentShareNotice,
+} from '@shared/lib/inventory/recent-share';
 import {
   pendingShareBubbles,
   settlePendingShare,
@@ -291,9 +296,52 @@ export function PropertyShareSheet({
   // composer's own sends do, and the request finishes behind them. Only
   // a first-ever message has to wait here, since the thread it will
   // land in does not exist until the server creates it.
-  async function sendViaConvoReal(contact: Contact, draft = message) {
+  function askToResend(contact: Contact, draft: string, sharedAt: string) {
+    const name = contact.name || contactHandle(contact);
+    haptic.warn();
+    setPicker(null);
+    setDialog({
+      title: 'Already sent',
+      message: `${
+        sharedAt
+          ? recentShareNotice(name, sharedAt)
+          : `${name} already got this listing in the last ${RECENT_SHARE_WINDOW_HOURS} hours.`
+      } Send it again?`,
+      actions: [
+        {
+          label: 'Don’t send',
+          variant: 'muted',
+          onPress: () => setDialog(null),
+        },
+        {
+          label: 'Send again',
+          variant: 'primary',
+          onPress: () => {
+            setDialog(null);
+            void sendViaConvoReal(contact, draft, true);
+          },
+        },
+      ],
+    });
+  }
+
+  async function sendViaConvoReal(
+    contact: Contact,
+    draft = message,
+    confirmResend = false
+  ) {
     setEngineSending(true);
     haptic.send();
+    if (!confirmResend) {
+      const sharedAt = await recentShareFor(contact.id, property.id).catch(
+        () => null
+      );
+      if (sharedAt) {
+        setEngineSending(false);
+        askToResend(contact, draft, sharedAt);
+        return;
+      }
+    }
     const text = addRecipientGreeting(draft, contact.name);
     const threadId = await findContactThread(contact.id).catch(() => null);
     if (threadId) {
@@ -314,7 +362,8 @@ export function PropertyShareSheet({
         contact,
         property,
         text,
-        leadImage
+        leadImage,
+        confirmResend
       );
       if (outcome.sent) onShared?.([contact.id]);
       settlePendingShare(shareId, outcome);
@@ -324,10 +373,15 @@ export function PropertyShareSheet({
       contact,
       property,
       text,
-      leadImage
+      leadImage,
+      confirmResend
     );
     setEngineSending(false);
     setPicker(null);
+    if (outcome.recentlySharedAt !== undefined) {
+      askToResend(contact, draft, outcome.recentlySharedAt);
+      return;
+    }
     if (outcome.sent) {
       haptic.success();
       onShared?.([contact.id]);
@@ -381,7 +435,11 @@ export function PropertyShareSheet({
   // their own 24-hour-window verdict, so sends are reported per person
   // rather than as one pass/fail — a closed window for one recipient must
   // not read as a failure for the rest.
-  async function sendViaConvoRealMany(contacts: Contact[], draft?: string) {
+  async function sendViaConvoRealMany(
+    contacts: Contact[],
+    draft?: string,
+    confirmResend = false
+  ) {
     if (contacts.length === 0) return;
     // A listing that has left the market is confirmed again here, where
     // the send reaches buyers from the business number: inside their
@@ -426,7 +484,7 @@ export function PropertyShareSheet({
     // One recipient keeps the richer single-send path, which lands the
     // agent in the conversation thread afterwards.
     if (contacts.length === 1) {
-      await sendViaConvoReal(contacts[0], text);
+      await sendViaConvoReal(contacts[0], text, confirmResend);
       return;
     }
     setEngineSending(true);
@@ -437,9 +495,11 @@ export function PropertyShareSheet({
       property,
       (c) => addRecipientGreeting(text, c.name),
       (done, total) => setEngineProgress({ done, total }),
-      leadImage
+      leadImage,
+      confirmResend
     );
     const blocked: string[] = [];
+    const alreadySent: Contact[] = [];
     const failed: string[] = [];
     const pending: string[] = [];
     const reached: string[] = [];
@@ -447,6 +507,8 @@ export function PropertyShareSheet({
       const outcome = outcomes.get(c.id);
       if (outcome?.sent) {
         reached.push(c.id);
+      } else if (outcome?.recentlySharedAt !== undefined) {
+        alreadySent.push(c);
       } else if (outcome?.templateStatus) {
         blocked.push(c.name || contactHandle(c));
       } else if (outcome?.timedOut) {
@@ -479,10 +541,26 @@ export function PropertyShareSheet({
           ? `Still sending — WhatsApp hasn't answered yet, so these may still go out. Check the chats before resending: ${pending.join(', ')}.`
           : null,
         failed.length ? `Could not send to: ${failed.join(', ')}.` : null,
+        alreadySent.length
+          ? `Already got this listing in the last ${RECENT_SHARE_WINDOW_HOURS} hours, so not sent again: ${alreadySent
+              .map((c) => c.name || contactHandle(c))
+              .join(', ')}.`
+          : null,
       ]
         .filter(Boolean)
         .join('\n\n'),
       actions: [
+        ...(alreadySent.length
+          ? [
+              {
+                label: `Send again to ${alreadySent.length}`,
+                onPress: () => {
+                  setDialog(null);
+                  void sendViaConvoRealMany(alreadySent, text, true);
+                },
+              },
+            ]
+          : []),
         { label: 'OK', variant: 'primary', onPress: () => setDialog(null) },
       ],
     });

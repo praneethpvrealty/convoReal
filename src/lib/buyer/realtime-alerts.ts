@@ -20,7 +20,7 @@ import {
   accountPropertyShowcaseUrl,
 } from '@/lib/showcase/account-showcase-url';
 import { buildMatchDigestMessage } from '@/lib/buyer/digest';
-import { matchReasons } from '@/lib/buyer/matches-ranking';
+import { isAlertWorthyMatch, matchReasons } from '@/lib/buyer/matches-ranking';
 import { logListingsSent } from '@/lib/whatsapp/share-property-send';
 
 const MIN_SCORE = 60;
@@ -75,7 +75,11 @@ export async function enqueueRealtimeBuyerAlerts(
   const contactIds = [
     ...new Set(
       matches
-        .filter((match) => canReceiveRealtimeAlert(match.contact))
+        .filter(
+          (match) =>
+            canReceiveRealtimeAlert(match.contact) &&
+            isAlertWorthyMatch(match.details)
+        )
         .map((match) => match.contact.id)
     ),
   ].slice(0, MAX_ALERTS_PER_PROPERTY);
@@ -250,7 +254,8 @@ export async function deliverRealtimeBuyerAlerts(
 
     const [hydrated] = await attachInquiredListingTypes(db, accountId, [buyer]);
     const match = getMatchingContacts(listing, [hydrated]).find(
-      (candidate) => candidate.score >= MIN_SCORE
+      (candidate) =>
+        candidate.score >= MIN_SCORE && isAlertWorthyMatch(candidate.details)
     );
     if (!match) {
       await cancelDelivery(db, row, 'No longer matches');

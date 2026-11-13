@@ -94,6 +94,7 @@ on:
       - 'src/lib/inventory/listing-availability.ts'
       - 'src/lib/inventory/listing-status-label.ts'
       - 'src/lib/inventory/share-log-request.ts'
+      - 'src/lib/inventory/recent-share.ts'
       - 'src/lib/inventory/location-privacy.ts'
       - 'src/lib/inventory/property-options.ts'
       - 'src/lib/inventory/listing-core-validation.ts'
