@@ -1406,22 +1406,20 @@ function matchContactsSingleProfile(
     // say; a named-project match satisfies location outright.
     if (namedAreaHit || projectMatch) locationVerdict = 'match';
 
-    let locationWaived = false;
+    // Yield-focused commercial purchases are location-agnostic
+    const yieldBypass =
+      minExpectedRoi !== null &&
+      propertyCategory === 'commercial' &&
+      roiVerdict === 'match';
+    const textBypass = LOCATION_FREE_PHRASES.some((phrase) =>
+      combinedText.includes(phrase)
+    );
+    const locationWaived =
+      locationVerdict !== 'match' &&
+      (yieldBypass || textBypass || anyAreaAccepted);
     if (locationVerdict === 'mismatch') {
-      // Yield-focused commercial purchases are location-agnostic
-      const yieldBypass =
-        minExpectedRoi !== null &&
-        propertyCategory === 'commercial' &&
-        roiVerdict === 'match';
-      const textBypass = LOCATION_FREE_PHRASES.some((phrase) =>
-        combinedText.includes(phrase)
-      );
-      if (yieldBypass || textBypass || anyAreaAccepted) {
-        locationVerdict = 'unknown';
-        locationWaived = true;
-      } else {
-        continue;
-      }
+      if (!locationWaived) continue;
+      locationVerdict = 'unknown';
     }
 
     // ── 4. Budget (applied last) ──────────────────────────────────

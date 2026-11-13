@@ -3029,7 +3029,7 @@
         },
         {
           "id": "PRP-061",
-          "rule": "A listing is never sent to the same contact twice by accident: POST /api/whatsapp/share-property refuses with 409 RECENTLY_SHARED and shared_at, sending nothing and writing nothing, when the share ledger already holds that contact×property within the last 24 hours (whichever path wrote it — an instant buyer alert, a digest, another share), and sends only when the request carries confirm_resend: true. The web Matches tab reports such a recipient as Not sent again with when it went and offers Send again to them; the web contact page offers Send anyway; the mobile share sheet asks before a single send (and on the server's refusal) and offers Send again to the held-back recipients of a multi-contact send, never retrying them as transient failures.",
+          "rule": "A listing is never sent to the same contact twice by accident: POST /api/whatsapp/share-property refuses with 409 RECENTLY_SHARED and shared_at, sending nothing and writing nothing, when the share ledger last sent that contact×property within the last 24 hours (whichever path wrote it — an instant buyer alert, a digest, another share; every ledger writer stamps last_shared_at on each send, because the row itself is kept once per pair, and rows older than the column fall back to created_at), and sends only when the request carries confirm_resend: true. The web Matches tab reports such a recipient as Not sent again with when it went and offers Send again to them; the web contact page offers Send anyway; the mobile share sheet asks before a single send (and on the server's refusal) and offers Send again to the held-back recipients of a multi-contact send, never retrying them as transient failures.",
           "tests": [
             {
               "file": "src/app/api/whatsapp/share-property/route.test.ts",
@@ -3046,9 +3046,14 @@
             {
               "file": "mobile/lib/recent-share.test.ts",
               "case": "[PRP-061]"
+            },
+            {
+              "file": "src/lib/whatsapp/share-property-send.test.ts",
+              "case": "[PRP-061]"
             }
           ],
           "guards": [
+            "supabase/migrations/20261113150000_property_share_last_shared_at.sql",
             "src/lib/whatsapp/recent-share.ts",
             "mobile/components/property-share-sheet.tsx",
             "mobile/lib/property-share-actions.ts"

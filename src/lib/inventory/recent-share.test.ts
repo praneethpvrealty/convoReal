@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  lastSharedAt,
+  recentShareFilter,
   recentShareNotice,
   recentShareRefusal,
   recentShareSince,
@@ -35,5 +37,23 @@ describe('recent-share', () => {
       sharedAt: null,
     });
     expect(recentShareRefusal('BROKERAGE_REQUIRED', {})).toBeNull();
+  });
+
+  it('[PRP-061] reads the latest send, falling back to the first on older rows', () => {
+    expect(recentShareFilter('2026-11-12T13:01:30.000Z')).toBe(
+      'last_shared_at.gte.2026-11-12T13:01:30.000Z,created_at.gte.2026-11-12T13:01:30.000Z'
+    );
+    expect(
+      lastSharedAt({
+        created_at: '2026-11-10T09:00:00.000Z',
+        last_shared_at: '2026-11-13T13:00:00.000Z',
+      })
+    ).toBe('2026-11-13T13:00:00.000Z');
+    expect(
+      lastSharedAt({
+        created_at: '2026-11-13T12:00:00.000Z',
+        last_shared_at: null,
+      })
+    ).toBe('2026-11-13T12:00:00.000Z');
   });
 });

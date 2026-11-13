@@ -17,6 +17,7 @@ const { logListingsSent, logPropertyShare } =
   await import('./share-property-send');
 
 let upserts: Array<{ table: string; row: unknown }>;
+let stamps: Array<{ table: string; row: unknown; filters: unknown[][] }>;
 
 function makeDb(
   classification: string | null = 'Buyer',
@@ -24,9 +25,21 @@ function makeDb(
 ) {
   return {
     from(table: string) {
+      const filters: unknown[][] = [];
       const builder: Record<string, (...args: unknown[]) => unknown> = {
         select: () => builder,
-        eq: () => builder,
+        eq: (...args: unknown[]) => {
+          filters.push(['eq', ...args]);
+          return builder;
+        },
+        in: (...args: unknown[]) => {
+          filters.push(['in', ...args]);
+          return builder;
+        },
+        update: (row: unknown) => {
+          stamps.push({ table, row, filters });
+          return builder;
+        },
         maybeSingle: () =>
           Promise.resolve({ data: { classification }, error: null }),
         upsert: (row: unknown) => {
@@ -47,6 +60,7 @@ function makeDb(
 beforeEach(() => {
   captures.length = 0;
   upserts = [];
+  stamps = [];
   captureImpl = async (input) => {
     captures.push(input);
     return { created: 1, error: null };
@@ -172,5 +186,44 @@ describe('[JRN-009] logListingsSent', () => {
     await logListingsSent(makeDb(), 'acc-1', null, 'c-1', []);
     expect(upserts).toEqual([]);
     expect(captures).toEqual([]);
+  });
+});
+
+describe('[PRP-061] last-shared stamp', () => {
+  it('stamps when the pair was last sent on every share, first or repeat', async () => {
+    await logPropertyShare(makeDb(), 'acc-1', 'user-1', 'prop-1', 'contact-1');
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0].table).toBe('property_shares');
+    expect(stamps[0].row).toEqual({ last_shared_at: expect.any(String) });
+    expect(stamps[0].filters).toEqual(
+      expect.arrayContaining([
+        ['eq', 'account_id', 'acc-1'],
+        ['eq', 'contact_id', 'contact-1'],
+        ['in', 'property_id', ['prop-1']],
+      ])
+    );
+  });
+
+  it('stamps every listing a bot batch sent', async () => {
+    await logListingsSent(makeDb(), 'acc-1', null, 'contact-1', [
+      'prop-1',
+      'prop-2',
+      'prop-1',
+    ]);
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0].filters).toEqual(
+      expect.arrayContaining([['in', 'property_id', ['prop-1', 'prop-2']]])
+    );
+  });
+
+  it('does not stamp when the ledger write failed', async () => {
+    await logPropertyShare(
+      makeDb('Buyer', { message: 'denied' }),
+      'acc-1',
+      'user-1',
+      'prop-1',
+      'contact-1'
+    );
+    expect(stamps).toHaveLength(0);
   });
 });

@@ -9,6 +9,8 @@
 
 import { postShareLog } from '@shared/lib/inventory/share-log-request';
 import {
+  lastSharedAt,
+  recentShareFilter,
   recentShareRefusal,
   recentShareSince,
 } from '@shared/lib/inventory/recent-share';
@@ -390,14 +392,13 @@ export async function recentShareFor(
   if (!accountId) return null;
   const { data, error } = await supabase
     .from('property_shares')
-    .select('created_at')
+    .select('created_at, last_shared_at')
     .eq('account_id', accountId)
     .eq('property_id', propertyId)
     .eq('contact_id', contactId)
-    .gte('created_at', recentShareSince())
-    .order('created_at', { ascending: false })
+    .or(recentShareFilter(recentShareSince()))
     .limit(1)
     .maybeSingle();
   if (error || !data) return null;
-  return (data.created_at as string | null) ?? null;
+  return lastSharedAt(data);
 }

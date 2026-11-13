@@ -61,6 +61,7 @@ import {
   recentShareNotice,
 } from '@shared/lib/inventory/recent-share';
 import {
+  clearPendingShare,
   pendingShareBubbles,
   settlePendingShare,
   shareOutcomeNotice,
@@ -365,6 +366,11 @@ export function PropertyShareSheet({
         leadImage,
         confirmResend
       );
+      if (outcome.recentlySharedAt !== undefined) {
+        clearPendingShare(shareId);
+        askToResend(contact, draft, outcome.recentlySharedAt);
+        return;
+      }
       if (outcome.sent) onShared?.([contact.id]);
       settlePendingShare(shareId, outcome);
       return;

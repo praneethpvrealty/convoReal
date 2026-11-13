@@ -39,6 +39,8 @@ function makeDb(
         eq: () => builder,
         in: () => builder,
         gte: () => builder,
+        or: () => builder,
+        update: () => builder,
         order: () => builder,
         limit: () => builder,
         insert: (row: unknown) => {

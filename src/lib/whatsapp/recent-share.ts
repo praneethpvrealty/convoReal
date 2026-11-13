@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { recentShareSince } from '@/lib/inventory/recent-share';
+import {
+  lastSharedAt,
+  recentShareFilter,
+  recentShareSince,
+} from '@/lib/inventory/recent-share';
 
 export async function findRecentShare(
   db: SupabaseClient,
@@ -12,14 +16,13 @@ export async function findRecentShare(
 ): Promise<string | null> {
   const { data, error } = await db
     .from('property_shares')
-    .select('created_at')
+    .select('created_at, last_shared_at')
     .eq('account_id', args.accountId)
     .eq('property_id', args.propertyId)
     .eq('contact_id', args.contactId)
-    .gte('created_at', recentShareSince(args.now))
-    .order('created_at', { ascending: false })
+    .or(recentShareFilter(recentShareSince(args.now)))
     .limit(1)
     .maybeSingle();
   if (error || !data) return null;
-  return (data.created_at as string | null) ?? null;
+  return lastSharedAt(data);
 }

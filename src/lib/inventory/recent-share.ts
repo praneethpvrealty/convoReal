@@ -7,6 +7,20 @@ export function recentShareSince(now: Date = new Date()): string {
   ).toISOString();
 }
 
+export function recentShareFilter(since: string): string {
+  return `last_shared_at.gte.${since},created_at.gte.${since}`;
+}
+
+export function lastSharedAt(row: {
+  created_at?: unknown;
+  last_shared_at?: unknown;
+}): string | null {
+  const last =
+    typeof row.last_shared_at === 'string' ? row.last_shared_at : null;
+  const first = typeof row.created_at === 'string' ? row.created_at : null;
+  return last ?? first;
+}
+
 export function sharedAgoLabel(
   sharedAt: string,
   now: Date = new Date()

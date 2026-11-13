@@ -391,6 +391,26 @@ describe('isAlertWorthyMatch', () => {
     expect(isAlertWorthyMatch(match.details)).toBe(true);
   });
 
+  it('[RDR-004] pushes to a buyer whose only area is Anywhere', () => {
+    const [match] = curateForBuyer(
+      [site({})],
+      buyer({ ...plotBuyer, areas_of_interest: ['Anywhere'] })
+    );
+    expect(match).toBeDefined();
+    expect(match.details.location_waived).toBe(true);
+    expect(isAlertWorthyMatch(match.details)).toBe(true);
+  });
+
+  it('[RDR-004] pushes to a buyer who wrote that any location will do', () => {
+    const [match] = curateForBuyer(
+      [site({})],
+      buyer({ ...plotBuyer, requirements: 'Plot, any location' })
+    );
+    expect(match).toBeDefined();
+    expect(match.details.location_waived).toBe(true);
+    expect(isAlertWorthyMatch(match.details)).toBe(true);
+  });
+
   it('[RDR-004] pushes when the price sits inside a budget the buyer stated', () => {
     const [match] = curateForBuyer(
       [site({})],
