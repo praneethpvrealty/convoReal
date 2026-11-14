@@ -182,6 +182,7 @@ export default function PropertyEditScreen() {
     },
     initialDataUpdatedAt: () =>
       queryClient.getQueryState(['property', id])?.dataUpdatedAt,
+    refetchOnMount: 'always',
   });
 
   // The form copies the listing into its own state once. Until the agent
