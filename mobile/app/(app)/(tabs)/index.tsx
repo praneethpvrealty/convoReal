@@ -61,6 +61,7 @@ import type {
   MessageStatus,
   SenderType,
 } from '@/lib/types';
+import { createBatchLoader } from '@/lib/batch-loader';
 import { chatListTime } from '@/lib/format';
 import {
   lastMsgStatusInvalidationKey,
@@ -767,6 +768,29 @@ function MessageTicks({
   );
 }
 
+const loadLastMessageStatus = createBatchLoader<{
+  sender_type: SenderType;
+  status: MessageStatus;
+}>(async (conversationIds) => {
+  const { data, error } = await supabase.rpc(
+    'conversation_last_message_statuses',
+    { p_conversation_ids: conversationIds }
+  );
+  if (error) throw error;
+  return new Map(
+    (
+      (data ?? []) as {
+        conversation_id: string;
+        sender_type: SenderType;
+        status: MessageStatus;
+      }[]
+    ).map((row) => [
+      row.conversation_id,
+      { sender_type: row.sender_type, status: row.status },
+    ])
+  );
+});
+
 function ConversationRow({
   conversation,
   archived,
@@ -798,25 +822,13 @@ function ConversationRow({
 
   // Delivery ticks for the last message, WhatsApp-style — only when we
   // sent it. Keyed on last_message_at so a new message refreshes it; the
-  // conversations row carries no status, so the latest message's meta is
-  // fetched per visible row (FlatList only mounts what's on screen).
+  // conversations row carries no status, so each visible row asks for the
+  // latest message's meta and the loader answers a screenful in one call.
   const { data: lastMsg } = useQuery({
     queryKey: lastMsgStatusKey(conversation.id, conversation.last_message_at),
     enabled: Boolean(conversation.last_message_at),
     staleTime: 60_000,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('messages')
-        .select('sender_type, status')
-        .eq('conversation_id', conversation.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return (data ?? null) as {
-        sender_type: SenderType;
-        status: MessageStatus;
-      } | null;
-    },
+    queryFn: () => loadLastMessageStatus(conversation.id),
   });
   const outgoingTicks = outgoingTickStatus(lastMsg);
 

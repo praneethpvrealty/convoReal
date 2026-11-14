@@ -173,6 +173,10 @@ export default function PropertyEditScreen() {
     queryKey: ['property-edit', id],
     queryFn: () => fetchProperty(id),
     enabled: Boolean(id),
+    initialData: () =>
+      queryClient.getQueryData<Property | null>(['property', id]) ?? undefined,
+    initialDataUpdatedAt: () =>
+      queryClient.getQueryState(['property', id])?.dataUpdatedAt,
   });
 
   return (

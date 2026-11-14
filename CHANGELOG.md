@@ -17,6 +17,15 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 14 November 2026
+
+- **The mobile app waits on the database less.** Edit property opens from
+  the listing already on screen instead of a full-screen loader, the contact
+  picker keeps the previous results visible while the next search runs, and
+  the inbox reads delivery ticks for a screenful of conversations in one call
+  (`conversation_last_message_statuses`) instead of one request per row.
+  **Migration required:** `20261114153000_conversation_last_message_statuses.sql`.
+
 #### 13 November 2026
 
 - **Property messages now say who is writing.** The share follow-up ("Did it
