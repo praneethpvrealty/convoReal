@@ -70,6 +70,7 @@ import {
   propertyTypeGroupsFor,
 } from '@/lib/property-options';
 import { queryClient } from '@/lib/query';
+import { isFreshSeed } from '@/lib/query-seed';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Property } from '@/lib/types';
@@ -173,8 +174,12 @@ export default function PropertyEditScreen() {
     queryKey: ['property-edit', id],
     queryFn: () => fetchProperty(id),
     enabled: Boolean(id),
-    initialData: () =>
-      queryClient.getQueryData<Property | null>(['property', id]) ?? undefined,
+    initialData: () => {
+      const seed = queryClient.getQueryState<Property | null>(['property', id]);
+      return isFreshSeed(seed?.dataUpdatedAt, Date.now())
+        ? (seed?.data ?? undefined)
+        : undefined;
+    },
     initialDataUpdatedAt: () =>
       queryClient.getQueryState(['property', id])?.dataUpdatedAt,
   });
