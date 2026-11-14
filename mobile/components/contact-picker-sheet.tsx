@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -123,6 +123,7 @@ export function ContactPickerSheet({
   const { data, isFetching } = useQuery({
     queryKey: ['contact-picker', searchKey ?? 'all', debounced],
     enabled: visible && debounced.length >= 2,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       if (searchContacts) {
         return { contacts: await searchContacts(debounced), tags: {} };
@@ -479,7 +480,7 @@ export function ContactPickerSheet({
                     Type at least 2 characters to search your contacts.
                   </Text>
                 )
-              ) : isFetching ? (
+              ) : isFetching && results.length === 0 ? (
                 <View
                   style={{ paddingVertical: spacing.xl, alignItems: 'center' }}
                 >
