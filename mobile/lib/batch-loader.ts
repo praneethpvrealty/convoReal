@@ -1,11 +1,15 @@
 /**
  * Collects the keys asked for within one short window and resolves them
  * with a single fetch, so a screen of rows that each need one small
- * lookup costs one request instead of one per row.
+ * lookup costs one request instead of one per row. A window holding more
+ * than `maxBatch` keys is split, so a fetch with its own cap never drops one.
  */
 export function createBatchLoader<V>(
   fetchMany: (keys: string[]) => Promise<Map<string, V>>,
-  windowMs = 16
+  {
+    windowMs = 16,
+    maxBatch = 200,
+  }: { windowMs?: number; maxBatch?: number } = {}
 ): (key: string) => Promise<V | null> {
   type Waiter = {
     resolve: (value: V | null) => void;
@@ -15,22 +19,26 @@ export function createBatchLoader<V>(
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   function flush() {
+    const keys = [...pending.keys()];
     const batch = pending;
     pending = new Map();
     timer = null;
-    fetchMany([...batch.keys()]).then(
-      (found) => {
-        for (const [key, waiters] of batch) {
-          const value = found.get(key) ?? null;
-          for (const w of waiters) w.resolve(value);
+    for (let i = 0; i < keys.length; i += maxBatch) {
+      const group = keys.slice(i, i + maxBatch);
+      fetchMany(group).then(
+        (found) => {
+          for (const key of group) {
+            const value = found.get(key) ?? null;
+            for (const w of batch.get(key) ?? []) w.resolve(value);
+          }
+        },
+        (error) => {
+          for (const key of group) {
+            for (const w of batch.get(key) ?? []) w.reject(error);
+          }
         }
-      },
-      (error) => {
-        for (const waiters of batch.values()) {
-          for (const w of waiters) w.reject(error);
-        }
-      }
-    );
+      );
+    }
   }
 
   return (key) =>
