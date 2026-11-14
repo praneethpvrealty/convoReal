@@ -184,11 +184,23 @@ export default function PropertyEditScreen() {
       queryClient.getQueryState(['property', id])?.dataUpdatedAt,
   });
 
+  // The form copies the listing into its own state once. Until the agent
+  // touches it, a refetch that brings different values rebuilds the form
+  // from them, so a draft never starts from a copy the server has moved on
+  // from; after the first touch the draft is theirs and is left alone.
+  const [touched, setTouched] = useState(false);
+  const [draft, setDraft] = useState({ source: property, version: 0 });
+  if (property && property !== draft.source && !touched) {
+    setDraft({ source: property, version: draft.version + 1 });
+  }
+
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: true, title: 'Edit property' }} />
-      {property ? (
-        <EditForm property={property} />
+      {draft.source ? (
+        <View style={{ flex: 1 }} onTouchStart={() => setTouched(true)}>
+          <EditForm key={draft.version} property={draft.source} />
+        </View>
       ) : isError ? (
         <LoadErrorState
           title="Couldn’t load this property"
