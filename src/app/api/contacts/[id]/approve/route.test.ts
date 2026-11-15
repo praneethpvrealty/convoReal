@@ -134,7 +134,7 @@ describe('POST /api/contacts/[id]/approve', () => {
     expect(state.conversationUpdates[0]).toMatchObject({ status: 'open' });
   });
 
-  it('[CTM-017] links the listing the agent picked and sends its details', async () => {
+  it('[CTM-017] links the listing the agent picked, leaves the enquiry to the database trigger and sends its details', async () => {
     state.contact = { ...CONTACT, last_inquired_property_id: null };
     const res = await approve({ property_id: PICKED });
     const body = await res.json();
@@ -143,14 +143,7 @@ describe('POST /api/contacts/[id]/approve', () => {
       status: 'active',
       last_inquired_property_id: PICKED,
     });
-    expect(state.inquiries).toEqual([
-      {
-        account_id: 'acc-1',
-        contact_id: 'c1',
-        property_id: PICKED,
-        inquiry_source: 'Manual',
-      },
-    ]);
+    expect(state.inquiries).toEqual([]);
     expect(state.details).toHaveLength(1);
     expect(body.data).toMatchObject({ approved: true, sent: true });
   });

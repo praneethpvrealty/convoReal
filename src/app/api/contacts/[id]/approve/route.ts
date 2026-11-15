@@ -111,26 +111,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (chosenPropertyId) {
-      const { error: inquiryErr } = await ctx.supabase
-        .from('contact_property_inquiries')
-        .upsert(
-          {
-            account_id: ctx.accountId,
-            contact_id: contactId,
-            property_id: chosenPropertyId,
-            inquiry_source: 'Manual',
-          },
-          { onConflict: 'contact_id,property_id' }
-        );
-      if (inquiryErr) {
-        console.error(
-          '[POST /api/contacts/[id]/approve] Enquiry not recorded:',
-          inquiryErr.message
-        );
-      }
-    }
-
     const propertyId =
       chosenPropertyId ?? (contact.last_inquired_property_id as string | null);
     if (!propertyId) {

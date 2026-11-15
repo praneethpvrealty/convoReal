@@ -1290,7 +1290,7 @@
         },
         {
           "id": "CTM-017",
-          "rule": "Approving a pending-review lead that has no linked listing asks which listing they enquired about before anything is approved, on the web contact banner and on the mobile contact screen and Contacts list alike, quoting the area or project the enquiry named when it named one; the agent picks a listing, approves without one, or cancels. A picked listing travels to POST /api/contacts/[id]/approve as property_id: the route refuses a listing outside the account before writing anything, links it as the lead's enquired listing and records the enquiry, then sends its details (or the regret, when it has left the market) in the same call. A lead that already has a linked listing is approved without being asked.",
+          "rule": "Approving a pending-review lead that has no linked listing asks which listing they enquired about before anything is approved, on the web contact banner and on the mobile contact screen and Contacts list alike, quoting the area or project the enquiry named when it named one; the agent picks a listing, approves without one, or cancels. A picked listing travels to POST /api/contacts/[id]/approve as property_id: the route refuses a listing outside the account before writing anything, links it as the lead's enquired listing, which the record_last_inquired_property trigger records as an enquiry without rewriting the source of one already recorded, then sends its details (or the regret, when it has left the market) in the same call. A lead that already has a linked listing is approved without being asked.",
           "tests": [
             {
               "file": "src/lib/contacts/approve-listing-prompt.test.ts",
