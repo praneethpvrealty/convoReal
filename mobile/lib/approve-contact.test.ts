@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let response: unknown;
 let thrown: Error | null;
-let calls: { path: string; init?: { method?: string } }[];
+let calls: { path: string; init?: { method?: string; body?: string } }[];
 
 class FakeApiError extends Error {
   constructor(
@@ -27,7 +27,7 @@ class FakeApiError extends Error {
 
 vi.mock('./api', () => ({
   ApiError: FakeApiError,
-  apiFetch: async (path: string, init?: { method?: string }) => {
+  apiFetch: async (path: string, init?: { method?: string; body?: string }) => {
     calls.push({ path, init });
     if (thrown) throw thrown;
     return response;
@@ -79,6 +79,21 @@ describe('approveAndSendDetails', () => {
     expect(calls[0].path).toBe('/api/contacts/contact-1/approve');
     expect(calls[0].init?.method).toBe('POST');
     expect(result).toMatchObject({ ok: true, sent: true, channel: 'freeform' });
+  });
+
+  it('[CTM-017] sends the listing the agent picked for a lead that had none linked', async () => {
+    await approveAndSendDetails(
+      { ...CONTACT, last_inquired_property_id: null },
+      'prop-9'
+    );
+
+    expect(calls[0].init?.body).toBe(JSON.stringify({ property_id: 'prop-9' }));
+  });
+
+  it('[CTM-017] posts no body when no listing was picked', async () => {
+    await approveAndSendDetails(CONTACT);
+
+    expect(calls[0].init?.body).toBeUndefined();
   });
 
   it('surfaces a failed approval as retryable, having sent nothing', async () => {

@@ -33,6 +33,7 @@ import {
   ApproveCelebration,
   type ApproveCelebrationState,
 } from '@/components/approve-celebration';
+import { useApproveListingPrompt } from '@/components/approve-listing-prompt';
 import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
 import { AgentInventoryShareSheet } from '@/components/agent-inventory-share-sheet';
 import { ConvoRealLoader } from '@/components/loader';
@@ -1310,9 +1311,9 @@ function ReviewBanner({
     });
   }
 
-  async function approve() {
+  async function approve(lead: Contact, propertyId?: string) {
     setBusy(true);
-    const result = await approveAndSendDetails(contact);
+    const result = await approveAndSendDetails(lead, propertyId);
     setBusy(false);
     if (!result.ok) {
       haptic.warn();
@@ -1326,7 +1327,11 @@ function ReviewBanner({
     queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
     queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
+    queryClient.invalidateQueries({
+      queryKey: ['interested-properties', contact.id],
+    });
   }
+  const approval = useApproveListingPrompt(approve);
 
   return (
     <View
@@ -1377,7 +1382,7 @@ function ReviewBanner({
           </Text>
         </View>
         <Pressable
-          onPress={approve}
+          onPress={() => approval.requestApprove(contact)}
           disabled={busy}
           accessibilityRole="button"
           accessibilityLabel="Approve contact"
@@ -1414,6 +1419,7 @@ function ReviewBanner({
       ) : null}
       <PortalAdMapping contact={contact} />
       <AppDialog {...dialogProps} />
+      {approval.element}
     </View>
   );
 }
