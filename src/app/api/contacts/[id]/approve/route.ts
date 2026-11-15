@@ -69,13 +69,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
 
     // The listing the agent named when asked which one a lead with no
-    // linked listing enquired about. It is checked before anything is
-    // written, so a stale pick never approves the lead with nothing sent.
-    if (chosenPropertyId) {
+    // linked listing enquired about. A lead that already has one keeps
+    // it: a pick from a stale prompt never replaces it. It is checked
+    // before anything is written, so a bad pick never approves the lead
+    // with nothing sent.
+    const pickedPropertyId = contact.last_inquired_property_id
+      ? null
+      : chosenPropertyId;
+    if (pickedPropertyId) {
       const { data: chosen, error: chosenErr } = await ctx.supabase
         .from('properties')
         .select('id')
-        .eq('id', chosenPropertyId)
+        .eq('id', pickedPropertyId)
         .eq('account_id', ctx.accountId)
         .maybeSingle();
       if (chosenErr) throw chosenErr;
@@ -91,8 +96,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       .update({
         status: 'active',
         updated_at: new Date().toISOString(),
-        ...(chosenPropertyId
-          ? { last_inquired_property_id: chosenPropertyId }
+        ...(pickedPropertyId
+          ? { last_inquired_property_id: pickedPropertyId }
           : {}),
       })
       .eq('id', contactId)
@@ -112,7 +117,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const propertyId =
-      chosenPropertyId ?? (contact.last_inquired_property_id as string | null);
+      pickedPropertyId ?? (contact.last_inquired_property_id as string | null);
     if (!propertyId) {
       // Approved, but there is nothing to send — the lead never named a
       // property. Still a success; the client just skips the send copy.

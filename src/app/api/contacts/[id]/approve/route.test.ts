@@ -148,6 +148,17 @@ describe('POST /api/contacts/[id]/approve', () => {
     expect(body.data).toMatchObject({ approved: true, sent: true });
   });
 
+  it('[CTM-017] keeps the listing a lead already has when a pick arrives from a stale prompt', async () => {
+    const res = await approve({ property_id: PICKED });
+    expect(res.status).toBe(200);
+    expect(state.contactUpdates[0]).toEqual(
+      expect.not.objectContaining({
+        last_inquired_property_id: expect.anything(),
+      })
+    );
+    expect(state.details).toHaveLength(1);
+  });
+
   it('[CTM-017] refuses a picked listing outside the account before approving', async () => {
     state.contact = { ...CONTACT, last_inquired_property_id: null };
     state.property = null;
