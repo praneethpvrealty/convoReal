@@ -17,6 +17,15 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 15 November 2026
+
+- **Approving a lead with no linked listing asks which listing first.** A
+  portal lead whose enquiry matched nothing in inventory used to be approved
+  silently with nothing sent. Approve now asks which listing they enquired
+  about, on web and mobile, quoting what the enquiry named; picking one links
+  it and sends its details in the same step, and approving without one is
+  still a tap away.
+
 #### 14 November 2026
 
 - **The mobile app waits on the database less.** Edit property opens from

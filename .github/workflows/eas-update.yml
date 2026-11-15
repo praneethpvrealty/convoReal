@@ -50,6 +50,7 @@ on:
       - 'src/lib/calendar/todo-groups.ts'
       - 'src/lib/calendar/event-timing.ts'
       - 'src/lib/auth/sign-out-reason.ts'
+      - 'src/lib/contacts/approve-listing-prompt.ts'
       - 'src/lib/contacts/list-columns.ts'
       - 'src/lib/contacts/phone-key.ts'
       - 'src/lib/contacts/search-filter.ts'

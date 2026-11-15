@@ -27,6 +27,7 @@ import {
   ApproveCelebration,
   type ApproveCelebrationState,
 } from '@/components/approve-celebration';
+import { useApproveListingPrompt } from '@/components/approve-listing-prompt';
 import { EnterRow, PressScale, PulseRing } from '@/components/motion';
 import { ContextMenu } from '@/components/context-menu';
 import { ContactFiltersSheet } from '@/components/contact-filters-sheet';
@@ -636,7 +637,7 @@ export default function ContactsScreen() {
    *  auto-send the inquired property's details via WhatsApp, then
    *  celebrate with the follow-up funnel (falling back to the thread's
    *  template picker outside the 24-hour window). */
-  async function handleApprove(contact: Contact) {
+  async function handleApprove(contact: Contact, propertyId?: string) {
     // Only the same lead twice is refused — approving the next one while
     // this is still sending is the point.
     if (inFlight.current.has(contact.id)) return;
@@ -646,7 +647,7 @@ export default function ContactsScreen() {
 
     let result;
     try {
-      result = await approveAndSendDetails(contact);
+      result = await approveAndSendDetails(contact, propertyId);
     } finally {
       inFlight.current.delete(contact.id);
       setApprovingIds(new Set(inFlight.current));
@@ -666,6 +667,7 @@ export default function ContactsScreen() {
     queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
     setCelebrations((queue) => [...queue, { contact, outcome: result }]);
   }
+  const approval = useApproveListingPrompt(handleApprove);
 
   async function handleToggleFavorite(contact: Contact) {
     if (favoritingIds.has(contact.id)) return;
@@ -928,7 +930,7 @@ export default function ContactsScreen() {
                     : undefined
                 }
                 tags={data?.tags[item.id] ?? []}
-                onApprove={() => handleApprove(item)}
+                onApprove={() => approval.requestApprove(item)}
                 approving={approvingIds.has(item.id)}
                 onToggleFavorite={() => handleToggleFavorite(item)}
                 favoriting={favoritingIds.has(item.id)}
@@ -1038,6 +1040,7 @@ export default function ContactsScreen() {
       ) : null}
       <AppDialog {...dialogProps} />
       <AppDialog {...callLogProps} />
+      {approval.element}
     </View>
   );
 }

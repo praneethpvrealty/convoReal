@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
   conversationUpdates: [] as Record<string, unknown>[],
   unavailable: null as Record<string, unknown> | null,
   details: [] as Record<string, unknown>[],
+  inquiries: [] as Record<string, unknown>[],
 }));
 
 vi.mock('@/lib/auth/account', () => ({
@@ -65,6 +66,10 @@ function table(name: string) {
       if (name === 'conversations') state.conversationUpdates.push(patch);
       return builder;
     },
+    upsert: async (row: Record<string, unknown>) => {
+      if (name === 'contact_property_inquiries') state.inquiries.push(row);
+      return { error: null };
+    },
     maybeSingle: async () => ({
       data:
         name === 'contacts'
@@ -87,19 +92,29 @@ function table(name: string) {
 
 import { POST } from './route';
 
-const approve = () =>
+const approve = (body?: Record<string, unknown>) =>
   POST(
-    new NextRequest('http://test/api/contacts/c1/approve', { method: 'POST' }),
+    new NextRequest('http://test/api/contacts/c1/approve', {
+      method: 'POST',
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    }),
     {
       params: Promise.resolve({ id: 'c1' }),
     }
   );
+
+const PICKED = '7d0c2a54-3a8e-4a57-9c1e-2f0b6f1d9e11';
+const CONTACT = { ...state.contact };
+const PROPERTY = { ...state.property };
 
 beforeEach(() => {
   state.contactUpdates = [];
   state.conversationUpdates = [];
   state.unavailable = null;
   state.details = [];
+  state.inquiries = [];
+  state.contact = { ...CONTACT };
+  state.property = { ...PROPERTY };
 });
 
 describe('POST /api/contacts/[id]/approve', () => {
@@ -117,6 +132,54 @@ describe('POST /api/contacts/[id]/approve', () => {
     });
     expect(body.data.unavailable).toBeUndefined();
     expect(state.conversationUpdates[0]).toMatchObject({ status: 'open' });
+  });
+
+  it('[CTM-017] links the listing the agent picked, leaves the enquiry to the database trigger and sends its details', async () => {
+    state.contact = { ...CONTACT, last_inquired_property_id: null };
+    const res = await approve({ property_id: PICKED });
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(state.contactUpdates[0]).toMatchObject({
+      status: 'active',
+      last_inquired_property_id: PICKED,
+    });
+    expect(state.inquiries).toEqual([]);
+    expect(state.details).toHaveLength(1);
+    expect(body.data).toMatchObject({ approved: true, sent: true });
+  });
+
+  it('[CTM-017] keeps the listing a lead already has when a pick arrives from a stale prompt', async () => {
+    const res = await approve({ property_id: PICKED });
+    expect(res.status).toBe(200);
+    expect(state.contactUpdates[0]).toEqual(
+      expect.not.objectContaining({
+        last_inquired_property_id: expect.anything(),
+      })
+    );
+    expect(state.details).toHaveLength(1);
+  });
+
+  it('[CTM-017] refuses a picked listing outside the account before approving', async () => {
+    state.contact = { ...CONTACT, last_inquired_property_id: null };
+    state.property = null;
+    const res = await approve({ property_id: PICKED });
+    expect(res.status).toBe(404);
+    expect(state.contactUpdates).toEqual([]);
+    expect(state.inquiries).toEqual([]);
+    expect(state.details).toEqual([]);
+  });
+
+  it('[CTM-017] approves a lead with no listing and no pick, sending nothing', async () => {
+    state.contact = { ...CONTACT, last_inquired_property_id: null };
+    const res = await approve();
+    const body = await res.json();
+    expect(state.contactUpdates[0]).toEqual(
+      expect.not.objectContaining({
+        last_inquired_property_id: expect.anything(),
+      })
+    );
+    expect(state.details).toEqual([]);
+    expect(body.data).toEqual({ approved: true, sent: false });
   });
 
   it('[CNV-008] sends the regret instead of the details when the listing has left the market', async () => {

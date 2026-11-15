@@ -1,5 +1,6 @@
 'use client';
 
+import { approveListingPrompt } from '@/lib/contacts/approve-listing-prompt';
 import {
   useState,
   useEffect,
@@ -323,6 +324,7 @@ export function ContactDetailView({
   const [savingDetails, setSavingDetails] = useState(false);
   const [approving, setApproving] = useState(false);
   const [mapAdOpen, setMapAdOpen] = useState(false);
+  const [askListingOpen, setAskListingOpen] = useState(false);
   const [mappingAd, setMappingAd] = useState(false);
   const [sendDetailsOnApprove, setSendDetailsOnApprove] = useState(true);
 
@@ -1446,10 +1448,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // Approve-and-send goes through the route the mobile app uses, so a
   // listing that has left the market gets the same regret on both
   // surfaces instead of its details.
-  async function approveAndSendDetails() {
-    if (!contactId || !inquiredProperty) return;
+  async function approveAndSendDetails(propertyId?: string) {
+    if (!contactId || (!inquiredProperty && !propertyId)) return;
     const res = await fetch(`/api/contacts/${contactId}/approve`, {
       method: 'POST',
+      ...(propertyId
+        ? {
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ property_id: propertyId }),
+          }
+        : {}),
     });
     const payload = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -1460,14 +1468,20 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       channel?: 'freeform' | 'template';
       send_error?: string;
       details_message?: string;
+      property?: Property;
       unavailable?: {
         label: string;
         notice: 'freeform' | 'template' | 'already_told' | 'none' | 'failed';
       };
     };
+    const listed = data.property ?? inquiredProperty;
+    if (!listed) {
+      toast.success('Contact approved and added to the Engine!');
+      return;
+    }
     const unavailable = data.unavailable;
     if (unavailable) {
-      const listing = `"${inquiredProperty.title}" is ${unavailable.label.toLowerCase()}`;
+      const listing = `"${listed.title}" is ${unavailable.label.toLowerCase()}`;
       if (unavailable.notice === 'already_told') {
         toast.success(
           `Contact approved. ${listing} and they were already told, so nothing was sent again.`
@@ -1520,15 +1534,35 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       toast.warning(
         'Contact approved, but WhatsApp free-text failed (session >24 hrs). Redirecting to templates...'
       );
-      setShareProperty(inquiredProperty);
+      setShareProperty(listed);
     }
   }
 
-  async function approveContact() {
+  const listingPrompt =
+    contact && contact.status === 'pending_review'
+      ? approveListingPrompt({
+          ...contact,
+          last_inquired_property_id: editLastInquiredPropertyId,
+        })
+      : null;
+
+  async function approveContact(choice?: {
+    propertyId?: string;
+    withoutListing?: boolean;
+  }) {
     if (!contactId) return;
+    if (listingPrompt && !choice) {
+      setAskListingOpen(true);
+      return;
+    }
+    setAskListingOpen(false);
     setApproving(true);
     try {
-      if (sendDetailsOnApprove && inquiredProperty) {
+      if (choice?.propertyId) {
+        await approveAndSendDetails(choice.propertyId);
+        setEditLastInquiredPropertyId(choice.propertyId);
+        invalidateContactQuery('properties');
+      } else if (sendDetailsOnApprove && inquiredProperty) {
         await approveAndSendDetails();
       } else {
         const { data, error } = await supabase
@@ -2070,7 +2104,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     )}
                     <Button
                       size="sm"
-                      onClick={approveContact}
+                      onClick={() => approveContact()}
                       disabled={approving}
                       className="flex h-6 cursor-pointer items-center gap-1 rounded bg-amber-500 px-2.5 py-1 text-xs font-bold text-slate-950 hover:bg-amber-600 disabled:bg-amber-500/50"
                     >
@@ -2079,6 +2113,42 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </Button>
                   </div>
                 </div>
+
+                {askListingOpen && listingPrompt && (
+                  <div className="mt-1.5 space-y-1.5 border-t border-amber-500/15 pt-1.5">
+                    <p className="text-[11px] font-semibold text-amber-300">
+                      {listingPrompt.title}
+                    </p>
+                    <p className="text-[10px] leading-relaxed text-slate-400">
+                      {listingPrompt.message}
+                    </p>
+                    <SearchablePropertySelect
+                      properties={allProperties}
+                      value={null}
+                      onChange={(propertyId) =>
+                        propertyId && approveContact({ propertyId })
+                      }
+                      placeholder={listingPrompt.pickLabel}
+                    />
+                    <div className="flex items-center justify-end gap-3 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setAskListingOpen(false)}
+                        className="cursor-pointer font-bold text-slate-400 hover:text-slate-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => approveContact({ withoutListing: true })}
+                        disabled={approving}
+                        className="cursor-pointer font-bold text-amber-400 hover:text-amber-300 disabled:opacity-50"
+                      >
+                        {listingPrompt.skipLabel}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* What the lead was filed against, and the two
                     corrections that matter before approving sends them

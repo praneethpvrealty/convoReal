@@ -90,12 +90,18 @@ export async function buildInquiryDraft(
 }
 
 export async function approveAndSendDetails(
-  contact: Contact
+  contact: Contact,
+  propertyId?: string
 ): Promise<ApproveOutcome> {
   try {
     const res = await apiFetch<ApproveResponse>(
       `/api/contacts/${contact.id}/approve`,
-      { method: 'POST' }
+      {
+        method: 'POST',
+        ...(propertyId
+          ? { body: JSON.stringify({ property_id: propertyId }) }
+          : {}),
+      }
     );
     const d = res.data;
 

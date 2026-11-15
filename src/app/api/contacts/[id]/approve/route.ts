@@ -29,12 +29,28 @@ import type { Property } from '@/types';
 // here costs the client one request and lets the legs that don't depend
 // on each other run in parallel.
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type RouteParams = { params: Promise<{ id: string }> };
 
-export async function POST(_request: NextRequest, { params }: RouteParams) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: contactId } = await params;
     const ctx = await requireRole('agent');
+    const body = (await request.json().catch(() => null)) as {
+      property_id?: unknown;
+    } | null;
+    const chosenPropertyId =
+      typeof body?.property_id === 'string' && body.property_id.trim()
+        ? body.property_id.trim()
+        : null;
+    if (chosenPropertyId && !UUID_PATTERN.test(chosenPropertyId)) {
+      return NextResponse.json(
+        { error: 'Property not found' },
+        { status: 404 }
+      );
+    }
 
     const limit = await checkRateLimit(
       `contact:approve:${ctx.userId}`,
@@ -52,9 +68,38 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     if (!contact)
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
 
+    // The listing the agent named when asked which one a lead with no
+    // linked listing enquired about. A lead that already has one keeps
+    // it: a pick from a stale prompt never replaces it. It is checked
+    // before anything is written, so a bad pick never approves the lead
+    // with nothing sent.
+    const pickedPropertyId = contact.last_inquired_property_id
+      ? null
+      : chosenPropertyId;
+    if (pickedPropertyId) {
+      const { data: chosen, error: chosenErr } = await ctx.supabase
+        .from('properties')
+        .select('id')
+        .eq('id', pickedPropertyId)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      if (chosenErr) throw chosenErr;
+      if (!chosen)
+        return NextResponse.json(
+          { error: 'Property not found' },
+          { status: 404 }
+        );
+    }
+
     const { data: approved, error: updateErr } = await ctx.supabase
       .from('contacts')
-      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .update({
+        status: 'active',
+        updated_at: new Date().toISOString(),
+        ...(pickedPropertyId
+          ? { last_inquired_property_id: pickedPropertyId }
+          : {}),
+      })
       .eq('id', contactId)
       .eq('account_id', ctx.accountId)
       .select('id');
@@ -71,7 +116,8 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const propertyId = contact.last_inquired_property_id as string | null;
+    const propertyId =
+      pickedPropertyId ?? (contact.last_inquired_property_id as string | null);
     if (!propertyId) {
       // Approved, but there is nothing to send — the lead never named a
       // property. Still a success; the client just skips the send copy.
