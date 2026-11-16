@@ -237,7 +237,8 @@ async function linkedListings(
   db: SupabaseClient,
   accountId: string,
   nearMiss: AreaNearMiss,
-  brief: BudgetBrief
+  brief: BudgetBrief,
+  held: ReadonlySet<string>
 ): Promise<NearMissProperty[]> {
   const budget = applicableBudget(nearMiss, brief);
   if (!nearMiss.truncated || !budget)
@@ -251,10 +252,13 @@ async function linkedListings(
       })
     )
   );
-  const closest = findAreaNearMiss(around.flat(), {
-    areas: [nearMiss.area],
-    listingTypes: [nearMiss.listingType],
-  });
+  const closest = findAreaNearMiss(
+    around.flat().filter((row) => !held.has(row.id)),
+    {
+      areas: [nearMiss.area],
+      listingTypes: [nearMiss.listingType],
+    }
+  );
   return nearMissLinkedListings(closest ?? nearMiss, brief);
 }
 
@@ -322,7 +326,13 @@ export async function areaNearMissLine(args: {
         const url = await accountPropertiesShowcaseUrl(
           args.db,
           args.accountId,
-          await linkedListings(args.db, args.accountId, nearMiss, args.brief),
+          await linkedListings(
+            args.db,
+            args.accountId,
+            nearMiss,
+            args.brief,
+            held
+          ),
           args.contactId
         );
         return buildAreaNearMissLine(nearMiss, args.brief, url);

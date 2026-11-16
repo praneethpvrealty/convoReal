@@ -412,6 +412,30 @@ describe('areaNearMissLine past the scan bound', () => {
       `📍 We do have ${NEAR_MISS_SCAN_LIMIT}+ listings in Surya City, from ₹1 Cr. Here are the 5 closest to your budget: https://x.test/?ids=s240,s241,s242,s243,s244`
     );
   });
+
+  it('[CNV-015] keeps a held listing out of the link the re-fetch around the budget builds', async () => {
+    const rows = Array.from({ length: 250 }, (_, i) => ({
+      id: `s${i + 1}`,
+      title: `Plot ${i + 1} in Surya City`,
+      price: (i + 1) * 10_000_000,
+      listing_type: 'Sale',
+      location: 'Surya City',
+    }));
+    const line = await areaNearMissLine({
+      db: inventoryDb(rows),
+      accountId: 'acct',
+      contactId: 'c1',
+      brief: {
+        areas: ['Surya City'],
+        listingTypes: ['Sale'],
+        budgetMin: 2_400_000_000,
+        budgetMax: 2_400_000_000,
+      },
+      excludePropertyIds: ['s240'],
+    });
+    expect(line).toContain('Here are the 5 closest to your budget:');
+    expect(line).not.toMatch(/s240(?:,|$)/);
+  });
 });
 
 describe('areaNearMissLine query budget', () => {

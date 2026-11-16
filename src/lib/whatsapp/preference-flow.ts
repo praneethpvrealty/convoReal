@@ -217,6 +217,7 @@ export interface ContactPreferenceSource {
   areas_of_interest?: string[] | null;
   property_interests?: string[] | null;
   min_roi?: number | null;
+  pref_min_roi?: number | null;
   requires_tenanted?: boolean | null;
   pref_requires_tenanted?: boolean | null;
   requirements?: string | null;
@@ -238,7 +239,7 @@ export function preferenceFlowBodyText(
 ): string {
   const source = resolveRequirementSource(contact as Contact);
   const yieldLed =
-    Number(source.min_roi ?? 0) > 0 ||
+    Number(source.min_roi ?? source.pref_min_roi ?? 0) > 0 ||
     !!(source.requires_tenanted ?? source.pref_requires_tenanted) ||
     [
       ...(source.property_interests || []),

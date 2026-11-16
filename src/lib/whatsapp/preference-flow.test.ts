@@ -168,6 +168,7 @@ describe('preferenceFlowBodyText', () => {
     expect(preferenceFlowBodyText({})).not.toContain('ROI');
     for (const brief of [
       { min_roi: 6 },
+      { min_roi: null, pref_min_roi: 6 },
       { pref_requires_tenanted: true },
       { pref_property_types: ['Commercial Office Space'] },
       { pref_property_types: ['Industrial Shed'] },
