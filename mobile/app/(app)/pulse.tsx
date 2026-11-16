@@ -734,6 +734,7 @@ function VisitorActivityCard({
                     fontFamily: f.semibold,
                     color: colors.text,
                     flexShrink: 1,
+                    marginRight: 4,
                   }}
                   numberOfLines={1}
                 >
@@ -1117,7 +1118,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 4,
+    rowGap: 4,
   },
   contactCapsule: {
     flexDirection: 'row',
