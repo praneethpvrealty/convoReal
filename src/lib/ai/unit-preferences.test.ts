@@ -30,12 +30,15 @@ describe('unitPreferencesFromRequirement', () => {
     ['Facing should be north or east', ['North', 'East']],
     ['NE facing villa', ['North-East']],
     ['east/north facing only', ['East', 'North']],
+    ['East facing, not facing West', ['East']],
   ])('[CNV-016] reads the facing in "%s"', (text, facing) => {
     expect(unitPreferencesFromRequirement(text).facing).toEqual(facing);
   });
 
   it.each([
     'not west facing',
+    'not facing West',
+    'avoid facing south or west',
     'looking in East Bangalore, north of the lake',
     'park facing flat',
     'road facing shop in South Extension',
@@ -71,6 +74,8 @@ describe('unitPreferencesFromRequirement', () => {
     ['minimum 5th floor', 5, null],
     ['below 5th floor', null, 4],
     ['up to 4th floor', null, 4],
+    ['not above 10th floor', null, 10],
+    ['not below 5th floor', 5, null],
     ['on the 12th floor', 12, 12],
     ['floor no 7', 7, 7],
     ['ground floor only', 0, 0],

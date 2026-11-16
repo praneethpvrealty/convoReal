@@ -77,6 +77,9 @@ export const MATCHING_PROPERTY_COLUMNS = [
   'notes',
   'tags',
   'floor_tenancies',
+  'facing_direction',
+  'tower',
+  'floor_number',
 ].join(', ');
 
 export const CONTACT_COLUMNS = [

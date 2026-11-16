@@ -35,7 +35,7 @@ const FACING_BEFORE = new RegExp(
   'gi'
 );
 const FACING_AFTER = new RegExp(
-  String.raw`\bfacing\s{0,3}(?:is|should be|must be|:|-|–)?\s{0,3}(?:towards\s|to\s)?(${DIRECTION_LIST})\b(?![\s-]{0,3}fac)`,
+  String.raw`(\b(?:not|no|non|except|avoid|other than)\s{1,3})?\bfacing\s{0,3}(?:is|should be|must be|:|-|–)?\s{0,3}(?:towards\s|to\s)?(${DIRECTION_LIST})\b(?![\s-]{0,3}fac)`,
   'gi'
 );
 const ONE_DIRECTION = new RegExp(DIRECTION, 'gi');
@@ -74,7 +74,9 @@ function facingFromText(text: string): Facing[] {
   for (const match of text.matchAll(FACING_BEFORE)) {
     if (!match[1]) add(match[2]);
   }
-  for (const match of text.matchAll(FACING_AFTER)) add(match[1]);
+  for (const match of text.matchAll(FACING_AFTER)) {
+    if (!match[1]) add(match[2]);
+  }
   return wanted;
 }
 
@@ -119,11 +121,11 @@ const FLOOR_RANGE_AFTER = new RegExp(
   'i'
 );
 const FLOOR_AT_LEAST = new RegExp(
-  String.raw`\b${ORDINAL}\s{0,3}${FLOOR_WORD}\s{0,3}(?:and|or|&)\s{0,3}(?:above|higher|up|upwards)\b|\b(?:min(?:imum)?|at\s{0,3}least)\s{1,3}${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
+  String.raw`\b${ORDINAL}\s{0,3}${FLOOR_WORD}\s{0,3}(?:and|or|&)\s{0,3}(?:above|higher|up|upwards)\b|\b(?:min(?:imum)?|at\s{0,3}least|not below)\s{1,3}(?:the\s{1,3})?${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
   'i'
 );
 const FLOOR_ABOVE = new RegExp(
-  String.raw`\b(?:above|higher than|over|beyond)\s{1,3}(?:the\s{1,3})?${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
+  String.raw`(?<!\bnot\s{1,3})\b(?:above|higher than|over|beyond)\s{1,3}(?:the\s{1,3})?${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
   'i'
 );
 const FLOOR_AT_MOST = new RegExp(
@@ -131,7 +133,7 @@ const FLOOR_AT_MOST = new RegExp(
   'i'
 );
 const FLOOR_BELOW = new RegExp(
-  String.raw`\b(?:below|lower than|under)\s{1,3}(?:the\s{1,3})?${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
+  String.raw`(?<!\bnot\s{1,3})\b(?:below|lower than|under)\s{1,3}(?:the\s{1,3})?${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
   'i'
 );
 const FLOOR_SINGLE = new RegExp(

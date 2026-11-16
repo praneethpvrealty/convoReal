@@ -68,6 +68,8 @@ const MATCH_PROPERTY_COLUMNS = [
   'land_area_unit',
   'super_built_area',
   'facing_direction',
+  'tower',
+  'floor_number',
   'features',
   'nearby_highlights',
   'rental_income',
