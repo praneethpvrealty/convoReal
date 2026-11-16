@@ -43,6 +43,8 @@ import {
   recentShareFor,
   sendPropertyViaEngine,
   sendPropertyViaEngineMany,
+  shareProgressLabel,
+  type ShareFanoutProgress,
   type SharePropertyPreview,
 } from '@/lib/property-share-actions';
 import { propertyShareUrl } from '@/lib/property-share-link';
@@ -159,10 +161,8 @@ export function PropertyShareSheet({
     () => broadcastSuggestions(matchesQuery.data?.matches ?? []),
     [matchesQuery.data]
   );
-  const [engineProgress, setEngineProgress] = useState<{
-    done: number;
-    total: number;
-  } | null>(null);
+  const [engineProgress, setEngineProgress] =
+    useState<ShareFanoutProgress | null>(null);
   const [inventorySharing, setInventorySharing] = useState(false);
   const [headerImage, setHeaderImage] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{
@@ -488,13 +488,13 @@ export function PropertyShareSheet({
       return;
     }
     setEngineSending(true);
-    setEngineProgress({ done: 0, total: contacts.length });
+    setEngineProgress({ done: 0, total: contacts.length, retrying: 0 });
     haptic.send();
     const outcomes = await sendPropertyViaEngineMany(
       contacts,
       property,
       (c) => addRecipientGreeting(text, c.name),
-      (done, total) => setEngineProgress({ done, total }),
+      (done, total, retrying) => setEngineProgress({ done, total, retrying }),
       leadImage,
       confirmResend
     );
@@ -1035,7 +1035,7 @@ export function PropertyShareSheet({
             >
               {engineSending
                 ? engineProgress && engineProgress.total > 1
-                  ? `Sending ${engineProgress.done} of ${engineProgress.total}…`
+                  ? shareProgressLabel(engineProgress)
                   : 'Sending from ConvoReal…'
                 : recipientName
                   ? `Send to ${recipientName}`

@@ -172,6 +172,10 @@ export function PropertyMatchesTab({
     }>
   >([]);
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
+  const [engineShareProgress, setEngineShareProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const alreadySentIds = broadcastResults.flatMap((row) =>
     row.status === 'already_sent' && row.contactId ? [row.contactId] : []
   );
@@ -555,7 +559,8 @@ export function PropertyMatchesTab({
         : '';
     const results: typeof broadcastResults = [];
     let delivered = 0;
-    for (const contact of selectedContacts) {
+    for (const [index, contact] of selectedContacts.entries()) {
+      setEngineShareProgress({ done: index, total: selectedContacts.length });
       const audience = contact.classification === 'Agent' ? 'agent' : 'client';
       const url =
         audience === 'agent'
@@ -626,6 +631,7 @@ export function PropertyMatchesTab({
     );
     setBroadcastStep('results');
     setSendingBroadcast(false);
+    setEngineShareProgress(null);
   }
 
   async function handleSendBroadcast() {
@@ -1647,8 +1653,10 @@ export function PropertyMatchesTab({
                     Sending WhatsApp Broadcast
                   </h4>
                   <p className="mt-1 text-xs text-slate-500">
-                    Dispatching messages to {selectedContactIds.length}{' '}
-                    recipients. Please do not close this modal.
+                    {engineShareProgress
+                      ? `Sent ${engineShareProgress.done} of ${engineShareProgress.total}.`
+                      : `Dispatching messages to ${selectedContactIds.length} recipients.`}{' '}
+                    Please do not close this modal.
                   </p>
                 </div>
               </div>
