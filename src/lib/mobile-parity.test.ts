@@ -29,7 +29,7 @@ import {
   insertEntityReference,
   type EntityReference,
 } from '@/lib/copilot/entities';
-import { PROPERTY_EDIT_VERSION_FIELDS } from '@/lib/inventory/edit-version';
+import { PROPERTY_EDIT_CORE_FIELDS } from '@/lib/inventory/edit-version';
 import { TOURS } from '@/lib/copilot/tours';
 import { AGENCY_SHOWCASE_DESIGNS, SHOWCASE_STYLES } from '@/lib/showcase/style';
 import { JOURNEY_ITEM_SOURCE_LABELS } from '@/lib/journey/captured';
@@ -404,7 +404,7 @@ describe('property shortlist sharing remains available on both surfaces', () => 
       mobile.indexOf("'id, title, description"),
       mobile.indexOf(".eq('id', id)")
     );
-    for (const field of PROPERTY_EDIT_VERSION_FIELDS) {
+    for (const field of PROPERTY_EDIT_CORE_FIELDS) {
       expect(mobileSelect, field).toMatch(new RegExp(`\\b${field}\\b`));
     }
     expect(mobile).toContain('e.code === PROPERTY_CHANGED_CODE');

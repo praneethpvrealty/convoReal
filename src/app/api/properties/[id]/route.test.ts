@@ -108,6 +108,7 @@ vi.mock('@/lib/whatsapp/catalog-sync-helper', async (importOriginal) => ({
 import {
   PROPERTY_EDIT_VERSION_FIELDS,
   propertyEditVersion,
+  propertyEditVersions,
 } from '@/lib/inventory/edit-version';
 
 import { maskPropertyForViewer } from '@/lib/inventory/location-guard';
@@ -227,6 +228,18 @@ describe('[PRP-062] PUT /api/properties/[id] edit version', () => {
     });
     expect(res.status).toBe(409);
     expect(propertyUpdates).toHaveLength(0);
+  });
+
+  it('refuses the web form when a column only it writes changed, and still saves the mobile editor', async () => {
+    existingRow = fullRow({ notes: 'Owner wants a quick close' });
+    const [webVersion, mobileVersion] = propertyEditVersions(fullRow());
+
+    const web = await save({ expected_version: webVersion });
+    expect(web.status).toBe(409);
+    expect(propertyUpdates).toHaveLength(0);
+
+    const mobile = await save({ expected_version: mobileVersion });
+    expect(mobile.status).toBe(200);
   });
 
   it('accepts the version of the location-masked row a non-owner agent was served', async () => {

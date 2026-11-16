@@ -3,7 +3,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
   PROPERTY_CHANGED_CODE,
   PROPERTY_EDIT_VERSION_SELECT,
-  propertyEditVersion,
+  propertyEditVersions,
 } from '@/lib/inventory/edit-version';
 import {
   checkRateLimit,
@@ -92,11 +92,12 @@ function matchesOpenedVersion(
   row: unknown,
   viewer: LocationViewer
 ): boolean {
-  const raw = row as Record<string, unknown>;
-  if (expected === propertyEditVersion(raw)) return true;
   const seen = maskPropertyForViewer(row as Property, viewer);
   return (
-    expected === propertyEditVersion(seen as unknown as Record<string, unknown>)
+    propertyEditVersions(row as Record<string, unknown>).includes(expected) ||
+    propertyEditVersions(seen as unknown as Record<string, unknown>).includes(
+      expected
+    )
   );
 }
 
@@ -767,6 +768,7 @@ export async function PUT(
     // Runs before the write so the arrays and the objects land in one
     // update; a storage failure narrows the plan rather than failing the
     // save, and re-saving retries the stragglers.
+    let photosMoved = false;
     if (updateData.showcase_visibility !== undefined) {
       const wasGated =
         (existing as { showcase_visibility?: string | null })
@@ -783,7 +785,10 @@ export async function PUT(
             },
             willGate ? 'lock' : 'unlock'
           );
-          if (custodyUpdate) Object.assign(updateData, custodyUpdate);
+          if (custodyUpdate) {
+            Object.assign(updateData, custodyUpdate);
+            photosMoved = true;
+          }
         } catch (custodyErr) {
           console.error(
             '[PUT /api/properties/[id]] Photo custody failed:',
@@ -875,8 +880,12 @@ export async function PUT(
     // the check and this update matches no row. A background write moves it
     // too, so the row is read again and the update retried while the edited
     // fields still match what the form opened with.
+    //
+    // Not when this save has already moved the listing's photos between
+    // buckets: refusing the write then would leave the row naming paths
+    // that no longer exist, which is worse than the narrow race.
     let guardAt =
-      expectedVersion !== null
+      expectedVersion !== null && !photosMoved
         ? ((existing as { updated_at?: string | null }).updated_at ?? null)
         : null;
     let updated: { id: string }[] | null = null;
