@@ -102,7 +102,18 @@ export function buildPreferenceNextStepsSections(args: {
   const noun = listingNoun(args.listing?.type);
   const many = plural(noun);
   const tail = args.listing?.id ?? NO_LISTING;
+  // The lead tapped "Update my preferences": the form they asked for
+  // leads the menu instead of sitting sixth, below the fold of the list.
   const rows: InteractiveListSection['rows'] = [
+    ...(args.includeFormRow
+      ? [
+          {
+            id: 'lfb_form',
+            title: 'Update the full form',
+            description: 'Everything in one place, under a minute',
+          },
+        ]
+      : []),
     {
       id: 'tw_budget',
       title: 'Stretch my budget',
@@ -131,13 +142,6 @@ export function buildPreferenceNextStepsSections(args: {
         : 'An agent calls you about your search',
     },
   ];
-  if (args.includeFormRow) {
-    rows.push({
-      id: 'lfb_form',
-      title: 'Update the full form',
-      description: 'Everything in one place, under a minute',
-    });
-  }
   return [{ rows }];
 }
 

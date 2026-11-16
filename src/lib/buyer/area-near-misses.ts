@@ -294,24 +294,29 @@ export async function areaNearMissLine(args: {
   accountId: string;
   contactId: string;
   brief: NearMissBrief;
+  /** Listings the lead already holds (the one they enquired about, the
+   *  ones already sent): stock they have seen is not a near-miss. */
+  excludePropertyIds?: string[];
 }): Promise<string | null> {
   if (args.brief.areas.length === 0) return null;
+  const held = new Set(args.excludePropertyIds ?? []);
   try {
     let scans = 0;
     for (const area of nearMissAreas(args.brief.areas)) {
       for (const listingType of nearMissListingTypes(args.brief.listingTypes)) {
         if (scans >= MAX_NEAR_MISS_SCANS) return null;
         scans += 1;
-        const rows = await fetchAreaCandidates(
+        const scanned = await fetchAreaCandidates(
           args.db,
           args.accountId,
           area,
           listingType
         );
+        const rows = scanned.filter((row) => !held.has(row.id));
         const nearMiss = findAreaNearMiss(
           rows,
           { areas: [area], listingTypes: [listingType] },
-          rows.length >= NEAR_MISS_SCAN_LIMIT
+          scanned.length >= NEAR_MISS_SCAN_LIMIT
         );
         if (!nearMiss) continue;
         const url = await accountPropertiesShowcaseUrl(

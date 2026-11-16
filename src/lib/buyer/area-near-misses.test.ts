@@ -227,6 +227,34 @@ describe('areaNearMissLine', () => {
     ).toBe(true);
   });
 
+  it('[CNV-015] never offers a listing the lead already holds as near-miss stock', async () => {
+    const brief = {
+      areas: ['Surya City'],
+      listingTypes: ['Sale'],
+      budgetMin: null,
+      budgetMax: null,
+    };
+    const only = await areaNearMissLine({
+      db: recordingDb([untypedPlot]).db,
+      accountId: 'acct',
+      contactId: 'c1',
+      brief,
+      excludePropertyIds: ['u1'],
+    });
+    expect(only).toBeNull();
+
+    const other = { ...untypedPlot, id: 'u2', price: 7_000_000 };
+    const line = await areaNearMissLine({
+      db: recordingDb([untypedPlot, other]).db,
+      accountId: 'acct',
+      contactId: 'c1',
+      brief,
+      excludePropertyIds: ['u1'],
+    });
+    expect(line).toContain('1 listing in Surya City, at ₹70 L');
+    expect(line).toContain('https://x.test/?ids=u2');
+  });
+
   it('[INB-015] admits untyped rows into the Sale scan in SQL', async () => {
     const { db, calls } = recordingDb([untypedPlot]);
     const line = await areaNearMissLine({

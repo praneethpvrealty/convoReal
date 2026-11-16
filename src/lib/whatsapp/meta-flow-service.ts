@@ -12,6 +12,7 @@ import {
   buildPreferenceFlowJson,
   buildPreferencePrefillData,
   preferenceFormToContactUpdate,
+  preferenceFlowBodyText,
   parsePreferenceFormValues,
   type ContactPreferenceUpdate,
   type PreferenceFormValues,
@@ -700,9 +701,7 @@ export async function sendPreferenceFlowToContact(args: {
     kind: 'interactive',
     senderType: args.senderType || 'bot',
     interactiveType: 'flow',
-    interactiveBody:
-      args.bodyText ||
-      'Tap below to review and update your property preferences — budget, localities, property types and expected ROI.',
+    interactiveBody: args.bodyText || preferenceFlowBodyText(contact),
     footerText: 'Takes under a minute',
     flowId: flow.meta_flow_id,
     flowToken,

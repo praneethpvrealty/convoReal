@@ -224,6 +224,32 @@ export interface ContactPreferenceSource {
   requirement_profiles?: Contact['requirement_profiles'];
 }
 
+const YIELD_LED_BRIEF =
+  /commercial|industrial|office|shop|showroom|warehouse|godown|invest/i;
+
+/**
+ * The message that carries the form. Expected ROI is named only to a
+ * lead whose brief is yield-led (a stated ROI, a tenanted requirement,
+ * a commercial or industrial type): a home buyer asking for a 3 BHK was
+ * being invited to state the return they expect on it.
+ */
+export function preferenceFlowBodyText(
+  contact: ContactPreferenceSource
+): string {
+  const source = resolveRequirementSource(contact as Contact);
+  const yieldLed =
+    Number(source.min_roi ?? 0) > 0 ||
+    !!(source.requires_tenanted ?? source.pref_requires_tenanted) ||
+    [
+      ...(source.property_interests || []),
+      ...(source.pref_property_types || []),
+      ...(source.pref_property_categories || []),
+    ].some((type) => YIELD_LED_BRIEF.test(type));
+  return yieldLed
+    ? 'Tap below to review and update your property preferences — budget, localities, property types and expected ROI.'
+    : 'Tap below to review and update your property preferences — budget, localities and property types.';
+}
+
 /**
  * Screen data returned from the endpoint on INIT. Keys must match the
  * screen's `data` schema in buildPreferenceFlowJson.

@@ -127,21 +127,21 @@ describe('listingNoun', () => {
 });
 
 describe('buildPreferenceNextStepsSections', () => {
-  it('[CNV-013] offers the six moves, each within the list row limits, wired to the handlers that own them', () => {
+  it('[CNV-013] [CNV-015] offers the six moves, the form the lead asked for first, each within the list row limits, wired to the handlers that own them', () => {
     const [{ rows }] = buildPreferenceNextStepsSections({
       listing: PLOT,
       includeFormRow: true,
     });
     expect(rows.map((r) => [r.id, r.title])).toEqual([
+      ['lfb_form', 'Update the full form'],
       ['tw_budget', 'Stretch my budget'],
       [`ns_widen_${PLOT_ID}`, 'Elsewhere in Bangalore'],
       ['tw_area', 'A different area'],
       ['tw_type', 'A different type'],
       [`ns_callback_${PLOT_ID}`, 'Call me back'],
-      ['lfb_form', 'Update the full form'],
     ]);
-    expect(rows[0].description).toBe('Plots nearby at a higher price');
-    expect(rows[1].description).toBe('The nearest plots like it, any area');
+    expect(rows[1].description).toBe('Plots nearby at a higher price');
+    expect(rows[2].description).toBe('The nearest plots like it, any area');
     for (const row of rows) {
       expect(row.title.length).toBeLessThanOrEqual(24);
       expect((row.description ?? '').length).toBeLessThanOrEqual(72);

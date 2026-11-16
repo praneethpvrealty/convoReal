@@ -474,8 +474,9 @@ describe('[CNV-004] a portal lead on an unavailable listing, replayed end to end
       'Browse every live listing any time: https://www.convoreal.com/?ref=acc-1&v=c-shirish'
     );
     // [CNV-013] The turn ends on the next-steps menu, not on a typed
-    // question and a second bubble repeating the form.
-    expect(reply.text).toMatch(/Pick what to try next 👇$/);
+    // question and a second bubble repeating the form. [CNV-015] Only
+    // the menu asks what to try next.
+    expect(reply.text).not.toMatch(/try next/);
     expect(menu.kind).toBe('interactive');
     expect(menu.text).toBe('What should I try next? Pick one below.');
     expect(botTextsSince(from)).toHaveLength(2);

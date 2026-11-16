@@ -372,6 +372,14 @@ B. Villa: plot size 6k-8k minimum.
 - Plot size : Flexible ; 1800 sqft to 10k+ sqft or Higher.`;
 
 describe('[INB-045] a brief laid out as a requirement is filed, never read as a rejection', () => {
+  it('routes a typed brief whose floor range says "above" to the ladder, not to the shared listing', () => {
+    const brief =
+      'I need 1851 sft in Prestige meridian\nEast facing in tower 10 above 8th to 28 floor';
+    expect(carriesRequirementBrief(brief)).toBe(true);
+    expect(routeLeadMessage(brief)).toBe('qualification');
+    expect(isBuyerRequirementMessage(brief)).toBe(true);
+  });
+
   it('routes the 26 October brief to the ladder', () => {
     expect(carriesRequirementBrief(SECTIONED_BRIEF)).toBe(true);
     expect(routeLeadMessage(SECTIONED_BRIEF)).toBe('qualification');

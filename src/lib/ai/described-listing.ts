@@ -43,9 +43,14 @@ const MEASURES = new RegExp(MEASURE_SOURCE, 'gi');
  *  A bare "one" is a quantity ("I want one 2400 sqft plot"), so it
  *  counts only after "the", as in "the 40,000 sqft one". "6k or above"
  *  is a floor and "this all property purchase" is the buyer's own
- *  purchase, so neither points at a listing. */
+ *  purchase, so neither points at a listing. "Above 8th to 28 floor"
+ *  is a floor too: "above" before a figure bounds the figure, and only
+ *  "the above 3 BHK" still points back. The brief it sat in ("I need
+ *  1851 sft … East facing in tower 10 above 8th to 28 floor") was read
+ *  as a pointer at the shared flat, answered "It faces East." and never
+ *  filed. */
 const REFERENCE_MARKER =
-  /\b(this(?!\s+all\b)|that|these|those|other|same|(?<!\b(?:or|and)\s+)above|earlier|previous|former|latter|meant)\b|\bthe\s+(?:\S+\s+){1,4}one\b/i;
+  /\b(this(?!\s+all\b)|that|these|those|other|same|(?<!\b(?:or|and)\s+)above(?!\s+\d)|earlier|previous|former|latter|meant)\b|\bthe\s+above\b|\bthe\s+(?:\S+\s+){1,4}one\b/i;
 
 /** "the Chikatogur one", "that Kothnur one": a listing pointed at by a
  *  word of its own rather than a figure. Only "one" closes it — "this

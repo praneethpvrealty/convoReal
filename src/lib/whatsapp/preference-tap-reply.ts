@@ -24,6 +24,14 @@
 // (src/lib/whatsapp/preference-next-steps.ts) rather than a typed
 // question and a second bubble repeating the form the lead just
 // declined. With listings, the feedback list carries the form row.
+//
+// A no-match reply never offers the lead their own enquiry back. The
+// thread that fixed this: a lead on a live 3 BHK was told nothing fits
+// "3 BHK at 3 BHK Flat in …", then shown that same flat as the one
+// listing in its locality, then asked what to try next twice — once by
+// the text, once by the menu under it. So a live enquired listing is
+// named as the one they already hold, the near-miss search skips it and
+// everything already sent, and the menu alone asks the question.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
@@ -85,8 +93,6 @@ function firstName(name: string | null | undefined): string {
   return isPlaceholderLeadName(name) ? 'there' : name!.trim().split(/\s+/)[0];
 }
 
-export const NEXT_STEPS_CLOSING = 'Pick what to try next 👇';
-
 /**
  * Pure text of the tap reply, testable without a database.
  *
@@ -114,6 +120,10 @@ export function buildPreferenceTapReply(args: {
    *  the opener names it and never welcomes the lead back. The notice
    *  already said the listing is gone, so this never says so again. */
   anchored?: { title: string; noun: string } | null;
+  /** True when the enquired listing is still live: the lead already
+   *  holds it, so "nothing fits your interest in it" would read as if
+   *  their own listing were not a fit. */
+  enquiryLive?: boolean;
 }): string {
   const { contactName, enquiry, listings, question } = args;
   const name = firstName(contactName);
@@ -157,8 +167,10 @@ export function buildPreferenceTapReply(args: {
 
   const nothing = args.anchored
     ? `Nothing live right now fits that brief exactly, but I'll keep watching and message you the moment the right ${args.anchored.noun} comes in.`
-    : `Nothing live right now fits ${anchor} exactly, but I'll keep watching and message you the moment the right property comes in.`;
-  return [
+    : args.enquiryLive && enquiry
+      ? `Beyond *${enquiry}*, nothing else live fits right now, but I'll keep watching and message you the moment something similar comes in.`
+      : `Nothing live right now fits ${anchor} exactly, but I'll keep watching and message you the moment the right property comes in.`;
+  const lines = [
     opener,
     '',
     nothing,
@@ -167,7 +179,9 @@ export function buildPreferenceTapReply(args: {
     ...browse,
     question ??
       'If anything about your requirement has changed, just reply here.',
-  ].join('\n');
+  ];
+  while (lines[lines.length - 1] === '') lines.pop();
+  return lines.join('\n');
 }
 
 /**
@@ -247,6 +261,10 @@ export async function sendPreferenceTapReply(args: {
     const missing = nextQualifierForContact(row, {
       defaultBuying: defaultedBuying,
     });
+    const held =
+      matches.length === 0
+        ? await heldListingIds(db, accountId, contactId, property)
+        : [];
     const [baseUrl, showcaseUrl, nearMiss] = await Promise.all([
       accountShowcaseOrigin(db, accountId),
       accountShowcaseBrowseUrl(db, accountId, contactId),
@@ -255,6 +273,7 @@ export async function sendPreferenceTapReply(args: {
             db,
             accountId,
             contactId,
+            excludePropertyIds: held,
             brief: {
               areas: [
                 ...(row.areas_of_interest ?? []),
@@ -302,9 +321,12 @@ export async function sendPreferenceTapReply(args: {
         ? { locality: outsideLocality, widened: strictMatches.length === 0 }
         : null,
       anchored,
+      enquiryLive: !!property && isListingLive(property),
+      // The menu under a no-match reply asks what to try next; the text
+      // asking it too made the lead read one question twice.
       question:
         matches.length === 0
-          ? `${buyingNote}${NEXT_STEPS_CLOSING}`
+          ? buyingNote.trim()
           : missing
             ? `${buyingNote}${buildFollowUpQuestion(missing)}`
             : null,
@@ -353,8 +375,8 @@ export async function sendPreferenceTapReply(args: {
         }
       );
     } else if (result.success) {
-      // The menu carries the form row, so the closing line points down
-      // and the turn stays at two bubbles.
+      // The menu carries the form row and the only question, so the
+      // turn stays at two bubbles.
       formOffered = await sendPreferenceNextStepsPrompt({
         db,
         accountId,
@@ -382,6 +404,33 @@ export async function sendPreferenceTapReply(args: {
     console.error('[preference-tap] failed:', err);
     return { matchCount: 0, replySent: false, formOffered: false };
   }
+}
+
+/**
+ * Every listing the lead already holds: the one the tap is about and
+ * the ones the share ledger says they were sent. Best-effort — a failed
+ * read costs the exclusion, never the reply.
+ */
+async function heldListingIds(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  property: Property | null
+): Promise<string[]> {
+  const ids = new Set<string>(property ? [property.id] : []);
+  try {
+    const { data } = await db
+      .from('property_shares')
+      .select('property_id')
+      .eq('account_id', accountId)
+      .eq('contact_id', contactId);
+    for (const row of (data ?? []) as { property_id: string | null }[]) {
+      if (row.property_id) ids.add(row.property_id);
+    }
+  } catch (err) {
+    console.error('[preference-tap] share ledger read failed:', err);
+  }
+  return [...ids];
 }
 
 /**
