@@ -102,8 +102,6 @@ export function buildPreferenceNextStepsSections(args: {
   const noun = listingNoun(args.listing?.type);
   const many = plural(noun);
   const tail = args.listing?.id ?? NO_LISTING;
-  // The lead tapped "Update my preferences": the form they asked for
-  // leads the menu instead of sitting sixth, below the fold of the list.
   const rows: InteractiveListSection['rows'] = [
     ...(args.includeFormRow
       ? [

@@ -298,8 +298,6 @@ export async function areaNearMissLine(args: {
   accountId: string;
   contactId: string;
   brief: NearMissBrief;
-  /** Listings the lead already holds (the one they enquired about, the
-   *  ones already sent): stock they have seen is not a near-miss. */
   excludePropertyIds?: string[];
 }): Promise<string | null> {
   if (args.brief.areas.length === 0) return null;

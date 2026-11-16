@@ -24,14 +24,6 @@
 // (src/lib/whatsapp/preference-next-steps.ts) rather than a typed
 // question and a second bubble repeating the form the lead just
 // declined. With listings, the feedback list carries the form row.
-//
-// A no-match reply never offers the lead their own enquiry back. The
-// thread that fixed this: a lead on a live 3 BHK was told nothing fits
-// "3 BHK at 3 BHK Flat in …", then shown that same flat as the one
-// listing in its locality, then asked what to try next twice — once by
-// the text, once by the menu under it. So a live enquired listing is
-// named as the one they already hold, the near-miss search skips it and
-// everything already sent, and the menu alone asks the question.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
@@ -120,9 +112,6 @@ export function buildPreferenceTapReply(args: {
    *  the opener names it and never welcomes the lead back. The notice
    *  already said the listing is gone, so this never says so again. */
   anchored?: { title: string; noun: string } | null;
-  /** True when the enquired listing is still live: the lead already
-   *  holds it, so "nothing fits your interest in it" would read as if
-   *  their own listing were not a fit. */
   enquiryLive?: boolean;
 }): string {
   const { contactName, enquiry, listings, question } = args;
@@ -322,8 +311,6 @@ export async function sendPreferenceTapReply(args: {
         : null,
       anchored,
       enquiryLive: !!property && isListingLive(property),
-      // The menu under a no-match reply asks what to try next; the text
-      // asking it too made the lead read one question twice.
       question:
         matches.length === 0
           ? buyingNote.trim()
@@ -406,11 +393,6 @@ export async function sendPreferenceTapReply(args: {
   }
 }
 
-/**
- * Every listing the lead already holds: the one the tap is about and
- * the ones the share ledger says they were sent. Best-effort — a failed
- * read costs the exclusion, never the reply.
- */
 async function heldListingIds(
   db: SupabaseClient,
   accountId: string,

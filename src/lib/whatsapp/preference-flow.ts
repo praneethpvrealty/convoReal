@@ -228,12 +228,6 @@ export interface ContactPreferenceSource {
 const YIELD_LED_BRIEF =
   /commercial|industrial|office|shop|showroom|warehouse|godown|invest/i;
 
-/**
- * The message that carries the form. Expected ROI is named only to a
- * lead whose brief is yield-led (a stated ROI, a tenanted requirement,
- * a commercial or industrial type): a home buyer asking for a 3 BHK was
- * being invited to state the return they expect on it.
- */
 export function preferenceFlowBodyText(
   contact: ContactPreferenceSource
 ): string {
