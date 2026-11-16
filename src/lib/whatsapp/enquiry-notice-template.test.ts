@@ -121,6 +121,24 @@ describe('describeEnquiredProperty', () => {
     ).toBe('Green Acres, Devanahalli');
   });
 
+  it('[CNV-015] states the BHK once when the title already carries it', () => {
+    expect(
+      describeEnquiredProperty(
+        prop({
+          title: '3 BHK Flat in Prestige Smart City',
+          bedrooms: 3,
+          location: 'Meridian Park',
+          city: 'Bangalore',
+        })
+      )
+    ).toBe('3 BHK Flat in Prestige Smart City, Bangalore');
+    expect(
+      describeEnquiredProperty(
+        prop({ title: 'Spacious 2bhk near metro', bedrooms: 2, location: '' })
+      )
+    ).toBe('Spacious 2bhk near metro');
+  });
+
   it('omits the BHK prefix for land and commercial listings', () => {
     expect(
       describeEnquiredProperty(prop({ title: 'Plot 42', location: 'Mysore' }))

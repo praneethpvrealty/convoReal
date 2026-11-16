@@ -237,7 +237,8 @@ async function linkedListings(
   db: SupabaseClient,
   accountId: string,
   nearMiss: AreaNearMiss,
-  brief: BudgetBrief
+  brief: BudgetBrief,
+  held: ReadonlySet<string>
 ): Promise<NearMissProperty[]> {
   const budget = applicableBudget(nearMiss, brief);
   if (!nearMiss.truncated || !budget)
@@ -251,10 +252,13 @@ async function linkedListings(
       })
     )
   );
-  const closest = findAreaNearMiss(around.flat(), {
-    areas: [nearMiss.area],
-    listingTypes: [nearMiss.listingType],
-  });
+  const closest = findAreaNearMiss(
+    around.flat().filter((row) => !held.has(row.id)),
+    {
+      areas: [nearMiss.area],
+      listingTypes: [nearMiss.listingType],
+    }
+  );
   return nearMissLinkedListings(closest ?? nearMiss, brief);
 }
 
@@ -294,30 +298,39 @@ export async function areaNearMissLine(args: {
   accountId: string;
   contactId: string;
   brief: NearMissBrief;
+  excludePropertyIds?: string[];
 }): Promise<string | null> {
   if (args.brief.areas.length === 0) return null;
+  const held = new Set(args.excludePropertyIds ?? []);
   try {
     let scans = 0;
     for (const area of nearMissAreas(args.brief.areas)) {
       for (const listingType of nearMissListingTypes(args.brief.listingTypes)) {
         if (scans >= MAX_NEAR_MISS_SCANS) return null;
         scans += 1;
-        const rows = await fetchAreaCandidates(
+        const scanned = await fetchAreaCandidates(
           args.db,
           args.accountId,
           area,
           listingType
         );
+        const rows = scanned.filter((row) => !held.has(row.id));
         const nearMiss = findAreaNearMiss(
           rows,
           { areas: [area], listingTypes: [listingType] },
-          rows.length >= NEAR_MISS_SCAN_LIMIT
+          scanned.length >= NEAR_MISS_SCAN_LIMIT
         );
         if (!nearMiss) continue;
         const url = await accountPropertiesShowcaseUrl(
           args.db,
           args.accountId,
-          await linkedListings(args.db, args.accountId, nearMiss, args.brief),
+          await linkedListings(
+            args.db,
+            args.accountId,
+            nearMiss,
+            args.brief,
+            held
+          ),
           args.contactId
         );
         return buildAreaNearMissLine(nearMiss, args.brief, url);

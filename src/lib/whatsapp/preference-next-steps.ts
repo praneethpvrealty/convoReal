@@ -103,6 +103,15 @@ export function buildPreferenceNextStepsSections(args: {
   const many = plural(noun);
   const tail = args.listing?.id ?? NO_LISTING;
   const rows: InteractiveListSection['rows'] = [
+    ...(args.includeFormRow
+      ? [
+          {
+            id: 'lfb_form',
+            title: 'Update the full form',
+            description: 'Everything in one place, under a minute',
+          },
+        ]
+      : []),
     {
       id: 'tw_budget',
       title: 'Stretch my budget',
@@ -131,13 +140,6 @@ export function buildPreferenceNextStepsSections(args: {
         : 'An agent calls you about your search',
     },
   ];
-  if (args.includeFormRow) {
-    rows.push({
-      id: 'lfb_form',
-      title: 'Update the full form',
-      description: 'Everything in one place, under a minute',
-    });
-  }
   return [{ rows }];
 }
 

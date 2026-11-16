@@ -440,7 +440,8 @@ describe('sendPreferenceTapReply', () => {
     const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
       text: string;
     };
-    expect(text).toMatch(/Pick what to try next 👇$/);
+    expect(text).not.toMatch(/try next|Pick/);
+    expect(text).toMatch(/https:\/\/\S+$/);
     expect(text).not.toContain('what budget are you working with?');
     expect(text).not.toContain('land/plot, apartment, villa');
     expect(sendPreferenceNextStepsPrompt).toHaveBeenCalledWith(
@@ -471,7 +472,7 @@ describe('sendPreferenceTapReply', () => {
       text: string;
     };
     expect(text).toContain("assume you're buying");
-    expect(text).toMatch(/Pick what to try next 👇$/);
+    expect(text).toMatch(/reply “renting” if needed\.$/);
     expect(sendPreferenceNextStepsPrompt).toHaveBeenCalledTimes(1);
   });
 
@@ -600,7 +601,7 @@ describe('[CNV-013] the tap is anchored on the listing the notice named', () => 
       "Nothing live right now fits that brief exactly, but I'll keep watching and message you the moment the right plot comes in."
     );
     expect(text).not.toMatch(/radar|sold|no longer available/i);
-    expect(text).toMatch(/Pick what to try next 👇$/);
+    expect(text).not.toMatch(/try next|Pick/);
     expect(sendPreferenceNextStepsPrompt).toHaveBeenCalledWith(
       expect.objectContaining({
         listing: {
@@ -633,6 +634,48 @@ describe('[CNV-013] the tap is anchored on the listing the notice named', () => 
     expect(text).toContain(
       "Based on your interest in *3933 Sq.Ft. North East corner Residential Plot in Surya City Phase 3, Bangalore*, here's one live option from our inventory:"
     );
+  });
+
+  it('[CNV-015] names a live enquired listing as the one the lead holds, keeps it and every sent listing out of the near-miss search, and leaves the question to the menu', async () => {
+    rankPropertiesForContact.mockResolvedValue([]);
+    resolveDroppedProperty.mockResolvedValue({ id: SURYA_CITY.id });
+    const live = { ...SURYA_CITY, status: 'Available' };
+    const rows: Record<string, unknown> = {
+      contacts: emptyContact,
+      properties: live,
+    };
+    const db = {
+      from: (table: string) => ({
+        select: () => ({
+          eq: () => ({
+            eq: () =>
+              table === 'property_shares'
+                ? Promise.resolve({
+                    data: [{ property_id: 'p-sent' }, { property_id: null }],
+                  })
+                : { maybeSingle: async () => ({ data: rows[table] ?? null }) },
+          }),
+        }),
+      }),
+    } as never;
+
+    await sendPreferenceTapReply({ ...anchored(), db });
+
+    expect(areaNearMissLine).toHaveBeenCalledWith(
+      expect.objectContaining({
+        excludePropertyIds: [SURYA_CITY.id, 'p-sent'],
+      })
+    );
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain(
+      "Beyond *3933 Sq.Ft. North East corner Residential Plot in Surya City Phase 3, Bangalore*, nothing else live fits right now, but I'll keep watching and message you the moment something similar comes in."
+    );
+    expect(text).not.toContain('fits your interest in');
+    expect(text).not.toMatch(/try next|Pick/);
+    expect(text).toMatch(/https:\/\/\S+$/);
+    expect(sendPreferenceNextStepsPrompt).toHaveBeenCalledTimes(1);
   });
 
   it('shows the fits under the anchored opener without repeating the listing', async () => {

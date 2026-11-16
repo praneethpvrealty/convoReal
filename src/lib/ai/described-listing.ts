@@ -45,7 +45,7 @@ const MEASURES = new RegExp(MEASURE_SOURCE, 'gi');
  *  is a floor and "this all property purchase" is the buyer's own
  *  purchase, so neither points at a listing. */
 const REFERENCE_MARKER =
-  /\b(this(?!\s+all\b)|that|these|those|other|same|(?<!\b(?:or|and)\s+)above|earlier|previous|former|latter|meant)\b|\bthe\s+(?:\S+\s+){1,4}one\b/i;
+  /\b(this(?!\s+all\b)|that|these|those|other|same|(?<!\b(?:or|and)\s+)above(?!\s*(?:₹|rs\.?|inr)?\s*\d)|earlier|previous|former|latter|meant)\b|\bthe\s+above\b|\bthe\s+(?:\S+\s+){1,4}one\b/i;
 
 /** "the Chikatogur one", "that Kothnur one": a listing pointed at by a
  *  word of its own rather than a figure. Only "one" closes it — "this

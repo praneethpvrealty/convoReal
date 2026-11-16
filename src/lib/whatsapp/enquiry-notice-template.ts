@@ -127,7 +127,7 @@ export function buildEnquiryNoticeTemplatePayload(
 export function describeEnquiredProperty(property: Property): string {
   const title = listingTitleForMessage(property.title) || 'your enquiry';
   const bhk =
-    property.bedrooms && property.bedrooms > 0
+    property.bedrooms && property.bedrooms > 0 && !/\d\s*-?\s*bhk/i.test(title)
       ? `${property.bedrooms} BHK at `
       : '';
   // Agents routinely put the locality in the title ("… Plot on 100 feet

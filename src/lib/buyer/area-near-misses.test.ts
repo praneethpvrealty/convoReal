@@ -227,6 +227,34 @@ describe('areaNearMissLine', () => {
     ).toBe(true);
   });
 
+  it('[CNV-015] never offers a listing the lead already holds as near-miss stock', async () => {
+    const brief = {
+      areas: ['Surya City'],
+      listingTypes: ['Sale'],
+      budgetMin: null,
+      budgetMax: null,
+    };
+    const only = await areaNearMissLine({
+      db: recordingDb([untypedPlot]).db,
+      accountId: 'acct',
+      contactId: 'c1',
+      brief,
+      excludePropertyIds: ['u1'],
+    });
+    expect(only).toBeNull();
+
+    const other = { ...untypedPlot, id: 'u2', price: 7_000_000 };
+    const line = await areaNearMissLine({
+      db: recordingDb([untypedPlot, other]).db,
+      accountId: 'acct',
+      contactId: 'c1',
+      brief,
+      excludePropertyIds: ['u1'],
+    });
+    expect(line).toContain('1 listing in Surya City, at ₹70 L');
+    expect(line).toContain('https://x.test/?ids=u2');
+  });
+
   it('[INB-015] admits untyped rows into the Sale scan in SQL', async () => {
     const { db, calls } = recordingDb([untypedPlot]);
     const line = await areaNearMissLine({
@@ -383,6 +411,30 @@ describe('areaNearMissLine past the scan bound', () => {
     expect(line).toBe(
       `📍 We do have ${NEAR_MISS_SCAN_LIMIT}+ listings in Surya City, from ₹1 Cr. Here are the 5 closest to your budget: https://x.test/?ids=s240,s241,s242,s243,s244`
     );
+  });
+
+  it('[CNV-015] keeps a held listing out of the link the re-fetch around the budget builds', async () => {
+    const rows = Array.from({ length: 250 }, (_, i) => ({
+      id: `s${i + 1}`,
+      title: `Plot ${i + 1} in Surya City`,
+      price: (i + 1) * 10_000_000,
+      listing_type: 'Sale',
+      location: 'Surya City',
+    }));
+    const line = await areaNearMissLine({
+      db: inventoryDb(rows),
+      accountId: 'acct',
+      contactId: 'c1',
+      brief: {
+        areas: ['Surya City'],
+        listingTypes: ['Sale'],
+        budgetMin: 2_400_000_000,
+        budgetMax: 2_400_000_000,
+      },
+      excludePropertyIds: ['s240'],
+    });
+    expect(line).toContain('Here are the 5 closest to your budget:');
+    expect(line).not.toMatch(/s240(?:,|$)/);
   });
 });
 

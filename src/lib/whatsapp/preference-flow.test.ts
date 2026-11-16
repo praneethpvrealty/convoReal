@@ -9,6 +9,7 @@ import {
   PREFERENCE_SCREEN_ID,
   SAVE_PREFERENCES_ACTION,
   PROPERTY_INTEREST_FLOW_OPTIONS,
+  preferenceFlowBodyText,
 } from './preference-flow';
 
 // Meta component caps enforced at flow-JSON build time. Exceeding them
@@ -154,6 +155,28 @@ describe('buildPreferencePrefillData', () => {
       property_interests: ['Vacant plot', 'Castle in the sky'],
     });
     expect(data.selected_property_types).toEqual(['Vacant plot']);
+  });
+});
+
+describe('preferenceFlowBodyText', () => {
+  it('[CNV-015] names expected ROI only to a lead whose brief is yield-led', () => {
+    expect(
+      preferenceFlowBodyText({ pref_property_types: ['Flat/ Apartment'] })
+    ).toBe(
+      'Tap below to review and update your property preferences — budget, localities and property types.'
+    );
+    expect(preferenceFlowBodyText({})).not.toContain('ROI');
+    for (const brief of [
+      { min_roi: 6 },
+      { min_roi: null, pref_min_roi: 6 },
+      { min_roi: 0, pref_min_roi: 6 },
+      { requires_tenanted: false, pref_requires_tenanted: true },
+      { pref_requires_tenanted: true },
+      { pref_property_types: ['Commercial Office Space'] },
+      { pref_property_types: ['Industrial Shed'] },
+    ]) {
+      expect(preferenceFlowBodyText(brief)).toContain('and expected ROI.');
+    }
   });
 });
 

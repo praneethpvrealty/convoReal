@@ -17,6 +17,22 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 16 November 2026
+
+- **A no-match "Update my preferences" reply no longer offers the lead their
+  own enquiry back.** A lead on a live 3 BHK was told nothing fits "3 BHK at
+  3 BHK Flat in …", shown that same flat as the one listing in its locality,
+  and asked what to try next twice. The reply now says nothing else live fits
+  beyond the listing they hold, the locality line skips that listing and
+  everything already sent, the BHK is stated once, only the menu asks the
+  question, the full form leads that menu, and the form's message mentions
+  expected ROI only for an investment or commercial brief.
+- **A typed requirement whose floor range says "above" is filed as a
+  requirement.** "I need 1851 sft in Prestige meridian, East facing in tower
+  10 above 8th to 28 floor" was read as pointing at the flat already shared,
+  answered "It faces East." and never saved. "Above" before a figure is now a
+  bound, not a pointer, so the brief reaches the qualification ladder.
+
 #### 15 November 2026
 
 - **Approving a lead with no linked listing asks which listing first.** A

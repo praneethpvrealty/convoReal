@@ -217,11 +217,34 @@ export interface ContactPreferenceSource {
   areas_of_interest?: string[] | null;
   property_interests?: string[] | null;
   min_roi?: number | null;
+  pref_min_roi?: number | null;
   requires_tenanted?: boolean | null;
   pref_requires_tenanted?: boolean | null;
   requirements?: string | null;
   no_budget?: boolean | null;
   requirement_profiles?: Contact['requirement_profiles'];
+}
+
+const YIELD_LED_BRIEF =
+  /commercial|industrial|office|shop|showroom|warehouse|godown|invest/i;
+
+export function preferenceFlowBodyText(
+  contact: ContactPreferenceSource
+): string {
+  const source = resolveRequirementSource(contact as Contact);
+  const yieldLed =
+    Number(source.min_roi) > 0 ||
+    Number(source.pref_min_roi) > 0 ||
+    !!source.requires_tenanted ||
+    !!source.pref_requires_tenanted ||
+    [
+      ...(source.property_interests || []),
+      ...(source.pref_property_types || []),
+      ...(source.pref_property_categories || []),
+    ].some((type) => YIELD_LED_BRIEF.test(type));
+  return yieldLed
+    ? 'Tap below to review and update your property preferences — budget, localities, property types and expected ROI.'
+    : 'Tap below to review and update your property preferences — budget, localities and property types.';
 }
 
 /**

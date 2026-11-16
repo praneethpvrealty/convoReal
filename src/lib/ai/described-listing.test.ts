@@ -182,6 +182,10 @@ describe("[INB-045] a requirement floor or the buyer's own purchase points at no
   it.each([
     'A. Flat: 6k dimension or above. Plot 1800 sqft',
     'Plot size 2400 sqft and above',
+    'I need 1851 sft in Prestige meridian\nEast facing in tower 10 above 8th to 28 floor',
+    '3 bhk above 10th floor, 1800 sqft',
+    '3 BHK above ₹1 cr in Whitefield',
+    'plot above Rs 50 lakh',
     'This all property purchase will be registered on my name. Plot size 1800 sqft to 10k+ sqft',
   ])('does not read %s as a pointer', (text) => {
     expect(referencesSharedListing(text)).toBe(false);
@@ -190,5 +194,6 @@ describe("[INB-045] a requirement floor or the buyer's own purchase points at no
   it('still reads a demonstrative with a figure as a pointer', () => {
     expect(referencesSharedListing('No this 40,000 sqft one')).toBe(true);
     expect(referencesSharedListing('the 16 Cr plot above')).toBe(true);
+    expect(referencesSharedListing('the above 3 BHK please')).toBe(true);
   });
 });

@@ -835,7 +835,7 @@
         },
         {
           "id": "INB-045",
-          "rule": "A message laid out as a requirement brief (under a \"requirement\" heading, or a list of two or more items that between them name at least two of property type, budget and size) goes to the qualification ladder whatever words its lines carry: it is never read as a rejection of a shared listing or as a pointer at one. \"Not interested in\" a purpose (investment, renting, under construction) is not a rejection, while \"not interested in this\" and a rejection that points at a listing by a figure still are, and \"or above\" or \"this all property purchase\" never point at a listing. A brief with two or more sector sections (\"COMMERCIAL:\", \"RESIDENTIAL:\") that each name a type, budget or size files its first section as the primary requirement and each further section as a requirement profile of its own, never filing the same section twice; a line stated before the first heading is carried into every section, and a later line of the same burst never folds the further sections back into the primary. A bot message sent within ten minutes after an agent's message in the thread never counts as sharing the listing it names, so a card the bot linked in passing does not move the listing an agent is discussing (INB-033).",
+          "rule": "A message laid out as a requirement brief (under a \"requirement\" heading, or a list of two or more items that between them name at least two of property type, budget and size) goes to the qualification ladder whatever words its lines carry: it is never read as a rejection of a shared listing or as a pointer at one. \"Not interested in\" a purpose (investment, renting, under construction) is not a rejection, while \"not interested in this\" and a rejection that points at a listing by a figure still are, and \"or above\", \"above\" before a figure (\"above 8th to 28 floor\") or \"this all property purchase\" never point at a listing. A brief with two or more sector sections (\"COMMERCIAL:\", \"RESIDENTIAL:\") that each name a type, budget or size files its first section as the primary requirement and each further section as a requirement profile of its own, never filing the same section twice; a line stated before the first heading is carried into every section, and a later line of the same burst never folds the further sections back into the primary. A bot message sent within ten minutes after an agent's message in the thread never counts as sharing the listing it names, so a card the bot linked in passing does not move the listing an agent is discussing (INB-033).",
           "tests": [
             {
               "file": "src/lib/ai/lead-routing.test.ts",
@@ -6282,7 +6282,7 @@
         },
         {
           "id": "CNV-013",
-          "rule": "An Update my preferences tap is anchored on the listing the tapped notice named, resolved as Close my enquiry resolves it (the quoted template, then the thread's recent outbound messages, then the recorded enquiry; a title is matched as a notice renders it, without its trailing punctuation). When that listing is no longer live the reply opens by naming it and promising another of its kind, never with welcome-back copy, and never restates that it is gone. A contact whose record states no requirement at all is seeded from that listing before ranking (its type, buy-or-rent intent, locality, price as the budget anchor and a 0.75–1.5 size band in square feet); a record that states anything is never overwritten. When nothing fits, the reply ends on one tappable menu instead of a typed question and a second bubble repeating the form: stretch the budget (the band list), the nearest fits from elsewhere in the city (ranked with the areas on file ignored for that search only, never cleared), a different area, a different type (the type list), a call back (acknowledged with the agent's name, filed as a high-priority to-do due within the hour for the assigned agent, else the listing's manager, else the owner, and raised as the viewer-response alert) and the full form; every row title fits Meta's 24 characters. The form goes out on its own only when the follow-on list could not be sent.",
+          "rule": "An Update my preferences tap is anchored on the listing the tapped notice named, resolved as Close my enquiry resolves it (the quoted template, then the thread's recent outbound messages, then the recorded enquiry; a title is matched as a notice renders it, without its trailing punctuation). When that listing is no longer live the reply opens by naming it and promising another of its kind, never with welcome-back copy, and never restates that it is gone. A contact whose record states no requirement at all is seeded from that listing before ranking (its type, buy-or-rent intent, locality, price as the budget anchor and a 0.75–1.5 size band in square feet); a record that states anything is never overwritten. When nothing fits, the reply ends on one tappable menu instead of a typed question and a second bubble repeating the form: the full form first (CNV-015), then stretch the budget (the band list), the nearest fits from elsewhere in the city (ranked with the areas on file ignored for that search only, never cleared), a different area, a different type (the type list) and a call back (acknowledged with the agent's name, filed as a high-priority to-do due within the hour for the assigned agent, else the listing's manager, else the owner, and raised as the viewer-response alert); every row title fits Meta's 24 characters. The form goes out on its own only when the follow-on list could not be sent.",
           "tests": [
             {
               "file": "src/lib/whatsapp/preference-tap-reply.test.ts",
@@ -6306,6 +6306,36 @@
             "src/lib/whatsapp/preference-next-steps.ts",
             "src/lib/contacts/seed-from-listing.ts",
             "src/lib/whatsapp/inbound/chain/steps/preference-next-step-tap.ts"
+          ]
+        },
+        {
+          "id": "CNV-015",
+          "rule": "A no-match Update my preferences reply never hands the lead their own enquiry back. When the listing the tap is about is still live the reply says nothing else live fits beyond it, instead of saying nothing fits the lead's interest in it; the near-miss search leaves out that listing and every listing the share ledger says the lead was already sent, and drops the line when nothing else is left. The enquired listing is described with its BHK once: a title that already states a BHK gets no BHK prefix. Only the next-steps menu asks what to try next, so the text above it ends on the showcase link (or on the buying-intent default) and never repeats the question; the menu lists the full form first, since the form is what the lead tapped for. The form's own message names expected ROI only for a yield-led brief (a stated ROI, a tenanted requirement, or a commercial or industrial type).",
+          "tests": [
+            {
+              "file": "src/lib/whatsapp/preference-tap-reply.test.ts",
+              "case": "[CNV-015]"
+            },
+            {
+              "file": "src/lib/buyer/area-near-misses.test.ts",
+              "case": "[CNV-015]"
+            },
+            {
+              "file": "src/lib/whatsapp/enquiry-notice-template.test.ts",
+              "case": "[CNV-015]"
+            },
+            {
+              "file": "src/lib/whatsapp/preference-next-steps.test.ts",
+              "case": "[CNV-015]"
+            },
+            {
+              "file": "src/lib/whatsapp/preference-flow.test.ts",
+              "case": "[CNV-015]"
+            }
+          ],
+          "guards": [
+            "src/lib/whatsapp/preference-tap-reply.ts",
+            "src/lib/buyer/area-near-misses.ts"
           ]
         },
         {
