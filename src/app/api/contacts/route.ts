@@ -98,7 +98,7 @@ export async function POST(request: Request) {
           {
             error: duplicatePhoneMessage(owner),
             code: DUPLICATE_PHONE,
-            data: { id: owner.id },
+            ...(owner.visible ? { data: { id: owner.id } } : {}),
           },
           { status: 409 }
         );

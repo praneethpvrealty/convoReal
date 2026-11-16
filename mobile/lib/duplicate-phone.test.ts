@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { existingContactIdFrom, importSummary } from './duplicate-phone';
+import {
+  existingContactIdFrom,
+  importSummary,
+  isDuplicatePhone,
+} from './duplicate-phone';
 
 describe('existingContactIdFrom', () => {
   it('[CTM-018] reads the saved contact a duplicate-number refusal points at', () => {
@@ -19,6 +23,15 @@ describe('existingContactIdFrom', () => {
     expect(existingContactIdFrom({ code: 'DUPLICATE_PHONE' })).toBeNull();
     expect(existingContactIdFrom(new Error('boom'))).toBeNull();
     expect(existingContactIdFrom(null)).toBeNull();
+  });
+});
+
+describe('isDuplicatePhone', () => {
+  it('[CTM-018] recognises a duplicate refusal that withholds the contact id', () => {
+    expect(isDuplicatePhone({ code: 'DUPLICATE_PHONE' })).toBe(true);
+    expect(existingContactIdFrom({ code: 'DUPLICATE_PHONE' })).toBeNull();
+    expect(isDuplicatePhone({ code: 'DUPLICATE_FULL_NAME' })).toBe(false);
+    expect(isDuplicatePhone(undefined)).toBe(false);
   });
 });
 

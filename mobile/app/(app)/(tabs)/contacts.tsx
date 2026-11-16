@@ -78,7 +78,11 @@ import { quickAddContactPayload } from '@/lib/contact-form';
 import { useAccountCountryCode } from '@/lib/use-account-currency';
 import { friendlyError } from '@/lib/errors';
 import { splitImportedName } from '@/lib/name-tag-split';
-import { existingContactIdFrom, importSummary } from '@/lib/duplicate-phone';
+import {
+  existingContactIdFrom,
+  importSummary,
+  isDuplicatePhone,
+} from '@/lib/duplicate-phone';
 import { chatListTime, cleanPhoneInput } from '@/lib/format';
 import { uniqueById } from '@/lib/list-paging';
 import { phoneHints } from '@/lib/phone-hints';
@@ -1769,10 +1773,9 @@ function DeviceImportSheet({
         onlyCreatedId = created?.id ?? null;
       } catch (err) {
         if (isCancelled(err)) break;
-        const existingId = existingContactIdFrom(err);
-        if (existingId) {
+        if (isDuplicatePhone(err)) {
           existing++;
-          onlyCreatedId = existingId;
+          onlyCreatedId = existingContactIdFrom(err);
           setDone((n) => n + 1);
           continue;
         }

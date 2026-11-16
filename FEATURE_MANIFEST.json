@@ -1312,7 +1312,7 @@
         },
         {
           "id": "CTM-018",
-          "rule": "An account holds one live contact per WhatsApp subscriber number. POST /api/contacts, which the web contact form, the mobile quick-add and the mobile phonebook import all use, refuses a number an unmerged contact in the account already has in any spelling (matched on the last ten digits) with 409 DUPLICATE_PHONE naming that contact and returning its id; a merged-away record or another account's contact does not block it. Mobile opens the existing contact instead of creating a second one, and a phonebook import counts such numbers as already saved rather than failed.",
+          "rule": "An account holds one live contact per WhatsApp subscriber number. POST /api/contacts, which the web contact form, the mobile quick-add and the mobile phonebook import all use, refuses a number an unmerged contact in the account already has in any spelling (spaces, dashes and prefixes stripped, matched on the last ten digits), including a contact the caller's role cannot see, with 409 DUPLICATE_PHONE; it names that contact and returns its id only when the caller can see it, and otherwise says the number is already saved without revealing whose it is. A merged-away record or another account's contact does not block it. Mobile opens the existing contact when it has the id, and a phonebook import counts such numbers as already saved rather than failed.",
           "tests": [
             {
               "file": "src/app/api/contacts/route.test.ts",

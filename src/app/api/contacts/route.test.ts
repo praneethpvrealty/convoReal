@@ -4,6 +4,7 @@ import { memorySupabase } from '@/test/memory-supabase';
 type Row = Record<string, unknown>;
 
 let tables: Record<string, Row[]>;
+let hidden: Row[];
 let db: ReturnType<typeof memorySupabase>;
 
 vi.mock('@/lib/auth/account', () => ({
@@ -75,7 +76,26 @@ describe('POST /api/contacts', () => {
         },
       ],
     };
-    db = memorySupabase(tables);
+    hidden = [
+      {
+        id: 'assigned-elsewhere',
+        account_id: 'account-1',
+        phone: '+91 97425-94251',
+        is_merged: false,
+      },
+    ];
+    db = memorySupabase(tables, {
+      contacts_matching_phone_digits: (args) => {
+        const digits = args.p_digits as string[];
+        return [...tables.contacts, ...hidden]
+          .filter(
+            (c) =>
+              c.account_id === args.p_account_id &&
+              digits.includes(String(c.phone ?? '').replace(/\D/g, ''))
+          )
+          .map((c) => ({ id: c.id, phone: c.phone, is_merged: c.is_merged }));
+      },
+    });
   });
 
   it('[CTM-018] refuses a second contact on a number the account already has, in any spelling', async () => {
@@ -87,6 +107,23 @@ describe('POST /api/contacts', () => {
       expect(body.data).toEqual({ id: 'abhishek' });
       expect(body.error).toContain('Abhishek is already saved');
     }
+    expect(tables.contacts).toHaveLength(3);
+  });
+
+  it('[CTM-018] matches a stored number written with spaces or dashes', async () => {
+    tables.contacts[0].phone = '+91 98459-19713';
+    const res = await create({ name: 'Abhishek', phone: '9845919713' });
+    expect(res.status).toBe(409);
+    expect((await res.json()).data).toEqual({ id: 'abhishek' });
+  });
+
+  it('[CTM-018] refuses a number held by a contact the caller cannot see, without revealing it', async () => {
+    const res = await create({ name: 'Someone', phone: '9742594251' });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.code).toBe('DUPLICATE_PHONE');
+    expect(body.data).toBeUndefined();
+    expect(body.error).toContain('Ask an admin');
     expect(tables.contacts).toHaveLength(3);
   });
 

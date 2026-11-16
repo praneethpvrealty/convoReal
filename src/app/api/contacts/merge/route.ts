@@ -121,13 +121,14 @@ export async function POST(request: NextRequest) {
         .from('todos')
         .update({ contact_id: targetId })
         .eq('contact_id', sourceId),
-
-      admin
-        .from('properties')
-        .update({ owner_contact_id: targetId })
-        .eq('account_id', ctx.accountId)
-        .eq('owner_contact_id', sourceId),
     ]);
+
+    const { error: ownerMoveError } = await admin
+      .from('properties')
+      .update({ owner_contact_id: targetId })
+      .eq('account_id', ctx.accountId)
+      .eq('owner_contact_id', sourceId);
+    if (ownerMoveError) throw ownerMoveError;
 
     // Tags — merge relations safely without duplicate key violation
     const { data: targetTags } = await admin

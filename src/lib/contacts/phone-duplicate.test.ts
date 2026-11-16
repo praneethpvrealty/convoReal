@@ -2,52 +2,53 @@ import { describe, expect, it } from 'vitest';
 
 import {
   duplicatePhoneMessage,
-  phoneLookupVariants,
+  phoneDigitVariants,
   pickPhoneOwner,
 } from './phone-duplicate';
 
-describe('phoneLookupVariants', () => {
-  it('[CTM-018] covers every stored spelling of one subscriber number', () => {
-    expect(phoneLookupVariants('+91 98459 19713')).toEqual(
+describe('phoneDigitVariants', () => {
+  it('[CTM-018] covers every stored digit form of one subscriber number', () => {
+    expect(phoneDigitVariants('+91 98459 19713')).toEqual(
       expect.arrayContaining([
-        '+91 98459 19713',
         '919845919713',
-        '+919845919713',
+        '00919845919713',
         '9845919713',
         '09845919713',
       ])
     );
+    expect(phoneDigitVariants('123')).toEqual([]);
   });
 });
 
 describe('pickPhoneOwner', () => {
-  it('[CTM-018] matches on the last ten digits and nothing looser', () => {
-    const owner = {
-      id: 'a',
-      name: 'A',
-      second_name: null,
-      phone: '9845919713',
-    };
-    const stranger = {
-      id: 'b',
-      name: 'B',
-      second_name: null,
-      phone: '+919845919714',
-    };
-    expect(pickPhoneOwner('+919845919713', [stranger, owner])).toBe(owner);
+  it('[CTM-018] matches on the last ten digits and skips merged-away records', () => {
+    const owner = { id: 'a', phone: '98459 19713', is_merged: false };
+    const merged = { id: '0', phone: '+919845919713', is_merged: true };
+    const stranger = { id: 'b', phone: '+919845919714', is_merged: false };
+    expect(pickPhoneOwner('+919845919713', [stranger, merged, owner])).toBe(
+      owner
+    );
     expect(pickPhoneOwner('+919845919715', [stranger, owner])).toBeNull();
   });
 });
 
 describe('duplicatePhoneMessage', () => {
-  it('[CTM-018] names the contact that already has the number', () => {
+  it('[CTM-018] names a contact the caller can see and withholds one they cannot', () => {
     expect(
       duplicatePhoneMessage({
         id: 'a',
+        visible: true,
         name: 'Lokesh',
         second_name: 'Harohalli',
-        phone: null,
       })
     ).toMatch(/^Lokesh Harohalli is already saved/);
+    const hidden = duplicatePhoneMessage({
+      id: 'a',
+      visible: false,
+      name: 'Lokesh',
+      second_name: null,
+    });
+    expect(hidden).not.toContain('Lokesh');
+    expect(hidden).toContain('Ask an admin');
   });
 });
