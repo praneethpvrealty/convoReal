@@ -84,18 +84,24 @@ describe('POST /api/contacts', () => {
         is_merged: false,
       },
     ];
+    const lastTen = (phone: unknown) =>
+      String(phone ?? '')
+        .replace(/\D/g, '')
+        .slice(-10);
+    const matching = (rows: Row[], args: Record<string, unknown>) =>
+      rows.filter(
+        (c) =>
+          c.account_id === args.p_account_id &&
+          !c.is_merged &&
+          lastTen(c.phone) === args.p_key
+      );
     db = memorySupabase(tables, {
-      contacts_matching_phone_key: (args) => {
-        return [...tables.contacts, ...hidden]
-          .filter(
-            (c) =>
-              c.account_id === args.p_account_id &&
-              String(c.phone ?? '')
-                .replace(/\D/g, '')
-                .slice(-10) === args.p_key
-          )
-          .map((c) => ({ id: c.id, phone: c.phone, is_merged: c.is_merged }));
-      },
+      visible_contact_with_phone_key: (args) =>
+        matching(tables.contacts, args)
+          .slice(0, 1)
+          .map((c) => ({ id: c.id, name: c.name, second_name: c.second_name })),
+      account_has_phone_key: (args) =>
+        matching([...tables.contacts, ...hidden], args).length > 0,
     });
   });
 

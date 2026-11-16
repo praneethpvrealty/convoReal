@@ -4,30 +4,11 @@ import { phoneMatchKey } from './phone-key';
 
 export const DUPLICATE_PHONE = 'DUPLICATE_PHONE';
 
-export interface PhoneMatch {
-  id: string;
-  phone: string | null;
-  is_merged?: boolean | null;
-}
-
 export interface PhoneOwner {
-  id: string;
+  id: string | null;
   visible: boolean;
   name: string | null;
   second_name: string | null;
-}
-
-export function pickPhoneOwner(
-  phone: string,
-  candidates: readonly PhoneMatch[]
-): PhoneMatch | null {
-  const key = phoneMatchKey(phone);
-  if (!key) return null;
-  return (
-    [...candidates]
-      .filter((c) => !c.is_merged && phoneMatchKey(c.phone) === key)
-      .sort((a, b) => a.id.localeCompare(b.id))[0] ?? null
-  );
 }
 
 export function duplicatePhoneMessage(owner: PhoneOwner): string {
@@ -52,25 +33,34 @@ export async function findContactByPhone(
 ): Promise<PhoneOwner | null> {
   const key = phoneMatchKey(phone);
   if (!key) return null;
-  const { data, error } = await db.rpc('contacts_matching_phone_key', {
-    p_account_id: accountId,
-    p_key: key,
-  });
-  if (error) throw error;
-  const match = pickPhoneOwner(phone, (data ?? []) as PhoneMatch[]);
-  if (!match) return null;
 
-  const { data: row, error: rowError } = await db
-    .from('contacts')
-    .select('id, name, second_name')
-    .eq('account_id', accountId)
-    .eq('id', match.id)
-    .maybeSingle();
-  if (rowError) throw rowError;
-  return {
-    id: match.id,
-    visible: !!row,
-    name: (row?.name as string | null) ?? null,
-    second_name: (row?.second_name as string | null) ?? null,
-  };
+  const { data: visible, error: visibleError } = await db.rpc(
+    'visible_contact_with_phone_key',
+    { p_account_id: accountId, p_key: key }
+  );
+  if (visibleError) throw visibleError;
+  const row = (
+    (visible ?? []) as {
+      id: string;
+      name: string | null;
+      second_name: string | null;
+    }[]
+  )[0];
+  if (row) {
+    return {
+      id: row.id,
+      visible: true,
+      name: row.name,
+      second_name: row.second_name,
+    };
+  }
+
+  const { data: taken, error: takenError } = await db.rpc(
+    'account_has_phone_key',
+    { p_account_id: accountId, p_key: key }
+  );
+  if (takenError) throw takenError;
+  return taken === true
+    ? { id: null, visible: false, name: null, second_name: null }
+    : null;
 }
