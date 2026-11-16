@@ -1865,7 +1865,7 @@ export async function processBuyerQualificationMessage(
       // clears the bound it crosses, and a merge that ran afterwards
       // refilled that bound from the contact — storing 2,824–2,400
       // sq.ft., a band nothing can satisfy.
-      const read = await extractContactPreferences(sourceText);
+      const read = await extractContactPreferences(sourceText, requirements);
       let extracted = withImpliedIntent(
         applySizeAnchor(
           mergeCurrentTurnPreferences(

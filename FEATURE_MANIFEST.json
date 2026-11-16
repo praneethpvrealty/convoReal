@@ -6310,7 +6310,7 @@
         },
         {
           "id": "CNV-016",
-          "rule": "A buyer's facing, tower and floor range are structured requirement fields (contacts.pref_facing, pref_towers, pref_floor_min, pref_floor_max, and the same four on each requirement profile), read deterministically from the requirement text at no AI cost wherever a requirement is extracted: a compass direction only beside the word facing and never a negated one, a tower or wing only as a number or a capital letter after the word, and a floor only as an ordinal, a stated range or a bound (\"above 10th floor\" is the 11th and up; \"8th to 28th floor\" is 8 to 28; ground is 0), never a count of floors in a building. Matching compares them with the listing's facing_direction, tower and floor_number: a fit adds to the score, a difference lowers it (facing most) and is never an exclusion, and a listing or a brief that is silent on one changes nothing, so a contact who states none is scored exactly as before. The requirement summary and the match chips show them on web and mobile, and the WhatsApp requirement playback states them back to the buyer.",
+          "rule": "A buyer's facing, tower and floor range are structured requirement fields (contacts.pref_facing, pref_towers, pref_floor_min, pref_floor_max, and the same four on each requirement profile), read deterministically from the requirement text at no AI cost wherever a requirement is extracted: a compass direction only beside the word facing and never a negated one, a tower or wing only as a number or a capital letter after the word, and a floor only as an ordinal, a stated range or a bound (\"above 10th floor\" is the 11th and up; \"8th to 28th floor\" is 8 to 28; ground is 0), never a count of floors in a building. Matching compares them with the listing's facing_direction, tower and floor_number: a fit adds to the score and a difference lowers it (facing most) but never below the 60 every match feed cuts at, so a difference reorders matches and never removes one; a listing or a brief that is silent on one changes nothing, so a contact who states none is scored exactly as before. Only the requirement text is read, never the agent notes joined to it for the AI extraction, and a direction or bound that is negated before or after the phrase is not read. The buyer portal's match feed scores on the listing's tower and floor and never returns them. The requirement summary and the match chips show them on web and mobile, and the WhatsApp requirement playback states them back to the buyer.",
           "tests": [
             {
               "file": "src/lib/ai/unit-preferences.test.ts",
@@ -6323,6 +6323,14 @@
             },
             {
               "file": "src/lib/whatsapp/requirement-review.test.ts",
+              "case": "[CNV-016]"
+            },
+            {
+              "file": "src/lib/buyer/feed-card.test.ts",
+              "case": "[CNV-016]"
+            },
+            {
+              "file": "src/lib/ai/preference-extraction.areas.test.ts",
               "case": "[CNV-016]"
             }
           ],

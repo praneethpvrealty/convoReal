@@ -31,14 +31,19 @@ const MAX_TEXT_LENGTH = 4000;
 const DIRECTION = String.raw`(?:north|south)[\s-]{0,3}(?:east|west)|north|south|east|west|\b(?:ne|nw|se|sw)\b`;
 const DIRECTION_LIST = String.raw`(?:${DIRECTION})(?:\s{0,3}(?:,|\/|&|or|and)\s{0,3}(?:${DIRECTION}))*`;
 const FACING_BEFORE = new RegExp(
-  String.raw`(\b(?:not|no|non|except|avoid|other than)\s{1,3})?(${DIRECTION_LIST})[\s-]{0,3}fac(?:ing|e)\b`,
+  String.raw`(${DIRECTION_LIST})[\s-]{0,3}fac(?:ing|e)\b`,
   'gi'
 );
 const FACING_AFTER = new RegExp(
-  String.raw`(\b(?:not|no|non|except|avoid|other than)\s{1,3})?\bfacing\s{0,3}(?:is|should be|must be|:|-|–)?\s{0,3}(?:towards\s|to\s)?(${DIRECTION_LIST})\b(?![\s-]{0,3}fac)`,
+  String.raw`\bfacing\s{0,3}(?:is|should be|must be|:|-|–)?\s{0,3}(?:towards\s|to\s)?(${DIRECTION_LIST})\b(?![\s-]{0,3}fac)(?=\s{0,3}(?:$|[.,;:)\n]|only\b|preferred\b|please\b|and\b|with\b|in\b|on\b))`,
   'gi'
 );
 const ONE_DIRECTION = new RegExp(DIRECTION, 'gi');
+const NEGATION_REACH = 24;
+const NEGATED_BEFORE =
+  /(?:\b(?:not|no|never|except|avoid|without|other than|don'?t|do not|doesn'?t|does not)\b[^.,;\n]{0,16}|\bnon[\s-]{0,2})$/i;
+const NEGATED_AFTER =
+  /^\s{0,3}(?:(?:is|are)\s{1,3})?(?:not\b|isn'?t\b|no\b|never\b)/i;
 
 const ABBREVIATED: Record<string, Facing> = {
   ne: 'North-East',
@@ -71,11 +76,17 @@ function facingFromText(text: string): Facing[] {
       if (facing && !wanted.includes(facing)) wanted.push(facing);
     }
   };
-  for (const match of text.matchAll(FACING_BEFORE)) {
-    if (!match[1]) add(match[2]);
-  }
-  for (const match of text.matchAll(FACING_AFTER)) {
-    if (!match[1]) add(match[2]);
+  for (const pattern of [FACING_BEFORE, FACING_AFTER]) {
+    for (const match of text.matchAll(pattern)) {
+      const start = match.index ?? 0;
+      const before = text.slice(Math.max(0, start - NEGATION_REACH), start);
+      const after = text.slice(
+        start + match[0].length,
+        start + match[0].length + NEGATION_REACH
+      );
+      if (NEGATED_BEFORE.test(before) || NEGATED_AFTER.test(after)) continue;
+      add(match[1]);
+    }
   }
   return wanted;
 }
@@ -117,7 +128,7 @@ const FLOOR_RANGE_BEFORE = new RegExp(
   'i'
 );
 const FLOOR_RANGE_AFTER = new RegExp(
-  String.raw`\b${FLOOR_WORD}\s{0,3}(?:no\.?|number|:|-)?\s{0,3}(?:between\s{1,3}|from\s{1,3})?${ORDINAL}${RANGE_JOIN}${ORDINAL}\b`,
+  String.raw`\b${FLOOR_WORD}\s{0,3}(?:no\.?|number|:|-)?\s{0,3}(?:between\s{1,3}|from\s{1,3})?${ORDINAL}${RANGE_JOIN}${ORDINAL}\b(?!\.\d)(?!\s{0,3}(?:bhk|beds?\b|bedrooms?\b|br\b|rk\b|cr\b|crores?\b|l\b|lakhs?\b|lacs?\b|k\b|sq))`,
   'i'
 );
 const FLOOR_AT_LEAST = new RegExp(

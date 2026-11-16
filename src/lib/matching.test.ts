@@ -3,6 +3,7 @@ import {
   compareForBuyer,
   getMatchingContacts,
   isCurrentlyTenanted,
+  MATCH_FEED_FLOOR,
   unitFit,
 } from './matching';
 import { rankProperties } from './radar/engine';
@@ -2742,6 +2743,28 @@ describe('[CNV-016] facing, tower and floor range', () => {
     });
     expect(fits[0].score).toBeGreaterThan(silent[0].score);
     expect(silent[0].score).toBeGreaterThan(differs[0].score);
+  });
+
+  it('never lets a difference push a match that cleared the feed floor below it', () => {
+    const contact = createTestContact({
+      ...brief,
+      pref_budget_max: 12000000,
+    });
+    const plain = createTestContact({
+      pref_property_types: ['Flat/ Apartment'],
+      pref_budget_max: 12000000,
+      pref_extracted_at: new Date().toISOString(),
+    });
+    const listing = flat({
+      facing_direction: 'West',
+      tower: '4',
+      floor_number: 2,
+    });
+    const [baseline] = getMatchingContacts(listing, [plain]);
+    const [differs] = getMatchingContacts(listing, [contact]);
+    expect(baseline.score).toBeGreaterThanOrEqual(MATCH_FEED_FLOOR);
+    expect(baseline.score - 20).toBeLessThan(MATCH_FEED_FLOOR);
+    expect(differs.score).toBe(MATCH_FEED_FLOOR);
   });
 
   it('leaves a contact who states none of them scored exactly as before', () => {

@@ -70,7 +70,10 @@ export async function syncContactPreferences(
       console.error('[preference-sync] credit burn failed (non-fatal):', err);
     }
 
-    const prefs = await extractContactPreferences(sourceText);
+    const prefs = await extractContactPreferences(
+      sourceText,
+      contact.requirements as string | null
+    );
     const { error } = await db
       .from('contacts')
       .update({

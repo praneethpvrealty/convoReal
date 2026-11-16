@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
         try {
           const prefs = sourceText
-            ? await extractContactPreferences(sourceText)
+            ? await extractContactPreferences(sourceText, contact.requirements)
             : EMPTY_PREFERENCES;
           const { error: updateErr } = await ctx.supabase
             .from('contacts')

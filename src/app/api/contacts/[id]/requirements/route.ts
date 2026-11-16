@@ -283,7 +283,7 @@ export async function PATCH(
         text,
         contact.contact_notes || []
       );
-      const preferences = await extractContactPreferences(sourceText);
+      const preferences = await extractContactPreferences(sourceText, text);
       if (!hasStructuredRequirement(preferences)) {
         return NextResponse.json(
           {

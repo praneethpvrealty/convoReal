@@ -288,7 +288,11 @@ export function floorBarePlotSize<
  * whether to retry or leave the previous extraction in place.
  */
 export async function extractContactPreferences(
-  sourceText: string
+  sourceText: string,
+  /** The buyer's own requirement, without the agent notes joined into
+   *  sourceText: the facing, tower and floor reading is a plain pattern
+   *  match with no "only what the contact wants" rule to protect it. */
+  requirementText?: string | null
 ): Promise<ExtractedPreferences> {
   const text = sourceText.trim();
   if (!text) return EMPTY_PREFERENCES;
@@ -380,7 +384,9 @@ export async function extractContactPreferences(
     projects: [...new Set(toStringArray(parsed.projects))],
     min_roi: toNumberOrNull(parsed.min_roi),
     requires_tenanted: parsed.requires_tenanted === true,
-    ...unitPreferencesFromRequirement(text),
+    ...unitPreferencesFromRequirement(
+      requirementText === undefined ? text : requirementText
+    ),
     listing_types: [...new Set(listingTypes)],
     suggested_tags: normalizeSuggestedTags(
       toStringArray(parsed.suggested_tags)

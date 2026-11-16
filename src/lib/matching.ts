@@ -227,6 +227,11 @@ export interface MatchDetails {
   floor?: MatchVerdict;
 }
 
+/** The score every match feed (Radar, buyer alerts, the buyer portal,
+ *  the Deal Mode sweep) cuts at. A facing, tower or floor difference
+ *  reorders matches above it and never pushes one below it. */
+export const MATCH_FEED_FLOOR = 60;
+
 export interface UnitFit {
   facing: MatchVerdict;
   tower: MatchVerdict;
@@ -1686,12 +1691,21 @@ function matchContactsSingleProfile(
     if (roiVerdict === 'match') score += 5;
 
     const unit = unitFit(property, sourceContact);
-    if (unit.facing === 'match') score += 5;
-    else if (unit.facing === 'mismatch') score -= 10;
-    if (unit.tower === 'match') score += 5;
-    else if (unit.tower === 'mismatch') score -= 5;
-    if (unit.floor === 'match') score += 5;
-    else if (unit.floor === 'mismatch') score -= 5;
+    let unitBonus = 0;
+    let unitPenalty = 0;
+    if (unit.facing === 'match') unitBonus += 5;
+    else if (unit.facing === 'mismatch') unitPenalty += 10;
+    if (unit.tower === 'match') unitBonus += 5;
+    else if (unit.tower === 'mismatch') unitPenalty += 5;
+    if (unit.floor === 'match') unitBonus += 5;
+    else if (unit.floor === 'mismatch') unitPenalty += 5;
+    if (unitBonus > 0 || unitPenalty > 0) {
+      const adjusted = score + unitBonus - unitPenalty;
+      score =
+        score >= MATCH_FEED_FLOOR
+          ? Math.max(MATCH_FEED_FLOOR, adjusted)
+          : adjusted;
+    }
 
     // Current tenancy is a hard gate and makes an otherwise-empty brief feed
     // eligible. Scale the ordinary score into the remaining 40 points so its
