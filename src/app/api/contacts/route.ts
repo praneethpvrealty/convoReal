@@ -10,6 +10,11 @@ import { sanitizeAreasGeo } from '@/lib/contacts/area-geo';
 import { sanitizeAreaList } from '@/lib/contacts/area-fragments';
 import { sanitizeListingTypes } from '@/lib/ai/preference-extraction';
 import { isLanguageCode } from '@/lib/languages';
+import {
+  DUPLICATE_PHONE,
+  duplicatePhoneMessage,
+  findContactByPhone,
+} from '@/lib/contacts/phone-duplicate';
 
 // POST /api/contacts — create a new contact with tags, notes, and property links
 // in a single server-side transaction (replaces the multi-step client writes in contact-form.tsx).
@@ -80,6 +85,24 @@ export async function POST(request: Request) {
         { error: "'phone' or 'email' is required" },
         { status: 400 }
       );
+    }
+
+    if (phoneValue) {
+      const owner = await findContactByPhone(
+        ctx.supabase,
+        ctx.accountId,
+        phoneValue
+      );
+      if (owner) {
+        return NextResponse.json(
+          {
+            error: duplicatePhoneMessage(owner),
+            code: DUPLICATE_PHONE,
+            data: { id: owner.id },
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const contactData = {

@@ -78,6 +78,7 @@ import { quickAddContactPayload } from '@/lib/contact-form';
 import { useAccountCountryCode } from '@/lib/use-account-currency';
 import { friendlyError } from '@/lib/errors';
 import { splitImportedName } from '@/lib/name-tag-split';
+import { existingContactIdFrom, importSummary } from '@/lib/duplicate-phone';
 import { chatListTime, cleanPhoneInput } from '@/lib/format';
 import { uniqueById } from '@/lib/list-paging';
 import { phoneHints } from '@/lib/phone-hints';
@@ -1258,6 +1259,12 @@ function QuickAddContact({
       router.push(`/(app)/contact/${id}`);
     } catch (e) {
       haptic.warn();
+      const existingId = existingContactIdFrom(e);
+      if (existingId) {
+        onClose();
+        router.push(`/(app)/contact/${existingId}`);
+        return;
+      }
       setError(
         friendlyError(
           e instanceof ApiError ? e.message : 'Could not add the contact'
@@ -1736,6 +1743,7 @@ function DeviceImportSheet({
     setDone(0);
     setBusy(true);
     let ok = 0;
+    let existing = 0;
     let failed = 0;
     let timedOut = false;
     // Only meaningful for a single-contact import, where we hand the user
@@ -1761,6 +1769,13 @@ function DeviceImportSheet({
         onlyCreatedId = created?.id ?? null;
       } catch (err) {
         if (isCancelled(err)) break;
+        const existingId = existingContactIdFrom(err);
+        if (existingId) {
+          existing++;
+          onlyCreatedId = existingId;
+          setDone((n) => n + 1);
+          continue;
+        }
         if (isTimeout(err)) timedOut = true;
         failed++;
       }
@@ -1784,6 +1799,11 @@ function DeviceImportSheet({
       router.push(`/(app)/contact/${onlyCreatedId}?edit=1`);
       return;
     }
+    if (picked.length === 1 && existing === 1 && onlyCreatedId) {
+      onClose();
+      router.push(`/(app)/contact/${onlyCreatedId}`);
+      return;
+    }
 
     const failureReason = timedOut
       ? 'the server did not respond'
@@ -1791,12 +1811,12 @@ function DeviceImportSheet({
     setResult(
       cancelled
         ? `Stopped — imported ${ok} contact${ok === 1 ? '' : 's'} before you cancelled.`
-        : `Imported ${ok} contact${ok === 1 ? '' : 's'}${failed ? ` · ${failed} failed (${failureReason})` : ''}`
+        : importSummary({ ok, existing, failed, failureReason })
     );
     // Success: give the banner a beat to register, then collapse the
     // sheet — the imported contacts are already in the list behind it.
     // All-failed imports keep the sheet open so the message is read.
-    if (ok > 0) {
+    if (ok + existing > 0) {
       setTimeout(onClose, 1200);
     }
   }
