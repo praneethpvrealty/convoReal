@@ -26,15 +26,16 @@ export const EMPTY_UNIT_PREFERENCES: UnitPreferences = {
 };
 
 const MAX_FLOOR = 150;
+const MAX_TEXT_LENGTH = 4000;
 
-const DIRECTION = String.raw`(?:north|south)[\s-]*(?:east|west)|north|south|east|west|\b(?:ne|nw|se|sw)\b`;
-const DIRECTION_LIST = String.raw`(?:${DIRECTION})(?:\s*(?:,|\/|&|or|and)\s*(?:${DIRECTION}))*`;
+const DIRECTION = String.raw`(?:north|south)[\s-]{0,3}(?:east|west)|north|south|east|west|\b(?:ne|nw|se|sw)\b`;
+const DIRECTION_LIST = String.raw`(?:${DIRECTION})(?:\s{0,3}(?:,|\/|&|or|and)\s{0,3}(?:${DIRECTION}))*`;
 const FACING_BEFORE = new RegExp(
-  String.raw`(\b(?:not|no|non|except|avoid|other than)\s+)?(${DIRECTION_LIST})[\s-]*fac(?:ing|e)\b`,
+  String.raw`(\b(?:not|no|non|except|avoid|other than)\s{1,3})?(${DIRECTION_LIST})[\s-]{0,3}fac(?:ing|e)\b`,
   'gi'
 );
 const FACING_AFTER = new RegExp(
-  String.raw`\bfacing\s*(?:is|should be|must be|:|-|–)?\s*(?:towards\s+|to\s+)?(${DIRECTION_LIST})\b(?![\s-]*fac)`,
+  String.raw`\bfacing\s{0,3}(?:is|should be|must be|:|-|–)?\s{0,3}(?:towards\s|to\s)?(${DIRECTION_LIST})\b(?![\s-]{0,3}fac)`,
   'gi'
 );
 const ONE_DIRECTION = new RegExp(DIRECTION, 'gi');
@@ -80,7 +81,7 @@ function facingFromText(text: string): Facing[] {
 const TOWER_TOKEN = String.raw`(?:\d{1,3}[A-Za-z]?|[A-Z])`;
 const TOWER_KEYWORD = String.raw`(?:[Tt]owers?|TOWERS?|[Ww]ings?|WINGS?)`;
 const TOWER_LIST = new RegExp(
-  String.raw`\b${TOWER_KEYWORD}\s*(?:no\.?|number|#|:|-)?\s*(${TOWER_TOKEN}(?:\s*(?:,|\/|&|or|and)\s*${TOWER_TOKEN})*)(?![A-Za-z0-9])`,
+  String.raw`\b${TOWER_KEYWORD}\s{0,3}(?:no\.?|number|#|:|-)?\s{0,3}(${TOWER_TOKEN}(?:\s{0,3}(?:,|\/|&|or|and)\s{0,3}${TOWER_TOKEN})*)(?![A-Za-z0-9])`,
   'g'
 );
 
@@ -98,7 +99,7 @@ export function normalizeTower(
 function towersFromText(text: string): string[] {
   const towers: string[] = [];
   for (const match of text.matchAll(TOWER_LIST)) {
-    for (const token of match[1].split(/\s*(?:,|\/|&|\bor\b|\band\b)\s*/)) {
+    for (const token of match[1].split(/,|\/|&|\bor\b|\band\b/)) {
       const tower = normalizeTower(token);
       if (tower && !towers.includes(tower)) towers.push(tower);
     }
@@ -106,38 +107,38 @@ function towersFromText(text: string): string[] {
   return towers;
 }
 
-const ORDINAL = String.raw`(\d{1,3})(?:\s*(?:st|nd|rd|th))?`;
+const ORDINAL = String.raw`(\d{1,3})(?:\s{0,3}(?:st|nd|rd|th))?`;
 const FLOOR_WORD = String.raw`(?:floors?|flr)`;
-const RANGE_JOIN = String.raw`\s*(?:-|–|—|to|and|till|until)\s*`;
+const RANGE_JOIN = String.raw`\s{0,3}(?:-|–|—|to|and|till|until)\s{0,3}`;
 const FLOOR_RANGE_BEFORE = new RegExp(
-  String.raw`\b(?:(?:above|from|between)\s+)?${ORDINAL}${RANGE_JOIN}${ORDINAL}\s*${FLOOR_WORD}\b`,
+  String.raw`\b(?:(?:above|from|between)\s{1,3})?${ORDINAL}${RANGE_JOIN}${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
   'i'
 );
 const FLOOR_RANGE_AFTER = new RegExp(
-  String.raw`\b${FLOOR_WORD}\s*(?:no\.?|number|:|-)?\s*(?:between\s+|from\s+)?${ORDINAL}${RANGE_JOIN}${ORDINAL}\b`,
+  String.raw`\b${FLOOR_WORD}\s{0,3}(?:no\.?|number|:|-)?\s{0,3}(?:between\s{1,3}|from\s{1,3})?${ORDINAL}${RANGE_JOIN}${ORDINAL}\b`,
   'i'
 );
 const FLOOR_AT_LEAST = new RegExp(
-  String.raw`\b${ORDINAL}\s*${FLOOR_WORD}\s*(?:and|or|&)\s*(?:above|higher|up|upwards)\b|\b(?:min(?:imum)?|at\s*least)\s+${ORDINAL}\s*${FLOOR_WORD}\b`,
+  String.raw`\b${ORDINAL}\s{0,3}${FLOOR_WORD}\s{0,3}(?:and|or|&)\s{0,3}(?:above|higher|up|upwards)\b|\b(?:min(?:imum)?|at\s{0,3}least)\s{1,3}${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
   'i'
 );
 const FLOOR_ABOVE = new RegExp(
-  String.raw`\b(?:above|higher than|over|beyond)\s+(?:the\s+)?${ORDINAL}\s*${FLOOR_WORD}\b`,
+  String.raw`\b(?:above|higher than|over|beyond)\s{1,3}(?:the\s{1,3})?${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
   'i'
 );
 const FLOOR_AT_MOST = new RegExp(
-  String.raw`\b${ORDINAL}\s*${FLOOR_WORD}\s*(?:and|or|&)\s*(?:below|lower|down)\b|\b(?:up\s*to|upto|max(?:imum)?|within|not above|at\s*most)\s+(?:the\s+)?${ORDINAL}\s*${FLOOR_WORD}\b`,
+  String.raw`\b${ORDINAL}\s{0,3}${FLOOR_WORD}\s{0,3}(?:and|or|&)\s{0,3}(?:below|lower|down)\b|\b(?:up\s{0,3}to|upto|max(?:imum)?|within|not above|at\s{0,3}most)\s{1,3}(?:the\s{1,3})?${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
   'i'
 );
 const FLOOR_BELOW = new RegExp(
-  String.raw`\b(?:below|lower than|under)\s+(?:the\s+)?${ORDINAL}\s*${FLOOR_WORD}\b`,
+  String.raw`\b(?:below|lower than|under)\s{1,3}(?:the\s{1,3})?${ORDINAL}\s{0,3}${FLOOR_WORD}\b`,
   'i'
 );
 const FLOOR_SINGLE = new RegExp(
-  String.raw`\b(\d{1,3})\s*(?:st|nd|rd|th)\s*${FLOOR_WORD}\b|\b${FLOOR_WORD}\s*(?:no\.?|number|#)\s*(\d{1,3})\b`,
+  String.raw`\b(\d{1,3})\s{0,3}(?:st|nd|rd|th)\s{0,3}${FLOOR_WORD}\b|\b${FLOOR_WORD}\s{0,3}(?:no\.?|number|#)\s{0,3}(\d{1,3})\b`,
   'i'
 );
-const GROUND_FLOOR = /\bground\s*(?:floor|flr)\b/i;
+const GROUND_FLOOR = /\bground\s{0,3}(?:floor|flr)\b/i;
 
 function floorNumber(value: string | undefined): number | null {
   if (value == null) return null;
@@ -193,7 +194,7 @@ function floorsFromText(text: string): {
 export function unitPreferencesFromRequirement(
   text: string | null | undefined
 ): UnitPreferences {
-  const value = (text || '').trim();
+  const value = (text || '').trim().slice(0, MAX_TEXT_LENGTH);
   if (!value) return EMPTY_UNIT_PREFERENCES;
   return {
     facing: facingFromText(value),
