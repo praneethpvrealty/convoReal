@@ -169,6 +169,8 @@ describe('preferenceFlowBodyText', () => {
     for (const brief of [
       { min_roi: 6 },
       { min_roi: null, pref_min_roi: 6 },
+      { min_roi: 0, pref_min_roi: 6 },
+      { requires_tenanted: false, pref_requires_tenanted: true },
       { pref_requires_tenanted: true },
       { pref_property_types: ['Commercial Office Space'] },
       { pref_property_types: ['Industrial Shed'] },

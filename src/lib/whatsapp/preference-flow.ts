@@ -233,8 +233,10 @@ export function preferenceFlowBodyText(
 ): string {
   const source = resolveRequirementSource(contact as Contact);
   const yieldLed =
-    Number(source.min_roi ?? source.pref_min_roi ?? 0) > 0 ||
-    !!(source.requires_tenanted ?? source.pref_requires_tenanted) ||
+    Number(source.min_roi) > 0 ||
+    Number(source.pref_min_roi) > 0 ||
+    !!source.requires_tenanted ||
+    !!source.pref_requires_tenanted ||
     [
       ...(source.property_interests || []),
       ...(source.pref_property_types || []),

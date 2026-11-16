@@ -184,6 +184,8 @@ describe("[INB-045] a requirement floor or the buyer's own purchase points at no
     'Plot size 2400 sqft and above',
     'I need 1851 sft in Prestige meridian\nEast facing in tower 10 above 8th to 28 floor',
     '3 bhk above 10th floor, 1800 sqft',
+    '3 BHK above ₹1 cr in Whitefield',
+    'plot above Rs 50 lakh',
     'This all property purchase will be registered on my name. Plot size 1800 sqft to 10k+ sqft',
   ])('does not read %s as a pointer', (text) => {
     expect(referencesSharedListing(text)).toBe(false);
