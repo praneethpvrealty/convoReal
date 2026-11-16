@@ -2767,6 +2767,18 @@ describe('[CNV-016] facing, tower and floor range', () => {
     expect(differs.score).toBe(MATCH_FEED_FLOOR);
   });
 
+  it('never lets a fit lift a match that missed the feed floor above it', () => {
+    const contact = createTestContact(brief);
+    const [fits] = getMatchingContacts(
+      flat({ facing_direction: 'East', tower: '10', floor_number: 12 }),
+      [contact]
+    );
+    const [silent] = getMatchingContacts(flat({}), [contact]);
+    expect(silent.score).toBeLessThan(MATCH_FEED_FLOOR);
+    expect(silent.score + 15).toBeGreaterThanOrEqual(MATCH_FEED_FLOOR);
+    expect(fits.score).toBe(MATCH_FEED_FLOOR - 1);
+  });
+
   it('still separates listings for a brief whose score would cap at 100', () => {
     const contact = createTestContact({
       ...brief,

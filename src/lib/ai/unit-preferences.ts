@@ -43,7 +43,7 @@ const NEGATION_REACH = 24;
 const NEGATED_BEFORE =
   /(?:\b(?:not|no|never|except|avoid|without|other than|don'?t|do not|doesn'?t|does not)\b[^.,;\n]{0,16}|\bnon[\s-]{0,2})$/i;
 const NEGATED_AFTER = new RegExp(
-  String.raw`^\s{0,3}(?:(?:is|are)\s{1,3})?(?:not|isn'?t|no|never)\b(?!\s{1,3}(?:facing\s{1,3})?(?:${DIRECTION}))`,
+  String.raw`^\s{0,3}(?:(?:is|are)\s{1,3})?(?:(?:not|isn'?t|never)\b(?!\s{1,3}(?:facing\s{1,3})?(?:${DIRECTION}))|no\b(?=\s{0,3}(?:$|[.,;!\n])))`,
   'i'
 );
 

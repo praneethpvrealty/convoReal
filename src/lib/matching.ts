@@ -228,8 +228,9 @@ export interface MatchDetails {
 }
 
 /** The score every match feed (Radar, buyer alerts, the buyer portal,
- *  the Deal Mode sweep) cuts at. A facing, tower or floor difference
- *  reorders matches above it and never pushes one below it. */
+ *  the Deal Mode sweep) cuts at. A facing, tower or floor fit or
+ *  difference reorders matches on their own side of it and never moves
+ *  one across it. */
 export const MATCH_FEED_FLOOR = 60;
 
 export interface UnitFit {
@@ -1705,7 +1706,7 @@ function matchContactsSingleProfile(
       score =
         base >= MATCH_FEED_FLOOR
           ? Math.max(MATCH_FEED_FLOOR, adjusted)
-          : adjusted;
+          : Math.min(MATCH_FEED_FLOOR - 1, adjusted);
     }
 
     // Current tenancy is a hard gate and makes an otherwise-empty brief feed
