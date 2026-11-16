@@ -85,13 +85,14 @@ describe('POST /api/contacts', () => {
       },
     ];
     db = memorySupabase(tables, {
-      contacts_matching_phone_digits: (args) => {
-        const digits = args.p_digits as string[];
+      contacts_matching_phone_key: (args) => {
         return [...tables.contacts, ...hidden]
           .filter(
             (c) =>
               c.account_id === args.p_account_id &&
-              digits.includes(String(c.phone ?? '').replace(/\D/g, ''))
+              String(c.phone ?? '')
+                .replace(/\D/g, '')
+                .slice(-10) === args.p_key
           )
           .map((c) => ({ id: c.id, phone: c.phone, is_merged: c.is_merged }));
       },
@@ -115,6 +116,12 @@ describe('POST /api/contacts', () => {
     const res = await create({ name: 'Abhishek', phone: '9845919713' });
     expect(res.status).toBe(409);
     expect((await res.json()).data).toEqual({ id: 'abhishek' });
+  });
+
+  it('[CTM-018] matches a number stored under any country or trunk prefix', async () => {
+    tables.contacts[0].phone = '0091 98459 19713';
+    const res = await create({ name: 'Abhishek', phone: '+919845919713' });
+    expect(res.status).toBe(409);
   });
 
   it('[CTM-018] refuses a number held by a contact the caller cannot see, without revealing it', async () => {

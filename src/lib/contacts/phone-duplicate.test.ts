@@ -1,24 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  duplicatePhoneMessage,
-  phoneDigitVariants,
-  pickPhoneOwner,
-} from './phone-duplicate';
-
-describe('phoneDigitVariants', () => {
-  it('[CTM-018] covers every stored digit form of one subscriber number', () => {
-    expect(phoneDigitVariants('+91 98459 19713')).toEqual(
-      expect.arrayContaining([
-        '919845919713',
-        '00919845919713',
-        '9845919713',
-        '09845919713',
-      ])
-    );
-    expect(phoneDigitVariants('123')).toEqual([]);
-  });
-});
+import { duplicatePhoneMessage, pickPhoneOwner } from './phone-duplicate';
 
 describe('pickPhoneOwner', () => {
   it('[CTM-018] matches on the last ten digits and skips merged-away records', () => {

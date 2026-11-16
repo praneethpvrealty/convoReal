@@ -17,13 +17,6 @@ export interface PhoneOwner {
   second_name: string | null;
 }
 
-export function phoneDigitVariants(phone: string): string[] {
-  const key = phoneMatchKey(phone);
-  if (!key) return [];
-  const digits = phone.replace(/\D/g, '');
-  return [...new Set([digits, `00${digits}`, key, `0${key}`, `91${key}`])];
-}
-
 export function pickPhoneOwner(
   phone: string,
   candidates: readonly PhoneMatch[]
@@ -57,11 +50,11 @@ export async function findContactByPhone(
   accountId: string,
   phone: string
 ): Promise<PhoneOwner | null> {
-  const digits = phoneDigitVariants(phone);
-  if (digits.length === 0) return null;
-  const { data, error } = await db.rpc('contacts_matching_phone_digits', {
+  const key = phoneMatchKey(phone);
+  if (!key) return null;
+  const { data, error } = await db.rpc('contacts_matching_phone_key', {
     p_account_id: accountId,
-    p_digits: digits,
+    p_key: key,
   });
   if (error) throw error;
   const match = pickPhoneOwner(phone, (data ?? []) as PhoneMatch[]);
