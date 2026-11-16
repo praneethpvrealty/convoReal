@@ -1206,23 +1206,25 @@ export function PropertyForm({
   const saveLatest = useRef<((overwrite: boolean) => Promise<void>) | null>(
     null
   );
-  const openOn = useRef<string | null>(null);
   useEffect(() => {
     saveLatest.current = saveProperty;
-    openOn.current = open && property ? property.id : null;
   });
-  // The toast belongs to one listing in one open form: closing the form or
-  // opening another listing withdraws it, and its action checks again in
-  // case it is clicked in the moment before it goes.
+  // The toast belongs to one opening of one listing. Closing the form or
+  // opening another listing ends that session: the toast is withdrawn, a
+  // refusal that arrives afterwards raises none, and the action does
+  // nothing if it is clicked in the moment before the toast goes.
+  const openSession = useRef(0);
   const openPropertyId = open && property ? property.id : null;
   useEffect(
     () => () => {
+      openSession.current += 1;
       toast.dismiss(PROPERTY_CHANGED_TOAST_ID);
     },
     [openPropertyId]
   );
 
   async function saveProperty(overwrite: boolean) {
+    const session = openSession.current;
     if (uploadsInFlight) {
       toast.error('Wait for the uploads to finish before saving.');
       return;
@@ -1265,7 +1267,7 @@ export function PropertyForm({
             response.status === 409 &&
             errData.code === PROPERTY_CHANGED_CODE
           ) {
-            const refusedId = property.id;
+            if (openSession.current !== session) return;
             toast.warning(
               'This listing was changed after you opened it. Saving now replaces those changes with what is in this form.',
               {
@@ -1274,7 +1276,7 @@ export function PropertyForm({
                 action: {
                   label: 'Save anyway',
                   onClick: () => {
-                    if (openOn.current !== refusedId) return;
+                    if (openSession.current !== session) return;
                     void saveLatest.current?.(true);
                   },
                 },

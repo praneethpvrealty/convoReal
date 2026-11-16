@@ -413,7 +413,9 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(web).toContain('errData.code === PROPERTY_CHANGED_CODE');
     expect(web).toContain("label: 'Save anyway'");
     expect(web).toContain('saveLatest.current?.(true)');
-    expect(web).toContain('if (openOn.current !== refusedId) return;');
+    expect(
+      web.split('if (openSession.current !== session) return;')
+    ).toHaveLength(3);
     expect(web).toContain('toast.dismiss(PROPERTY_CHANGED_TOAST_ID)');
   });
 
