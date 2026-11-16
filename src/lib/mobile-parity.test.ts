@@ -413,6 +413,8 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(web).toContain('errData.code === PROPERTY_CHANGED_CODE');
     expect(web).toContain("label: 'Save anyway'");
     expect(web).toContain('saveLatest.current?.(true)');
+    expect(web).toContain('if (openOn.current !== refusedId) return;');
+    expect(web).toContain('toast.dismiss(PROPERTY_CHANGED_TOAST_ID)');
   });
 
   it('[PRP-009] attributes contact-card inventory links to their recipient', () => {

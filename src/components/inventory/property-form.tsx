@@ -167,6 +167,8 @@ interface PropertyDuplicateCandidate {
   signals: string[];
 }
 
+const PROPERTY_CHANGED_TOAST_ID = 'property-changed';
+
 export function PropertyForm({
   open,
   onOpenChange,
@@ -1204,9 +1206,21 @@ export function PropertyForm({
   const saveLatest = useRef<((overwrite: boolean) => Promise<void>) | null>(
     null
   );
+  const openOn = useRef<string | null>(null);
   useEffect(() => {
     saveLatest.current = saveProperty;
+    openOn.current = open && property ? property.id : null;
   });
+  // The toast belongs to one listing in one open form: closing the form or
+  // opening another listing withdraws it, and its action checks again in
+  // case it is clicked in the moment before it goes.
+  const openPropertyId = open && property ? property.id : null;
+  useEffect(
+    () => () => {
+      toast.dismiss(PROPERTY_CHANGED_TOAST_ID);
+    },
+    [openPropertyId]
+  );
 
   async function saveProperty(overwrite: boolean) {
     if (uploadsInFlight) {
@@ -1251,13 +1265,18 @@ export function PropertyForm({
             response.status === 409 &&
             errData.code === PROPERTY_CHANGED_CODE
           ) {
+            const refusedId = property.id;
             toast.warning(
               'This listing was changed after you opened it. Saving now replaces those changes with what is in this form.',
               {
+                id: PROPERTY_CHANGED_TOAST_ID,
                 duration: 20000,
                 action: {
                   label: 'Save anyway',
-                  onClick: () => void saveLatest.current?.(true),
+                  onClick: () => {
+                    if (openOn.current !== refusedId) return;
+                    void saveLatest.current?.(true);
+                  },
                 },
               }
             );
