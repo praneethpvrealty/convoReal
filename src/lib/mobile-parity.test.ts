@@ -29,6 +29,7 @@ import {
   insertEntityReference,
   type EntityReference,
 } from '@/lib/copilot/entities';
+import { PROPERTY_EDIT_CORE_FIELDS } from '@/lib/inventory/edit-version';
 import { TOURS } from '@/lib/copilot/tours';
 import { AGENCY_SHOWCASE_DESIGNS, SHOWCASE_STYLES } from '@/lib/showcase/style';
 import { JOURNEY_ITEM_SOURCE_LABELS } from '@/lib/journey/captured';
@@ -392,6 +393,30 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(mobileBar).toContain('Share shortlist');
     expect(webInventory).toContain('initialPickedIds={selectedForTagging}');
     expect(webBar).toContain('Share shortlist');
+  });
+
+  it('[PRP-062] sends the version each editor opened with and asks before overwriting', () => {
+    const mobile = mobileSource('app/(app)/property-edit.tsx');
+    const web = webSource('components/inventory/property-form.tsx');
+
+    expect(mobile).toContain('body.expected_version = propertyEditVersion(');
+    const mobileSelect = mobile.slice(
+      mobile.indexOf("'id, title, description"),
+      mobile.indexOf(".eq('id', id)")
+    );
+    for (const field of PROPERTY_EDIT_CORE_FIELDS) {
+      expect(mobileSelect, field).toMatch(new RegExp(`\\b${field}\\b`));
+    }
+    expect(mobile).toContain('e.code === PROPERTY_CHANGED_CODE');
+    expect(mobile).toContain("label: 'Save anyway'");
+    expect(web).toContain('expected_version: openedVersion.current');
+    expect(web).toContain('errData.code === PROPERTY_CHANGED_CODE');
+    expect(web).toContain("label: 'Save anyway'");
+    expect(web).toContain('saveLatest.current?.(true)');
+    expect(
+      web.split('if (openSession.current !== session) return;')
+    ).toHaveLength(3);
+    expect(web).toContain('toast.dismiss(PROPERTY_CHANGED_TOAST_ID)');
   });
 
   it('[PRP-009] attributes contact-card inventory links to their recipient', () => {

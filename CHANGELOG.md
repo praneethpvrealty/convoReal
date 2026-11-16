@@ -42,6 +42,15 @@ than a written entry. Newest first.
   it and sends its details in the same step, and approving without one is
   still a tap away.
 
+#### 16 November 2026
+
+- **Saving a listing no longer silently overwrites someone else's edit.** The
+  web property form and the mobile Edit property screen tell the server which
+  version of the listing they opened; if its price, status, photos or other
+  edited fields changed in the meantime, the save is held back with an
+  explanation and a **Save anyway** choice. Background updates such as catalog
+  sync and video status do not count as a change (PRP-062).
+
 #### 14 November 2026
 
 - **The mobile app waits on the database less.** Edit property opens from
