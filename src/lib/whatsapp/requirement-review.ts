@@ -8,6 +8,7 @@
 // the full form. "All correct" is itself an answer worth having: it
 // converts a stale extraction into a confirmed brief.
 
+import { unitPreferenceLabels } from '@/lib/ai/unit-preferences';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sendPropertyTypePrompt } from '@/lib/whatsapp/property-type-prompt';
@@ -83,6 +84,15 @@ export function buildRequirementSummary(contact: Contact): string | null {
 
   const budget = budgetLabel(source);
   if (budget) parts.push(budget);
+
+  parts.push(
+    ...unitPreferenceLabels({
+      facing: source.pref_facing,
+      towers: source.pref_towers,
+      floor_min: source.pref_floor_min,
+      floor_max: source.pref_floor_max,
+    })
+  );
 
   if (
     source.pref_listing_types?.includes('Rent') &&

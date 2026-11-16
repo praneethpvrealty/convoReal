@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 16 November 2026
 
+- **Facing, tower and floor range are structured requirement fields.** A
+  buyer who writes "East facing in tower 10, 8th to 28th floor" now has those
+  saved as fields of their own, read from the requirement text at no AI cost.
+  Matching compares them with the listing's facing, tower and floor: a fit
+  ranks the listing higher, a difference ranks it lower, and a listing that
+  does not record them is unaffected. The requirement summary and the match
+  chips show them on web and mobile. **Migration required:**
+  `20261116044500_contact_unit_preferences.sql` (four nullable columns on
+  `contacts`).
 - **A no-match "Update my preferences" reply no longer offers the lead their
   own enquiry back.** A lead on a live 3 BHK was told nothing fits "3 BHK at
   3 BHK Flat in …", shown that same flat as the one listing in its locality,

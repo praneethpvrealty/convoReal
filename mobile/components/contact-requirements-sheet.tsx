@@ -14,6 +14,7 @@ import { openContactChat } from '@/lib/open-chat';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, ContactRequirementProfile } from '@/lib/types';
 import { resolveRequirementSource } from '@/lib/requirements-profile';
+import { unitPreferenceLabels } from '@shared/lib/ai/unit-preferences';
 
 interface RequirementResult {
   data: {
@@ -81,6 +82,12 @@ function primarySummary(contact: Contact): string {
     areas.slice(0, 3).join(', '),
     sizeSummary(source.pref_land_area_min_sqft, source.pref_land_area_max_sqft),
     budget,
+    ...unitPreferenceLabels({
+      facing: source.pref_facing,
+      towers: source.pref_towers,
+      floor_min: source.pref_floor_min,
+      floor_max: source.pref_floor_max,
+    }),
   ]
     .filter(Boolean)
     .join(' · ');

@@ -3,6 +3,7 @@ import type { ContactParty } from '@/lib/contacts/parties';
 import { normalizePropertyType } from '@/lib/property-types';
 import { textContainsProject } from '@/lib/project-match';
 import { toSquareFeet } from '@/lib/area-units';
+import { normalizeFacing, normalizeTower } from '@/lib/ai/unit-preferences';
 import { resolveBudgetBound } from '@/lib/contacts/budget-amount';
 import {
   activeRequirementProfiles,
@@ -218,6 +219,68 @@ export interface MatchDetails {
    *  or a yield-led commercial brief), so location reads 'unknown' by
    *  their choice rather than for want of a brief. */
   location_waived?: boolean;
+  /** The listing's facing, tower and floor against what the contact
+   *  stated. 'unknown' when either side has no value; a 'mismatch' is
+   *  penalised in the score, never excluded — listings often omit them. */
+  facing?: MatchVerdict;
+  tower?: MatchVerdict;
+  floor?: MatchVerdict;
+}
+
+export interface UnitFit {
+  facing: MatchVerdict;
+  tower: MatchVerdict;
+  floor: MatchVerdict;
+}
+
+export function unitFit(
+  property: Partial<Property>,
+  source: Pick<
+    Contact,
+    'pref_facing' | 'pref_towers' | 'pref_floor_min' | 'pref_floor_max'
+  >
+): UnitFit {
+  const wantedFacing = (source.pref_facing ?? [])
+    .map((value) => normalizeFacing(value))
+    .filter(Boolean);
+  const listingFacing = normalizeFacing(property.facing_direction);
+  const facing: MatchVerdict =
+    wantedFacing.length === 0 || !listingFacing
+      ? 'unknown'
+      : wantedFacing.includes(listingFacing)
+        ? 'match'
+        : 'mismatch';
+
+  const wantedTowers = (source.pref_towers ?? [])
+    .map((value) => normalizeTower(value))
+    .filter(Boolean);
+  const listingTower = normalizeTower(property.tower);
+  const tower: MatchVerdict =
+    wantedTowers.length === 0 || !listingTower
+      ? 'unknown'
+      : wantedTowers.includes(listingTower)
+        ? 'match'
+        : 'mismatch';
+
+  const floorMin =
+    source.pref_floor_min != null ? Number(source.pref_floor_min) : null;
+  const floorMax =
+    source.pref_floor_max != null ? Number(source.pref_floor_max) : null;
+  const listingFloor =
+    property.floor_number != null && property.floor_number !== undefined
+      ? Number(property.floor_number)
+      : null;
+  const floor: MatchVerdict =
+    (floorMin == null && floorMax == null) ||
+    listingFloor == null ||
+    !Number.isFinite(listingFloor)
+      ? 'unknown'
+      : (floorMin == null || listingFloor >= floorMin) &&
+          (floorMax == null || listingFloor <= floorMax)
+        ? 'match'
+        : 'mismatch';
+
+  return { facing, tower, floor };
 }
 
 export interface MatchingResult {
@@ -1622,6 +1685,14 @@ function matchContactsSingleProfile(
 
     if (roiVerdict === 'match') score += 5;
 
+    const unit = unitFit(property, sourceContact);
+    if (unit.facing === 'match') score += 5;
+    else if (unit.facing === 'mismatch') score -= 10;
+    if (unit.tower === 'match') score += 5;
+    else if (unit.tower === 'mismatch') score -= 5;
+    if (unit.floor === 'match') score += 5;
+    else if (unit.floor === 'mismatch') score -= 5;
+
     // Current tenancy is a hard gate and makes an otherwise-empty brief feed
     // eligible. Scale the ordinary score into the remaining 40 points so its
     // type, locality, budget, size and BHK differences still determine order.
@@ -1643,6 +1714,9 @@ function matchContactsSingleProfile(
         project: projectMatch ? 'match' : 'unknown',
         named_area: namedAreaHit ? 'match' : 'unknown',
         ...(locationWaived ? { location_waived: true } : {}),
+        ...(unit.facing !== 'unknown' ? { facing: unit.facing } : {}),
+        ...(unit.tower !== 'unknown' ? { tower: unit.tower } : {}),
+        ...(unit.floor !== 'unknown' ? { floor: unit.floor } : {}),
       },
       matchedFields: {
         budget: budgetVerdict === 'match',

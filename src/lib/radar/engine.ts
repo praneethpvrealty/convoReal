@@ -70,6 +70,9 @@ function chipsFromDetails(d: MatchDetails): string[] {
   else if (d.budget === 'partial') chips.push('Budget near');
   else if (d.budget === 'unknown') chips.push('No budget on file');
   if (d.bhk === 'match') chips.push('BHK fit');
+  if (d.facing === 'match') chips.push('Facing fit');
+  if (d.tower === 'match') chips.push('Tower fit');
+  if (d.floor === 'match') chips.push('Floor fit');
   if (d.roi === 'match') chips.push('Yield ✓');
   return chips;
 }

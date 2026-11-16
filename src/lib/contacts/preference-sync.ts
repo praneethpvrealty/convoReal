@@ -86,6 +86,10 @@ export async function syncContactPreferences(
         pref_suggested_tags: prefs.suggested_tags,
         pref_min_roi: prefs.min_roi,
         pref_requires_tenanted: prefs.requires_tenanted,
+        pref_facing: prefs.facing,
+        pref_towers: prefs.towers,
+        pref_floor_min: prefs.floor_min,
+        pref_floor_max: prefs.floor_max,
         pref_listing_types: mergedListingTypes(
           prefs.listing_types,
           contact.pref_listing_types as string[] | null

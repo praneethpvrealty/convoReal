@@ -12,6 +12,7 @@ import {
   PROPERTY_TYPE_VALUES,
 } from '@/lib/property-types';
 import { sanitizeAreaList } from '@/lib/contacts/area-fragments';
+import { unitPreferencesFromRequirement } from './unit-preferences';
 
 /**
  * AI extraction of structured buyer preferences from a contact's
@@ -379,6 +380,7 @@ export async function extractContactPreferences(
     projects: [...new Set(toStringArray(parsed.projects))],
     min_roi: toNumberOrNull(parsed.min_roi),
     requires_tenanted: parsed.requires_tenanted === true,
+    ...unitPreferencesFromRequirement(text),
     listing_types: [...new Set(listingTypes)],
     suggested_tags: normalizeSuggestedTags(
       toStringArray(parsed.suggested_tags)

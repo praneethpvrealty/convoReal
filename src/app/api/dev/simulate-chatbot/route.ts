@@ -421,6 +421,10 @@ async function simulateLeadReply(args: {
     pref_projects: preferences.projects,
     pref_min_roi: preferences.min_roi,
     pref_requires_tenanted: preferences.requires_tenanted,
+    pref_facing: preferences.facing,
+    pref_towers: preferences.towers,
+    pref_floor_min: preferences.floor_min,
+    pref_floor_max: preferences.floor_max,
     pref_listing_types: preferences.listing_types,
     pref_extracted_at: new Date().toISOString(),
   } as unknown as Contact;

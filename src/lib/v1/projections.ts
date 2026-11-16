@@ -143,6 +143,10 @@ export const MATCHING_CONTACT_COLUMNS = [
   'pref_min_roi',
   'requires_tenanted',
   'pref_requires_tenanted',
+  'pref_facing',
+  'pref_towers',
+  'pref_floor_min',
+  'pref_floor_max',
   'pref_extracted_at',
   'contact_notes(note_text)',
 ].join(', ');

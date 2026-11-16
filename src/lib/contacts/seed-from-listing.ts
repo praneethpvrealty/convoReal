@@ -79,6 +79,10 @@ export function hasSavedRequirement(contact: Contact): boolean {
     hasNumber(contact.max_budget) ||
     hasNumber(contact.pref_land_area_min_sqft) ||
     hasNumber(contact.pref_land_area_max_sqft) ||
+    hasAny(contact.pref_facing) ||
+    hasAny(contact.pref_towers) ||
+    hasNumber(contact.pref_floor_min) ||
+    hasNumber(contact.pref_floor_max) ||
     contact.no_budget === true ||
     !!(contact.requirements || '').trim()
   );

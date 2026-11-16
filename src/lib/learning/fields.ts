@@ -235,6 +235,42 @@ const POLICIES: FieldPolicy[] = [
     disposition: 'auto',
     kind: 'boolean',
   },
+  {
+    entity: 'contact',
+    field: 'pref_facing',
+    column: 'pref_facing',
+    label: 'Facing',
+    disposition: 'auto',
+    kind: 'list',
+  },
+  {
+    entity: 'contact',
+    field: 'pref_towers',
+    column: 'pref_towers',
+    label: 'Towers',
+    disposition: 'auto',
+    kind: 'list',
+  },
+  {
+    entity: 'contact',
+    field: 'pref_floor_min',
+    column: 'pref_floor_min',
+    label: 'Lowest floor',
+    disposition: 'auto',
+    kind: 'count',
+    min: 0,
+    max: 150,
+  },
+  {
+    entity: 'contact',
+    field: 'pref_floor_max',
+    column: 'pref_floor_max',
+    label: 'Highest floor',
+    disposition: 'auto',
+    kind: 'count',
+    min: 0,
+    max: 150,
+  },
   // The suggestion column itself is bookkeeping: writing it attaches
   // nothing and changes no matching, so it applies on sight like the
   // rest of the extraction. What it feeds is the row below.
