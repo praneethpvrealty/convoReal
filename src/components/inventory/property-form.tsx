@@ -1198,6 +1198,16 @@ export function PropertyForm({
     void saveProperty(false);
   }
 
+  // The overwrite toast outlives the render that raised it, and the form
+  // stays editable under it, so its action saves through the latest
+  // saveProperty rather than the one that captured the values it refused.
+  const saveLatest = useRef<((overwrite: boolean) => Promise<void>) | null>(
+    null
+  );
+  useEffect(() => {
+    saveLatest.current = saveProperty;
+  });
+
   async function saveProperty(overwrite: boolean) {
     if (uploadsInFlight) {
       toast.error('Wait for the uploads to finish before saving.');
@@ -1247,7 +1257,7 @@ export function PropertyForm({
                 duration: 20000,
                 action: {
                   label: 'Save anyway',
-                  onClick: () => void saveProperty(true),
+                  onClick: () => void saveLatest.current?.(true),
                 },
               }
             );
