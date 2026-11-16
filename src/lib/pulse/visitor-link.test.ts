@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Contact } from '@/types';
-import { visitorContactHref } from './visitor-link';
+import { contactDetailsHref, visitorContactHref } from './visitor-link';
 
 describe('[PLS-002] visitor contact link', () => {
   it('opens the identified visitor’s contact details', () => {
@@ -11,5 +11,9 @@ describe('[PLS-002] visitor contact link', () => {
 
   it('gives an anonymous guest no link', () => {
     expect(visitorContactHref({ contact: null })).toBeNull();
+  });
+
+  it('opens a forwarded-link sender capsule on their contact details', () => {
+    expect(contactDetailsHref('c-7')).toBe('/contacts?contactId=c-7');
   });
 });
