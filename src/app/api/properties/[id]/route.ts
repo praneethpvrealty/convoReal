@@ -27,6 +27,7 @@ import { isoDateOrNull } from '@/lib/inventory/iso-date';
 import {
   canViewExactLocation,
   maskPropertyForViewer,
+  type LocationViewer,
 } from '@/lib/inventory/location-guard';
 import { applyGatingCustody } from '@/lib/inventory/gated-photos';
 import { rentalYieldPercent } from '@/lib/inventory/rental-yield';
@@ -84,6 +85,19 @@ export async function GET(
   } catch (err) {
     return toErrorResponse(err);
   }
+}
+
+function matchesOpenedVersion(
+  expected: string,
+  row: unknown,
+  viewer: LocationViewer
+): boolean {
+  const raw = row as Record<string, unknown>;
+  if (expected === propertyEditVersion(raw)) return true;
+  const seen = maskPropertyForViewer(row as Property, viewer);
+  return (
+    expected === propertyEditVersion(seen as unknown as Record<string, unknown>)
+  );
 }
 
 // PUT /api/properties/[id]
@@ -655,7 +669,7 @@ export async function PUT(
     const { data: existing, error: findError } = await ctx.supabase
       .from('properties')
       .select(
-        `id, user_id, location_privacy, private_images, gated_locked_images, rental_income, ${PROPERTY_EDIT_VERSION_SELECT}` as const
+        `id, user_id, updated_at, location_privacy, private_images, gated_locked_images, rental_income, ${PROPERTY_EDIT_VERSION_SELECT}` as const
       )
       .eq('id', id)
       .eq('account_id', ctx.accountId)
@@ -676,12 +690,11 @@ export async function PUT(
       );
     }
 
-    if (
-      typeof body.expected_version === 'string' &&
-      body.expected_version !==
-        propertyEditVersion(existing as Record<string, unknown>)
-    ) {
-      return NextResponse.json(
+    const expectedVersion =
+      typeof body.expected_version === 'string' ? body.expected_version : null;
+    const viewer = { role: ctx.role, userId: ctx.userId };
+    const propertyChanged = () =>
+      NextResponse.json(
         {
           error:
             'This listing was changed after you opened it. Saving now would replace those changes.',
@@ -689,6 +702,11 @@ export async function PUT(
         },
         { status: 409 }
       );
+    if (
+      expectedVersion !== null &&
+      !matchesOpenedVersion(expectedVersion, existing, viewer)
+    ) {
+      return propertyChanged();
     }
 
     // Derived from the row this update leaves behind, never from the
@@ -852,14 +870,54 @@ export async function PUT(
       await catalogSyncPendingFields(ctx.supabase, ctx.accountId)
     );
 
-    const { data: updated, error: updateError } = await ctx.supabase
-      .from('properties')
-      .update(updateData)
-      .eq('id', id)
-      .eq('account_id', ctx.accountId)
-      .select('id');
+    // With a version to honour, the write is pinned to the row that was
+    // checked: updated_at moves on every write, so an edit landing between
+    // the check and this update matches no row. A background write moves it
+    // too, so the row is read again and the update retried while the edited
+    // fields still match what the form opened with.
+    let guardAt =
+      expectedVersion !== null
+        ? ((existing as { updated_at?: string | null }).updated_at ?? null)
+        : null;
+    let updated: { id: string }[] | null = null;
+    let updateError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const result = guardAt
+        ? await ctx.supabase
+            .from('properties')
+            .update(updateData)
+            .eq('id', id)
+            .eq('account_id', ctx.accountId)
+            .eq('updated_at', guardAt)
+            .select('id')
+        : await ctx.supabase
+            .from('properties')
+            .update(updateData)
+            .eq('id', id)
+            .eq('account_id', ctx.accountId)
+            .select('id');
+      updated = result.data;
+      updateError = result.error;
+      if (updateError || updated?.length || !guardAt) break;
+
+      const { data: current } = await ctx.supabase
+        .from('properties')
+        .select(
+          `user_id, updated_at, location_privacy, ${PROPERTY_EDIT_VERSION_SELECT}` as const
+        )
+        .eq('id', id)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      if (!current) break;
+      if (!matchesOpenedVersion(expectedVersion as string, current, viewer)) {
+        return propertyChanged();
+      }
+      guardAt = (current as { updated_at?: string | null }).updated_at ?? null;
+      if (!guardAt) break;
+    }
 
     if (!updateError && !updated?.length) {
+      if (guardAt) return propertyChanged();
       return NextResponse.json(
         { error: 'Property not found' },
         { status: 404 }

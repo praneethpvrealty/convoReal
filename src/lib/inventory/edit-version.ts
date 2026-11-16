@@ -13,21 +13,37 @@ export const PROPERTY_EDIT_VERSION_FIELDS = [
   'bathrooms',
   'area_sqft',
   'area_unit',
+  'super_built_area',
+  'total_floors',
   'land_area',
   'land_area_unit',
+  'dimensions',
+  'road_width',
+  'road_width_unit',
+  'facing_direction',
+  'year_built',
   'type',
   'images',
   'location',
   'sublocality',
   'city',
+  'state',
+  'google_map_link',
   'is_published',
   'showcase_visibility',
+  'showcase_audience',
   'features',
+  'nearby_highlights',
   'tags',
+  'khata_epid',
+  'khata_form',
+  'floor_tenancies',
+  'floor_plans',
+  'owner_contact_id',
 ] as const;
 
 export const PROPERTY_EDIT_VERSION_SELECT =
-  'title, description, price, rent_per_month, maintenance, status, listing_type, sold_price, bedrooms, bathrooms, area_sqft, area_unit, land_area, land_area_unit, type, images, location, sublocality, city, is_published, showcase_visibility, features, tags' as const;
+  'title, description, price, rent_per_month, maintenance, status, listing_type, sold_price, bedrooms, bathrooms, area_sqft, area_unit, super_built_area, total_floors, land_area, land_area_unit, dimensions, road_width, road_width_unit, facing_direction, year_built, type, images, location, sublocality, city, state, google_map_link, is_published, showcase_visibility, showcase_audience, features, nearby_highlights, tags, khata_epid, khata_form, floor_tenancies, floor_plans, owner_contact_id' as const;
 
 function canonical(value: unknown): unknown {
   if (value === undefined || value === null) return null;
@@ -60,7 +76,8 @@ function hash(text: string): string {
 /**
  * A fingerprint of the fields an agent edits on a listing, taken from the
  * row a form was opened with and again from the row a save is about to
- * replace. It deliberately leaves out updated_at and everything background
+ * replace: every column both the web form and the mobile editor load and
+ * send back. It deliberately leaves out updated_at and everything background
  * work writes (catalog sync, video and YouTube status, coordinates), so a
  * job touching the row does not read as someone else's edit. Returns null
  * when the row does not carry every field, so a caller holding a narrower
