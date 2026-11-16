@@ -394,6 +394,18 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(webBar).toContain('Share shortlist');
   });
 
+  it('[PRP-062] sends the version each editor opened with and asks before overwriting', () => {
+    const mobile = mobileSource('app/(app)/property-edit.tsx');
+    const web = webSource('components/inventory/property-form.tsx');
+
+    expect(mobile).toContain('body.expected_version = propertyEditVersion(');
+    expect(mobile).toContain('e.code === PROPERTY_CHANGED_CODE');
+    expect(mobile).toContain("label: 'Save anyway'");
+    expect(web).toContain('expected_version: openedVersion.current');
+    expect(web).toContain('errData.code === PROPERTY_CHANGED_CODE');
+    expect(web).toContain("label: 'Save anyway'");
+  });
+
   it('[PRP-009] attributes contact-card inventory links to their recipient', () => {
     const mobile = mobileSource('components/agent-inventory-share-sheet.tsx');
     const web = webSource('components/contacts/share-inventory-dialog.tsx');

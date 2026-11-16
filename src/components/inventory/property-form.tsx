@@ -79,6 +79,10 @@ import {
   isRawLandType,
   isApartmentType,
 } from '@/lib/inventory/property-options';
+import {
+  PROPERTY_CHANGED_CODE,
+  propertyEditVersion,
+} from '@/lib/inventory/edit-version';
 import { listingStatusLabel } from '@/lib/inventory/listing-status-label';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import {
@@ -310,6 +314,7 @@ export function PropertyForm({
   const uploadsInFlight =
     uploadingImage || uploadingDocument || planUploads > 0;
   const baselineValues = useRef<PropertyFormValues | null>(null);
+  const openedVersion = useRef<string | null>(null);
   const [contactedContactIds, setContactedContactIds] = useState<Set<string>>(
     new Set()
   );
@@ -773,6 +778,9 @@ export function PropertyForm({
         ? propertyToFormValues(property, contacts)
         : emptyPropertyFormValues(defaultOwnerId);
       baselineValues.current = nextValues;
+      openedVersion.current = propertyEditVersion(
+        property as unknown as Record<string, unknown> | null
+      );
       reset(nextValues);
       setTagInput('');
       if (property) {
@@ -791,6 +799,7 @@ export function PropertyForm({
     } else {
       formResetKey.current = null;
       baselineValues.current = null;
+      openedVersion.current = null;
     }
   }, [open, property, defaultOwnerId, contacts, reset]);
 
@@ -1184,9 +1193,12 @@ export function PropertyForm({
     );
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    void saveProperty(false);
+  }
 
+  async function saveProperty(overwrite: boolean) {
     if (uploadsInFlight) {
       toast.error('Wait for the uploads to finish before saving.');
       return;
@@ -1213,11 +1225,34 @@ export function PropertyForm({
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(
+            overwrite
+              ? payload
+              : {
+                  ...payload,
+                  expected_version: openedVersion.current,
+                }
+          ),
         });
 
         if (!response.ok) {
           const errData = await response.json();
+          if (
+            response.status === 409 &&
+            errData.code === PROPERTY_CHANGED_CODE
+          ) {
+            toast.warning(
+              'This listing was changed after you opened it. Saving now replaces those changes with what is in this form.',
+              {
+                duration: 20000,
+                action: {
+                  label: 'Save anyway',
+                  onClick: () => void saveProperty(true),
+                },
+              }
+            );
+            return;
+          }
           throw new Error(errData.error || 'Failed to update property');
         }
       } else {

@@ -5,6 +5,15 @@ const propertyUpdates: Record<string, unknown>[] = [];
 const afterCallbacks: Array<() => unknown> = [];
 let config: Record<string, unknown> | null = null;
 let configError: Error | null = null;
+const baseRow: Record<string, unknown> = {
+  id: 'p1',
+  type: 'Apartment',
+  user_id: 'user-1',
+  status: 'Available',
+  listing_type: 'Sale',
+  price: 100,
+};
+let existingRow: Record<string, unknown> = baseRow;
 
 function table(name: string) {
   const chain = () => query;
@@ -25,17 +34,7 @@ function table(name: string) {
       Promise.resolve(
         name === 'whatsapp_config'
           ? { data: config, error: configError }
-          : {
-              data: {
-                id: 'p1',
-                type: 'Apartment',
-                user_id: 'user-1',
-                status: 'Available',
-                listing_type: 'Sale',
-                price: 100,
-              },
-              error: null,
-            }
+          : { data: existingRow, error: null }
       ),
     single: () => Promise.resolve({ data: { id: 'p1' }, error: null }),
     then: <T>(onfulfilled: (value: unknown) => T | PromiseLike<T>) =>
@@ -89,13 +88,18 @@ vi.mock('@/lib/whatsapp/catalog-sync-helper', async (importOriginal) => ({
   autoSyncPropertyCatalogIfNeeded: autoSync,
 }));
 
+import {
+  PROPERTY_EDIT_VERSION_FIELDS,
+  propertyEditVersion,
+} from '@/lib/inventory/edit-version';
+
 import { PUT } from './route';
 
-function save() {
+function save(extra: Record<string, unknown> = {}) {
   return PUT(
     new Request('http://localhost/api/properties/p1', {
       method: 'PUT',
-      body: JSON.stringify({ title: 'Renamed villa' }),
+      body: JSON.stringify({ title: 'Renamed villa', ...extra }),
     }),
     { params: Promise.resolve({ id: 'p1' }) }
   );
@@ -107,6 +111,7 @@ beforeEach(() => {
   afterCallbacks.length = 0;
   config = { catalog_id: 'c1', auto_sync_catalog: true };
   configError = null;
+  existingRow = baseRow;
   autoSync.mockReset();
   autoSync.mockImplementation(async () => {
     events.push('sync');
@@ -153,5 +158,39 @@ describe('[PRP-044] PUT /api/properties/[id] catalog sync state', () => {
     expect(res.status).toBe(500);
     expect(propertyUpdates).toHaveLength(0);
     expect(afterCallbacks).toHaveLength(0);
+  });
+});
+
+describe('[PRP-062] PUT /api/properties/[id] edit version', () => {
+  function fullRow(overrides: Record<string, unknown> = {}) {
+    const row: Record<string, unknown> = { ...baseRow };
+    for (const field of PROPERTY_EDIT_VERSION_FIELDS) row[field] ??= null;
+    return { ...row, ...overrides };
+  }
+
+  it('saves when the listing still matches the copy the form was opened with', async () => {
+    existingRow = fullRow();
+    const res = await save({
+      expected_version: propertyEditVersion(fullRow()),
+    });
+    expect(res.status).toBe(200);
+    expect(propertyUpdates).toHaveLength(1);
+  });
+
+  it('refuses with 409 PROPERTY_CHANGED and writes nothing when the listing has changed since', async () => {
+    existingRow = fullRow({ price: 90 });
+    const res = await save({
+      expected_version: propertyEditVersion(fullRow()),
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('PROPERTY_CHANGED');
+    expect(propertyUpdates).toHaveLength(0);
+  });
+
+  it('saves over a changed listing when the request carries no version', async () => {
+    existingRow = fullRow({ price: 90 });
+    const res = await save();
+    expect(res.status).toBe(200);
+    expect(propertyUpdates).toHaveLength(1);
   });
 });

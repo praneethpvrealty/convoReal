@@ -1,6 +1,11 @@
 import { after, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import {
+  PROPERTY_CHANGED_CODE,
+  PROPERTY_EDIT_VERSION_SELECT,
+  propertyEditVersion,
+} from '@/lib/inventory/edit-version';
+import {
   checkRateLimit,
   rateLimitResponse,
   RATE_LIMITS,
@@ -650,7 +655,7 @@ export async function PUT(
     const { data: existing, error: findError } = await ctx.supabase
       .from('properties')
       .select(
-        'id, type, user_id, location_privacy, status, showcase_visibility, images, private_images, gated_locked_images, listing_type, price, rental_income'
+        `id, user_id, location_privacy, private_images, gated_locked_images, rental_income, ${PROPERTY_EDIT_VERSION_SELECT}` as const
       )
       .eq('id', id)
       .eq('account_id', ctx.accountId)
@@ -668,6 +673,21 @@ export async function PUT(
       return NextResponse.json(
         { error: 'Property not found or access denied' },
         { status: 404 }
+      );
+    }
+
+    if (
+      typeof body.expected_version === 'string' &&
+      body.expected_version !==
+        propertyEditVersion(existing as Record<string, unknown>)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'This listing was changed after you opened it. Saving now would replace those changes.',
+          code: PROPERTY_CHANGED_CODE,
+        },
+        { status: 409 }
       );
     }
 
