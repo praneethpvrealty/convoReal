@@ -1015,6 +1015,10 @@ export function preferenceSignature(prefs: ExtractedPreferences): string {
     comparableList(prefs.projects),
     prefs.min_roi,
     prefs.requires_tenanted,
+    comparableList(prefs.facing),
+    comparableList(prefs.towers),
+    prefs.floor_min,
+    prefs.floor_max,
     comparableList(prefs.listing_types),
   ]);
 }
@@ -1061,6 +1065,10 @@ export function preferenceFacts(
     { field: 'pref_listing_types', value: prefs.listing_types },
     { field: 'pref_min_roi', value: prefs.min_roi },
     { field: 'pref_requires_tenanted', value: prefs.requires_tenanted },
+    { field: 'pref_facing', value: prefs.facing },
+    { field: 'pref_towers', value: prefs.towers },
+    { field: 'pref_floor_min', value: prefs.floor_min },
+    { field: 'pref_floor_max', value: prefs.floor_max },
     { field: 'pref_suggested_tags', value: prefs.suggested_tags },
   ];
 
@@ -1227,6 +1235,10 @@ export function prefsFromContact(contact: Contact): ExtractedPreferences {
     min_roi: source.min_roi ?? source.pref_min_roi ?? null,
     requires_tenanted:
       source.requires_tenanted ?? source.pref_requires_tenanted ?? false,
+    facing: source.pref_facing || [],
+    towers: source.pref_towers || [],
+    floor_min: source.pref_floor_min ?? null,
+    floor_max: source.pref_floor_max ?? null,
     listing_types: (source.pref_listing_types ||
       []) as ExtractedPreferences['listing_types'],
     suggested_tags: source.pref_suggested_tags || [],
@@ -1280,6 +1292,16 @@ export function mergeKnownPreferences(
     projects: arrayOrKnown(extracted.projects, known.projects),
     min_roi: extracted.min_roi ?? known.min_roi,
     requires_tenanted: extracted.requires_tenanted || known.requires_tenanted,
+    facing: arrayOrKnown(extracted.facing, known.facing),
+    towers: arrayOrKnown(extracted.towers, known.towers),
+    floor_min:
+      extracted.floor_min != null || extracted.floor_max != null
+        ? extracted.floor_min
+        : known.floor_min,
+    floor_max:
+      extracted.floor_min != null || extracted.floor_max != null
+        ? extracted.floor_max
+        : known.floor_max,
     listing_types: arrayOrKnown(extracted.listing_types, known.listing_types),
     suggested_tags: arrayOrKnown(
       extracted.suggested_tags,
@@ -1843,7 +1865,7 @@ export async function processBuyerQualificationMessage(
       // clears the bound it crosses, and a merge that ran afterwards
       // refilled that bound from the contact — storing 2,824–2,400
       // sq.ft., a band nothing can satisfy.
-      const read = await extractContactPreferences(sourceText);
+      const read = await extractContactPreferences(sourceText, requirements);
       let extracted = withImpliedIntent(
         applySizeAnchor(
           mergeCurrentTurnPreferences(

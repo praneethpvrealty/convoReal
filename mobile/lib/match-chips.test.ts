@@ -84,3 +84,19 @@ describe('inMatchAudience', () => {
     expect(inMatchAudience(undefined, 'all')).toBe(true);
   });
 });
+
+describe('[CNV-016] facing, tower and floor chips', () => {
+  it('shows a fit or a difference, and nothing when the matcher had nothing to compare', () => {
+    expect(
+      matchChips(
+        details({ facing: 'match', tower: 'mismatch', floor: 'match' })
+      ).map((c) => c.label)
+    ).toEqual(
+      expect.arrayContaining(['Facing fit', 'Tower differs', 'Floor fit'])
+    );
+    const labels = matchChips(details()).map((c) => c.label);
+    expect(labels.some((label) => /Facing|Tower|Floor/.test(label))).toBe(
+      false
+    );
+  });
+});

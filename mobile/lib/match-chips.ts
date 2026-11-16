@@ -42,12 +42,30 @@ const ROI_CHIPS: ChipsByVerdict = {
   match: { label: 'ROI met', tone: 'positive' },
 };
 
+const FACING_CHIPS: ChipsByVerdict = {
+  match: { label: 'Facing fit', tone: 'positive' },
+  mismatch: { label: 'Facing differs', tone: 'negative' },
+};
+
+const TOWER_CHIPS: ChipsByVerdict = {
+  match: { label: 'Tower fit', tone: 'positive' },
+  mismatch: { label: 'Tower differs', tone: 'negative' },
+};
+
+const FLOOR_CHIPS: ChipsByVerdict = {
+  match: { label: 'Floor fit', tone: 'positive' },
+  mismatch: { label: 'Floor differs', tone: 'negative' },
+};
+
 export function matchChips(details: MatchDetails): MatchChip[] {
   return [
     TYPE_CHIPS[details.type],
     LOCATION_CHIPS[details.location],
     BUDGET_CHIPS[details.budget],
     BHK_CHIPS[details.bhk],
+    details.facing ? FACING_CHIPS[details.facing] : undefined,
+    details.tower ? TOWER_CHIPS[details.tower] : undefined,
+    details.floor ? FLOOR_CHIPS[details.floor] : undefined,
     ROI_CHIPS[details.roi],
   ].filter((chip): chip is MatchChip => chip !== undefined);
 }

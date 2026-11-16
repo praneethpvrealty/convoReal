@@ -143,6 +143,10 @@ export interface ContactRequirementProfile {
   projects: string[];
   min_roi: number | null;
   requires_tenanted?: boolean;
+  facing?: string[];
+  towers?: string[];
+  floor_min?: number | null;
+  floor_max?: number | null;
   listing_types: string[];
   created_at: string;
   updated_at: string;
@@ -263,6 +267,10 @@ export interface Contact {
   pref_min_roi?: number | null;
   /** AI-extracted form of a stated pre-leased / already-rented requirement. */
   pref_requires_tenanted?: boolean | null;
+  pref_facing?: string[] | null;
+  pref_towers?: string[] | null;
+  pref_floor_min?: number | null;
+  pref_floor_max?: number | null;
   /** AI-suggested Engine tag labels (migration 150) — display-only until
    *  an agent confirms one, which creates/attaches a real tag. */
   pref_suggested_tags?: string[] | null;

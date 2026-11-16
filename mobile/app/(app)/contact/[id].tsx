@@ -199,7 +199,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
     .select(
       'id, phone, secondary_phones, whatsapp_phone_confirmed_at, name, salutation, second_name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, pref_areas, areas_of_interest_geo, ' +
-        'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, requirements, lead_temp, status, referrer, referrer_contact_id, source, ' +
+        'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, pref_facing, pref_towers, pref_floor_min, pref_floor_max, requirements, lead_temp, status, referrer, referrer_contact_id, source, ' +
         'requirement_profiles, ' +
         'preferred_update_channel, preferred_language, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
         'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +

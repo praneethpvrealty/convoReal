@@ -18,11 +18,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
-import { storagePublicUrl } from '@/lib/storage/url';
-import {
-  isLocationGuarded,
-  localityLabel,
-} from '@/lib/inventory/location-guard';
+import { buyerCardProperty } from './feed-card';
 import type { MaskedPropertySnapshot } from '@/lib/den/masking';
 import { buyerAdmin, type BuyerContactLink, type BuyerContext } from './auth';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
@@ -68,6 +64,8 @@ const MATCH_PROPERTY_COLUMNS = [
   'land_area_unit',
   'super_built_area',
   'facing_direction',
+  'tower',
+  'floor_number',
   'features',
   'nearby_highlights',
   'rental_income',
@@ -275,19 +273,7 @@ export async function getBuyerMatchFeed(
       reasons: match.reasons,
       agency_name: link.agencyName,
       showcase_path: showcasePath(match.property, link),
-      property: {
-        ...match.property,
-        location: isLocationGuarded(match.property)
-          ? localityLabel(match.property)
-          : match.property.location,
-        location_privacy: undefined,
-        notes: undefined,
-        tags: undefined,
-        floor_tenancies: undefined,
-        images: Array.isArray(match.property.images)
-          ? match.property.images.map(storagePublicUrl)
-          : match.property.images,
-      },
+      property: buyerCardProperty(match.property),
     };
   });
 

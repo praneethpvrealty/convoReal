@@ -283,7 +283,7 @@ export async function PATCH(
         text,
         contact.contact_notes || []
       );
-      const preferences = await extractContactPreferences(sourceText);
+      const preferences = await extractContactPreferences(sourceText, text);
       if (!hasStructuredRequirement(preferences)) {
         return NextResponse.json(
           {
@@ -309,6 +309,10 @@ export async function PATCH(
         pref_suggested_tags: preferences.suggested_tags,
         pref_min_roi: preferences.min_roi,
         pref_requires_tenanted: preferences.requires_tenanted,
+        pref_facing: preferences.facing,
+        pref_towers: preferences.towers,
+        pref_floor_min: preferences.floor_min,
+        pref_floor_max: preferences.floor_max,
         pref_listing_types: preferences.listing_types,
         pref_source_hash: preferenceSourceHash(sourceText),
         pref_extracted_at: new Date().toISOString(),
@@ -430,6 +434,10 @@ export async function DELETE(
         pref_suggested_tags: [],
         pref_min_roi: null,
         pref_requires_tenanted: false,
+        pref_facing: [],
+        pref_towers: [],
+        pref_floor_min: null,
+        pref_floor_max: null,
         pref_listing_types: [],
         pref_source_hash: null,
         pref_extracted_at: null,

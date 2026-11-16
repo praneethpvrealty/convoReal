@@ -88,6 +88,9 @@ export function matchReasons(details: MatchDetails): string[] {
   if (details.budget === 'match') reasons.push('Within budget');
   else if (details.budget === 'partial') reasons.push('Just off budget');
   if (details.bhk === 'match') reasons.push('BHK fits');
+  if (details.facing === 'match') reasons.push('Facing you asked for');
+  if (details.tower === 'match') reasons.push('Tower you asked for');
+  if (details.floor === 'match') reasons.push('Floor you asked for');
   if (details.roi === 'match') reasons.push('Meets your yield');
   return reasons;
 }
