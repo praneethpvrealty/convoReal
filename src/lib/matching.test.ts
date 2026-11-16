@@ -2767,6 +2767,27 @@ describe('[CNV-016] facing, tower and floor range', () => {
     expect(differs.score).toBe(MATCH_FEED_FLOOR);
   });
 
+  it('still separates listings for a brief whose score would cap at 100', () => {
+    const contact = createTestContact({
+      ...brief,
+      pref_projects: ['Prestige Meridian'],
+      pref_areas: ['HSR Layout'],
+      pref_budget_max: 12000000,
+    });
+    const unit = (overrides: Partial<Property>) =>
+      flat({ project: 'Prestige Meridian', ...overrides });
+    const [fits] = getMatchingContacts(
+      unit({ facing_direction: 'East', tower: '10', floor_number: 12 }),
+      [contact]
+    );
+    const [differs] = getMatchingContacts(
+      unit({ facing_direction: 'West', tower: '3', floor_number: 2 }),
+      [contact]
+    );
+    expect(fits.score).toBe(100);
+    expect(differs.score).toBe(80);
+  });
+
   it('leaves a contact who states none of them scored exactly as before', () => {
     const plain = createTestContact({
       pref_property_types: ['Flat/ Apartment'],

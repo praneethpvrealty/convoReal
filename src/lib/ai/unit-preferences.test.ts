@@ -29,6 +29,7 @@ describe('unitPreferencesFromRequirement', () => {
     ['facing: West', ['West']],
     ['facing east in tower 10', ['East']],
     ['not a west facing one, east facing only', ['East']],
+    ['East facing not West', ['East']],
     ['Facing should be north or east', ['North', 'East']],
     ['NE facing villa', ['North-East']],
     ['east/north facing only', ['East', 'North']],
@@ -87,6 +88,11 @@ describe('unitPreferencesFromRequirement', () => {
     ['12th floor 2 to 3 BHK in Whitefield', 12, 12],
     ['floor no 7', 7, 7],
     ['ground floor only', 0, 0],
+    ['no ground floor please', 1, null],
+    ['not on ground floor', 1, null],
+    ['avoid ground floor', 1, null],
+    ['any floor above ground floor', 1, null],
+    ['above 8th to 28 floors', 8, 28],
   ])('[CNV-016] reads the floors in "%s"', (text, min, max) => {
     const prefs = unitPreferencesFromRequirement(text);
     expect([prefs.floor_min, prefs.floor_max]).toEqual([min, max]);
@@ -98,6 +104,11 @@ describe('unitPreferencesFromRequirement', () => {
     'higher floor preferred',
     'Higher floor 2-3 BHK',
     'higher floor 1-1.5 Cr',
+    'no 13th floor',
+    'independent house with 2 to 3 floors',
+    'minimum 3 floors',
+    'building with over 10 floors',
+    'up to 4 floors',
     'wooden flooring',
     'budget 80 to 90 lakh',
   ])('[CNV-016] reads no floor range in "%s"', (text) => {

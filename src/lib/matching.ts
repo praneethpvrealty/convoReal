@@ -1700,9 +1700,10 @@ function matchContactsSingleProfile(
     if (unit.floor === 'match') unitBonus += 5;
     else if (unit.floor === 'mismatch') unitPenalty += 5;
     if (unitBonus > 0 || unitPenalty > 0) {
-      const adjusted = score + unitBonus - unitPenalty;
+      const base = Math.min(100, score);
+      const adjusted = base + unitBonus - unitPenalty;
       score =
-        score >= MATCH_FEED_FLOOR
+        base >= MATCH_FEED_FLOOR
           ? Math.max(MATCH_FEED_FLOOR, adjusted)
           : adjusted;
     }

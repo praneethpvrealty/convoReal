@@ -42,8 +42,16 @@ const ONE_DIRECTION = new RegExp(DIRECTION, 'gi');
 const NEGATION_REACH = 24;
 const NEGATED_BEFORE =
   /(?:\b(?:not|no|never|except|avoid|without|other than|don'?t|do not|doesn'?t|does not)\b[^.,;\n]{0,16}|\bnon[\s-]{0,2})$/i;
-const NEGATED_AFTER =
-  /^\s{0,3}(?:(?:is|are)\s{1,3})?(?:not\b|isn'?t\b|no\b|never\b)/i;
+const NEGATED_AFTER = new RegExp(
+  String.raw`^\s{0,3}(?:(?:is|are)\s{1,3})?(?:not|isn'?t|no|never)\b(?!\s{1,3}(?:facing\s{1,3})?(?:${DIRECTION}))`,
+  'i'
+);
+
+function negatedAround(text: string, start: number, length: number): boolean {
+  const before = text.slice(Math.max(0, start - NEGATION_REACH), start);
+  const after = text.slice(start + length, start + length + NEGATION_REACH);
+  return NEGATED_BEFORE.test(before) || NEGATED_AFTER.test(after);
+}
 
 const ABBREVIATED: Record<string, Facing> = {
   ne: 'North-East',
@@ -78,13 +86,7 @@ function facingFromText(text: string): Facing[] {
   };
   for (const pattern of [FACING_BEFORE, FACING_AFTER]) {
     for (const match of text.matchAll(pattern)) {
-      const start = match.index ?? 0;
-      const before = text.slice(Math.max(0, start - NEGATION_REACH), start);
-      const after = text.slice(
-        start + match[0].length,
-        start + match[0].length + NEGATION_REACH
-      );
-      if (NEGATED_BEFORE.test(before) || NEGATED_AFTER.test(after)) continue;
+      if (negatedAround(text, match.index ?? 0, match[0].length)) continue;
       add(match[1]);
     }
   }
@@ -170,11 +172,25 @@ function firstFloor(match: RegExpExecArray | null): number | null {
   return null;
 }
 
+const FLOOR_COUNT = /\bfloors\b/i;
+const ORDINAL_SUFFIX = /\d\s{0,3}(?:st|nd|rd|th)\b/i;
+const ABOVE_GROUND =
+  /\b(?:above|over|beyond|higher than)\s{1,3}(?:the\s{1,3})?ground\s{0,3}(?:floor|flr)\b/i;
+
+function statedFloor(pattern: RegExp, text: string): RegExpExecArray | null {
+  const match = pattern.exec(text);
+  if (!match) return null;
+  return FLOOR_COUNT.test(match[0]) && !ORDINAL_SUFFIX.test(match[0])
+    ? null
+    : match;
+}
+
 function floorsFromText(text: string): {
   floor_min: number | null;
   floor_max: number | null;
 } {
-  const range = FLOOR_RANGE_BEFORE.exec(text) ?? FLOOR_RANGE_AFTER.exec(text);
+  const range =
+    statedFloor(FLOOR_RANGE_BEFORE, text) ?? FLOOR_RANGE_AFTER.exec(text);
   if (range) {
     const first = floorNumber(range[1]);
     const second = floorNumber(range[2]);
@@ -186,10 +202,10 @@ function floorsFromText(text: string): {
     }
   }
 
-  const atLeast = firstFloor(FLOOR_AT_LEAST.exec(text));
-  const above = firstFloor(FLOOR_ABOVE.exec(text));
-  const atMost = firstFloor(FLOOR_AT_MOST.exec(text));
-  const below = firstFloor(FLOOR_BELOW.exec(text));
+  const atLeast = firstFloor(statedFloor(FLOOR_AT_LEAST, text));
+  const above = firstFloor(statedFloor(FLOOR_ABOVE, text));
+  const atMost = firstFloor(statedFloor(FLOOR_AT_MOST, text));
+  const below = firstFloor(statedFloor(FLOOR_BELOW, text));
   const floorMin = atLeast ?? (above != null ? above + 1 : null);
   const floorMax = atMost ?? (below != null ? Math.max(0, below - 1) : null);
   if (floorMin != null || floorMax != null) {
@@ -198,9 +214,22 @@ function floorsFromText(text: string): {
       : { floor_min: floorMin, floor_max: floorMax };
   }
 
-  const single = firstFloor(FLOOR_SINGLE.exec(text));
-  if (single != null) return { floor_min: single, floor_max: single };
-  if (GROUND_FLOOR.test(text)) return { floor_min: 0, floor_max: 0 };
+  if (ABOVE_GROUND.test(text)) return { floor_min: 1, floor_max: null };
+
+  const single = FLOOR_SINGLE.exec(text);
+  const singleFloor = firstFloor(single);
+  if (single && singleFloor != null) {
+    return negatedAround(text, single.index, single[0].length)
+      ? { floor_min: null, floor_max: null }
+      : { floor_min: singleFloor, floor_max: singleFloor };
+  }
+
+  const ground = GROUND_FLOOR.exec(text);
+  if (ground) {
+    return negatedAround(text, ground.index, ground[0].length)
+      ? { floor_min: 1, floor_max: null }
+      : { floor_min: 0, floor_max: 0 };
+  }
   return { floor_min: null, floor_max: null };
 }
 
