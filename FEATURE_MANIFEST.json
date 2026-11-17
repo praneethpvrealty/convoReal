@@ -5350,6 +5350,27 @@
             }
           ],
           "guards": ["supabase/migrations/20261109101500_pulse_enquiries.sql"]
+        },
+        {
+          "id": "PLS-010",
+          "rule": "An enquiry from a guest of a link shared with a contact classified as Agent, made on the showcase form or through its WhatsApp button, is held: the listing side is notified at once with the guest's name and number masked, no lead is filed and the guest stays out of the contacts list, and the agent is asked on WhatsApp to approve or decline. Approve files every waiting enquiry of that guest as a lead with the agent as referrer; Decline, or two hours without an answer, points the guest back to the agent and files nothing. The referrer is read from the session's recorded events, never from an id the browser sends; only the agent the link was shared with can decide; a visitor who is already a lead is never held; a guest of a link forwarded by anyone else is filed straight away with that contact as referrer; and an agent who cannot be reached on WhatsApp holds nothing.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/referred-enquiries.test.ts",
+              "case": "[PLS-010]"
+            },
+            {
+              "file": "src/app/api/public/inquiry/referred.test.ts",
+              "case": "[PLS-010]"
+            },
+            {
+              "file": "src/lib/whatsapp/inbound/chain/referred-enquiry-step.test.ts",
+              "case": "[PLS-010]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261117043000_referred_enquiries.sql"
+          ]
         }
       ]
     },

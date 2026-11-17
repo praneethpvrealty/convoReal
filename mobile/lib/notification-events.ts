@@ -79,6 +79,14 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     defaults: { app: true, whatsapp: true },
   },
   {
+    key: 'referred_enquiry',
+    group: 'Showcase',
+    label: 'Guest of a shared link enquires',
+    description:
+      "Someone who opened a link you shared with another contact asks for details. An agent's guest stays masked until that agent approves.",
+    defaults: { app: true, whatsapp: true },
+  },
+  {
     key: 'portal_listing_expiry',
     group: 'Inventory',
     label: 'Portal listing expiry',
