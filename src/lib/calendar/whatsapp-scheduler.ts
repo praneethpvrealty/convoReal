@@ -1069,7 +1069,7 @@ export async function tryHandleOwnerScheduling(
         )
         .eq('account_id', accountId)
         .or(
-          `assigned_to.eq."${assignmentFilterId}",and(assigned_to.is.null,user_id.eq."${assignmentFilterId}")`
+          `assigned_to.eq."${assignmentFilterId}",and(assigned_to.is.null,user_id.eq."${assignmentFilterId}"),and(user_id.eq."${assignmentFilterId}",remind_creator.eq.true)`
         )
         .gte('start_time', startIso)
         .lt('start_time', endIso)
@@ -1246,7 +1246,7 @@ export async function tryHandleOwnerScheduling(
       .eq('account_id', accountId)
       .eq('status', 'scheduled')
       .or(
-        `assigned_to.eq."${assignmentFilterId}",and(assigned_to.is.null,user_id.eq."${assignmentFilterId}")`
+        `assigned_to.eq."${assignmentFilterId}",and(assigned_to.is.null,user_id.eq."${assignmentFilterId}"),and(user_id.eq."${assignmentFilterId}",remind_creator.eq.true)`
       )
       .gte('start_time', new Date(Date.now() - 48 * 3600_000).toISOString())
       .lt('start_time', new Date(Date.now() + 48 * 3600_000).toISOString())

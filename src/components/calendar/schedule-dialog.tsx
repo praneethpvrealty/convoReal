@@ -24,7 +24,6 @@ import { SearchablePropertySelect } from '@/components/ui/searchable-property-se
 import {
   linkPropertyParticipants,
   linkedPropertyForContacts,
-  participantsForLinkedProperty,
 } from '@/lib/calendar/auto-link';
 import {
   matchesPropertyTag,
@@ -86,6 +85,20 @@ function formatDateTime(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function announceParticipants(enquirer: string | null, owner: string | null) {
+  if (enquirer) {
+    toast.info(`Added ${enquirer} — they inquired about this property`, {
+      id: `appointment-enquirer-${enquirer}`,
+    });
+  }
+  if (owner) {
+    toast.info(
+      `Added ${owner} as the property's owner — remove them if they shouldn't get reminders`,
+      { id: `appointment-owner-${owner}` }
+    );
+  }
+}
+
 export function ScheduleDialog({
   open,
   onOpenChange,
@@ -109,6 +122,10 @@ export function ScheduleDialog({
   const [endTime, setEndTime] = useState('');
   const [location, setLocation] = useState('');
   const [filledPrefillFor, setFilledPrefillFor] = useState<string | null>(null);
+  const [prefillAdded, setPrefillAdded] = useState<{
+    enquirer: string | null;
+    owner: string | null;
+  } | null>(null);
   const [notes, setNotes] = useState('');
   const [agenda, setAgenda] = useState('');
   const [remindMe, setRemindMe] = useState(true);
@@ -205,14 +222,10 @@ export function ScheduleDialog({
       property,
       contacts
     );
-    if (enquirer) {
-      toast.info(`Added ${enquirer.name} — they inquired about this property`);
-    }
-    if (owner) {
-      toast.info(
-        `Added ${owner.name || 'the owner'} as the property's owner — remove them if they shouldn't get reminders`
-      );
-    }
+    announceParticipants(
+      enquirer ? enquirer.name || 'the enquirer' : null,
+      owner ? owner.name || 'the owner' : null
+    );
     return ids;
   };
 
@@ -246,17 +259,28 @@ export function ScheduleDialog({
     if (prefilled) {
       setFilledPrefillFor(propertyId);
       fillFromProperty(prefilled);
-      setSelectedContactIds((current) =>
-        participantsForLinkedProperty(
-          current,
-          null,
-          contacts.some((c) => c.id === prefilled.owner_contact_id)
-            ? (prefilled.owner_contact_id ?? null)
-            : null
-        )
+      const linked = linkPropertyParticipants(
+        selectedContactIds,
+        prefilled,
+        contacts
       );
+      setSelectedContactIds(linked.ids);
+      if (linked.enquirer || linked.owner) {
+        setPrefillAdded({
+          enquirer: linked.enquirer
+            ? linked.enquirer.name || 'the enquirer'
+            : null,
+          owner: linked.owner ? linked.owner.name || 'the owner' : null,
+        });
+      }
     }
   }
+
+  useEffect(() => {
+    if (!prefillAdded) return;
+    announceParticipants(prefillAdded.enquirer, prefillAdded.owner);
+    setPrefillAdded(null);
+  }, [prefillAdded]);
 
   const linkableProperties = properties.filter(
     (p) => p.status !== 'Archived' || p.id === selectedPropertyId

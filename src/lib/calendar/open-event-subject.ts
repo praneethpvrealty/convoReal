@@ -16,6 +16,7 @@
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { reminderMemberIds } from '@/lib/calendar/reminder-members';
 
 export interface OpenEvent {
   id: string;
@@ -50,7 +51,9 @@ export async function openOverdueEvents(params: {
 
   const { data, error } = await params.db
     .from('appointments')
-    .select('id, title, start_time, end_time, assigned_to, user_id')
+    .select(
+      'id, title, start_time, end_time, assigned_to, user_id, remind_creator'
+    )
     .eq('account_id', params.accountId)
     .eq('status', 'scheduled')
     .lt('end_time', now.toISOString())
@@ -62,11 +65,11 @@ export async function openOverdueEvents(params: {
     return [];
   }
 
-  // assigned_to wins over user_id — an event booked by the manager and
-  // assigned to an agent is the agent's to report on, and it is the
-  // assignee the nudge went to.
+  // The overdue nudge goes to everyone reminderMemberIds names — the
+  // assignee, and the creator unless they turned reminders off — so any
+  // of them can answer it.
   return (data || [])
-    .filter((r) => (r.assigned_to || r.user_id) === params.userId)
+    .filter((r) => reminderMemberIds(r).includes(params.userId))
     .map((r) => ({
       id: r.id as string,
       title: r.title as string,

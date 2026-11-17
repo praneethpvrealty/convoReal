@@ -264,6 +264,27 @@ describe('[CAL-019] reminders reach the creator as well as the assignee', () => 
     );
   });
 
+  it('gives the message-contact buttons only to the assignee', async () => {
+    profiles = twoMembers;
+    appointments = [
+      upcoming({
+        remind_creator: true,
+        contact: { id: 'c-1', name: 'Varun', phone: '+919900000000' },
+      }),
+    ];
+
+    await sendAgentEventReminders(NOW);
+
+    const byPhone = new Map(
+      sendWhatsAppMessageAndPersist.mock.calls.map(([arg]) => [
+        (arg as { toPhone: string }).toPhone,
+        arg as { kind: string },
+      ])
+    );
+    expect(byPhone.get('+919876543210')?.kind).toBe('interactive');
+    expect(byPhone.get('+919812345678')?.kind).toBe('text');
+  });
+
   it('leaves the creator out once they turn their reminders off', async () => {
     profiles = twoMembers;
     appointments = [upcoming({ remind_creator: false })];

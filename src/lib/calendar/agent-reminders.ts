@@ -179,8 +179,11 @@ export async function sendAgentEventReminders(
     for (const assigneeId of reminderMemberIds(appt)) {
       const assignee = assignees.get(assigneeId);
       if (!assignee) continue;
+      const canMessageContacts =
+        assigneeId === (appt.assigned_to || appt.user_id);
       const messageableContacts = attendees.filter(
         (contact) =>
+          canMessageContacts &&
           !!contact.phone &&
           isValidE164(sanitizePhoneForMeta(contact.phone)) &&
           !phonesMatch(contact.phone, assignee.phone)

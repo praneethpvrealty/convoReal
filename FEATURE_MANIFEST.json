@@ -1625,7 +1625,7 @@
         },
         {
           "id": "CAL-019",
-          "rule": "The member who creates an appointment gets its agent reminders (the pre-event WhatsApp brief and in-app notice, the morning digest entry and the overdue nudge) as well as the member it is assigned to, counted once when they are the same person. appointments.remind_creator defaults to true for every writer, and the create and edit forms on web (schedule dialog and calendar page) and mobile (New appointment and the event sheet) show it as a Remind me / Remind the creator switch that turns only the creator's reminders off.",
+          "rule": "The member who creates an appointment gets its agent reminders (the pre-event WhatsApp brief and in-app notice, the morning digest entry and the overdue nudge) as well as the member it is assigned to, counted once when they are the same person. appointments.remind_creator defaults to true for every writer, and the create and edit forms on web (schedule dialog and calendar page) and mobile (New appointment and the event sheet) show it as a Remind me / Remind the creator switch that turns only the creator's reminders off. Every member who got a reminder can answer it on WhatsApp (a plain reply to the overdue nudge, and the event listed in their \"today\" agenda); only the member who runs the event gets the message-a-contact buttons on the brief.",
           "tests": [
             {
               "file": "src/lib/calendar/reminder-members.test.ts",
