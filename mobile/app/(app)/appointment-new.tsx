@@ -205,6 +205,7 @@ export default function NewAppointmentScreen() {
       (data ?? []) as Contact[]
     );
     if (!linked || contactRef.current) return;
+    if (propertyRef.current?.id !== propertyId) return;
     setContact(linked);
     setNotice(
       `Added ${linked.name || contactHandle(linked)} — they enquired about this property.`
@@ -222,6 +223,7 @@ export default function NewAppointmentScreen() {
     if (!propertyId) return;
     const found = await fetchLinkedProperty(propertyId);
     if (!found || propertyRef.current) return;
+    if (contactRef.current?.id !== contactId) return;
     setProperty(found);
     setPropertyCleared(false);
     setLocation((current) => current || propertyArea(found));
