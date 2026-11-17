@@ -39,6 +39,7 @@ import {
 } from '@/lib/calendar/agent-reminder-actions';
 import { resolveChannels } from '@/lib/notifications/preferences';
 import { resolveQuietPeriod } from '@/lib/notifications/quiet-hours';
+import { reminderMemberIds } from '@/lib/calendar/reminder-members';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -68,6 +69,7 @@ interface ReminderAppointment {
   account_id: string;
   user_id: string | null;
   assigned_to: string | null;
+  remind_creator?: boolean | null;
   title: string;
   event_type: string | null;
   start_time: string;
@@ -132,7 +134,7 @@ export async function sendAgentEventReminders(
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, agenda, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location), liaison:liaisons(id, name, phone)'
+      'id, account_id, user_id, assigned_to, remind_creator, title, event_type, start_time, end_time, location, agenda, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location), liaison:liaisons(id, name, phone)'
     )
     .eq('status', 'scheduled')
     .eq('agent_reminder_sent', false)
@@ -147,8 +149,8 @@ export async function sendAgentEventReminders(
 
   const rows = appointments as unknown as ReminderAppointment[];
   const assignees = await loadAssigneePhones([
-    ...new Set(rows.map((a) => a.assigned_to || a.user_id).filter(Boolean)),
-  ] as string[]);
+    ...new Set(rows.flatMap((a) => reminderMemberIds(a))),
+  ]);
 
   // Attendees beyond the primary contact (multi-contact events) need
   // their own lookup — the join above only covers contact_id.
@@ -172,143 +174,136 @@ export async function sendAgentEventReminders(
   }
 
   for (const appt of rows) {
-    const assigneeId = appt.assigned_to || appt.user_id;
-    const assignee = assigneeId ? assignees.get(assigneeId) : undefined;
-    if (!assignee) {
-      // No reachable phone — mark sent so we don't re-scan it forever.
-      await admin
-        .from('appointments')
-        .update({ agent_reminder_sent: true })
-        .eq('id', appt.id);
-      continue;
-    }
-
     const emoji = EVENT_TYPE_EMOJI[appt.event_type || 'other'] || '🗓';
     const attendees = attendeesOf(appt, contactById);
-    const messageableContacts = attendees.filter(
-      (contact) =>
-        !!contact.phone &&
-        isValidE164(sanitizePhoneForMeta(contact.phone)) &&
-        !phonesMatch(contact.phone, assignee.phone)
-    );
-    const lines = [
-      `⏰ *Coming up at ${istTime(appt.start_time)}*`,
-      `${emoji} ${appt.title}`,
-      ...attendees.map(
-        (c) => `👤 ${c.name || 'Contact'}${c.phone ? ` — ${c.phone}` : ''}`
-      ),
-      appt.liaison
-        ? `⚖️ ${appt.liaison.name || 'Liaison'}${appt.liaison.phone ? ` — ${appt.liaison.phone}` : ''}`
-        : null,
-      appt.property?.title ? `🏠 ${appt.property.title}` : null,
-      appt.location
-        ? `📌 ${appt.location}\n🗺 ${mapsLink(appt.location)}`
-        : null,
-      appt.agenda ? `📋 *Agenda:* ${appt.agenda}` : null,
-      '',
-      messageableContacts.length > 0
-        ? '_Use the action below to send an approved Utility reminder through ConvoReal. Delivery and replies will be tracked._'
-        : null,
-      '_Reply to this message once it is done — or *today* for your full schedule._',
-    ].filter((l): l is string => l !== null);
+    for (const assigneeId of reminderMemberIds(appt)) {
+      const assignee = assignees.get(assigneeId);
+      if (!assignee) continue;
+      const messageableContacts = attendees.filter(
+        (contact) =>
+          !!contact.phone &&
+          isValidE164(sanitizePhoneForMeta(contact.phone)) &&
+          !phonesMatch(contact.phone, assignee.phone)
+      );
+      const lines = [
+        `⏰ *Coming up at ${istTime(appt.start_time)}*`,
+        `${emoji} ${appt.title}`,
+        ...attendees.map(
+          (c) => `👤 ${c.name || 'Contact'}${c.phone ? ` — ${c.phone}` : ''}`
+        ),
+        appt.liaison
+          ? `⚖️ ${appt.liaison.name || 'Liaison'}${appt.liaison.phone ? ` — ${appt.liaison.phone}` : ''}`
+          : null,
+        appt.property?.title ? `🏠 ${appt.property.title}` : null,
+        appt.location
+          ? `📌 ${appt.location}\n🗺 ${mapsLink(appt.location)}`
+          : null,
+        appt.agenda ? `📋 *Agenda:* ${appt.agenda}` : null,
+        '',
+        messageableContacts.length > 0
+          ? '_Use the action below to send an approved Utility reminder through ConvoReal. Delivery and replies will be tracked._'
+          : null,
+        '_Reply to this message once it is done — or *today* for your full schedule._',
+      ].filter((l): l is string => l !== null);
 
-    const body = lines.join('\n');
-    const quiet = await resolveQuietPeriod(appt.account_id, 'agent', now);
-    const common = {
-      accountId: appt.account_id,
-      userId: assigneeId,
-      toPhone: assignee.phone,
-      senderType: 'bot' as const,
-    };
-    const result = quiet.isQuiet
-      ? null
-      : messageableContacts.length === 0
-        ? await sendWhatsAppMessageAndPersist({
-            ...common,
-            kind: 'text',
-            text: body,
-          })
-        : messageableContacts.length <= 3
+      const body = lines.join('\n');
+      const quiet = await resolveQuietPeriod(appt.account_id, 'agent', now);
+      const common = {
+        accountId: appt.account_id,
+        userId: assigneeId,
+        toPhone: assignee.phone,
+        senderType: 'bot' as const,
+      };
+      const result = quiet.isQuiet
+        ? null
+        : messageableContacts.length === 0
           ? await sendWhatsAppMessageAndPersist({
               ...common,
-              kind: 'interactive',
-              interactiveType: 'buttons',
-              interactiveBody: body,
-              interactiveButtons: messageableContacts.map((contact) => ({
-                id: buildAgentMessageContactReplyId(appt.id, contact.id),
-                title: agentMessageButtonTitle(contact.name),
-              })),
+              kind: 'text',
+              text: body,
             })
-          : await sendWhatsAppMessageAndPersist({
-              ...common,
-              kind: 'interactive',
-              interactiveType: 'list',
-              interactiveBody: body,
-              interactiveButtonLabel: 'Message a contact',
-              interactiveSections: [
-                {
-                  title: 'Appointment contacts',
-                  rows: messageableContacts.slice(0, 10).map((contact) => ({
-                    id: buildAgentMessageContactReplyId(appt.id, contact.id),
-                    title: agentMessageButtonTitle(contact.name),
-                    description: contact.phone || undefined,
-                  })),
-                },
-              ],
-            });
+          : messageableContacts.length <= 3
+            ? await sendWhatsAppMessageAndPersist({
+                ...common,
+                kind: 'interactive',
+                interactiveType: 'buttons',
+                interactiveBody: body,
+                interactiveButtons: messageableContacts.map((contact) => ({
+                  id: buildAgentMessageContactReplyId(appt.id, contact.id),
+                  title: agentMessageButtonTitle(contact.name),
+                })),
+              })
+            : await sendWhatsAppMessageAndPersist({
+                ...common,
+                kind: 'interactive',
+                interactiveType: 'list',
+                interactiveBody: body,
+                interactiveButtonLabel: 'Message a contact',
+                interactiveSections: [
+                  {
+                    title: 'Appointment contacts',
+                    rows: messageableContacts.slice(0, 10).map((contact) => ({
+                      id: buildAgentMessageContactReplyId(appt.id, contact.id),
+                      title: agentMessageButtonTitle(contact.name),
+                      description: contact.phone || undefined,
+                    })),
+                  },
+                ],
+              });
 
-    if (result && !result.success) {
-      // Expected whenever the assignee hasn't messaged the bot in 24h: this
-      // is free-form text, so Meta rejects it outside the service window.
-      // An event booked days ahead reaches its reminder with the window
-      // long closed, which is the common case rather than the edge one.
-      console.warn(
-        `[Agent Reminder] WhatsApp send failed for appt ${appt.id}:`,
-        result.error
-      );
-    } else if (result?.success) {
-      // Makes the card answerable. Without this a quote-reply on it
-      // resolved to no target at all, so "This is already done" fell
-      // through to the intake classifier and came back "I couldn't tell
-      // what that was" — while the event it named stayed scheduled.
-      await recordBotTarget({
+      if (result && !result.success) {
+        // Expected whenever the assignee hasn't messaged the bot in 24h: this
+        // is free-form text, so Meta rejects it outside the service window.
+        // An event booked days ahead reaches its reminder with the window
+        // long closed, which is the common case rather than the edge one.
+        console.warn(
+          `[Agent Reminder] WhatsApp send failed for appt ${appt.id}:`,
+          result.error
+        );
+      } else if (result?.success) {
+        // Makes the card answerable. Without this a quote-reply on it
+        // resolved to no target at all, so "This is already done" fell
+        // through to the intake classifier and came back "I couldn't tell
+        // what that was" — while the event it named stayed scheduled.
+        await recordBotTarget({
+          accountId: appt.account_id,
+          waMessageId: result.whatsappMessageId,
+          entityType: 'appointment',
+          entityId: appt.id,
+          client: admin,
+        });
+      }
+
+      // In-app and push have no service window, so they are NOT gated on the
+      // WhatsApp send — gating them meant a closed window silently cost the
+      // assignee every channel at once, and the retry it bought could only
+      // fail again for the same reason. One attempt per recipient, then the
+      // event is marked, exactly as sendOverdueNudges does.
+      const quietChannels = quiet.isQuiet
+        ? {
+            ...(await resolveChannels(appt.account_id, 'appointment_reminder')),
+            whatsapp: true,
+          }
+        : undefined;
+      await createNotification({
         accountId: appt.account_id,
-        waMessageId: result.whatsappMessageId,
+        userId: assigneeId as string,
+        type: 'appointment_reminder',
+        eventKey: 'appointment_reminder',
+        title: `Coming up at ${istTime(appt.start_time)}`,
+        body: `${emoji} ${appt.title}${appt.location ? `\n📌 ${appt.location}` : ''}`,
         entityType: 'appointment',
         entityId: appt.id,
-        client: admin,
+        link: '/calendar',
+        whatsappText: body,
+        channels: quietChannels,
+        quietAudience: 'agent',
       });
     }
-
-    // In-app and push have no service window, so they are NOT gated on the
-    // WhatsApp send — gating them meant a closed window silently cost the
-    // assignee every channel at once, and the retry it bought could only
-    // fail again for the same reason. One attempt, then marked, exactly as
-    // sendOverdueNudges does.
     await admin
       .from('appointments')
       .update({ agent_reminder_sent: true })
       .eq('id', appt.id);
-    const quietChannels = quiet.isQuiet
-      ? {
-          ...(await resolveChannels(appt.account_id, 'appointment_reminder')),
-          whatsapp: true,
-        }
-      : undefined;
-    await createNotification({
-      accountId: appt.account_id,
-      userId: assigneeId as string,
-      type: 'appointment_reminder',
-      eventKey: 'appointment_reminder',
-      title: `Coming up at ${istTime(appt.start_time)}`,
-      body: `${emoji} ${appt.title}${appt.location ? `\n📌 ${appt.location}` : ''}`,
-      entityType: 'appointment',
-      entityId: appt.id,
-      link: '/calendar',
-      whatsappText: body,
-      channels: quietChannels,
-      quietAudience: 'agent',
-    });
   }
 }
 
@@ -328,7 +323,7 @@ export async function sendDailyScheduleDigests(
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, assigned_to, title, event_type, start_time, location, status, contact:contacts(name, phone)'
+      'id, account_id, user_id, assigned_to, remind_creator, title, event_type, start_time, location, status, contact:contacts(name, phone)'
     )
     .eq('status', 'scheduled')
     .gte('start_time', startIso)
@@ -382,8 +377,9 @@ export async function sendDailyScheduleDigests(
   };
 
   for (const appt of appointments) {
-    const uid = (appt.assigned_to || appt.user_id) as string | null;
-    if (uid) bucket(appt.account_id as string, uid).events.push(appt);
+    for (const uid of reminderMemberIds(appt)) {
+      bucket(appt.account_id as string, uid).events.push(appt);
+    }
   }
   for (const todo of todos || []) {
     const uid = (todo.assigned_to || todo.user_id) as string | null;
@@ -493,7 +489,7 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, contact:contacts(id, name, phone), property:properties(id, title, location)'
+      'id, account_id, user_id, assigned_to, remind_creator, title, event_type, start_time, end_time, location, contact:contacts(id, name, phone), property:properties(id, title, location)'
     )
     .eq('status', 'scheduled')
     .eq('overdue_nudge_sent', false)
@@ -508,79 +504,79 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
 
   const rows = appointments as unknown as ReminderAppointment[];
   const assignees = await loadAssigneePhones([
-    ...new Set(rows.map((a) => a.assigned_to || a.user_id).filter(Boolean)),
-  ] as string[]);
+    ...new Set(rows.flatMap((a) => reminderMemberIds(a))),
+  ]);
 
   for (const appt of rows) {
-    const assigneeId = appt.assigned_to || appt.user_id;
-    const assignee = assigneeId ? assignees.get(assigneeId) : undefined;
-
     // One attempt only — mark first so a send failure can't loop.
     await admin
       .from('appointments')
       .update({ overdue_nudge_sent: true })
       .eq('id', appt.id);
-    if (!assignee) continue;
+    for (const assigneeId of reminderMemberIds(appt)) {
+      const assignee = assignees.get(assigneeId);
+      if (!assignee) continue;
 
-    const emoji = EVENT_TYPE_EMOJI[appt.event_type || 'other'] || '🗓';
-    const text = [
-      `🤔 *How did it go?*`,
-      `${emoji} ${appt.title}${appt.contact?.name ? ` with ${appt.contact.name}` : ''} was scheduled for ${istTime(appt.start_time)} and is still open.`,
-      '',
-      "_Reply to this message and tell me how it went — I'll close it off. Or say when to move it to._",
-    ].join('\n');
+      const emoji = EVENT_TYPE_EMOJI[appt.event_type || 'other'] || '🗓';
+      const text = [
+        `🤔 *How did it go?*`,
+        `${emoji} ${appt.title}${appt.contact?.name ? ` with ${appt.contact.name}` : ''} was scheduled for ${istTime(appt.start_time)} and is still open.`,
+        '',
+        "_Reply to this message and tell me how it went — I'll close it off. Or say when to move it to._",
+      ].join('\n');
 
-    const quiet = await resolveQuietPeriod(appt.account_id, 'agent', now);
-    const result = quiet.isQuiet
-      ? null
-      : await sendWhatsAppMessageAndPersist({
+      const quiet = await resolveQuietPeriod(appt.account_id, 'agent', now);
+      const result = quiet.isQuiet
+        ? null
+        : await sendWhatsAppMessageAndPersist({
+            accountId: appt.account_id,
+            userId: assigneeId,
+            toPhone: assignee.phone,
+            kind: 'text',
+            senderType: 'bot',
+            text,
+          });
+      if (result && !result.success) {
+        console.warn(
+          `[Overdue Nudge] send failed for appt ${appt.id}:`,
+          result.error
+        );
+      } else if (result?.success) {
+        // The card that asks "how did it go?" was the one card a reply
+        // could not reach: without a target row a quote-reply on it
+        // resolved to nothing, so "he visited the property yesterday"
+        // fell through to the intake classifier and came back "I
+        // couldn't tell what that was" — while the visit it asked about
+        // stayed open.
+        await recordBotTarget({
           accountId: appt.account_id,
-          userId: assigneeId,
-          toPhone: assignee.phone,
-          kind: 'text',
-          senderType: 'bot',
-          text,
+          waMessageId: result.whatsappMessageId,
+          entityType: 'appointment',
+          entityId: appt.id,
+          client: admin,
         });
-    if (result && !result.success) {
-      console.warn(
-        `[Overdue Nudge] send failed for appt ${appt.id}:`,
-        result.error
-      );
-    } else if (result?.success) {
-      // The card that asks "how did it go?" was the one card a reply
-      // could not reach: without a target row a quote-reply on it
-      // resolved to nothing, so "he visited the property yesterday"
-      // fell through to the intake classifier and came back "I
-      // couldn't tell what that was" — while the visit it asked about
-      // stayed open.
-      await recordBotTarget({
+      }
+
+      const quietChannels = quiet.isQuiet
+        ? {
+            ...(await resolveChannels(appt.account_id, 'appointment_overdue')),
+            whatsapp: true,
+          }
+        : undefined;
+      await createNotification({
         accountId: appt.account_id,
-        waMessageId: result.whatsappMessageId,
+        userId: assigneeId as string,
+        type: 'appointment_overdue',
+        eventKey: 'appointment_overdue',
+        title: `How did it go? ${appt.title}`,
+        body: `${emoji} Scheduled for ${istTime(appt.start_time)} and still open — mark it complete or reschedule.`,
         entityType: 'appointment',
         entityId: appt.id,
-        client: admin,
+        link: '/calendar',
+        whatsappText: text,
+        channels: quietChannels,
+        quietAudience: 'agent',
       });
     }
-
-    const quietChannels = quiet.isQuiet
-      ? {
-          ...(await resolveChannels(appt.account_id, 'appointment_overdue')),
-          whatsapp: true,
-        }
-      : undefined;
-    await createNotification({
-      accountId: appt.account_id,
-      userId: assigneeId as string,
-      type: 'appointment_overdue',
-      eventKey: 'appointment_overdue',
-      title: `How did it go? ${appt.title}`,
-      body: `${emoji} Scheduled for ${istTime(appt.start_time)} and still open — mark it complete or reschedule.`,
-      entityType: 'appointment',
-      entityId: appt.id,
-      link: '/calendar',
-      whatsappText: text,
-      channels: quietChannels,
-      quietAudience: 'agent',
-    });
   }
 }

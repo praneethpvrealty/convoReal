@@ -27,6 +27,7 @@ export async function PUT(
       status,
       event_type,
       assigned_to,
+      remind_creator,
       agenda,
       minutes,
       outcome,
@@ -95,6 +96,8 @@ export async function PUT(
       status: status !== undefined ? status : undefined,
       event_type: event_type !== undefined ? event_type : undefined,
       assigned_to: assigned_to !== undefined ? assigned_to : undefined,
+      remind_creator:
+        typeof remind_creator === 'boolean' ? remind_creator : undefined,
       agenda: agenda !== undefined ? agenda : undefined,
       minutes: minutes !== undefined ? minutes : undefined,
       outcome: outcome !== undefined ? outcome : undefined,

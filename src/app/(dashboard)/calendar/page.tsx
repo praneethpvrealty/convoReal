@@ -41,9 +41,10 @@ import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import {
-  linkedContactForProperty,
+  linkPropertyParticipants,
   linkedPropertyForContacts,
 } from '@/lib/calendar/auto-link';
+import { Switch } from '@/components/ui/switch';
 import { InfoHint } from '@/components/ui/info-hint';
 import { FavoriteButton } from '@/components/layout/favorite-button';
 import {
@@ -174,6 +175,7 @@ interface SimpleProperty {
   property_code?: string | null;
   location: string | null;
   sublocality: string | null;
+  owner_contact_id?: string | null;
   tags?: string[] | null;
   price?: number | null;
   type?: string | null;
@@ -245,6 +247,7 @@ export default function CalendarPage() {
   const [apptEventType, setApptEventType] =
     useState<EventTypeKey>(DEFAULT_EVENT_TYPE);
   const [apptAssignedTo, setApptAssignedTo] = useState('');
+  const [apptRemindCreator, setApptRemindCreator] = useState(true);
   const [apptNotificationScope, setApptNotificationScope] = useState<
     'none' | 'new' | 'all'
   >('new');
@@ -355,7 +358,7 @@ export default function CalendarPage() {
         supabase
           .from('properties')
           .select(
-            'id, title, property_code, location, sublocality, tags, price, type, bedrooms, area_sqft, area_unit, images'
+            'id, title, property_code, location, sublocality, owner_contact_id, tags, price, type, bedrooms, area_sqft, area_unit, images'
           )
           .eq('account_id', accountId)
           .order('title'),
@@ -879,6 +882,7 @@ export default function CalendarPage() {
     setApptStatus('scheduled');
     setApptEventType(DEFAULT_EVENT_TYPE);
     setApptAssignedTo(assignedTo || user?.id || '');
+    setApptRemindCreator(true);
     setApptNotificationScope('none');
     setApptExtras({ ...EMPTY_EXTRAS });
 
@@ -908,6 +912,7 @@ export default function CalendarPage() {
     setApptStatus(appt.status);
     setApptEventType(appt.event_type || DEFAULT_EVENT_TYPE);
     setApptAssignedTo(appt.assigned_to || appt.user_id || '');
+    setApptRemindCreator(appt.remind_creator !== false);
     setApptNotificationScope('new');
     setApptExtras({
       agenda: appt.agenda || '',
@@ -1017,6 +1022,7 @@ export default function CalendarPage() {
         property_id: apptPropertyId || null,
         event_type: apptEventType,
         assigned_to: apptAssignedTo || user?.id || null,
+        remind_creator: apptRemindCreator,
       };
 
       if (selectedAppt) {
@@ -1183,8 +1189,27 @@ export default function CalendarPage() {
   // Appointment modal pickers with the same bidirectional auto-link:
   // picking a contact fills the property they inquired about, picking
   // a property pulls in the contact linked to it.
+  const participantsWithProperty = (
+    property: SimpleProperty,
+    current: string[]
+  ): string[] => {
+    const { ids, enquirer, owner } = linkPropertyParticipants(
+      current,
+      property,
+      contacts
+    );
+    if (enquirer) {
+      toast.info(`Added ${enquirer.name} — they inquired about this property`);
+    }
+    if (owner) {
+      toast.info(
+        `Added ${owner.name || 'the owner'} as the property's owner — remove them if they shouldn't get reminders`
+      );
+    }
+    return ids;
+  };
+
   const handleApptContactsChange = (ids: string[]) => {
-    setApptContactIds(ids);
     if (!apptPropertyId) {
       const hit = linkedPropertyForContacts(ids, contacts, properties);
       if (hit) {
@@ -1192,18 +1217,18 @@ export default function CalendarPage() {
         toast.info(
           `Linked property "${hit.property.title}" from ${hit.contact.name}'s inquiry`
         );
+        setApptContactIds(participantsWithProperty(hit.property, ids));
+        return;
       }
     }
+    setApptContactIds(ids);
   };
 
   const handleApptPropertyChange = (val: string | null) => {
     setApptPropertyId(val || '');
-    if (val && apptContactIds.length === 0) {
-      const linked = linkedContactForProperty(val, contacts);
-      if (linked) {
-        setApptContactIds([linked.id]);
-        toast.info(`Added ${linked.name} — they inquired about this property`);
-      }
+    const picked = val ? properties.find((p) => p.id === val) : undefined;
+    if (picked) {
+      setApptContactIds(participantsWithProperty(picked, apptContactIds));
     }
   };
 
@@ -2126,6 +2151,28 @@ export default function CalendarPage() {
                       );
                     })}
                   </div>
+                </div>
+
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2.5">
+                  <div className="space-y-0.5">
+                    <label
+                      htmlFor="appt-remind-creator"
+                      className="block text-xs font-bold tracking-wider text-slate-400 uppercase"
+                    >
+                      {selectedAppt && selectedAppt.user_id !== user?.id
+                        ? 'Remind the creator'
+                        : 'Remind me'}
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      WhatsApp brief before the event and a line in the morning
+                      digest, as well as the person it is assigned to.
+                    </p>
+                  </div>
+                  <Switch
+                    id="appt-remind-creator"
+                    checked={apptRemindCreator}
+                    onCheckedChange={setApptRemindCreator}
+                  />
                 </div>
 
                 {members.length > 1 && (

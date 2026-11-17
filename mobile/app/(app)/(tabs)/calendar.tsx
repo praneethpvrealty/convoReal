@@ -17,6 +17,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -2143,6 +2144,7 @@ function AppointmentDetail({
 }) {
   const { colors, fonts: f } = useTheme();
   const showUndo = useContext(UndoBarContext);
+  const userId = useAuthStore((s) => s.session?.user.id);
   const profile = useAuthStore((s) => s.profile);
   const canEdit = Boolean(
     profile && profile.account_role !== 'viewer' && !profile.is_read_only
@@ -2174,6 +2176,9 @@ function AppointmentDetail({
       : appointment?.contact_id
         ? [appointment.contact_id]
         : []
+  );
+  const [editRemindCreator, setEditRemindCreator] = useState(
+    appointment?.remind_creator !== false
   );
   const [contactSearch, setContactSearch] = useState('');
   const debouncedContactSearch = useDebounced(contactSearch);
@@ -2272,6 +2277,7 @@ function AppointmentDetail({
         type: appointment.event_type,
         start: start.toISOString(),
         contacts: savedContactIds,
+        remind: appointment.remind_creator !== false,
       },
       {
         title: editTitle,
@@ -2280,6 +2286,7 @@ function AppointmentDetail({
         type: editType,
         start: editStart.toISOString(),
         contacts: editContactIds,
+        remind: editRemindCreator,
       }
     );
   const notesDirty =
@@ -2383,6 +2390,7 @@ function AppointmentDetail({
           ).toISOString(),
           contact_id: editContactIds[0] ?? null,
           contact_ids: editContactIds,
+          remind_creator: editRemindCreator,
           notify_participants: notificationScope !== 'none',
           notification_scope: notificationScope === 'all' ? 'all' : 'new',
         }),
@@ -2904,6 +2912,37 @@ function AppointmentDetail({
                 </View>
               </>
             ) : null}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.md,
+              }}
+            >
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text
+                  style={{
+                    fontSize: 13.5,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                  }}
+                >
+                  {appointment.user_id && appointment.user_id !== userId
+                    ? 'Remind the creator'
+                    : 'Remind me'}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                  WhatsApp brief before the event and a line in the morning
+                  digest, as well as the person it is assigned to.
+                </Text>
+              </View>
+              <Switch
+                value={editRemindCreator}
+                onValueChange={setEditRemindCreator}
+                trackColor={{ true: colors.primary }}
+                accessibilityLabel="Send the creator reminders for this event"
+              />
+            </View>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               <SheetButton
                 label="Save event"
