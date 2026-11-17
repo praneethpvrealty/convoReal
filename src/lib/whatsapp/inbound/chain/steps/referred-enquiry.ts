@@ -6,7 +6,6 @@ import {
   hideWhatsAppGuest,
   lastGuestEnquiry,
   openReferredEnquiry,
-  quietGuestThread,
   resolveWhatsAppTapReferrer,
   revealWhatsAppGuest,
   type ShowcaseReferrer,
@@ -42,28 +41,28 @@ export async function referredEnquiry(
     Boolean(enquiryPropertyId) &&
     enquiryIsDeliberate;
 
-  // A guest this step, or a declined showcase-form enquiry, has already
-  // hidden. While the agent has not answered, and after a decline or a
-  // timeout, they are still that agent's guest: whatever they send
-  // stays in their thread, nothing answers it and nobody is pinged.
-  // Only an enquiry on a listing is recorded: it joins the one still
-  // waiting, so an approval files every listing they asked about, and
-  // after a decline it goes back to the agent unless that decline is
-  // less than a day old.
+  // Someone the listing side has no lead for: a sender it has never
+  // heard from, or a contact this flow has already hidden. If their
+  // number has an enquiry on record as an agent's guest, they are
+  // still that agent's guest, however they write in. While the agent
+  // has not answered, and after a decline or a timeout, whatever they
+  // send stays in their thread, nothing answers it and nobody is
+  // pinged. Only an enquiry on a listing is recorded: it joins the one
+  // still waiting, so an approval files every listing they asked
+  // about, and after a decline it goes back to the agent unless that
+  // decline is less than a day old.
   const hidden =
     !contactWasCreated &&
     Boolean((contactRecord as { chain_only?: boolean }).chain_only);
   if (!contactWasCreated && !hidden) return 'continue';
-  const last = hidden
-    ? await lastGuestEnquiry(admin, {
-        accountId,
-        contactId: contactRecord.id,
-        senderPhone,
-      })
-    : null;
+  const last = await lastGuestEnquiry(admin, {
+    accountId,
+    contactId: contactRecord.id,
+    senderPhone,
+  });
   if (last?.status === 'approved') return 'continue';
   if (last && (!isEnquiry || !last.referrer)) {
-    await quietGuestThread(admin, thread);
+    await hideWhatsAppGuest(admin, thread);
     return 'handled';
   }
 

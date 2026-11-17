@@ -27,7 +27,6 @@ const lib = {
   hideWhatsAppGuest: vi.fn(),
   lastGuestEnquiry: vi.fn(),
   openReferredEnquiry: vi.fn(),
-  quietGuestThread: vi.fn(),
   resolveWhatsAppTapReferrer: vi.fn(),
   revealWhatsAppGuest: vi.fn(),
 };
@@ -37,7 +36,6 @@ vi.mock('@/lib/showcase/referred-enquiries', () => ({
   hideWhatsAppGuest: (...a: unknown[]) => lib.hideWhatsAppGuest(...a),
   lastGuestEnquiry: (...a: unknown[]) => lib.lastGuestEnquiry(...a),
   openReferredEnquiry: (...a: unknown[]) => lib.openReferredEnquiry(...a),
-  quietGuestThread: (...a: unknown[]) => lib.quietGuestThread(...a),
   resolveWhatsAppTapReferrer: (...a: unknown[]) =>
     lib.resolveWhatsAppTapReferrer(...a),
   revealWhatsAppGuest: (...a: unknown[]) => lib.revealWhatsAppGuest(...a),
@@ -193,6 +191,49 @@ describe('[PLS-010] a WhatsApp enquiry from an agent’s guest is held', () => {
     expect(lib.openReferredEnquiry).not.toHaveBeenCalled();
   });
 
+  it('hides a new sender whose number has a form enquiry waiting or declined, with or without a reference', async () => {
+    lib.lastGuestEnquiry.mockResolvedValue({
+      status: 'pending',
+      sessionKey: 'session-1',
+      referrer: NIMMY,
+    });
+    expect(
+      await referredEnquiry(
+        ctx({
+          contentText: 'Hello, is this still available?',
+          enquiryPropertyId: null,
+          enquiryIsDeliberate: false,
+        })
+      )
+    ).toBe('handled');
+    expect(lib.lastGuestEnquiry.mock.calls[0][1]).toMatchObject({
+      contactId: 'guest-1',
+      senderPhone: '919845959646',
+    });
+    expect(lib.hideWhatsAppGuest).toHaveBeenCalledWith(
+      expect.anything(),
+      THREAD
+    );
+    expect(send).not.toHaveBeenCalled();
+
+    lib.lastGuestEnquiry.mockResolvedValue({
+      status: 'expired',
+      sessionKey: 'session-1',
+      referrer: NIMMY,
+    });
+    lib.openReferredEnquiry.mockResolvedValue('closed');
+    expect(
+      await referredEnquiry(
+        ctx({ contentText: 'Hi! (Property ID: PROP-2551)' })
+      )
+    ).toBe('handled');
+    expect(lib.openReferredEnquiry.mock.calls[0][1]).toMatchObject({
+      referrer: NIMMY,
+      contactId: 'guest-1',
+    });
+    expect(lib.resolveWhatsAppTapReferrer).not.toHaveBeenCalled();
+  });
+
   it('holds a hidden contact with no enquiry on record when their message names a guest session', async () => {
     lib.lastGuestEnquiry.mockResolvedValue(null);
     lib.resolveWhatsAppTapReferrer.mockResolvedValue({
@@ -222,7 +263,7 @@ describe('[PLS-010] a WhatsApp enquiry from an agent’s guest is held', () => {
         })
       )
     ).toBe('handled');
-    expect(lib.quietGuestThread).toHaveBeenCalledWith(
+    expect(lib.hideWhatsAppGuest).toHaveBeenCalledWith(
       expect.anything(),
       THREAD
     );
