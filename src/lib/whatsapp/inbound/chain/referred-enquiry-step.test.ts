@@ -186,10 +186,25 @@ describe('[PLS-010] a WhatsApp enquiry from an agent’s guest is held', () => {
     expect(await referredEnquiry(ctx({ enquiryIsDeliberate: false }))).toBe(
       'continue'
     );
+    expect(lib.resolveWhatsAppTapReferrer).not.toHaveBeenCalled();
     lib.lastGuestEnquiry.mockResolvedValue(null);
+    lib.resolveWhatsAppTapReferrer.mockResolvedValue(null);
     expect(await referredEnquiry(hiddenGuest())).toBe('continue');
     expect(lib.openReferredEnquiry).not.toHaveBeenCalled();
-    expect(lib.resolveWhatsAppTapReferrer).not.toHaveBeenCalled();
+  });
+
+  it('holds a hidden contact with no enquiry on record when their message names a guest session', async () => {
+    lib.lastGuestEnquiry.mockResolvedValue(null);
+    lib.resolveWhatsAppTapReferrer.mockResolvedValue({
+      ...NIMMY,
+      sessionKey: 'session-1',
+    });
+    lib.openReferredEnquiry.mockResolvedValue('closed');
+    expect(await referredEnquiry(hiddenGuest())).toBe('handled');
+    expect(lib.openReferredEnquiry.mock.calls[0][1]).toMatchObject({
+      referrer: expect.objectContaining({ contactId: 'contact-nimmy' }),
+      sessionKey: 'session-1',
+    });
   });
 
   it('keeps a waiting guest’s later messages away from the bot and the agent, and records an enquiry on another listing', async () => {

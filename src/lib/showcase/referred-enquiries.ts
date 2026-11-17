@@ -266,11 +266,23 @@ export async function lastGuestEnquiry(
   sessionKey: string | null;
   referrer: ShowcaseReferrer | null;
 } | null> {
+  // By number as well as by contact: an enquiry made on the showcase
+  // form is stored against the number the guest typed and has no
+  // contact until it is approved, while declining it leaves a hidden
+  // contact behind for that same number.
+  const digits = args.senderPhone.replace(/\D/g, '');
+  const filter = [`contact_id.eq.${args.contactId}`];
+  if (/^\d{6,15}$/.test(digits)) {
+    filter.push(
+      `requester_phone.eq.${digits}`,
+      `requester_phone.eq.+${digits}`
+    );
+  }
   const { data } = await admin
     .from('referred_enquiries')
     .select('status, via_contact_id, session_key')
     .eq('account_id', args.accountId)
-    .eq('contact_id', args.contactId)
+    .or(filter.join(','))
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -698,6 +710,15 @@ async function fileApprovedRow(
       .update({ contact_id: contactId })
       .eq('id', row.id)
       .eq('account_id', row.account_id);
+    // The number may already belong to a hidden contact, left by an
+    // earlier decline or by the location flow. Approval makes them a
+    // lead, so they must be visible as one.
+    const { error: visibleError } = await admin
+      .from('contacts')
+      .update({ chain_only: false })
+      .eq('id', contactId)
+      .eq('account_id', row.account_id);
+    if (visibleError) throw visibleError;
     await notifyListingSide({
       accountId: row.account_id,
       userId: payload.targetAgentUserId,
@@ -814,7 +835,13 @@ export async function handleReferredEnquiryReply(args: {
     .eq('account_id', args.accountId)
     .maybeSingle();
   const row = data as ReferredEnquiryRow | null;
-  if (!row || row.status !== 'pending') return true;
+  if (!row) return true;
+  // The buttons name one enquiry, but the answer covers every waiting
+  // enquiry of that guest. So a second Approve on an enquiry already
+  // approved still counts while another of theirs is waiting, which is
+  // how the agent retries one that could not be filed.
+  const retry = row.status === 'approved' && parsed.decision === 'approve';
+  if (row.status !== 'pending' && !retry) return true;
 
   const { data: via } = await args.admin
     .from('contacts')
@@ -847,7 +874,7 @@ export async function handleReferredEnquiryReply(args: {
   // A row that could not be filed goes back to waiting, with its
   // original deadline: the agent can tap Approve again, and the sweep
   // closes it if they do not. An approval is only confirmed for what
-  // was actually filed.
+  // was actually filed, and only when all of it was.
   const subject = await enquirySubject(args.admin, rows[0]);
   let filed = 0;
   for (const claimed of rows) {
@@ -870,7 +897,7 @@ export async function handleReferredEnquiryReply(args: {
   }
   await sendToReferrer(
     row,
-    filed > 0
+    filed === rows.length
       ? `👍 Thanks, approved. Our team will take the enquiry on *${subject}* forward with them, and you are recorded as the referrer.`
       : `⚠️ Your approval for the enquiry on *${subject}* could not be recorded just now. Please tap Approve again in a few minutes.`
   );

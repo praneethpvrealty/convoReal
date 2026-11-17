@@ -1869,8 +1869,11 @@ export function ShowcaseView({
     const filed = (await res.json().catch(() => null)) as {
       referralClosed?: boolean;
     } | null;
-    if (filed?.referralClosed) toast.info(REFERRAL_CLOSED_MESSAGE);
     saveVisitorInfo(args.name, args.phone);
+    if (filed?.referralClosed) {
+      toast.info(REFERRAL_CLOSED_MESSAGE);
+      return false;
+    }
     trackPixelEvent('Lead', {
       content_name: property.title,
       content_ids: [property.property_code || property.id],
@@ -1879,19 +1882,21 @@ export function ShowcaseView({
       currency: settings?.currency || 'INR',
       inquiry_type: args.intent,
     });
+    return true;
   };
 
   const handleQuickInterest = async (property: Property) => {
     if (submitting || submitSuccess) return;
     setSubmitting(true);
     try {
-      await submitVisitorInquiry(property, {
+      const filed = await submitVisitorInquiry(property, {
         name: visitorName.trim(),
         phone: visitorPhone.trim(),
         intent: 'quick_interest',
       });
-      updateInterestStatus(property.id, 'interested');
       setSubmitSuccess(true);
+      if (!filed) return;
+      updateInterestStatus(property.id, 'interested');
       toast.success('Got it — the agent will call you back.');
       inquiryFormRef.current?.scrollIntoView?.({
         behavior: 'smooth',
@@ -1915,11 +1920,17 @@ export function ShowcaseView({
     if (captureSubmitting) return;
     setCaptureSubmitting(true);
     try {
-      await submitVisitorInquiry(property, { name, phone, intent, rating });
-      if (intent === 'high_rating')
-        updateInterestStatus(property.id, 'interested');
+      const filed = await submitVisitorInquiry(property, {
+        name,
+        phone,
+        intent,
+        rating,
+      });
       setShowViewCapture(false);
       setRatingCaptureFor(null);
+      if (!filed) return;
+      if (intent === 'high_rating')
+        updateInterestStatus(property.id, 'interested');
       toast.success('Thanks! The agent will reach you on WhatsApp.');
     } catch (err) {
       console.error(err);

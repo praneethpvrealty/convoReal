@@ -375,6 +375,23 @@ describe('[PLS-010] an agent’s guest is held until the agent approves', () => 
       sessionKey: SESSION,
       referrer: { contactId: NIMMY },
     });
+    tables.referred_enquiries.push({
+      id: 'r2',
+      account_id: ACCOUNT,
+      contact_id: null,
+      requester_phone: '+919845077813',
+      via_contact_id: NIMMY,
+      session_key: SESSION,
+      status: 'expired',
+      created_at: '2026-11-17T00:41:00Z',
+    });
+    expect(
+      await lastGuestEnquiry(admin, {
+        accountId: ACCOUNT,
+        contactId: 'hidden-after-decline',
+        senderPhone: '919845077813',
+      })
+    ).toMatchObject({ status: 'expired', referrer: { contactId: NIMMY } });
     expect(
       await lastGuestEnquiry(admin, {
         accountId: 'acc-other',
@@ -642,6 +659,61 @@ describe('[PLS-010] an agent’s guest is held until the agent approves', () => 
     expect(tables.referred_enquiries[0].status).toBe('approved');
     expect(send.mock.calls.at(-1)![0].text).toContain(
       'recorded as the referrer'
+    );
+  });
+
+  it('confirms an approval only when every enquiry was filed, and a second Approve files the rest', async () => {
+    await openWebsite();
+    await openWebsite({
+      propertyId: 'prop-2',
+      payload: { ...websitePayload, propertyId: 'prop-2' },
+    });
+    send.mockClear();
+    fileInquiry
+      .mockResolvedValueOnce({ contactId: 'lead-1' })
+      .mockRejectedValueOnce(new Error('transient'));
+    const approve = () =>
+      handleReferredEnquiryReply({
+        admin: makeAdmin() as never,
+        accountId: ACCOUNT,
+        replyId: askId(REFERRED_APPROVE_PREFIX),
+        senderPhone: NIMMY_PHONE,
+      });
+
+    await approve();
+    expect(tables.referred_enquiries.map((row) => row.status)).toEqual([
+      'approved',
+      'pending',
+    ]);
+    expect(send.mock.calls.at(-1)![0].text).toContain('tap Approve again');
+
+    await approve();
+    expect(tables.referred_enquiries.map((row) => row.status)).toEqual([
+      'approved',
+      'approved',
+    ]);
+    expect(send.mock.calls.at(-1)![0].text).toContain(
+      'recorded as the referrer'
+    );
+    expect(fileInquiry).toHaveBeenCalledTimes(3);
+  });
+
+  it('makes a lead visible when the approved number belonged to a hidden contact', async () => {
+    tables.contacts.push({
+      id: 'lead-1',
+      account_id: ACCOUNT,
+      phone: GUEST_PHONE,
+      chain_only: true,
+    });
+    await openWebsite();
+    await handleReferredEnquiryReply({
+      admin: makeAdmin() as never,
+      accountId: ACCOUNT,
+      replyId: askId(REFERRED_APPROVE_PREFIX),
+      senderPhone: NIMMY_PHONE,
+    });
+    expect(tables.contacts.find((row) => row.id === 'lead-1')!.chain_only).toBe(
+      false
     );
   });
 

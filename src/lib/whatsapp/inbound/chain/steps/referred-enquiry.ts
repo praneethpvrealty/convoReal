@@ -42,11 +42,39 @@ export async function referredEnquiry(
     Boolean(enquiryPropertyId) &&
     enquiryIsDeliberate;
 
+  // A guest this step, or a declined showcase-form enquiry, has already
+  // hidden. While the agent has not answered, and after a decline or a
+  // timeout, they are still that agent's guest: whatever they send
+  // stays in their thread, nothing answers it and nobody is pinged.
+  // Only an enquiry on a listing is recorded: it joins the one still
+  // waiting, so an approval files every listing they asked about, and
+  // after a decline it goes back to the agent unless that decline is
+  // less than a day old.
+  const hidden =
+    !contactWasCreated &&
+    Boolean((contactRecord as { chain_only?: boolean }).chain_only);
+  if (!contactWasCreated && !hidden) return 'continue';
+  const last = hidden
+    ? await lastGuestEnquiry(admin, {
+        accountId,
+        contactId: contactRecord.id,
+        senderPhone,
+      })
+    : null;
+  if (last?.status === 'approved') return 'continue';
+  if (last && (!isEnquiry || !last.referrer)) {
+    await quietGuestThread(admin, thread);
+    return 'handled';
+  }
+
   let referrer: ShowcaseReferrer;
   let sessionKey: string | null;
-  if (contactWasCreated) {
-    // The showcase's WhatsApp button, tapped by someone the account has
-    // never heard from. When the message carries the reference of a
+  if (last?.referrer) {
+    referrer = last.referrer;
+    sessionKey = last.sessionKey;
+  } else {
+    // The showcase's WhatsApp button, tapped by someone the account
+    // has no lead for. When the message carries the reference of a
     // forwarded-link guest's session, the enquiry belongs to whoever
     // forwarded the link before it belongs to the listing side.
     if (!isEnquiry || !enquiryPropertyId) return 'continue';
@@ -70,29 +98,6 @@ export async function referredEnquiry(
     }
     referrer = found;
     sessionKey = found.sessionKey;
-  } else {
-    // A guest this step has already hidden. While the agent has not
-    // answered, and after a decline or a timeout, they are still that
-    // agent's guest: whatever they send stays in their thread, nothing
-    // answers it and nobody is pinged. Only an enquiry on a listing is
-    // recorded: it joins the one still waiting, so an approval files
-    // every listing they asked about, and after a decline it goes back
-    // to the agent unless that decline is less than a day old.
-    if (!(contactRecord as { chain_only?: boolean }).chain_only) {
-      return 'continue';
-    }
-    const last = await lastGuestEnquiry(admin, {
-      accountId,
-      contactId: contactRecord.id,
-      senderPhone,
-    });
-    if (!last || last.status === 'approved') return 'continue';
-    if (!isEnquiry || !last.referrer) {
-      await quietGuestThread(admin, thread);
-      return 'handled';
-    }
-    referrer = last.referrer;
-    sessionKey = last.sessionKey;
   }
 
   const outcome = await openReferredEnquiry(admin, {
