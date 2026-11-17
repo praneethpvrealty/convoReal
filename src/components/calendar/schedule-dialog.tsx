@@ -25,6 +25,11 @@ import {
   linkedPropertyForContacts,
 } from '@/lib/calendar/auto-link';
 import {
+  matchesPropertyTag,
+  stripPropertyTag,
+  trailingPropertyTag,
+} from '@/lib/calendar/property-hashtag';
+import {
   PAST_START_CONFIRM,
   eventTimesError,
   movedEventEnd,
@@ -188,6 +193,20 @@ export function ScheduleDialog({
     }
   };
 
+  const propertyTag =
+    propertyId || selectedPropertyId ? null : trailingPropertyTag(title);
+  const tagMatches =
+    propertyTag === null
+      ? []
+      : properties
+          .filter((p) => matchesPropertyTag(p, propertyTag))
+          .slice(0, 5);
+
+  const linkTaggedProperty = (property: SimpleProperty) => {
+    setTitle((current) => stripPropertyTag(current));
+    handlePropertyChange(property.id);
+  };
+
   const changeStart = (value: string) => {
     const nextStart = new Date(value);
     if (startTime && Number.isFinite(nextStart.getTime())) {
@@ -282,11 +301,30 @@ export function ScheduleDialog({
             <Input
               id="title"
               required
-              placeholder="e.g. Call client, Site Visit - JP Nagar"
+              placeholder="e.g. Site Visit - JP Nagar · type # to tag a property"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="h-9 border-slate-700 bg-slate-800 text-sm text-white"
             />
+            {tagMatches.length > 0 ? (
+              <div className="overflow-hidden rounded-md border border-slate-700 bg-slate-800">
+                {tagMatches.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => linkTaggedProperty(p)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-700"
+                  >
+                    <span className="truncate">{p.title}</span>
+                    {p.property_code ? (
+                      <span className="shrink-0 text-slate-500">
+                        {p.property_code}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
