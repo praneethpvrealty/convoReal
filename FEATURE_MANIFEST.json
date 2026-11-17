@@ -1612,6 +1612,16 @@
               "case": "[CAL-017]"
             }
           ]
+        },
+        {
+          "id": "CAL-018",
+          "rule": "Creating an appointment can link a property on web and mobile: a searchable property field (title, property code or area), or typing # at the end of the title, which lists matching listings and removes the #tag from the title once one is picked. Linking a property never overrides a contact already attached, but fills an empty contact with the one who enquired about it, and attaching a contact fills an empty property from their last enquiry (src/lib/calendar/auto-link.ts). An untitled event takes its name from the linked property and an empty location takes its area. On mobile a property passed in from another screen is shown and can be removed, and it is still saved if the agent schedules before it has loaded.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/property-hashtag.test.ts",
+              "case": "[CAL-018]"
+            }
+          ]
         }
       ]
     },

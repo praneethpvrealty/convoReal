@@ -7,7 +7,7 @@ import {
   useNavigation,
 } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -20,6 +20,12 @@ import {
 } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import {
+  PropertyRow,
+  fetchLinkedProperty,
+  usePropertyOptions,
+  type LinkedProperty,
+} from '@/components/appointment-property-field';
 import { TourTarget } from '@/components/copilot-tour';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import {
@@ -53,6 +59,13 @@ import {
   EVENT_TYPE_ORDER,
   eventTypeFromParam,
 } from '@shared/lib/calendar/event-type-defaults';
+import { linkedContactForProperty } from '@shared/lib/calendar/auto-link';
+import {
+  propertyArea,
+  stripPropertyTag,
+  titleForLinkedProperty,
+  trailingPropertyTag,
+} from '@shared/lib/calendar/property-hashtag';
 
 const TYPES = EVENT_TYPE_ORDER.map((value) => ({
   value,
@@ -96,6 +109,9 @@ export default function NewAppointmentScreen() {
         } as Contact)
       : null
   );
+  const [property, setProperty] = useState<LinkedProperty | null>(null);
+  const [propertyCleared, setPropertyCleared] = useState(false);
+  const [propertySearch, setPropertySearch] = useState('');
   const locationRef = useRef<TextInput>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -113,6 +129,7 @@ export default function NewAppointmentScreen() {
     start: start.toISOString(),
     location: '',
     contact: contact?.id ?? '',
+    property: params.propertyId ?? '',
   }));
   const dirty =
     voice !== null ||
@@ -122,6 +139,8 @@ export default function NewAppointmentScreen() {
       start: start.toISOString(),
       location,
       contact: contact?.id ?? '',
+      property:
+        property?.id ?? (propertyCleared ? '' : (params.propertyId ?? '')),
     });
 
   usePreventRemove(dirty && !saving, ({ data }) => {
@@ -146,16 +165,125 @@ export default function NewAppointmentScreen() {
     });
   });
 
+  const propertyRef = useRef(property);
+  const contactRef = useRef(contact);
+  const propertyClearedRef = useRef(propertyCleared);
+  useEffect(() => {
+    propertyClearedRef.current = propertyCleared;
+  }, [propertyCleared]);
+  useEffect(() => {
+    propertyRef.current = property;
+  }, [property]);
+  useEffect(() => {
+    contactRef.current = contact;
+  }, [contact]);
+
+  const { data: prefilledProperty, isPending: prefillPending } = useQuery({
+    queryKey: ['appointment-prefill-property', params.propertyId],
+    enabled: Boolean(params.propertyId),
+    queryFn: () => fetchLinkedProperty(params.propertyId as string),
+  });
+  const [prefillApplied, setPrefillApplied] = useState(false);
+  if (prefilledProperty && !prefillApplied) {
+    setPrefillApplied(true);
+    if (!property && !propertyCleared) {
+      setProperty(prefilledProperty);
+      setTitle((current) =>
+        titleForLinkedProperty(
+          current,
+          EVENT_TYPE_LABELS[eventType],
+          prefilledProperty.title
+        )
+      );
+      setLocation((current) => current || propertyArea(prefilledProperty));
+    }
+  }
+
+  const propertyHeld =
+    Boolean(property) || (Boolean(params.propertyId) && !propertyCleared);
+  const propertyTag = propertyHeld ? null : trailingPropertyTag(title);
+  const { data: tagOptions } = usePropertyOptions(propertyTag, 0);
+  const { data: propertyOptions } = usePropertyOptions(
+    propertyHeld || propertyTag !== null ? null : propertySearch,
+    2
+  );
+
+  async function linkContactForProperty(propertyId: string) {
+    const { data } = await supabase
+      .from('contacts')
+      .select('id, name, name_tag, phone, last_inquired_property_id')
+      .eq('status', 'active')
+      .eq('last_inquired_property_id', propertyId)
+      .order('name')
+      .limit(1);
+    const linked = linkedContactForProperty(
+      propertyId,
+      (data ?? []) as Contact[]
+    );
+    if (!linked || contactRef.current) return;
+    if (propertyRef.current?.id !== propertyId) return;
+    setContact(linked);
+    setNotice(
+      `Added ${linked.name || contactHandle(linked)} — they enquired about this property.`
+    );
+  }
+
+  async function linkPropertyForContact(contactId: string) {
+    const { data } = await supabase
+      .from('contacts')
+      .select('last_inquired_property_id')
+      .eq('id', contactId)
+      .maybeSingle();
+    const propertyId = (data as { last_inquired_property_id?: string | null })
+      ?.last_inquired_property_id;
+    if (!propertyId) return;
+    const found = await fetchLinkedProperty(propertyId);
+    if (!found || propertyRef.current) return;
+    if (params.propertyId && !propertyClearedRef.current) return;
+    if (contactRef.current?.id !== contactId) return;
+    setProperty(found);
+    setPropertyCleared(false);
+    setTitle((current) =>
+      titleForLinkedProperty(current, EVENT_TYPE_LABELS[eventType], found.title)
+    );
+    setLocation((current) => current || propertyArea(found));
+    setNotice(`Linked ${found.title} from this contact's enquiry.`);
+  }
+
+  function linkProperty(next: LinkedProperty, fromTag: boolean) {
+    haptic.tap();
+    setProperty(next);
+    setPropertyCleared(false);
+    setPropertySearch('');
+    setTitle((current) =>
+      titleForLinkedProperty(
+        fromTag ? stripPropertyTag(current) : current,
+        EVENT_TYPE_LABELS[eventType],
+        next.title
+      )
+    );
+    setLocation((current) => current || propertyArea(next));
+    if (!contact) void linkContactForProperty(next.id);
+  }
+
+  function clearProperty() {
+    setProperty(null);
+    setPropertyCleared(true);
+  }
+
+  function attachContact(next: Contact) {
+    setContact(next);
+    setContactSearch('');
+    if (!propertyHeld) void linkPropertyForContact(next.id);
+  }
+
   function applyVoicePrefill(prefill: VoicePrefill) {
     setError(null);
     setTitle(prefill.title);
     setEventType(prefill.eventType);
     if (prefill.start) setStart(prefill.start);
     if (prefill.location) setLocation(prefill.location);
-    if (prefill.contact) {
-      setContact(prefill.contact);
-      setContactSearch('');
-    }
+    if (prefill.contact) attachContact(prefill.contact);
     setVoice({
       transcript: prefill.transcript,
       description: prefill.description,
@@ -246,7 +374,8 @@ export default function NewAppointmentScreen() {
       event_type: eventType,
       contact_id: contact?.id ?? null,
       contact_ids: contact ? [contact.id] : [],
-      property_id: params.propertyId ?? null,
+      property_id:
+        property?.id ?? (propertyCleared ? null : (params.propertyId ?? null)),
       ...(voice
         ? {
             source: 'voice',
@@ -305,7 +434,7 @@ export default function NewAppointmentScreen() {
 
         <TourTarget id="appointment-form">
           <TextField
-            placeholder="Title · e.g. Site visit — Prestige Lakeview"
+            placeholder="Title · type # to tag a property"
             returnKeyType="next"
             onSubmitEditing={() => locationRef.current?.focus()}
             blurOnSubmit={false}
@@ -313,6 +442,17 @@ export default function NewAppointmentScreen() {
             onChangeText={setTitle}
           />
         </TourTarget>
+        {propertyTag !== null && (tagOptions ?? []).length > 0 ? (
+          <View style={{ gap: spacing.sm }}>
+            {(tagOptions ?? []).map((p) => (
+              <PropertyRow
+                key={p.id}
+                property={p}
+                onPress={() => linkProperty(p, true)}
+              />
+            ))}
+          </View>
+        ) : null}
 
         <View
           style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
@@ -405,6 +545,33 @@ export default function NewAppointmentScreen() {
           />
         ) : null}
 
+        {property ? (
+          <PropertyRow property={property} onClear={clearProperty} />
+        ) : params.propertyId && !propertyCleared ? (
+          <PropertyRow
+            property={{
+              id: params.propertyId,
+              title: prefillPending ? 'Loading property…' : 'Linked property',
+            }}
+            onClear={clearProperty}
+          />
+        ) : propertyTag === null ? (
+          <View style={{ gap: spacing.sm }}>
+            <TextField
+              placeholder="Link property — search title, code or area (optional)"
+              value={propertySearch}
+              onChangeText={setPropertySearch}
+            />
+            {(propertyOptions ?? []).map((p) => (
+              <PropertyRow
+                key={p.id}
+                property={p}
+                onPress={() => linkProperty(p, false)}
+              />
+            ))}
+          </View>
+        ) : null}
+
         <TextField
           ref={locationRef}
           placeholder="Location (optional)"
@@ -461,10 +628,7 @@ export default function NewAppointmentScreen() {
                     borderColor: colors.border,
                   },
                 ]}
-                onPress={() => {
-                  setContact(c);
-                  setContactSearch('');
-                }}
+                onPress={() => attachContact(c)}
               >
                 <Avatar name={c.name || contactHandle(c)} size={30} />
                 <Text

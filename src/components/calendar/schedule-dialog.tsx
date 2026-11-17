@@ -25,6 +25,17 @@ import {
   linkedPropertyForContacts,
 } from '@/lib/calendar/auto-link';
 import {
+  matchesPropertyTag,
+  propertyArea,
+  stripPropertyTag,
+  titleForLinkedProperty,
+  trailingPropertyTag,
+} from '@/lib/calendar/property-hashtag';
+import {
+  DEFAULT_EVENT_TYPE,
+  EVENT_TYPE_LABELS,
+} from '@/lib/calendar/event-type-defaults';
+import {
   PAST_START_CONFIRM,
   eventTimesError,
   movedEventEnd,
@@ -45,6 +56,9 @@ interface SimpleProperty {
   title: string;
   property_code?: string | null;
   location?: string | null;
+  sublocality?: string | null;
+  city?: string | null;
+  status?: string | null;
   tags?: string[] | null;
   price?: number | null;
   type?: string | null;
@@ -91,6 +105,7 @@ export function ScheduleDialog({
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [location, setLocation] = useState('');
+  const [filledPrefillFor, setFilledPrefillFor] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [agenda, setAgenda] = useState('');
 
@@ -110,7 +125,7 @@ export function ScheduleDialog({
         supabase
           .from('properties')
           .select(
-            'id, title, property_code, location, tags, price, type, bedrooms, area_sqft, area_unit, images'
+            'id, title, property_code, location, sublocality, city, status, tags, price, type, bedrooms, area_sqft, area_unit, images'
           )
           .eq('account_id', accountId)
           .order('title'),
@@ -131,6 +146,7 @@ export function ScheduleDialog({
       setTitle(initialTitle ?? '');
       setSelectedContactIds(contactId ? [contactId] : []);
       setSelectedPropertyId(propertyId || '');
+      setFilledPrefillFor(null);
       setLocation('');
       setNotes('');
       setAgenda('');
@@ -164,12 +180,24 @@ export function ScheduleDialog({
 
   // Bidirectional auto-link: picking a contact fills the property they
   // inquired about; picking a property pulls in the contact linked to it.
+  const fillFromProperty = (property: SimpleProperty) => {
+    setTitle((current) =>
+      titleForLinkedProperty(
+        current,
+        EVENT_TYPE_LABELS[DEFAULT_EVENT_TYPE],
+        property.title
+      )
+    );
+    setLocation((current) => current || propertyArea(property));
+  };
+
   const handleContactsChange = (ids: string[]) => {
     setSelectedContactIds(ids);
     if (!selectedPropertyId) {
       const hit = linkedPropertyForContacts(ids, contacts, properties);
       if (hit) {
         setSelectedPropertyId(hit.property.id);
+        fillFromProperty(hit.property);
         toast.info(
           `Linked property "${hit.property.title}" from ${hit.contact.name}'s inquiry`
         );
@@ -179,6 +207,8 @@ export function ScheduleDialog({
 
   const handlePropertyChange = (val: string | null) => {
     setSelectedPropertyId(val || '');
+    const picked = val ? properties.find((p) => p.id === val) : undefined;
+    if (picked) fillFromProperty(picked);
     if (val && selectedContactIds.length === 0) {
       const linked = linkedContactForProperty(val, contacts);
       if (linked) {
@@ -186,6 +216,33 @@ export function ScheduleDialog({
         toast.info(`Added ${linked.name} — they inquired about this property`);
       }
     }
+  };
+
+  if (!open && filledPrefillFor) setFilledPrefillFor(null);
+  if (open && propertyId && filledPrefillFor !== propertyId) {
+    const prefilled = properties.find((p) => p.id === propertyId);
+    if (prefilled) {
+      setFilledPrefillFor(propertyId);
+      fillFromProperty(prefilled);
+    }
+  }
+
+  const linkableProperties = properties.filter(
+    (p) => p.status !== 'Archived' || p.id === selectedPropertyId
+  );
+
+  const propertyTag =
+    propertyId || selectedPropertyId ? null : trailingPropertyTag(title);
+  const tagMatches =
+    propertyTag === null
+      ? []
+      : linkableProperties
+          .filter((p) => matchesPropertyTag(p, propertyTag))
+          .slice(0, 5);
+
+  const linkTaggedProperty = (property: SimpleProperty) => {
+    setTitle((current) => stripPropertyTag(current));
+    handlePropertyChange(property.id);
   };
 
   const changeStart = (value: string) => {
@@ -282,11 +339,30 @@ export function ScheduleDialog({
             <Input
               id="title"
               required
-              placeholder="e.g. Call client, Site Visit - JP Nagar"
+              placeholder="e.g. Site Visit - JP Nagar · type # to tag a property"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="h-9 border-slate-700 bg-slate-800 text-sm text-white"
             />
+            {tagMatches.length > 0 ? (
+              <div className="overflow-hidden rounded-md border border-slate-700 bg-slate-800">
+                {tagMatches.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => linkTaggedProperty(p)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-700"
+                  >
+                    <span className="truncate">{p.title}</span>
+                    {p.property_code ? (
+                      <span className="shrink-0 text-slate-500">
+                        {p.property_code}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -312,7 +388,7 @@ export function ScheduleDialog({
                 Link Property Listing
               </Label>
               <SearchablePropertySelect
-                properties={properties}
+                properties={linkableProperties}
                 value={selectedPropertyId || null}
                 onChange={handlePropertyChange}
                 placeholder="Search by title or ID..."
