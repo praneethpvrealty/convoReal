@@ -3,6 +3,8 @@ import {
   autoLinkContactProperty,
   linkedPropertyForContacts,
   linkedContactForProperty,
+  linkPropertyParticipants,
+  participantsForLinkedProperty,
 } from './auto-link';
 
 const properties = [
@@ -97,5 +99,68 @@ describe('linkedContactForProperty', () => {
 
   it('returns null when nobody inquired', () => {
     expect(linkedContactForProperty('prop-2', contacts)).toBeNull();
+  });
+});
+
+describe('[CAL-020] participantsForLinkedProperty', () => {
+  it('adds the enquirer and the owner to an empty list', () => {
+    expect(participantsForLinkedProperty([], 'buyer', 'owner')).toEqual([
+      'buyer',
+      'owner',
+    ]);
+  });
+
+  it('adds only the owner when someone is already attached', () => {
+    expect(participantsForLinkedProperty(['c-9'], 'buyer', 'owner')).toEqual([
+      'c-9',
+      'owner',
+    ]);
+  });
+
+  it('never duplicates an owner who is already attached or enquired', () => {
+    expect(participantsForLinkedProperty(['owner'], null, 'owner')).toEqual([
+      'owner',
+    ]);
+    expect(participantsForLinkedProperty([], 'owner', 'owner')).toEqual([
+      'owner',
+    ]);
+  });
+
+  it('leaves the list alone for a property without an owner contact', () => {
+    expect(participantsForLinkedProperty(['c-9'], 'buyer', null)).toEqual([
+      'c-9',
+    ]);
+  });
+});
+
+describe('[CAL-020] linkPropertyParticipants', () => {
+  const people = [
+    { id: 'buyer', name: 'Varun', last_inquired_property_id: 'prop-1' },
+    { id: 'owner', name: 'Lakshmi', last_inquired_property_id: null },
+  ];
+  const property = { id: 'prop-1', owner_contact_id: 'owner' };
+
+  it('adds the enquirer and the owner, and reports both as new', () => {
+    const result = linkPropertyParticipants([], property, people);
+    expect(result.ids).toEqual(['buyer', 'owner']);
+    expect(result.enquirer?.id).toBe('buyer');
+    expect(result.owner?.id).toBe('owner');
+  });
+
+  it('does not report an owner who was already attached', () => {
+    const result = linkPropertyParticipants(['owner'], property, people);
+    expect(result.ids).toEqual(['owner']);
+    expect(result.owner).toBeNull();
+    expect(result.enquirer).toBeNull();
+  });
+
+  it('skips an owner contact that is not in the list', () => {
+    const result = linkPropertyParticipants(
+      ['buyer'],
+      { id: 'prop-1', owner_contact_id: 'archived-owner' },
+      people
+    );
+    expect(result.ids).toEqual(['buyer']);
+    expect(result.owner).toBeNull();
   });
 });

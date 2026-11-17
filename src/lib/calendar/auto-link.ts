@@ -71,3 +71,43 @@ export function linkedContactForProperty<C extends LinkableContact>(
     contacts.find((c) => c.last_inquired_property_id === propertyId) || null
   );
 }
+
+/** Participants after a property is linked: the enquirer fills an
+ *  empty list, and the property's owner contact joins whoever is
+ *  already there. Never removes or reorders a chosen participant. */
+export function participantsForLinkedProperty(
+  selectedIds: string[],
+  enquirerId: string | null,
+  ownerContactId: string | null
+): string[] {
+  const ids = [...selectedIds];
+  if (ids.length === 0 && enquirerId) ids.push(enquirerId);
+  if (ownerContactId && !ids.includes(ownerContactId)) ids.push(ownerContactId);
+  return ids;
+}
+
+/** Property pickers with the contact list in memory: who to add when a
+ *  property is linked, and which of them are new so the form can say so. */
+export function linkPropertyParticipants<C extends LinkableContact>(
+  current: string[],
+  property: { id: string; owner_contact_id?: string | null },
+  contacts: C[]
+): { ids: string[]; enquirer: C | null; owner: C | null } {
+  const enquirer =
+    current.length === 0
+      ? linkedContactForProperty(property.id, contacts)
+      : null;
+  const owner = property.owner_contact_id
+    ? contacts.find((c) => c.id === property.owner_contact_id) || null
+    : null;
+  const ids = participantsForLinkedProperty(
+    current,
+    enquirer?.id ?? null,
+    owner?.id ?? null
+  );
+  return {
+    ids,
+    enquirer: enquirer && enquirer.id !== owner?.id ? enquirer : null,
+    owner: owner && !current.includes(owner.id) ? owner : null,
+  };
+}

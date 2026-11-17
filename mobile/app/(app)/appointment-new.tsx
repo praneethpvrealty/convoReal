@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Switch,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -59,7 +60,10 @@ import {
   EVENT_TYPE_ORDER,
   eventTypeFromParam,
 } from '@shared/lib/calendar/event-type-defaults';
-import { linkedContactForProperty } from '@shared/lib/calendar/auto-link';
+import {
+  linkedContactForProperty,
+  participantsForLinkedProperty,
+} from '@shared/lib/calendar/auto-link';
 import {
   propertyArea,
   stripPropertyTag,
@@ -100,15 +104,19 @@ export default function NewAppointmentScreen() {
   const [location, setLocation] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const debouncedContactSearch = useDebounced(contactSearch);
-  const [contact, setContact] = useState<Contact | null>(() =>
+  const [contacts, setContacts] = useState<Contact[]>(() =>
     params.contactId && params.contactPhone
-      ? ({
-          id: params.contactId,
-          name: params.contactName || undefined,
-          phone: params.contactPhone,
-        } as Contact)
-      : null
+      ? [
+          {
+            id: params.contactId,
+            name: params.contactName || undefined,
+            phone: params.contactPhone,
+          } as Contact,
+        ]
+      : []
   );
+  const [remindMe, setRemindMe] = useState(true);
+  const [peopleAppliedFor, setPeopleAppliedFor] = useState<string | null>(null);
   const [property, setProperty] = useState<LinkedProperty | null>(null);
   const [propertyCleared, setPropertyCleared] = useState(false);
   const [propertySearch, setPropertySearch] = useState('');
@@ -128,8 +136,9 @@ export default function NewAppointmentScreen() {
     type: eventTypeFromParam(params.eventType),
     start: start.toISOString(),
     location: '',
-    contact: contact?.id ?? '',
+    contact: contacts.map((c) => c.id).join(','),
     property: params.propertyId ?? '',
+    remind: true,
   }));
   const dirty =
     voice !== null ||
@@ -138,9 +147,10 @@ export default function NewAppointmentScreen() {
       type: eventType,
       start: start.toISOString(),
       location,
-      contact: contact?.id ?? '',
+      contact: contacts.map((c) => c.id).join(','),
       property:
         property?.id ?? (propertyCleared ? '' : (params.propertyId ?? '')),
+      remind: remindMe,
     });
 
   usePreventRemove(dirty && !saving, ({ data }) => {
@@ -166,7 +176,7 @@ export default function NewAppointmentScreen() {
   });
 
   const propertyRef = useRef(property);
-  const contactRef = useRef(contact);
+  const contactsRef = useRef(contacts);
   const propertyClearedRef = useRef(propertyCleared);
   useEffect(() => {
     propertyClearedRef.current = propertyCleared;
@@ -175,8 +185,8 @@ export default function NewAppointmentScreen() {
     propertyRef.current = property;
   }, [property]);
   useEffect(() => {
-    contactRef.current = contact;
-  }, [contact]);
+    contactsRef.current = contacts;
+  }, [contacts]);
 
   const { data: prefilledProperty, isPending: prefillPending } = useQuery({
     queryKey: ['appointment-prefill-property', params.propertyId],
@@ -208,24 +218,77 @@ export default function NewAppointmentScreen() {
     2
   );
 
-  async function linkContactForProperty(propertyId: string) {
-    const { data } = await supabase
-      .from('contacts')
-      .select('id, name, name_tag, phone, last_inquired_property_id')
-      .eq('status', 'active')
-      .eq('last_inquired_property_id', propertyId)
-      .order('name')
-      .limit(1);
-    const linked = linkedContactForProperty(
-      propertyId,
-      (data ?? []) as Contact[]
+  const { data: propertyPeople } = useQuery({
+    queryKey: [
+      'appointment-property-people',
+      property?.id,
+      property?.owner_contact_id,
+    ],
+    enabled: Boolean(property),
+    queryFn: async () => {
+      const linked = property as LinkedProperty;
+      const columns = 'id, name, name_tag, phone, last_inquired_property_id';
+      const { data: enquirers } = await supabase
+        .from('contacts')
+        .select(columns)
+        .eq('status', 'active')
+        .eq('last_inquired_property_id', linked.id)
+        .order('name')
+        .limit(1);
+      const { data: owner } = linked.owner_contact_id
+        ? await supabase
+            .from('contacts')
+            .select(columns)
+            .eq('status', 'active')
+            .eq('id', linked.owner_contact_id)
+            .maybeSingle()
+        : { data: null };
+      return {
+        propertyId: linked.id,
+        enquirer: linkedContactForProperty(
+          linked.id,
+          (enquirers ?? []) as Contact[]
+        ),
+        owner: (owner as Contact | null) ?? null,
+      };
+    },
+  });
+  if (
+    property &&
+    propertyPeople?.propertyId === property.id &&
+    peopleAppliedFor !== property.id
+  ) {
+    setPeopleAppliedFor(property.id);
+    const currentIds = contacts.map((c) => c.id);
+    const ids = participantsForLinkedProperty(
+      currentIds,
+      propertyPeople.enquirer?.id ?? null,
+      propertyPeople.owner?.id ?? null
     );
-    if (!linked || contactRef.current) return;
-    if (propertyRef.current?.id !== propertyId) return;
-    setContact(linked);
-    setNotice(
-      `Added ${linked.name || contactHandle(linked)} — they enquired about this property.`
-    );
+    if (ids.length !== currentIds.length) {
+      const byId = new Map(contacts.map((c) => [c.id, c]));
+      for (const person of [propertyPeople.enquirer, propertyPeople.owner]) {
+        if (person && !byId.has(person.id)) byId.set(person.id, person);
+      }
+      setContacts(
+        ids.map((id) => byId.get(id)).filter((c): c is Contact => Boolean(c))
+      );
+      const notes: string[] = [];
+      const { enquirer, owner } = propertyPeople;
+      if (enquirer && ids.includes(enquirer.id) && enquirer.id !== owner?.id) {
+        if (!currentIds.includes(enquirer.id)) {
+          notes.push(
+            `Added ${enquirer.name || contactHandle(enquirer)} — they enquired about this property.`
+          );
+        }
+      }
+      if (owner && !currentIds.includes(owner.id)) {
+        notes.push(
+          `Added ${owner.name || contactHandle(owner)} as the property's owner — remove them if they shouldn't get reminders.`
+        );
+      }
+      if (notes.length > 0) setNotice(notes.join(' '));
+    }
   }
 
   async function linkPropertyForContact(contactId: string) {
@@ -240,7 +303,7 @@ export default function NewAppointmentScreen() {
     const found = await fetchLinkedProperty(propertyId);
     if (!found || propertyRef.current) return;
     if (params.propertyId && !propertyClearedRef.current) return;
-    if (contactRef.current?.id !== contactId) return;
+    if (!contactsRef.current.some((c) => c.id === contactId)) return;
     setProperty(found);
     setPropertyCleared(false);
     setTitle((current) =>
@@ -263,18 +326,25 @@ export default function NewAppointmentScreen() {
       )
     );
     setLocation((current) => current || propertyArea(next));
-    if (!contact) void linkContactForProperty(next.id);
   }
 
   function clearProperty() {
     setProperty(null);
     setPropertyCleared(true);
+    setPeopleAppliedFor(null);
   }
 
   function attachContact(next: Contact) {
-    setContact(next);
     setContactSearch('');
+    if (contacts.some((c) => c.id === next.id)) return;
+    setContacts((current) =>
+      current.some((c) => c.id === next.id) ? current : [...current, next]
+    );
     if (!propertyHeld) void linkPropertyForContact(next.id);
+  }
+
+  function removeContact(id: string) {
+    setContacts((current) => current.filter((c) => c.id !== id));
   }
 
   function applyVoicePrefill(prefill: VoicePrefill) {
@@ -298,7 +368,7 @@ export default function NewAppointmentScreen() {
 
   const { data: contactOptions } = useQuery({
     queryKey: ['contact-picker', debouncedContactSearch],
-    enabled: debouncedContactSearch.trim().length >= 2 && !contact,
+    enabled: debouncedContactSearch.trim().length >= 2,
     queryFn: async () => {
       const term = `%${debouncedContactSearch.trim()}%`;
       const { data } = await supabase
@@ -372,8 +442,9 @@ export default function NewAppointmentScreen() {
       location: location.trim() || null,
       status: 'scheduled',
       event_type: eventType,
-      contact_id: contact?.id ?? null,
-      contact_ids: contact ? [contact.id] : [],
+      contact_id: contacts[0]?.id ?? null,
+      contact_ids: contacts.map((c) => c.id),
+      remind_creator: remindMe,
       property_id:
         property?.id ?? (propertyCleared ? null : (params.propertyId ?? null)),
       ...(voice
@@ -392,9 +463,9 @@ export default function NewAppointmentScreen() {
     }
     haptic.success();
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
-    if (contact) {
+    for (const attached of contacts) {
       queryClient.invalidateQueries({
-        queryKey: ['contact-appointments', contact.id],
+        queryKey: ['contact-appointments', attached.id],
       });
     }
     saved.current = true;
@@ -580,45 +651,62 @@ export default function NewAppointmentScreen() {
           onChangeText={setLocation}
         />
 
-        {contact ? (
-          <View
-            style={[
-              styles.contactRow,
-              { backgroundColor: colors.surface, borderColor: colors.border },
-            ]}
-          >
-            <Avatar name={contact.name || contactHandle(contact)} size={30} />
-            <Text
-              style={{
-                flex: 1,
-                fontSize: 14.5,
-                fontFamily: f.semibold,
-                color: colors.text,
-              }}
+        <View style={{ gap: spacing.sm }}>
+          {contacts.map((attached) => (
+            <View
+              key={attached.id}
+              style={[
+                styles.contactRow,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+              ]}
             >
-              {contact.name || contactHandle(contact)}
-            </Text>
-            <Pressable
-              onPress={() => setContact(null)}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Remove attached contact"
-            >
-              <Ionicons
-                name="close-circle"
-                size={18}
-                color={colors.textFaint}
+              <Avatar
+                name={attached.name || contactHandle(attached)}
+                size={30}
               />
-            </Pressable>
-          </View>
-        ) : (
-          <View style={{ gap: spacing.sm }}>
-            <TextField
-              placeholder="Attach contact — search name or phone (optional)"
-              value={contactSearch}
-              onChangeText={setContactSearch}
-            />
-            {(contactOptions ?? []).map((c) => (
+              <Text
+                style={{
+                  flexShrink: 1,
+                  fontSize: 14.5,
+                  fontFamily: f.semibold,
+                  color: colors.text,
+                }}
+                numberOfLines={1}
+              >
+                {attached.name || contactHandle(attached)}
+              </Text>
+              {attached.id === property?.owner_contact_id ? (
+                <View style={nameTagCap}>
+                  <Tag label="Owner" />
+                </View>
+              ) : null}
+              <View style={{ flex: 1 }} />
+              <Pressable
+                onPress={() => removeContact(attached.id)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${attached.name || 'contact'}`}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={18}
+                  color={colors.textFaint}
+                />
+              </Pressable>
+            </View>
+          ))}
+          <TextField
+            placeholder={
+              contacts.length > 0
+                ? 'Add another contact — search name or phone'
+                : 'Attach contact — search name or phone (optional)'
+            }
+            value={contactSearch}
+            onChangeText={setContactSearch}
+          />
+          {(contactOptions ?? [])
+            .filter((c) => !contacts.some((attached) => attached.id === c.id))
+            .map((c) => (
               <Pressable
                 key={c.id}
                 style={[
@@ -644,8 +732,36 @@ export default function NewAppointmentScreen() {
                 ) : null}
               </Pressable>
             ))}
+        </View>
+
+        <View
+          style={[
+            styles.contactRow,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text
+              style={{
+                fontSize: 14.5,
+                fontFamily: f.semibold,
+                color: colors.text,
+              }}
+            >
+              Remind me
+            </Text>
+            <Text style={{ fontSize: 12, color: colors.textMuted }}>
+              WhatsApp brief before the event and a line in your morning digest,
+              as well as the person it is assigned to.
+            </Text>
           </View>
-        )}
+          <Switch
+            value={remindMe}
+            onValueChange={setRemindMe}
+            trackColor={{ true: colors.primary }}
+            accessibilityLabel="Remind me about this appointment"
+          />
+        </View>
 
         <View style={{ marginTop: spacing.sm }}>
           <PrimaryButton

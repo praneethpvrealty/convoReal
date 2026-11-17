@@ -19,10 +19,11 @@ export interface LinkedProperty {
   sublocality?: string | null;
   city?: string | null;
   images?: string[] | null;
+  owner_contact_id?: string | null;
 }
 
 const PROPERTY_COLUMNS =
-  'id, title, property_code, location, sublocality, city, images';
+  'id, title, property_code, location, sublocality, city, images, owner_contact_id';
 
 export async function fetchLinkedProperty(
   id: string

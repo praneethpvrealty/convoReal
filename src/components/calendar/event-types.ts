@@ -200,6 +200,7 @@ export interface CalendarEvent {
   account_id: string;
   user_id: string;
   assigned_to: string | null;
+  remind_creator?: boolean | null;
   title: string;
   description: string | null;
   agenda?: string | null;

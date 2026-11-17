@@ -40,6 +40,7 @@ export async function POST(request: Request) {
       end_time,
       location,
       status,
+      remind_creator,
     } = body;
 
     // Accept either shape: a contact_ids array, a single contact_id,
@@ -74,6 +75,7 @@ export async function POST(request: Request) {
         end_time,
         location: location || null,
         status: status || 'scheduled',
+        remind_creator: remind_creator !== false,
       })
       .select(
         '*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)'
