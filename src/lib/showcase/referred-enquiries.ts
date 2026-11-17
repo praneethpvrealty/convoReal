@@ -513,13 +513,14 @@ async function redirectGuest(
     });
     if (!res.success) {
       console.error(
-        '[referred-enquiries] Guest redirect failed:',
-        String(res.error ?? '').replace(/[\r\n]+/g, ' ')
+        isReengagementError(res.error)
+          ? '[referred-enquiries] Guest redirect not sent: no open WhatsApp window'
+          : '[referred-enquiries] Guest redirect failed'
       );
     }
     return res.success;
-  } catch (err) {
-    console.error('[referred-enquiries] Guest redirect failed:', err);
+  } catch {
+    console.error('[referred-enquiries] Guest redirect failed');
     return false;
   }
 }
