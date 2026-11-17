@@ -53,8 +53,8 @@ export function usePropertyOptions(raw: string | null, minLength: number) {
         );
       }
       const { data } = await query
-        .order('updated_at', { ascending: false })
-        .limit(6);
+        .order('title')
+        .limit(5);
       return (data ?? []) as LinkedProperty[];
     },
   });
