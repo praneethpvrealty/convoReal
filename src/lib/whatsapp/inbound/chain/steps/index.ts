@@ -1,5 +1,6 @@
 import type { InboundStep } from '../context';
 import { controlReply } from './control-reply';
+import { referredEnquiry } from './referred-enquiry';
 import { enquiryDropoffReason } from './enquiry-dropoff-reason';
 import { enquiryReviewReply } from './enquiry-review-reply';
 import { bridgedAgentReply } from './bridged-agent-reply';
@@ -45,6 +46,7 @@ import { automations } from './automations';
 
 export const INBOUND_STEPS: InboundStep[] = [
   { name: 'controlReply', run: controlReply },
+  { name: 'referredEnquiry', run: referredEnquiry },
   { name: 'enquiryDropoffReason', run: enquiryDropoffReason },
   { name: 'enquiryReviewReply', run: enquiryReviewReply },
   { name: 'bridgedAgentReply', run: bridgedAgentReply },
@@ -91,6 +93,7 @@ export const INBOUND_STEPS: InboundStep[] = [
 
 export const STEPS_WHILE_BOT_PAUSED: ReadonlySet<string> = new Set([
   'controlReply',
+  'referredEnquiry',
   'bridgedAgentReply',
   'autoHeat',
   'leadPing',

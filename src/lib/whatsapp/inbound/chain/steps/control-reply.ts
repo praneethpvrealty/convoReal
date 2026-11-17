@@ -21,6 +21,11 @@ import {
   DOCUMENT_REJECT_PREFIX,
   handleDocumentDecisionReply,
 } from '@/lib/inventory/document-requests';
+import {
+  REFERRED_APPROVE_PREFIX,
+  REFERRED_DECLINE_PREFIX,
+  handleReferredEnquiryReply,
+} from '@/lib/showcase/referred-enquiries';
 import { UPDATE_CHANNEL_REPLY_PREFIX } from '@/lib/voice/announcements';
 import { handleUpdateChannelReply } from '@/lib/voice/update-channel-reply';
 import {
@@ -106,6 +111,18 @@ export async function controlReply(
       interactiveReplyId.startsWith(DOCUMENT_REJECT_PREFIX)
     ) {
       const handled = await handleDocumentDecisionReply({
+        admin: supabaseAdmin(),
+        accountId,
+        replyId: interactiveReplyId,
+        senderPhone,
+      });
+      if (handled) return 'handled';
+    }
+    if (
+      interactiveReplyId.startsWith(REFERRED_APPROVE_PREFIX) ||
+      interactiveReplyId.startsWith(REFERRED_DECLINE_PREFIX)
+    ) {
+      const handled = await handleReferredEnquiryReply({
         admin: supabaseAdmin(),
         accountId,
         replyId: interactiveReplyId,

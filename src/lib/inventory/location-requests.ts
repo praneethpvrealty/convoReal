@@ -207,7 +207,7 @@ export function parseConsentReply(
  * the reveal — reaches someone the listing side has not approved yet. A
  * teaser-gated listing therefore names itself by its stub.
  */
-async function propertyTitle(
+export async function propertyTitle(
   admin: SupabaseClient,
   accountId: string,
   propertyId: string

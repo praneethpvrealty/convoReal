@@ -17,6 +17,21 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 17 November 2026
+
+- **An agent's guest is held until the agent approves.** When someone opens
+  a showcase link you shared with a contact classified as Agent and enquires,
+  on the showcase form or through its WhatsApp button, you are notified at
+  once that the agent's guest asked about the listing, with the name and
+  number masked, and the guest stays out of your contacts. The agent gets
+  Approve and Decline on WhatsApp. Approve files the guest as your lead with
+  the agent as referrer; Decline, or two hours without an answer, points the
+  guest back to the agent. A link forwarded by a buyer or owner has no
+  approval step: the enquiry is filed with that contact as referrer and you
+  are told whose guest it was. Settings → Notifications gains "Guest of a
+  shared link enquires" on web and mobile. **Migration required:**
+  `20261117043000_referred_enquiries.sql` (one new table).
+
 #### 16 November 2026
 
 - **Facing, tower and floor range are structured requirement fields.** A

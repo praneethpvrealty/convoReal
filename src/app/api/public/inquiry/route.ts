@@ -2,8 +2,17 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
-import { findOrCreateContact } from '@/lib/contacts/find-or-create';
-import { attachIdentifiedSession } from '@/lib/pulse/visitor-identity';
+import { createNotification } from '@/lib/notifications/create';
+import {
+  InquiryContactError,
+  fileShowcaseInquiry,
+  type ShowcaseInquiryInput,
+} from '@/lib/showcase/file-inquiry';
+import {
+  isExistingLead,
+  openReferredEnquiry,
+  resolveSessionReferrer,
+} from '@/lib/showcase/referred-enquiries';
 import {
   MAX_SHORTLIST_PROPERTIES,
   parseInquiryPropertyIds,
@@ -46,7 +55,6 @@ export async function POST(request: Request) {
       );
     }
     const isAiAgent = body.source === 'ai_agent';
-    const channelLabel = isAiAgent ? 'AI Agent' : 'Website';
     const name =
       typeof body.name === 'string'
         ? body.name.slice(0, MAX_NAME_LEN)
@@ -181,13 +189,6 @@ export async function POST(request: Request) {
           );
       }
     }
-    const shortlistSummary = shortlistProperties
-      .map(
-        (property, index) =>
-          `${index + 1}. ${property.title}${property.property_code ? ` (${property.property_code})` : ''} [${property.id}]`
-      )
-      .join('\n');
-
     // Resolve the managing agent of the property if propertyId is provided
     let targetAgentUserId = systemUserId;
     if (
@@ -235,22 +236,72 @@ export async function POST(request: Request) {
       }
     }
 
-    // 2. Find or create contact with phone + email deduplication
+    const inquiry: ShowcaseInquiryInput = {
+      accountId,
+      phone: String(phone),
+      normalizedPhone,
+      name: typeof name === 'string' ? name : null,
+      email: typeof email === 'string' ? email : null,
+      message: typeof message === 'string' ? message : null,
+      isAiAgent,
+      isShortlist,
+      propertyId: propertyId || null,
+      propertyTitle: propertyTitle || null,
+      propertyCode: propertyCode || null,
+      shortlistProperties: shortlistProperties.map((property) => ({
+        id: property.id,
+        title: property.title,
+        property_code: property.property_code,
+      })),
+      targetAgentUserId,
+      referrerContactId: resolvedReferrerContactId,
+      sessionKey:
+        typeof sessionKey === 'string' && sessionKey.trim()
+          ? sessionKey.trim()
+          : null,
+    };
+
+    // A guest who reached the showcase through a link shared with
+    // someone else. An agent's guest is held until that agent approves
+    // (see referred-enquiries.ts); anyone else who forwarded the link
+    // is credited as the referrer and the listing side is told.
+    const referrer = sellerPage
+      ? null
+      : await resolveSessionReferrer(admin, {
+          accountId,
+          sessionKey: inquiry.sessionKey,
+          requesterPhone: normalizedPhone,
+        });
+    const knownLead = referrer
+      ? await isExistingLead(admin, accountId, normalizedPhone)
+      : false;
+    if (referrer && !knownLead) {
+      inquiry.referrerContactId = referrer.contactId;
+      if (referrer.isAgent) {
+        const outcome = await openReferredEnquiry(admin, {
+          accountId,
+          referrer,
+          source: 'website',
+          propertyId: inquiry.propertyId,
+          requesterName: inquiry.name?.trim() || 'Website visitor',
+          requesterPhone: normalizedPhone,
+          sessionKey: inquiry.sessionKey,
+          payload: inquiry,
+        });
+        if (outcome === 'pending') {
+          return NextResponse.json({ success: true, pendingReferral: true });
+        }
+        if (outcome === 'closed') {
+          return NextResponse.json({ success: true, referralClosed: true });
+        }
+      }
+    }
+
     let contactId: string;
     try {
-      const result = await findOrCreateContact(admin, {
-        accountId,
-        userId: targetAgentUserId,
-        phone: normalizedPhone,
-        name: name || `${channelLabel} Lead`,
-        email: email || null,
-        classification: 'Buyer',
-        referrer: isAiAgent ? 'AI Agent' : 'Website Showcase',
-        referrerContactId: resolvedReferrerContactId,
-        lastInquiredPropertyId: propertyId || null,
-      });
-      contactId = result.contactId;
+      ({ contactId } = await fileShowcaseInquiry(admin, inquiry));
     } catch (err) {
+      if (!(err instanceof InquiryContactError)) throw err;
       console.error(
         '[POST /api/public/inquiry] Contact find-or-create failed:',
         err
@@ -261,197 +312,18 @@ export async function POST(request: Request) {
       );
     }
 
-    if (shortlistProperties.length) {
-      const { error: inquiryError } = await admin
-        .from('contact_property_inquiries')
-        .upsert(
-          shortlistProperties.map((property) => ({
-            account_id: accountId,
-            contact_id: contactId,
-            property_id: property.id,
-            inquiry_source: 'Website Shortlist',
-          })),
-          { onConflict: 'contact_id,property_id', ignoreDuplicates: true }
-        );
-      if (inquiryError) throw inquiryError;
-      const { error: markerError } = await admin
-        .from('contact_property_inquiries')
-        .update({ via_portal_link: false })
-        .eq('account_id', accountId)
-        .eq('contact_id', contactId)
-        .in(
-          'property_id',
-          shortlistProperties.map((property) => property.id)
-        )
-        .eq('via_portal_link', true);
-      if (markerError) throw markerError;
-    }
-
-    // Retroactive stitching: this visitor just revealed who they are, so
-    // their earlier "Anonymous Guest" Pulse events from the same browser
-    // session (tracked via the same showcase_session_key in localStorage)
-    // can now show up under their name, and this browser becomes one of
-    // their known devices for later visits.
-    if (typeof sessionKey === 'string' && sessionKey.trim()) {
-      await attachIdentifiedSession(
-        admin,
-        { accountId, contactId, sessionKey },
-        '[POST /api/public/inquiry]'
-      );
-    }
-
-    // 3. Add inquiry details as a contact note
-    let noteText = `${channelLabel} Inquiry received:\n`;
-    if (shortlistSummary)
-      noteText += `• Selected properties:\n${shortlistSummary}\n`;
-    if (propertyTitle) {
-      noteText += `• Interested in Property: ${propertyTitle}\n`;
-    }
-    if (propertyCode) {
-      noteText += `• Property Code: ${propertyCode}\n`;
-    }
-    if (propertyId) {
-      noteText += `• Property ID: ${propertyId}\n`;
-    }
-    if (message) {
-      noteText += `• Message: ${message.trim()}\n`;
-    } else {
-      noteText += `• Message: (No message provided)\n`;
-    }
-
-    const { error: noteError } = await admin.from('contact_notes').insert([
-      {
-        account_id: accountId,
-        contact_id: contactId,
-        user_id: targetAgentUserId,
-        note_text: noteText,
-      },
-    ]);
-
-    if (noteError) {
-      if (isShortlist) throw noteError;
-      console.error(
-        '[POST /api/public/inquiry] Contact note creation failed:',
-        noteError
-      );
-      // Don't fail the whole request if note fails, but log it
-    }
-
-    // 4. Create a Todo task for the team
-    const { error: todoError } = await admin.from('todos').insert([
-      {
-        account_id: accountId,
-        user_id: targetAgentUserId,
-        title: `New ${channelLabel} Inquiry - @${name || phone}`,
-        description: `Visitor ${name || ''} (${phone}) inquired about property: "${propertyTitle || 'Unknown'}"${propertyCode ? ` (${propertyCode})` : ''}.${shortlistSummary ? `\n${shortlistSummary}\n` : ' '}Review contact and follow up.`,
-        due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // due in 1 day
-        priority: 'high',
-        completed: false,
-        contact_id: contactId,
-        property_id: propertyId || null,
-      },
-    ]);
-
-    if (todoError) {
-      console.error(
-        '[POST /api/public/inquiry] Todo creation failed:',
-        todoError
-      );
-    }
-
-    // 5. Route the inquiry as an inbox message
-    try {
-      // Find or create conversation for the contact to show in the Inbox
-      const { data: existingConv, error: findConvError } = await admin
-        .from('conversations')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('contact_id', contactId)
-        .maybeSingle();
-
-      let conversationId: string | undefined;
-      let currentUnreadCount = 0;
-
-      if (!findConvError && existingConv) {
-        conversationId = existingConv.id;
-        currentUnreadCount = existingConv.unread_count || 0;
-      } else {
-        const { data: newConv, error: createConvError } = await admin
-          .from('conversations')
-          .insert({
-            account_id: accountId,
-            user_id: targetAgentUserId,
-            contact_id: contactId,
-            unread_count: 0,
-          })
-          .select()
-          .single();
-
-        if (createConvError) {
-          console.error(
-            '[POST /api/public/inquiry] Conversation creation failed:',
-            createConvError
-          );
-        }
-        conversationId = newConv?.id;
-      }
-
-      if (conversationId) {
-        // Formulate inbox message text
-        let inboxText = `📩 *${channelLabel} Inquiry Received*\n\n`;
-        if (shortlistSummary)
-          inboxText += `🏘️ *Selected properties*:\n${shortlistSummary}\n\n`;
-        if (propertyTitle) {
-          inboxText += `🏡 *Property*: ${propertyTitle}${propertyCode ? ` (${propertyCode})` : ''}\n`;
-        }
-        if (message) {
-          inboxText += `💬 *Message*: ${message.trim()}\n`;
-        }
-        if (email) {
-          inboxText += `📧 *Email*: ${email.trim().toLowerCase()}\n`;
-        }
-        inboxText += `👤 *Name*: ${name || `${channelLabel} Lead`}\n📞 *Phone*: ${normalizedPhone}`;
-
-        // Insert message in messages table
-        const { error: msgInsertError } = await admin.from('messages').insert({
-          conversation_id: conversationId,
-          sender_type: 'customer',
-          content_type: 'text',
-          content_text: inboxText,
-          message_id: `${isAiAgent ? 'ai-agent' : 'web'}-inquiry-${Date.now()}`,
-          status: 'delivered',
-          created_at: new Date().toISOString(),
-        });
-
-        if (msgInsertError) {
-          console.error(
-            '[POST /api/public/inquiry] Inbox message insertion failed:',
-            msgInsertError
-          );
-        } else {
-          // Update conversation last_message_text, last_message_at, unread_count
-          await admin
-            .from('conversations')
-            .update({
-              last_message_text: inboxText,
-              last_message_at: new Date().toISOString(),
-              unread_count: currentUnreadCount + 1,
-              awaiting_reply: true,
-              // Not `last_customer_message_at`: filling in a web form
-              // does not open Meta's 24-hour free-form window, and
-              // stamping it here both invented a window for a lead who
-              // has never messaged and extended it past the truth for
-              // one who had. The thread still needs a reply either way.
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', conversationId);
-        }
-      }
-    } catch (inboxErr) {
-      console.error(
-        '[POST /api/public/inquiry] Failed to route inquiry to inbox:',
-        inboxErr
-      );
+    if (referrer && !knownLead) {
+      await createNotification({
+        accountId,
+        userId: targetAgentUserId,
+        type: 'listing_interest',
+        eventKey: 'referred_enquiry',
+        title: `${referrer.name}'s guest enquired`,
+        body: `${inquiry.name?.trim() || normalizedPhone} (${normalizedPhone}) asked for details on ${propertyTitle || 'your listings'} through the link you shared with ${referrer.name}.`,
+        entityType: 'contact',
+        entityId: contactId,
+        link: `/contacts?contactId=${contactId}`,
+      });
     }
 
     return NextResponse.json({ success: true, contactId });

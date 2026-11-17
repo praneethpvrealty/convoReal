@@ -10,6 +10,10 @@ import {
 } from '@/lib/inventory/documents';
 import { createShowcaseTracker } from '@/lib/pulse/tracker';
 import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
+import {
+  REFERRAL_CLOSED_MESSAGE,
+  enquiryRefSuffix,
+} from '@/lib/showcase/enquiry-ref';
 import { propertyMapPin } from '@/lib/maps/map-links';
 import { toast } from 'sonner';
 import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
@@ -1177,6 +1181,7 @@ export function ShowcaseView({
       property.listing_type
     );
     if (statusLine) message += ` ${statusLine}`;
+    if (visitorRef) message += enquiryRefSuffix(getShowcaseSessionKey());
 
     const cleanPhone =
       enquiryWhatsAppPhone(property).replace(/\D/g, '') || '919876543210';
@@ -1798,8 +1803,12 @@ export function ShowcaseView({
         throw new Error('Inquiry submission failed');
       }
 
+      const filed = (await res.json().catch(() => null)) as {
+        referralClosed?: boolean;
+      } | null;
       setSubmitSuccess(true);
-      toast.success('Your inquiry has been submitted successfully!');
+      if (filed?.referralClosed) toast.info(REFERRAL_CLOSED_MESSAGE);
+      else toast.success('Your inquiry has been submitted successfully!');
 
       // Track Meta Pixel Lead event
       trackPixelEvent('Lead', {
@@ -1857,7 +1866,14 @@ export function ShowcaseView({
       }),
     });
     if (!res.ok) throw new Error('Inquiry submission failed');
+    const filed = (await res.json().catch(() => null)) as {
+      referralClosed?: boolean;
+    } | null;
     saveVisitorInfo(args.name, args.phone);
+    if (filed?.referralClosed) {
+      toast.info(REFERRAL_CLOSED_MESSAGE);
+      return false;
+    }
     trackPixelEvent('Lead', {
       content_name: property.title,
       content_ids: [property.property_code || property.id],
@@ -1866,19 +1882,21 @@ export function ShowcaseView({
       currency: settings?.currency || 'INR',
       inquiry_type: args.intent,
     });
+    return true;
   };
 
   const handleQuickInterest = async (property: Property) => {
     if (submitting || submitSuccess) return;
     setSubmitting(true);
     try {
-      await submitVisitorInquiry(property, {
+      const filed = await submitVisitorInquiry(property, {
         name: visitorName.trim(),
         phone: visitorPhone.trim(),
         intent: 'quick_interest',
       });
-      updateInterestStatus(property.id, 'interested');
       setSubmitSuccess(true);
+      if (!filed) return;
+      updateInterestStatus(property.id, 'interested');
       toast.success('Got it — the agent will call you back.');
       inquiryFormRef.current?.scrollIntoView?.({
         behavior: 'smooth',
@@ -1902,11 +1920,17 @@ export function ShowcaseView({
     if (captureSubmitting) return;
     setCaptureSubmitting(true);
     try {
-      await submitVisitorInquiry(property, { name, phone, intent, rating });
-      if (intent === 'high_rating')
-        updateInterestStatus(property.id, 'interested');
+      const filed = await submitVisitorInquiry(property, {
+        name,
+        phone,
+        intent,
+        rating,
+      });
       setShowViewCapture(false);
       setRatingCaptureFor(null);
+      if (!filed) return;
+      if (intent === 'high_rating')
+        updateInterestStatus(property.id, 'interested');
       toast.success('Thanks! The agent will reach you on WhatsApp.');
     } catch (err) {
       console.error(err);

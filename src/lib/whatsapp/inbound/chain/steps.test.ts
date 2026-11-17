@@ -10,6 +10,7 @@ import {
 
 const EXPECTED_ORDER = [
   'controlReply',
+  'referredEnquiry',
   'enquiryDropoffReason',
   'enquiryReviewReply',
   'bridgedAgentReply',

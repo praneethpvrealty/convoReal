@@ -46,6 +46,11 @@ import {
   DOCUMENT_REJECT_PREFIX,
 } from '@/lib/inventory/document-requests';
 
+import {
+  REFERRED_APPROVE_PREFIX,
+  REFERRED_DECLINE_PREFIX,
+} from '@/lib/showcase/referred-enquiries';
+
 /** Prefixes whose replies are instructions to the Engine. Bare ids
  *  (no trailing payload) belong in EXACT_CONTROL_REPLY_IDS instead. */
 export const CONTROL_REPLY_PREFIXES = [
@@ -55,6 +60,8 @@ export const CONTROL_REPLY_PREFIXES = [
   OWNER_REJECT_PREFIX,
   DOCUMENT_APPROVE_PREFIX,
   DOCUMENT_REJECT_PREFIX,
+  REFERRED_APPROVE_PREFIX,
+  REFERRED_DECLINE_PREFIX,
   // The enquiry card goes to the routed agent, who on a small team is
   // the account owner — so its taps arrive from the very sender the
   // owner chatbot intercepts by design, exactly like the approvals
