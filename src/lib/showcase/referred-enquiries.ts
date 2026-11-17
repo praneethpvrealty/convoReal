@@ -500,7 +500,10 @@ async function redirectGuest(
       allowChainOnly: true,
     });
     if (!res.success) {
-      console.error('[referred-enquiries] Guest redirect failed:', res.error);
+      console.error(
+        '[referred-enquiries] Guest redirect failed:',
+        String(res.error ?? '').replace(/[\r\n]+/g, ' ')
+      );
     }
     return res.success;
   } catch (err) {

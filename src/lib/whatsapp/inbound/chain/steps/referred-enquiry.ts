@@ -74,9 +74,10 @@ export async function referredEnquiry(
     // A guest this step has already hidden. While the agent has not
     // answered, and after a decline or a timeout, they are still that
     // agent's guest: whatever they send stays in their thread, nothing
-    // answers it and nobody is pinged. Only a fresh enquiry on a
-    // listing goes back to the agent, and a decline less than a day
-    // old answers it without asking again.
+    // answers it and nobody is pinged. Only an enquiry on a listing is
+    // recorded: it joins the one still waiting, so an approval files
+    // every listing they asked about, and after a decline it goes back
+    // to the agent unless that decline is less than a day old.
     if (!(contactRecord as { chain_only?: boolean }).chain_only) {
       return 'continue';
     }
@@ -86,7 +87,7 @@ export async function referredEnquiry(
       senderPhone,
     });
     if (!last || last.status === 'approved') return 'continue';
-    if (last.status === 'pending' || !isEnquiry || !last.referrer) {
+    if (!isEnquiry || !last.referrer) {
       await quietGuestThread(admin, thread);
       return 'handled';
     }

@@ -192,19 +192,37 @@ describe('[PLS-010] a WhatsApp enquiry from an agent’s guest is held', () => {
     expect(lib.resolveWhatsAppTapReferrer).not.toHaveBeenCalled();
   });
 
-  it('keeps a waiting guest’s later messages away from the bot and the agent', async () => {
+  it('keeps a waiting guest’s later messages away from the bot and the agent, and records an enquiry on another listing', async () => {
     lib.lastGuestEnquiry.mockResolvedValue({
       status: 'pending',
       sessionKey: 'session-1',
       referrer: NIMMY,
     });
-    expect(await referredEnquiry(hiddenGuest())).toBe('handled');
+    expect(
+      await referredEnquiry(
+        hiddenGuest({
+          contentText: 'hello?',
+          enquiryPropertyId: null,
+          enquiryIsDeliberate: false,
+        })
+      )
+    ).toBe('handled');
     expect(lib.quietGuestThread).toHaveBeenCalledWith(
       expect.anything(),
       THREAD
     );
     expect(send).not.toHaveBeenCalled();
     expect(lib.openReferredEnquiry).not.toHaveBeenCalled();
+
+    lib.openReferredEnquiry.mockResolvedValue('pending');
+    expect(
+      await referredEnquiry(hiddenGuest({ enquiryPropertyId: 'prop-2' }))
+    ).toBe('handled');
+    expect(lib.openReferredEnquiry.mock.calls[0][1]).toMatchObject({
+      propertyId: 'prop-2',
+      referrer: NIMMY,
+      contactId: 'guest-1',
+    });
   });
 
   it('keeps a declined guest hidden: a later chat message is swallowed and a new enquiry goes back to the agent', async () => {
