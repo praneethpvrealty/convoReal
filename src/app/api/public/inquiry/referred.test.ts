@@ -107,6 +107,14 @@ describe('[PLS-010] POST /api/public/inquiry holds an agent’s guest', () => {
     });
   });
 
+  it('tells the form when the agent already declined this guest, and files nothing', async () => {
+    resolveSessionReferrer.mockResolvedValue({ ...NIMMY, isAgent: true });
+    openReferredEnquiry.mockResolvedValue('closed');
+    const res = await post();
+    expect(await res.json()).toEqual({ success: true, referralClosed: true });
+    expect(fileInquiry).not.toHaveBeenCalled();
+  });
+
   it('files the enquiry with the agent credited when the agent cannot be asked', async () => {
     resolveSessionReferrer.mockResolvedValue({ ...NIMMY, isAgent: true });
     openReferredEnquiry.mockResolvedValue('undeliverable');

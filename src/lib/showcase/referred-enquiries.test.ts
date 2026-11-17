@@ -78,6 +78,12 @@ function makeAdmin() {
           tests.push((row) => (row[column] ?? null) !== null);
           return b;
         },
+        like: (column: string, pattern: string) => {
+          tests.push((row) =>
+            String(row[column]).startsWith(pattern.replace(/%$/, ''))
+          );
+          return b;
+        },
         gte: (column: string, value: string) => {
           tests.push((row) => String(row[column]) >= value);
           return b;
@@ -150,6 +156,7 @@ const {
   buildReferrerAskMessage,
   handleReferredEnquiryReply,
   isExistingLead,
+  lastGuestEnquiry,
   openReferredEnquiry,
   resolveSessionReferrer,
   resolveWhatsAppTapReferrer,
@@ -296,7 +303,7 @@ describe('[PLS-010] an agent’s guest is held until the agent approves', () => 
     ).toBeNull();
   });
 
-  it('ties a WhatsApp enquiry to a forwarded-link guest’s tap on that listing within half an hour', async () => {
+  it('ties a WhatsApp enquiry to the session named in its reference, never to another visitor’s tap', async () => {
     tables.showcase_events.push({
       account_id: ACCOUNT,
       session_key: SESSION,
@@ -307,27 +314,71 @@ describe('[PLS-010] an agent’s guest is held until the agent approves', () => 
       created_at: new Date(Date.now() - 60_000).toISOString(),
     });
     const admin = makeAdmin() as never;
+    const tap = {
+      accountId: ACCOUNT,
+      propertyId: 'prop-1',
+      senderPhone: '919845959646',
+    };
     expect(
       await resolveWhatsAppTapReferrer(admin, {
-        accountId: ACCOUNT,
-        propertyId: 'prop-1',
-        senderPhone: '919845959646',
+        ...tap,
+        enquiryRef: '9c7c5a9b',
       })
     ).toMatchObject({ contactId: NIMMY, sessionKey: SESSION });
     expect(
-      await resolveWhatsAppTapReferrer(admin, {
-        accountId: ACCOUNT,
-        propertyId: 'prop-other',
-        senderPhone: '919845959646',
-      })
+      await resolveWhatsAppTapReferrer(admin, { ...tap, enquiryRef: null })
     ).toBeNull();
-    tables.showcase_events[0].created_at = new Date(
-      Date.now() - 45 * 60_000
-    ).toISOString();
     expect(
       await resolveWhatsAppTapReferrer(admin, {
+        ...tap,
+        enquiryRef: 'deadbeef',
+      })
+    ).toBeNull();
+    expect(
+      await resolveWhatsAppTapReferrer(admin, { ...tap, enquiryRef: '%' })
+    ).toBeNull();
+    expect(
+      await resolveWhatsAppTapReferrer(admin, {
+        ...tap,
+        propertyId: 'prop-other',
+        enquiryRef: '9c7c5a9b',
+      })
+    ).toBeNull();
+    expect(
+      await resolveWhatsAppTapReferrer(admin, {
+        ...tap,
+        senderPhone: NIMMY_PHONE,
+        enquiryRef: '9c7c5a9b',
+      })
+    ).toBeNull();
+  });
+
+  it('remembers whose guest a hidden WhatsApp contact is after the enquiry is decided', async () => {
+    tables.referred_enquiries.push({
+      id: 'r1',
+      account_id: ACCOUNT,
+      contact_id: 'guest-wa',
+      via_contact_id: NIMMY,
+      session_key: SESSION,
+      status: 'rejected',
+      created_at: '2026-11-17T00:40:00Z',
+    });
+    const admin = makeAdmin() as never;
+    expect(
+      await lastGuestEnquiry(admin, {
         accountId: ACCOUNT,
-        propertyId: 'prop-1',
+        contactId: 'guest-wa',
+        senderPhone: '919845959646',
+      })
+    ).toMatchObject({
+      status: 'rejected',
+      sessionKey: SESSION,
+      referrer: { contactId: NIMMY },
+    });
+    expect(
+      await lastGuestEnquiry(admin, {
+        accountId: 'acc-other',
+        contactId: 'guest-wa',
         senderPhone: '919845959646',
       })
     ).toBeNull();
@@ -538,6 +589,60 @@ describe('[PLS-010] an agent’s guest is held until the agent approves', () => 
       'Nimmy declined a guest enquiry'
     );
     expect(notify.mock.calls[0][0].body).not.toContain('Poojappa');
+  });
+
+  it('tells the listing side and the agent when the declined guest could not be messaged', async () => {
+    await openWebsite();
+    send.mockReset();
+    send
+      .mockResolvedValueOnce({ success: false, error: 'Re-engagement 131047' })
+      .mockResolvedValue({ success: true });
+    notify.mockClear();
+
+    await handleReferredEnquiryReply({
+      admin: makeAdmin() as never,
+      accountId: ACCOUNT,
+      replyId: askId(REFERRED_DECLINE_PREFIX),
+      senderPhone: NIMMY_PHONE,
+    });
+
+    expect(notify.mock.calls[0][0].body).toContain(
+      'could not be messaged on WhatsApp'
+    );
+    expect(notify.mock.calls[0][0].body).not.toContain('Poojappa');
+    expect(send.mock.calls.at(-1)![0]).toMatchObject({ contactId: NIMMY });
+    expect(send.mock.calls.at(-1)![0].text).toContain('follow up with them');
+  });
+
+  it('puts an approved enquiry that could not be filed back to waiting and does not confirm it', async () => {
+    await openWebsite();
+    send.mockClear();
+    notify.mockClear();
+    fileInquiry.mockRejectedValueOnce(new Error('contact insert failed'));
+
+    await handleReferredEnquiryReply({
+      admin: makeAdmin() as never,
+      accountId: ACCOUNT,
+      replyId: askId(REFERRED_APPROVE_PREFIX),
+      senderPhone: NIMMY_PHONE,
+    });
+    expect(tables.referred_enquiries[0]).toMatchObject({
+      status: 'pending',
+      decided_at: null,
+    });
+    expect(notify).not.toHaveBeenCalled();
+    expect(send.mock.calls.at(-1)![0].text).toContain('tap Approve again');
+
+    await handleReferredEnquiryReply({
+      admin: makeAdmin() as never,
+      accountId: ACCOUNT,
+      replyId: askId(REFERRED_APPROVE_PREFIX),
+      senderPhone: NIMMY_PHONE,
+    });
+    expect(tables.referred_enquiries[0].status).toBe('approved');
+    expect(send.mock.calls.at(-1)![0].text).toContain(
+      'recorded as the referrer'
+    );
   });
 
   it('ignores a tap from anyone but the agent, from another account, or on a decided enquiry', async () => {

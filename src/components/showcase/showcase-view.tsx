@@ -10,6 +10,10 @@ import {
 } from '@/lib/inventory/documents';
 import { createShowcaseTracker } from '@/lib/pulse/tracker';
 import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
+import {
+  REFERRAL_CLOSED_MESSAGE,
+  enquiryRefSuffix,
+} from '@/lib/showcase/enquiry-ref';
 import { propertyMapPin } from '@/lib/maps/map-links';
 import { toast } from 'sonner';
 import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
@@ -1177,6 +1181,7 @@ export function ShowcaseView({
       property.listing_type
     );
     if (statusLine) message += ` ${statusLine}`;
+    if (visitorRef) message += enquiryRefSuffix(getShowcaseSessionKey());
 
     const cleanPhone =
       enquiryWhatsAppPhone(property).replace(/\D/g, '') || '919876543210';
@@ -1798,8 +1803,12 @@ export function ShowcaseView({
         throw new Error('Inquiry submission failed');
       }
 
+      const filed = (await res.json().catch(() => null)) as {
+        referralClosed?: boolean;
+      } | null;
       setSubmitSuccess(true);
-      toast.success('Your inquiry has been submitted successfully!');
+      if (filed?.referralClosed) toast.info(REFERRAL_CLOSED_MESSAGE);
+      else toast.success('Your inquiry has been submitted successfully!');
 
       // Track Meta Pixel Lead event
       trackPixelEvent('Lead', {
@@ -1857,6 +1866,10 @@ export function ShowcaseView({
       }),
     });
     if (!res.ok) throw new Error('Inquiry submission failed');
+    const filed = (await res.json().catch(() => null)) as {
+      referralClosed?: boolean;
+    } | null;
+    if (filed?.referralClosed) toast.info(REFERRAL_CLOSED_MESSAGE);
     saveVisitorInfo(args.name, args.phone);
     trackPixelEvent('Lead', {
       content_name: property.title,

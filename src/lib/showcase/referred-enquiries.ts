@@ -51,7 +51,7 @@ import type { MessageTemplate } from '@/types';
 
 export const REFERRAL_CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 export const REPEAT_DECLINE_WINDOW_MS = 24 * 60 * 60 * 1000;
-export const WHATSAPP_TAP_WINDOW_MS = 30 * 60 * 1000;
+export const WHATSAPP_TAP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export const REFERRED_APPROVE_PREFIX = 'refenq_approve:';
 export const REFERRED_DECLINE_PREFIX = 'refenq_decline:';
@@ -207,16 +207,25 @@ export async function resolveSessionReferrer(
 
 /**
  * The referrer behind a WhatsApp enquiry. The showcase's WhatsApp
- * button opens the guest's own WhatsApp, so the message that arrives
- * carries no link back to the browser session. The tap itself is
- * recorded by the beacon a moment earlier, so a forwarded-link guest's
- * tap on the same listing within the last half hour is taken as the
- * source of a brand-new sender's enquiry on it.
+ * button opens the guest's own WhatsApp, so the message arrives from a
+ * number the showcase has never seen. What ties it to a browser is the
+ * reference the button writes into the prefilled text on a
+ * personalized link (enquiry-ref.ts): the start of that browser's
+ * session key. The enquiry is a guest's only when that same session
+ * tapped the button on this listing as a forwarded-link guest, so a
+ * direct buyer who happens to write in about the listing while an
+ * agent's guest is browsing it is never mistaken for that guest.
  */
 export async function resolveWhatsAppTapReferrer(
   admin: SupabaseClient,
-  args: { accountId: string; propertyId: string; senderPhone: string }
+  args: {
+    accountId: string;
+    propertyId: string;
+    senderPhone: string;
+    enquiryRef: string | null;
+  }
 ): Promise<(ShowcaseReferrer & { sessionKey: string | null }) | null> {
+  if (!args.enquiryRef || !/^[0-9a-f]{8}$/.test(args.enquiryRef)) return null;
   const since = new Date(Date.now() - WHATSAPP_TAP_WINDOW_MS).toISOString();
   const { data } = await admin
     .from('showcase_events')
@@ -224,6 +233,7 @@ export async function resolveWhatsAppTapReferrer(
     .eq('account_id', args.accountId)
     .eq('property_id', args.propertyId)
     .eq('event_type', 'whatsapp_click')
+    .like('session_key', `${args.enquiryRef}%`)
     .is('contact_id', null)
     .not('via_contact_id', 'is', null)
     .gte('created_at', since)
@@ -240,6 +250,41 @@ export async function resolveWhatsAppTapReferrer(
   return referrer
     ? { ...referrer, sessionKey: (data.session_key as string | null) ?? null }
     : null;
+}
+
+/**
+ * The last referred enquiry held for a WhatsApp guest, with the agent
+ * it was referred by. A guest the agent declined stays hidden, so this
+ * is how a later message from them is still recognised as that agent's
+ * guest instead of reaching the listing side as a new lead.
+ */
+export async function lastGuestEnquiry(
+  admin: SupabaseClient,
+  args: { accountId: string; contactId: string; senderPhone: string }
+): Promise<{
+  status: ReferredEnquiryStatus;
+  sessionKey: string | null;
+  referrer: ShowcaseReferrer | null;
+} | null> {
+  const { data } = await admin
+    .from('referred_enquiries')
+    .select('status, via_contact_id, session_key')
+    .eq('account_id', args.accountId)
+    .eq('contact_id', args.contactId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    status: data.status as ReferredEnquiryStatus,
+    sessionKey: (data.session_key as string | null) ?? null,
+    referrer: await loadReferrer(
+      admin,
+      args.accountId,
+      data.via_contact_id as string,
+      args.senderPhone
+    ),
+  };
 }
 
 /** True when this number already belongs to an ordinary lead of the
@@ -441,9 +486,9 @@ async function redirectGuest(
   accountId: string,
   phone: string,
   subject: string
-): Promise<void> {
+): Promise<boolean> {
   const toPhone = normalizePhoneWithCountryCode(phone);
-  if (!toPhone) return;
+  if (!toPhone) return false;
   try {
     const res = await sendWhatsAppMessageAndPersist({
       accountId,
@@ -457,8 +502,10 @@ async function redirectGuest(
     if (!res.success) {
       console.error('[referred-enquiries] Guest redirect failed:', res.error);
     }
+    return res.success;
   } catch (err) {
     console.error('[referred-enquiries] Guest redirect failed:', err);
+    return false;
   }
 }
 
@@ -660,25 +707,12 @@ async function fileApprovedRow(
 
   if (!row.contact_id || !row.conversation_id) return;
   const payload = row.payload as WhatsAppEnquiryPayload;
-  await admin
-    .from('contacts')
-    .update({
-      chain_only: false,
-      referrer_contact_id: referrer.contactId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', row.contact_id)
-    .eq('account_id', row.account_id);
-  await admin
-    .from('conversations')
-    .update({
-      is_archived: false,
-      unread_count: 1,
-      awaiting_reply: true,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', row.conversation_id)
-    .eq('account_id', row.account_id);
+  await revealWhatsAppGuest(admin, {
+    accountId: row.account_id,
+    contactId: row.contact_id,
+    conversationId: row.conversation_id,
+    referrerContactId: referrer.contactId,
+  });
   if (!row.property_id) return;
   await admin.from('contact_property_inquiries').upsert(
     {
@@ -720,9 +754,14 @@ async function closeGuestRows(
     .maybeSingle();
   const referrerName = ((referrer?.name as string) || '').trim() || 'the agent';
 
+  // A guest who only filled in the showcase form has never messaged
+  // this number, so WhatsApp refuses a free-form text to them. The
+  // listing side and the agent are told when that happens: the agent
+  // is then the only one who can let their guest know.
   const phones = [...new Set(rows.map((row) => row.requester_phone))];
+  let told = true;
   for (const phone of phones) {
-    await redirectGuest(first.account_id, phone, subject);
+    told = (await redirectGuest(first.account_id, phone, subject)) && told;
   }
 
   await notifyListingSide({
@@ -732,15 +771,20 @@ async function closeGuestRows(
       reason === 'rejected'
         ? `${referrerName} declined a guest enquiry`
         : `No answer from ${referrerName} on a guest enquiry`,
-    body: `${maskedGuest(first.requester_name, first.requester_phone)} was asked to speak with ${referrerName} about ${subject}. Their details stay private.`,
+    body: told
+      ? `${maskedGuest(first.requester_name, first.requester_phone)} was asked to speak with ${referrerName} about ${subject}. Their details stay private.`
+      : `${maskedGuest(first.requester_name, first.requester_phone)} enquired about ${subject} and could not be messaged on WhatsApp, so ${referrerName} has been asked to follow up with them. Their details stay private.`,
     contactId: first.via_contact_id,
   });
 
+  const followUp = told
+    ? `They have been asked to speak with you about *${subject}*.`
+    : `We could not message them on WhatsApp, so please follow up with them about *${subject}* yourself.`;
   await sendToReferrer(
     first,
     reason === 'rejected'
-      ? `👍 Noted. We will not contact them: they have been asked to speak with you about *${subject}*.`
-      : `⏳ The enquiry on *${subject}* from the link we shared with you has closed without an answer. They have been asked to speak with you about it.`
+      ? `👍 Noted. We will not contact them. ${followUp}`
+      : `⏳ The enquiry from the link we shared with you has closed without an answer. ${followUp}`
   );
 }
 
@@ -797,7 +841,12 @@ export async function handleReferredEnquiryReply(args: {
     return true;
   }
 
+  // A row that could not be filed goes back to waiting, with its
+  // original deadline: the agent can tap Approve again, and the sweep
+  // closes it if they do not. An approval is only confirmed for what
+  // was actually filed.
   const subject = await enquirySubject(args.admin, rows[0]);
+  let filed = 0;
   for (const claimed of rows) {
     try {
       await fileApprovedRow(
@@ -806,13 +855,21 @@ export async function handleReferredEnquiryReply(args: {
         referrer,
         await enquirySubject(args.admin, claimed)
       );
+      filed += 1;
     } catch (err) {
       console.error('[referred-enquiries] Filing approved row failed:', err);
+      await args.admin
+        .from('referred_enquiries')
+        .update({ status: 'pending', decided_at: null })
+        .eq('id', claimed.id)
+        .eq('account_id', args.accountId);
     }
   }
   await sendToReferrer(
     row,
-    `👍 Thanks, approved. Our team will take the enquiry on *${subject}* forward with them, and you are recorded as the referrer.`
+    filed > 0
+      ? `👍 Thanks, approved. Our team will take the enquiry on *${subject}* forward with them, and you are recorded as the referrer.`
+      : `⚠️ Your approval for the enquiry on *${subject}* could not be recorded just now. Please tap Approve again in a few minutes.`
   );
   return true;
 }
@@ -851,24 +908,6 @@ export async function sweepReferredEnquiryTimeouts(
   return closed;
 }
 
-/** True while this contact is a WhatsApp guest whose enquiry is still
- *  waiting on the agent — their thread stays out of the inbox. */
-export async function hasPendingReferredEnquiry(
-  admin: SupabaseClient,
-  accountId: string,
-  contactId: string
-): Promise<boolean> {
-  const { data } = await admin
-    .from('referred_enquiries')
-    .select('id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .eq('status', 'pending')
-    .limit(1)
-    .maybeSingle();
-  return Boolean(data);
-}
-
 /**
  * Keeps a WhatsApp guest out of the listing side's view while their
  * enquiry is held: the contact carries no lead status, the thread is
@@ -890,6 +929,40 @@ export async function hideWhatsAppGuest(
     .delete()
     .eq('account_id', args.accountId)
     .eq('contact_id', args.contactId);
+}
+
+/** Makes a held WhatsApp guest an ordinary lead credited to the
+ *  referrer: back in the contacts list, thread back in the inbox. */
+export async function revealWhatsAppGuest(
+  admin: SupabaseClient,
+  args: {
+    accountId: string;
+    contactId: string;
+    conversationId: string;
+    referrerContactId: string;
+  }
+): Promise<void> {
+  const { error: contactError } = await admin
+    .from('contacts')
+    .update({
+      chain_only: false,
+      referrer_contact_id: args.referrerContactId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', args.contactId)
+    .eq('account_id', args.accountId);
+  if (contactError) throw contactError;
+  const { error: threadError } = await admin
+    .from('conversations')
+    .update({
+      is_archived: false,
+      unread_count: 1,
+      awaiting_reply: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', args.conversationId)
+    .eq('account_id', args.accountId);
+  if (threadError) throw threadError;
 }
 
 export async function quietGuestThread(

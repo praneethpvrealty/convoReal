@@ -1,12 +1,15 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { parseEnquiryRef } from '@/lib/showcase/enquiry-ref';
 import {
   buildGuestHoldAck,
-  hasPendingReferredEnquiry,
   hideWhatsAppGuest,
+  lastGuestEnquiry,
   openReferredEnquiry,
   quietGuestThread,
   resolveWhatsAppTapReferrer,
+  revealWhatsAppGuest,
+  type ShowcaseReferrer,
 } from '@/lib/showcase/referred-enquiries';
 import type { InboundChainContext, StepResult } from '../context';
 
@@ -29,51 +32,66 @@ export async function referredEnquiry(
   } = ctx;
   if (ownerCheck.isOwner) return 'continue';
   const admin = supabaseAdmin();
+  const thread = {
+    accountId,
+    contactId: contactRecord.id,
+    conversationId: conversation.id,
+  };
+  const isEnquiry =
+    message.type === 'text' &&
+    Boolean(enquiryPropertyId) &&
+    enquiryIsDeliberate;
 
-  // A guest whose enquiry is still waiting on the agent who forwarded
-  // them the link. Whatever they send next stays in their thread, but
-  // nothing answers it and nobody is pinged about it: they are not the
-  // listing side's lead until that agent says so.
-  if (!contactWasCreated) {
+  let referrer: ShowcaseReferrer;
+  let sessionKey: string | null;
+  if (contactWasCreated) {
+    // The showcase's WhatsApp button, tapped by someone the account has
+    // never heard from. When the message carries the reference of a
+    // forwarded-link guest's session, the enquiry belongs to whoever
+    // forwarded the link before it belongs to the listing side.
+    if (!isEnquiry || !enquiryPropertyId) return 'continue';
+    const found = await resolveWhatsAppTapReferrer(admin, {
+      accountId,
+      propertyId: enquiryPropertyId,
+      senderPhone,
+      enquiryRef: parseEnquiryRef(contentText),
+    });
+    if (!found) return 'continue';
+    if (!found.isAgent) {
+      await admin
+        .from('contacts')
+        .update({
+          referrer_contact_id: found.contactId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contactRecord.id)
+        .eq('account_id', accountId);
+      return 'continue';
+    }
+    referrer = found;
+    sessionKey = found.sessionKey;
+  } else {
+    // A guest this step has already hidden. While the agent has not
+    // answered, and after a decline or a timeout, they are still that
+    // agent's guest: whatever they send stays in their thread, nothing
+    // answers it and nobody is pinged. Only a fresh enquiry on a
+    // listing goes back to the agent, and a decline less than a day
+    // old answers it without asking again.
     if (!(contactRecord as { chain_only?: boolean }).chain_only) {
       return 'continue';
     }
-    if (!(await hasPendingReferredEnquiry(admin, accountId, contactRecord.id)))
-      return 'continue';
-    await quietGuestThread(admin, {
+    const last = await lastGuestEnquiry(admin, {
       accountId,
-      conversationId: conversation.id,
+      contactId: contactRecord.id,
+      senderPhone,
     });
-    return 'handled';
-  }
-
-  // The showcase's WhatsApp button, tapped by someone the account has
-  // never heard from. When the tap came from a forwarded-link guest,
-  // the enquiry belongs to whoever forwarded the link before it
-  // belongs to the listing side.
-  if (!enquiryPropertyId || !enquiryIsDeliberate || message.type !== 'text') {
-    return 'continue';
-  }
-  const referrer = await resolveWhatsAppTapReferrer(admin, {
-    accountId,
-    propertyId: enquiryPropertyId,
-    senderPhone,
-  });
-  if (!referrer) return 'continue';
-
-  const creditReferrer = () =>
-    admin
-      .from('contacts')
-      .update({
-        referrer_contact_id: referrer.contactId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', contactRecord.id)
-      .eq('account_id', accountId);
-
-  if (!referrer.isAgent) {
-    await creditReferrer();
-    return 'continue';
+    if (!last || last.status === 'approved') return 'continue';
+    if (last.status === 'pending' || !isEnquiry || !last.referrer) {
+      await quietGuestThread(admin, thread);
+      return 'handled';
+    }
+    referrer = last.referrer;
+    sessionKey = last.sessionKey;
   }
 
   const outcome = await openReferredEnquiry(admin, {
@@ -83,7 +101,7 @@ export async function referredEnquiry(
     propertyId: enquiryPropertyId,
     requesterName: contactRecord.name || senderPhone,
     requesterPhone: senderPhone,
-    sessionKey: referrer.sessionKey,
+    sessionKey,
     payload: {
       targetAgentUserId: assignedAgentUserId,
       propertyTitle: enquiryPropertyTitle,
@@ -107,14 +125,13 @@ export async function referredEnquiry(
         allowChainOnly: true,
       });
     }
-    await hideWhatsAppGuest(admin, {
-      accountId,
-      contactId: contactRecord.id,
-      conversationId: conversation.id,
-    });
+    await hideWhatsAppGuest(admin, thread);
     return 'handled';
   }
 
-  await creditReferrer();
+  await revealWhatsAppGuest(admin, {
+    ...thread,
+    referrerContactId: referrer.contactId,
+  });
   return 'continue';
 }

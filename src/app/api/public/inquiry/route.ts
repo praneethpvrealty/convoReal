@@ -288,8 +288,11 @@ export async function POST(request: Request) {
           sessionKey: inquiry.sessionKey,
           payload: inquiry,
         });
-        if (outcome !== 'undeliverable') {
+        if (outcome === 'pending') {
           return NextResponse.json({ success: true, pendingReferral: true });
+        }
+        if (outcome === 'closed') {
+          return NextResponse.json({ success: true, referralClosed: true });
         }
       }
     }
