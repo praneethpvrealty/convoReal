@@ -186,7 +186,17 @@ export default function NewAppointmentScreen() {
   const [prefillApplied, setPrefillApplied] = useState(false);
   if (prefilledProperty && !prefillApplied) {
     setPrefillApplied(true);
-    if (!property && !propertyCleared) setProperty(prefilledProperty);
+    if (!property && !propertyCleared) {
+      setProperty(prefilledProperty);
+      setTitle((current) =>
+        titleForLinkedProperty(
+          current,
+          EVENT_TYPE_LABELS[eventType],
+          prefilledProperty.title
+        )
+      );
+      setLocation((current) => current || propertyArea(prefilledProperty));
+    }
   }
 
   const propertyHeld =

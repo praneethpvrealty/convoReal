@@ -105,6 +105,7 @@ export function ScheduleDialog({
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [location, setLocation] = useState('');
+  const [filledPrefillFor, setFilledPrefillFor] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [agenda, setAgenda] = useState('');
 
@@ -145,6 +146,7 @@ export function ScheduleDialog({
       setTitle(initialTitle ?? '');
       setSelectedContactIds(contactId ? [contactId] : []);
       setSelectedPropertyId(propertyId || '');
+      setFilledPrefillFor(null);
       setLocation('');
       setNotes('');
       setAgenda('');
@@ -216,15 +218,26 @@ export function ScheduleDialog({
     }
   };
 
+  if (!open && filledPrefillFor) setFilledPrefillFor(null);
+  if (open && propertyId && filledPrefillFor !== propertyId) {
+    const prefilled = properties.find((p) => p.id === propertyId);
+    if (prefilled) {
+      setFilledPrefillFor(propertyId);
+      fillFromProperty(prefilled);
+    }
+  }
+
+  const linkableProperties = properties.filter(
+    (p) => p.status !== 'Archived' || p.id === selectedPropertyId
+  );
+
   const propertyTag =
     propertyId || selectedPropertyId ? null : trailingPropertyTag(title);
   const tagMatches =
     propertyTag === null
       ? []
-      : properties
-          .filter(
-            (p) => p.status !== 'Archived' && matchesPropertyTag(p, propertyTag)
-          )
+      : linkableProperties
+          .filter((p) => matchesPropertyTag(p, propertyTag))
           .slice(0, 5);
 
   const linkTaggedProperty = (property: SimpleProperty) => {
@@ -375,7 +388,7 @@ export function ScheduleDialog({
                 Link Property Listing
               </Label>
               <SearchablePropertySelect
-                properties={properties}
+                properties={linkableProperties}
                 value={selectedPropertyId || null}
                 onChange={handlePropertyChange}
                 placeholder="Search by title or ID..."
