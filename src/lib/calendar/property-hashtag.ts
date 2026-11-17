@@ -20,6 +20,7 @@ export interface TaggableProperty {
   title: string;
   property_code?: string | null;
   location?: string | null;
+  sublocality?: string | null;
 }
 
 export function matchesPropertyTag(
@@ -28,9 +29,12 @@ export function matchesPropertyTag(
 ): boolean {
   const needle = tag.trim().toLowerCase();
   if (!needle) return true;
-  return [property.title, property.property_code, property.location].some(
-    (field) => (field ?? '').toLowerCase().includes(needle)
-  );
+  return [
+    property.title,
+    property.property_code,
+    property.location,
+    property.sublocality,
+  ].some((field) => (field ?? '').toLowerCase().includes(needle));
 }
 
 export function titleForLinkedProperty(

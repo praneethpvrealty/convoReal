@@ -58,6 +58,7 @@ interface SimpleProperty {
   location?: string | null;
   sublocality?: string | null;
   city?: string | null;
+  status?: string | null;
   tags?: string[] | null;
   price?: number | null;
   type?: string | null;
@@ -123,7 +124,7 @@ export function ScheduleDialog({
         supabase
           .from('properties')
           .select(
-            'id, title, property_code, location, sublocality, city, tags, price, type, bedrooms, area_sqft, area_unit, images'
+            'id, title, property_code, location, sublocality, city, status, tags, price, type, bedrooms, area_sqft, area_unit, images'
           )
           .eq('account_id', accountId)
           .order('title'),
@@ -177,12 +178,24 @@ export function ScheduleDialog({
 
   // Bidirectional auto-link: picking a contact fills the property they
   // inquired about; picking a property pulls in the contact linked to it.
+  const fillFromProperty = (property: SimpleProperty) => {
+    setTitle((current) =>
+      titleForLinkedProperty(
+        current,
+        EVENT_TYPE_LABELS[DEFAULT_EVENT_TYPE],
+        property.title
+      )
+    );
+    setLocation((current) => current || propertyArea(property));
+  };
+
   const handleContactsChange = (ids: string[]) => {
     setSelectedContactIds(ids);
     if (!selectedPropertyId) {
       const hit = linkedPropertyForContacts(ids, contacts, properties);
       if (hit) {
         setSelectedPropertyId(hit.property.id);
+        fillFromProperty(hit.property);
         toast.info(
           `Linked property "${hit.property.title}" from ${hit.contact.name}'s inquiry`
         );
@@ -192,6 +205,8 @@ export function ScheduleDialog({
 
   const handlePropertyChange = (val: string | null) => {
     setSelectedPropertyId(val || '');
+    const picked = val ? properties.find((p) => p.id === val) : undefined;
+    if (picked) fillFromProperty(picked);
     if (val && selectedContactIds.length === 0) {
       const linked = linkedContactForProperty(val, contacts);
       if (linked) {
@@ -207,18 +222,13 @@ export function ScheduleDialog({
     propertyTag === null
       ? []
       : properties
-          .filter((p) => matchesPropertyTag(p, propertyTag))
+          .filter(
+            (p) => p.status !== 'Archived' && matchesPropertyTag(p, propertyTag)
+          )
           .slice(0, 5);
 
   const linkTaggedProperty = (property: SimpleProperty) => {
-    setTitle((current) =>
-      titleForLinkedProperty(
-        stripPropertyTag(current),
-        EVENT_TYPE_LABELS[DEFAULT_EVENT_TYPE],
-        property.title
-      )
-    );
-    setLocation((current) => current || propertyArea(property));
+    setTitle((current) => stripPropertyTag(current));
     handlePropertyChange(property.id);
   };
 

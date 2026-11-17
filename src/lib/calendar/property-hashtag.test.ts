@@ -50,12 +50,14 @@ describe('matchesPropertyTag', () => {
     title: 'HBR Layout 3BHK',
     property_code: 'PV-0142',
     location: 'Kalyan Nagar',
+    sublocality: 'Banaswadi',
   };
 
   it('matches title, code or location case-insensitively', () => {
     expect(matchesPropertyTag(property, 'hbr')).toBe(true);
     expect(matchesPropertyTag(property, 'pv-01')).toBe(true);
     expect(matchesPropertyTag(property, 'kalyan')).toBe(true);
+    expect(matchesPropertyTag(property, 'banas')).toBe(true);
     expect(matchesPropertyTag(property, 'whitefield')).toBe(false);
   });
 

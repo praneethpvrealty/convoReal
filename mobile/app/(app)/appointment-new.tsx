@@ -174,7 +174,7 @@ export default function NewAppointmentScreen() {
     contactRef.current = contact;
   }, [contact]);
 
-  const { data: prefilledProperty } = useQuery({
+  const { data: prefilledProperty, isPending: prefillPending } = useQuery({
     queryKey: ['appointment-prefill-property', params.propertyId],
     enabled: Boolean(params.propertyId),
     queryFn: () => fetchLinkedProperty(params.propertyId as string),
@@ -185,10 +185,12 @@ export default function NewAppointmentScreen() {
     if (!property && !propertyCleared) setProperty(prefilledProperty);
   }
 
-  const propertyTag = property ? null : trailingPropertyTag(title);
+  const propertyHeld =
+    Boolean(property) || (Boolean(params.propertyId) && !propertyCleared);
+  const propertyTag = propertyHeld ? null : trailingPropertyTag(title);
   const { data: tagOptions } = usePropertyOptions(propertyTag, 0);
   const { data: propertyOptions } = usePropertyOptions(
-    property || propertyTag !== null ? null : propertySearch,
+    propertyHeld || propertyTag !== null ? null : propertySearch,
     2
   );
 
@@ -527,6 +529,14 @@ export default function NewAppointmentScreen() {
 
         {property ? (
           <PropertyRow property={property} onClear={clearProperty} />
+        ) : params.propertyId && !propertyCleared ? (
+          <PropertyRow
+            property={{
+              id: params.propertyId,
+              title: prefillPending ? 'Loading property…' : 'Linked property',
+            }}
+            onClear={clearProperty}
+          />
         ) : propertyTag === null ? (
           <View style={{ gap: spacing.sm }}>
             <TextField
