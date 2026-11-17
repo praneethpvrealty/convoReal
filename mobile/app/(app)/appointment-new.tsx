@@ -167,6 +167,10 @@ export default function NewAppointmentScreen() {
 
   const propertyRef = useRef(property);
   const contactRef = useRef(contact);
+  const propertyClearedRef = useRef(propertyCleared);
+  useEffect(() => {
+    propertyClearedRef.current = propertyCleared;
+  }, [propertyCleared]);
   useEffect(() => {
     propertyRef.current = property;
   }, [property]);
@@ -225,9 +229,13 @@ export default function NewAppointmentScreen() {
     if (!propertyId) return;
     const found = await fetchLinkedProperty(propertyId);
     if (!found || propertyRef.current) return;
+    if (params.propertyId && !propertyClearedRef.current) return;
     if (contactRef.current?.id !== contactId) return;
     setProperty(found);
     setPropertyCleared(false);
+    setTitle((current) =>
+      titleForLinkedProperty(current, EVENT_TYPE_LABELS[eventType], found.title)
+    );
     setLocation((current) => current || propertyArea(found));
     setNotice(`Linked ${found.title} from this contact's enquiry.`);
   }
@@ -256,7 +264,7 @@ export default function NewAppointmentScreen() {
   function attachContact(next: Contact) {
     setContact(next);
     setContactSearch('');
-    if (!property) void linkPropertyForContact(next.id);
+    if (!propertyHeld) void linkPropertyForContact(next.id);
   }
 
   function applyVoicePrefill(prefill: VoicePrefill) {
