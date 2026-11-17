@@ -26,9 +26,15 @@ import {
 } from '@/lib/calendar/auto-link';
 import {
   matchesPropertyTag,
+  propertyArea,
   stripPropertyTag,
+  titleForLinkedProperty,
   trailingPropertyTag,
 } from '@/lib/calendar/property-hashtag';
+import {
+  DEFAULT_EVENT_TYPE,
+  EVENT_TYPE_LABELS,
+} from '@/lib/calendar/event-type-defaults';
 import {
   PAST_START_CONFIRM,
   eventTimesError,
@@ -50,6 +56,8 @@ interface SimpleProperty {
   title: string;
   property_code?: string | null;
   location?: string | null;
+  sublocality?: string | null;
+  city?: string | null;
   tags?: string[] | null;
   price?: number | null;
   type?: string | null;
@@ -115,7 +123,7 @@ export function ScheduleDialog({
         supabase
           .from('properties')
           .select(
-            'id, title, property_code, location, tags, price, type, bedrooms, area_sqft, area_unit, images'
+            'id, title, property_code, location, sublocality, city, tags, price, type, bedrooms, area_sqft, area_unit, images'
           )
           .eq('account_id', accountId)
           .order('title'),
@@ -203,7 +211,14 @@ export function ScheduleDialog({
           .slice(0, 5);
 
   const linkTaggedProperty = (property: SimpleProperty) => {
-    setTitle((current) => stripPropertyTag(current));
+    setTitle((current) =>
+      titleForLinkedProperty(
+        stripPropertyTag(current),
+        EVENT_TYPE_LABELS[DEFAULT_EVENT_TYPE],
+        property.title
+      )
+    );
+    setLocation((current) => current || propertyArea(property));
     handlePropertyChange(property.id);
   };
 

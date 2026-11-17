@@ -6,7 +6,10 @@ import { storagePublicUrl } from '@/lib/storage-url';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { useDebounced } from '@/lib/use-debounced';
-import { propertySearchTerm } from '@shared/lib/calendar/property-hashtag';
+import {
+  propertyArea,
+  propertySearchTerm,
+} from '@shared/lib/calendar/property-hashtag';
 
 export interface LinkedProperty {
   id: string;
@@ -20,14 +23,6 @@ export interface LinkedProperty {
 
 const PROPERTY_COLUMNS =
   'id, title, property_code, location, sublocality, city, images';
-
-export function propertyPlace(property: LinkedProperty): string {
-  return (
-    [property.sublocality, property.city].filter(Boolean).join(', ') ||
-    property.location ||
-    ''
-  );
-}
 
 export async function fetchLinkedProperty(
   id: string
@@ -76,7 +71,7 @@ export function PropertyRow({
 }) {
   const { colors, fonts: f } = useTheme();
   const cover = storagePublicUrl(property.images?.[0]);
-  const place = propertyPlace(property);
+  const place = propertyArea(property);
   const body = (
     <>
       {cover ? (

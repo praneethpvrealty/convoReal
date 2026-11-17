@@ -40,3 +40,17 @@ export function titleForLinkedProperty(
 ): string {
   return title.trim() ? title : `${eventLabel} — ${propertyTitle}`;
 }
+
+export interface AreaProperty {
+  location?: string | null;
+  sublocality?: string | null;
+  city?: string | null;
+}
+
+export function propertyArea(property: AreaProperty): string {
+  return (
+    [property.sublocality, property.city].filter(Boolean).join(', ') ||
+    property.location ||
+    ''
+  );
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   matchesPropertyTag,
+  propertyArea,
   propertySearchTerm,
   stripPropertyTag,
   titleForLinkedProperty,
@@ -72,5 +73,15 @@ describe('titleForLinkedProperty', () => {
 
   it('keeps a title the agent already typed', () => {
     expect(titleForLinkedProperty('Visit', 'Site visit', 'HBR')).toBe('Visit');
+  });
+});
+
+describe('propertyArea', () => {
+  it('prefers sublocality and city, then the raw location', () => {
+    expect(propertyArea({ sublocality: 'HBR Layout', city: 'Bengaluru' })).toBe(
+      'HBR Layout, Bengaluru'
+    );
+    expect(propertyArea({ location: 'Kalyan Nagar' })).toBe('Kalyan Nagar');
+    expect(propertyArea({})).toBe('');
   });
 });
