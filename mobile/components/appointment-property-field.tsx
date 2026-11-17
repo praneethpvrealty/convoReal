@@ -52,9 +52,7 @@ export function usePropertyOptions(raw: string | null, minLength: number) {
           `title.ilike.${like},property_code.ilike.${like},location.ilike.${like},sublocality.ilike.${like}`
         );
       }
-      const { data } = await query
-        .order('title')
-        .limit(5);
+      const { data } = await query.order('title').limit(5);
       return (data ?? []) as LinkedProperty[];
     },
   });
