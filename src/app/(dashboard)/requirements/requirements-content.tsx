@@ -465,39 +465,44 @@ export default function RequirementsPage() {
     }
 
     setSharingInApp(true);
+    let delivered = 0;
+    let already = 0;
     try {
-      const results = await Promise.all(
-        buyerIds.map(async (contactId) => {
-          const response = await fetch('/api/requirement-account-shares', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contact_id: contactId,
-              recipient_contact_id: inAppAgentId,
-            }),
-          });
-          const body = (await response.json().catch(() => ({}))) as {
-            data?: { alreadyShared?: boolean };
-            error?: string;
-          };
-          if (!response.ok) {
-            throw new Error(body.error || 'Could not share requirement');
-          }
-          return body.data;
-        })
-      );
-      const already = results.filter((result) => result?.alreadyShared).length;
+      for (const contactId of buyerIds) {
+        const response = await fetch('/api/requirement-account-shares', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact_id: contactId,
+            recipient_contact_id: inAppAgentId,
+          }),
+        });
+        const body = (await response.json().catch(() => ({}))) as {
+          data?: { alreadyShared?: boolean };
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(body.error || 'Could not share requirement');
+        }
+        if (body.data?.alreadyShared) already += 1;
+        else delivered += 1;
+      }
       toast.success(
-        already === results.length
+        delivered === 0
           ? 'This agent already has the selected requirement'
-          : `Shared ${results.length - already} requirement${
-              results.length - already === 1 ? '' : 's'
+          : `Shared ${delivered} requirement${
+              delivered === 1 ? '' : 's'
             } in ConvoReal`
       );
       setShareIds(null);
     } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : 'Could not share in ConvoReal';
+      const done = delivered + already;
       toast.error(
-        error instanceof Error ? error.message : 'Could not share in ConvoReal'
+        done > 0
+          ? `Shared ${done} of ${buyerIds.length} before this stopped: ${reason}. Send again to finish; the ones already shared are skipped.`
+          : reason
       );
     } finally {
       setSharingInApp(false);
