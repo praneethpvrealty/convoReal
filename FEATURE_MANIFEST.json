@@ -3875,6 +3875,20 @@
               "case": "[REQ-008]"
             }
           ]
+        },
+        {
+          "id": "REQ-009",
+          "rule": "The Requirements screen on web and mobile can be narrowed to stated requirements only: briefs that carry a requirement in words, whether the primary demands statement or an active requirement profile's text. A card built from AI-extracted preferences, a budget or tags alone is left out. The filter combines with search, classification and priority, and Share all follows it like every other filter.",
+          "tests": [
+            {
+              "file": "src/lib/requirements/stated.test.ts",
+              "case": "[REQ-009]"
+            },
+            {
+              "file": "mobile/lib/requirements-feed.test.ts",
+              "case": "[REQ-009]"
+            }
+          ]
         }
       ]
     },

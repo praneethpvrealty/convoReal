@@ -19,6 +19,12 @@ than a written entry. Newest first.
 
 #### 18 November 2026
 
+- **Show stated requirements only.** A new filter on the Requirements screen,
+  on web and mobile, keeps only the cards that carry a requirement in words
+  (what the client told you or what you wrote) and hides the ones built from
+  extracted preferences alone. Share all follows it, so you can send just the
+  stated ones.
+
 - **Share every requirement at once, and a tighter message.** The
   Requirements screen on web and mobile has a Share all button that puts every
   requirement currently shown into one message; untick any you want to leave

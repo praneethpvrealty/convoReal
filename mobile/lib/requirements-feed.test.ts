@@ -11,6 +11,7 @@ import {
   effectiveMaxBudget,
   EMPTY_REQUIREMENT_FILTERS,
   filterRequirements,
+  hasStatedRequirement,
   matchesPriority,
   requirementBudgetLabel,
   requirementCurrency,
@@ -166,6 +167,36 @@ describe('filterRequirements', () => {
   });
 });
 
+describe('stated requirements', () => {
+  const rows = [
+    row({ id: '1', requirements: '1851 sq.ft. flat, east facing' }),
+    row({ id: '2', requirements: '   ', pref_areas: ['Banashankari'] }),
+    row({
+      id: '3',
+      requirement_profiles: [
+        { id: 'p', raw_text: 'Vacant plot in Jade Gardens', active: true },
+      ],
+    } as Partial<RequirementRow>),
+    row({ id: '4', pref_budget_max: 56000000 }),
+  ];
+
+  it('[REQ-009] keeps only briefs with a requirement in words', () => {
+    expect(rows.map(hasStatedRequirement)).toEqual([true, false, true, false]);
+    expect(
+      filterRequirements(rows, {
+        ...EMPTY_REQUIREMENT_FILTERS,
+        statedOnly: true,
+      }).map((r) => r.id)
+    ).toEqual(['1', '3']);
+    expect(
+      activeRequirementFilterCount({
+        ...EMPTY_REQUIREMENT_FILTERS,
+        statedOnly: true,
+      })
+    ).toBe(1);
+  });
+});
+
 describe('activeRequirementFilterCount', () => {
   it('[REQ-004] counts only the narrowing selects', () => {
     expect(activeRequirementFilterCount(EMPTY_REQUIREMENT_FILTERS)).toBe(0);
@@ -174,6 +205,7 @@ describe('activeRequirementFilterCount', () => {
         search: 'anything',
         classification: 'Buyer',
         priority: 'All',
+        statedOnly: false,
       })
     ).toBe(1);
     expect(
@@ -181,6 +213,7 @@ describe('activeRequirementFilterCount', () => {
         search: '',
         classification: 'Buyer',
         priority: 'High',
+        statedOnly: false,
       })
     ).toBe(2);
   });
