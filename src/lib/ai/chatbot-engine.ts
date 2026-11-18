@@ -4,6 +4,7 @@ import {
 } from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { BRANDING } from '@/config/branding';
+import { claimCreditsLockedNotice } from '@/lib/credits/locked-notice';
 import type { Contact } from '@/types';
 import {
   parseListingFromImageOrText,
@@ -346,6 +347,7 @@ async function sendCreditsLockedReply(
   toPhone: string,
   conversationId: string
 ): Promise<true> {
+  if (!(await claimCreditsLockedNotice(conversationId))) return true;
   const sendRes = await sendTextMessage({
     phoneNumberId,
     accessToken,
