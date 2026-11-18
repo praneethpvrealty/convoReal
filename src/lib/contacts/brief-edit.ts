@@ -69,18 +69,28 @@ function budgetEdited(shown: number | null, edited: number | null) {
   return edited !== budgetToRupees(amount, unit);
 }
 
+export function briefRemovedAreas(
+  opened: BriefFields,
+  edit: BriefEdit,
+  removedEarlier: readonly string[] = []
+): string[] {
+  const kept = new Set(edit.areas.map(areaKey));
+  const removed = new Set<string>();
+  for (const area of [...removedEarlier, ...(opened.pref_areas ?? [])]) {
+    const key = areaKey(area);
+    if (key && !kept.has(key)) removed.add(key);
+  }
+  return [...removed];
+}
+
 export function briefPrefPatch(
   opened: BriefFields,
   edit: BriefEdit,
-  current: BriefFields = opened
+  current: BriefFields = opened,
+  removedEarlier: readonly string[] = []
 ): BriefPrefPatch {
   const patch: BriefPrefPatch = {};
-  const kept = new Set(edit.areas.map(areaKey));
-  const removed = new Set(
-    (opened.pref_areas ?? [])
-      .map(areaKey)
-      .filter((key) => key && !kept.has(key))
-  );
+  const removed = new Set(briefRemovedAreas(opened, edit, removedEarlier));
   const currentPrefAreas = current.pref_areas ?? [];
   const keptPrefAreas = currentPrefAreas.filter(
     (area) => !removed.has(areaKey(area))

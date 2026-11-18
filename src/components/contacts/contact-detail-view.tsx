@@ -105,6 +105,7 @@ import {
   briefAreas,
   briefBudget,
   briefPrefPatch,
+  briefRemovedAreas,
 } from '@/lib/contacts/brief-edit';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -245,6 +246,7 @@ export function ContactDetailView({
   // the edit fields — that would wipe unsaved edits on the other tabs.
   const initializedContactIdRef = useRef<string | null>(null);
   const openedBriefRef = useRef<Contact | null>(null);
+  const removedPrefAreasRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (!open) {
@@ -498,6 +500,7 @@ export function ContactDetailView({
     setEditReferrerContactId(contact.referrer_contact_id ?? null);
     const sourceContact = resolveRequirementSource(contact);
     openedBriefRef.current = sourceContact === contact ? contact : null;
+    removedPrefAreasRef.current = [];
     setEditRequirements(sourceContact.requirements ?? '');
     const openedBudget = briefBudget(sourceContact);
     const minBudget = rupeesToBudgetAmount(openedBudget.min);
@@ -1618,7 +1621,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       noBudget: editNoBudget,
     };
     const prefPatch = opened
-      ? briefPrefPatch(opened, briefEdit, contact ?? undefined)
+      ? briefPrefPatch(
+          opened,
+          briefEdit,
+          contact ?? undefined,
+          removedPrefAreasRef.current
+        )
       : null;
     const { data: saved, error } = await supabase
       .from('contacts')
@@ -1647,6 +1655,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       toast.success('Advanced matching options updated');
       setEditAreasGeo(prunedAreasGeo);
       if (opened && prefPatch) {
+        removedPrefAreasRef.current = briefRemovedAreas(
+          opened,
+          briefEdit,
+          removedPrefAreasRef.current
+        );
         openedBriefRef.current = briefAfterSave(opened, briefEdit, prefPatch);
       }
       invalidateDetail();

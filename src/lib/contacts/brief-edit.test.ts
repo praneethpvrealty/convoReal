@@ -5,6 +5,7 @@ import {
   briefAreas,
   briefBudget,
   briefPrefPatch,
+  briefRemovedAreas,
 } from './brief-edit';
 
 describe('[CTM-019] contact brief edit', () => {
@@ -132,5 +133,32 @@ describe('[CTM-019] contact brief edit', () => {
         noBudget: false,
       })
     ).toEqual({ pref_areas: [], pref_budget_min: null });
+  });
+
+  it('keeps an area removed by an earlier save out while the row is still stale', () => {
+    const first = {
+      areas_of_interest: [],
+      pref_areas: ['HSR Layout', 'Indiranagar'],
+    };
+    const firstEdit = {
+      areas: ['Indiranagar'],
+      minBudget: null,
+      maxBudget: null,
+      noBudget: false,
+    };
+    const removed = briefRemovedAreas(first, firstEdit);
+    const second = briefAfterSave(
+      first,
+      firstEdit,
+      briefPrefPatch(first, firstEdit)
+    );
+    expect(
+      briefPrefPatch(
+        second,
+        { areas: [], minBudget: null, maxBudget: null, noBudget: false },
+        first,
+        removed
+      )
+    ).toEqual({ pref_areas: [] });
   });
 });
