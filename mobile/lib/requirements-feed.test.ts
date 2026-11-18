@@ -205,6 +205,7 @@ describe('activeRequirementFilterCount', () => {
         search: 'anything',
         classification: 'Buyer',
         priority: 'All',
+        statedOnly: false,
       })
     ).toBe(1);
     expect(
@@ -212,6 +213,7 @@ describe('activeRequirementFilterCount', () => {
         search: '',
         classification: 'Buyer',
         priority: 'High',
+        statedOnly: false,
       })
     ).toBe(2);
   });
