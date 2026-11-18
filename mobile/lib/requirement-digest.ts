@@ -32,17 +32,17 @@ export function requirementReference(id: string): string {
   return `REQ-${id.replace(/-/g, '').slice(0, 4).toUpperCase()}`;
 }
 
-function budgetLine(r: ShareableRequirement): string {
+function budgetLine(r: ShareableRequirement): string | null {
   if (r.no_budget) return 'Budget: No limit stated';
   const min =
     r.min_budget && Number(r.min_budget) > 0 ? Number(r.min_budget) : null;
   const max =
     r.max_budget && Number(r.max_budget) > 0 ? Number(r.max_budget) : null;
-  if (min && max)
+  if (min && max && min !== max)
     return `Budget: ${formatInrCompact(min)} – ${formatInrCompact(max)}`;
   if (max) return `Budget: up to ${formatInrCompact(max)}`;
   if (min) return `Budget: from ${formatInrCompact(min)}`;
-  return 'Budget: Not specified';
+  return null;
 }
 
 function cleanList(
@@ -52,6 +52,36 @@ function cleanList(
     .map((v) => (typeof v === 'string' ? v.trim() : ''))
     .filter(Boolean);
 }
+
+function wordKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+function uniqueList(
+  values: (string | null | undefined)[] | null | undefined
+): string[] {
+  const seen = new Set<string>();
+  return cleanList(values).filter((value) => {
+    const key = wordKey(value) || value.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function notStatedIn(values: string[], text: string): string[] {
+  const haystack = ` ${wordKey(text)} `;
+  return values.filter((value) => {
+    const key = wordKey(value);
+    return !key || !haystack.includes(` ${key} `);
+  });
+}
+
+const STATES_AN_AMOUNT =
+  /₹|\b(?:rs|inr)\b\.?\s*\d|\d\s*(?:cr|crore|crores|lakh|lakhs|lac|lacs|l|k)\b/i;
 
 export function isShareable(r: ShareableRequirement): boolean {
   if (r.requirement_active === false) return false;
@@ -74,22 +104,28 @@ export function formatRequirement(
       ? `Requirement ${requirementReference(r.id)}${r.classification ? ` (${r.classification})` : ''}`
       : `Client Profile: ${r.name || 'Unnamed'}${r.classification ? ` (${r.classification})` : ''}`;
 
-  const lines = [who, budgetLine(r)];
+  const text = r.requirements?.trim() ?? '';
+  const lines = [who];
 
-  if (r.requirements?.trim()) {
+  const budget = budgetLine(r);
+  if (budget && !(text && !r.no_budget && STATES_AN_AMOUNT.test(text))) {
+    lines.push(budget);
+  }
+
+  if (text) {
     lines.push(
-      `${mode === 'masked' ? 'Looking for' : 'Requirements'}: ${r.requirements.trim()}`
+      `${mode === 'masked' ? 'Looking for' : 'Requirements'}: ${text}`
     );
   }
 
-  const areas = cleanList(r.areas_of_interest);
+  const areas = notStatedIn(uniqueList(r.areas_of_interest), text);
   if (areas.length) lines.push(`Locations: ${areas.join(', ')}`);
 
-  const projects = cleanList(r.projects_of_interest);
+  const projects = notStatedIn(uniqueList(r.projects_of_interest), text);
   if (projects.length) lines.push(`Projects: ${projects.join(', ')}`);
 
   if (mode === 'full') {
-    const tags = cleanList(r.tags);
+    const tags = uniqueList(r.tags);
     if (tags.length) lines.push(`Tags: ${tags.join(', ')}`);
     if (r.latestNote?.trim()) lines.push(`Notes: ${r.latestNote.trim()}`);
   }
@@ -110,8 +146,8 @@ export function buildRequirementDigest(
 
   const heading =
     sendable.length === 1
-      ? '*CONSOLIDATED CLIENT REQUIREMENT*'
-      : `*CONSOLIDATED CLIENT REQUIREMENTS (${sendable.length})*`;
+      ? '*CLIENT REQUIREMENT*'
+      : `*CLIENT REQUIREMENTS (${sendable.length})*`;
 
   const blocks = sendable.map((r, i) => {
     const body = `• ${formatRequirement(r, mode)}`;

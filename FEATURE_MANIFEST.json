@@ -3843,6 +3843,24 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "REQ-007",
+          "rule": "Every shareable requirement on screen can go out as one consolidated message from web and mobile: Share all starts with each shown, active, non-empty brief included, and the agent can untick any of them before the text is built, copied or sent. A brief's text states each fact once: locations, projects and tags are listed once whatever their spelling or case, a location or project the requirement text already names is not repeated on its own line, the structured budget line is left out when the text already states an amount, and an unknown budget is not mentioned. The in-app agent picker offers only saved Agent contacts whose number belongs to another ConvoReal account, resolved server-side in one lookup, and the share route still refuses an unregistered recipient. A requirement card's client name opens that contact's details.",
+          "tests": [
+            {
+              "file": "src/lib/requirements/share.test.ts",
+              "case": "[REQ-007]"
+            },
+            {
+              "file": "mobile/lib/requirement-digest.test.ts",
+              "case": "[REQ-007]"
+            },
+            {
+              "file": "src/lib/inventory/registered-agent-contacts.test.ts",
+              "case": "[REQ-007]"
+            }
+          ]
         }
       ]
     },

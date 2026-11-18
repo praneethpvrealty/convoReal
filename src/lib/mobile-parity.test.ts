@@ -2123,6 +2123,22 @@ describe('mobile/lib/requirement-digest.ts mirrors what leaves the Engine', () =
       requirement_active: false,
     },
     { id: 'd0d0d0d0-0000-0000-0000-000000000000' },
+    {
+      id: '53c4aaaa-0000-0000-0000-000000000000',
+      name: 'Rohit',
+      classification: 'Buyer',
+      requirements: 'Residential House · Jayanagar, JP Nagar · ₹15 Cr–₹40 Cr',
+      areas_of_interest: [
+        'Jayanagar',
+        'JP Nagar',
+        'jp nagar',
+        'Sadashivanagar',
+      ],
+      projects_of_interest: ['Purva Westend', 'purva westend'],
+      min_budget: 70000000,
+      max_budget: 150000000,
+      tags: ['Investor', 'investor'],
+    },
   ];
   const modes: RequirementShareMode[] = ['masked', 'full'];
 

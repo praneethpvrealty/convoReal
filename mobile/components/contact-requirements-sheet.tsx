@@ -378,7 +378,7 @@ export function ContactRequirementsSheet({
     return (
       <RequirementAgentShareSheet
         visible={visible}
-        buyer={contact}
+        buyers={[contact]}
         onBack={() => {
           setError(null);
           setView('overview');

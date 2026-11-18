@@ -80,6 +80,53 @@ export async function lookupAgentShareTarget(
   };
 }
 
+export interface RegisteredAgentContact {
+  id: string;
+  name: string | null;
+  phone: string;
+  company: string | null;
+}
+
+const MAX_AGENT_CONTACTS = 2000;
+
+export async function listRegisteredAgentContacts(
+  ctx: AccountContext
+): Promise<RegisteredAgentContact[]> {
+  const { data, error } = await ctx.supabase
+    .from('contacts')
+    .select('id, name, phone, company')
+    .eq('account_id', ctx.accountId)
+    .eq('classification', 'Agent')
+    .eq('is_merged', false)
+    .not('phone', 'is', null)
+    .order('name')
+    .limit(MAX_AGENT_CONTACTS);
+  if (error) throw error;
+
+  const contacts = ((data ?? []) as RegisteredAgentContact[])
+    .map((contact) => ({
+      contact,
+      last10: normalizePhone(contact.phone).slice(-10),
+    }))
+    .filter((entry) => entry.last10.length === 10);
+  if (contacts.length === 0) return [];
+
+  const { data: matches, error: matchError } = await supabaseAdmin().rpc(
+    'find_agent_profile_accounts_batch',
+    { p_phone_last10s: [...new Set(contacts.map((entry) => entry.last10))] }
+  );
+  if (matchError) throw matchError;
+
+  const registered = new Set(
+    ((matches ?? []) as { phone_last10: string; account_id: string }[])
+      .filter((row) => row.account_id !== ctx.accountId)
+      .map((row) => row.phone_last10)
+  );
+  return contacts
+    .filter((entry) => registered.has(entry.last10))
+    .map((entry) => entry.contact);
+}
+
 export async function shareInventoryWithAgent(
   ctx: AccountContext,
   contactId: string,

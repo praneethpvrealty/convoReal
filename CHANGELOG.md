@@ -17,6 +17,20 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 18 November 2026
+
+- **Share every requirement at once, and a tighter message.** The
+  Requirements screen on web and mobile has a Share all button that puts every
+  requirement currently shown into one message; untick any you want to leave
+  out before you send, copy or pass the buyer briefs to an agent in ConvoReal.
+  The message no longer repeats itself: each location and project appears
+  once, nothing the requirement text already says is listed again, and a
+  second budget line is dropped when the text states one. The agent picker for
+  an in-app share now lists only your saved agents who have a ConvoReal
+  account, and tapping a client's name on a requirement opens their contact
+  details. **Migration required:**
+  `20261118052349_find_agent_profile_accounts_batch.sql`.
+
 #### 17 November 2026
 
 - **An agent's guest is held until the agent approves.** When someone opens

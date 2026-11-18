@@ -53,6 +53,7 @@ import { SearchableContactSelect } from '@/components/ui/searchable-contact-sele
 import {
   buildRequirementDigest,
   isShareable,
+  requirementReference,
   type RequirementShareMode,
   type ShareableRequirement,
 } from '@/lib/requirements/share';
@@ -176,6 +177,7 @@ export default function RequirementsPage() {
   // the recipient is someone outside the brokerage.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [shareIds, setShareIds] = useState<string[] | null>(null);
+  const [shareExcludedIds, setShareExcludedIds] = useState<string[]>([]);
   const [shareMode, setShareMode] = useState<RequirementShareMode>('masked');
   const [shareCopied, setShareCopied] = useState(false);
   // Interactive links: minted lazily per requirement+mode, cached for
@@ -246,13 +248,22 @@ export default function RequirementsPage() {
     [resolveForSource]
   );
 
+  const shareCandidates = useMemo(
+    () => data.filter((c) => shareIds?.includes(c.id)),
+    [data, shareIds]
+  );
+  const includedIds = useMemo(
+    () => (shareIds ?? []).filter((id) => !shareExcludedIds.includes(id)),
+    [shareIds, shareExcludedIds]
+  );
+
   // Mint any missing links for the open share. The cache key carries
   // the mode because a link freezes what the public page reveals.
   useEffect(() => {
     if (!shareIds || !includeLinks) return;
     const pending = data.filter(
       (c) =>
-        shareIds.includes(c.id) &&
+        includedIds.includes(c.id) &&
         !shareLinks[`${c.id}:${shareMode}`] &&
         isShareable(toShareable(c))
     );
@@ -293,32 +304,27 @@ export default function RequirementsPage() {
     return () => {
       cancelled = true;
     };
-  }, [shareIds, shareMode, includeLinks, data, shareLinks, toShareable]);
+  }, [
+    shareIds,
+    includedIds,
+    shareMode,
+    includeLinks,
+    data,
+    shareLinks,
+    toShareable,
+  ]);
 
-  const agentContacts = useMemo(
-    () =>
-      data
-        .filter(
-          (contact) => contact.classification === 'Agent' && contact.phone
-        )
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [data]
-  );
-
-  const inAppAgentStatus = useQuery({
-    queryKey: ['requirement-share-agent-status', inAppAgentId],
-    enabled: Boolean(shareIds && inAppAgentId),
-    retry: false,
+  const registeredAgents = useQuery({
+    queryKey: ['requirement-share-agents', accountId ?? null],
+    enabled: Boolean(shareIds && accountId),
     queryFn: async () => {
-      const response = await fetch(
-        `/api/contacts/${inAppAgentId}/share-inventory`
-      );
+      const response = await fetch('/api/requirement-account-shares/agents');
       const body = (await response.json().catch(() => ({}))) as {
-        data?: { registered: boolean; recipientName: string };
+        data?: { id: string; name: string | null; phone: string }[];
         error?: string;
       };
       if (!response.ok || !body.data) {
-        throw new Error(body.error || 'Could not check this agent');
+        throw new Error(body.error || 'Could not load agents');
       }
       return body.data;
     },
@@ -327,7 +333,7 @@ export default function RequirementsPage() {
   const shareText = useMemo(() => {
     if (!shareIds) return '';
     const rows = data
-      .filter((c) => shareIds.includes(c.id))
+      .filter((c) => includedIds.includes(c.id))
       .map((c) => ({
         ...toShareable(c),
         responseUrl: includeLinks
@@ -335,7 +341,15 @@ export default function RequirementsPage() {
           : undefined,
       }));
     return buildRequirementDigest(rows, shareMode);
-  }, [shareIds, shareMode, data, includeLinks, shareLinks, toShareable]);
+  }, [
+    shareIds,
+    includedIds,
+    shareMode,
+    data,
+    includeLinks,
+    shareLinks,
+    toShareable,
+  ]);
 
   // The agent's own record, always unmasked — this one stays in the
   // Engine rather than going to a co-broker.
@@ -353,6 +367,7 @@ export default function RequirementsPage() {
     setShareMode('masked');
     setShareCopied(false);
     setInAppAgentId('');
+    setShareExcludedIds([]);
     setShareIds(ids);
   };
 
@@ -373,14 +388,14 @@ export default function RequirementsPage() {
   };
 
   const sendShareInApp = async () => {
-    if (!shareIds?.length || !inAppAgentId || sharingInApp) return;
+    if (!includedIds.length || !inAppAgentId || sharingInApp) return;
     const buyerIds = data
       .filter(
         (contact) =>
-          shareIds.includes(contact.id) && contact.classification === 'Buyer'
+          includedIds.includes(contact.id) && contact.classification === 'Buyer'
       )
       .map((contact) => contact.id);
-    if (buyerIds.length !== shareIds.length) {
+    if (buyerIds.length === 0) {
       toast.error('Direct account sharing is available for buyer requirements');
       return;
     }
@@ -683,6 +698,12 @@ export default function RequirementsPage() {
     });
   }, [data, search, classificationFilter, priorityFilter, resolveForSource]);
 
+  const shareableFilteredIds = useMemo(
+    () =>
+      filteredData.filter((c) => isShareable(toShareable(c))).map((c) => c.id),
+    [filteredData, toShareable]
+  );
+
   return (
     <div className="relative flex flex-1 flex-col space-y-6 overflow-hidden p-6">
       {/* Background ambient glows */}
@@ -709,6 +730,16 @@ export default function RequirementsPage() {
           >
             <Inbox className="size-3.5" />
             Shared Requirements
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => openShare(shareableFilteredIds)}
+            disabled={shareableFilteredIds.length === 0}
+            title="Share every requirement shown below. You can untick any before sending."
+            className="h-9 gap-1.5 border-slate-700 text-xs font-bold text-slate-200"
+          >
+            <Share2 className="size-3.5" />
+            Share all ({shareableFilteredIds.length})
           </Button>
           <Button
             onClick={openAddRequirements}
@@ -990,7 +1021,14 @@ export default function RequirementsPage() {
                       </Avatar>
                       <div>
                         <h3 className="group-hover:text-primary flex items-center gap-1.5 text-sm font-black text-white transition-colors">
-                          <span>{c.name}</span>
+                          <Link
+                            href={`/contacts?contactId=${c.id}`}
+                            prefetch={false}
+                            title="Open contact details"
+                            className="hover:underline"
+                          >
+                            {c.name}
+                          </Link>
                           <NameTagBadge tag={c.name_tag} />
                         </h3>
                         <p className="mt-0.5 text-[10px] text-slate-500">
@@ -1331,7 +1369,7 @@ export default function RequirementsPage() {
             <DialogTitle className="text-white">
               Share with co-brokers
               {shareIds && shareIds.length > 1
-                ? ` — ${shareIds.length} requirements`
+                ? ` — ${includedIds.length} of ${shareIds.length} requirements`
                 : ''}
             </DialogTitle>
             <DialogDescription className="text-slate-400">
@@ -1340,7 +1378,65 @@ export default function RequirementsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+            {shareCandidates.length > 1 ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-slate-300">
+                    Requirements in this share
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShareExcludedIds(
+                        includedIds.length === shareCandidates.length
+                          ? shareCandidates.map((c) => c.id)
+                          : []
+                      )
+                    }
+                    className="text-primary cursor-pointer text-[11px] font-bold hover:underline"
+                  >
+                    {includedIds.length === shareCandidates.length
+                      ? 'Clear all'
+                      : 'Select all'}
+                  </button>
+                </div>
+                <ul className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950/30 p-2">
+                  {shareCandidates.map((c) => (
+                    <li key={c.id}>
+                      <label className="flex cursor-pointer items-start gap-2 rounded-lg px-1.5 py-1 hover:bg-slate-800/50">
+                        <input
+                          type="checkbox"
+                          checked={!shareExcludedIds.includes(c.id)}
+                          onChange={() =>
+                            setShareExcludedIds((prev) =>
+                              prev.includes(c.id)
+                                ? prev.filter((id) => id !== c.id)
+                                : [...prev, c.id]
+                            )
+                          }
+                          className="text-primary mt-0.5 size-3.5 shrink-0 cursor-pointer rounded border-slate-700 bg-slate-800 focus:ring-0 focus:ring-offset-0"
+                        />
+                        <span className="min-w-0 text-[11px] leading-relaxed">
+                          <span className="font-bold text-slate-200">
+                            {c.name || 'Unnamed'}
+                          </span>
+                          <span className="text-slate-500">
+                            {' '}
+                            · {requirementReference(c.id)}
+                          </span>
+                          <span className="block truncate text-slate-400">
+                            {toShareable(c).requirements?.trim() ||
+                              'Budget and preferences only'}
+                          </span>
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
             <div className="flex gap-2">
               {(['masked', 'full'] as RequirementShareMode[]).map((mode) => (
                 <button
@@ -1397,44 +1493,43 @@ export default function RequirementsPage() {
                   Share inside ConvoReal
                 </p>
                 <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-                  Pick an Agent contact. If their verified number is linked to
-                  another ConvoReal account, the masked brief is delivered to
-                  their Shared Requirements inbox.
+                  Your saved Agent contacts who are on ConvoReal. The masked
+                  buyer brief is delivered to their Shared Requirements inbox.
                 </p>
               </div>
               <select
                 value={inAppAgentId}
                 onChange={(event) => setInAppAgentId(event.target.value)}
-                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-slate-200"
+                disabled={!registeredAgents.data?.length}
+                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-xs text-slate-200 disabled:opacity-50"
               >
-                <option value="">Select an agent</option>
-                {agentContacts.map((agent) => (
+                <option value="">
+                  {registeredAgents.isPending
+                    ? 'Finding agents on ConvoReal…'
+                    : 'Select an agent'}
+                </option>
+                {(registeredAgents.data ?? []).map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name || agent.phone} · {agent.phone}
                   </option>
                 ))}
               </select>
-              {inAppAgentId && inAppAgentStatus.isPending ? (
-                <p className="text-[11px] text-slate-500">
-                  Checking their ConvoReal account…
-                </p>
-              ) : inAppAgentStatus.data?.registered ? (
-                <p className="text-[11px] font-semibold text-emerald-400">
-                  ConvoReal account found. Buyer identity will remain hidden.
-                </p>
-              ) : inAppAgentId && inAppAgentStatus.isError ? (
+              {registeredAgents.isError ? (
                 <p className="text-[11px] text-amber-300">
-                  No separate ConvoReal account found. Use the WhatsApp link
-                  below.
+                  Could not load your agents on ConvoReal. Close and reopen to
+                  try again.
+                </p>
+              ) : registeredAgents.data?.length === 0 ? (
+                <p className="text-[11px] text-amber-300">
+                  None of your saved Agent contacts has a ConvoReal account yet.
+                  Use the WhatsApp link below.
                 </p>
               ) : null}
               <Button
                 type="button"
                 onClick={sendShareInApp}
                 disabled={
-                  !inAppAgentId ||
-                  inAppAgentStatus.data?.registered !== true ||
-                  sharingInApp
+                  !inAppAgentId || includedIds.length === 0 || sharingInApp
                 }
                 className="w-full"
               >
