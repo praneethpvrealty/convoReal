@@ -178,6 +178,14 @@ export default function RequirementsPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [shareIds, setShareIds] = useState<string[] | null>(null);
   const [shareExcludedIds, setShareExcludedIds] = useState<string[]>([]);
+  // The agent's own wording of the preview, or the AI's merged one.
+  // Tied to the generated text it replaced, so changing the list, the
+  // mode or the links discards it instead of sending a stale message.
+  const [shareOverride, setShareOverride] = useState<{
+    base: string;
+    text: string;
+  } | null>(null);
+  const [consolidating, setConsolidating] = useState(false);
   const [shareMode, setShareMode] = useState<RequirementShareMode>('masked');
   const [shareCopied, setShareCopied] = useState(false);
   // Interactive links: minted lazily per requirement+mode, cached for
@@ -351,6 +359,61 @@ export default function RequirementsPage() {
     toShareable,
   ]);
 
+  const shareOutput =
+    shareOverride && shareOverride.base === shareText
+      ? shareOverride.text
+      : shareText;
+  const shareEdited = shareOutput !== shareText;
+
+  const consolidateWithAi = async () => {
+    if (consolidating || shareMode !== 'masked') return;
+    const base = shareText;
+    const briefs = data
+      .filter((c) => includedIds.includes(c.id))
+      .map((c) => {
+        const r = toShareable(c);
+        return {
+          id: r.id,
+          classification: r.classification,
+          no_budget: r.no_budget,
+          min_budget: r.min_budget,
+          max_budget: r.max_budget,
+          requirements: r.requirements,
+          areas_of_interest: r.areas_of_interest,
+          projects_of_interest: r.projects_of_interest,
+        };
+      });
+    setConsolidating(true);
+    try {
+      const response = await fetch('/api/requirements/consolidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ briefs }),
+      });
+      const body = (await response.json().catch(() => ({}))) as {
+        data?: { text: string; merged: number; groups: number };
+        error?: string;
+      };
+      if (!response.ok || !body.data) {
+        throw new Error(body.error || 'Could not consolidate with AI');
+      }
+      if (body.data.merged === 0) {
+        toast.info('No duplicates found. Nothing was merged.');
+        return;
+      }
+      setShareOverride({ base, text: body.data.text });
+      toast.success(
+        `Merged ${body.data.merged} duplicate${body.data.merged === 1 ? '' : 's'} into ${body.data.groups} requirement${body.data.groups === 1 ? '' : 's'}. Check the preview before sending.`
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Could not consolidate with AI'
+      );
+    } finally {
+      setConsolidating(false);
+    }
+  };
+
   // The agent's own record, always unmasked — this one stays in the
   // Engine rather than going to a co-broker.
   const handleCopy = async (c: ConsolidatedContact) => {
@@ -368,21 +431,22 @@ export default function RequirementsPage() {
     setShareCopied(false);
     setInAppAgentId('');
     setShareExcludedIds([]);
+    setShareOverride(null);
     setShareIds(ids);
   };
 
   const copyShareText = async () => {
-    if (!shareText) return;
-    await navigator.clipboard.writeText(shareText);
+    if (!shareOutput) return;
+    await navigator.clipboard.writeText(shareOutput);
     setShareCopied(true);
     toast.success('Copied — paste it wherever your brokers are');
     setTimeout(() => setShareCopied(false), 2500);
   };
 
   const sendShareOnWhatsApp = () => {
-    if (!shareText) return;
+    if (!shareOutput) return;
     window.open(
-      `https://wa.me/?text=${encodeURIComponent(shareText)}`,
+      `https://wa.me/?text=${encodeURIComponent(shareOutput)}`,
       '_blank'
     );
   };
@@ -1543,19 +1607,60 @@ export default function RequirementsPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300">
-                Preview
-                {mintingLinks && includeLinks ? (
-                  <span className="ml-2 font-normal text-slate-500">
-                    creating links…
-                  </span>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs text-slate-300">
+                  Message
+                  {mintingLinks && includeLinks ? (
+                    <span className="ml-2 font-normal text-slate-500">
+                      creating links…
+                    </span>
+                  ) : shareEdited ? (
+                    <button
+                      type="button"
+                      onClick={() => setShareOverride(null)}
+                      className="text-primary ml-2 cursor-pointer text-[11px] font-bold hover:underline"
+                    >
+                      Reset to original
+                    </button>
+                  ) : null}
+                </Label>
+                {shareMode === 'masked' && includedIds.length > 1 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={consolidateWithAi}
+                    disabled={
+                      consolidating ||
+                      !shareText ||
+                      (includeLinks && mintingLinks)
+                    }
+                    title="Merge requirements that ask for the same thing into one line each. Names, tags and notes are never sent to the AI."
+                    className="h-7 gap-1.5 border-slate-700 text-[11px] font-bold text-slate-200"
+                  >
+                    {consolidating ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="text-primary size-3.5" />
+                    )}
+                    Merge duplicates with AI
+                  </Button>
                 ) : null}
-              </Label>
+              </div>
               <Textarea
-                readOnly
-                value={shareText}
+                value={shareOutput}
+                onChange={(event) =>
+                  setShareOverride({
+                    base: shareText,
+                    text: event.target.value,
+                  })
+                }
                 className="h-56 border-slate-800 bg-slate-950/40 text-xs leading-relaxed text-slate-200"
               />
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                You can edit this text before sending. Changing the list or the
+                mode rebuilds it. A merged message carries no response links.
+              </p>
             </div>
           </div>
 
@@ -1563,7 +1668,7 @@ export default function RequirementsPage() {
             <Button
               variant="outline"
               onClick={copyShareText}
-              disabled={!shareText || (includeLinks && mintingLinks)}
+              disabled={!shareOutput || (includeLinks && mintingLinks)}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               {shareCopied ? (
@@ -1575,7 +1680,7 @@ export default function RequirementsPage() {
             </Button>
             <Button
               onClick={sendShareOnWhatsApp}
-              disabled={!shareText || (includeLinks && mintingLinks)}
+              disabled={!shareOutput || (includeLinks && mintingLinks)}
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
             >
               <Share2 className="size-4" />

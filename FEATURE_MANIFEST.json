@@ -3861,6 +3861,20 @@
               "case": "[REQ-007]"
             }
           ]
+        },
+        {
+          "id": "REQ-008",
+          "rule": "A consolidated masked share of two or more requirements can have its duplicates merged by AI on web and mobile. The model is shown only the fields a masked share may carry, under throwaway keys: never a client's name, phone, tags, notes or REQ- reference, whatever the client posted. The model only proposes groups and one line of wording; every brief that was sent goes out exactly once, a brief the model omits, repeats or leaves unworded is sent through the ordinary masked formatter, a key it invents is ignored, and phone numbers, email addresses and links are stripped from merged wording. The merged message is shown in an editable box and is never sent without the agent seeing it; changing the list or the mode discards it. The route is rate limited per user and per account per day and burns no credits.",
+          "tests": [
+            {
+              "file": "src/lib/requirements/consolidate.test.ts",
+              "case": "[REQ-008]"
+            },
+            {
+              "file": "src/app/api/requirements/consolidate/route.test.ts",
+              "case": "[REQ-008]"
+            }
+          ]
         }
       ]
     },

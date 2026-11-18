@@ -28,7 +28,11 @@ than a written entry. Newest first.
   second budget line is dropped when the text states one. The agent picker for
   an in-app share now lists only your saved agents who have a ConvoReal
   account, and tapping a client's name on a requirement opens their contact
-  details. **Migration required:**
+  details. With two or more requirements in a masked share, **Merge
+  duplicates with AI** folds requirements that ask for the same thing into
+  one entry ("3 clients · 3 BHK in Meridian Park"); the AI is never shown a
+  client's name, number, tags or notes, and the message stays editable
+  before you send it. **Migration required:**
   `20261118052349_find_agent_profile_accounts_batch.sql`.
 
 #### 17 November 2026

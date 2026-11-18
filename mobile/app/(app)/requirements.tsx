@@ -12,6 +12,7 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -30,6 +31,7 @@ import {
   SearchBar,
   Tag,
 } from '@/components/ui';
+import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -99,6 +101,11 @@ export default function RequirementsScreen() {
   const [agentShare, setAgentShare] = useState<RequirementRow[] | null>(null);
   const [bulkIds, setBulkIds] = useState<string[] | null>(null);
   const [bulkMode, setBulkMode] = useState<RequirementShareMode>('masked');
+  const [bulkOverride, setBulkOverride] = useState<{
+    base: string;
+    text: string;
+  } | null>(null);
+  const [merging, setMerging] = useState(false);
 
   const list = useQuery({
     queryKey: ['requirements'],
@@ -126,6 +133,16 @@ export default function RequirementsScreen() {
     () => bulkRows.filter((row) => row.classification === 'Buyer'),
     [bulkRows]
   );
+
+  const bulkDigest = useMemo(
+    () => buildRequirementDigest(bulkRows.map(toShareable), bulkMode),
+    [bulkRows, bulkMode]
+  );
+  const bulkMessage =
+    bulkOverride && bulkOverride.base === bulkDigest
+      ? bulkOverride.text
+      : bulkDigest;
+  const bulkEditing = Boolean(bulkOverride && bulkOverride.base === bulkDigest);
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ['requirements'] });
@@ -201,6 +218,7 @@ export default function RequirementsScreen() {
   function openBulk() {
     haptic.tap();
     setBulkMode('masked');
+    setBulkOverride(null);
     setBulkIds(shareable.map((row) => row.id));
   }
 
@@ -215,23 +233,70 @@ export default function RequirementsScreen() {
     );
   }
 
+  async function mergeDuplicates() {
+    if (merging || bulkMode !== 'masked' || bulkRows.length < 2) return;
+    const base = bulkDigest;
+    setMerging(true);
+    haptic.tap();
+    try {
+      const { data } = await apiFetch<{
+        data: { text: string; merged: number; groups: number };
+      }>('/api/requirements/consolidate', {
+        method: 'POST',
+        timeoutMs: 60_000,
+        body: JSON.stringify({
+          briefs: bulkRows.map((row) => {
+            const r = toShareable(row);
+            return {
+              id: r.id,
+              classification: r.classification,
+              no_budget: r.no_budget,
+              min_budget: r.min_budget,
+              max_budget: r.max_budget,
+              requirements: r.requirements,
+              areas_of_interest: r.areas_of_interest,
+              projects_of_interest: r.projects_of_interest,
+            };
+          }),
+        }),
+      });
+      if (data.merged === 0) {
+        show({
+          title: 'No duplicates found',
+          message:
+            'Each of these requirements asks for something different, so nothing was merged.',
+        });
+        return;
+      }
+      haptic.success();
+      setBulkOverride({ base, text: data.text });
+    } catch (err) {
+      haptic.warn();
+      show({
+        title: 'Could not merge duplicates',
+        message: friendlyError(
+          err instanceof Error ? err.message : String(err)
+        ),
+      });
+    } finally {
+      setMerging(false);
+    }
+  }
+
   async function shareBulk() {
-    const message = buildRequirementDigest(bulkRows.map(toShareable), bulkMode);
-    if (!message) return;
+    if (!bulkMessage.trim()) return;
+    const message = bulkMessage;
     setBulkIds(null);
     haptic.send();
     await Share.share({ message });
   }
 
   async function copyBulk() {
-    const message = buildRequirementDigest(bulkRows.map(toShareable), bulkMode);
-    if (!message) return;
-    await Clipboard.setStringAsync(message);
+    if (!bulkMessage.trim()) return;
+    await Clipboard.setStringAsync(bulkMessage);
     setBulkIds(null);
     haptic.success();
-    setNotice(
-      `${bulkRows.length} requirement${bulkRows.length === 1 ? '' : 's'} copied — paste wherever your brokers are`
-    );
+    setNotice('Requirements copied — paste wherever your brokers are');
   }
 
   async function shareDigest(row: RequirementRow, mode: RequirementShareMode) {
@@ -564,70 +629,157 @@ export default function RequirementsScreen() {
               </View>
             </View>
 
-            <ScrollView
-              style={sheetScrollArea}
-              contentContainerStyle={{
-                paddingHorizontal: spacing.lg,
-                gap: spacing.sm,
-              }}
-            >
-              {shareable.map((row) => {
-                const included = bulkIds.includes(row.id);
-                const brief = toShareable(row);
-                return (
-                  <Pressable
-                    key={row.id}
-                    onPress={() => toggleBulk(row.id)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: included }}
-                    accessibilityLabel={`Include ${row.name || 'this requirement'}`}
-                    style={[
-                      styles.bulkRow,
-                      {
-                        borderColor: included
-                          ? colors.primary
-                          : colors.glassBorder,
-                        backgroundColor: included
-                          ? colors.primarySoft
-                          : colors.glass,
-                      },
-                    ]}
+            {bulkEditing ? (
+              <View
+                style={{
+                  flexShrink: 1,
+                  paddingHorizontal: spacing.lg,
+                  gap: spacing.sm,
+                }}
+              >
+                <View style={styles.row}>
+                  <Text
+                    style={{
+                      fontFamily: f.regular,
+                      fontSize: 12.5,
+                      color: colors.textMuted,
+                      flex: 1,
+                    }}
                   >
-                    <Ionicons
-                      name={included ? 'checkbox' : 'square-outline'}
-                      size={20}
-                      color={included ? colors.primary : colors.textFaint}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        numberOfLines={1}
-                        style={{ fontFamily: f.semibold, color: colors.text }}
-                      >
-                        {row.name || 'Unnamed'} · {requirementReference(row.id)}
-                      </Text>
-                      <Text
-                        numberOfLines={2}
-                        style={{
-                          fontFamily: f.regular,
-                          fontSize: 12,
-                          color: colors.textMuted,
-                        }}
-                      >
-                        {brief.requirements?.trim() ||
-                          [
-                            requirementBudgetLabel(row).text,
-                            ...(brief.areas_of_interest ?? []),
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                      </Text>
-                    </View>
+                    Check and edit the message before sending.
+                  </Text>
+                  <Pressable
+                    onPress={() => setBulkOverride(null)}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: f.semibold,
+                        fontSize: 13,
+                        color: colors.primary,
+                      }}
+                    >
+                      Back to list
+                    </Text>
                   </Pressable>
-                );
-              })}
-            </ScrollView>
+                </View>
+                <TextInput
+                  value={bulkMessage}
+                  onChangeText={(text) =>
+                    setBulkOverride({ base: bulkDigest, text })
+                  }
+                  multiline
+                  scrollEnabled
+                  textAlignVertical="top"
+                  accessibilityLabel="Message to share"
+                  style={[
+                    styles.editor,
+                    {
+                      fontFamily: f.regular,
+                      color: colors.text,
+                      borderColor: colors.glassBorder,
+                      backgroundColor: colors.glass,
+                    },
+                  ]}
+                />
+              </View>
+            ) : (
+              <ScrollView
+                style={sheetScrollArea}
+                contentContainerStyle={{
+                  paddingHorizontal: spacing.lg,
+                  gap: spacing.sm,
+                }}
+              >
+                {shareable.map((row) => {
+                  const included = bulkIds.includes(row.id);
+                  const brief = toShareable(row);
+                  return (
+                    <Pressable
+                      key={row.id}
+                      onPress={() => toggleBulk(row.id)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: included }}
+                      accessibilityLabel={`Include ${row.name || 'this requirement'}`}
+                      style={[
+                        styles.bulkRow,
+                        {
+                          borderColor: included
+                            ? colors.primary
+                            : colors.glassBorder,
+                          backgroundColor: included
+                            ? colors.primarySoft
+                            : colors.glass,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={included ? 'checkbox' : 'square-outline'}
+                        size={20}
+                        color={included ? colors.primary : colors.textFaint}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          numberOfLines={1}
+                          style={{ fontFamily: f.semibold, color: colors.text }}
+                        >
+                          {row.name || 'Unnamed'} ·{' '}
+                          {requirementReference(row.id)}
+                        </Text>
+                        <Text
+                          numberOfLines={2}
+                          style={{
+                            fontFamily: f.regular,
+                            fontSize: 12,
+                            color: colors.textMuted,
+                          }}
+                        >
+                          {brief.requirements?.trim() ||
+                            [
+                              requirementBudgetLabel(row).text,
+                              ...(brief.areas_of_interest ?? []),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
 
             <View style={{ paddingHorizontal: spacing.lg, gap: spacing.xs }}>
+              {bulkMode === 'masked' && bulkRows.length > 1 && !bulkEditing ? (
+                <Pressable
+                  onPress={mergeDuplicates}
+                  disabled={merging}
+                  accessibilityRole="button"
+                  accessibilityLabel="Merge duplicates with AI"
+                  style={[
+                    styles.outline,
+                    { borderColor: colors.primary, opacity: merging ? 0.6 : 1 },
+                  ]}
+                >
+                  {merging ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons
+                      name="sparkles"
+                      size={16}
+                      color={colors.primary}
+                    />
+                  )}
+                  <Text
+                    style={{ fontFamily: f.semibold, color: colors.primary }}
+                  >
+                    {merging
+                      ? 'Merging duplicates…'
+                      : 'Merge duplicates with AI'}
+                  </Text>
+                </Pressable>
+              ) : null}
               <PrimaryButton
                 label={`Share ${bulkRows.length} requirement${bulkRows.length === 1 ? '' : 's'}`}
                 icon="share-social-outline"
@@ -1090,6 +1242,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderWidth: 1,
     borderRadius: radius.md,
+  },
+  editor: {
+    minHeight: 180,
+    maxHeight: 320,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    fontSize: 13,
+    lineHeight: 19,
   },
   bulkRow: {
     flexDirection: 'row',
