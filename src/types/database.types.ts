@@ -13909,6 +13909,14 @@ export type Database = {
           user_id: string;
         }[];
       };
+      find_agent_profile_accounts_batch: {
+        Args: { p_phone_last10s: string[] };
+        Returns: {
+          account_id: string;
+          phone_last10: string;
+          user_id: string;
+        }[];
+      };
       find_agent_source_contacts: {
         Args: { p_phone_last10: string };
         Returns: {

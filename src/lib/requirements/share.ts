@@ -48,17 +48,17 @@ export function requirementReference(id: string): string {
   return `REQ-${id.replace(/-/g, '').slice(0, 4).toUpperCase()}`;
 }
 
-function budgetLine(r: ShareableRequirement): string {
+function budgetLine(r: ShareableRequirement): string | null {
   if (r.no_budget) return 'Budget: No limit stated';
   const min =
     r.min_budget && Number(r.min_budget) > 0 ? Number(r.min_budget) : null;
   const max =
     r.max_budget && Number(r.max_budget) > 0 ? Number(r.max_budget) : null;
-  if (min && max)
+  if (min && max && min !== max)
     return `Budget: ${formatInrCompact(min)} – ${formatInrCompact(max)}`;
   if (max) return `Budget: up to ${formatInrCompact(max)}`;
   if (min) return `Budget: from ${formatInrCompact(min)}`;
-  return 'Budget: Not specified';
+  return null;
 }
 
 function cleanList(
@@ -68,6 +68,46 @@ function cleanList(
     .map((v) => (typeof v === 'string' ? v.trim() : ''))
     .filter(Boolean);
 }
+
+function wordKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
+/**
+ * One entry per place: "JP Nagar" and "jp nagar " are the same area, and
+ * a brief resolved from explicit plus AI-extracted preferences lists
+ * both.
+ */
+function uniqueList(
+  values: (string | null | undefined)[] | null | undefined
+): string[] {
+  const seen = new Set<string>();
+  return cleanList(values).filter((value) => {
+    const key = wordKey(value) || value.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * What the requirement text does not already say. The text goes out
+ * verbatim, so a location or project it names is not repeated on its
+ * own line.
+ */
+function notStatedIn(values: string[], text: string): string[] {
+  const haystack = ` ${wordKey(text)} `;
+  return values.filter((value) => {
+    const key = wordKey(value);
+    return !key || !haystack.includes(` ${key} `);
+  });
+}
+
+const STATES_AN_AMOUNT =
+  /₹|\b(?:rs|inr)\b\.?\s*\d|\d\s*(?:cr|crore|crores|lakh|lakhs|lac|lacs|l|k)\b/i;
 
 /**
  * A requirement worth sending: not parked, and carrying something a
@@ -96,25 +136,34 @@ export function formatRequirement(
       ? `Requirement ${requirementReference(r.id)}${r.classification ? ` (${r.classification})` : ''}`
       : `Client Profile: ${r.name || 'Unnamed'}${r.classification ? ` (${r.classification})` : ''}`;
 
-  const lines = [who, budgetLine(r)];
+  const text = r.requirements?.trim() ?? '';
+  const lines = [who];
 
-  if (r.requirements?.trim()) {
+  // A budget the text already states is not stated twice: the typed
+  // figure is the one the agent wrote, and two ranges read as a
+  // contradiction.
+  const budget = budgetLine(r);
+  if (budget && !(text && !r.no_budget && STATES_AN_AMOUNT.test(text))) {
+    lines.push(budget);
+  }
+
+  if (text) {
     lines.push(
-      `${mode === 'masked' ? 'Looking for' : 'Requirements'}: ${r.requirements.trim()}`
+      `${mode === 'masked' ? 'Looking for' : 'Requirements'}: ${text}`
     );
   }
 
-  const areas = cleanList(r.areas_of_interest);
+  const areas = notStatedIn(uniqueList(r.areas_of_interest), text);
   if (areas.length) lines.push(`Locations: ${areas.join(', ')}`);
 
-  const projects = cleanList(r.projects_of_interest);
+  const projects = notStatedIn(uniqueList(r.projects_of_interest), text);
   if (projects.length) lines.push(`Projects: ${projects.join(', ')}`);
 
   // Tags and notes are the agent's own shorthand — a co-broker gets
   // neither. A note like "will stretch if pushed" is exactly what
   // masking exists to withhold.
   if (mode === 'full') {
-    const tags = cleanList(r.tags);
+    const tags = uniqueList(r.tags);
     if (tags.length) lines.push(`Tags: ${tags.join(', ')}`);
     if (r.latestNote?.trim()) lines.push(`Notes: ${r.latestNote.trim()}`);
   }
@@ -140,8 +189,8 @@ export function buildRequirementDigest(
 
   const heading =
     sendable.length === 1
-      ? '*CONSOLIDATED CLIENT REQUIREMENT*'
-      : `*CONSOLIDATED CLIENT REQUIREMENTS (${sendable.length})*`;
+      ? '*CLIENT REQUIREMENT*'
+      : `*CLIENT REQUIREMENTS (${sendable.length})*`;
 
   const blocks = sendable.map((r, i) => {
     const body = `• ${formatRequirement(r, mode)}`;
