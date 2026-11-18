@@ -11,7 +11,7 @@ import {
 // Body: { sourceId: string, targetId: string, confirmDifferentPhones?: boolean }
 //
 // Merges `source` into `target`:
-//   1. Re-points conversations, notes, custom values, inquiries, appointments, and todos → target
+//   1. Re-points conversations, notes, custom values, inquiries, appointments, todos, and owned listings → target
 //   2. Safely merges tags, custom values, and inquiries without duplicate constraint errors
 //   3. Merges preferences (budgets, ROI, interest areas, specifications, requirements)
 //   4. Marks source as is_merged = true, sets merged_into_id = target, and
@@ -122,6 +122,13 @@ export async function POST(request: NextRequest) {
         .update({ contact_id: targetId })
         .eq('contact_id', sourceId),
     ]);
+
+    const { error: ownerMoveError } = await admin
+      .from('properties')
+      .update({ owner_contact_id: targetId })
+      .eq('account_id', ctx.accountId)
+      .eq('owner_contact_id', sourceId);
+    if (ownerMoveError) throw ownerMoveError;
 
     // Tags — merge relations safely without duplicate key violation
     const { data: targetTags } = await admin
