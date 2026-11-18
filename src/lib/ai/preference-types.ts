@@ -39,6 +39,10 @@ export interface ExtractedPreferences {
   projects: string[];
   min_roi: number | null;
   requires_tenanted: boolean;
+  facing: string[];
+  towers: string[];
+  floor_min: number | null;
+  floor_max: number | null;
   listing_types: ListingType[];
   /** Short buyer-profile labels to SUGGEST as Engine tags (never
    *  auto-attached — an agent confirms each with a tap). */
@@ -59,6 +63,10 @@ export const EMPTY_PREFERENCES: ExtractedPreferences = {
   projects: [],
   min_roi: null,
   requires_tenanted: false,
+  facing: [],
+  towers: [],
+  floor_min: null,
+  floor_max: null,
   listing_types: [],
   suggested_tags: [],
 };

@@ -24,7 +24,8 @@ vi.mock('./supabase', () => ({ supabase: {} }));
 vi.mock('./app-foreground', () => ({ whenAppActive: async () => {} }));
 
 const { apiFetch } = await import('./api');
-const { sendPropertyViaEngineMany } = await import('./property-share-actions');
+const { sendPropertyViaEngineMany, shareProgressLabel } =
+  await import('./property-share-actions');
 
 type Contact = Parameters<typeof sendPropertyViaEngineMany>[0][number];
 
@@ -77,6 +78,48 @@ describe('sendPropertyViaEngineMany', () => {
     );
 
     expect(seen).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('reports the retries as their own phase, a few at a time, instead of holding the last count', async () => {
+    const attempts = new Map<string, number>();
+    let inFlight = 0;
+    let peak = 0;
+    vi.mocked(apiFetch).mockImplementation(async (_path, init) => {
+      const id = JSON.parse((init as { body: string }).body).contact_id;
+      const attempt = (attempts.get(id) ?? 0) + 1;
+      attempts.set(id, attempt);
+      if (attempt === 1 && ['c1', 'c3', 'c5'].includes(id))
+        throw new Error('network');
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      await new Promise((r) => setTimeout(r, 1));
+      inFlight--;
+      return { data: { sent: true, conversation_id: null } };
+    });
+    const labels: string[] = [];
+
+    const outcomes = await sendPropertyViaEngineMany(
+      contacts(6),
+      property,
+      () => 'hi',
+      (done, total, retrying) =>
+        labels.push(shareProgressLabel({ done, total, retrying }))
+    );
+
+    expect([...outcomes.values()].every((o) => o.sent)).toBe(true);
+    expect(labels.slice(0, 5)).toEqual([
+      'Sending 1 of 6…',
+      'Sending 2 of 6…',
+      'Sending 3 of 6…',
+      'Sending 4 of 6…',
+      'Sending 5 of 6…',
+    ]);
+    expect(labels.slice(5)).toEqual([
+      'Confirming 6 sends…',
+      'Retrying 3 that did not go through…',
+      'Retrying 2 that did not go through…',
+      'Retrying 1 that did not go through…',
+    ]);
   });
 
   it('does not let one blocked window fail the rest', async () => {

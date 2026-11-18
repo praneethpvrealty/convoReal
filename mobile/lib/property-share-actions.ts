@@ -122,6 +122,20 @@ const MAX_RETRY_WAIT_MS = 70_000;
  *  before we decide whether a retry is actually needed. */
 const TRANSIENT_RETRY_DELAY_MS = 1500;
 
+export interface ShareFanoutProgress {
+  done: number;
+  total: number;
+  retrying: number;
+}
+
+export function shareProgressLabel(progress: ShareFanoutProgress): string {
+  if (progress.retrying > 0)
+    return `Retrying ${progress.retrying} that did not go through…`;
+  if (progress.done >= progress.total)
+    return `Confirming ${progress.total} sends…`;
+  return `Sending ${progress.done} of ${progress.total}…`;
+}
+
 export interface EngineSendOutcome {
   sent: boolean;
   conversationId?: string;
@@ -259,36 +273,45 @@ async function recentlyConfirmedShares(
  * failed. Truly transient failures get one safe retry only when no ledger
  * row exists, then are reconciled again. This avoids both false failures
  * and duplicate sends.
+ *
+ * `onProgress` reports the retries as their own phase: the count of
+ * first attempts is complete by then, and "Sending 18 of 18" held for
+ * the length of every retry read as a send that had hung.
  */
 export async function sendPropertyViaEngineMany(
   contacts: Contact[],
   property: Property,
   messageFor: (contact: Contact) => string,
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (done: number, total: number, retrying: number) => void,
   headerImage?: string | null,
   confirmResend = false
 ): Promise<Map<string, EngineSendOutcome>> {
   const outcomes = new Map<string, EngineSendOutcome>();
   const startedAt = new Date(Date.now() - 5000).toISOString();
-  let next = 0;
-  let done = 0;
-  const worker = async () => {
-    while (next < contacts.length) {
-      const contact = contacts[next++];
-      const outcome = await sendPropertyViaEngine(
-        contact,
-        property,
-        messageFor(contact),
-        headerImage,
-        confirmResend
-      );
-      outcomes.set(contact.id, outcome);
-      onProgress?.(++done, contacts.length);
-    }
+  const sendAll = async (batch: Contact[], onSettled: () => void) => {
+    let next = 0;
+    const worker = async () => {
+      while (next < batch.length) {
+        const contact = batch[next++];
+        outcomes.set(
+          contact.id,
+          await sendPropertyViaEngine(
+            contact,
+            property,
+            messageFor(contact),
+            headerImage,
+            confirmResend
+          )
+        );
+        onSettled();
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(SHARE_CONCURRENCY, batch.length) }, worker)
+    );
   };
-  await Promise.all(
-    Array.from({ length: Math.min(SHARE_CONCURRENCY, contacts.length) }, worker)
-  );
+  let done = 0;
+  await sendAll(contacts, () => onProgress?.(++done, contacts.length, 0));
 
   const contactIds = contacts.map((contact) => contact.id);
   const firstConfirmed = await recentlyConfirmedShares(
@@ -320,23 +343,17 @@ export async function sendPropertyViaEngineMany(
       retryable.map((contact) => contact.id),
       startedAt
     );
-    for (const contact of retryable) {
-      if (confirmedBeforeRetry.has(contact.id)) {
-        const previous = outcomes.get(contact.id);
-        outcomes.set(contact.id, { ...previous, sent: true, timedOut: false });
-        continue;
-      }
-      outcomes.set(
-        contact.id,
-        await sendPropertyViaEngine(
-          contact,
-          property,
-          messageFor(contact),
-          headerImage,
-          confirmResend
-        )
-      );
-    }
+    const unconfirmed = retryable.filter((contact) => {
+      if (!confirmedBeforeRetry.has(contact.id)) return true;
+      const previous = outcomes.get(contact.id);
+      outcomes.set(contact.id, { ...previous, sent: true, timedOut: false });
+      return false;
+    });
+    let left = unconfirmed.length;
+    if (left > 0) onProgress?.(contacts.length, contacts.length, left);
+    await sendAll(unconfirmed, () => {
+      if (--left > 0) onProgress?.(contacts.length, contacts.length, left);
+    });
   }
 
   const finalConfirmed = await recentlyConfirmedShares(

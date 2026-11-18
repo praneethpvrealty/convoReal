@@ -17,8 +17,56 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 18 November 2026
+
+- **Show stated requirements only.** A new filter on the Requirements screen,
+  on web and mobile, keeps only the cards that carry a requirement in words
+  (what the client told you or what you wrote) and hides the ones built from
+  extracted preferences alone. Share all follows it, so you can send just the
+  stated ones.
+
+- **Share every requirement at once, and a tighter message.** The
+  Requirements screen on web and mobile has a Share all button that puts every
+  requirement currently shown into one message; untick any you want to leave
+  out before you send, copy or pass the buyer briefs to an agent in ConvoReal.
+  The message no longer repeats itself: each location and project appears
+  once, nothing the requirement text already says is listed again, and a
+  second budget line is dropped when the text states one. The agent picker for
+  an in-app share now lists only your saved agents who have a ConvoReal
+  account, and tapping a client's name on a requirement opens their contact
+  details. With two or more requirements in a masked share, **Merge
+  duplicates with AI** folds requirements that ask for the same thing into
+  one entry ("3 clients · 3 BHK in Meridian Park"); the AI is never shown a
+  client's name, number, tags or notes, and the message stays editable
+  before you send it. **Migration required:**
+  `20261118052349_find_agent_profile_accounts_batch.sql`.
+
+#### 17 November 2026
+
+- **An agent's guest is held until the agent approves.** When someone opens
+  a showcase link you shared with a contact classified as Agent and enquires,
+  on the showcase form or through its WhatsApp button, you are notified at
+  once that the agent's guest asked about the listing, with the name and
+  number masked, and the guest stays out of your contacts. The agent gets
+  Approve and Decline on WhatsApp. Approve files the guest as your lead with
+  the agent as referrer; Decline, or two hours without an answer, points the
+  guest back to the agent. A link forwarded by a buyer or owner has no
+  approval step: the enquiry is filed with that contact as referrer and you
+  are told whose guest it was. Settings → Notifications gains "Guest of a
+  shared link enquires" on web and mobile. **Migration required:**
+  `20261117043000_referred_enquiries.sql` (one new table).
+
 #### 16 November 2026
 
+- **Facing, tower and floor range are structured requirement fields.** A
+  buyer who writes "East facing in tower 10, 8th to 28th floor" now has those
+  saved as fields of their own, read from the requirement text at no AI cost.
+  Matching compares them with the listing's facing, tower and floor: a fit
+  ranks the listing higher, a difference ranks it lower, and a listing that
+  does not record them is unaffected. The requirement summary and the match
+  chips show them on web and mobile. **Migration required:**
+  `20261116044500_contact_unit_preferences.sql` (four nullable columns on
+  `contacts`).
 - **A no-match "Update my preferences" reply no longer offers the lead their
   own enquiry back.** A lead on a live 3 BHK was told nothing fits "3 BHK at
   3 BHK Flat in …", shown that same flat as the one listing in its locality,
@@ -41,6 +89,15 @@ than a written entry. Newest first.
   about, on web and mobile, quoting what the enquiry named; picking one links
   it and sends its details in the same step, and approving without one is
   still a tap away.
+
+#### 16 November 2026
+
+- **Saving a listing no longer silently overwrites someone else's edit.** The
+  web property form and the mobile Edit property screen tell the server which
+  version of the listing they opened; if its price, status, photos or other
+  edited fields changed in the meantime, the save is held back with an
+  explanation and a **Save anyway** choice. Background updates such as catalog
+  sync and video status do not count as a change (PRP-062).
 
 #### 14 November 2026
 

@@ -3,6 +3,8 @@ import {
   compareForBuyer,
   getMatchingContacts,
   isCurrentlyTenanted,
+  MATCH_FEED_FLOOR,
+  unitFit,
 } from './matching';
 import { rankProperties } from './radar/engine';
 import type { Contact, Property } from '@/types';
@@ -2674,5 +2676,141 @@ describe('compareForBuyer', () => {
       entry(70, 'partial', 'match'),
     ].sort(compareForBuyer);
     expect(sorted.map((e) => e.score)).toEqual([100, 99, 70, 60, 79]);
+  });
+});
+
+describe('[CNV-016] facing, tower and floor range', () => {
+  const brief = {
+    pref_property_types: ['Flat/ Apartment'],
+    pref_facing: ['East'],
+    pref_towers: ['10'],
+    pref_floor_min: 8,
+    pref_floor_max: 28,
+    pref_extracted_at: new Date().toISOString(),
+  };
+  const flat = (overrides: Partial<Property>) =>
+    createTestProperty({ type: 'Flat/ Apartment', ...overrides });
+
+  it('reads each of the three against the listing, and nothing when either side is silent', () => {
+    expect(
+      unitFit(
+        { facing_direction: 'east', tower: 'Tower 10', floor_number: 12 },
+        brief
+      )
+    ).toEqual({ facing: 'match', tower: 'match', floor: 'match' });
+    expect(
+      unitFit({ facing_direction: 'West', tower: 'B', floor_number: 3 }, brief)
+    ).toEqual({ facing: 'mismatch', tower: 'mismatch', floor: 'mismatch' });
+    expect(unitFit({}, brief)).toEqual({
+      facing: 'unknown',
+      tower: 'unknown',
+      floor: 'unknown',
+    });
+    expect(
+      unitFit({ facing_direction: 'East', tower: '10', floor_number: 12 }, {})
+    ).toEqual({ facing: 'unknown', tower: 'unknown', floor: 'unknown' });
+    expect(
+      unitFit({ floor_number: 0 }, { pref_floor_min: 0, pref_floor_max: 0 })
+        .floor
+    ).toBe('match');
+    expect(unitFit({ floor_number: 40 }, { pref_floor_min: 11 }).floor).toBe(
+      'match'
+    );
+  });
+
+  it('ranks the unit that fits above one that does not, and never drops the one that differs', () => {
+    const contact = createTestContact(brief);
+    const fits = getMatchingContacts(
+      flat({ facing_direction: 'East', tower: '10', floor_number: 12 }),
+      [contact]
+    );
+    const silent = getMatchingContacts(flat({}), [contact]);
+    const differs = getMatchingContacts(
+      flat({ facing_direction: 'West', tower: '4', floor_number: 2 }),
+      [contact]
+    );
+    expect(fits[0].details).toMatchObject({
+      facing: 'match',
+      tower: 'match',
+      floor: 'match',
+    });
+    expect(silent[0].details.facing).toBeUndefined();
+    expect(differs).toHaveLength(1);
+    expect(differs[0].details).toMatchObject({
+      facing: 'mismatch',
+      tower: 'mismatch',
+      floor: 'mismatch',
+    });
+    expect(fits[0].score).toBeGreaterThan(silent[0].score);
+    expect(silent[0].score).toBeGreaterThan(differs[0].score);
+  });
+
+  it('never lets a difference push a match that cleared the feed floor below it', () => {
+    const contact = createTestContact({
+      ...brief,
+      pref_budget_max: 12000000,
+    });
+    const plain = createTestContact({
+      pref_property_types: ['Flat/ Apartment'],
+      pref_budget_max: 12000000,
+      pref_extracted_at: new Date().toISOString(),
+    });
+    const listing = flat({
+      facing_direction: 'West',
+      tower: '4',
+      floor_number: 2,
+    });
+    const [baseline] = getMatchingContacts(listing, [plain]);
+    const [differs] = getMatchingContacts(listing, [contact]);
+    expect(baseline.score).toBeGreaterThanOrEqual(MATCH_FEED_FLOOR);
+    expect(baseline.score - 20).toBeLessThan(MATCH_FEED_FLOOR);
+    expect(differs.score).toBe(MATCH_FEED_FLOOR);
+  });
+
+  it('never lets a fit lift a match that missed the feed floor above it', () => {
+    const contact = createTestContact(brief);
+    const [fits] = getMatchingContacts(
+      flat({ facing_direction: 'East', tower: '10', floor_number: 12 }),
+      [contact]
+    );
+    const [silent] = getMatchingContacts(flat({}), [contact]);
+    expect(silent.score).toBeLessThan(MATCH_FEED_FLOOR);
+    expect(silent.score + 15).toBeGreaterThanOrEqual(MATCH_FEED_FLOOR);
+    expect(fits.score).toBe(MATCH_FEED_FLOOR - 1);
+  });
+
+  it('still separates listings for a brief whose score would cap at 100', () => {
+    const contact = createTestContact({
+      ...brief,
+      pref_projects: ['Prestige Meridian'],
+      pref_areas: ['HSR Layout'],
+      pref_budget_max: 12000000,
+    });
+    const unit = (overrides: Partial<Property>) =>
+      flat({ project: 'Prestige Meridian', ...overrides });
+    const [fits] = getMatchingContacts(
+      unit({ facing_direction: 'East', tower: '10', floor_number: 12 }),
+      [contact]
+    );
+    const [differs] = getMatchingContacts(
+      unit({ facing_direction: 'West', tower: '3', floor_number: 2 }),
+      [contact]
+    );
+    expect(fits.score).toBe(100);
+    expect(differs.score).toBe(80);
+  });
+
+  it('leaves a contact who states none of them scored exactly as before', () => {
+    const plain = createTestContact({
+      pref_property_types: ['Flat/ Apartment'],
+      pref_extracted_at: new Date().toISOString(),
+    });
+    const bare = getMatchingContacts(flat({}), [plain]);
+    const detailed = getMatchingContacts(
+      flat({ facing_direction: 'West', tower: '4', floor_number: 2 }),
+      [plain]
+    );
+    expect(detailed[0].score).toBe(bare[0].score);
+    expect(detailed[0].details.facing).toBeUndefined();
   });
 });

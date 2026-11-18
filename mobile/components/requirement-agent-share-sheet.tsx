@@ -16,34 +16,24 @@ import { EmptyState, SearchBar } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
-import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 
-interface ShareStatus {
-  registered: boolean;
-  recipientName: string;
-}
-
-async function fetchAgentContacts(): Promise<Contact[]> {
-  const { data, error } = await supabase
-    .from('contacts')
-    .select('id, name, phone, company, classification')
-    .eq('classification', 'Agent')
-    .eq('is_merged', false)
-    .order('name');
-  if (error) throw error;
-  return (data ?? []) as unknown as Contact[];
+interface RegisteredAgent {
+  id: string;
+  name: string | null;
+  phone: string;
+  company: string | null;
 }
 
 export function RequirementAgentShareSheet({
   visible,
-  buyer,
+  buyers,
   onBack,
   onDone,
 }: {
   visible: boolean;
-  buyer: Contact;
+  buyers: Pick<Contact, 'id'>[];
   onBack: () => void;
   onDone: () => void;
 }) {
@@ -52,19 +42,14 @@ export function RequirementAgentShareSheet({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const { show, close, dialogProps } = useAppDialog();
+  const many = buyers.length > 1;
 
   const agents = useQuery({
     queryKey: ['requirement-share-agents'],
     enabled: visible,
-    queryFn: fetchAgentContacts,
-  });
-  const status = useQuery({
-    queryKey: ['requirement-share-agent-status', selectedId],
-    enabled: visible && Boolean(selectedId),
-    retry: false,
     queryFn: () =>
-      apiFetch<{ data: ShareStatus }>(
-        `/api/contacts/${selectedId}/share-inventory`
+      apiFetch<{ data: RegisteredAgent[] }>(
+        '/api/requirement-account-shares/agents'
       ).then((response) => response.data),
   });
 
@@ -77,22 +62,29 @@ export function RequirementAgentShareSheet({
     );
   }, [agents.data, search]);
 
+  const canSend = Boolean(selectedId) && buyers.length > 0 && !sending;
+
   async function send() {
-    if (!selectedId || status.data?.registered !== true || sending) return;
+    if (!selectedId || !canSend) return;
     setSending(true);
+    let delivered = 0;
     try {
-      await apiFetch('/api/requirement-account-shares', {
-        method: 'POST',
-        body: JSON.stringify({
-          contact_id: buyer.id,
-          recipient_contact_id: selectedId,
-        }),
-      });
+      for (const buyer of buyers) {
+        await apiFetch('/api/requirement-account-shares', {
+          method: 'POST',
+          body: JSON.stringify({
+            contact_id: buyer.id,
+            recipient_contact_id: selectedId,
+          }),
+        });
+        delivered += 1;
+      }
       haptic.success();
       show({
-        title: 'Requirement shared',
-        message:
-          'The agent can now review the masked buyer brief in Shared Requirements and return matching inventory.',
+        title: many ? `${delivered} requirements shared` : 'Requirement shared',
+        message: many
+          ? 'The agent can now review the masked buyer briefs in Shared Requirements and return matching inventory.'
+          : 'The agent can now review the masked buyer brief in Shared Requirements and return matching inventory.',
         actions: [
           {
             label: 'Done',
@@ -106,11 +98,15 @@ export function RequirementAgentShareSheet({
       });
     } catch (error) {
       haptic.warn();
+      const reason = friendlyError(
+        error instanceof Error ? error.message : 'Please try again.'
+      );
       show({
         title: 'Could not share requirement',
-        message: friendlyError(
-          error instanceof Error ? error.message : 'Please try again.'
-        ),
+        message:
+          many && delivered > 0
+            ? `${delivered} of ${buyers.length} were shared before this stopped. ${reason}`
+            : reason,
         actions: [{ label: 'OK', variant: 'primary', onPress: close }],
       });
     } finally {
@@ -125,13 +121,16 @@ export function RequirementAgentShareSheet({
           <Text
             style={{ color: colors.textMuted, fontSize: 12.5, lineHeight: 18 }}
           >
-            Select a saved agent contact. ConvoReal shares a masked buyer brief,
-            never the buyer’s name or phone number.
+            Your saved agents who are on ConvoReal. They receive{' '}
+            {many
+              ? `${buyers.length} masked buyer briefs`
+              : 'a masked buyer brief'}
+            , never the buyer’s name or phone number.
           </Text>
           <SearchBar
             value={search}
             onChangeText={setSearch}
-            placeholder="Search saved agents"
+            placeholder="Search agents on ConvoReal"
           />
         </View>
 
@@ -156,8 +155,12 @@ export function RequirementAgentShareSheet({
           ) : shown.length === 0 ? (
             <EmptyState
               icon="people-outline"
-              title="No agent contacts"
-              subtitle="Save and classify an agent contact before sharing directly."
+              title="No agents on ConvoReal"
+              subtitle={
+                search.trim()
+                  ? 'None of your saved agents on ConvoReal match that search.'
+                  : 'None of your saved agent contacts has a ConvoReal account yet. Share the masked text with them instead.'
+              }
             />
           ) : (
             shown.map((agent) => {
@@ -206,70 +209,16 @@ export function RequirementAgentShareSheet({
           )}
         </ScrollView>
 
-        {selectedId ? (
-          <View style={{ paddingHorizontal: spacing.lg }}>
-            {status.isPending ? (
-              <View style={[styles.notice, { borderColor: colors.border }]}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={{ color: colors.textMuted, flex: 1 }}>
-                  Checking their ConvoReal account…
-                </Text>
-              </View>
-            ) : status.data?.registered ? (
-              <View
-                style={[
-                  styles.notice,
-                  {
-                    borderColor: colors.success,
-                    backgroundColor: colors.successSoft,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="checkmark-circle"
-                  size={18}
-                  color={colors.success}
-                />
-                <Text style={{ color: colors.text, flex: 1 }}>
-                  Account verified. This brief can be delivered in-app.
-                </Text>
-              </View>
-            ) : (
-              <View
-                style={[
-                  styles.notice,
-                  {
-                    borderColor: colors.warning,
-                    backgroundColor: colors.warningSoft,
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="information-circle"
-                  size={18}
-                  color={colors.warning}
-                />
-                <Text style={{ color: colors.text, flex: 1 }}>
-                  No matching ConvoReal account was found. Use the WhatsApp
-                  sharing option on the web until they join.
-                </Text>
-              </View>
-            )}
-          </View>
-        ) : null}
-
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{
-            disabled: status.data?.registered !== true || sending,
-          }}
-          disabled={status.data?.registered !== true || sending}
+          accessibilityState={{ disabled: !canSend }}
+          disabled={!canSend}
           onPress={send}
           style={[
             styles.send,
             {
               backgroundColor: colors.primary,
-              opacity: status.data?.registered === true && !sending ? 1 : 0.45,
+              opacity: canSend ? 1 : 0.45,
               marginHorizontal: spacing.lg,
             },
           ]}
@@ -280,7 +229,9 @@ export function RequirementAgentShareSheet({
             <Ionicons name="send-outline" size={18} color={colors.onPrimary} />
           )}
           <Text style={{ color: colors.onPrimary, fontFamily: f.bold }}>
-            Share masked requirement
+            {many
+              ? `Share ${buyers.length} masked requirements`
+              : 'Share masked requirement'}
           </Text>
         </Pressable>
       </View>
@@ -292,15 +243,6 @@ export function RequirementAgentShareSheet({
 const styles = StyleSheet.create({
   row: {
     minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-  },
-  notice: {
-    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,

@@ -104,3 +104,65 @@ describe('requirement profiles', () => {
     expect(revised.land_area_min_sqft).toBe(130_680);
   });
 });
+
+describe('[CNV-016] a requirement profile carries facing, tower and floor range', () => {
+  const preferences = {
+    ...EMPTY_PREFERENCES,
+    property_types: ['Flat/ Apartment'],
+    facing: ['East'],
+    towers: ['10'],
+    floor_min: 8,
+    floor_max: 28,
+  };
+
+  it('stores them on the profile and hands them to the matcher', () => {
+    const profile = createRequirementProfile({
+      id: 'p1',
+      rawText: 'East facing in tower 10, 8th to 28th floor',
+      source: 'manual',
+      preferences,
+    });
+    expect(profile).toMatchObject({
+      facing: ['East'],
+      towers: ['10'],
+      floor_min: 8,
+      floor_max: 28,
+    });
+    expect(
+      contactForRequirementProfile({ id: 'c1' } as Contact, profile)
+    ).toMatchObject({
+      pref_facing: ['East'],
+      pref_towers: ['10'],
+      pref_floor_min: 8,
+      pref_floor_max: 28,
+    });
+  });
+
+  it('counts a brief that states only a floor as structured, and reads an older profile as stating none', () => {
+    expect(
+      hasStructuredRequirement({ ...EMPTY_PREFERENCES, floor_min: 0 })
+    ).toBe(true);
+    expect(hasStructuredRequirement(EMPTY_PREFERENCES)).toBe(false);
+    const legacy = createRequirementProfile({
+      id: 'p2',
+      rawText: 'Flat in Whitefield',
+      source: 'manual',
+      preferences: EMPTY_PREFERENCES,
+    });
+    const old = {
+      ...legacy,
+      facing: undefined,
+      towers: undefined,
+      floor_min: undefined,
+      floor_max: undefined,
+    };
+    expect(
+      contactForRequirementProfile({ id: 'c1' } as Contact, old)
+    ).toMatchObject({
+      pref_facing: [],
+      pref_towers: [],
+      pref_floor_min: null,
+      pref_floor_max: null,
+    });
+  });
+});

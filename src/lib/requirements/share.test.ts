@@ -79,7 +79,65 @@ describe('budget lines', () => {
         { ...base, max_budget: null, min_budget: null },
         'masked'
       )
-    ).toContain('Not specified');
+    ).not.toContain('Budget');
+  });
+});
+
+describe('[REQ-007] a crisp brief', () => {
+  const noisy: ShareableRequirement = {
+    id: '53c4aaaa-0000-0000-0000-000000000000',
+    classification: 'Buyer',
+    min_budget: 70000000,
+    max_budget: 150000000,
+    requirements: 'Residential House · Jayanagar, JP Nagar · ₹15 Cr–₹40 Cr',
+    areas_of_interest: ['Jayanagar', 'JP Nagar', 'JP Nagar', 'jayanagar '],
+  };
+
+  it('repeats neither a location nor a budget the text already states', () => {
+    expect(buildRequirementDigest([noisy], 'masked')).toBe(
+      [
+        '*CLIENT REQUIREMENT*',
+        '',
+        '• Requirement REQ-53C4 (Buyer)',
+        '• Looking for: Residential House · Jayanagar, JP Nagar · ₹15 Cr–₹40 Cr',
+      ].join('\n')
+    );
+  });
+
+  it('lists each remaining location and project once', () => {
+    const out = formatRequirement(
+      {
+        ...noisy,
+        requirements: 'Independent house, old building is fine',
+        areas_of_interest: ['Jayanagar', 'JP Nagar', 'jp nagar', 'Jayanagar'],
+        projects_of_interest: ['Purva Westend', 'purva westend'],
+      },
+      'masked'
+    );
+    expect(out).toContain('Budget: ₹7 Cr – ₹15 Cr');
+    expect(out).toContain('Locations: Jayanagar, JP Nagar');
+    expect(out).not.toContain('JP Nagar, ');
+    expect(out).toContain('Projects: Purva Westend');
+    expect(out).not.toContain('purva westend');
+  });
+
+  it('matches whole words, so part of a name is not taken as stated', () => {
+    expect(
+      formatRequirement(
+        {
+          ...noisy,
+          requirements: 'Near Jayanagar 4th Block',
+          areas_of_interest: ['Nagar', 'Jayanagar'],
+        },
+        'masked'
+      )
+    ).toContain('Locations: Nagar');
+  });
+
+  it('keeps a no-limit budget even when the text names a figure', () => {
+    expect(
+      formatRequirement({ ...noisy, no_budget: true }, 'masked')
+    ).toContain('Budget: No limit stated');
   });
 });
 
@@ -112,13 +170,13 @@ describe('buildRequirementDigest', () => {
 
   it('keeps the single-requirement heading singular and unnumbered', () => {
     const out = buildRequirementDigest([base], 'masked');
-    expect(out).toContain('*CONSOLIDATED CLIENT REQUIREMENT*');
+    expect(out).toContain('*CLIENT REQUIREMENT*');
     expect(out).not.toContain('1)');
   });
 
   it('numbers a multi-requirement digest and counts it', () => {
     const out = buildRequirementDigest([base, second], 'masked');
-    expect(out).toContain('*CONSOLIDATED CLIENT REQUIREMENTS (2)*');
+    expect(out).toContain('*CLIENT REQUIREMENTS (2)*');
     expect(out).toContain('1)');
     expect(out).toContain('2)');
   });
@@ -128,7 +186,7 @@ describe('buildRequirementDigest', () => {
       [{ ...base, requirement_active: false }, second],
       'masked'
     );
-    expect(out).toContain('*CONSOLIDATED CLIENT REQUIREMENT*');
+    expect(out).toContain('*CLIENT REQUIREMENT*');
     expect(out).not.toContain('Hebbal');
     expect(out).toContain('Purva Westend');
   });

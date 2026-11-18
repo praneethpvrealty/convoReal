@@ -8,7 +8,9 @@ import {
   PULSE_FEED_PAGE_SIZE,
   PULSE_LISTINGS_RENDER_STEP,
   pulseFeedCursorFilter,
+  contactScreenRoute,
   pulseVisitorLabel,
+  pulseVisitorLabelParts,
   visitorContactRoute,
   type PulseEvent,
 } from './pulse-feed';
@@ -278,6 +280,38 @@ describe('[PLS-002] visitor contact link', () => {
 
   it('gives an anonymous guest no link', () => {
     expect(visitorContactRoute({ contact: null })).toBeNull();
+  });
+
+  it('opens the forwarded-link sender from their capsule, not the guest', () => {
+    const parts = pulseVisitorLabelParts(
+      {
+        contact: null,
+        via_contact: { id: 'c-9', name: 'Abhishek', phone: '+91' },
+        share: null,
+        session_key: 'e3e4ba9d-1234-4abc-8def-000000000000',
+      },
+      () => '2h ago'
+    );
+    expect(parts).toEqual({
+      before: 'Guest via ',
+      contact: { id: 'c-9', label: 'Abhishek' },
+      after: "'s link · e3e4ba9d",
+    });
+    expect(contactScreenRoute(parts.contact!.id)).toBe('/(app)/contact/c-9');
+  });
+
+  it('shows no capsule for an anonymous guest', () => {
+    expect(
+      pulseVisitorLabelParts(
+        {
+          contact: null,
+          via_contact: null,
+          share: null,
+          session_key: 'e3e4ba9d-1234-4abc-8def-000000000000',
+        },
+        () => '2h ago'
+      ).contact
+    ).toBeNull();
   });
 });
 

@@ -79,6 +79,10 @@ import {
   isRawLandType,
   isApartmentType,
 } from '@/lib/inventory/property-options';
+import {
+  PROPERTY_CHANGED_CODE,
+  propertyEditVersion,
+} from '@/lib/inventory/edit-version';
 import { listingStatusLabel } from '@/lib/inventory/listing-status-label';
 import { DOCUMENT_SIZE_LIMIT } from '@/lib/inventory/documents';
 import {
@@ -162,6 +166,8 @@ interface PropertyDuplicateCandidate {
   score: number;
   signals: string[];
 }
+
+const PROPERTY_CHANGED_TOAST_ID = 'property-changed';
 
 export function PropertyForm({
   open,
@@ -310,6 +316,7 @@ export function PropertyForm({
   const uploadsInFlight =
     uploadingImage || uploadingDocument || planUploads > 0;
   const baselineValues = useRef<PropertyFormValues | null>(null);
+  const openedVersion = useRef<string | null>(null);
   const [contactedContactIds, setContactedContactIds] = useState<Set<string>>(
     new Set()
   );
@@ -773,6 +780,9 @@ export function PropertyForm({
         ? propertyToFormValues(property, contacts)
         : emptyPropertyFormValues(defaultOwnerId);
       baselineValues.current = nextValues;
+      openedVersion.current = propertyEditVersion(
+        property as unknown as Record<string, unknown> | null
+      );
       reset(nextValues);
       setTagInput('');
       if (property) {
@@ -791,6 +801,7 @@ export function PropertyForm({
     } else {
       formResetKey.current = null;
       baselineValues.current = null;
+      openedVersion.current = null;
     }
   }, [open, property, defaultOwnerId, contacts, reset]);
 
@@ -1184,9 +1195,36 @@ export function PropertyForm({
     );
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    void saveProperty(false);
+  }
 
+  // The overwrite toast outlives the render that raised it, and the form
+  // stays editable under it, so its action saves through the latest
+  // saveProperty rather than the one that captured the values it refused.
+  const saveLatest = useRef<((overwrite: boolean) => Promise<void>) | null>(
+    null
+  );
+  useEffect(() => {
+    saveLatest.current = saveProperty;
+  });
+  // The toast belongs to one opening of one listing. Closing the form or
+  // opening another listing ends that session: the toast is withdrawn, a
+  // refusal that arrives afterwards raises none, and the action does
+  // nothing if it is clicked in the moment before the toast goes.
+  const openSession = useRef(0);
+  const openPropertyId = open && property ? property.id : null;
+  useEffect(
+    () => () => {
+      openSession.current += 1;
+      toast.dismiss(PROPERTY_CHANGED_TOAST_ID);
+    },
+    [openPropertyId]
+  );
+
+  async function saveProperty(overwrite: boolean) {
+    const session = openSession.current;
     if (uploadsInFlight) {
       toast.error('Wait for the uploads to finish before saving.');
       return;
@@ -1213,11 +1251,39 @@ export function PropertyForm({
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(
+            overwrite
+              ? payload
+              : {
+                  ...payload,
+                  expected_version: openedVersion.current,
+                }
+          ),
         });
 
         if (!response.ok) {
           const errData = await response.json();
+          if (
+            response.status === 409 &&
+            errData.code === PROPERTY_CHANGED_CODE
+          ) {
+            if (openSession.current !== session) return;
+            toast.warning(
+              'This listing was changed after you opened it. Saving now replaces those changes with what is in this form.',
+              {
+                id: PROPERTY_CHANGED_TOAST_ID,
+                duration: 20000,
+                action: {
+                  label: 'Save anyway',
+                  onClick: () => {
+                    if (openSession.current !== session) return;
+                    void saveLatest.current?.(true);
+                  },
+                },
+              }
+            );
+            return;
+          }
           throw new Error(errData.error || 'Failed to update property');
         }
       } else {

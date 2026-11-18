@@ -76,6 +76,10 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Property } from '@/lib/types';
 // The row shape the server sanitizes into. Type-only, so nothing from
 // the web lib reaches the bundle.
+import {
+  PROPERTY_CHANGED_CODE,
+  propertyEditVersion,
+} from '@shared/lib/inventory/edit-version';
 import type { FloorTenancy } from '@shared/lib/inventory/floor-tenancies';
 import {
   closedPriceLabel,
@@ -548,7 +552,7 @@ function EditForm({ property }: { property: Property }) {
     0
   );
 
-  async function save() {
+  async function save(overwrite: boolean) {
     const invalid = validateListingCore({
       title,
       type,
@@ -661,6 +665,11 @@ function EditForm({ property }: { property: Property }) {
       area_sqft: num(fp.area_sqft),
       notes: fp.notes.trim() || null,
     }));
+    if (!overwrite) {
+      body.expected_version = propertyEditVersion(
+        property as unknown as Record<string, unknown>
+      );
+    }
     try {
       await apiFetch(`/api/properties/${property.id}`, {
         method: 'PUT',
@@ -668,6 +677,25 @@ function EditForm({ property }: { property: Property }) {
       });
     } catch (e) {
       setSaving(false);
+      if (e instanceof ApiError && e.code === PROPERTY_CHANGED_CODE) {
+        dialog.show({
+          title: 'This listing was changed',
+          message:
+            'Someone changed it after you opened it here. Saving now replaces those changes with what is in this form.',
+          actions: [
+            { label: 'Cancel', onPress: dialog.close },
+            {
+              label: 'Save anyway',
+              variant: 'destructive',
+              onPress: () => {
+                dialog.close();
+                void save(true);
+              },
+            },
+          ],
+        });
+        return;
+      }
       showError(
         friendlyError(
           e instanceof ApiError ? e.message : 'Could not save changes.'
@@ -1438,7 +1466,7 @@ function EditForm({ property }: { property: Property }) {
           label={photosBusy ? 'Uploading photos…' : 'Save changes'}
           busy={saving}
           disabled={photosBusy}
-          onPress={save}
+          onPress={() => void save(false)}
         />
         <Text
           style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}

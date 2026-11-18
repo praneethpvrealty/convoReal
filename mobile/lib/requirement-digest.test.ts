@@ -79,9 +79,29 @@ describe('formatRequirement', () => {
         'masked'
       )
     ).toContain('Budget: from ₹50 L');
-    expect(formatRequirement(brief({ max_budget: null }), 'masked')).toContain(
-      'Budget: Not specified'
+    expect(
+      formatRequirement(brief({ max_budget: null }), 'masked')
+    ).not.toContain('Budget');
+  });
+
+  it('[REQ-007] repeats neither a location nor a budget the text states', () => {
+    const out = formatRequirement(
+      brief({
+        requirements: 'House · Jayanagar, JP Nagar · ₹15 Cr–₹40 Cr',
+        areas_of_interest: ['Jayanagar', 'JP Nagar', 'JP Nagar', 'Jayanagar'],
+        min_budget: 70000000,
+        max_budget: 150000000,
+      }),
+      'masked'
     );
+    expect(out).not.toContain('Locations');
+    expect(out).not.toContain('Budget');
+    expect(
+      formatRequirement(
+        brief({ areas_of_interest: ['Brookefield', 'brookefield '] }),
+        'masked'
+      )
+    ).toMatch(/Locations: Brookefield$/);
   });
 
   it('[REQ-005] appends a response link when one was minted', () => {
@@ -102,14 +122,14 @@ describe('buildRequirementDigest', () => {
     ).toBe('');
 
     const one = buildRequirementDigest([brief()], 'masked');
-    expect(one).toContain('*CONSOLIDATED CLIENT REQUIREMENT*');
+    expect(one).toContain('*CLIENT REQUIREMENT*');
     expect(one).not.toContain('1)');
 
     const two = buildRequirementDigest(
       [brief(), brief({ id: 'b1b2c3d4-0000-0000-0000-000000000000' })],
       'masked'
     );
-    expect(two).toContain('*CONSOLIDATED CLIENT REQUIREMENTS (2)*');
+    expect(two).toContain('*CLIENT REQUIREMENTS (2)*');
     expect(two).toContain('1) •');
     expect(two).toContain('2) •');
   });

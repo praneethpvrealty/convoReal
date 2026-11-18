@@ -19,6 +19,8 @@ import {
   UserCheck,
   ArrowRight,
   ChevronDown,
+  ChevronRight,
+  UserRound,
   Search,
   Bookmark,
   MessageCircle,
@@ -47,8 +49,8 @@ import {
   PULSE_LISTING_SORTS,
   type PulseListingSort,
 } from '@/lib/pulse/viewed-listings';
-import { pulseVisitorLabel } from '@/lib/pulse/visitor-label';
-import { visitorContactHref } from '@/lib/pulse/visitor-link';
+import { pulseVisitorLabelParts } from '@/lib/pulse/visitor-label';
+import { contactDetailsHref } from '@/lib/pulse/visitor-link';
 import {
   dedupeConsecutiveEvents,
   groupEventsByVisitor,
@@ -305,8 +307,27 @@ export default function PulsePage() {
     }
   };
 
-  const getVisitorName = (event: HydratedShowcaseEvent) =>
-    pulseVisitorLabel(event, formatTimeAgo);
+  const renderVisitorName = (event: HydratedShowcaseEvent) => {
+    const parts = pulseVisitorLabelParts(event, formatTimeAgo);
+    return (
+      <>
+        {parts.before}
+        {parts.contact && (
+          <button
+            type="button"
+            onClick={() => router.push(contactDetailsHref(parts.contact!.id))}
+            aria-label={`Open ${parts.contact.label}`}
+            className="border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 inline-flex max-w-full cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 align-middle text-[11px] font-black transition-colors"
+          >
+            <UserRound className="size-3 shrink-0" />
+            <span className="truncate">{parts.contact.label}</span>
+            <ChevronRight className="size-3 shrink-0" />
+          </button>
+        )}
+        {parts.after}
+      </>
+    );
+  };
 
   const toggleVisitor = (visitorId: string) => {
     setExpandedVisitors((current) => {
@@ -543,7 +564,6 @@ export default function PulsePage() {
                             .toUpperCase()
                         : '?';
                       const isExpanded = expandedVisitors.has(visitor.id);
-                      const contactHref = visitorContactHref(evt);
                       const hasEarlierActivity = visitor.events.length > 1;
 
                       return (
@@ -569,18 +589,8 @@ export default function PulsePage() {
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                  <p className="truncate text-xs font-black text-white">
-                                    {contactHref ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => router.push(contactHref)}
-                                        className="hover:text-primary cursor-pointer hover:underline"
-                                      >
-                                        {getVisitorName(evt)}
-                                      </button>
-                                    ) : (
-                                      getVisitorName(evt)
-                                    )}
+                                  <p className="text-xs leading-relaxed font-black break-words text-white">
+                                    {renderVisitorName(evt)}
                                     <NameTagBadge tag={evt.contact?.name_tag} />
                                   </p>
                                   <div className="mt-1 flex items-start gap-1.5 text-[11px] leading-relaxed font-medium text-slate-400">

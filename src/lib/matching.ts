@@ -3,6 +3,7 @@ import type { ContactParty } from '@/lib/contacts/parties';
 import { normalizePropertyType } from '@/lib/property-types';
 import { textContainsProject } from '@/lib/project-match';
 import { toSquareFeet } from '@/lib/area-units';
+import { normalizeFacing, normalizeTower } from '@/lib/ai/unit-preferences';
 import { resolveBudgetBound } from '@/lib/contacts/budget-amount';
 import {
   activeRequirementProfiles,
@@ -218,6 +219,74 @@ export interface MatchDetails {
    *  or a yield-led commercial brief), so location reads 'unknown' by
    *  their choice rather than for want of a brief. */
   location_waived?: boolean;
+  /** The listing's facing, tower and floor against what the contact
+   *  stated. 'unknown' when either side has no value; a 'mismatch' is
+   *  penalised in the score, never excluded — listings often omit them. */
+  facing?: MatchVerdict;
+  tower?: MatchVerdict;
+  floor?: MatchVerdict;
+}
+
+/** The score every match feed (Radar, buyer alerts, the buyer portal,
+ *  the Deal Mode sweep) cuts at. A facing, tower or floor fit or
+ *  difference reorders matches on their own side of it and never moves
+ *  one across it. */
+export const MATCH_FEED_FLOOR = 60;
+
+export interface UnitFit {
+  facing: MatchVerdict;
+  tower: MatchVerdict;
+  floor: MatchVerdict;
+}
+
+export function unitFit(
+  property: Partial<Property>,
+  source: Pick<
+    Contact,
+    'pref_facing' | 'pref_towers' | 'pref_floor_min' | 'pref_floor_max'
+  >
+): UnitFit {
+  const wantedFacing = (source.pref_facing ?? [])
+    .map((value) => normalizeFacing(value))
+    .filter(Boolean);
+  const listingFacing = normalizeFacing(property.facing_direction);
+  const facing: MatchVerdict =
+    wantedFacing.length === 0 || !listingFacing
+      ? 'unknown'
+      : wantedFacing.includes(listingFacing)
+        ? 'match'
+        : 'mismatch';
+
+  const wantedTowers = (source.pref_towers ?? [])
+    .map((value) => normalizeTower(value))
+    .filter(Boolean);
+  const listingTower = normalizeTower(property.tower);
+  const tower: MatchVerdict =
+    wantedTowers.length === 0 || !listingTower
+      ? 'unknown'
+      : wantedTowers.includes(listingTower)
+        ? 'match'
+        : 'mismatch';
+
+  const floorMin =
+    source.pref_floor_min != null ? Number(source.pref_floor_min) : null;
+  const floorMax =
+    source.pref_floor_max != null ? Number(source.pref_floor_max) : null;
+  const listingFloor =
+    property.floor_number != null && property.floor_number !== undefined
+      ? Number(property.floor_number)
+      : null;
+  const floor: MatchVerdict =
+    (floorMin == null && floorMax == null) ||
+    listingFloor == null ||
+    !Number.isFinite(listingFloor)
+      ? 'unknown'
+      : (floorMin == null || listingFloor >= floorMin) &&
+          (floorMax == null || listingFloor <= floorMax)
+        ? 'match'
+        : 'mismatch';
+
+  return { facing, tower, floor };
 }
 
 export interface MatchingResult {
@@ -1622,6 +1691,24 @@ function matchContactsSingleProfile(
 
     if (roiVerdict === 'match') score += 5;
 
+    const unit = unitFit(property, sourceContact);
+    let unitBonus = 0;
+    let unitPenalty = 0;
+    if (unit.facing === 'match') unitBonus += 5;
+    else if (unit.facing === 'mismatch') unitPenalty += 10;
+    if (unit.tower === 'match') unitBonus += 5;
+    else if (unit.tower === 'mismatch') unitPenalty += 5;
+    if (unit.floor === 'match') unitBonus += 5;
+    else if (unit.floor === 'mismatch') unitPenalty += 5;
+    if (unitBonus > 0 || unitPenalty > 0) {
+      const base = Math.min(100, score);
+      const adjusted = base + unitBonus - unitPenalty;
+      score =
+        base >= MATCH_FEED_FLOOR
+          ? Math.max(MATCH_FEED_FLOOR, adjusted)
+          : Math.min(MATCH_FEED_FLOOR - 1, adjusted);
+    }
+
     // Current tenancy is a hard gate and makes an otherwise-empty brief feed
     // eligible. Scale the ordinary score into the remaining 40 points so its
     // type, locality, budget, size and BHK differences still determine order.
@@ -1643,6 +1730,9 @@ function matchContactsSingleProfile(
         project: projectMatch ? 'match' : 'unknown',
         named_area: namedAreaHit ? 'match' : 'unknown',
         ...(locationWaived ? { location_waived: true } : {}),
+        ...(unit.facing !== 'unknown' ? { facing: unit.facing } : {}),
+        ...(unit.tower !== 'unknown' ? { tower: unit.tower } : {}),
+        ...(unit.floor !== 'unknown' ? { floor: unit.floor } : {}),
       },
       matchedFields: {
         budget: budgetVerdict === 'match',

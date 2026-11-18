@@ -84,6 +84,30 @@ export function MatchDetailChips({ details }: { details: MatchDetails }) {
         </Badge>
       )}
 
+      {(
+        [
+          ['facing', 'Facing'],
+          ['tower', 'Tower'],
+          ['floor', 'Floor'],
+        ] as const
+      ).map(([key, label]) =>
+        details[key] === 'match' ? (
+          <Badge
+            key={key}
+            className={`${base} bg-emerald-550/5 text-emerald-450 border-emerald-500/10`}
+          >
+            {label} fit
+          </Badge>
+        ) : details[key] === 'mismatch' ? (
+          <Badge
+            key={key}
+            className={`${base} border-red-500/10 bg-red-500/5 text-red-400`}
+          >
+            {label} differs
+          </Badge>
+        ) : null
+      )}
+
       {details.roi === 'match' && (
         <Badge
           className={`${base} bg-emerald-550/5 text-emerald-450 border-emerald-500/10`}

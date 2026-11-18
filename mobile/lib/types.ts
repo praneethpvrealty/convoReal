@@ -267,6 +267,8 @@ export interface Appointment {
   contact_id?: string | null;
   contact_ids?: string[] | null;
   property_id?: string | null;
+  user_id?: string | null;
+  remind_creator?: boolean | null;
   /** Type-specific notes (migration 128). `agenda` is filled while
    *  planning and rides along on the pre-event brief; `minutes` and
    *  `outcome` are logged after the event. Which of the three apply

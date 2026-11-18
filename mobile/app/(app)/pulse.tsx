@@ -66,7 +66,9 @@ import {
   dedupeConsecutiveEvents,
   formatDwellTime,
   formatTimeAgo,
+  contactScreenRoute,
   pulseVisitorLabel,
+  pulseVisitorLabelParts,
   groupEventsByVisitor,
   nextPulseFeedCursor,
   nextRenderedListingCount,
@@ -703,6 +705,7 @@ function VisitorActivityCard({
   const { colors, fonts: f } = useTheme();
   const event = visitor.latestEvent;
   const who = pulseVisitorLabel(event, formatTimeAgo);
+  const whoParts = pulseVisitorLabelParts(event, formatTimeAgo);
   const hasEarlierActivity = visitor.events.length > 1;
   const contactRoute = visitorContactRoute(event);
 
@@ -723,22 +726,41 @@ function VisitorActivityCard({
         </Pressable>
         <View style={{ flex: 1, gap: 4 }}>
           <View style={styles.eventHead}>
-            <Text
-              style={{
-                fontSize: 14,
-                fontFamily: f.semibold,
-                color: colors.text,
-                flex: 1,
-              }}
-              numberOfLines={1}
-              onPress={
-                contactRoute ? () => router.push(contactRoute) : undefined
-              }
-              accessibilityRole={contactRoute ? 'link' : undefined}
-              accessibilityLabel={contactRoute ? `Open ${who}` : undefined}
-            >
-              {who}
-            </Text>
+            <View style={styles.visitorName}>
+              {whoParts.before ? (
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                    flexShrink: 1,
+                    marginRight: 4,
+                  }}
+                  numberOfLines={1}
+                >
+                  {whoParts.before.trimEnd()}
+                </Text>
+              ) : null}
+              {whoParts.contact ? (
+                <ContactCapsule
+                  contactId={whoParts.contact.id}
+                  label={whoParts.contact.label}
+                />
+              ) : null}
+              {whoParts.after ? (
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                    flexShrink: 1,
+                  }}
+                  numberOfLines={1}
+                >
+                  {whoParts.after}
+                </Text>
+              ) : null}
+            </View>
             {event.contact?.name_tag ? (
               <View style={nameTagCap}>
                 <Tag label={event.contact.name_tag} />
@@ -814,6 +836,41 @@ function VisitorActivityCard({
         </View>
       ) : null}
     </View>
+  );
+}
+
+function ContactCapsule({
+  contactId,
+  label,
+}: {
+  contactId: string;
+  label: string;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <Pressable
+      onPress={() => router.push(contactScreenRoute(contactId))}
+      accessibilityRole="link"
+      accessibilityLabel={`Open ${label}`}
+      hitSlop={6}
+      style={({ pressed }) => [
+        styles.contactCapsule,
+        {
+          backgroundColor: colors.primarySoft,
+          borderColor: colors.primary,
+          opacity: pressed ? 0.7 : 1,
+        },
+      ]}
+    >
+      <Ionicons name="person" size={11} color={colors.primary} />
+      <Text
+        style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+      <Ionicons name="chevron-forward" size={11} color={colors.primary} />
+    </Pressable>
   );
 }
 
@@ -1055,6 +1112,23 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     marginBottom: spacing.sm,
     overflow: 'hidden',
+  },
+  visitorName: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    rowGap: 4,
+  },
+  contactCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    maxWidth: '100%',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   visitorSummary: {
     flexDirection: 'row',

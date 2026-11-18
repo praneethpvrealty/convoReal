@@ -170,34 +170,77 @@ export function nextPulseFeedCursor(
 }
 
 /** Web parity: src/lib/pulse/visitor-link.ts. */
+export function contactScreenRoute(
+  contactId: string
+): `/(app)/contact/${string}` {
+  return `/(app)/contact/${contactId}`;
+}
+
 export function visitorContactRoute(
   event: Pick<PulseEvent, 'contact'>
 ): `/(app)/contact/${string}` | null {
-  return event.contact ? `/(app)/contact/${event.contact.id}` : null;
+  return event.contact ? contactScreenRoute(event.contact.id) : null;
 }
+
+export interface PulseVisitorLabelParts {
+  before: string;
+  contact: { id: string; label: string } | null;
+  after: string;
+}
+
+type LabelEvent = Pick<
+  PulseEvent,
+  'contact' | 'via_contact' | 'share' | 'session_key'
+>;
 
 /**
  * Who a feed row belongs to — web parity with
  * src/lib/pulse/visitor-label.ts. An identified visitor is named; a
  * guest who arrived on a contact's forwarded link is labelled as coming
  * via that contact, never as the contact; a guest from a generic share
- * is dated to the share; everyone else is an anonymous guest.
+ * is dated to the share; everyone else is an anonymous guest. The named
+ * contact is returned apart so the feed can render it as a tappable
+ * capsule that opens that contact.
  */
-export function pulseVisitorLabel(
-  event: Pick<PulseEvent, 'contact' | 'via_contact' | 'share' | 'session_key'>,
+export function pulseVisitorLabelParts(
+  event: LabelEvent,
   timeAgo: (iso: string) => string
-): string {
+): PulseVisitorLabelParts {
   if (event.contact) {
-    return event.contact.name || event.contact.phone || 'Contact';
+    return {
+      before: '',
+      contact: {
+        id: event.contact.id,
+        label: event.contact.name || event.contact.phone || 'Contact',
+      },
+      after: '',
+    };
   }
   const tail = event.session_key.slice(0, 8);
   if (event.via_contact) {
-    const sender =
-      event.via_contact.name || event.via_contact.phone || 'a contact';
-    return `Guest via ${sender}'s link · ${tail}`;
+    return {
+      before: 'Guest via ',
+      contact: {
+        id: event.via_contact.id,
+        label: event.via_contact.name || event.via_contact.phone || 'a contact',
+      },
+      after: `'s link · ${tail}`,
+    };
   }
   if (event.share) {
-    return `Guest · link shared ${timeAgo(event.share.created_at)} · ${tail}`;
+    return {
+      before: `Guest · link shared ${timeAgo(event.share.created_at)} · ${tail}`,
+      contact: null,
+      after: '',
+    };
   }
-  return `Anonymous guest · ${tail}`;
+  return { before: `Anonymous guest · ${tail}`, contact: null, after: '' };
+}
+
+export function pulseVisitorLabel(
+  event: LabelEvent,
+  timeAgo: (iso: string) => string
+): string {
+  const parts = pulseVisitorLabelParts(event, timeAgo);
+  return `${parts.before}${parts.contact?.label ?? ''}${parts.after}`;
 }

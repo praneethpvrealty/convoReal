@@ -15,15 +15,27 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, CalendarDays } from 'lucide-react';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import {
-  linkedContactForProperty,
+  linkPropertyParticipants,
   linkedPropertyForContacts,
 } from '@/lib/calendar/auto-link';
+import {
+  matchesPropertyTag,
+  propertyArea,
+  stripPropertyTag,
+  titleForLinkedProperty,
+  trailingPropertyTag,
+} from '@/lib/calendar/property-hashtag';
+import {
+  DEFAULT_EVENT_TYPE,
+  EVENT_TYPE_LABELS,
+} from '@/lib/calendar/event-type-defaults';
 import {
   PAST_START_CONFIRM,
   eventTimesError,
@@ -45,6 +57,10 @@ interface SimpleProperty {
   title: string;
   property_code?: string | null;
   location?: string | null;
+  sublocality?: string | null;
+  city?: string | null;
+  status?: string | null;
+  owner_contact_id?: string | null;
   tags?: string[] | null;
   price?: number | null;
   type?: string | null;
@@ -69,6 +85,20 @@ function formatDateTime(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function announceParticipants(enquirer: string | null, owner: string | null) {
+  if (enquirer) {
+    toast.info(`Added ${enquirer} — they inquired about this property`, {
+      id: `appointment-enquirer-${enquirer}`,
+    });
+  }
+  if (owner) {
+    toast.info(
+      `Added ${owner} as the property's owner — remove them if they shouldn't get reminders`,
+      { id: `appointment-owner-${owner}` }
+    );
+  }
+}
+
 export function ScheduleDialog({
   open,
   onOpenChange,
@@ -91,8 +121,14 @@ export function ScheduleDialog({
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [location, setLocation] = useState('');
+  const [filledPrefillFor, setFilledPrefillFor] = useState<string | null>(null);
+  const [prefillAdded, setPrefillAdded] = useState<{
+    enquirer: string | null;
+    owner: string | null;
+  } | null>(null);
   const [notes, setNotes] = useState('');
   const [agenda, setAgenda] = useState('');
+  const [remindMe, setRemindMe] = useState(true);
 
   // Fetch contacts and properties
   const loadOptions = useCallback(async () => {
@@ -110,7 +146,7 @@ export function ScheduleDialog({
         supabase
           .from('properties')
           .select(
-            'id, title, property_code, location, tags, price, type, bedrooms, area_sqft, area_unit, images'
+            'id, title, property_code, location, sublocality, city, status, owner_contact_id, tags, price, type, bedrooms, area_sqft, area_unit, images'
           )
           .eq('account_id', accountId)
           .order('title'),
@@ -131,9 +167,11 @@ export function ScheduleDialog({
       setTitle(initialTitle ?? '');
       setSelectedContactIds(contactId ? [contactId] : []);
       setSelectedPropertyId(propertyId || '');
+      setFilledPrefillFor(null);
       setLocation('');
       setNotes('');
       setAgenda('');
+      setRemindMe(true);
 
       // Setup default times (e.g. today starting in 1 hour, duration 1 hour)
       const now = new Date();
@@ -164,28 +202,102 @@ export function ScheduleDialog({
 
   // Bidirectional auto-link: picking a contact fills the property they
   // inquired about; picking a property pulls in the contact linked to it.
+  const fillFromProperty = (property: SimpleProperty) => {
+    setTitle((current) =>
+      titleForLinkedProperty(
+        current,
+        EVENT_TYPE_LABELS[DEFAULT_EVENT_TYPE],
+        property.title
+      )
+    );
+    setLocation((current) => current || propertyArea(property));
+  };
+
+  const participantsWithProperty = (
+    property: SimpleProperty,
+    current: string[]
+  ): string[] => {
+    const { ids, enquirer, owner } = linkPropertyParticipants(
+      current,
+      property,
+      contacts
+    );
+    announceParticipants(
+      enquirer ? enquirer.name || 'the enquirer' : null,
+      owner ? owner.name || 'the owner' : null
+    );
+    return ids;
+  };
+
   const handleContactsChange = (ids: string[]) => {
-    setSelectedContactIds(ids);
     if (!selectedPropertyId) {
       const hit = linkedPropertyForContacts(ids, contacts, properties);
       if (hit) {
         setSelectedPropertyId(hit.property.id);
+        fillFromProperty(hit.property);
         toast.info(
           `Linked property "${hit.property.title}" from ${hit.contact.name}'s inquiry`
         );
+        setSelectedContactIds(participantsWithProperty(hit.property, ids));
+        return;
       }
     }
+    setSelectedContactIds(ids);
   };
 
   const handlePropertyChange = (val: string | null) => {
     setSelectedPropertyId(val || '');
-    if (val && selectedContactIds.length === 0) {
-      const linked = linkedContactForProperty(val, contacts);
-      if (linked) {
-        setSelectedContactIds([linked.id]);
-        toast.info(`Added ${linked.name} — they inquired about this property`);
+    const picked = val ? properties.find((p) => p.id === val) : undefined;
+    if (!picked) return;
+    fillFromProperty(picked);
+    setSelectedContactIds(participantsWithProperty(picked, selectedContactIds));
+  };
+
+  if (!open && filledPrefillFor) setFilledPrefillFor(null);
+  if (open && propertyId && filledPrefillFor !== propertyId) {
+    const prefilled = properties.find((p) => p.id === propertyId);
+    if (prefilled) {
+      setFilledPrefillFor(propertyId);
+      fillFromProperty(prefilled);
+      const linked = linkPropertyParticipants(
+        selectedContactIds,
+        prefilled,
+        contacts
+      );
+      setSelectedContactIds(linked.ids);
+      if (linked.enquirer || linked.owner) {
+        setPrefillAdded({
+          enquirer: linked.enquirer
+            ? linked.enquirer.name || 'the enquirer'
+            : null,
+          owner: linked.owner ? linked.owner.name || 'the owner' : null,
+        });
       }
     }
+  }
+
+  useEffect(() => {
+    if (!prefillAdded) return;
+    announceParticipants(prefillAdded.enquirer, prefillAdded.owner);
+    setPrefillAdded(null);
+  }, [prefillAdded]);
+
+  const linkableProperties = properties.filter(
+    (p) => p.status !== 'Archived' || p.id === selectedPropertyId
+  );
+
+  const propertyTag =
+    propertyId || selectedPropertyId ? null : trailingPropertyTag(title);
+  const tagMatches =
+    propertyTag === null
+      ? []
+      : linkableProperties
+          .filter((p) => matchesPropertyTag(p, propertyTag))
+          .slice(0, 5);
+
+  const linkTaggedProperty = (property: SimpleProperty) => {
+    setTitle((current) => stripPropertyTag(current));
+    handlePropertyChange(property.id);
   };
 
   const changeStart = (value: string) => {
@@ -245,6 +357,7 @@ export function ScheduleDialog({
         contact_id: selectedContactIds[0] || null,
         contact_ids: selectedContactIds,
         property_id: selectedPropertyId || null,
+        remind_creator: remindMe,
       });
 
       if (error) throw error;
@@ -282,11 +395,30 @@ export function ScheduleDialog({
             <Input
               id="title"
               required
-              placeholder="e.g. Call client, Site Visit - JP Nagar"
+              placeholder="e.g. Site Visit - JP Nagar · type # to tag a property"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="h-9 border-slate-700 bg-slate-800 text-sm text-white"
             />
+            {tagMatches.length > 0 ? (
+              <div className="overflow-hidden rounded-md border border-slate-700 bg-slate-800">
+                {tagMatches.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => linkTaggedProperty(p)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-700"
+                  >
+                    <span className="truncate">{p.title}</span>
+                    {p.property_code ? (
+                      <span className="shrink-0 text-slate-500">
+                        {p.property_code}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -312,7 +444,7 @@ export function ScheduleDialog({
                 Link Property Listing
               </Label>
               <SearchablePropertySelect
-                properties={properties}
+                properties={linkableProperties}
                 value={selectedPropertyId || null}
                 onChange={handlePropertyChange}
                 placeholder="Search by title or ID..."
@@ -391,6 +523,23 @@ export function ScheduleDialog({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               className="resize-y border-slate-700 bg-slate-800 text-sm text-white"
+            />
+          </div>
+
+          <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2.5">
+            <div className="space-y-0.5">
+              <Label htmlFor="remind-me" className="text-xs text-slate-300">
+                Remind me
+              </Label>
+              <p className="text-[10px] text-slate-500">
+                WhatsApp brief before the event and a line in your morning
+                digest, as well as the person it is assigned to.
+              </p>
+            </div>
+            <Switch
+              id="remind-me"
+              checked={remindMe}
+              onCheckedChange={setRemindMe}
             />
           </div>
 

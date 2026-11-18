@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -20,7 +21,7 @@ import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { ContactRequirementsSheet } from '@/components/contact-requirements-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
 import { RequirementAgentShareSheet } from '@/components/requirement-agent-share-sheet';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   Avatar,
   Banner,
@@ -30,6 +31,7 @@ import {
   SearchBar,
   Tag,
 } from '@/components/ui';
+import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -37,7 +39,10 @@ import { openContactChat } from '@/lib/open-chat';
 import { queryClient } from '@/lib/query';
 import {
   buildRequirementDigest,
+  isShareable,
+  requirementReference,
   type RequirementShareMode,
+  type ShareableRequirement,
 } from '@/lib/requirement-digest';
 import {
   attachSuggestedTag,
@@ -93,7 +98,14 @@ export default function RequirementsScreen() {
   const [editing, setEditing] = useState<RequirementRow | null>(null);
   const [picking, setPicking] = useState(false);
   const [sharing, setSharing] = useState<RequirementRow | null>(null);
-  const [agentShare, setAgentShare] = useState<RequirementRow | null>(null);
+  const [agentShare, setAgentShare] = useState<RequirementRow[] | null>(null);
+  const [bulkIds, setBulkIds] = useState<string[] | null>(null);
+  const [bulkMode, setBulkMode] = useState<RequirementShareMode>('masked');
+  const [bulkOverride, setBulkOverride] = useState<{
+    base: string;
+    text: string;
+  } | null>(null);
+  const [merging, setMerging] = useState(false);
 
   const list = useQuery({
     queryKey: ['requirements'],
@@ -108,6 +120,29 @@ export default function RequirementsScreen() {
     () => filterRequirements(rows, { ...filters, search: debounced }),
     [rows, filters, debounced]
   );
+
+  const shareable = useMemo(
+    () => shown.filter((row) => isShareable(toShareable(row))),
+    [shown]
+  );
+  const bulkRows = useMemo(
+    () => shareable.filter((row) => bulkIds?.includes(row.id)),
+    [shareable, bulkIds]
+  );
+  const bulkBuyers = useMemo(
+    () => bulkRows.filter((row) => row.classification === 'Buyer'),
+    [bulkRows]
+  );
+
+  const bulkDigest = useMemo(
+    () => buildRequirementDigest(bulkRows.map(toShareable), bulkMode),
+    [bulkRows, bulkMode]
+  );
+  const bulkMessage =
+    bulkOverride && bulkOverride.base === bulkDigest
+      ? bulkOverride.text
+      : bulkDigest;
+  const bulkEditing = Boolean(bulkOverride && bulkOverride.base === bulkDigest);
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: ['requirements'] });
@@ -177,32 +212,91 @@ export default function RequirementsScreen() {
   }
 
   function digestFor(row: RequirementRow, mode: RequirementShareMode) {
-    const source = resolveRequirementSource(row);
-    return buildRequirementDigest(
-      [
-        {
-          id: row.id,
-          name: row.name,
-          classification: row.classification,
-          no_budget: source.no_budget,
-          min_budget: source.min_budget ?? source.pref_budget_min ?? null,
-          max_budget: source.max_budget ?? source.pref_budget_max ?? null,
-          requirements: source.requirements,
-          areas_of_interest: [
-            ...(source.areas_of_interest ?? []),
-            ...(source.pref_areas ?? []),
-          ].filter(Boolean),
-          projects_of_interest: [
-            ...(source.projects_of_interest ?? []),
-            ...(source.pref_projects ?? []),
-          ].filter(Boolean),
-          tags: attachedTagNames(row),
-          latestNote: latestNote(row),
-          requirement_active: row.requirement_active,
-        },
-      ],
-      mode
+    return buildRequirementDigest([toShareable(row)], mode);
+  }
+
+  function openBulk() {
+    haptic.tap();
+    setBulkMode('masked');
+    setBulkOverride(null);
+    setBulkIds(shareable.map((row) => row.id));
+  }
+
+  function toggleBulk(id: string) {
+    haptic.tap();
+    setBulkIds((prev) =>
+      prev
+        ? prev.includes(id)
+          ? prev.filter((x) => x !== id)
+          : [...prev, id]
+        : prev
     );
+  }
+
+  async function mergeDuplicates() {
+    if (merging || bulkMode !== 'masked' || bulkRows.length < 2) return;
+    const base = bulkDigest;
+    setMerging(true);
+    haptic.tap();
+    try {
+      const { data } = await apiFetch<{
+        data: { text: string; merged: number; groups: number };
+      }>('/api/requirements/consolidate', {
+        method: 'POST',
+        timeoutMs: 60_000,
+        body: JSON.stringify({
+          briefs: bulkRows.map((row) => {
+            const r = toShareable(row);
+            return {
+              id: r.id,
+              classification: r.classification,
+              no_budget: r.no_budget,
+              min_budget: r.min_budget,
+              max_budget: r.max_budget,
+              requirements: r.requirements,
+              areas_of_interest: r.areas_of_interest,
+              projects_of_interest: r.projects_of_interest,
+            };
+          }),
+        }),
+      });
+      if (data.merged === 0) {
+        show({
+          title: 'No duplicates found',
+          message:
+            'Each of these requirements asks for something different, so nothing was merged.',
+        });
+        return;
+      }
+      haptic.success();
+      setBulkOverride({ base, text: data.text });
+    } catch (err) {
+      haptic.warn();
+      show({
+        title: 'Could not merge duplicates',
+        message: friendlyError(
+          err instanceof Error ? err.message : String(err)
+        ),
+      });
+    } finally {
+      setMerging(false);
+    }
+  }
+
+  async function shareBulk() {
+    if (!bulkMessage.trim()) return;
+    const message = bulkMessage;
+    setBulkIds(null);
+    haptic.send();
+    await Share.share({ message });
+  }
+
+  async function copyBulk() {
+    if (!bulkMessage.trim()) return;
+    await Clipboard.setStringAsync(bulkMessage);
+    setBulkIds(null);
+    haptic.success();
+    setNotice('Requirements copied — paste wherever your brokers are');
   }
 
   async function shareDigest(row: RequirementRow, mode: RequirementShareMode) {
@@ -313,6 +407,14 @@ export default function RequirementsScreen() {
           />
         ))}
       </ScrollView>
+      <View style={{ flexDirection: 'row' }}>
+        <FilterChip
+          label="Stated requirements only"
+          active={filters.statedOnly}
+          accessibilityLabel="Show only requirements stated in words"
+          onPress={() => setFilter({ statedOnly: !filters.statedOnly })}
+        />
+      </View>
 
       {canEdit ? (
         <PrimaryButton
@@ -323,6 +425,24 @@ export default function RequirementsScreen() {
             setPicking(true);
           }}
         />
+      ) : null}
+
+      {shareable.length > 1 ? (
+        <Pressable
+          onPress={openBulk}
+          accessibilityRole="button"
+          accessibilityLabel={`Share all ${shareable.length} requirements`}
+          style={[styles.outline, { borderColor: colors.primary }]}
+        >
+          <Ionicons
+            name="share-social-outline"
+            size={16}
+            color={colors.primary}
+          />
+          <Text style={{ fontFamily: f.semibold, color: colors.primary }}>
+            Share all {shareable.length} requirements
+          </Text>
+        </Pressable>
       ) : null}
 
       {notice ? <Banner kind="success" text={notice} /> : null}
@@ -365,6 +485,7 @@ export default function RequirementsScreen() {
               row={item}
               busy={busyId === item.id}
               canEdit={canEdit}
+              onOpen={() => router.push(`/(app)/contact/${item.id}`)}
               onChat={() => openChat(item)}
               onEdit={() => setEditing(item)}
               onShare={() => setSharing(item)}
@@ -433,7 +554,7 @@ export default function RequirementsScreen() {
                 onPress={() => {
                   const row = sharing;
                   setSharing(null);
-                  setAgentShare(row);
+                  setAgentShare([row]);
                 }}
                 accessibilityRole="button"
                 style={styles.secondary}
@@ -443,6 +564,266 @@ export default function RequirementsScreen() {
                 </Text>
               </Pressable>
             ) : null}
+          </View>
+        ) : null}
+      </BottomSheet>
+
+      <BottomSheet
+        visible={Boolean(bulkIds)}
+        onClose={() => setBulkIds(null)}
+        title="Share requirements"
+      >
+        {bulkIds ? (
+          <View style={{ flexShrink: 1, gap: spacing.md }}>
+            <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm }}>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <FilterChip
+                  label="Masked"
+                  active={bulkMode === 'masked'}
+                  onPress={() => setBulkMode('masked')}
+                />
+                <FilterChip
+                  label="Full detail"
+                  active={bulkMode === 'full'}
+                  onPress={() => setBulkMode('full')}
+                />
+              </View>
+              <Text
+                style={{
+                  fontFamily: f.regular,
+                  fontSize: 12.5,
+                  lineHeight: 18,
+                  color: colors.textMuted,
+                }}
+              >
+                {bulkMode === 'masked'
+                  ? 'Each brief goes out under its reference. Names, tags and notes are withheld. Untick any you want to leave out.'
+                  : 'Full detail sends each client’s name, your tags and your latest note. Untick any you want to leave out.'}
+              </Text>
+              <View style={styles.row}>
+                <Text
+                  style={{
+                    fontFamily: f.semibold,
+                    fontSize: 13,
+                    color: colors.text,
+                  }}
+                >
+                  {bulkRows.length} of {shareable.length} included
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    haptic.tap();
+                    setBulkIds(
+                      bulkRows.length === shareable.length
+                        ? []
+                        : shareable.map((row) => row.id)
+                    );
+                  }}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                >
+                  <Text
+                    style={{
+                      fontFamily: f.semibold,
+                      fontSize: 13,
+                      color: colors.primary,
+                    }}
+                  >
+                    {bulkRows.length === shareable.length
+                      ? 'Clear all'
+                      : 'Select all'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {bulkEditing ? (
+              <View
+                style={{
+                  flexShrink: 1,
+                  paddingHorizontal: spacing.lg,
+                  gap: spacing.sm,
+                }}
+              >
+                <View style={styles.row}>
+                  <Text
+                    style={{
+                      fontFamily: f.regular,
+                      fontSize: 12.5,
+                      color: colors.textMuted,
+                      flex: 1,
+                    }}
+                  >
+                    Check and edit the message before sending.
+                  </Text>
+                  <Pressable
+                    onPress={() => setBulkOverride(null)}
+                    accessibilityRole="button"
+                    hitSlop={8}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: f.semibold,
+                        fontSize: 13,
+                        color: colors.primary,
+                      }}
+                    >
+                      Back to list
+                    </Text>
+                  </Pressable>
+                </View>
+                <TextInput
+                  value={bulkMessage}
+                  onChangeText={(text) =>
+                    setBulkOverride({ base: bulkDigest, text })
+                  }
+                  multiline
+                  scrollEnabled
+                  textAlignVertical="top"
+                  accessibilityLabel="Message to share"
+                  style={[
+                    styles.editor,
+                    {
+                      fontFamily: f.regular,
+                      color: colors.text,
+                      borderColor: colors.glassBorder,
+                      backgroundColor: colors.glass,
+                    },
+                  ]}
+                />
+              </View>
+            ) : (
+              <ScrollView
+                style={sheetScrollArea}
+                contentContainerStyle={{
+                  paddingHorizontal: spacing.lg,
+                  gap: spacing.sm,
+                }}
+              >
+                {shareable.map((row) => {
+                  const included = bulkIds.includes(row.id);
+                  const brief = toShareable(row);
+                  return (
+                    <Pressable
+                      key={row.id}
+                      onPress={() => toggleBulk(row.id)}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: included }}
+                      accessibilityLabel={`Include ${row.name || 'this requirement'}`}
+                      style={[
+                        styles.bulkRow,
+                        {
+                          borderColor: included
+                            ? colors.primary
+                            : colors.glassBorder,
+                          backgroundColor: included
+                            ? colors.primarySoft
+                            : colors.glass,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={included ? 'checkbox' : 'square-outline'}
+                        size={20}
+                        color={included ? colors.primary : colors.textFaint}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          numberOfLines={1}
+                          style={{ fontFamily: f.semibold, color: colors.text }}
+                        >
+                          {row.name || 'Unnamed'} ·{' '}
+                          {requirementReference(row.id)}
+                        </Text>
+                        <Text
+                          numberOfLines={2}
+                          style={{
+                            fontFamily: f.regular,
+                            fontSize: 12,
+                            color: colors.textMuted,
+                          }}
+                        >
+                          {brief.requirements?.trim() ||
+                            [
+                              requirementBudgetLabel(row).text,
+                              ...(brief.areas_of_interest ?? []),
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            <View style={{ paddingHorizontal: spacing.lg, gap: spacing.xs }}>
+              {bulkMode === 'masked' && bulkRows.length > 1 && !bulkEditing ? (
+                <Pressable
+                  onPress={mergeDuplicates}
+                  disabled={merging}
+                  accessibilityRole="button"
+                  accessibilityLabel="Merge duplicates with AI"
+                  style={[
+                    styles.outline,
+                    { borderColor: colors.primary, opacity: merging ? 0.6 : 1 },
+                  ]}
+                >
+                  {merging ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Ionicons
+                      name="sparkles"
+                      size={16}
+                      color={colors.primary}
+                    />
+                  )}
+                  <Text
+                    style={{ fontFamily: f.semibold, color: colors.primary }}
+                  >
+                    {merging
+                      ? 'Merging duplicates…'
+                      : 'Merge duplicates with AI'}
+                  </Text>
+                </Pressable>
+              ) : null}
+              <PrimaryButton
+                label={`Share ${bulkRows.length} requirement${bulkRows.length === 1 ? '' : 's'}`}
+                icon="share-social-outline"
+                disabled={bulkRows.length === 0}
+                onPress={shareBulk}
+              />
+              <Pressable
+                onPress={copyBulk}
+                disabled={bulkRows.length === 0}
+                accessibilityRole="button"
+                style={[
+                  styles.secondary,
+                  { opacity: bulkRows.length === 0 ? 0.4 : 1 },
+                ]}
+              >
+                <Text style={{ fontFamily: f.semibold, color: colors.text }}>
+                  Copy text
+                </Text>
+              </Pressable>
+              {canEdit && bulkBuyers.length > 0 ? (
+                <Pressable
+                  onPress={() => {
+                    setBulkIds(null);
+                    setAgentShare(bulkBuyers);
+                  }}
+                  accessibilityRole="button"
+                  style={styles.secondary}
+                >
+                  <Text style={{ fontFamily: f.semibold, color: colors.text }}>
+                    Send {bulkBuyers.length} buyer brief
+                    {bulkBuyers.length === 1 ? '' : 's'} to an agent in
+                    ConvoReal
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         ) : null}
       </BottomSheet>
@@ -459,7 +840,7 @@ export default function RequirementsScreen() {
       {agentShare ? (
         <RequirementAgentShareSheet
           visible
-          buyer={agentShare}
+          buyers={agentShare}
           onBack={() => setAgentShare(null)}
           onDone={() => {
             setAgentShare(null);
@@ -473,10 +854,35 @@ export default function RequirementsScreen() {
   );
 }
 
+function toShareable(row: RequirementRow): ShareableRequirement {
+  const source = resolveRequirementSource(row);
+  return {
+    id: row.id,
+    name: row.name,
+    classification: row.classification,
+    no_budget: source.no_budget,
+    min_budget: source.min_budget ?? source.pref_budget_min ?? null,
+    max_budget: source.max_budget ?? source.pref_budget_max ?? null,
+    requirements: source.requirements,
+    areas_of_interest: [
+      ...(source.areas_of_interest ?? []),
+      ...(source.pref_areas ?? []),
+    ].filter(Boolean),
+    projects_of_interest: [
+      ...(source.projects_of_interest ?? []),
+      ...(source.pref_projects ?? []),
+    ].filter(Boolean),
+    tags: attachedTagNames(row),
+    latestNote: latestNote(row),
+    requirement_active: row.requirement_active,
+  };
+}
+
 function RequirementCard({
   row,
   busy,
   canEdit,
+  onOpen,
   onChat,
   onEdit,
   onShare,
@@ -486,6 +892,7 @@ function RequirementCard({
   row: RequirementRow;
   busy: boolean;
   canEdit: boolean;
+  onOpen: () => void;
   onChat: () => void;
   onEdit: () => void;
   onShare: () => void;
@@ -524,7 +931,12 @@ function RequirementCard({
       ]}
     >
       <View style={styles.row}>
-        <View style={styles.identity}>
+        <Pressable
+          onPress={onOpen}
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${row.name || 'contact'}`}
+          style={styles.identity}
+        >
           <Avatar name={row.name || '?'} size={38} />
           <View style={{ flexShrink: 1 }}>
             <Text
@@ -549,7 +961,7 @@ function RequirementCard({
               </Text>
             ) : null}
           </View>
-        </View>
+        </Pressable>
         <View style={styles.badges}>
           {parked ? <Tag label="PARKED" color={colors.warning} /> : null}
           {row.lead_temp ? (
@@ -830,4 +1242,30 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   secondary: { alignItems: 'center', paddingVertical: spacing.md },
+  outline: {
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.md,
+  },
+  editor: {
+    minHeight: 180,
+    maxHeight: 320,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  bulkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+  },
 });

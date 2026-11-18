@@ -407,6 +407,7 @@ describe('processBuyerQualificationMessage — free-text requirement updates', (
 
     expect(handled).toBe(true);
     expect(extractContactPreferences).toHaveBeenCalledWith(
+      expect.stringContaining('Preferred location: Domlur'),
       expect.stringContaining('Preferred location: Domlur')
     );
     expect(recordLearnedFacts).toHaveBeenCalledWith(

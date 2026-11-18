@@ -27,6 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { Contact, ContactRequirementProfile } from '@/types';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { formatInrCompact } from '@/lib/format/currency';
+import { unitPreferenceLabels } from '@/lib/ai/unit-preferences';
 
 interface ContactRequirementsDialogProps {
   open: boolean;
@@ -91,6 +92,12 @@ function primarySummary(contact: Contact): string {
     (source.requires_tenanted ?? source.pref_requires_tenanted)
       ? 'Pre-leased only'
       : null,
+    ...unitPreferenceLabels({
+      facing: source.pref_facing,
+      towers: source.pref_towers,
+      floor_min: source.pref_floor_min,
+      floor_max: source.pref_floor_max,
+    }),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -115,6 +122,12 @@ function profileSummary(profile: ContactRequirementProfile): string {
     size,
     budget,
     profile.requires_tenanted ? 'Pre-leased only' : null,
+    ...unitPreferenceLabels({
+      facing: profile.facing,
+      towers: profile.towers,
+      floor_min: profile.floor_min,
+      floor_max: profile.floor_max,
+    }),
   ]
     .filter(Boolean)
     .join(' · ');

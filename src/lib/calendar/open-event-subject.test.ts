@@ -20,6 +20,7 @@ interface Row {
   end_time: string;
   assigned_to: string | null;
   user_id: string | null;
+  remind_creator?: boolean;
 }
 
 function db(rows: Row[], capture?: Record<string, unknown>) {
@@ -118,6 +119,28 @@ describe('openOverdueEvents', () => {
         })
       ).map((e) => e.id)
     ).toEqual(['mine']);
+  });
+
+  it('[CAL-019] lets the creator who got the nudge answer it too', async () => {
+    const rows = [
+      row({ id: 'booked', assigned_to: 'agent-1', user_id: 'manager' }),
+      row({
+        id: 'muted',
+        assigned_to: 'agent-1',
+        user_id: 'manager',
+        remind_creator: false,
+      }),
+    ];
+    expect(
+      (
+        await openOverdueEvents({
+          db: db(rows),
+          accountId: 'acc',
+          userId: 'manager',
+          now: NOW,
+        })
+      ).map((e) => e.id)
+    ).toEqual(['booked']);
   });
 
   it("leaves a teammate's event alone", async () => {

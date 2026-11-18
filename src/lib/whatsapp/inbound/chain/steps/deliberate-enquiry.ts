@@ -1,10 +1,6 @@
-import {
-  buildEnquiryAckText,
-  sendPropertyEnquiryCard,
-} from '@/lib/whatsapp/enquiry-card';
+import { buildEnquiryAckText } from '@/lib/whatsapp/enquiry-card';
+import { alertAgentOfPropertyEnquiry } from '@/lib/whatsapp/enquiry-alert';
 import { appendListingStatusNote } from '@/lib/inventory/listing-status';
-import { createNotification } from '@/lib/notifications/create';
-import { BRIDGE_REPLY_HINT } from '@/lib/whatsapp/reply-bridge';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { unavailableListingReplyWithShowcase } from '@/lib/inventory/unavailable-reply';
@@ -48,46 +44,16 @@ export async function deliberateEnquiry(
     enquiryIsDeliberate &&
     message.type === 'text'
   ) {
-    const preview = (contentText || '').slice(0, 140);
-    const cardSent = await sendPropertyEnquiryCard({
+    await alertAgentOfPropertyEnquiry({
       db: supabaseAdmin(),
       accountId,
       agentUserId: assignedAgentUserId,
       propertyId: enquiryPropertyId,
       contactId: contactRecord.id,
+      conversationId: conversation.id,
       leadName: contactRecord.name || senderPhone,
       leadPhone: senderPhone,
-      enquiryText: preview,
-    });
-
-    await createNotification({
-      accountId,
-      userId: assignedAgentUserId,
-      type: 'new_message',
-      eventKey: 'property_enquiry',
-      title: `Enquiry: ${contactRecord.name || senderPhone}`,
-      body: preview,
-      entityType: 'conversation',
-      entityId: conversation.id,
-      link: `/inbox?conversation=${conversation.id}`,
-      // The card is the WhatsApp ping. Only when it could not be
-      // delivered does the plain text one stand in for it — and the
-      // channel has to be forced off, not merely left without a text:
-      // createNotification falls back to title+body on WhatsApp, which
-      // put a second "Enquiry: …" bubble under the card on the very
-      // first live run.
-      ...(cardSent
-        ? { channels: { inApp: true, push: true, whatsapp: false } }
-        : {
-            whatsappText: [
-              '🔔 *New property enquiry*',
-              `👤 ${contactRecord.name || senderPhone}`,
-              '',
-              preview,
-              '',
-              BRIDGE_REPLY_HINT,
-            ].join('\n'),
-          }),
+      enquiryText: (contentText || '').slice(0, 140),
     });
 
     const unavailableReply = await unavailableListingReplyWithShowcase({

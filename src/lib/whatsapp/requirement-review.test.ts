@@ -69,6 +69,18 @@ describe('buildRequirementSummary', () => {
     expect(summary).toContain('₹1.56 Cr');
   });
 
+  it('[CNV-016] plays back the facing, tower and floor range the lead stated', () => {
+    const summary = buildRequirementSummary({
+      ...aryan,
+      pref_facing: ['East'],
+      pref_towers: ['10'],
+      pref_floor_min: 8,
+      pref_floor_max: 28,
+    } as unknown as Contact);
+    expect(summary).toContain('East facing · Tower 10 · 8th–28th floor');
+    expect(buildRequirementSummary(aryan)).not.toMatch(/facing|Tower|floor/);
+  });
+
   it('drops the city filler and case-duplicate localities', () => {
     // "Surya City Phase II, Surya City Phase 2, Bangalore" reads as a
     // database dump, not a brief a person recognises as their own.

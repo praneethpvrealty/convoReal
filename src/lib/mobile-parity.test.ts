@@ -29,6 +29,7 @@ import {
   insertEntityReference,
   type EntityReference,
 } from '@/lib/copilot/entities';
+import { PROPERTY_EDIT_CORE_FIELDS } from '@/lib/inventory/edit-version';
 import { TOURS } from '@/lib/copilot/tours';
 import { AGENCY_SHOWCASE_DESIGNS, SHOWCASE_STYLES } from '@/lib/showcase/style';
 import { JOURNEY_ITEM_SOURCE_LABELS } from '@/lib/journey/captured';
@@ -392,6 +393,30 @@ describe('property shortlist sharing remains available on both surfaces', () => 
     expect(mobileBar).toContain('Share shortlist');
     expect(webInventory).toContain('initialPickedIds={selectedForTagging}');
     expect(webBar).toContain('Share shortlist');
+  });
+
+  it('[PRP-062] sends the version each editor opened with and asks before overwriting', () => {
+    const mobile = mobileSource('app/(app)/property-edit.tsx');
+    const web = webSource('components/inventory/property-form.tsx');
+
+    expect(mobile).toContain('body.expected_version = propertyEditVersion(');
+    const mobileSelect = mobile.slice(
+      mobile.indexOf("'id, title, description"),
+      mobile.indexOf(".eq('id', id)")
+    );
+    for (const field of PROPERTY_EDIT_CORE_FIELDS) {
+      expect(mobileSelect, field).toMatch(new RegExp(`\\b${field}\\b`));
+    }
+    expect(mobile).toContain('e.code === PROPERTY_CHANGED_CODE');
+    expect(mobile).toContain("label: 'Save anyway'");
+    expect(web).toContain('expected_version: openedVersion.current');
+    expect(web).toContain('errData.code === PROPERTY_CHANGED_CODE');
+    expect(web).toContain("label: 'Save anyway'");
+    expect(web).toContain('saveLatest.current?.(true)');
+    expect(
+      web.split('if (openSession.current !== session) return;')
+    ).toHaveLength(3);
+    expect(web).toContain('toast.dismiss(PROPERTY_CHANGED_TOAST_ID)');
   });
 
   it('[PRP-009] attributes contact-card inventory links to their recipient', () => {
@@ -2098,6 +2123,22 @@ describe('mobile/lib/requirement-digest.ts mirrors what leaves the Engine', () =
       requirement_active: false,
     },
     { id: 'd0d0d0d0-0000-0000-0000-000000000000' },
+    {
+      id: '53c4aaaa-0000-0000-0000-000000000000',
+      name: 'Rohit',
+      classification: 'Buyer',
+      requirements: 'Residential House · Jayanagar, JP Nagar · ₹15 Cr–₹40 Cr',
+      areas_of_interest: [
+        'Jayanagar',
+        'JP Nagar',
+        'jp nagar',
+        'Sadashivanagar',
+      ],
+      projects_of_interest: ['Purva Westend', 'purva westend'],
+      min_budget: 70000000,
+      max_budget: 150000000,
+      tags: ['Investor', 'investor'],
+    },
   ];
   const modes: RequirementShareMode[] = ['masked', 'full'];
 
@@ -2147,6 +2188,7 @@ describe('mobile/lib/requirements-feed.ts mirrors the preference merge', () => {
     './contact-area-options': mobileSource('lib/contact-area-options.ts'),
     './requirements-profile': mobileSource('lib/requirements-profile.ts'),
     '@shared/lib/format/currency': webSource('lib/format/currency.ts'),
+    '@shared/lib/requirements/stated': webSource('lib/requirements/stated.ts'),
   });
 
   const contacts = [
