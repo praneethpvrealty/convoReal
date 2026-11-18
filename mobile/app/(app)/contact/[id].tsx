@@ -91,6 +91,11 @@ import {
   type BudgetUnit,
 } from '@/lib/budget-amount';
 import { resolveRequirementSource } from '@/lib/requirements-profile';
+import {
+  briefAreas,
+  briefBudget,
+  briefPrefPatch,
+} from '@shared/lib/contacts/brief-edit';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import {
@@ -198,7 +203,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
     .from('contacts')
     .select(
       'id, phone, secondary_phones, whatsapp_phone_confirmed_at, name, salutation, second_name, name_tag, email, company, classification, ' +
-        'avatar_url, min_budget, max_budget, no_budget, pref_listing_types, areas_of_interest, pref_areas, areas_of_interest_geo, ' +
+        'avatar_url, min_budget, max_budget, pref_budget_min, pref_budget_max, no_budget, pref_listing_types, areas_of_interest, pref_areas, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, pref_facing, pref_towers, pref_floor_min, pref_floor_max, requirements, lead_temp, status, referrer, referrer_contact_id, source, ' +
         'requirement_profiles, ' +
         'preferred_update_channel, preferred_language, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
@@ -610,19 +615,13 @@ function ContactCard({ contact }: { contact: Contact }) {
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
     : undefined;
 
+  const budgetBand = source ? briefBudget(source) : null;
   const budget = formatBudgetRange(
-    source?.pref_budget_min ?? source?.min_budget,
-    source?.pref_budget_max ?? source?.max_budget,
+    budgetBand?.min,
+    budgetBand?.max,
     source?.no_budget
   );
-  const areaHints = source
-    ? Array.from(
-        new Set([
-          ...(source.pref_areas ?? []),
-          ...(source.areas_of_interest ?? []),
-        ])
-      )
-    : [];
+  const areaHints = source ? briefAreas(source) : [];
   const propertyHints = source
     ? Array.from(
         new Set([
@@ -1808,8 +1807,10 @@ function ContactEditor({
   const [leadTemp, setLeadTemp] = useState<string | null>(
     contact.lead_temp ?? null
   );
-  const initialMinBudget = rupeesToBudgetAmount(source.pref_budget_min);
-  const initialMaxBudget = rupeesToBudgetAmount(source.pref_budget_max);
+  const [openedBrief] = useState(() => (source === contact ? contact : null));
+  const openedBudget = briefBudget(source);
+  const initialMinBudget = rupeesToBudgetAmount(openedBudget.min);
+  const initialMaxBudget = rupeesToBudgetAmount(openedBudget.max);
   const [minBudget, setMinBudget] = useState(initialMinBudget.amount);
   const [minBudgetUnit, setMinBudgetUnit] = useState<BudgetUnit>(
     initialMinBudget.unit
@@ -1822,7 +1823,7 @@ function ContactEditor({
   const [listingTypes, setListingTypes] = useState<string[]>(
     source.pref_listing_types ?? []
   );
-  const [areas, setAreas] = useState<string[]>(source.pref_areas ?? []);
+  const [areas, setAreas] = useState<string[]>(() => briefAreas(source));
   const [areasGeo, setAreasGeo] = useState<AreaOfInterestGeo[]>(
     contact.areas_of_interest_geo ?? []
   );
@@ -1967,6 +1968,18 @@ function ContactEditor({
             (a) => a.trim().toLowerCase() === g.name.trim().toLowerCase()
           )
         ),
+        ...(openedBrief
+          ? briefPrefPatch(
+              openedBrief,
+              {
+                areas,
+                minBudget: minBudgetValue,
+                maxBudget: maxBudgetValue,
+                noBudget,
+              },
+              contact
+            )
+          : {}),
         strict_area_match: strictArea,
         property_interests: propertyInterests,
         min_roi: parseAmount(minRoi),

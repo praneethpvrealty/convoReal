@@ -660,6 +660,22 @@ describe('the portal link invite is one server draft on both surfaces', () => {
     expect(webForm).toContain('note_text: notesText');
   });
 
+  it('[CTM-019] opens and saves a contact areas and budget through the one brief rule', () => {
+    const editor = mobileSource('app/(app)/contact/[id].tsx');
+    const areaInput = mobileSource('components/areas-of-interest-input.tsx');
+    const webForm = webSource('components/contacts/contact-form.tsx');
+    const webDetail = webSource('components/contacts/contact-detail-view.tsx');
+
+    for (const source of [editor, webForm, webDetail]) {
+      expect(source).toContain('briefAreas(');
+      expect(source).toContain('briefBudget(');
+      expect(source).toContain('briefPrefPatch(');
+    }
+    expect(editor).toContain('pref_budget_min, pref_budget_max');
+    expect(editor).not.toContain('useState<string[]>(source.pref_areas');
+    expect(areaInput).not.toMatch(/setInput\(''\);\s*setFocused\(false\)/);
+  });
+
   it('[CTM-004] shares hand-picked listings with a buyer from the contact record and saves them to their Portfolio', () => {
     const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
     const mobileSheet = mobileSource('components/showcase-share-sheet.tsx');

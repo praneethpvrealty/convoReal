@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -50,6 +50,10 @@ export function AreasOfInterestInput({
   const [input, setInput] = useState('');
   const [focused, setFocused] = useState(false);
   const session = useRef(sessionToken());
+  const latest = useRef({ areas, geo });
+  useEffect(() => {
+    latest.current = { areas, geo };
+  }, [areas, geo]);
   const debounced = useDebounced(input.trim());
 
   const enabled = focused && debounced.length >= 2;
@@ -111,13 +115,18 @@ export function AreasOfInterestInput({
     // Show the chip immediately; resolve coordinates in the background.
     addName(name);
     setInput('');
-    setFocused(false);
     try {
       const { place } = await placeDetails(s.place_id, session.current);
       session.current = sessionToken(); // sessions are single-purchase
-      if (Number.isFinite(place.latitude) && Number.isFinite(place.longitude)) {
-        onChange(hasArea(name) ? areas : [...areas, name], [
-          ...geo.filter((g) => g.name.toLowerCase() !== name.toLowerCase()),
+      const current = latest.current;
+      const key = name.toLowerCase();
+      if (
+        Number.isFinite(place.latitude) &&
+        Number.isFinite(place.longitude) &&
+        current.areas.some((a) => a.toLowerCase() === key)
+      ) {
+        onChange(current.areas, [
+          ...current.geo.filter((g) => g.name.toLowerCase() !== key),
           { name, lat: place.latitude, lng: place.longitude },
         ]);
       }

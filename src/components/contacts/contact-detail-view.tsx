@@ -43,6 +43,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type {
   Tag,
+  Contact,
   ContactNote,
   Deal,
   Property,
@@ -99,6 +100,13 @@ import {
   rupeesToBudgetAmount,
   type BudgetUnit,
 } from '@/lib/contacts/budget-amount';
+import {
+  briefAfterSave,
+  briefAreas,
+  briefBudget,
+  briefPrefPatch,
+  briefRemovedAreas,
+} from '@/lib/contacts/brief-edit';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PriceHint } from '@/components/ui/price-hint';
@@ -237,6 +245,8 @@ export function ContactDetailView({
   // the same contact (after a save, approve, auto-map, ...) must NOT re-sync
   // the edit fields — that would wipe unsaved edits on the other tabs.
   const initializedContactIdRef = useRef<string | null>(null);
+  const openedBriefRef = useRef<Contact | null>(null);
+  const removedPrefAreasRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (!open) {
@@ -489,15 +499,14 @@ export function ContactDetailView({
     setEditReferrer(contact.referrer ?? '');
     setEditReferrerContactId(contact.referrer_contact_id ?? null);
     const sourceContact = resolveRequirementSource(contact);
+    openedBriefRef.current = sourceContact === contact ? contact : null;
+    removedPrefAreasRef.current = [];
     setEditRequirements(sourceContact.requirements ?? '');
-    const minBudget = rupeesToBudgetAmount(
-      sourceContact.pref_budget_min ?? sourceContact.min_budget
-    );
+    const openedBudget = briefBudget(sourceContact);
+    const minBudget = rupeesToBudgetAmount(openedBudget.min);
     setEditMinBudget(minBudget.amount);
     setEditMinBudgetUnit(minBudget.unit);
-    const maxBudget = rupeesToBudgetAmount(
-      sourceContact.pref_budget_max ?? sourceContact.max_budget
-    );
+    const maxBudget = rupeesToBudgetAmount(openedBudget.max);
     setEditMaxBudget(maxBudget.amount);
     setEditMaxBudgetUnit(maxBudget.unit);
     setEditNoBudget(Boolean(sourceContact.no_budget));
@@ -513,12 +522,7 @@ export function ContactDetailView({
       initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : '')
     );
     setEditStrictProjectMatch(!!contact.strict_project_match);
-    const initialAreas = Array.from(
-      new Set([
-        ...(sourceContact.areas_of_interest ?? []),
-        ...(sourceContact.pref_areas ?? []),
-      ])
-    );
+    const initialAreas = briefAreas(sourceContact);
     setEditAreasOfInterest(initialAreas);
     setEditAreasText(
       initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : '')
@@ -1609,6 +1613,21 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     setSavingPreferences(true);
 
     const prunedAreasGeo = pruneAreasGeo(editAreasGeo, editAreasOfInterest);
+    const opened = openedBriefRef.current;
+    const briefEdit = {
+      areas: editAreasOfInterest,
+      minBudget,
+      maxBudget,
+      noBudget: editNoBudget,
+    };
+    const prefPatch = opened
+      ? briefPrefPatch(
+          opened,
+          briefEdit,
+          contact ?? undefined,
+          removedPrefAreasRef.current
+        )
+      : null;
     const { data: saved, error } = await supabase
       .from('contacts')
       .update({
@@ -1621,6 +1640,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           editProjectsOfInterest.length > 0 && editStrictProjectMatch,
         areas_of_interest: editAreasOfInterest,
         areas_of_interest_geo: prunedAreasGeo,
+        ...prefPatch,
         property_interests: editPropertyInterests,
         min_roi: editMinRoi ? Number(editMinRoi) : null,
         requires_tenanted: editRequiresTenanted,
@@ -1634,6 +1654,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     } else {
       toast.success('Advanced matching options updated');
       setEditAreasGeo(prunedAreasGeo);
+      if (opened && prefPatch) {
+        removedPrefAreasRef.current = briefRemovedAreas(
+          opened,
+          briefEdit,
+          removedPrefAreasRef.current
+        );
+        openedBriefRef.current = briefAfterSave(opened, briefEdit, prefPatch);
+      }
       invalidateDetail();
       onUpdated();
     }

@@ -28,6 +28,7 @@ import type { Contact, ContactRequirementProfile } from '@/types';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { formatInrCompact } from '@/lib/format/currency';
 import { unitPreferenceLabels } from '@/lib/ai/unit-preferences';
+import { briefAreas, briefBudget } from '@/lib/contacts/brief-edit';
 
 interface ContactRequirementsDialogProps {
   open: boolean;
@@ -67,14 +68,8 @@ function primarySummary(contact: Contact): string {
   const types = source.pref_property_types?.length
     ? source.pref_property_types
     : source.pref_property_categories || source.property_interests || [];
-  const areas = [
-    ...new Set([
-      ...(source.areas_of_interest || []),
-      ...(source.pref_areas || []),
-    ]),
-  ];
-  const min = source.pref_budget_min ?? source.min_budget ?? null;
-  const max = source.pref_budget_max ?? source.max_budget ?? null;
+  const areas = briefAreas(source);
+  const { min, max } = briefBudget(source);
   const budget = source.no_budget
     ? 'No fixed budget'
     : min && max
