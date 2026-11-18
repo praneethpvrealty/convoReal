@@ -168,6 +168,7 @@ export default function RequirementsPage() {
   const [search, setSearch] = useState('');
   const [classificationFilter, setClassificationFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
+  const [statedOnly, setStatedOnly] = useState(false);
 
   // Copy status per card
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -770,9 +771,18 @@ export default function RequirementsPage() {
           c.lead_temp) ||
         (priorityFilter === 'Low' && (!c.lead_temp || c.lead_temp === 'Dead'));
 
-      return searchMatch && classMatch && priorityMatch;
+      const statedMatch = !statedOnly || Boolean(source.requirements?.trim());
+
+      return searchMatch && classMatch && priorityMatch && statedMatch;
     });
-  }, [data, search, classificationFilter, priorityFilter, resolveForSource]);
+  }, [
+    data,
+    search,
+    classificationFilter,
+    priorityFilter,
+    statedOnly,
+    resolveForSource,
+  ]);
 
   const shareableFilteredIds = useMemo(
     () =>
@@ -971,6 +981,20 @@ export default function RequirementsPage() {
             <option value="Medium">⏳ Medium Priority</option>
             <option value="Low">💤 Low Priority</option>
           </select>
+
+          <button
+            type="button"
+            aria-pressed={statedOnly}
+            onClick={() => setStatedOnly((prev) => !prev)}
+            title="Show only requirements stated in words, by the client or by you. Leaves out cards built from extracted preferences alone."
+            className={`h-9.5 cursor-pointer rounded-xl border px-3 text-xs font-bold transition-colors ${
+              statedOnly
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-slate-850 bg-slate-950/40 text-slate-300 hover:text-white'
+            }`}
+          >
+            Stated requirements only
+          </button>
         </div>
       </div>
 

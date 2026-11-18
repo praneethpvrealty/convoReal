@@ -11,6 +11,7 @@ import {
   effectiveMaxBudget,
   EMPTY_REQUIREMENT_FILTERS,
   filterRequirements,
+  hasStatedRequirement,
   matchesPriority,
   requirementBudgetLabel,
   requirementCurrency,
@@ -163,6 +164,36 @@ describe('filterRequirements', () => {
       }).map((r) => r.id);
     expect(ids('Villa in Whitefield')).toEqual(['9']);
     expect(ids('White Field')).toEqual(['9']);
+  });
+});
+
+describe('stated requirements', () => {
+  const rows = [
+    row({ id: '1', requirements: '1851 sq.ft. flat, east facing' }),
+    row({ id: '2', requirements: '   ', pref_areas: ['Banashankari'] }),
+    row({
+      id: '3',
+      requirement_profiles: [
+        { id: 'p', raw_text: 'Vacant plot in Jade Gardens', active: true },
+      ],
+    } as Partial<RequirementRow>),
+    row({ id: '4', pref_budget_max: 56000000 }),
+  ];
+
+  it('[REQ-009] keeps only briefs with a requirement in words', () => {
+    expect(rows.map(hasStatedRequirement)).toEqual([true, false, true, false]);
+    expect(
+      filterRequirements(rows, {
+        ...EMPTY_REQUIREMENT_FILTERS,
+        statedOnly: true,
+      }).map((r) => r.id)
+    ).toEqual(['1', '3']);
+    expect(
+      activeRequirementFilterCount({
+        ...EMPTY_REQUIREMENT_FILTERS,
+        statedOnly: true,
+      })
+    ).toBe(1);
   });
 });
 

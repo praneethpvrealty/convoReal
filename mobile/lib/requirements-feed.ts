@@ -217,19 +217,29 @@ export interface RequirementFilters {
   search: string;
   classification: RequirementClassification;
   priority: RequirementPriority;
+  /** Only briefs carrying a requirement in words, the client's or the
+   *  agent's: leaves out cards built from extracted preferences alone. */
+  statedOnly: boolean;
 }
 
 export const EMPTY_REQUIREMENT_FILTERS: RequirementFilters = {
   search: '',
   classification: 'All',
   priority: 'All',
+  statedOnly: false,
 };
+
+export function hasStatedRequirement(row: RequirementRow): boolean {
+  return Boolean(resolveRequirementSource(row).requirements?.trim());
+}
 
 export function activeRequirementFilterCount(
   filters: RequirementFilters
 ): number {
-  return [filters.classification, filters.priority].filter((v) => v !== 'All')
-    .length;
+  return (
+    [filters.classification, filters.priority].filter((v) => v !== 'All')
+      .length + (filters.statedOnly ? 1 : 0)
+  );
 }
 
 export function filterRequirements(
@@ -257,7 +267,14 @@ export function filterRequirements(
     const classMatch =
       filters.classification === 'All' ||
       row.classification === filters.classification;
-    return searchMatch && classMatch && matchesPriority(row, filters.priority);
+    const statedMatch =
+      !filters.statedOnly || Boolean(source.requirements?.trim());
+    return (
+      searchMatch &&
+      classMatch &&
+      statedMatch &&
+      matchesPriority(row, filters.priority)
+    );
   });
 }
 

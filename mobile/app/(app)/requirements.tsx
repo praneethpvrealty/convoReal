@@ -407,6 +407,14 @@ export default function RequirementsScreen() {
           />
         ))}
       </ScrollView>
+      <View style={{ flexDirection: 'row' }}>
+        <FilterChip
+          label="Stated requirements only"
+          active={filters.statedOnly}
+          accessibilityLabel="Show only requirements stated in words"
+          onPress={() => setFilter({ statedOnly: !filters.statedOnly })}
+        />
+      </View>
 
       {canEdit ? (
         <PrimaryButton
