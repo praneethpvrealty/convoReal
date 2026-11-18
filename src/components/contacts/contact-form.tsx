@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { budgetRangeError } from '@/lib/contacts/budget-amount';
 import { contactFormPayloadPropertyIds } from '@/lib/contacts/form-links';
 import { createClient } from '@/lib/supabase/client';
@@ -106,6 +106,7 @@ export function ContactForm({
   const [showReferrerSuggestions, setShowReferrerSuggestions] = useState(false);
   const [source, setSource] = useState('');
   const [saving, setSaving] = useState(false);
+  const openedBriefRef = useRef<Contact | null>(null);
   const [dob, setDob] = useState('');
   const [feedbackStatus, setFeedbackStatus] = useState('not_requested');
 
@@ -214,6 +215,8 @@ export function ContactForm({
   useEffect(() => {
     if (open) {
       const sourceContact = contact ? resolveRequirementSource(contact) : null;
+      openedBriefRef.current =
+        contact && sourceContact === contact ? contact : null;
       setName(contact?.name ?? '');
       setSalutation(contact?.salutation ?? '');
       setSecondName(contact?.second_name ?? '');
@@ -494,12 +497,17 @@ export function ContactForm({
         strict_area_match: strictAreaMatch,
         areas_of_interest: areasOfInterest,
         areas_of_interest_geo: pruneAreasGeo(areasGeo, areasOfInterest),
-        ...(contact && resolveRequirementSource(contact) === contact
-          ? briefPrefPatch(contact, {
-              areas: areasOfInterest,
-              minBudget: minBudgetValue,
-              maxBudget: maxBudgetValue,
-            })
+        ...(openedBriefRef.current
+          ? briefPrefPatch(
+              openedBriefRef.current,
+              {
+                areas: areasOfInterest,
+                minBudget: minBudgetValue,
+                maxBudget: maxBudgetValue,
+                noBudget,
+              },
+              contact ?? undefined
+            )
           : {}),
         projects_of_interest: projectsOfInterest,
         strict_project_match:

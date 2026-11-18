@@ -41,6 +41,7 @@ describe('[CTM-019] contact brief edit', () => {
         areas: ['JP Nagar 6th Phase'],
         minBudget: 50000000,
         maxBudget: 70000000,
+        noBudget: false,
       })
     ).toEqual({ pref_areas: ['jp nagar 6th phase'] });
   });
@@ -53,6 +54,7 @@ describe('[CTM-019] contact brief edit', () => {
           areas: briefAreas(opened),
           minBudget: 50000000,
           maxBudget: 70000000,
+          noBudget: false,
         }
       )
     ).toEqual({});
@@ -66,8 +68,41 @@ describe('[CTM-019] contact brief edit', () => {
           pref_budget_min: 20000000,
           pref_budget_max: 40000000,
         },
-        { areas: [], minBudget: null, maxBudget: 60000000 }
+        { areas: [], minBudget: null, maxBudget: 60000000, noBudget: false }
       )
     ).toEqual({ pref_budget_min: null, pref_budget_max: null });
+  });
+
+  it('keeps an area extracted after the form opened', () => {
+    expect(
+      briefPrefPatch(
+        opened,
+        {
+          areas: ['JP Nagar 6th Phase'],
+          minBudget: 50000000,
+          maxBudget: 70000000,
+          noBudget: false,
+        },
+        { pref_areas: ['HSR Layout', 'Whitefield'] }
+      )
+    ).toEqual({ pref_areas: ['Whitefield'] });
+  });
+
+  it('keeps the extracted budget when the agent ticks no budget', () => {
+    expect(
+      briefPrefPatch(
+        { pref_budget_min: 20000000, pref_budget_max: 40000000 },
+        { areas: [], minBudget: null, maxBudget: null, noBudget: true }
+      )
+    ).toEqual({});
+  });
+
+  it('treats a budget only rounded for display as unchanged', () => {
+    expect(
+      briefPrefPatch(
+        { pref_budget_min: 12345678 },
+        { areas: [], minBudget: 12346000, maxBudget: null, noBudget: false }
+      )
+    ).toEqual({});
   });
 });

@@ -43,6 +43,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type {
   Tag,
+  Contact,
   ContactNote,
   Deal,
   Property,
@@ -242,6 +243,7 @@ export function ContactDetailView({
   // the same contact (after a save, approve, auto-map, ...) must NOT re-sync
   // the edit fields — that would wipe unsaved edits on the other tabs.
   const initializedContactIdRef = useRef<string | null>(null);
+  const openedBriefRef = useRef<Contact | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -494,6 +496,7 @@ export function ContactDetailView({
     setEditReferrer(contact.referrer ?? '');
     setEditReferrerContactId(contact.referrer_contact_id ?? null);
     const sourceContact = resolveRequirementSource(contact);
+    openedBriefRef.current = sourceContact === contact ? contact : null;
     setEditRequirements(sourceContact.requirements ?? '');
     const openedBudget = briefBudget(sourceContact);
     const minBudget = rupeesToBudgetAmount(openedBudget.min);
@@ -1618,12 +1621,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           editProjectsOfInterest.length > 0 && editStrictProjectMatch,
         areas_of_interest: editAreasOfInterest,
         areas_of_interest_geo: prunedAreasGeo,
-        ...(contact && resolveRequirementSource(contact) === contact
-          ? briefPrefPatch(contact, {
-              areas: editAreasOfInterest,
-              minBudget,
-              maxBudget,
-            })
+        ...(openedBriefRef.current
+          ? briefPrefPatch(
+              openedBriefRef.current,
+              {
+                areas: editAreasOfInterest,
+                minBudget,
+                maxBudget,
+                noBudget: editNoBudget,
+              },
+              contact ?? undefined
+            )
           : {}),
         property_interests: editPropertyInterests,
         min_roi: editMinRoi ? Number(editMinRoi) : null,
@@ -1638,6 +1646,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     } else {
       toast.success('Advanced matching options updated');
       setEditAreasGeo(prunedAreasGeo);
+      if (openedBriefRef.current) {
+        openedBriefRef.current = {
+          ...openedBriefRef.current,
+          areas_of_interest: editAreasOfInterest,
+          pref_areas: [],
+          min_budget: minBudget,
+          max_budget: maxBudget,
+          pref_budget_min: null,
+          pref_budget_max: null,
+        };
+      }
       invalidateDetail();
       onUpdated();
     }

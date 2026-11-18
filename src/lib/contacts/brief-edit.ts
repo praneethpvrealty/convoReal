@@ -1,4 +1,8 @@
-import { resolveBudgetBound } from './budget-amount';
+import {
+  budgetToRupees,
+  resolveBudgetBound,
+  rupeesToBudgetAmount,
+} from './budget-amount';
 
 export interface BriefFields {
   areas_of_interest?: string[] | null;
@@ -13,6 +17,7 @@ export interface BriefEdit {
   areas: string[];
   minBudget: number | null;
   maxBudget: number | null;
+  noBudget: boolean;
 }
 
 export interface BriefPrefPatch {
@@ -57,21 +62,43 @@ export function briefBudget(source: BriefFields): {
   };
 }
 
+function budgetEdited(shown: number | null, edited: number | null) {
+  if (edited === shown) return false;
+  if (shown === null) return true;
+  const { amount, unit } = rupeesToBudgetAmount(shown);
+  return edited !== budgetToRupees(amount, unit);
+}
+
 export function briefPrefPatch(
   opened: BriefFields,
-  edit: BriefEdit
+  edit: BriefEdit,
+  current: BriefFields = opened
 ): BriefPrefPatch {
   const patch: BriefPrefPatch = {};
   const kept = new Set(edit.areas.map(areaKey));
-  const prefAreas = opened.pref_areas ?? [];
-  const keptPrefAreas = prefAreas.filter((area) => kept.has(areaKey(area)));
-  if (keptPrefAreas.length !== prefAreas.length) {
+  const removed = new Set(
+    (opened.pref_areas ?? [])
+      .map(areaKey)
+      .filter((key) => key && !kept.has(key))
+  );
+  const currentPrefAreas = current.pref_areas ?? [];
+  const keptPrefAreas = currentPrefAreas.filter(
+    (area) => !removed.has(areaKey(area))
+  );
+  if (keptPrefAreas.length !== currentPrefAreas.length) {
     patch.pref_areas = keptPrefAreas;
   }
+  if (edit.noBudget) return patch;
   const shown = briefBudget(opened);
-  if (positive(opened.pref_budget_min) !== null && edit.minBudget !== shown.min)
+  if (
+    positive(opened.pref_budget_min) !== null &&
+    budgetEdited(shown.min, edit.minBudget)
+  )
     patch.pref_budget_min = null;
-  if (positive(opened.pref_budget_max) !== null && edit.maxBudget !== shown.max)
+  if (
+    positive(opened.pref_budget_max) !== null &&
+    budgetEdited(shown.max, edit.maxBudget)
+  )
     patch.pref_budget_max = null;
   return patch;
 }

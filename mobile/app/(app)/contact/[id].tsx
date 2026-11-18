@@ -1807,6 +1807,7 @@ function ContactEditor({
   const [leadTemp, setLeadTemp] = useState<string | null>(
     contact.lead_temp ?? null
   );
+  const [openedBrief] = useState(() => (source === contact ? contact : null));
   const openedBudget = briefBudget(source);
   const initialMinBudget = rupeesToBudgetAmount(openedBudget.min);
   const initialMaxBudget = rupeesToBudgetAmount(openedBudget.max);
@@ -1967,12 +1968,17 @@ function ContactEditor({
             (a) => a.trim().toLowerCase() === g.name.trim().toLowerCase()
           )
         ),
-        ...(source === contact
-          ? briefPrefPatch(contact, {
-              areas,
-              minBudget: minBudgetValue,
-              maxBudget: maxBudgetValue,
-            })
+        ...(openedBrief
+          ? briefPrefPatch(
+              openedBrief,
+              {
+                areas,
+                minBudget: minBudgetValue,
+                maxBudget: maxBudgetValue,
+                noBudget,
+              },
+              contact
+            )
           : {}),
         strict_area_match: strictArea,
         property_interests: propertyInterests,
