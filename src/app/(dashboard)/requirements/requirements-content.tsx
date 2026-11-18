@@ -487,12 +487,19 @@ export default function RequirementsPage() {
         if (body.data?.alreadyShared) already += 1;
         else delivered += 1;
       }
+      const skipped = includedIds.length - buyerIds.length;
+      const skippedNote =
+        skipped > 0
+          ? ` ${skipped} non-buyer requirement${
+              skipped === 1 ? ' was' : 's were'
+            } not sent: in-app sharing covers buyer requirements only.`
+          : '';
       toast.success(
-        delivered === 0
-          ? 'This agent already has the selected requirement'
+        (delivered === 0
+          ? 'This agent already has the selected requirement.'
           : `Shared ${delivered} requirement${
               delivered === 1 ? '' : 's'
-            } in ConvoReal`
+            } in ConvoReal.`) + skippedNote
       );
       setShareIds(null);
     } catch (error) {
