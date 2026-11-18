@@ -807,7 +807,7 @@ export async function applySchedulingEdit(
   }
 
   if (!(await hardBurn(accountId, 'event_parse'))) {
-    if (await claimCreditsLockedNotice(conversation.id)) {
+    if (await claimCreditsLockedNotice(accountId, conversation.id)) {
       await replyAndLog({
         phoneNumberId,
         accessToken,
@@ -1216,7 +1216,7 @@ export async function tryHandleOwnerScheduling(
       ? 'image_event_parse'
       : 'event_parse';
   if (!(await hardBurn(accountId, feature))) {
-    if (await claimCreditsLockedNotice(conversation.id)) {
+    if (await claimCreditsLockedNotice(accountId, conversation.id)) {
       await replyAndLog({
         phoneNumberId,
         accessToken,

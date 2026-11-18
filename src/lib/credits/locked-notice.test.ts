@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
   rows: [] as { id: string }[],
+  lookupError: null as { message: string } | null,
   filters: [] as Array<[string, string, unknown]>,
   rateLimitSuccess: true,
   rateLimitKeys: [] as string[],
@@ -20,7 +21,7 @@ vi.mock('@/lib/supabase/admin', () => ({
           chain
         ),
         gte: (c: string, v: unknown) => (h.filters.push(['gte', c, v]), chain),
-        limit: () => Promise.resolve({ data: h.rows, error: null }),
+        limit: () => Promise.resolve({ data: h.rows, error: h.lookupError }),
       };
       return chain;
     },
@@ -45,6 +46,7 @@ import {
 describe('[CRD-006] out-of-credits notice is sent once per conversation', () => {
   beforeEach(() => {
     h.rows = [];
+    h.lookupError = null;
     h.filters = [];
     h.rateLimitSuccess = true;
     h.rateLimitKeys = [];
@@ -53,7 +55,8 @@ describe('[CRD-006] out-of-credits notice is sent once per conversation', () => 
 
   it('claims the notice when none was sent in the window', async () => {
     const now = Date.parse('2026-11-18T07:00:00Z');
-    expect(await claimCreditsLockedNotice('conv-1', now)).toBe(true);
+    expect(await claimCreditsLockedNotice('acct-1', 'conv-1', now)).toBe(true);
+    expect(h.filters).toContainEqual(['eq', 'account_id', 'acct-1']);
     expect(h.filters).toContainEqual(['eq', 'conversation_id', 'conv-1']);
     expect(h.filters).toContainEqual([
       'like',
@@ -69,20 +72,26 @@ describe('[CRD-006] out-of-credits notice is sent once per conversation', () => 
   });
 
   it('holds the burst claim only briefly so a failed send is retried by the next message', async () => {
-    await claimCreditsLockedNotice('conv-1');
+    await claimCreditsLockedNotice('acct-1', 'conv-1');
     expect(h.rateLimitWindows).toEqual([CREDITS_LOCKED_NOTICE_BURST_MS]);
     expect(CREDITS_LOCKED_NOTICE_BURST_MS).toBeLessThanOrEqual(60_000);
   });
 
   it('suppresses the notice when one is already in the thread', async () => {
     h.rows = [{ id: 'm1' }];
-    expect(await claimCreditsLockedNotice('conv-1')).toBe(false);
+    expect(await claimCreditsLockedNotice('acct-1', 'conv-1')).toBe(false);
+    expect(h.rateLimitKeys).toEqual([]);
+  });
+
+  it('suppresses the notice when the lookup fails rather than flooding', async () => {
+    h.lookupError = { message: 'db down' };
+    expect(await claimCreditsLockedNotice('acct-1', 'conv-1')).toBe(false);
     expect(h.rateLimitKeys).toEqual([]);
   });
 
   it('suppresses a concurrent burst that loses the claim', async () => {
     h.rateLimitSuccess = false;
-    expect(await claimCreditsLockedNotice('conv-1')).toBe(false);
+    expect(await claimCreditsLockedNotice('acct-1', 'conv-1')).toBe(false);
   });
 
   it('every locked-reply sender goes through the claim', () => {
@@ -92,7 +101,7 @@ describe('[CRD-006] out-of-credits notice is sent once per conversation', () => 
       engine.indexOf('async function sendCreditsLockedReply(') + 600
     );
     expect(sender).toContain(
-      'if (!(await claimCreditsLockedNotice(conversationId))) return true;'
+      'if (!(await claimCreditsLockedNotice(accountId, conversationId)))'
     );
     const scheduler = readFileSync(
       'src/lib/calendar/whatsapp-scheduler.ts',
@@ -100,8 +109,9 @@ describe('[CRD-006] out-of-credits notice is sent once per conversation', () => 
     );
     const notices = scheduler.split('🔒 *Out of AI credits').length - 1;
     const claims =
-      scheduler.split('if (await claimCreditsLockedNotice(conversation.id))')
-        .length - 1;
+      scheduler.split(
+        'if (await claimCreditsLockedNotice(accountId, conversation.id))'
+      ).length - 1;
     expect(notices).toBe(2);
     expect(claims).toBe(notices);
   });

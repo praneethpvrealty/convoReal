@@ -342,12 +342,13 @@ const CREDITS_LOCKED_REPLY =
   "🔒 *Out of AI credits — this message wasn't processed.* Buy more credits or upgrade your plan from the dashboard to unlock AI features.";
 
 async function sendCreditsLockedReply(
+  accountId: string,
   phoneNumberId: string,
   accessToken: string,
   toPhone: string,
   conversationId: string
 ): Promise<true> {
-  if (!(await claimCreditsLockedNotice(conversationId))) return true;
+  if (!(await claimCreditsLockedNotice(accountId, conversationId))) return true;
   const sendRes = await sendTextMessage({
     phoneNumberId,
     accessToken,
@@ -1098,6 +1099,7 @@ export async function processOwnerChatbotMessage(
   if (isAudioMsg) {
     if (!(await gatedBurn(accountId, 'voice_transcribe'))) {
       return await sendCreditsLockedReply(
+        accountId,
         phoneNumberId,
         accessToken,
         contactRecord.phone,
@@ -1306,6 +1308,7 @@ export async function processOwnerChatbotMessage(
   async function runClientReplyCapture(): Promise<boolean> {
     if (!(await gatedBurn(accountId, 'contact_parse'))) {
       return await sendCreditsLockedReply(
+        accountId,
         phoneNumberId,
         accessToken,
         contactRecord.phone,
@@ -1809,6 +1812,7 @@ export async function processOwnerChatbotMessage(
       } else {
         if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
           return await sendCreditsLockedReply(
+            accountId,
             phoneNumberId,
             accessToken,
             contactRecord.phone,
@@ -2026,6 +2030,7 @@ export async function processOwnerChatbotMessage(
   if (propSession && hasContactKeywords) {
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
       return await sendCreditsLockedReply(
+        accountId,
         phoneNumberId,
         accessToken,
         contactRecord.phone,
@@ -2054,6 +2059,7 @@ export async function processOwnerChatbotMessage(
     // contact screenshot is left for the merge branch below to enrich.
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
       return await sendCreditsLockedReply(
+        accountId,
         phoneNumberId,
         accessToken,
         contactRecord.phone,
@@ -2100,6 +2106,7 @@ export async function processOwnerChatbotMessage(
     if (isNewContactForward || isPropertyListing) {
       if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
         return await sendCreditsLockedReply(
+          accountId,
           phoneNumberId,
           accessToken,
           contactRecord.phone,
@@ -2864,6 +2871,7 @@ export async function processOwnerChatbotMessage(
       // re-run the AI merge but must not re-charge the account.
       if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
         return await sendCreditsLockedReply(
+          accountId,
           phoneNumberId,
           accessToken,
           contactRecord.phone,
@@ -3602,6 +3610,7 @@ export async function processOwnerChatbotMessage(
     if (isMediaMsg) {
       if (!(await gatedBurn(accountId, 'contact_parse'))) {
         return await sendCreditsLockedReply(
+          accountId,
           phoneNumberId,
           accessToken,
           contactRecord.phone,
@@ -3739,6 +3748,7 @@ export async function processOwnerChatbotMessage(
       if (!updatedContainer) {
         if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
           return await sendCreditsLockedReply(
+            accountId,
             phoneNumberId,
             accessToken,
             contactRecord.phone,
@@ -3813,6 +3823,7 @@ export async function processOwnerChatbotMessage(
     } else {
       if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
         return await sendCreditsLockedReply(
+          accountId,
           phoneNumberId,
           accessToken,
           contactRecord.phone,
@@ -3867,6 +3878,7 @@ export async function processOwnerChatbotMessage(
       // drained balance produces the lock reply, not a dead promise.
       if (!(await gatedBurn(accountId, 'listing_parse'))) {
         return await sendCreditsLockedReply(
+          accountId,
           phoneNumberId,
           accessToken,
           contactRecord.phone,
@@ -4347,6 +4359,7 @@ export async function processOwnerChatbotMessage(
         parseBurnKey = parseBurn.burnKey;
         if (!parseBurn.allowed) {
           return await sendCreditsLockedReply(
+            accountId,
             phoneNumberId,
             accessToken,
             contactRecord.phone,

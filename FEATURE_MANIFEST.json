@@ -6088,7 +6088,7 @@
         },
         {
           "id": "CRD-006",
-          "rule": "When an account is out of AI credits, the WhatsApp \"Out of AI credits\" notice reaches a conversation at most once every six hours, however many messages arrive. Every sender of the notice (the chatbot engine and the owner scheduling parser) first claims it through claimCreditsLockedNotice, which refuses while a notice is already in that thread inside the window and takes a one-minute rate-limit claim so a burst arriving together sends one notice; the six-hour window counts only notices actually logged, so a send that fails is retried by the next message. A refused claim still stops the message from being processed, silently.",
+          "rule": "When an account is out of AI credits, the WhatsApp \"Out of AI credits\" notice reaches a conversation at most once every six hours, however many messages arrive. Every sender of the notice (the chatbot engine and the owner scheduling parser) first claims it through claimCreditsLockedNotice, which refuses while a notice is already in that thread inside the window (looked up by account and conversation; a failed lookup refuses rather than risking a flood) and takes a one-minute rate-limit claim so a burst arriving together sends one notice; the six-hour window counts only notices actually logged, so a send that fails is retried by the next message. A refused claim still stops the message from being processed, silently.",
           "tests": [
             {
               "file": "src/lib/credits/locked-notice.test.ts",
