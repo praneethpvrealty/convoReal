@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   filters: [] as Array<[string, string, unknown]>,
   rateLimitSuccess: true,
   rateLimitKeys: [] as string[],
+  rateLimitWindows: [] as number[],
 }));
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -27,13 +28,15 @@ vi.mock('@/lib/supabase/admin', () => ({
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
-  checkRateLimit: async (key: string) => {
+  checkRateLimit: async (key: string, opts: { windowMs: number }) => {
     h.rateLimitKeys.push(key);
+    h.rateLimitWindows.push(opts.windowMs);
     return { success: h.rateLimitSuccess, remaining: 0, reset: 0, limit: 1 };
   },
 }));
 
 import {
+  CREDITS_LOCKED_NOTICE_BURST_MS,
   CREDITS_LOCKED_NOTICE_PREFIX,
   CREDITS_LOCKED_NOTICE_WINDOW_MS,
   claimCreditsLockedNotice,
@@ -45,6 +48,7 @@ describe('[CRD-006] out-of-credits notice is sent once per conversation', () => 
     h.filters = [];
     h.rateLimitSuccess = true;
     h.rateLimitKeys = [];
+    h.rateLimitWindows = [];
   });
 
   it('claims the notice when none was sent in the window', async () => {
@@ -62,6 +66,12 @@ describe('[CRD-006] out-of-credits notice is sent once per conversation', () => 
       new Date(now - CREDITS_LOCKED_NOTICE_WINDOW_MS).toISOString(),
     ]);
     expect(h.rateLimitKeys).toEqual(['credits-locked-notice:conv-1']);
+  });
+
+  it('holds the burst claim only briefly so a failed send is retried by the next message', async () => {
+    await claimCreditsLockedNotice('conv-1');
+    expect(h.rateLimitWindows).toEqual([CREDITS_LOCKED_NOTICE_BURST_MS]);
+    expect(CREDITS_LOCKED_NOTICE_BURST_MS).toBeLessThanOrEqual(60_000);
   });
 
   it('suppresses the notice when one is already in the thread', async () => {

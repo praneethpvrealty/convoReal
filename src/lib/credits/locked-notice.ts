@@ -3,6 +3,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 
 export const CREDITS_LOCKED_NOTICE_PREFIX = '🔒 *Out of AI credits';
 export const CREDITS_LOCKED_NOTICE_WINDOW_MS = 6 * 60 * 60 * 1000;
+export const CREDITS_LOCKED_NOTICE_BURST_MS = 60 * 1000;
 
 export async function claimCreditsLockedNotice(
   conversationId: string,
@@ -21,7 +22,7 @@ export async function claimCreditsLockedNotice(
 
   const claim = await checkRateLimit(
     `credits-locked-notice:${conversationId}`,
-    { limit: 1, windowMs: CREDITS_LOCKED_NOTICE_WINDOW_MS }
+    { limit: 1, windowMs: CREDITS_LOCKED_NOTICE_BURST_MS }
   );
   return claim.success;
 }
