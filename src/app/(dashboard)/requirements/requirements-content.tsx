@@ -18,6 +18,7 @@ import {
   visibleTagSuggestions,
 } from '@/lib/contact-preferences';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { hasRequirementText } from '@/lib/requirements/stated';
 import { areasMatchSearch } from '@/lib/contacts/area-variants';
 import { toast } from 'sonner';
 import {
@@ -771,7 +772,7 @@ export default function RequirementsPage() {
           c.lead_temp) ||
         (priorityFilter === 'Low' && (!c.lead_temp || c.lead_temp === 'Dead'));
 
-      const statedMatch = !statedOnly || Boolean(source.requirements?.trim());
+      const statedMatch = !statedOnly || hasRequirementText(source);
 
       return searchMatch && classMatch && priorityMatch && statedMatch;
     });

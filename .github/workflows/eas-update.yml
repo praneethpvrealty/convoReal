@@ -58,6 +58,7 @@ on:
       - 'src/lib/contacts/phone-key.ts'
       - 'src/lib/contacts/search-filter.ts'
       - 'src/lib/postgrest-search.ts'
+      - 'src/lib/requirements/stated.ts'
       - 'src/lib/conversations/bot-pause.ts'
       - 'src/lib/conversations/inbox-search.ts'
       - 'src/lib/conversations/text-format.ts'

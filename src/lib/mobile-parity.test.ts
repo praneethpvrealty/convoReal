@@ -2188,6 +2188,7 @@ describe('mobile/lib/requirements-feed.ts mirrors the preference merge', () => {
     './contact-area-options': mobileSource('lib/contact-area-options.ts'),
     './requirements-profile': mobileSource('lib/requirements-profile.ts'),
     '@shared/lib/format/currency': webSource('lib/format/currency.ts'),
+    '@shared/lib/requirements/stated': webSource('lib/requirements/stated.ts'),
   });
 
   const contacts = [

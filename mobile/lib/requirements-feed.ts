@@ -11,6 +11,7 @@
  * src/app/(dashboard)/requirements/requirements-content.tsx.
  */
 
+import { hasRequirementText } from '@shared/lib/requirements/stated';
 import type { Contact } from '@shared/types';
 
 import { areasMatchSearch } from './contact-area-options';
@@ -230,7 +231,7 @@ export const EMPTY_REQUIREMENT_FILTERS: RequirementFilters = {
 };
 
 export function hasStatedRequirement(row: RequirementRow): boolean {
-  return Boolean(resolveRequirementSource(row).requirements?.trim());
+  return hasRequirementText(resolveRequirementSource(row));
 }
 
 export function activeRequirementFilterCount(
@@ -267,8 +268,7 @@ export function filterRequirements(
     const classMatch =
       filters.classification === 'All' ||
       row.classification === filters.classification;
-    const statedMatch =
-      !filters.statedOnly || Boolean(source.requirements?.trim());
+    const statedMatch = !filters.statedOnly || hasRequirementText(source);
     return (
       searchMatch &&
       classMatch &&
