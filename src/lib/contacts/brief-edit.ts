@@ -102,3 +102,24 @@ export function briefPrefPatch(
     patch.pref_budget_max = null;
   return patch;
 }
+
+export function briefAfterSave<T extends BriefFields>(
+  opened: T,
+  edit: BriefEdit,
+  patch: BriefPrefPatch
+): T {
+  const kept = new Set(edit.areas.map(areaKey));
+  return {
+    ...opened,
+    areas_of_interest: edit.areas,
+    pref_areas: (opened.pref_areas ?? []).filter((area) =>
+      kept.has(areaKey(area))
+    ),
+    min_budget: edit.minBudget,
+    max_budget: edit.maxBudget,
+    pref_budget_min:
+      'pref_budget_min' in patch ? null : (opened.pref_budget_min ?? null),
+    pref_budget_max:
+      'pref_budget_max' in patch ? null : (opened.pref_budget_max ?? null),
+  };
+}

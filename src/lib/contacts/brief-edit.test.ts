@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { briefAreas, briefBudget, briefPrefPatch } from './brief-edit';
+import {
+  briefAfterSave,
+  briefAreas,
+  briefBudget,
+  briefPrefPatch,
+} from './brief-edit';
 
 describe('[CTM-019] contact brief edit', () => {
   const opened = {
@@ -104,5 +109,28 @@ describe('[CTM-019] contact brief edit', () => {
         { areas: [], minBudget: 12346000, maxBudget: null, noBudget: false }
       )
     ).toEqual({});
+  });
+
+  it('removes on a second save an extracted area and budget the first save kept', () => {
+    const first = {
+      areas_of_interest: [],
+      pref_areas: ['Gachibowli'],
+      pref_budget_min: 20000000,
+    };
+    const edit = {
+      areas: ['Gachibowli'],
+      minBudget: 20000000,
+      maxBudget: null,
+      noBudget: false,
+    };
+    const second = briefAfterSave(first, edit, briefPrefPatch(first, edit));
+    expect(
+      briefPrefPatch(second, {
+        areas: [],
+        minBudget: null,
+        maxBudget: null,
+        noBudget: false,
+      })
+    ).toEqual({ pref_areas: [], pref_budget_min: null });
   });
 });

@@ -101,6 +101,7 @@ import {
   type BudgetUnit,
 } from '@/lib/contacts/budget-amount';
 import {
+  briefAfterSave,
   briefAreas,
   briefBudget,
   briefPrefPatch,
@@ -1609,6 +1610,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     setSavingPreferences(true);
 
     const prunedAreasGeo = pruneAreasGeo(editAreasGeo, editAreasOfInterest);
+    const opened = openedBriefRef.current;
+    const briefEdit = {
+      areas: editAreasOfInterest,
+      minBudget,
+      maxBudget,
+      noBudget: editNoBudget,
+    };
+    const prefPatch = opened
+      ? briefPrefPatch(opened, briefEdit, contact ?? undefined)
+      : null;
     const { data: saved, error } = await supabase
       .from('contacts')
       .update({
@@ -1621,18 +1632,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           editProjectsOfInterest.length > 0 && editStrictProjectMatch,
         areas_of_interest: editAreasOfInterest,
         areas_of_interest_geo: prunedAreasGeo,
-        ...(openedBriefRef.current
-          ? briefPrefPatch(
-              openedBriefRef.current,
-              {
-                areas: editAreasOfInterest,
-                minBudget,
-                maxBudget,
-                noBudget: editNoBudget,
-              },
-              contact ?? undefined
-            )
-          : {}),
+        ...prefPatch,
         property_interests: editPropertyInterests,
         min_roi: editMinRoi ? Number(editMinRoi) : null,
         requires_tenanted: editRequiresTenanted,
@@ -1646,16 +1646,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     } else {
       toast.success('Advanced matching options updated');
       setEditAreasGeo(prunedAreasGeo);
-      if (openedBriefRef.current) {
-        openedBriefRef.current = {
-          ...openedBriefRef.current,
-          areas_of_interest: editAreasOfInterest,
-          pref_areas: [],
-          min_budget: minBudget,
-          max_budget: maxBudget,
-          pref_budget_min: null,
-          pref_budget_max: null,
-        };
+      if (opened && prefPatch) {
+        openedBriefRef.current = briefAfterSave(opened, briefEdit, prefPatch);
       }
       invalidateDetail();
       onUpdated();
