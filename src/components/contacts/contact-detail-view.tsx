@@ -99,6 +99,11 @@ import {
   rupeesToBudgetAmount,
   type BudgetUnit,
 } from '@/lib/contacts/budget-amount';
+import {
+  briefAreas,
+  briefBudget,
+  briefPrefPatch,
+} from '@/lib/contacts/brief-edit';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PriceHint } from '@/components/ui/price-hint';
@@ -490,14 +495,11 @@ export function ContactDetailView({
     setEditReferrerContactId(contact.referrer_contact_id ?? null);
     const sourceContact = resolveRequirementSource(contact);
     setEditRequirements(sourceContact.requirements ?? '');
-    const minBudget = rupeesToBudgetAmount(
-      sourceContact.pref_budget_min ?? sourceContact.min_budget
-    );
+    const openedBudget = briefBudget(sourceContact);
+    const minBudget = rupeesToBudgetAmount(openedBudget.min);
     setEditMinBudget(minBudget.amount);
     setEditMinBudgetUnit(minBudget.unit);
-    const maxBudget = rupeesToBudgetAmount(
-      sourceContact.pref_budget_max ?? sourceContact.max_budget
-    );
+    const maxBudget = rupeesToBudgetAmount(openedBudget.max);
     setEditMaxBudget(maxBudget.amount);
     setEditMaxBudgetUnit(maxBudget.unit);
     setEditNoBudget(Boolean(sourceContact.no_budget));
@@ -513,12 +515,7 @@ export function ContactDetailView({
       initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : '')
     );
     setEditStrictProjectMatch(!!contact.strict_project_match);
-    const initialAreas = Array.from(
-      new Set([
-        ...(sourceContact.areas_of_interest ?? []),
-        ...(sourceContact.pref_areas ?? []),
-      ])
-    );
+    const initialAreas = briefAreas(sourceContact);
     setEditAreasOfInterest(initialAreas);
     setEditAreasText(
       initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : '')
@@ -1621,6 +1618,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           editProjectsOfInterest.length > 0 && editStrictProjectMatch,
         areas_of_interest: editAreasOfInterest,
         areas_of_interest_geo: prunedAreasGeo,
+        ...(contact && resolveRequirementSource(contact) === contact
+          ? briefPrefPatch(contact, {
+              areas: editAreasOfInterest,
+              minBudget,
+              maxBudget,
+            })
+          : {}),
         property_interests: editPropertyInterests,
         min_roi: editMinRoi ? Number(editMinRoi) : null,
         requires_tenanted: editRequiresTenanted,

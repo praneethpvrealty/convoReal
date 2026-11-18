@@ -55,6 +55,9 @@ export async function PUT(
       pref_listing_types,
       areas_of_interest,
       areas_of_interest_geo,
+      pref_areas,
+      pref_budget_min,
+      pref_budget_max,
       property_interests,
       min_roi,
       requires_tenanted,
@@ -121,6 +124,11 @@ export async function PUT(
         ? sanitizeAreaList(areas_of_interest)
         : [],
       areas_of_interest_geo: sanitizeAreasGeo(areas_of_interest_geo),
+      ...(Array.isArray(pref_areas)
+        ? { pref_areas: sanitizeAreaList(pref_areas) }
+        : {}),
+      ...(pref_budget_min === null ? { pref_budget_min: null } : {}),
+      ...(pref_budget_max === null ? { pref_budget_max: null } : {}),
       property_interests: Array.isArray(property_interests)
         ? property_interests
         : [],

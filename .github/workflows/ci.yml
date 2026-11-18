@@ -82,6 +82,8 @@ jobs:
               # Web modules the mobile bundle imports through @shared/;
               # [SHR-003] in src/lib/mobile-parity.test.ts keeps this list whole.
               - 'src/lib/ai/unit-preferences.ts'
+              - 'src/lib/contacts/brief-edit.ts'
+              - 'src/lib/contacts/budget-amount.ts'
               - 'src/lib/den/value-view.ts'
               - 'src/lib/inventory/recent-share.ts'
               - 'src/lib/inventory/edit-version.ts'

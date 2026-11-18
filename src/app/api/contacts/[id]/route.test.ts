@@ -120,4 +120,24 @@ describe('PUT /api/contacts/[id] property links', () => {
     });
     expect(res.status).toBe(200);
   });
+
+  it('[CTM-019] writes the extracted-area and budget clears the form sends', async () => {
+    await put({
+      phone: '+919800000001',
+      areas_of_interest: ['JP Nagar 6th Phase'],
+      pref_areas: [],
+      pref_budget_min: null,
+      pref_budget_max: 5000000,
+    });
+    const patch = writes.find((w) => w.table === 'contacts')?.patch;
+    expect(patch).toMatchObject({ pref_areas: [], pref_budget_min: null });
+    expect(patch).not.toHaveProperty('pref_budget_max');
+  });
+
+  it('[CTM-019] leaves the extracted columns alone when the form sends none', async () => {
+    await put({ phone: '+919800000001', areas_of_interest: ['HSR Layout'] });
+    const patch = writes.find((w) => w.table === 'contacts')?.patch;
+    expect(patch).not.toHaveProperty('pref_areas');
+    expect(patch).not.toHaveProperty('pref_budget_min');
+  });
 });

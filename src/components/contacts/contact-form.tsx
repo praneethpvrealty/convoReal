@@ -24,6 +24,11 @@ import {
 } from '@/lib/contacts/lead-temp';
 import { contactHandle } from '@/lib/contacts/reachability';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
+import {
+  briefAreas,
+  briefBudget,
+  briefPrefPatch,
+} from '@/lib/contacts/brief-edit';
 import { LANGUAGE_CODES, languageDisplay } from '@/lib/languages';
 import {
   Dialog,
@@ -226,29 +231,15 @@ export function ContactForm({
       setLastInquiredPropertyId(contact?.last_inquired_property_id ?? null);
       setReferrer(contact?.referrer ?? '');
       setReferrerContactId(contact?.referrer_contact_id ?? null);
-      setMinBudget(
-        sourceContact?.pref_budget_min != null
-          ? String(sourceContact.pref_budget_min)
-          : sourceContact?.min_budget != null
-            ? String(sourceContact.min_budget)
-            : ''
-      );
-      setMaxBudget(
-        sourceContact?.pref_budget_max != null
-          ? String(sourceContact.pref_budget_max)
-          : sourceContact?.max_budget != null
-            ? String(sourceContact.max_budget)
-            : ''
-      );
+      const openedBudget = sourceContact
+        ? briefBudget(sourceContact)
+        : { min: null, max: null };
+      setMinBudget(openedBudget.min != null ? String(openedBudget.min) : '');
+      setMaxBudget(openedBudget.max != null ? String(openedBudget.max) : '');
       setNoBudget(Boolean(sourceContact?.no_budget));
       setListingIntent((sourceContact?.pref_listing_types ?? []).join(','));
       setStrictAreaMatch(!!contact?.strict_area_match);
-      const initialAreas = Array.from(
-        new Set([
-          ...(sourceContact?.areas_of_interest ?? []),
-          ...(sourceContact?.pref_areas ?? []),
-        ])
-      );
+      const initialAreas = sourceContact ? briefAreas(sourceContact) : [];
       setAreasOfInterest(initialAreas);
       setAreasText(
         initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : '')
@@ -503,6 +494,13 @@ export function ContactForm({
         strict_area_match: strictAreaMatch,
         areas_of_interest: areasOfInterest,
         areas_of_interest_geo: pruneAreasGeo(areasGeo, areasOfInterest),
+        ...(contact && resolveRequirementSource(contact) === contact
+          ? briefPrefPatch(contact, {
+              areas: areasOfInterest,
+              minBudget: minBudgetValue,
+              maxBudget: maxBudgetValue,
+            })
+          : {}),
         projects_of_interest: projectsOfInterest,
         strict_project_match:
           projectsOfInterest.length > 0 && strictProjectMatch,

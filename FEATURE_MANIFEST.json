@@ -1335,6 +1335,25 @@
             "supabase/migrations/20261116045705_contacts_matching_phone_key.sql",
             ".github/workflows/eas-update.yml"
           ]
+        },
+        {
+          "id": "CTM-019",
+          "rule": "Editing a contact on web (contact form and the detail panel's matching options) or mobile opens with every area and the budget the matcher reads for that brief, through briefAreas and briefBudget (src/lib/contacts/brief-edit.ts): agent-entered areas_of_interest plus AI-extracted pref_areas, and min_budget/max_budget ahead of pref_budget_min/max as resolveBudgetBound decides. Saving the primary brief removes from pref_areas every area the agent removed and clears an extracted budget bound the agent changed or cleared (briefPrefPatch), so a removed area or budget does not reappear on the record or keep matching; a requirement-profile brief leaves the contact's extracted columns alone. The mobile locality picker keeps offering suggestions after a suggestion is picked while the keyboard stays open.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/brief-edit.test.ts",
+              "case": "[CTM-019]"
+            },
+            {
+              "file": "src/app/api/contacts/[id]/route.test.ts",
+              "case": "[CTM-019]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-019]"
+            }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },

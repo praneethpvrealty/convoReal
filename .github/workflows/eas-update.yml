@@ -40,6 +40,8 @@ on:
       # Web modules the bundle imports through @shared/; [SHR-003] in
       # src/lib/mobile-parity.test.ts keeps this list whole.
       - 'src/lib/ai/unit-preferences.ts'
+      - 'src/lib/contacts/brief-edit.ts'
+      - 'src/lib/contacts/budget-amount.ts'
       - 'src/lib/den/value-view.ts'
       - 'src/lib/market/city.ts'
       - 'src/lib/market/valuation.ts'
