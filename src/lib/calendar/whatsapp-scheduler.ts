@@ -18,6 +18,7 @@ import {
   downloadMedia,
 } from '@/lib/whatsapp/meta-api';
 import { burnCredits } from '@/lib/credits/burn';
+import { claimCreditsLockedNotice } from '@/lib/credits/locked-notice';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import {
   parseEventFromInput,
@@ -806,13 +807,15 @@ export async function applySchedulingEdit(
   }
 
   if (!(await hardBurn(accountId, 'event_parse'))) {
-    await replyAndLog({
-      phoneNumberId,
-      accessToken,
-      toPhone: contactRecord.phone,
-      conversationId: conversation.id,
-      text: "🔒 *Out of AI credits — that correction wasn't applied.* Buy more credits or upgrade your plan from the dashboard.",
-    });
+    if (await claimCreditsLockedNotice(accountId, conversation.id)) {
+      await replyAndLog({
+        phoneNumberId,
+        accessToken,
+        toPhone: contactRecord.phone,
+        conversationId: conversation.id,
+        text: "🔒 *Out of AI credits — that correction wasn't applied.* Buy more credits or upgrade your plan from the dashboard.",
+      });
+    }
     return 'skipped';
   }
 
@@ -1213,13 +1216,15 @@ export async function tryHandleOwnerScheduling(
       ? 'image_event_parse'
       : 'event_parse';
   if (!(await hardBurn(accountId, feature))) {
-    await replyAndLog({
-      phoneNumberId,
-      accessToken,
-      toPhone: contactRecord.phone,
-      conversationId: conversation.id,
-      text: "🔒 *Out of AI credits — this message wasn't processed.* Buy more credits or upgrade your plan from the dashboard to unlock AI features.",
-    });
+    if (await claimCreditsLockedNotice(accountId, conversation.id)) {
+      await replyAndLog({
+        phoneNumberId,
+        accessToken,
+        toPhone: contactRecord.phone,
+        conversationId: conversation.id,
+        text: "🔒 *Out of AI credits — this message wasn't processed.* Buy more credits or upgrade your plan from the dashboard to unlock AI features.",
+      });
+    }
     return true;
   }
 
