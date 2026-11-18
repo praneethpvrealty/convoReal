@@ -157,4 +157,39 @@ describe('[REQ-008] what the model may decide', () => {
     expect(group.lookingFor).toBe('Flat, call or see');
     expect(group.budget).toBe('₹2 Cr');
   });
+
+  it('keeps numeric ranges while stripping phone numbers', () => {
+    const [group] = sanitizeConsolidation(
+      {
+        groups: [
+          {
+            keys: ['r1', 'r2'],
+            looking_for:
+              'Flat of 1800 - 2200 sq.ft., ring 098450 12345 or 9845012345',
+            budget: '50000 - 75000 per month',
+          },
+        ],
+      },
+      inputs
+    );
+    expect(group.lookingFor).toBe('Flat of 1800 - 2200 sq.ft., ring or');
+    expect(group.budget).toBe('50000 - 75000 per month');
+  });
+
+  it('sends an unmerged brief whole, however long it is', () => {
+    const long = `${'Corner plot with a borewell. '.repeat(40)}Must face east.`;
+    const longInputs = consolidationInputs([
+      { id: 'e5e50000-0000-0000-0000-000000000000', requirements: long },
+      ...posted,
+    ]);
+    expect(consolidationPrompt(longInputs)).not.toContain('Must face east.');
+    const digest = formatConsolidatedDigest(
+      sanitizeConsolidation(
+        { groups: [{ keys: ['r2', 'r3'], looking_for: '3 BHK flat' }] },
+        longInputs
+      )
+    );
+    expect(digest).toContain('2 clients (REQ-A1A1, REQ-B2B2)');
+    expect(digest).toContain(`Looking for: ${long}`);
+  });
 });
