@@ -184,6 +184,44 @@ describe('handleReminderButtonReply', () => {
     expect(text).not.toContain('Guest c10');
   });
 
+  it('[CAL-021] still pings every member when the client ack is refused', async () => {
+    send.mockImplementation(async (args: { contactId?: string }) => {
+      if (args.contactId) throw new Error('bot paused');
+      return { success: true };
+    });
+
+    await handleReminderButtonReply(
+      tap('Requesting reschedule'),
+      'acc',
+      'buyer',
+      'conv',
+      'owner-user'
+    );
+
+    expect(send.mock.calls.map(([arg]) => arg.toPhone ?? null)).toEqual([
+      null,
+      '919811111111',
+      '919822222222',
+    ]);
+  });
+
+  it('[CAL-021] a failed ping to one member does not skip the next', async () => {
+    send.mockImplementation(async (args: { toPhone?: string }) => {
+      if (args.toPhone === '919811111111') throw new Error('Meta refused');
+      return { success: true };
+    });
+
+    await handleReminderButtonReply(
+      tap('Requesting reschedule'),
+      'acc',
+      'buyer',
+      'conv',
+      'owner-user'
+    );
+
+    expect(send.mock.calls.at(-1)?.[0].toPhone).toBe('919822222222');
+  });
+
   it('[CAL-021] pings only the member who runs the event when the client confirms', async () => {
     await handleReminderButtonReply(
       tap('Fine'),

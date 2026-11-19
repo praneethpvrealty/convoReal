@@ -126,30 +126,29 @@ export async function handleReminderButtonReply(
       isSiteVisit
     );
 
-    if (isReschedule) {
-      await sendWhatsAppMessageAndPersist({
-        accountId,
-        userId: ownerUserId,
-        contactId,
-        conversationId,
-        kind: 'text',
-        senderType: 'bot',
-        text: rescheduleAckText({ title, formattedTime, isSiteVisit }),
-      });
-    }
-
-    if (isConfirm) {
+    if (isReschedule || isConfirm) {
       // Ack in-thread — the client just messaged, so the 24h session
-      // window is open for free-form text.
-      await sendWhatsAppMessageAndPersist({
-        accountId,
-        userId: ownerUserId,
-        contactId,
-        conversationId,
-        kind: 'text',
-        senderType: 'bot',
-        text: `✅ Thank you! Your meeting "${appt.title}" on ${formattedTime} is confirmed. See you there!`,
-      });
+      // window is open for free-form text. A refused ack (the bot is
+      // paused because an agent is in the chat) must not stop the
+      // member pings below.
+      try {
+        await sendWhatsAppMessageAndPersist({
+          accountId,
+          userId: ownerUserId,
+          contactId,
+          conversationId,
+          kind: 'text',
+          senderType: 'bot',
+          text: isReschedule
+            ? rescheduleAckText({ title, formattedTime, isSiteVisit })
+            : `✅ Thank you! Your meeting "${appt.title}" on ${formattedTime} is confirmed. See you there!`,
+        });
+      } catch (err) {
+        console.warn(
+          `[Reminder Reply] Client acknowledgement not sent for appointment ${appt.id}:`,
+          err instanceof Error ? err.message : err
+        );
+      }
     }
 
     const runner = appt.assigned_to || appt.user_id;
@@ -206,14 +205,21 @@ export async function handleReminderButtonReply(
       if (!phone) continue;
       const agentPhone = sanitizePhoneForMeta(phone);
       if (!isValidE164(agentPhone)) continue;
-      await sendWhatsAppMessageAndPersist({
-        accountId,
-        userId: memberId,
-        toPhone: agentPhone,
-        kind: 'text',
-        senderType: 'bot',
-        text: agentText,
-      });
+      try {
+        await sendWhatsAppMessageAndPersist({
+          accountId,
+          userId: memberId,
+          toPhone: agentPhone,
+          kind: 'text',
+          senderType: 'bot',
+          text: agentText,
+        });
+      } catch (err) {
+        console.error(
+          `[Reminder Reply] Member ${memberId} not notified for appointment ${appt.id}:`,
+          err instanceof Error ? err.message : err
+        );
+      }
     }
     return true;
   } catch (err) {
