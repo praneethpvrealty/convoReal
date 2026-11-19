@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-type Lookup = 'stands' | 'gone' | 'renewed' | 'rearmed' | 'moved' | 'error';
+type Lookup =
+  'stands' | 'gone' | 'renewed' | 'rearmed' | 'moved' | 'held' | 'error';
 
 const state = vi.hoisted(() => ({
   lookups: [] as Lookup[],
@@ -72,6 +73,8 @@ vi.mock('@/lib/supabase/admin', () => ({
                     : answer === 'moved'
                       ? '2026-09-29T09:59:00.000+00:00'
                       : null,
+                reschedule_requested_at:
+                  answer === 'held' ? '2026-09-29T10:01:00.000+00:00' : null,
               },
             },
             error: null,
@@ -198,6 +201,26 @@ describe('processReminderAudioJob', () => {
     await processReminderAudioJob(job);
     expect(state.burns).toBe(1);
     expect(state.sends).toBe(0);
+  });
+
+  it('[CAL-021] hands a note back to the cron, unsent, once the client asks to reschedule', async () => {
+    reset(['held']);
+    await processReminderAudioJob(job);
+    expect(state.burns).toBe(0);
+    expect(state.sends).toBe(0);
+    expect(state.requeued).toEqual([]);
+    expect(state.rpcs.map(([name]) => name)).toEqual([
+      'appointment_reminder_hand_back',
+    ]);
+  });
+
+  it('[CAL-021] refunds and hands back a note whose client asked to reschedule while it rendered', async () => {
+    reset(['stands', 'held']);
+    await processReminderAudioJob(job);
+    expect(state.sends).toBe(0);
+    expect(state.rpcs.map(([name]) => name)).toEqual([
+      'appointment_reminder_hand_back',
+    ]);
   });
 
   it('sends under a standing claim and records the message against that claim', async () => {
