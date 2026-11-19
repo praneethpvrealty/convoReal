@@ -9,6 +9,8 @@ const REMINDER_RESCHEDULE_BUTTON_TEXT = 'Requesting reschedule';
 
 const REMINDER_CONFIRM_BUTTON_TEXT = 'Fine';
 
+const MAX_NAMED_PARTICIPANTS = 10;
+
 /**
  * A tap on either of the reminder's quick-reply buttons
  * (supabase/migrations/141_reminder_reschedule_buttons.sql) arrives as
@@ -160,24 +162,27 @@ export async function handleReminderButtonReply(
 
     let agentText = `✅ Meeting confirmed: "${appt.title}" on ${formattedTime}. The client tapped "Fine" on their reminder.`;
     if (isReschedule) {
-      const contactIds = [
+      const otherIds = [
         ...new Set([
           ...((appt.contact_ids as string[] | null) || []),
           ...(appt.contact_id ? [appt.contact_id] : []),
-          contactId,
         ]),
-      ];
+      ].filter((id) => id !== contactId);
+      const namedIds = otherIds.slice(0, MAX_NAMED_PARTICIPANTS);
       const { data: people } = await admin
         .from('contacts')
         .select('id, name, phone')
         .eq('account_id', accountId)
-        .in('id', contactIds);
+        .in('id', [contactId, ...namedIds]);
       const nameOf = (c: { name: string | null; phone: string | null }) =>
         c.name?.trim() || c.phone || 'a contact';
       const requester = (people || []).find((c) => c.id === contactId);
-      const others = (people || [])
-        .filter((c) => c.id !== contactId)
-        .map(nameOf);
+      const others = namedIds.map((id) => {
+        const person = (people || []).find((c) => c.id === id);
+        return person ? nameOf(person) : 'a contact';
+      });
+      const unnamed = otherIds.length - namedIds.length;
+      if (unnamed > 0) others.push(`${unnamed} more`);
       const liaison = Array.isArray(appt.liaison)
         ? appt.liaison[0]
         : appt.liaison;

@@ -7,26 +7,36 @@ const state = vi.hoisted(() => ({
   contacts: [] as Row[],
   profiles: [] as Row[],
   updates: [] as Row[],
+  contactLookups: [] as unknown[][],
 }));
 
 vi.mock('@/lib/supabase/admin', () => ({
   supabaseAdmin: () => ({
     from: (table: string) => {
       let update: Row | null = null;
+      let ids: unknown[] | null = null;
       const builder: Record<string, unknown> = {};
       const chain = () => builder;
-      const rows = () =>
-        table === 'contacts'
-          ? state.contacts
-          : table === 'profiles'
-            ? state.profiles
-            : [];
+      const rows = () => {
+        const all =
+          table === 'contacts'
+            ? state.contacts
+            : table === 'profiles'
+              ? state.profiles
+              : [];
+        const key = table === 'contacts' ? 'id' : 'user_id';
+        return ids ? all.filter((r) => ids!.includes(r[key])) : all;
+      };
       Object.assign(builder, {
         select: chain,
         eq: chain,
         is: chain,
         contains: chain,
-        in: chain,
+        in: (_col: string, values: unknown[]) => {
+          ids = values;
+          if (table === 'contacts') state.contactLookups.push(values);
+          return builder;
+        },
         update: (row: Row) => {
           update = row;
           state.updates.push(row);
@@ -78,6 +88,7 @@ beforeEach(() => {
   send.mockReset();
   send.mockResolvedValue({ success: true });
   state.updates = [];
+  state.contactLookups = [];
   state.appointment = {
     id: 'appt-1',
     title: 'Visit with Yusuf',
@@ -146,6 +157,31 @@ describe('handleReminderButtonReply', () => {
       expect(ping.text).toContain('including Lakshmi, Ramesh (lawyer)');
       expect(ping.text).toContain('notify all participants');
     }
+  });
+
+  it('[CAL-021] looks up at most ten other participants and counts the rest', async () => {
+    const extra = Array.from({ length: 12 }, (_, i) => `c${i}`);
+    state.appointment = {
+      ...state.appointment,
+      contact_ids: ['buyer', ...extra],
+    };
+    state.contacts = [
+      state.contacts[0],
+      ...extra.map((id) => ({ id, name: `Guest ${id}`, phone: null })),
+    ];
+
+    await handleReminderButtonReply(
+      tap('Requesting reschedule'),
+      'acc',
+      'buyer',
+      'conv',
+      'owner-user'
+    );
+
+    expect(state.contactLookups).toEqual([['buyer', ...extra.slice(0, 10)]]);
+    const text = send.mock.calls[1][0].text as string;
+    expect(text).toContain('Guest c9, 2 more, Ramesh (lawyer)');
+    expect(text).not.toContain('Guest c10');
   });
 
   it('[CAL-021] pings only the member who runs the event when the client confirms', async () => {
