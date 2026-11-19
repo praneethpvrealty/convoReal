@@ -1,0 +1,239 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+type Row = Record<string, unknown>;
+
+const state = vi.hoisted(() => ({
+  appointment: null as Row | null,
+  contacts: [] as Row[],
+  profiles: [] as Row[],
+  updates: [] as Row[],
+  contactLookups: [] as unknown[][],
+}));
+
+vi.mock('@/lib/supabase/admin', () => ({
+  supabaseAdmin: () => ({
+    from: (table: string) => {
+      let update: Row | null = null;
+      let ids: unknown[] | null = null;
+      const builder: Record<string, unknown> = {};
+      const chain = () => builder;
+      const rows = () => {
+        const all =
+          table === 'contacts'
+            ? state.contacts
+            : table === 'profiles'
+              ? state.profiles
+              : [];
+        const key = table === 'contacts' ? 'id' : 'user_id';
+        return ids ? all.filter((r) => ids!.includes(r[key])) : all;
+      };
+      Object.assign(builder, {
+        select: chain,
+        eq: chain,
+        is: chain,
+        contains: chain,
+        in: (_col: string, values: unknown[]) => {
+          ids = values;
+          if (table === 'contacts') state.contactLookups.push(values);
+          return builder;
+        },
+        update: (row: Row) => {
+          update = row;
+          state.updates.push(row);
+          return builder;
+        },
+        maybeSingle: async () => {
+          if (table === 'appointment_reminder_log') {
+            return {
+              data: {
+                appointment_id: 'appt-1',
+                rearmed_at: null,
+                appointment: { reminders_rearmed_at: null },
+              },
+              error: null,
+            };
+          }
+          if (table === 'appointments' && update) {
+            return { data: state.appointment, error: null };
+          }
+          return { data: null, error: null };
+        },
+        then: (resolve: (v: { data: Row[]; error: null }) => unknown) =>
+          resolve({ data: rows(), error: null }),
+      });
+      return builder;
+    },
+  }),
+}));
+
+const send = vi.fn();
+vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
+  sendWhatsAppMessageAndPersist: (...args: unknown[]) => send(...args),
+}));
+
+import { handleReminderButtonReply } from './reminder-reply';
+
+function tap(text: string) {
+  return {
+    id: 'wamid.tap',
+    from: '919800000001',
+    timestamp: '0',
+    type: 'button',
+    button: { text, payload: text },
+    context: { id: 'wamid.reminder' },
+  } as unknown as Parameters<typeof handleReminderButtonReply>[0];
+}
+
+beforeEach(() => {
+  send.mockReset();
+  send.mockResolvedValue({ success: true });
+  state.updates = [];
+  state.contactLookups = [];
+  state.appointment = {
+    id: 'appt-1',
+    title: 'Visit with Yusuf',
+    start_time: '2026-11-19T06:30:00.000Z',
+    event_type: 'site_visit',
+    user_id: 'creator',
+    assigned_to: 'agent',
+    remind_creator: true,
+    contact_id: 'buyer',
+    contact_ids: ['buyer', 'owner'],
+    remind_liaison: true,
+    liaison: { name: 'Ramesh (lawyer)' },
+    property: { title: 'Apartment Building for Sale in HBR Layout' },
+  };
+  state.contacts = [
+    { id: 'buyer', name: 'Yusuf Sameer', phone: '+919800000001' },
+    { id: 'owner', name: 'Lakshmi', phone: '+919800000002' },
+  ];
+  state.profiles = [
+    { user_id: 'agent', phone: '+919811111111' },
+    { user_id: 'creator', phone: '+919822222222' },
+  ];
+});
+
+describe('handleReminderButtonReply', () => {
+  it('[CAL-021] tells the client their time is on hold when they ask to reschedule', async () => {
+    const consumed = await handleReminderButtonReply(
+      tap('Requesting reschedule'),
+      'acc',
+      'buyer',
+      'conv',
+      'owner-user'
+    );
+
+    expect(consumed).toBe(true);
+    expect(state.updates[0]).toMatchObject({ client_confirmed_at: null });
+    expect(state.updates[0].reschedule_requested_at).toEqual(
+      expect.any(String)
+    );
+    const ack = send.mock.calls[0][0];
+    expect(ack).toMatchObject({ contactId: 'buyer', conversationId: 'conv' });
+    expect(ack.text).toContain(
+      'property visit for "Apartment Building for Sale in HBR Layout"'
+    );
+    expect(ack.text).toContain("you won't get more reminders for that time");
+  });
+
+  it('[CAL-021] tells every reminded member who asked and whose reminders are held', async () => {
+    await handleReminderButtonReply(
+      tap('Requesting reschedule'),
+      'acc',
+      'buyer',
+      'conv',
+      'owner-user'
+    );
+
+    const pings = send.mock.calls.slice(1).map(([arg]) => arg);
+    expect(pings.map((p) => p.toPhone)).toEqual([
+      '919811111111',
+      '919822222222',
+    ]);
+    for (const ping of pings) {
+      expect(ping.text).toContain(
+        'Yusuf Sameer tapped "Requesting reschedule"'
+      );
+      expect(ping.text).toContain('including Lakshmi, Ramesh (lawyer)');
+      expect(ping.text).toContain('notify all participants');
+    }
+  });
+
+  it('[CAL-021] looks up at most ten other participants and counts the rest', async () => {
+    const extra = Array.from({ length: 12 }, (_, i) => `c${i}`);
+    state.appointment = {
+      ...state.appointment,
+      contact_ids: ['buyer', ...extra],
+    };
+    state.contacts = [
+      state.contacts[0],
+      ...extra.map((id) => ({ id, name: `Guest ${id}`, phone: null })),
+    ];
+
+    await handleReminderButtonReply(
+      tap('Requesting reschedule'),
+      'acc',
+      'buyer',
+      'conv',
+      'owner-user'
+    );
+
+    expect(state.contactLookups).toEqual([['buyer', ...extra.slice(0, 10)]]);
+    const text = send.mock.calls[1][0].text as string;
+    expect(text).toContain('Guest c9, 2 more, Ramesh (lawyer)');
+    expect(text).not.toContain('Guest c10');
+  });
+
+  it('[CAL-021] still pings every member when the client ack is refused', async () => {
+    send.mockImplementation(async (args: { contactId?: string }) => {
+      if (args.contactId) return { success: false, error: 'bot paused' };
+      return { success: true };
+    });
+
+    await handleReminderButtonReply(
+      tap('Requesting reschedule'),
+      'acc',
+      'buyer',
+      'conv',
+      'owner-user'
+    );
+
+    expect(send.mock.calls.map(([arg]) => arg.toPhone ?? null)).toEqual([
+      null,
+      '919811111111',
+      '919822222222',
+    ]);
+  });
+
+  it('[CAL-021] a failed ping to one member does not skip the next', async () => {
+    send.mockImplementation(async (args: { toPhone?: string }) => {
+      if (args.toPhone === '919811111111') throw new Error('network down');
+      return { success: true };
+    });
+
+    await handleReminderButtonReply(
+      tap('Requesting reschedule'),
+      'acc',
+      'buyer',
+      'conv',
+      'owner-user'
+    );
+
+    expect(send.mock.calls.at(-1)?.[0].toPhone).toBe('919822222222');
+  });
+
+  it('[CAL-021] pings only the member who runs the event when the client confirms', async () => {
+    await handleReminderButtonReply(
+      tap('Fine'),
+      'acc',
+      'buyer',
+      'conv',
+      'owner-user'
+    );
+
+    expect(state.updates[0]).toMatchObject({ reschedule_requested_at: null });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[0][0].text).toContain('is confirmed');
+    expect(send.mock.calls[1][0].toPhone).toBe('919811111111');
+  });
+});

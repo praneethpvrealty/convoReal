@@ -229,6 +229,7 @@ interface ReminderAppointment {
   agenda: string | null;
   event_type: string;
   client_confirmed_at: string | null;
+  reschedule_requested_at: string | null;
   contact_id: string | null;
   contact_ids: string[] | null;
   reminder_morning_sent: boolean;
@@ -464,7 +465,8 @@ async function claimReminder(
  *  between took — would have the sweep send the old time under a
  *  claim newer than the re-arm, so the claim is released again and the
  *  recipient retried by the next sweep, which reads the appointment
- *  afresh. A check the database did not answer counts as changed. */
+ *  afresh. A reschedule the client requested since holds the send the
+ *  same way. A check the database did not answer counts as changed. */
 async function stillAsRead(
   admin: SupabaseClient,
   appt: ReminderAppointment,
@@ -472,7 +474,7 @@ async function stillAsRead(
 ): Promise<boolean> {
   const { data: current, error } = await admin
     .from('appointments')
-    .select('reminders_rearmed_at')
+    .select('reminders_rearmed_at, reschedule_requested_at')
     .eq('id', appt.id)
     .eq('account_id', appt.account_id)
     .maybeSingle();
@@ -482,6 +484,7 @@ async function stillAsRead(
   if (
     !error &&
     current &&
+    !current.reschedule_requested_at &&
     sameInstant(current.reminders_rearmed_at, appt.reminders_rearmed_at)
   ) {
     return true;
@@ -1010,7 +1013,7 @@ export async function checkAndSendAppointmentReminders(
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, title, start_time, location, agenda, event_type, client_confirmed_at, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, reminders_rearmed_at, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state), account:accounts(name, client_quiet_hours_enabled, client_quiet_hours_start, client_quiet_hours_end)'
+      'id, account_id, user_id, title, start_time, location, agenda, event_type, client_confirmed_at, reschedule_requested_at, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, reminders_rearmed_at, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state), account:accounts(name, client_quiet_hours_enabled, client_quiet_hours_start, client_quiet_hours_end)'
     )
     .eq('status', 'scheduled')
     .neq('event_type', 'call')
@@ -1070,6 +1073,7 @@ export async function checkAndSendAppointmentReminders(
       end: appt.account?.client_quiet_hours_end ?? defaults.end,
     });
     if (quiet.isQuiet) continue;
+    if (appt.reschedule_requested_at) continue;
 
     const msUntilStart = new Date(appt.start_time).getTime() - now.getTime();
     const isDue1h = !appt.reminder_1h_sent && msUntilStart <= HOUR_MS;

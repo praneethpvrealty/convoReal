@@ -90,6 +90,7 @@ describe('feature manifest', () => {
       'CAL-018',
       'CAL-019',
       'CAL-020',
+      'CAL-021',
     ]);
   });
 });

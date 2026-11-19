@@ -474,6 +474,54 @@ describe('checkAndSendAppointmentReminders', () => {
 
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
   });
+
+  it('[CAL-021] sends no reminder to anyone on an appointment whose client asked to reschedule', async () => {
+    tables.appointments = [
+      {
+        ...appointment('a-visit', 'site_visit', 'c-visit'),
+        contact_ids: ['c-visit', 'c-call'],
+        reschedule_requested_at: '2026-08-01T02:37:00.000Z',
+      },
+    ];
+
+    await checkAndSendAppointmentReminders(NOW);
+
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(tables.appointment_reminder_log).toHaveLength(0);
+    expect(tables.appointments[0]).toMatchObject({
+      reminder_morning_sent: false,
+      reminder_1h_sent: false,
+    });
+  });
+
+  it('[CAL-021] sends the held reminder once the request is resolved', async () => {
+    tables.appointments = [
+      {
+        ...appointment('a-visit', 'site_visit', 'c-visit'),
+        reschedule_requested_at: '2026-08-01T02:37:00.000Z',
+      },
+    ];
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+
+    tables.appointments[0].reschedule_requested_at = null;
+    await checkAndSendAppointmentReminders(NOW);
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+  });
+
+  it('[CAL-021] a reschedule request landing mid-sweep releases the claim unsent', async () => {
+    tables.appointments = [appointment('a-visit', 'site_visit', 'c-visit')];
+    hooks.onAppointmentRead = () => {
+      tables.appointments[0].reschedule_requested_at =
+        '2026-08-01T05:59:00.000Z';
+    };
+
+    await checkAndSendAppointmentReminders(NOW);
+
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+    expect(tables.appointment_reminder_log).toHaveLength(0);
+    expect(tables.appointments[0].reminder_1h_sent).toBe(false);
+  });
 });
 
 describe('reminder call charge key', () => {

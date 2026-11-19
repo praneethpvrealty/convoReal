@@ -128,33 +128,46 @@ function isLegacy(job: ReminderAudioJob): boolean {
  * stamps that column at once — whether before or after the sweep that
  * queued the note — and the cron takes the claim over with a fresh
  * clock on its next sweep; either sign means the note's time is stale
- * and a fresh note is on its way. Throws when the database did not answer, so the
- * caller can requeue rather than drop.
+ * and a fresh note is on its way. A claim that stands while the client
+ * has asked to reschedule is held: the note's time is in question, so
+ * it goes back to the cron, which sends nothing until the request is
+ * resolved. Throws when the database did not answer, so the caller can
+ * requeue rather than drop.
  */
 async function claimStands(
   admin: SupabaseClient,
   job: ReminderAudioJob
-): Promise<boolean> {
+): Promise<'stands' | 'superseded' | 'held'> {
   const { data, error } = await admin
     .from('appointment_reminder_log')
-    .select('id, created_at, appointment:appointments(reminders_rearmed_at)')
+    .select(
+      'id, created_at, appointment:appointments(reminders_rearmed_at, reschedule_requested_at)'
+    )
     .eq('id', job.claimId!)
     .eq('account_id', job.accountId)
     .maybeSingle();
   if (error) throw new Error(`claim lookup failed: ${error.message}`);
-  if (!data) return false;
+  if (!data) return 'superseded';
   const claimedAt = new Date(data.created_at).getTime();
   if (job.claimedAt && claimedAt !== new Date(job.claimedAt).getTime()) {
-    return false;
+    return 'superseded';
   }
   const appointment = (
     Array.isArray(data.appointment) ? data.appointment[0] : data.appointment
-  ) as { reminders_rearmed_at: string | null } | null | undefined;
+  ) as
+    | {
+        reminders_rearmed_at: string | null;
+        reschedule_requested_at?: string | null;
+      }
+    | null
+    | undefined;
   const rearmedAt = appointment?.reminders_rearmed_at ?? null;
-  if (job.rearmedAt !== undefined) {
-    return sameInstant(rearmedAt, job.rearmedAt);
-  }
-  return !rearmedAt || claimedAt >= new Date(rearmedAt).getTime();
+  const current =
+    job.rearmedAt !== undefined
+      ? sameInstant(rearmedAt, job.rearmedAt)
+      : !rearmedAt || claimedAt >= new Date(rearmedAt).getTime();
+  if (!current) return 'superseded';
+  return appointment?.reschedule_requested_at ? 'held' : 'stands';
 }
 
 function sameInstant(a: string | null, b: string | null) {
@@ -182,7 +195,14 @@ async function claimGate(
     return retainUntilPersisted(admin, job, job.attempts ?? 0, false);
   }
   try {
-    if (await claimStands(admin, job)) return 'send';
+    const standing = await claimStands(admin, job);
+    if (standing === 'stands') return 'send';
+    if (standing === 'held') {
+      console.log(
+        `[reminder-audio] Handing the ${job.reminderType} reminder for appt ${job.appointmentId} back to the cron: the client asked to reschedule`
+      );
+      return retainUntilPersisted(admin, job, job.attempts ?? 0, false);
+    }
     console.log(
       `[reminder-audio] Claim ${job.claimId} for appt ${job.appointmentId} was superseded — dropping the queued ${job.reminderType} note`
     );
