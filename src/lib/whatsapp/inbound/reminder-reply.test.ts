@@ -186,7 +186,7 @@ describe('handleReminderButtonReply', () => {
 
   it('[CAL-021] still pings every member when the client ack is refused', async () => {
     send.mockImplementation(async (args: { contactId?: string }) => {
-      if (args.contactId) throw new Error('bot paused');
+      if (args.contactId) return { success: false, error: 'bot paused' };
       return { success: true };
     });
 
@@ -207,7 +207,7 @@ describe('handleReminderButtonReply', () => {
 
   it('[CAL-021] a failed ping to one member does not skip the next', async () => {
     send.mockImplementation(async (args: { toPhone?: string }) => {
-      if (args.toPhone === '919811111111') throw new Error('Meta refused');
+      if (args.toPhone === '919811111111') throw new Error('network down');
       return { success: true };
     });
 
