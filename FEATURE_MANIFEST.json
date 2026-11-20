@@ -1329,10 +1329,15 @@
             {
               "file": "src/lib/migrations/contacts-matching-phone-key.test.ts",
               "case": "[CTM-018]"
+            },
+            {
+              "file": "src/lib/migrations/drop-contacts-matching-phone-key.test.ts",
+              "case": "[CTM-018]"
             }
           ],
           "guards": [
             "supabase/migrations/20261116045705_contacts_matching_phone_key.sql",
+            "supabase/migrations/20261120101229_drop_contacts_matching_phone_key.sql",
             ".github/workflows/eas-update.yml"
           ]
         },
