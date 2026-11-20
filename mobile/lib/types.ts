@@ -277,6 +277,8 @@ export interface Appointment {
   minutes?: string | null;
   outcome?: string | null;
   archived_at?: string | null;
+  reschedule_requested_at?: string | null;
+  client_confirmed_at?: string | null;
   contact?: Contact | null;
   property?: { id: string; title: string; location?: string | null } | null;
 }

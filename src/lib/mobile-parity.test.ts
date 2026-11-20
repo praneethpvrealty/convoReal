@@ -4458,6 +4458,32 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
   });
 });
 
+describe('[CAL-021] both calendars mark a client reschedule request through one rule', () => {
+  const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+  const mobileTypes = mobileSource('lib/types.ts');
+  const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
+  const webMonthCell = webSource('components/calendar/month-cell.tsx');
+
+  it('reads the client response through the shared rule on web and mobile', () => {
+    expect(webMonthCell).toContain('clientResponse(appt)');
+    expect(webCalendar).toContain('clientResponseNotice(selectedResponse)');
+    expect(mobileCalendar).toContain(
+      "} from '@shared/lib/calendar/client-response';"
+    );
+    expect(mobileCalendar).toContain(
+      'const response = clientResponse(appointment);'
+    );
+    expect(mobileCalendar).toContain(
+      '<ClientResponseTag response={response} />'
+    );
+    expect(mobileCalendar).toContain(
+      '<ClientResponseBanner response={sheetResponse} />'
+    );
+    expect(mobileTypes).toContain('reschedule_requested_at?: string | null;');
+    expect(mobileTypes).toContain('client_confirmed_at?: string | null;');
+  });
+});
+
 describe('[CAL-010] appointment status changes are offered identically on both surfaces', () => {
   const mobileTasks = mobileSource('lib/calendar-tasks.ts');
   const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
