@@ -94,6 +94,29 @@ export function buildSummaryLine(p: Property): string {
   return segments.filter(Boolean).join(' | ');
 }
 
+const PROPERTY_LINK_PARAMS = ['ref', 'mode', 's', 'v'];
+
+export const WHATSAPP_TEXT_BUDGET = 4000;
+
+export function summaryPropertyUrl(
+  portalUrl: string,
+  property: Pick<Property, 'id' | 'property_code'>
+): string {
+  if (!portalUrl) return '';
+  try {
+    const source = new URL(portalUrl);
+    const url = new URL(source.origin + source.pathname);
+    url.searchParams.set('property_id', property.property_code || property.id);
+    for (const key of PROPERTY_LINK_PARAMS) {
+      const value = source.searchParams.get(key);
+      if (value) url.searchParams.set(key, value);
+    }
+    return url.toString();
+  } catch {
+    return '';
+  }
+}
+
 export interface InventorySummaryOptions {
   /** Portal link included in the header (audience-appropriate). */
   portalUrl: string;
@@ -111,14 +134,30 @@ export interface InventorySummaryOptions {
 
 export function buildInventorySummary(
   properties: Property[],
+  options: InventorySummaryOptions
+): string {
+  const requested = Math.max(1, options.maxPerCategory ?? 10);
+  let summary = composeInventorySummary(properties, options, requested);
+  for (
+    let limit = requested - 1;
+    limit >= 1 && summary.length > WHATSAPP_TEXT_BUDGET;
+    limit--
+  ) {
+    summary = composeInventorySummary(properties, options, limit);
+  }
+  return summary;
+}
+
+function composeInventorySummary(
+  properties: Property[],
   {
     portalUrl,
     category = 'All',
-    maxPerCategory = 10,
     contact,
     recipientName,
     preserveOrder = false,
-  }: InventorySummaryOptions
+  }: InventorySummaryOptions,
+  maxPerCategory: number
 ): string {
   const ranking = rankInventoryProperties(properties, contact, {
     preserveOrder,
@@ -157,7 +196,11 @@ export function buildInventorySummary(
     const list = grouped.get(cat);
     if (!list?.length) continue;
     const shown = list.slice(0, maxPerCategory);
-    const lines = shown.map((p, i) => `${i + 1}. ${buildSummaryLine(p)}`);
+    const lines = shown.map((p, i) => {
+      const line = `${i + 1}. ${buildSummaryLine(p)}`;
+      const link = summaryPropertyUrl(portalUrl, p);
+      return link ? `${line}\n🔗 ${link}` : line;
+    });
     if (list.length > shown.length) {
       lines.push(
         `_+${list.length - shown.length} more ${cat} listings on the portal_`
