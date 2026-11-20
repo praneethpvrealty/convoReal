@@ -4,6 +4,8 @@ import {
   buildInventorySummary,
   buildSummaryLine,
   categoryForType,
+  summaryPropertyUrl,
+  WHATSAPP_TEXT_BUDGET,
 } from './inventory-summary-builder';
 
 function prop(overrides: Partial<Property>): Property {
@@ -161,6 +163,63 @@ describe('buildInventorySummary', () => {
     expect(msg).toContain('10. *Villa 9*');
     expect(msg).not.toContain('Villa 10');
     expect(msg).toContain('_+2 more Residential listings on the portal_');
+  });
+
+  it('[PRP-063] links every listed property to its own showcase page', () => {
+    const msg = buildInventorySummary(
+      [
+        prop({
+          id: 'p-1',
+          property_code: 'CR-101',
+          title: 'Villa One',
+          type: 'Villa',
+        }),
+        prop({ id: 'p-2', title: 'Shop Two', type: 'Commercial Shop' }),
+      ],
+      {
+        portalUrl:
+          'https://acme.convoreal.com/?category=Residential&mode=view&s=tok&v=c-9',
+      }
+    );
+    expect(msg).toContain(
+      '1. *Villa One* | Villa\n🔗 https://acme.convoreal.com/?property_id=CR-101&mode=view&s=tok&v=c-9'
+    );
+    expect(msg).toContain(
+      '🔗 https://acme.convoreal.com/?property_id=p-2&mode=view&s=tok&v=c-9'
+    );
+    expect(msg).not.toContain('property_id=CR-101&category');
+  });
+
+  it('keeps the account ref on a subdomain-less showcase link', () => {
+    expect(summaryPropertyUrl(PORTAL, { id: 'p-1' })).toBe(
+      'https://www.convoreal.com/?property_id=p-1&ref=acc-1'
+    );
+    expect(summaryPropertyUrl('', { id: 'p-1' })).toBe('');
+    expect(summaryPropertyUrl('not a url', { id: 'p-1' })).toBe('');
+  });
+
+  it('[PRP-063] lists fewer properties per section to stay within a WhatsApp text', () => {
+    const many = ['Villa', 'Commercial Shop', 'Agricultural Land'].flatMap(
+      (type) =>
+        Array.from({ length: 10 }, (_, i) =>
+          prop({
+            id: `00000000-0000-4000-8000-0000000000${type.length}${i}`,
+            title: `A long descriptive listing title for ${type} number ${i} in Bangalore`,
+            type,
+            price: 95000000,
+            rental_income: 500000,
+            roi: 6.3,
+            sublocality: 'HSR Layout Sector 5',
+          })
+        )
+    );
+    const msg = buildInventorySummary(many, {
+      portalUrl:
+        'https://www.convoreal.com/?ref=8d3f2c1a-0000-4000-8000-000000000001&v=8d3f2c1a-0000-4000-8000-000000000002',
+    });
+    expect(msg.length).toBeLessThanOrEqual(WHATSAPP_TEXT_BUDGET);
+    expect(msg).toMatch(/_\+\d+ more Residential listings on the portal_/);
+    expect(msg).toContain('🔗 https://www.convoreal.com/?property_id=');
   });
 
   it('returns empty string when nothing matches', () => {

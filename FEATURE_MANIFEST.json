@@ -3249,6 +3249,16 @@
           ]
         },
         {
+          "id": "PRP-063",
+          "rule": "Every listing in the inventory update digest (the Share showcase summary on web and mobile, and the bot's Send full list reply) carries a link to its own showcase page: the share link's origin with ?property_id=<code or id>, keeping the account ref, co-broker mode, share token and visitor attribution and dropping the catalogue scope. The digest stays within a single WhatsApp text: when the links would push it past 4000 characters it lists fewer listings per section and the +N more trailer counts the rest.",
+          "tests": [
+            {
+              "file": "src/lib/inventory-summary-builder.test.ts",
+              "case": "[PRP-063]"
+            }
+          ]
+        },
+        {
           "id": "JRN-002",
           "rule": "Closing a journey records a successful, paused or not-proceeding outcome plus a reason; archiving remains separate, and closed or archived journeys can be retrieved and reopened or restored.",
           "tests": [
