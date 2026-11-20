@@ -287,3 +287,61 @@ describe('buildInventorySummary', () => {
     );
   });
 });
+
+describe('[PRP-064] summary line facts', () => {
+  it('labels plot and built-up area separately on a building', () => {
+    const line = buildSummaryLine(
+      prop({
+        title: 'Commercial Building',
+        type: 'Commercial Building',
+        land_area: 5000,
+        land_area_unit: 'Sq.Ft.',
+        area_sqft: 16000,
+        area_unit: 'Sq.Ft.',
+        price: 200000000,
+      })
+    );
+    expect(line).toContain('Plot 5,000 Sq.Ft. | Built-up 16,000 Sq.Ft.');
+  });
+
+  it('keeps a plain area on land and labels a building with only its plot', () => {
+    expect(
+      buildSummaryLine(
+        prop({ title: 'Site', land_area: 1200, land_area_unit: 'Sq.Ft.' })
+      )
+    ).toContain('| Plot | 1,200 Sq.Ft.');
+    expect(
+      buildSummaryLine(
+        prop({
+          title: 'House',
+          type: 'Residential House',
+          land_area: 1200,
+          land_area_unit: 'Sq.Ft.',
+        })
+      )
+    ).toContain('| House | Plot 1,200 Sq.Ft.');
+  });
+
+  it('counts a multi-unit building in bedrooms, not BHK, and never on commercial stock', () => {
+    expect(
+      buildSummaryLine(
+        prop({ title: 'G+4', type: 'Residential House', bedrooms: 13 })
+      )
+    ).toContain('| 13 bedrooms');
+    expect(
+      buildSummaryLine(
+        prop({ title: 'Flat', type: 'Flat/ Apartment', bedrooms: 3 })
+      )
+    ).toContain('| 3 BHK');
+    expect(
+      buildSummaryLine(
+        prop({ title: 'Office', type: 'Commercial Building', bedrooms: 4 })
+      )
+    ).not.toContain('BHK');
+  });
+
+  it('files a legacy Commercial/ Industrial type under Commercial', () => {
+    expect(categoryForType('Commercial/ Industrial')).toBe('Commercial');
+    expect(categoryForType('Commercial/Industrial')).toBe('Commercial');
+  });
+});

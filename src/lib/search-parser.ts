@@ -32,6 +32,8 @@ export const CATEGORY_SUBTYPES: Record<string, string[]> = {
     'Industrial Land',
     'Industrial Building',
     'Industrial Shed',
+    'Commercial/ Industrial',
+    'Commercial/Industrial',
   ],
   Agricultural: ['Agricultural', 'Agricultural Land', 'Farm House'],
 };

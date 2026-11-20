@@ -173,10 +173,7 @@ export function buildPortalInviteFallbackSelection(
   const counts: Record<string, number> = {};
   for (const property of properties) {
     const category = categoryForType(property.type);
-    const label =
-      category === 'Residential' || category === 'Commercial'
-        ? category
-        : 'Farm & land';
+    const label = category === 'Agricultural' ? 'Farm & land' : category;
     counts[label] = (counts[label] ?? 0) + 1;
   }
   const total = properties.length;

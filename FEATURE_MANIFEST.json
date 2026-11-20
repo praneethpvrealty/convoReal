@@ -3259,6 +3259,20 @@
           ]
         },
         {
+          "id": "PRP-064",
+          "rule": "The inventory digest and the property_selection_update parameter read as written facts, not raw fields. A Commercial/ Industrial (or Commercial/Industrial) type files under Commercial everywhere category filters apply; a listing with no recognised type is labelled Other in the template, never Farm & land, which names only Agricultural stock. When the contact has at least one match, the template names only the categories holding one. Each section gets an equal share of the 600-character parameter and shows two, then one, listing to fit, so no title or trailer is cut mid-word; a parameter that still overflows is cut at a word boundary. A building shows Plot and Built-up area separately (Plot alone when only the plot is known), land shows its plain area, more than five bedrooms reads N bedrooms rather than N BHK, and commercial stock shows no bedroom count. One lakh is written ₹1 Lakh.",
+          "tests": [
+            {
+              "file": "src/lib/inventory-summary-builder.test.ts",
+              "case": "[PRP-064]"
+            },
+            {
+              "file": "src/lib/whatsapp/inventory-update-template.test.ts",
+              "case": "[PRP-064]"
+            }
+          ]
+        },
+        {
           "id": "JRN-002",
           "rule": "Closing a journey records a successful, paused or not-proceeding outcome plus a reason; archiving remains separate, and closed or archived journeys can be retrieved and reopened or restored.",
           "tests": [

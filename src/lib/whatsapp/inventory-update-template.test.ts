@@ -177,3 +177,74 @@ describe('buildPropertySelectionUpdateParams', () => {
     expect(selection).not.toContain('Farm & land');
   });
 });
+
+describe('[PRP-064] property_selection_update readability', () => {
+  const buyer = {
+    id: 'c1',
+    user_id: 'u1',
+    phone: '+919999999999',
+    property_interests: ['Commercial Building'],
+    areas_of_interest: ['Marathahalli'],
+    requirement_active: true,
+  } as Contact;
+
+  it('files an untyped listing under Other, never Farm & land, and a legacy commercial type under Commercial', () => {
+    const [selection] = buildPropertySelectionUpdateParams([
+      prop({ title: 'Mixed-use Building', type: 'Others', price: 95000000 }),
+      prop({
+        title: 'Whitefield Commercial',
+        type: 'Commercial/ Industrial',
+        price: 120000000,
+      }),
+    ]);
+    expect(selection).toContain('Other: 1 option — Mixed-use Building');
+    expect(selection).toContain('Commercial: 1 option — Whitefield Commercial');
+    expect(selection).not.toContain('Farm & land');
+  });
+
+  it('names only the categories holding a match when the contact has one', () => {
+    const [selection] = buildPropertySelectionUpdateParams(
+      [
+        prop({ title: 'Koramangala House', type: 'Residential House' }),
+        prop({
+          title: 'Munnekolal Building',
+          type: 'Commercial Building',
+          sublocality: 'Marathahalli',
+        }),
+        prop({ title: 'Farm Plot', type: 'Agricultural Land' }),
+      ],
+      buyer
+    );
+    expect(selection).toMatch(/^Commercial: 1 match from 1 available/);
+    expect(selection).not.toContain('Residential');
+    expect(selection).not.toContain('Farm & land');
+  });
+
+  it('drops whole listings instead of cutting a word when the text is long', () => {
+    const long = (n: number, type: string) =>
+      prop({
+        title: `Residential Building with Thirteen Fully Furnished Units and Rooftop Garden in HSR Layout Sector ${n}`,
+        type,
+        price: 44000000,
+        roi: 8.73,
+      });
+    const [selection] = buildPropertySelectionUpdateParams([
+      long(1, 'Residential House'),
+      long(2, 'Residential House'),
+      long(3, 'Commercial Building'),
+      long(4, 'Commercial Building'),
+      long(5, 'Agricultural Land'),
+    ]);
+    expect(selection.length).toBeLessThanOrEqual(600);
+    expect(selection).not.toContain('…');
+    for (const section of selection.split(' • ')) {
+      expect(section).toMatch(/\(₹4\.40 Cr · ROI 8\.73%\)( \+\d+ more)?$/);
+    }
+  });
+
+  it('cuts an over-long parameter at a word boundary', () => {
+    expect(
+      sanitizeTemplateParam('Commercial Building for Sale in Munnekolal', 30)
+    ).toBe('Commercial Building for Sale…');
+  });
+});

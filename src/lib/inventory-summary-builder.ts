@@ -51,14 +51,31 @@ export function categoryForType(
   return 'Other';
 }
 
-function areaSegment(p: Property): string {
-  if (p.land_area && p.land_area > 0) {
-    return `${p.land_area.toLocaleString('en-IN')} ${p.land_area_unit || 'Sq.Ft.'}`;
-  }
-  if (p.area_sqft && p.area_sqft > 0) {
-    return `${p.area_sqft.toLocaleString('en-IN')} ${p.area_unit || 'Sq.Ft.'}`;
-  }
-  return '';
+function formatArea(value: number, unit: string | null | undefined): string {
+  return `${value.toLocaleString('en-IN')} ${unit || 'Sq.Ft.'}`;
+}
+
+function isLandType(type: string | null | undefined): boolean {
+  return /Land|Plot/.test(type || '');
+}
+
+function areaSegments(p: Property): string[] {
+  const land =
+    p.land_area && p.land_area > 0
+      ? formatArea(p.land_area, p.land_area_unit)
+      : '';
+  const builtUp =
+    p.area_sqft && p.area_sqft > 0 ? formatArea(p.area_sqft, p.area_unit) : '';
+  if (isLandType(p.type)) return [land || builtUp].filter(Boolean);
+  if (land && builtUp) return [`Plot ${land}`, `Built-up ${builtUp}`];
+  if (land) return [`Plot ${land}`];
+  return builtUp ? [builtUp] : [];
+}
+
+export function bedroomSegment(p: Property): string {
+  if (!p.bedrooms || p.bedrooms <= 0) return '';
+  if (categoryForType(p.type) === 'Commercial') return '';
+  return p.bedrooms > 5 ? `${p.bedrooms} bedrooms` : `${p.bedrooms} BHK`;
 }
 
 function priceSegments(p: Property): string[] {
@@ -81,14 +98,14 @@ function locationSegment(p: Property): string {
   return p.sublocality?.trim() || p.city?.trim() || '';
 }
 
-/** One WhatsApp line: *Title* | Type | Area | Price [| Rental | ROI] [| BHK] | Location */
+/** One WhatsApp line: *Title* | Type | Area | Price [| Rental | ROI] [| Bedrooms] | Location */
 export function buildSummaryLine(p: Property): string {
   const segments = [
     `*${p.title.trim()}*`,
     TYPE_SHORT_LABELS[p.type] || p.type || '',
-    areaSegment(p),
+    ...areaSegments(p),
     ...priceSegments(p),
-    p.bedrooms && p.bedrooms > 0 ? `${p.bedrooms} BHK` : '',
+    bedroomSegment(p),
     locationSegment(p),
   ];
   return segments.filter(Boolean).join(' | ');
