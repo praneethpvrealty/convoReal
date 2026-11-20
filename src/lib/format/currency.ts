@@ -55,8 +55,8 @@ export function formatCurrency(
       const cr = value / CRORE;
       return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
     } else if (value >= LAKH) {
-      const lakhs = value / LAKH;
-      return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+      const lakhs = (value / LAKH).toFixed(2).replace(/\.00$/, '');
+      return `₹${lakhs} ${lakhs === '1' ? 'Lakh' : 'Lakhs'}`;
     }
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -102,7 +102,10 @@ export function priceInWords(
         .replace(/\.00$/, '')
         .replace(/\.(\d)0$/, '.$1');
     if (amount >= CRORE) return `₹${trim(amount / CRORE)} Crore`;
-    if (amount >= LAKH) return `₹${trim(amount / LAKH)} Lakhs`;
+    if (amount >= LAKH) {
+      const lakhs = trim(amount / LAKH);
+      return `₹${lakhs} ${lakhs === '1' ? 'Lakh' : 'Lakhs'}`;
+    }
     return `₹${amount.toLocaleString('en-IN')}`;
   }
 

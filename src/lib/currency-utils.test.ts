@@ -16,7 +16,8 @@ describe('equivalentPriceLabel', () => {
 
   it('switches to lakhs below a crore', () => {
     expect(equivalentPriceLabel(8500000)).toBe('Equivalent to: ₹85 Lakhs');
-    expect(equivalentPriceLabel(100000)).toBe('Equivalent to: ₹1 Lakhs');
+    expect(equivalentPriceLabel(100000)).toBe('Equivalent to: ₹1 Lakh');
+    expect(equivalentPriceLabel(150000)).toBe('Equivalent to: ₹1.5 Lakhs');
   });
 
   it('groups smaller amounts Indian-style — rents and maintenance live here', () => {

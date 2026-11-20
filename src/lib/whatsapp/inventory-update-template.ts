@@ -21,7 +21,10 @@ import {
   templateButtonLabel,
 } from '@/lib/whatsapp/template-copy';
 import { formatShareAmount } from '@/lib/share-message-builder';
-import { categoryForType } from '@/lib/inventory-summary-builder';
+import {
+  bedroomSegment,
+  categoryForType,
+} from '@/lib/inventory-summary-builder';
 import { rankInventoryProperties } from '@/lib/inventory/top-properties';
 
 export const PROPERTY_SELECTION_UPDATE_TEMPLATE_NAME =
@@ -38,7 +41,11 @@ export function sanitizeTemplateParam(
   maxLength = PARAM_MAX_LENGTH
 ): string {
   const clean = value.replace(/\s+/g, ' ').trim();
-  return clean.length > maxLength ? `${clean.slice(0, maxLength - 1)}…` : clean;
+  if (clean.length <= maxLength) return clean;
+  const cut = clean.slice(0, maxLength - 1);
+  const space = cut.lastIndexOf(' ');
+  const wordCut = space > maxLength * 0.6 ? cut.slice(0, space) : cut;
+  return `${wordCut.replace(/[\s,·•(—-]+$/, '')}…`;
 }
 
 /**
@@ -87,7 +94,8 @@ export function buildInventoryUpdateTemplatePayload(
 
 function itemLabel(p: Property): string {
   const bits: string[] = [];
-  if (p.bedrooms && p.bedrooms > 0) bits.push(`${p.bedrooms} BHK`);
+  const bedrooms = bedroomSegment(p);
+  if (bedrooms) bits.push(bedrooms);
   if (p.listing_type === 'Rent') {
     const rent = formatShareAmount(p.rent_per_month);
     if (rent) bits.push(`${rent}/mo rent`);
@@ -101,48 +109,59 @@ function itemLabel(p: Property): string {
     : p.title.trim();
 }
 
+function plural(count: number, word: string, suffix = 's'): string {
+  return `${count} ${word}${count === 1 ? '' : suffix}`;
+}
+
+function categoryLineWith(
+  list: Property[],
+  matches: Property[],
+  personalized: boolean,
+  shownCount: number
+): string {
+  const pool = personalized && matches.length === 0 ? list : matches;
+  const shown = pool.slice(0, shownCount).map(itemLabel).join(', ');
+  const hidden = pool.length - Math.min(pool.length, shownCount);
+  let lead: string;
+  let trailer: string;
+  if (personalized && matches.length === 0) {
+    lead = `${list.length} available, closest options`;
+    trailer = hidden > 0 ? `+${hidden} more` : '';
+  } else if (personalized) {
+    lead = `${plural(matches.length, 'match', 'es')} from ${list.length} available`;
+    const otherOptions = list.length - matches.length;
+    trailer = [
+      hidden > 0 ? `+${plural(hidden, 'more match', 'es')}` : '',
+      otherOptions > 0 ? plural(otherOptions, 'other option') : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  } else {
+    lead = plural(list.length, 'option');
+    trailer = hidden > 0 ? `+${hidden} more` : '';
+  }
+  const body = shown ? `${lead} — ${shown}` : lead;
+  return [body, trailer].filter(Boolean).join(' ');
+}
+
 function categoryLine(
   list: Property[],
   matchedPropertyIds: Set<string>,
-  personalized: boolean
+  personalized: boolean,
+  maxLength = PARAM_MAX_LENGTH
 ): string {
   if (list.length === 0) return 'no published options right now';
   const matches = personalized
     ? list.filter((property) => matchedPropertyIds.has(property.id))
     : list;
-  if (personalized && matches.length === 0) {
-    const shown = list.slice(0, 2).map(itemLabel).join(', ');
-    const remaining = list.length - Math.min(list.length, 2);
-    return sanitizeTemplateParam(
-      `${list.length} available — no close match; top available: ${shown}${remaining > 0 ? ` +${remaining} more` : ''}`
-    );
+  for (const shownCount of [2, 1]) {
+    const line = categoryLineWith(list, matches, personalized, shownCount);
+    if (line.length <= maxLength) return line;
   }
-  const shown = matches.slice(0, 2).map(itemLabel).join(', ');
-  const lead = personalized
-    ? `${matches.length} match${matches.length === 1 ? '' : 'es'} from ${list.length} available`
-    : `${list.length} option${list.length === 1 ? '' : 's'}`;
-  const counted = `${lead} — ${shown}`;
-  const hiddenMatches = matches.length - Math.min(matches.length, 2);
-  const otherOptions = list.length - matches.length;
-  const personalizedTrailer = [
-    hiddenMatches > 0
-      ? `+${hiddenMatches} more match${hiddenMatches === 1 ? '' : 'es'}`
-      : '',
-    otherOptions > 0
-      ? `${otherOptions} other option${otherOptions === 1 ? '' : 's'}`
-      : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
-  const remaining = list.length - Math.min(list.length, 2);
-  const more = personalized
-    ? personalizedTrailer
-      ? ` ${personalizedTrailer}`
-      : ''
-    : remaining > 0
-      ? ` +${remaining} more`
-      : '';
-  return sanitizeTemplateParam(`${counted}${more}`);
+  return sanitizeTemplateParam(
+    categoryLineWith(list, matches, personalized, 1),
+    maxLength
+  );
 }
 
 /**
@@ -188,32 +207,46 @@ export function buildPropertySelectionUpdateParams(
     preserveOrder,
   });
   const groups: Record<
-    'Residential' | 'Commercial' | 'Farm & land',
+    'Residential' | 'Commercial' | 'Farm & land' | 'Other',
     Property[]
   > = {
     Residential: [],
     Commercial: [],
     'Farm & land': [],
+    Other: [],
   };
 
   for (const property of ranking.properties) {
     const category = categoryForType(property.type);
     if (category === 'Residential') groups.Residential.push(property);
     else if (category === 'Commercial') groups.Commercial.push(property);
-    else groups['Farm & land'].push(property);
+    else if (category === 'Agricultural') groups['Farm & land'].push(property);
+    else groups.Other.push(property);
   }
 
-  const selection = Object.entries(groups)
-    .filter(([, list]) => list.length > 0)
+  const onlyMatched = ranking.personalized && ranking.matchCount > 0;
+  const sections = Object.entries(groups).filter(
+    ([, list]) =>
+      list.length > 0 &&
+      (!onlyMatched ||
+        list.some((property) => ranking.matchedPropertyIds.has(property.id)))
+  );
+  const separator = ' • ';
+  const budget = Math.floor(
+    (SELECTION_PARAM_MAX_LENGTH - separator.length * (sections.length - 1)) /
+      Math.max(sections.length, 1)
+  );
+  const selection = sections
     .map(
       ([label, list]) =>
         `${label}: ${categoryLine(
           list,
           ranking.matchedPropertyIds,
-          ranking.personalized
+          ranking.personalized,
+          budget - label.length - 2
         )}`
     )
-    .join(' • ');
+    .join(separator);
 
   return [
     sanitizeTemplateParam(
