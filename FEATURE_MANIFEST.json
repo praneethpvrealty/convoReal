@@ -1698,7 +1698,7 @@
         },
         {
           "id": "CAL-021",
-          "rule": "A client tapping Requesting reschedule on an appointment reminder puts that time on hold for everyone on the appointment: the client is told in the chat that the visit or meeting is on hold and they will get no more reminders for that time; every member who gets the appointment's reminders is messaged with who asked and which other contacts and liaison are on it, and told to move the event and notify all participants; and the reminder cron sends no reminder to any contact or liaison on the appointment while appointments.reschedule_requested_at is set, releasing unsent a claim it made before a request landed and handing a queued reminder voice note back to the cron, refunded, rather than playing it. Nothing is marked as sent while held, so the reminders still due go out once the request is resolved: moving the time clears the flag and re-arms them, and a later Fine tap clears it for the time as it stands.",
+          "rule": "A client tapping Requesting reschedule on an appointment reminder puts that time on hold for everyone on the appointment: the client is told in the chat that the visit or meeting is on hold and they will get no more reminders for that time; every member who gets the appointment's reminders is messaged with who asked and which other contacts and liaison are on it, and told to move the event and notify all participants; and the reminder cron sends no reminder to any contact or liaison on the appointment while appointments.reschedule_requested_at is set, releasing unsent a claim it made before a request landed and handing a queued reminder voice note back to the cron, refunded, rather than playing it. Nothing is marked as sent while held, so the reminders still due go out once the request is resolved: moving the time clears the flag and re-arms them, and a later Fine tap clears it for the time as it stands. Both calendars show the request through one rule (src/lib/calendar/client-response.ts, where an open reschedule request wins over an earlier confirmation): web on the month chip and in the event panel, mobile on each event card and in the event sheet, with the time it was made in IST.",
           "tests": [
             {
               "file": "src/lib/whatsapp/inbound/reminder-reply.test.ts",
@@ -1710,6 +1710,14 @@
             },
             {
               "file": "src/lib/voice/reminder-audio-worker.test.ts",
+              "case": "[CAL-021]"
+            },
+            {
+              "file": "src/lib/calendar/client-response.test.ts",
+              "case": "[CAL-021]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
               "case": "[CAL-021]"
             }
           ]

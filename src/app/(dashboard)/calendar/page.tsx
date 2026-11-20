@@ -5,6 +5,10 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DEFAULT_EVENT_TYPE } from '@/lib/calendar/event-type-defaults';
+import {
+  clientResponse,
+  clientResponseNotice,
+} from '@/lib/calendar/client-response';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -231,6 +235,7 @@ export default function CalendarPage() {
   // Modals state
   const [isApptModalOpen, setIsApptModalOpen] = useState(false);
   const [selectedAppt, setSelectedAppt] = useState<CalendarEvent | null>(null);
+  const selectedResponse = selectedAppt ? clientResponse(selectedAppt) : null;
 
   // Appointment Form state
   const [apptTitle, setApptTitle] = useState('');
@@ -2071,41 +2076,21 @@ export default function CalendarPage() {
                 </button>
               </div>
 
-              {!selectedAppt?.reschedule_requested_at &&
-                selectedAppt?.client_confirmed_at && (
-                  <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-600/40 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-300">
+              {selectedResponse && (
+                <div
+                  className={cn(
+                    'mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs',
+                    selectedResponse.kind === 'reschedule_requested'
+                      ? 'border-amber-600/40 bg-amber-950/30 text-amber-300'
+                      : 'border-emerald-600/40 bg-emerald-950/30 text-emerald-300'
+                  )}
+                >
+                  {selectedResponse.kind === 'reschedule_requested' ? (
+                    <RefreshCcw className="h-3.5 w-3.5 shrink-0" />
+                  ) : (
                     <CheckCircle className="h-3.5 w-3.5 shrink-0" />
-                    <span>
-                      Client confirmed on{' '}
-                      {new Date(
-                        selectedAppt.client_confirmed_at
-                      ).toLocaleString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true,
-                      })}{' '}
-                      via the reminder&apos;s &ldquo;Fine&rdquo; button.
-                    </span>
-                  </div>
-                )}
-              {selectedAppt?.reschedule_requested_at && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-600/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
-                  <RefreshCcw className="h-3.5 w-3.5 shrink-0" />
-                  <span>
-                    Client requested a reschedule on{' '}
-                    {new Date(
-                      selectedAppt.reschedule_requested_at
-                    ).toLocaleString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      hour: 'numeric',
-                      minute: '2-digit',
-                      hour12: true,
-                    })}
-                    . Changing the time below will clear this notice.
-                  </span>
+                  )}
+                  <span>{clientResponseNotice(selectedResponse)}</span>
                 </div>
               )}
 

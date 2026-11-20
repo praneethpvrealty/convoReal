@@ -134,6 +134,12 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { useDebounced } from '@/lib/use-debounced';
 import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';
 import { EVENT_TYPE_LABELS } from '@shared/lib/calendar/event-type-defaults';
+import {
+  CLIENT_RESPONSE_LABELS,
+  clientResponse,
+  clientResponseNotice,
+  type ClientResponse,
+} from '@shared/lib/calendar/client-response';
 import { clockTime } from '@shared/lib/format/list-time';
 import {
   movedEventEnd,
@@ -1886,6 +1892,7 @@ function AppointmentCard({
     month: 'short',
   });
   const done = appointment.status !== 'scheduled';
+  const response = clientResponse(appointment);
 
   return (
     <Pressable
@@ -1931,6 +1938,7 @@ function AppointmentCard({
             {appointment.contact.name || appointment.contact.phone}
           </Text>
         ) : null}
+        {response ? <ClientResponseTag response={response} /> : null}
       </View>
       {done ? (
         <Text
@@ -1952,6 +1960,54 @@ function AppointmentCard({
         <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
       )}
     </Pressable>
+  );
+}
+
+function ClientResponseTag({ response }: { response: ClientResponse }) {
+  const { colors, fonts: f } = useTheme();
+  const reschedule = response.kind === 'reschedule_requested';
+  const tint = reschedule ? colors.warning : colors.success;
+  return (
+    <View
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+      accessibilityLabel={CLIENT_RESPONSE_LABELS[response.kind]}
+    >
+      <Ionicons
+        name={reschedule ? 'refresh-circle' : 'checkmark-circle'}
+        size={13}
+        color={tint}
+      />
+      <Text style={{ fontSize: 12, fontFamily: f.semibold, color: tint }}>
+        {CLIENT_RESPONSE_LABELS[response.kind]}
+      </Text>
+    </View>
+  );
+}
+
+function ClientResponseBanner({ response }: { response: ClientResponse }) {
+  const { colors } = useTheme();
+  const reschedule = response.kind === 'reschedule_requested';
+  const tint = reschedule ? colors.warning : colors.success;
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        padding: spacing.sm,
+        borderRadius: 10,
+        backgroundColor: reschedule ? colors.warningSoft : colors.successSoft,
+      }}
+    >
+      <Ionicons
+        name={reschedule ? 'refresh-circle' : 'checkmark-circle'}
+        size={16}
+        color={tint}
+      />
+      <Text style={{ flex: 1, fontSize: 12.5, color: tint }}>
+        {clientResponseNotice(response)}
+      </Text>
+    </View>
   );
 }
 
@@ -2244,6 +2300,7 @@ function AppointmentDetail({
 
   if (!appointment) return null;
   const meta = TYPE_META[appointment.event_type] ?? TYPE_META.other;
+  const sheetResponse = clientResponse(appointment);
   const start = new Date(appointment.start_time);
   const effectiveStart = newStart ?? start;
   const participantContacts = editContactIds
@@ -2583,6 +2640,10 @@ function AppointmentDetail({
             </Text>
           </View>
         </View>
+
+        {sheetResponse ? (
+          <ClientResponseBanner response={sheetResponse} />
+        ) : null}
 
         {editingDetails ? (
           <View style={{ gap: spacing.md }}>

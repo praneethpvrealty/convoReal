@@ -17,6 +17,10 @@ import {
   dealDateKey,
 } from '@/lib/calendar/deal-dates';
 import { isArchivedAppointment } from '@/lib/calendar/tasks-view';
+import {
+  CLIENT_RESPONSE_LABELS,
+  clientResponse,
+} from '@/lib/calendar/client-response';
 import { foldCellItems, moreLabel } from '@/lib/calendar/month-cell';
 import {
   ARCHIVED_EVENT_CHIP,
@@ -81,6 +85,7 @@ function CellChip({
   const appt = item.appointment;
   const meta = eventTypeMeta(appt.event_type);
   const assignee = memberByUserId[appt.assigned_to || appt.user_id];
+  const response = clientResponse(appt);
   return (
     <button
       type="button"
@@ -104,16 +109,16 @@ function CellChip({
         </span>
       )}
       <span className="flex-1 truncate">{appt.title}</span>
-      {appt.reschedule_requested_at && (
+      {response?.kind === 'reschedule_requested' && (
         <RefreshCcw
           className="h-2.5 w-2.5 shrink-0 text-amber-400"
-          aria-label="Reschedule requested"
+          aria-label={CLIENT_RESPONSE_LABELS.reschedule_requested}
         />
       )}
-      {!appt.reschedule_requested_at && appt.client_confirmed_at && (
+      {response?.kind === 'confirmed' && (
         <CheckCircle
           className="h-2.5 w-2.5 shrink-0 text-emerald-400"
-          aria-label="Client confirmed"
+          aria-label={CLIENT_RESPONSE_LABELS.confirmed}
         />
       )}
       {showAssignee && assignee && (
