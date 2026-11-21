@@ -6,12 +6,15 @@ import type { Contact } from '@/types';
 export const BUDGET_OVERSHOOT_FACTOR = 1.25;
 
 export const STATED_BUDGET_COLUMNS =
-  'pref_budget_max, max_budget, pref_budget_anchor, requirements, requirement_profiles';
+  'pref_budget_max, max_budget, pref_budget_min, min_budget, no_budget, pref_budget_anchor, requirements, requirement_profiles';
 
 export type StatedBudgetFields = Pick<
   Contact,
   | 'pref_budget_max'
   | 'max_budget'
+  | 'pref_budget_min'
+  | 'min_budget'
+  | 'no_budget'
   | 'pref_budget_anchor'
   | 'requirements'
   | 'requirement_profiles'
@@ -31,10 +34,16 @@ export function statedBudgetMax(
 ): number | null {
   if (!contact) return null;
   const source = resolveRequirementSource(contact as Contact);
+  if (source.no_budget) return null;
   const explicit = positive(source.max_budget);
   const max = resolveBudgetBound(explicit, positive(source.pref_budget_max));
+  const min = resolveBudgetBound(
+    positive(source.min_budget),
+    positive(source.pref_budget_min)
+  );
   if (
     explicit === null &&
+    min === null &&
     isEnquiryBudgetAnchor(max, source.pref_budget_anchor)
   )
     return null;

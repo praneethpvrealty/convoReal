@@ -70,16 +70,20 @@ function briefDistance(
   const positive = (value: unknown) =>
     value != null && Number(value) > 0 ? Number(value) : null;
   const explicitMax = positive(source.max_budget);
-  const max = resolveBudgetBound(explicitMax, positive(source.pref_budget_max));
-  const anchored =
-    explicitMax === null &&
-    isEnquiryBudgetAnchor(max, source.pref_budget_anchor);
-  const min = anchored
+  const statedMin = source.no_budget
     ? null
     : resolveBudgetBound(
         positive(source.min_budget),
         positive(source.pref_budget_min)
       );
+  const max = source.no_budget
+    ? null
+    : resolveBudgetBound(explicitMax, positive(source.pref_budget_max));
+  const anchored =
+    explicitMax === null &&
+    statedMin === null &&
+    isEnquiryBudgetAnchor(max, source.pref_budget_anchor);
+  const min = anchored ? null : statedMin;
   if (wanted.size === 0 && min === null && max === null) return null;
 
   return (property) => {

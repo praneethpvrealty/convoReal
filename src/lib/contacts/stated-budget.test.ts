@@ -67,6 +67,22 @@ describe('[INB-051] listingExceedsStatedBudget', () => {
     expect(statedBudgetMax({ pref_budget_max: 0 })).toBeNull();
   });
 
+  it('counts a maximum equal to the enquiry price as stated once a minimum is given', () => {
+    expect(
+      statedBudgetMax({
+        pref_budget_min: 100_000_000,
+        pref_budget_max: 150_000_000,
+        pref_budget_anchor: 150_000_000,
+      })
+    ).toBe(150_000_000);
+  });
+
+  it('has no ceiling for a contact marked as having no fixed budget', () => {
+    expect(
+      statedBudgetMax({ no_budget: true, pref_budget_max: 150_000_000 })
+    ).toBeNull();
+  });
+
   it('says nothing when the price or the budget is unknown', () => {
     expect(
       listingExceedsStatedBudget({ price: null }, { pref_budget_max: 1 })
