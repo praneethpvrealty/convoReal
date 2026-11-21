@@ -96,6 +96,47 @@ describe('settlePending — attachments', () => {
     expect(settlePending(pending, real)).toEqual([]);
   });
 
+  it('[INB-052] retires a photo whose saved row names the file by its public URL', () => {
+    const path =
+      'chat-media/4f1247de-269c-47c2-8974-36ef8f77f77d/chat-1795240075082-vxsryjy.jpg';
+    const pending = [
+      msg({
+        id: 'pending-1',
+        content_type: 'image',
+        media_url: path,
+        status: 'sent',
+      }),
+    ];
+    const real = [
+      msg({
+        id: 'real-1',
+        content_type: 'image',
+        media_url: `https://project.supabase.co/storage/v1/object/public/${path}`,
+        status: 'delivered',
+      }),
+    ];
+    expect(settlePending(pending, real)).toEqual([]);
+  });
+
+  it('[INB-052] keeps a photo whose saved row is a different file', () => {
+    const pending = [
+      msg({
+        id: 'pending-1',
+        content_type: 'image',
+        media_url: 'chat-media/acc/chat-2.jpg',
+      }),
+    ];
+    const real = [
+      msg({
+        id: 'real-1',
+        content_type: 'image',
+        media_url:
+          'https://project.supabase.co/storage/v1/object/public/chat-media/acc/chat-1.jpg',
+      }),
+    ];
+    expect(settlePending(pending, real)).toHaveLength(1);
+  });
+
   it('keeps two captionless photos apart', () => {
     // Both have an empty caption; only the upload path tells them apart,
     // so keying on the caption would retire both on the first row.
