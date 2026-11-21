@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -744,18 +745,22 @@ export default function PulsePage() {
                     }`}
                   >
                     {listings.map((listing) => (
-                      <button
-                        type="button"
+                      <div
                         key={listing.propertyId}
-                        onClick={() =>
-                          setViewersFor({
-                            id: listing.propertyId,
-                            title: listing.title,
-                          })
-                        }
-                        className="focus-visible:ring-primary w-full space-y-2 rounded-lg border border-slate-800 bg-slate-950/20 p-3 text-left transition-colors hover:border-slate-700 hover:bg-slate-950/40 focus:outline-none focus-visible:ring-1"
-                        title="See who viewed this listing"
+                        className="relative space-y-2 rounded-lg border border-slate-800 bg-slate-950/20 p-3 transition-colors hover:border-slate-700 hover:bg-slate-950/40"
                       >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setViewersFor({
+                              id: listing.propertyId,
+                              title: listing.title,
+                            })
+                          }
+                          aria-label={`See viewers of ${listing.title}`}
+                          title="See who viewed this listing"
+                          className="focus-visible:ring-primary absolute inset-0 rounded-lg focus:outline-none focus-visible:ring-1"
+                        />
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <h4 className="truncate text-xs leading-tight font-black text-white">
@@ -787,12 +792,21 @@ export default function PulsePage() {
                             <Clock className="size-3" />
                             Last viewed {formatTimeAgo(listing.lastViewedAt)}
                           </span>
-                          <span className="text-primary/80 flex items-center gap-1">
-                            See viewers
-                            <ArrowRight className="size-3" />
+                          <span className="flex items-center gap-3">
+                            <Link
+                              href={`/inventory?propertyId=${listing.propertyId}`}
+                              aria-label={`Open ${listing.title}`}
+                              className="hover:text-primary focus-visible:ring-primary relative rounded text-slate-300 underline-offset-2 hover:underline focus:outline-none focus-visible:ring-1"
+                            >
+                              Open property
+                            </Link>
+                            <span className="text-primary/80 flex items-center gap-1">
+                              See viewers
+                              <ArrowRight className="size-3" />
+                            </span>
                           </span>
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 )}
