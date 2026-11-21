@@ -48,6 +48,7 @@ import {
   withheldShareNotice,
 } from '@shared/lib/inventory/showcase-audience';
 import { previewSegments } from '@shared/lib/showcase/message-preview';
+import { greetingName } from '@shared/lib/contacts/greeting-name';
 
 interface EngineTemplate {
   name: string;
@@ -397,7 +398,7 @@ export function ShowcaseShareSheet({
     name?: string | null,
     sourceMessage = message
   ) {
-    const greeting = name?.trim().split(/\s+/)[0];
+    const greeting = greetingName(name);
     // The digest already carries the scoped link; swap it for the
     // recipient's tracked one rather than appending a second copy.
     const rendered =
@@ -478,7 +479,7 @@ export function ShowcaseShareSheet({
     show({
       title: 'Message copied',
       message: portfolioContact
-        ? `Ready to paste for ${portfolioContact.name?.trim().split(/\s+/)[0] || 'them'}.`
+        ? `Ready to paste for ${greetingName(portfolioContact.name) || 'them'}.`
         : `It links to ${scopeLabel}.`,
       actions: [{ label: 'OK', variant: 'primary', onPress: close }],
     });
@@ -618,10 +619,7 @@ export function ShowcaseShareSheet({
             recipients: [
               {
                 phone: contact.phone,
-                params: [
-                  contact.name?.trim().split(/\s+/)[0] || 'there',
-                  ...params,
-                ],
+                params: [greetingName(contact.name) || 'there', ...params],
                 ...(Object.keys(buttonParams).length > 0
                   ? { messageParams: { buttonParams } }
                   : {}),

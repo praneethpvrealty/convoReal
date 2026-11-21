@@ -345,8 +345,13 @@ describe('buildShareTargets', () => {
 describe('greetingName', () => {
   it('drops a leading honorific and keeps the full name', () => {
     expect(greetingName('Mr Jitender Kothari')).toBe('Jitender Kothari');
-    expect(greetingName('Dr. Anand Rao')).toBe('Anand Rao');
     expect(greetingName('Smt Radha Rao')).toBe('Radha Rao');
+  });
+
+  it('[INB-051] keeps an earned title in front of the name', () => {
+    expect(greetingName('Dr Subbaiha')).toBe('Dr Subbaiha');
+    expect(greetingName('Dr. Anand Rao')).toBe('Dr. Anand Rao');
+    expect(greetingName('Prof Meera Iyer')).toBe('Prof Meera Iyer');
   });
 
   it('keeps the full name when there is no honorific', () => {

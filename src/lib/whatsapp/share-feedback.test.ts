@@ -92,6 +92,7 @@ function makeDb(
     accountLanguage?: string | null;
     templates?: Row[];
     assignedAgentId?: string | null;
+    contactBudgetMax?: number | null;
   } = {}
 ) {
   const state = {
@@ -201,6 +202,7 @@ function makeDb(
             data: {
               name: 'Asha',
               assigned_agent_id: opts.assignedAgentId ?? null,
+              pref_budget_max: opts.contactBudgetMax ?? null,
               preferred_language:
                 opts.contactLanguage === undefined
                   ? 'en'
@@ -437,6 +439,26 @@ describe('processShareFeedbackFollowups', () => {
       lastCustomerMessageAt: new Date(
         Date.now() - 10 * 60 * 1000
       ).toISOString(),
+    });
+
+    const sent = await processShareFeedbackFollowups(db as never);
+
+    expect(sent).toBe(0);
+    expect(h.send).not.toHaveBeenCalled();
+    expect(db.state.shares[0]).toMatchObject({
+      feedback_status: 'skipped',
+      feedback_sent_at: null,
+    });
+  });
+
+  it('[INB-051] never asks whether a listing well above the stated budget matched', async () => {
+    const db = makeDb({
+      property: {
+        id: PROPERTY_ID,
+        title: 'Prime Building',
+        price: 210_000_000,
+      },
+      contactBudgetMax: 150_000_000,
     });
 
     const sent = await processShareFeedbackFollowups(db as never);

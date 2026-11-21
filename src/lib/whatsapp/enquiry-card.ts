@@ -25,6 +25,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { resolveOwnerWhatsAppContact } from '@/lib/inventory/location-requests';
 import { listingStatusAgentLine } from '@/lib/inventory/listing-status';
 import { formatInrCompact } from '@/lib/format/currency';
+import { greetingName } from '@/lib/contacts/greeting-name';
 
 export const ENQUIRY_APPROVE_PREFIX = 'enq_approve:';
 export const ENQUIRY_REJECT_PREFIX = 'enq_reject:';
@@ -128,14 +129,16 @@ export function buildEnquiryCardBody(
  * replaced the ladder asking "what budget range are you working with?"
  * of a buyer who had just named the exact listing.
  */
+export const ENQUIRY_ACK_PROMISE = 'has reached our team';
+
 export function buildEnquiryAckText(
   leadName: string | null | undefined,
   title: string | null | undefined
 ): string {
-  const first = (leadName || '').trim().split(/\s+/)[0];
+  const first = greetingName(leadName);
   const greeting = first ? `Thanks ${first}!` : 'Thanks!';
   const subject = title ? `*${title}*` : 'that property';
-  return `${greeting} Your enquiry for ${subject} has reached our team — you'll receive the complete details right here shortly.`;
+  return `${greeting} Your enquiry for ${subject} ${ENQUIRY_ACK_PROMISE} — you'll receive the complete details right here shortly.`;
 }
 
 /**
@@ -148,7 +151,7 @@ export function buildEnquiryRejectText(
   title: string | null | undefined,
   teamPhone: string | null | undefined
 ): string {
-  const first = (leadName || '').trim().split(/\s+/)[0];
+  const first = greetingName(leadName);
   const greeting = first ? `Hi ${first}!` : 'Hi!';
   const subject = title ? `*${title}*` : 'that property';
   const reach = teamPhone

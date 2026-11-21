@@ -127,6 +127,7 @@ on:
       - 'src/lib/inventory/result-cap.ts'
       - 'src/lib/broadcast-status.ts'
       - 'src/lib/contacts/lead-temp.ts'
+      - 'src/lib/contacts/greeting-name.ts'
       - 'src/lib/conversations/inbox-filters.ts'
       - 'src/lib/conversations/customer-session.ts'
   workflow_dispatch:

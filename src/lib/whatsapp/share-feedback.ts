@@ -8,6 +8,11 @@ import { templateButtonLabel } from '@/lib/whatsapp/template-copy';
 import { resolveSendLanguage } from '@/lib/whatsapp/template-language';
 import type { InteractiveButton } from '@/lib/whatsapp/meta-api';
 import {
+  listingExceedsStatedBudget,
+  STATED_BUDGET_COLUMNS,
+  type StatedBudgetFields,
+} from '@/lib/contacts/stated-budget';
+import {
   messageSenderLabel,
   resolveMessageSender,
 } from '@/lib/whatsapp/message-sender';
@@ -202,12 +207,53 @@ async function sendShareFeedback(
     .maybeSingle();
   if (!config) return 'retry';
 
-  const { data: contact } = await db
+  const { data: contactRow } = await db
     .from('contacts')
-    .select('name, preferred_language, assigned_agent_id')
+    .select(`preferred_language, assigned_agent_id, ${STATED_BUDGET_COLUMNS}`)
     .eq('id', share.contact_id)
+    .eq('account_id', share.account_id)
     .maybeSingle();
+  const contact = contactRow as unknown as
+    | (StatedBudgetFields & {
+        name: string | null;
+        preferred_language: string | null;
+        assigned_agent_id: string | null;
+      })
+    | null;
   if (!contact) return 'retry';
+
+  let sharedProperty: {
+    id: string;
+    title: string | null;
+    price: number | null;
+    rent_per_month: number | null;
+    listing_type: string | null;
+  } | null = null;
+  if (share.property_id) {
+    const { data, error: propertyError } = await db
+      .from('properties')
+      .select('id, title, price, rent_per_month, listing_type')
+      .eq('id', share.property_id)
+      .eq('account_id', share.account_id)
+      .maybeSingle();
+    if (propertyError) {
+      console.error(
+        `[share-feedback] Failed to load the property for share ${share.id}:`,
+        propertyError
+      );
+      return 'retry';
+    }
+    sharedProperty = data;
+  }
+
+  if (listingExceedsStatedBudget(sharedProperty, contact)) {
+    await db
+      .from('property_shares')
+      .update({ feedback_status: 'skipped', feedback_sent_at: null })
+      .eq('id', share.id)
+      .eq('account_id', share.account_id);
+    return 'skipped';
+  }
 
   const {
     buildShareFeedbackParams,
@@ -240,27 +286,12 @@ async function sendShareFeedback(
     templateRow?.body_text as string | null | undefined
   );
 
-  let property: { id: string; title: string | null } | null = null;
-  if (
-    share.property_id &&
+  const property =
+    sharedProperty &&
     isWithinCustomerWindow(conversation?.last_customer_message_at) &&
     (await resolveSendLanguage(db, share.account_id, share.contact_id)) === 'en'
-  ) {
-    const { data, error: propertyError } = await db
-      .from('properties')
-      .select('id, title')
-      .eq('id', share.property_id)
-      .eq('account_id', share.account_id)
-      .maybeSingle();
-    if (propertyError) {
-      console.error(
-        `[share-feedback] Failed to load the property for share ${share.id}:`,
-        propertyError
-      );
-      return 'retry';
-    }
-    property = data;
-  }
+      ? sharedProperty
+      : null;
 
   let feedbackMessageId: string | null = null;
   try {

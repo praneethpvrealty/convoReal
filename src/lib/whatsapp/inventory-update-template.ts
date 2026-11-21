@@ -225,12 +225,18 @@ export function buildPropertySelectionUpdateParams(
   }
 
   const onlyMatched = ranking.personalized && ranking.matchCount > 0;
-  const sections = Object.entries(groups).filter(
+  const stocked = Object.entries(groups).filter(
     ([, list]) =>
       list.length > 0 &&
       (!onlyMatched ||
         list.some((property) => ranking.matchedPropertyIds.has(property.id)))
   );
+  const wanted = stocked.filter(([label]) =>
+    ranking.briefCategories.includes(
+      label === 'Farm & land' ? 'Agricultural' : label
+    )
+  );
+  const sections = wanted.length > 0 ? wanted : stocked;
   const separator = ' • ';
   const budget = Math.floor(
     (SELECTION_PARAM_MAX_LENGTH - separator.length * (sections.length - 1)) /

@@ -1,4 +1,5 @@
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { greetingName } from '@/lib/contacts/greeting-name';
 import {
   DEFAULT_LANGUAGE,
   isLanguageCode,
@@ -62,7 +63,7 @@ export function shareFeedbackFirstName(
   const rawName = contactName?.trim() ?? '';
   const firstName =
     rawName && !isPlaceholderLeadName(rawName)
-      ? rawName.split(/\s+/)[0]
+      ? greetingName(rawName)
       : 'there';
   return sanitizeTemplateParam(firstName) || 'there';
 }

@@ -111,3 +111,160 @@ describe('rankInventoryProperties', () => {
     ).toEqual(['first', 'second']);
   });
 });
+
+describe('[PRP-065] rankInventoryProperties with a brief nothing matches', () => {
+  const brief = contact({
+    pref_property_categories: ['commercial'],
+    pref_budget_min: 100_000_000,
+    pref_budget_max: 150_000_000,
+    pref_areas: ['Indiranagar'],
+    strict_area_match: true,
+  });
+  const stock = [
+    property('it-park', {
+      type: 'Commercial Building',
+      price: 3_800_000_000,
+      location: 'Domlur',
+      is_starred: true,
+    }),
+    property('flat', {
+      type: 'Flat/ Apartment',
+      price: 120_000_000,
+      location: 'Whitefield',
+      is_starred: true,
+    }),
+    property('building', {
+      type: 'Commercial Building',
+      price: 200_000_000,
+      location: 'Kundalahalli',
+    }),
+  ];
+
+  it('puts the wanted category first and the nearest price ahead of a starred outlier', () => {
+    const ranking = rankInventoryProperties(stock, brief);
+    expect(ranking.matchCount).toBe(0);
+    expect(ranking.closestFirst).toBe(true);
+    expect(ranking.briefCategories).toEqual(['Commercial']);
+    expect(ranking.properties.map((p) => p.id)).toEqual([
+      'building',
+      'it-park',
+      'flat',
+    ]);
+  });
+
+  it('counts the categories of every active brief, not only the first', () => {
+    const ranking = rankInventoryProperties(
+      stock,
+      contact({
+        requirements: 'Flat in Indiranagar',
+        pref_property_categories: ['residential'],
+        pref_areas: ['Indiranagar'],
+        strict_area_match: true,
+        requirement_profiles: [
+          {
+            id: 'p2',
+            title: 'Commercial',
+            raw_text: 'Commercial building in Indiranagar',
+            source: 'manual',
+            active: true,
+            property_types: [],
+            property_categories: ['commercial'],
+            bhk_min: null,
+            bhk_max: null,
+            budget_min: null,
+            budget_max: null,
+            land_area_min_sqft: null,
+            land_area_max_sqft: null,
+            areas: ['Indiranagar'],
+            excluded_areas: [],
+            projects: [],
+            min_roi: null,
+          },
+        ] as unknown as Contact['requirement_profiles'],
+      })
+    );
+    expect([...ranking.briefCategories].sort()).toEqual([
+      'Commercial',
+      'Residential',
+    ]);
+  });
+
+  it('names no category when one brief leaves it open', () => {
+    const ranking = rankInventoryProperties(
+      stock,
+      contact({
+        requirements: 'Anything in Indiranagar under 15 Cr',
+        pref_budget_max: 150_000_000,
+        pref_areas: ['Indiranagar'],
+        strict_area_match: true,
+        requirement_profiles: [
+          {
+            id: 'p2',
+            raw_text: 'Commercial building in Indiranagar',
+            active: true,
+            property_types: [],
+            property_categories: ['commercial'],
+            budget_min: null,
+            budget_max: 150_000_000,
+            areas: ['Indiranagar'],
+          },
+        ] as unknown as Contact['requirement_profiles'],
+      })
+    );
+    expect(ranking.briefCategories).toEqual([]);
+  });
+
+  it('never ranks a rental as close to a purchase budget', () => {
+    const ranking = rankInventoryProperties(
+      [
+        property('rental', {
+          type: 'Commercial Building',
+          listing_type: 'Rent',
+          rent_per_month: 600_000,
+          price: 0,
+          location: 'Domlur',
+          is_starred: true,
+        }),
+        property('sale', {
+          type: 'Commercial Building',
+          price: 160_000_000,
+          location: 'Kundalahalli',
+        }),
+      ],
+      brief
+    );
+    expect(ranking.properties.map((p) => p.id)).toEqual(['sale', 'rental']);
+  });
+
+  it('measures a rental against a monthly rent budget', () => {
+    const renter = contact({
+      pref_property_categories: ['commercial'],
+      pref_budget_max: 200_000,
+      pref_areas: ['Indiranagar'],
+      strict_area_match: true,
+    });
+    const rent = (id: string, amount: number, starred = false) =>
+      property(id, {
+        type: 'Commercial Office Space',
+        listing_type: 'Rent',
+        rent_per_month: amount,
+        price: 0,
+        location: 'Domlur',
+        is_starred: starred,
+      });
+    const ranking = rankInventoryProperties(
+      [rent('far', 900_000, true), rent('near', 220_000)],
+      renter
+    );
+    expect(ranking.properties.map((p) => p.id)).toEqual(['near', 'far']);
+  });
+
+  it('keeps the old order when the brief states no category or budget', () => {
+    const ranking = rankInventoryProperties(
+      stock,
+      contact({ pref_areas: ['Indiranagar'], strict_area_match: true })
+    );
+    expect(ranking.closestFirst).toBe(false);
+    expect(ranking.properties[0].is_starred).toBe(true);
+  });
+});

@@ -23,6 +23,8 @@ const state = vi.hoisted(() => ({
   mirrors: [] as Record<string, unknown>[],
   linked: false,
   likeError: null as { code: string } | null,
+  contact: null as Record<string, unknown> | null,
+  feedbackPrompts: 0,
 }));
 
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
@@ -49,7 +51,10 @@ vi.mock('@/lib/whatsapp/share-property-send', () => ({
 }));
 
 vi.mock('@/lib/whatsapp/listing-feedback', () => ({
-  sendListingFeedbackPrompt: async () => true,
+  sendListingFeedbackPrompt: async () => {
+    state.feedbackPrompts++;
+    return true;
+  },
 }));
 
 vi.mock('@/lib/journey/lead-interest', () => ({
@@ -114,7 +119,9 @@ vi.mock('@/lib/supabase/admin', () => ({
               ? state.property
               : table === 'showcase_settings'
                 ? { currency: 'INR' }
-                : null,
+                : table === 'contacts'
+                  ? state.contact
+                  : null,
           error: null,
         }),
       };
@@ -153,6 +160,8 @@ beforeEach(() => {
   state.mirrors = [];
   state.linked = false;
   state.likeError = null;
+  state.contact = null;
+  state.feedbackPrompts = 0;
 });
 
 describe('handlePropertyShareYesReply', () => {
@@ -194,6 +203,16 @@ describe('handlePropertyShareYesReply', () => {
       'https://aryavarta.convoreal.com/?property_id=PROP-1004&v=c1'
     );
     expect(state.shares).toHaveLength(1);
+    expect(state.feedbackPrompts).toBe(1);
+  });
+
+  it('[INB-051] sends the details without asking whether a listing above the stated budget works', async () => {
+    state.regret = null;
+    state.contact = { pref_budget_max: 50_000_000 };
+    expect(await send()).toBe(true);
+    expect(state.sends.map((s) => s.kind)).toEqual(['media', 'text']);
+    expect(state.shares).toHaveLength(1);
+    expect(state.feedbackPrompts).toBe(0);
   });
 });
 

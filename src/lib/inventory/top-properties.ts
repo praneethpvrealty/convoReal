@@ -1,11 +1,105 @@
 import type { Contact, Property } from '@/types';
 import { curateForBuyer, hasBuyerBrief } from '@/lib/buyer/matches-ranking';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
+import { requirementCandidates, statedBudgetSignature } from '@/lib/matching';
 
 export interface RankedInventory {
   properties: Property[];
   matchedPropertyIds: Set<string>;
   matchCount: number;
   personalized: boolean;
+  /** Unmatched listings are ordered by how near they sit to the brief. */
+  closestFirst: boolean;
+  /** Inventory categories the brief names, when it has no match to show. */
+  briefCategories: string[];
+}
+
+const INVENTORY_CATEGORIES = ['Residential', 'Commercial', 'Agricultural'];
+
+const BRIEF_CATEGORY: Record<string, string> = {
+  residential: 'Residential',
+  commercial: 'Commercial',
+  industrial: 'Commercial',
+  agricultural: 'Agricultural',
+};
+
+function inventoryCategory(type: string | null | undefined): string | null {
+  if (!type) return null;
+  return (
+    INVENTORY_CATEGORIES.find((category) =>
+      CATEGORY_SUBTYPES[category]?.includes(type)
+    ) ?? null
+  );
+}
+
+const CATEGORY_MISS_PENALTY = 10;
+const MAX_BUDGET_DISTANCE = 5;
+const RENT_BUDGET_CEILING = 1_000_000;
+
+/**
+ * How far a listing sits from the contact's brief, lower being nearer,
+ * or null when the brief states neither a category nor a budget. A
+ * contact with no match was shown starred and recently edited stock as
+ * the "closest options", which put a ₹380 Cr IT park in front of a buyer
+ * who had called ₹21 Cr beyond budget.
+ */
+/**
+ * The categories the contact's briefs ask for, as the matcher's widest
+ * band reads a budget: the union across every brief, and none at all
+ * when any brief leaves the category open.
+ */
+function briefCategories(contact: Contact): Set<string> {
+  const wanted = new Set<string>();
+  const briefs = requirementCandidates(contact).map(resolveRequirementSource);
+  for (const source of briefs) {
+    const named = new Set<string>();
+    for (const category of source.pref_property_categories ?? []) {
+      const mapped = BRIEF_CATEGORY[String(category).toLowerCase()];
+      if (mapped) named.add(mapped);
+    }
+    for (const type of [
+      ...(source.property_interests ?? []),
+      ...(source.pref_property_types ?? []),
+    ]) {
+      const mapped = inventoryCategory(type);
+      if (mapped) named.add(mapped);
+    }
+    if (named.size === 0) return new Set();
+    named.forEach((category) => wanted.add(category));
+  }
+  return wanted;
+}
+
+function briefDistance(
+  contact: Contact
+): ((property: Property) => number) | null {
+  const wanted = briefCategories(contact);
+
+  const band = statedBudgetSignature(contact);
+  const min = band?.min ?? null;
+  const max = band?.max ?? null;
+  if (wanted.size === 0 && min === null && max === null) return null;
+
+  return (property) => {
+    const category = inventoryCategory(property.type);
+    const categoryMiss =
+      wanted.size > 0 && (!category || !wanted.has(category))
+        ? CATEGORY_MISS_PENALTY
+        : 0;
+    if (min === null && max === null) return categoryMiss;
+    const rental = property.listing_type === 'Rent';
+    if (rental !== (max ?? min ?? 0) < RENT_BUDGET_CEILING)
+      return categoryMiss + MAX_BUDGET_DISTANCE;
+    const price = Number(
+      (rental ? property.rent_per_month : property.price) || 0
+    );
+    if (!(price > 0)) return categoryMiss + 1;
+    let distance = 0;
+    if (max !== null && price > max) distance = (price - max) / max;
+    else if (min !== null && price < min) distance = (min - price) / min;
+    return categoryMiss + Math.min(distance, MAX_BUDGET_DISTANCE);
+  };
 }
 
 function hasRankingIntent(contact: Contact): boolean {
@@ -95,6 +189,11 @@ export function rankInventoryProperties(
   }
   const matchedPropertyIds = new Set(matchScores.keys());
   const personalized = Boolean(contact && hasRankingIntent(contact));
+  const distance =
+    personalized && contact && !preserveOrder ? briefDistance(contact) : null;
+  const distances = new Map(
+    distance ? properties.map((p) => [p.id, distance(p)]) : []
+  );
 
   const ranked = preserveOrder
     ? [...properties]
@@ -106,6 +205,10 @@ export function rankInventoryProperties(
           const bMatched = bScore !== undefined;
           if (aMatched !== bMatched) return bMatched ? 1 : -1;
           if (aMatched && bMatched && aScore !== bScore) return bScore - aScore;
+          if (!aMatched && !bMatched) {
+            const gap = (distances.get(a.id) ?? 0) - (distances.get(b.id) ?? 0);
+            if (gap !== 0) return gap;
+          }
         }
 
         if (Boolean(a.is_starred) !== Boolean(b.is_starred)) {
@@ -126,5 +229,10 @@ export function rankInventoryProperties(
     matchedPropertyIds,
     matchCount: matchedPropertyIds.size,
     personalized,
+    closestFirst: distance !== null,
+    briefCategories:
+      distance && contact && matchedPropertyIds.size === 0
+        ? [...briefCategories(contact)]
+        : [],
   };
 }

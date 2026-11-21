@@ -26,6 +26,7 @@ import {
   clearJourneyLeadInterest,
   recordJourneyLeadInterest,
 } from '@/lib/journey/lead-interest';
+import { greetingName } from '@/lib/contacts/greeting-name';
 import type { Property } from '@/types';
 
 /** Every id this module owns starts with this. */
@@ -153,7 +154,7 @@ export async function sendListingFeedbackPrompt(args: {
 }
 
 function firstName(name: string | null | undefined): string {
-  return isPlaceholderLeadName(name) ? 'there' : name!.trim().split(/\s+/)[0];
+  return isPlaceholderLeadName(name) ? 'there' : greetingName(name);
 }
 
 /** Ids arrive from the webhook, so nothing embedded in them is

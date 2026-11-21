@@ -4,6 +4,7 @@ import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account';
 import {
   buildInventorySummary,
   categoryForType,
+  INVENTORY_SUMMARY_PROPERTY_COLUMNS,
 } from '@/lib/inventory-summary-builder';
 import { rankInventoryProperties } from '@/lib/inventory/top-properties';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
@@ -82,9 +83,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await ctx.supabase
       .from('properties')
-      .select(
-        'id, title, type, listing_type, price, price_per_sqft, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, location, sublocality, city, project, property_code, listing_source, latitude, longitude, tags, is_starred, images, video_url, description, features, nearby_highlights, google_map_link, showcase_audience, created_at, updated_at'
-      )
+      .select(INVENTORY_SUMMARY_PROPERTY_COLUMNS)
       .eq('account_id', ctx.accountId)
       .eq('is_published', true)
       .eq('status', 'Available')

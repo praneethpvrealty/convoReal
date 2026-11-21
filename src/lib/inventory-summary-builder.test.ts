@@ -345,3 +345,50 @@ describe('[PRP-064] summary line facts', () => {
     expect(categoryForType('Commercial/Industrial')).toBe('Commercial');
   });
 });
+
+describe('[PRP-065] buildInventorySummary for a brief nothing matches', () => {
+  it('greets a titled contact by name and leads with the category they asked for', () => {
+    const contact = {
+      id: 'c1',
+      user_id: 'u1',
+      phone: '+919999999999',
+      name: 'Dr Subbaiha',
+      requirement_active: true,
+      pref_property_categories: ['commercial'],
+      pref_budget_min: 100_000_000,
+      pref_budget_max: 150_000_000,
+      pref_areas: ['Indiranagar'],
+      strict_area_match: true,
+    } as unknown as Contact;
+    const summary = buildInventorySummary(
+      [
+        prop({
+          title: 'Flat in Whitefield',
+          type: 'Flat/ Apartment',
+          price: 21_500_000,
+          location: 'Whitefield',
+        }),
+        prop({
+          title: 'IT Park in Domlur',
+          type: 'Commercial Building',
+          price: 3_800_000_000,
+          location: 'Domlur',
+        }),
+        prop({
+          title: 'Rented Building in Kundalahalli',
+          type: 'Commercial Building',
+          price: 200_000_000,
+          location: 'Kundalahalli',
+        }),
+      ],
+      { portalUrl: PORTAL, contact, recipientName: contact.name }
+    );
+    expect(summary).toContain('Hi Dr Subbaiha! I could not find a close match');
+    expect(summary.indexOf('*COMMERCIAL*')).toBeLessThan(
+      summary.indexOf('*RESIDENTIAL*')
+    );
+    expect(summary.indexOf('Rented Building')).toBeLessThan(
+      summary.indexOf('IT Park')
+    );
+  });
+});
