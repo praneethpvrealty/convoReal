@@ -274,6 +274,16 @@
           ]
         },
         {
+          "id": "INB-052",
+          "rule": "On mobile, an attachment the agent sends shows once. Its sending bubble is retired when the saved message row for the same uploaded file arrives, whether that row names the file by its bucket path or by its public storage URL; a different file never retires it. The bubble must not remain as a second, one-tick copy below later messages.",
+          "tests": [
+            {
+              "file": "mobile/lib/pending-messages.test.ts",
+              "case": "[INB-052]"
+            }
+          ]
+        },
+        {
           "id": "INB-051",
           "rule": "A lead whose stated budget sits well under the listing they enquired about is answered for the brief they gave. A commercial, industrial, agricultural or plot brief is never pitched apartments or houses: the reply says the enquired listing is above budget, plays the brief back and says nothing live fits. The reply names a portal only when the lead came from Housing.com, MagicBricks or 99acres and never prints a contact source such as phone_import; it says \"the details above\" only when the thread has actually sent that listing's details, which the enquiry acknowledgement is not; and it is never sent twice in a row, the next turn falling through to the requirement review or the no-match reply. A listing priced at 1.25 times the stated budget or more is sent without the \"does this one work\" prompt and earns no \"did it match\" follow-up; a budget seeded from the enquired listing's own price does not count as stated. A contact stored with an earned title is greeted with it (Dr Subbaiha), never by the title alone and never with it dropped; a courtesy title (Mr, Mrs, Smt) is dropped, on web and mobile alike.",
           "tests": [

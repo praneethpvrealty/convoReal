@@ -37,11 +37,29 @@ export function restoreFailedDraft(
  * upload returns — before that the bubble carries no path and no real
  * row can match it.
  */
+const STORAGE_PUBLIC_MARKER = '/storage/v1/object/public/';
+
+/**
+ * The bucket path of an uploaded file, whichever form names it. The
+ * pending bubble holds the path the upload returned
+ * (`chat-media/<account>/<file>`); the saved row holds that file's
+ * public URL. Compared as written they never matched, so a sent photo
+ * stayed on screen twice: the delivered row, and its own bubble stuck on
+ * one tick underneath every later message.
+ */
+function mediaKey(mediaUrl: string | null | undefined): string {
+  const url = (mediaUrl ?? '').split('?')[0];
+  const at = url.indexOf(STORAGE_PUBLIC_MARKER);
+  return at === -1
+    ? url.replace(/^\/+/, '')
+    : url.slice(at + STORAGE_PUBLIC_MARKER.length);
+}
+
 export function outgoingSignature(
   m: Pick<Message, 'content_type' | 'content_text' | 'media_url'>
 ): string {
   if (MEDIA_TYPES.has(m.content_type)) {
-    return `${m.content_type}:${m.media_url ?? ''}`;
+    return `${m.content_type}:${mediaKey(m.media_url)}`;
   }
   return `${m.content_type}:${(m.content_text ?? '').trim()}`;
 }
