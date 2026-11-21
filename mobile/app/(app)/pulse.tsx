@@ -400,6 +400,9 @@ export default function PulseScreen() {
                         onPress={() =>
                           setViewersFor({ id: p.propertyId, title: p.title })
                         }
+                        onOpenProperty={() =>
+                          router.push(`/(app)/property/${p.propertyId}`)
+                        }
                       />
                     ))}
                   </ScrollView>
@@ -641,9 +644,11 @@ function InlineStatus({
 function TopListingCard({
   listing,
   onPress,
+  onOpenProperty,
 }: {
   listing: PulseViewedListing;
   onPress: () => void;
+  onOpenProperty: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
   return (
@@ -651,6 +656,10 @@ function TopListingCard({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`See viewers of ${listing.title}`}
+      accessibilityActions={[{ name: 'openProperty', label: 'Open property' }]}
+      onAccessibilityAction={({ nativeEvent }) => {
+        if (nativeEvent.actionName === 'openProperty') onOpenProperty();
+      }}
       contentStyle={[
         styles.listing,
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
@@ -686,9 +695,23 @@ function TopListingCard({
           See viewers
         </Text>
       </View>
-      <Text style={{ fontSize: 11, color: colors.textFaint }}>
-        Last viewed {formatTimeAgo(listing.lastViewedAt)}
-      </Text>
+      <View style={styles.listingLast}>
+        <Text style={{ fontSize: 11, color: colors.textFaint }}>
+          Last viewed {formatTimeAgo(listing.lastViewedAt)}
+        </Text>
+        <Pressable
+          onPress={onOpenProperty}
+          hitSlop={10}
+          accessibilityRole="link"
+          accessibilityLabel={`Open ${listing.title}`}
+        >
+          <Text
+            style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}
+          >
+            Open property
+          </Text>
+        </Pressable>
+      </View>
     </PressScale>
   );
 }
@@ -1082,6 +1105,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: spacing.sm,
+  },
+  listingLast: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   countTile: {

@@ -5093,6 +5093,18 @@ describe('[PLS-004] mobile Showcase Pulse lists every viewed listing like web', 
     expect(screen).toMatch(/<ScrollView\s+nestedScrollEnabled/);
     expect(screen).toContain('top.data.slice(0, renderedListings).map(');
   });
+
+  it('opens the property details from a listing and still opens its viewers', () => {
+    const screen = mobileSource('app/(app)/pulse.tsx');
+    expect(screen).toContain('router.push(`/(app)/property/${p.propertyId}`)');
+    expect(screen).toContain('accessibilityLabel={`Open ${listing.title}`}');
+    expect(screen).toContain(
+      "accessibilityActions={[{ name: 'openProperty', label: 'Open property' }]}"
+    );
+    expect(screen).toContain(
+      'setViewersFor({ id: p.propertyId, title: p.title })'
+    );
+  });
 });
 
 describe('[PLS-005] mobile Showcase Pulse sorts viewed listings like web', () => {

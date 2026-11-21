@@ -16,6 +16,8 @@ import PulseContent from './pulse-content';
 const pulse = vi.hoisted(() => ({
   loadPulseStats: vi.fn(),
   loadPulseFeed: vi.fn(),
+  loadPulseViewedListings: vi.fn(),
+  viewersDialog: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -33,12 +35,17 @@ vi.mock('@/lib/supabase/client', () => ({
 vi.mock('@/lib/pulse/queries', () => ({
   loadPulseStats: pulse.loadPulseStats,
   loadPulseFeed: pulse.loadPulseFeed,
-  loadPulseViewedListings: vi.fn().mockResolvedValue([]),
+  loadPulseViewedListings: pulse.loadPulseViewedListings,
 }));
 
 vi.mock('@/components/pulse/property-viewers-dialog', () => ({
-  PropertyViewersDialog: () => null,
+  PropertyViewersDialog: (props: { propertyId: string | null }) => {
+    pulse.viewersDialog(props.propertyId);
+    return null;
+  },
 }));
+
+pulse.loadPulseViewedListings.mockResolvedValue([]);
 
 const stats: PulseStats = {
   totalViews: 42,
@@ -90,6 +97,9 @@ afterEach(() => {
   cleanup();
   pulse.loadPulseStats.mockReset();
   pulse.loadPulseFeed.mockReset();
+  pulse.loadPulseViewedListings.mockReset();
+  pulse.loadPulseViewedListings.mockResolvedValue([]);
+  pulse.viewersDialog.mockReset();
 });
 
 describe('Showcase Pulse tab loading', () => {
@@ -169,5 +179,34 @@ describe('Showcase Pulse tab loading', () => {
       ).toHaveProperty('disabled', false)
     );
     expect(screen.getByText(/older-1/)).toBeTruthy();
+  });
+});
+
+describe('[PLS-004] viewed listing actions', () => {
+  it('opens the property details from a listing and still opens its viewers', async () => {
+    pulse.loadPulseStats.mockResolvedValue(stats);
+    pulse.loadPulseFeed.mockResolvedValue([]);
+    pulse.loadPulseViewedListings.mockResolvedValue([
+      {
+        propertyId: 'prop-1',
+        title: 'Corner Plot',
+        propertyCode: 'PROP-2577',
+        price: 103900000,
+        viewsCount: 2,
+        uniqueViewsCount: 2,
+        lastViewedAt: new Date().toISOString(),
+      },
+    ]);
+    renderPulse(newClient());
+
+    const open = await screen.findByRole('link', { name: 'Open Corner Plot' });
+    expect(open.getAttribute('href')).toBe('/inventory?propertyId=prop-1');
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'See viewers of Corner Plot' })
+    );
+    await waitFor(() =>
+      expect(pulse.viewersDialog).toHaveBeenLastCalledWith('prop-1')
+    );
   });
 });

@@ -19,6 +19,10 @@ than a written entry. Newest first.
 
 #### 21 November 2026
 
+- **Open a property from Showcase Pulse.** Each listing in the viewed listings
+  panel, on web and mobile, has an Open property action that takes you to that
+  property's details. Tapping the card still shows who viewed it.
+
 - **Sort viewed listings by most visitors.** The viewed listings panel in
   Showcase Pulse, on web and mobile, gains a Most visitors sort next to most
   views, fewest views, latest viewed and earliest viewed, so a listing many
