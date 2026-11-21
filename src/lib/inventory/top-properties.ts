@@ -3,6 +3,7 @@ import { curateForBuyer, hasBuyerBrief } from '@/lib/buyer/matches-ranking';
 import {
   activeRequirementProfiles,
   contactForRequirementProfile,
+  resolveRequirementSource,
 } from '@/lib/requirements/profiles';
 import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
 import { statedBudgetSignature } from '@/lib/matching';
@@ -47,26 +48,34 @@ const RENT_BUDGET_CEILING = 1_000_000;
  * the "closest options", which put a ₹380 Cr IT park in front of a buyer
  * who had called ₹21 Cr beyond budget.
  */
+/**
+ * The categories the contact's briefs ask for, as the matcher's widest
+ * band reads a budget: the union across every brief, and none at all
+ * when any brief leaves the category open.
+ */
 function briefCategories(contact: Contact): Set<string> {
   const wanted = new Set<string>();
   const briefs = [
-    contact,
+    resolveRequirementSource(contact),
     ...activeRequirementProfiles(contact).map((profile) =>
       contactForRequirementProfile(contact, profile)
     ),
   ];
   for (const source of briefs) {
+    const named = new Set<string>();
     for (const category of source.pref_property_categories ?? []) {
       const mapped = BRIEF_CATEGORY[String(category).toLowerCase()];
-      if (mapped) wanted.add(mapped);
+      if (mapped) named.add(mapped);
     }
     for (const type of [
       ...(source.property_interests ?? []),
       ...(source.pref_property_types ?? []),
     ]) {
       const mapped = inventoryCategory(type);
-      if (mapped) wanted.add(mapped);
+      if (mapped) named.add(mapped);
     }
+    if (named.size === 0) return new Set();
+    named.forEach((category) => wanted.add(category));
   }
   return wanted;
 }
