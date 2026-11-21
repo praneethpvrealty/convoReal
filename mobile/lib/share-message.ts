@@ -518,6 +518,8 @@ export function buildShortlistMessage(input: {
  * time so the agent's edits are preserved; a no-match (edited greeting)
  * returns the message untouched.
  */
+const EARNED_TITLES = new Set(['dr', 'prof']);
+
 const GREETING_HONORIFICS = new Set([
   'mr',
   'mrs',
@@ -538,18 +540,20 @@ const GREETING_HONORIFICS = new Set([
 
 /** Name to greet by: the full name minus any leading honorific, so
  *  "Mr Jitender Kothari" greets as "Jitender Kothari" and "KP Anand" as
- *  "KP Anand". Falls back to the raw name when it is only an honorific. */
+ *  "KP Anand". An earned title stays: "Dr Subbaiha" greets as
+ *  "Dr Subbaiha". Falls back to the raw name when it is only an honorific. */
 export function greetingName(name?: string | null): string | null {
   const tokens = (name || '').trim().split(/\s+/).filter(Boolean);
   let i = 0;
-  while (
-    i < tokens.length &&
-    GREETING_HONORIFICS.has(tokens[i].replace(/\./g, '').toLowerCase())
-  ) {
+  let title = '';
+  while (i < tokens.length) {
+    const bare = tokens[i].replace(/\./g, '').toLowerCase();
+    if (!GREETING_HONORIFICS.has(bare)) break;
+    if (EARNED_TITLES.has(bare)) title = tokens[i];
     i++;
   }
   const rest = tokens.slice(i);
-  if (rest.length > 0) return rest.join(' ');
+  if (rest.length > 0) return [title, ...rest].filter(Boolean).join(' ');
   return tokens.length > 0 ? tokens.join(' ') : null;
 }
 

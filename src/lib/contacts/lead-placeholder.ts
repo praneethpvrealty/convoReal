@@ -1,3 +1,5 @@
+import { greetingName as titledFirstName } from '@/lib/contacts/greeting-name';
+
 /**
  * The stand-in name a portal lead is saved under when its email carried
  * no usable one — Housing masks some inquirers as "Housing User", and a
@@ -46,7 +48,7 @@ export function isPlaceholderLeadName(name?: string | null): boolean {
 export function leadFirstName(name?: string | null): string {
   const raw = (name ?? '').trim();
   if (isPlaceholderLeadName(raw)) return '';
-  return raw.split(/\s+/)[0];
+  return titledFirstName(raw);
 }
 
 /** How to address this contact in an outbound message. */

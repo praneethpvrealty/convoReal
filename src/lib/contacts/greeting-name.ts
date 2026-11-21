@@ -1,11 +1,31 @@
-const TITLE_PATTERN =
-  /^(dr|mr|mrs|ms|miss|prof|shri|smt|sri|col|capt|major|adv|er)\.?$/i;
+const EARNED_TITLES = new Set(['dr', 'prof']);
+
+const COURTESY_TITLES = new Set([
+  'mr',
+  'mrs',
+  'ms',
+  'miss',
+  'mstr',
+  'master',
+  'shri',
+  'sri',
+  'smt',
+  'kum',
+  'sir',
+  'madam',
+  'mx',
+]);
 
 export function greetingName(name: string | null | undefined): string {
   const tokens = (name || '').trim().split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return '';
-  if (TITLE_PATTERN.test(tokens[0]) && tokens[1]) {
-    return `${tokens[0]} ${tokens[1]}`;
+  let i = 0;
+  let title = '';
+  while (i < tokens.length) {
+    const bare = tokens[i].replace(/\./g, '').toLowerCase();
+    if (EARNED_TITLES.has(bare)) title = tokens[i];
+    else if (!COURTESY_TITLES.has(bare)) break;
+    i++;
   }
-  return tokens[0];
+  if (i >= tokens.length) return tokens[0] || '';
+  return title ? `${title} ${tokens[i]}` : tokens[i];
 }

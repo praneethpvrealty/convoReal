@@ -124,7 +124,7 @@ describe('buildClosingCardBody', () => {
 describe('buildClosingAskText', () => {
   it('asks where the paperwork stands, by name and listing', () => {
     const text = buildClosingAskText('Dr Pruthvi', 'JP Nagar Building');
-    expect(text).toContain('Hi Dr!');
+    expect(text).toContain('Hi Dr Pruthvi!');
     expect(text).toContain('*JP Nagar Building*');
     expect(text).toMatch(/paperwork/i);
   });
