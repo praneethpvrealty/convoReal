@@ -50,9 +50,7 @@ const STORAGE_PUBLIC_MARKER = '/storage/v1/object/public/';
 function mediaKey(mediaUrl: string | null | undefined): string {
   const url = (mediaUrl ?? '').split('?')[0];
   const at = url.indexOf(STORAGE_PUBLIC_MARKER);
-  return at === -1
-    ? url.replace(/^\/+/, '')
-    : url.slice(at + STORAGE_PUBLIC_MARKER.length);
+  return at === -1 ? url : url.slice(at + STORAGE_PUBLIC_MARKER.length);
 }
 
 export function outgoingSignature(
