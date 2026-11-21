@@ -152,6 +152,51 @@ describe('[PRP-065] rankInventoryProperties with a brief nothing matches', () =>
     ]);
   });
 
+  it('never ranks a rental as close to a purchase budget', () => {
+    const ranking = rankInventoryProperties(
+      [
+        property('rental', {
+          type: 'Commercial Building',
+          listing_type: 'Rent',
+          rent_per_month: 600_000,
+          price: 0,
+          location: 'Domlur',
+          is_starred: true,
+        }),
+        property('sale', {
+          type: 'Commercial Building',
+          price: 160_000_000,
+          location: 'Kundalahalli',
+        }),
+      ],
+      brief
+    );
+    expect(ranking.properties.map((p) => p.id)).toEqual(['sale', 'rental']);
+  });
+
+  it('measures a rental against a monthly rent budget', () => {
+    const renter = contact({
+      pref_property_categories: ['commercial'],
+      pref_budget_max: 200_000,
+      pref_areas: ['Indiranagar'],
+      strict_area_match: true,
+    });
+    const rent = (id: string, amount: number, starred = false) =>
+      property(id, {
+        type: 'Commercial Office Space',
+        listing_type: 'Rent',
+        rent_per_month: amount,
+        price: 0,
+        location: 'Domlur',
+        is_starred: starred,
+      });
+    const ranking = rankInventoryProperties(
+      [rent('far', 900_000, true), rent('near', 220_000)],
+      renter
+    );
+    expect(ranking.properties.map((p) => p.id)).toEqual(['near', 'far']);
+  });
+
   it('keeps the old order when the brief states no category or budget', () => {
     const ranking = rankInventoryProperties(
       stock,

@@ -11,7 +11,7 @@ import { rankInventoryProperties } from '@/lib/inventory/top-properties';
 import { greetingName } from '@/lib/contacts/greeting-name';
 
 export const INVENTORY_SUMMARY_PROPERTY_COLUMNS =
-  'id, title, type, listing_type, price, price_per_sqft, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, location, sublocality, city, project, property_code, listing_source, latitude, longitude, tags, is_starred, images, video_url, description, features, nearby_highlights, google_map_link, showcase_audience, created_at, updated_at';
+  'id, title, type, listing_type, price, price_per_sqft, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, location, sublocality, city, project, property_code, listing_source, latitude, longitude, tags, is_starred, images, video_url, description, features, nearby_highlights, google_map_link, showcase_audience, facing_direction, tower, floor_number, floor_tenancies, notes, locality_canonical, created_at, updated_at';
 
 export type SummaryCategory =
   'Residential' | 'Commercial' | 'Agricultural' | 'Other';

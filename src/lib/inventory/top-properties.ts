@@ -35,6 +35,7 @@ function inventoryCategory(type: string | null | undefined): string | null {
 
 const CATEGORY_MISS_PENALTY = 10;
 const MAX_BUDGET_DISTANCE = 5;
+const RENT_BUDGET_CEILING = 1_000_000;
 
 /**
  * How far a listing sits from the contact's brief, lower being nearer,
@@ -79,8 +80,12 @@ function briefDistance(
         ? CATEGORY_MISS_PENALTY
         : 0;
     if (min === null && max === null) return categoryMiss;
-    if (property.listing_type === 'Rent') return categoryMiss;
-    const price = Number(property.price || 0);
+    const rental = property.listing_type === 'Rent';
+    if (rental !== (max ?? min ?? 0) < RENT_BUDGET_CEILING)
+      return categoryMiss + MAX_BUDGET_DISTANCE;
+    const price = Number(
+      (rental ? property.rent_per_month : property.price) || 0
+    );
     if (!(price > 0)) return categoryMiss + 1;
     let distance = 0;
     if (max !== null && price > max) distance = (price - max) / max;
