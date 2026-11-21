@@ -5099,6 +5099,9 @@ describe('[PLS-004] mobile Showcase Pulse lists every viewed listing like web', 
     expect(screen).toContain('router.push(`/(app)/property/${p.propertyId}`)');
     expect(screen).toContain('accessibilityLabel={`Open ${listing.title}`}');
     expect(screen).toContain(
+      "accessibilityActions={[{ name: 'openProperty', label: 'Open property' }]}"
+    );
+    expect(screen).toContain(
       'setViewersFor({ id: p.propertyId, title: p.title })'
     );
   });

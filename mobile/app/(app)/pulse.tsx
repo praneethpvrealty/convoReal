@@ -656,6 +656,10 @@ function TopListingCard({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`See viewers of ${listing.title}`}
+      accessibilityActions={[{ name: 'openProperty', label: 'Open property' }]}
+      onAccessibilityAction={({ nativeEvent }) => {
+        if (nativeEvent.actionName === 'openProperty') onOpenProperty();
+      }}
       contentStyle={[
         styles.listing,
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
