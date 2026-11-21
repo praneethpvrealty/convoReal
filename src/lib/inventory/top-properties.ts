@@ -1,6 +1,9 @@
 import type { Contact, Property } from '@/types';
 import { curateForBuyer, hasBuyerBrief } from '@/lib/buyer/matches-ranking';
-import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import {
+  activeRequirementProfiles,
+  contactForRequirementProfile,
+} from '@/lib/requirements/profiles';
 import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
 import { statedBudgetSignature } from '@/lib/matching';
 
@@ -44,18 +47,26 @@ const RENT_BUDGET_CEILING = 1_000_000;
  * the "closest options", which put a ₹380 Cr IT park in front of a buyer
  * who had called ₹21 Cr beyond budget.
  */
-function briefCategories(source: Contact): Set<string> {
+function briefCategories(contact: Contact): Set<string> {
   const wanted = new Set<string>();
-  for (const category of source.pref_property_categories ?? []) {
-    const mapped = BRIEF_CATEGORY[String(category).toLowerCase()];
-    if (mapped) wanted.add(mapped);
-  }
-  for (const type of [
-    ...(source.property_interests ?? []),
-    ...(source.pref_property_types ?? []),
-  ]) {
-    const mapped = inventoryCategory(type);
-    if (mapped) wanted.add(mapped);
+  const briefs = [
+    contact,
+    ...activeRequirementProfiles(contact).map((profile) =>
+      contactForRequirementProfile(contact, profile)
+    ),
+  ];
+  for (const source of briefs) {
+    for (const category of source.pref_property_categories ?? []) {
+      const mapped = BRIEF_CATEGORY[String(category).toLowerCase()];
+      if (mapped) wanted.add(mapped);
+    }
+    for (const type of [
+      ...(source.property_interests ?? []),
+      ...(source.pref_property_types ?? []),
+    ]) {
+      const mapped = inventoryCategory(type);
+      if (mapped) wanted.add(mapped);
+    }
   }
   return wanted;
 }
@@ -63,8 +74,7 @@ function briefCategories(source: Contact): Set<string> {
 function briefDistance(
   contact: Contact
 ): ((property: Property) => number) | null {
-  const source = resolveRequirementSource(contact);
-  const wanted = briefCategories(source);
+  const wanted = briefCategories(contact);
 
   const band = statedBudgetSignature(contact);
   const min = band?.min ?? null;
@@ -222,7 +232,7 @@ export function rankInventoryProperties(
     closestFirst: distance !== null,
     briefCategories:
       distance && contact && matchedPropertyIds.size === 0
-        ? [...briefCategories(resolveRequirementSource(contact))]
+        ? [...briefCategories(contact)]
         : [],
   };
 }

@@ -152,6 +152,43 @@ describe('[PRP-065] rankInventoryProperties with a brief nothing matches', () =>
     ]);
   });
 
+  it('counts the categories of every active brief, not only the first', () => {
+    const ranking = rankInventoryProperties(
+      stock,
+      contact({
+        requirements: 'Flat in Indiranagar',
+        pref_property_categories: ['residential'],
+        pref_areas: ['Indiranagar'],
+        strict_area_match: true,
+        requirement_profiles: [
+          {
+            id: 'p2',
+            title: 'Commercial',
+            raw_text: 'Commercial building in Indiranagar',
+            source: 'manual',
+            active: true,
+            property_types: [],
+            property_categories: ['commercial'],
+            bhk_min: null,
+            bhk_max: null,
+            budget_min: null,
+            budget_max: null,
+            land_area_min_sqft: null,
+            land_area_max_sqft: null,
+            areas: ['Indiranagar'],
+            excluded_areas: [],
+            projects: [],
+            min_roi: null,
+          },
+        ] as unknown as Contact['requirement_profiles'],
+      })
+    );
+    expect([...ranking.briefCategories].sort()).toEqual([
+      'Commercial',
+      'Residential',
+    ]);
+  });
+
   it('never ranks a rental as close to a purchase budget', () => {
     const ranking = rankInventoryProperties(
       [
