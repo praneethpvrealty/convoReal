@@ -1,12 +1,8 @@
 import type { Contact, Property } from '@/types';
 import { curateForBuyer, hasBuyerBrief } from '@/lib/buyer/matches-ranking';
-import {
-  activeRequirementProfiles,
-  contactForRequirementProfile,
-  resolveRequirementSource,
-} from '@/lib/requirements/profiles';
+import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
-import { statedBudgetSignature } from '@/lib/matching';
+import { requirementCandidates, statedBudgetSignature } from '@/lib/matching';
 
 export interface RankedInventory {
   properties: Property[];
@@ -55,12 +51,7 @@ const RENT_BUDGET_CEILING = 1_000_000;
  */
 function briefCategories(contact: Contact): Set<string> {
   const wanted = new Set<string>();
-  const briefs = [
-    resolveRequirementSource(contact),
-    ...activeRequirementProfiles(contact).map((profile) =>
-      contactForRequirementProfile(contact, profile)
-    ),
-  ];
+  const briefs = requirementCandidates(contact).map(resolveRequirementSource);
   for (const source of briefs) {
     const named = new Set<string>();
     for (const category of source.pref_property_categories ?? []) {

@@ -1818,7 +1818,7 @@ export function getMatchingContacts(
 
 /** Every brief a contact is ranked on: their own columns (or the
  *  legacy fallback beside their briefs) and each active brief. */
-function requirementCandidates(contact: Contact): Contact[] {
+export function requirementCandidates(contact: Contact): Contact[] {
   const activeProfiles = activeRequirementProfiles(contact);
   const shouldUseLegacyFallback =
     hasLegacyRequirementSignals(contact) &&
