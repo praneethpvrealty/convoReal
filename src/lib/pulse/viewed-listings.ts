@@ -5,7 +5,7 @@
  */
 
 export type PulseListingSort =
-  'views_desc' | 'views_asc' | 'recent_desc' | 'recent_asc';
+  'views_desc' | 'views_asc' | 'visitors_desc' | 'recent_desc' | 'recent_asc';
 
 export const DEFAULT_PULSE_LISTING_SORT: PulseListingSort = 'views_desc';
 
@@ -15,6 +15,7 @@ export const PULSE_LISTING_SORTS: ReadonlyArray<{
 }> = [
   { key: 'views_desc', label: 'Most views' },
   { key: 'views_asc', label: 'Fewest views' },
+  { key: 'visitors_desc', label: 'Most visitors' },
   { key: 'recent_desc', label: 'Latest viewed' },
   { key: 'recent_asc', label: 'Earliest viewed' },
 ];

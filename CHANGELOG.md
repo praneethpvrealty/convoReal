@@ -17,6 +17,14 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 21 November 2026
+
+- **Sort viewed listings by most visitors.** The viewed listings panel in
+  Showcase Pulse, on web and mobile, gains a Most visitors sort next to most
+  views, fewest views, latest viewed and earliest viewed, so a listing many
+  different people opened ranks above one a few people reopened. **Migration
+  required:** `20261121091841_pulse_viewed_properties_visitor_sort.sql`.
+
 #### 18 November 2026
 
 - **Show stated requirements only.** A new filter on the Requirements screen,

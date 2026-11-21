@@ -43,10 +43,11 @@ describe('[PLS-004] viewed listings', () => {
 });
 
 describe('[PLS-005] viewed listings sort', () => {
-  it('offers views and last-viewed sorts in both directions', () => {
+  it('offers views and last-viewed sorts in both directions, and most visitors', () => {
     expect(PULSE_LISTING_SORTS.map((option) => option.key)).toEqual([
       'views_desc',
       'views_asc',
+      'visitors_desc',
       'recent_desc',
       'recent_asc',
     ]);
