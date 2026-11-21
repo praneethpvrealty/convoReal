@@ -111,3 +111,53 @@ describe('rankInventoryProperties', () => {
     ).toEqual(['first', 'second']);
   });
 });
+
+describe('[PRP-065] rankInventoryProperties with a brief nothing matches', () => {
+  const brief = contact({
+    pref_property_categories: ['commercial'],
+    pref_budget_min: 100_000_000,
+    pref_budget_max: 150_000_000,
+    pref_areas: ['Indiranagar'],
+    strict_area_match: true,
+  });
+  const stock = [
+    property('it-park', {
+      type: 'Commercial Building',
+      price: 3_800_000_000,
+      location: 'Domlur',
+      is_starred: true,
+    }),
+    property('flat', {
+      type: 'Flat/ Apartment',
+      price: 120_000_000,
+      location: 'Whitefield',
+      is_starred: true,
+    }),
+    property('building', {
+      type: 'Commercial Building',
+      price: 200_000_000,
+      location: 'Kundalahalli',
+    }),
+  ];
+
+  it('puts the wanted category first and the nearest price ahead of a starred outlier', () => {
+    const ranking = rankInventoryProperties(stock, brief);
+    expect(ranking.matchCount).toBe(0);
+    expect(ranking.closestFirst).toBe(true);
+    expect(ranking.briefCategories).toEqual(['Commercial']);
+    expect(ranking.properties.map((p) => p.id)).toEqual([
+      'building',
+      'it-park',
+      'flat',
+    ]);
+  });
+
+  it('keeps the old order when the brief states no category or budget', () => {
+    const ranking = rankInventoryProperties(
+      stock,
+      contact({ pref_areas: ['Indiranagar'], strict_area_match: true })
+    );
+    expect(ranking.closestFirst).toBe(false);
+    expect(ranking.properties[0].is_starred).toBe(true);
+  });
+});

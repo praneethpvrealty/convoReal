@@ -67,10 +67,13 @@ import {
 import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask';
 import { localityStemsMatch, textNamesLocality } from '@/lib/locality-match';
 import { normalizePropertyType } from '@/lib/property-types';
+import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
 import { canonicalBengaluruZone } from '@/lib/bengaluru-zones';
 import { isBotPaused } from '@/lib/conversations/bot-pause';
 import type { Contact, ContactRequirementProfile, Property } from '@/types';
 import { formatInrCompact } from '@/lib/format/currency';
+import { greetingName } from '@/lib/contacts/greeting-name';
+import { ENQUIRY_ACK_PROMISE } from '@/lib/whatsapp/enquiry-card';
 
 export type QualifierField = 'type' | 'intent' | 'budget' | 'location';
 
@@ -412,7 +415,7 @@ export function shouldSendMatchesNow(
 }
 
 function firstName(name?: string | null): string {
-  return name?.trim().split(/\s+/)[0] || 'there';
+  return greetingName(name) || 'there';
 }
 
 function formatBudget(prefs: ExtractedPreferences): string {
@@ -479,19 +482,38 @@ export interface EnquiryBudgetDisparityOpts {
   hasPriorListingDetails?: boolean;
 }
 
+function leadPortalLabel(leadPortal: string | null | undefined): string | null {
+  const portal = (leadPortal || '').toLowerCase();
+  if (portal.includes('housing')) return 'Housing.com';
+  if (portal.includes('magicbricks')) return 'MagicBricks';
+  if (portal.includes('99acres')) return '99acres';
+  return null;
+}
+
+function wantsResidential(prefs: ExtractedPreferences): boolean {
+  if (prefs.property_categories.some((category) => category !== 'residential'))
+    return false;
+  return !prefs.property_types.some(
+    (type) =>
+      !CATEGORY_SUBTYPES.Residential.includes(type) &&
+      (CATEGORY_SUBTYPES.Commercial.includes(type) ||
+        CATEGORY_SUBTYPES.Agricultural.includes(type))
+  );
+}
+
+function joinAreas(areas: string[]): string {
+  if (areas.length <= 1) return areas[0] || '';
+  if (areas.length === 2) return `${areas[0]} and ${areas[1]}`;
+  return `${areas.slice(0, -1).join(', ')}, and ${areas[areas.length - 1]}`;
+}
+
 export function buildEnquiryBudgetDisparityReply(
   opts: EnquiryBudgetDisparityOpts
 ): string {
   const name = firstName(opts.contactName);
   const prop = opts.enquiredProperty;
-  let portal = 'Housing.com';
-  if (opts.leadPortal) {
-    const lp = opts.leadPortal.toLowerCase();
-    if (lp.includes('housing')) portal = 'Housing.com';
-    else if (lp.includes('magicbricks')) portal = 'MagicBricks';
-    else if (lp.includes('99acres')) portal = '99acres';
-    else portal = opts.leadPortal;
-  }
+  const portal = leadPortalLabel(opts.leadPortal);
+  const onPortal = portal ? ` on ${portal}` : '';
 
   const propLoc =
     (prop.location || prop.sublocality || '').trim() || 'the area';
@@ -516,16 +538,32 @@ export function buildEnquiryBudgetDisparityReply(
 
   const budgetFormatted = formatDirectBudget(opts.prefs);
 
+  const intro = opts.hasPriorListingDetails
+    ? `Hi ${name}, the details above are for the specific ${propLoc} property you inquired about${onPortal}.`
+    : `Hi ${name}, your initial inquiry was for the specific ${propLoc} property${onPortal}.`;
+
+  if (!wantsResidential(opts.prefs)) {
+    const brief = [
+      typeAndSize(opts.prefs),
+      opts.prefs.areas.length ? `in ${joinAreas(opts.prefs.areas)}` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    return [
+      intro,
+      '',
+      `${priceBracket ? `It is in the ${priceBracket} bracket` : 'It is priced'}, above your ${budgetFormatted} budget, so I have noted what you want instead: ${brief} within ${budgetFormatted}.`,
+      '',
+      'Nothing in our live inventory fits that right now. The moment a matching listing arrives you will hear from us right here, and our team will reach out with anything close.',
+    ].join('\n');
+  }
+
   const propLocLower = propLoc.toLowerCase();
   const otherAreas = (opts.prefs.areas || []).filter(
     (a) =>
       !propLocLower.includes(a.toLowerCase()) &&
       !a.toLowerCase().includes(propLocLower)
   );
-
-  const intro = opts.hasPriorListingDetails
-    ? `Hi ${name}, the details above are for the specific ${propLoc} property you inquired about on ${portal}.`
-    : `Hi ${name}, your initial inquiry was for the specific ${propLoc} property on ${portal}.`;
 
   const specSummary = [
     propArea ? `${propArea} plot` : 'property',
@@ -539,13 +577,7 @@ export function buildEnquiryBudgetDisparityReply(
   let closing = '';
 
   if (otherAreas.length > 0) {
-    const areaList =
-      otherAreas.length === 1
-        ? otherAreas[0]
-        : otherAreas.length === 2
-          ? `${otherAreas[0]} and ${otherAreas[1]}`
-          : `${otherAreas.slice(0, -1).join(', ')}, and ${otherAreas[otherAreas.length - 1]}`;
-    middle = `As a ${specSummary}, for your ${budgetFormatted} budget, we MAY have great residential options (2/3 BHK apartments and independent floors) in ${areaList}.`;
+    middle = `As a ${specSummary}, for your ${budgetFormatted} budget, we MAY have great residential options (2/3 BHK apartments and independent floors) in ${joinAreas(otherAreas)}.`;
     closing = `Are you looking for an independent house/plot or an apartment in those areas? Let me know and I'll share the options within ${budgetFormatted}.`;
   } else {
     middle = `As a ${specSummary}, for your ${budgetFormatted} budget in ${propLoc}, options are typically 2/3 BHK apartments rather than large independent plots.`;
@@ -553,6 +585,45 @@ export function buildEnquiryBudgetDisparityReply(
   }
 
   return [intro, '', middle, '', closing].join('\n');
+}
+
+/**
+ * The bridge reply for a lead whose stated budget sits well under the
+ * listing they enquired about, or null when there is no such gap or the
+ * thread already carries this exact reply.
+ */
+export function enquiryBudgetDisparityReply(
+  prefs: ExtractedPreferences,
+  contactName: string | null | undefined,
+  enquiredContext:
+    { property: Property; leadPortal?: string | null } | null | undefined,
+  recentBotTexts: (string | null)[]
+): string | null {
+  const property = enquiredContext?.property;
+  if (
+    !property?.price ||
+    !prefs.budget_max ||
+    Number(property.price) < Number(prefs.budget_max) * 1.25
+  )
+    return null;
+
+  const propCode = (property.property_code || '').trim();
+  const propTitle = (property.title || '').trim();
+  const hasPriorListingDetails = recentBotTexts.some(
+    (t) =>
+      !!t &&
+      !t.includes(ENQUIRY_ACK_PROMISE) &&
+      ((!!propCode && t.includes(propCode)) ||
+        (!!propTitle && t.includes(propTitle.slice(0, 25))))
+  );
+  const reply = buildEnquiryBudgetDisparityReply({
+    contactName,
+    prefs,
+    enquiredProperty: property,
+    leadPortal: enquiredContext?.leadPortal,
+    hasPriorListingDetails,
+  });
+  return recentBotTexts.includes(reply) ? null : reply;
 }
 
 /** Human label for what the contact said they want. */
@@ -934,37 +1005,14 @@ export function buildQualificationReply(
     };
   }
 
-  const isBudgetDisparity = Boolean(
-    enquiredContext?.property &&
-    enquiredContext.property.price &&
-    prefs.budget_max &&
-    Number(enquiredContext.property.price) >= Number(prefs.budget_max) * 1.25
+  const disparityReply = enquiryBudgetDisparityReply(
+    prefs,
+    contactName,
+    enquiredContext,
+    recentBotTexts
   );
-
-  if (isBudgetDisparity && enquiredContext?.property) {
-    const propTitle = (enquiredContext.property.title || '').trim();
-    const propCode = (enquiredContext.property.property_code || '').trim();
-    const hasPriorListingDetails = recentBotTexts.some(
-      (t) =>
-        !!t &&
-        ((propTitle && t.includes(propTitle.slice(0, 25))) ||
-          (propCode && t.includes(propCode)) ||
-          t.includes('👇') ||
-          t.toLowerCase().includes('housing') ||
-          t.toLowerCase().includes('listed'))
-    );
-
-    return {
-      missing: null,
-      reply: buildEnquiryBudgetDisparityReply({
-        contactName,
-        prefs,
-        enquiredProperty: enquiredContext.property,
-        leadPortal: enquiredContext.leadPortal,
-        hasPriorListingDetails,
-      }),
-      sentPropertyIds: [],
-    };
+  if (disparityReply) {
+    return { missing: null, reply: disparityReply, sentPropertyIds: [] };
   }
 
   return {
@@ -2049,12 +2097,19 @@ export async function processBuyerQualificationMessage(
       enquiredProperty = data as Property | null;
     }
 
-    const isBudgetDisparity = Boolean(
-      enquiredProperty &&
-      enquiredProperty.price &&
-      prefs.budget_max &&
-      Number(enquiredProperty.price) >= Number(prefs.budget_max) * 1.25
-    );
+    const enquiredContext = enquiredProperty
+      ? {
+          property: enquiredProperty,
+          leadPortal: contact.lead_portal || contact.source,
+        }
+      : null;
+    const isBudgetDisparity =
+      enquiryBudgetDisparityReply(
+        prefs,
+        contact.name,
+        enquiredContext,
+        recentBotTexts
+      ) !== null;
 
     // Fully qualified, nothing fits: play the updated brief back with
     // one-tap corrections instead of "our team will call you", UNLESS
@@ -2114,12 +2169,7 @@ export async function processBuyerQualificationMessage(
       contact.id,
       asked,
       recentBotTexts,
-      enquiredProperty
-        ? {
-            property: enquiredProperty,
-            leadPortal: contact.lead_portal || contact.source,
-          }
-        : null
+      enquiredContext
     );
 
     if (await agentTookOver()) return false;

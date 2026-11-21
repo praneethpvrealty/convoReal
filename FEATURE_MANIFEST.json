@@ -274,6 +274,32 @@
           ]
         },
         {
+          "id": "INB-051",
+          "rule": "A lead whose stated budget sits well under the listing they enquired about is answered for the brief they gave. A commercial, industrial, agricultural or plot brief is never pitched apartments or houses: the reply says the enquired listing is above budget, plays the brief back and says nothing live fits. The reply names a portal only when the lead came from Housing.com, MagicBricks or 99acres and never prints a contact source such as phone_import; it says \"the details above\" only when the thread has actually sent that listing's details, which the enquiry acknowledgement is not; and it is never sent twice in a row, the next turn falling through to the requirement review or the no-match reply. A listing priced at 1.25 times the stated budget or more is sent without the \"does this one work\" prompt and earns no \"did it match\" follow-up; a budget seeded from the enquired listing's own price does not count as stated. A contact stored with a title is greeted by title and name (Dr Subbaiha), never by the title alone.",
+          "tests": [
+            {
+              "file": "src/lib/ai/buyer-qualification.test.ts",
+              "case": "[INB-051]"
+            },
+            {
+              "file": "src/lib/whatsapp/share-feedback.test.ts",
+              "case": "[INB-051]"
+            },
+            {
+              "file": "src/lib/whatsapp/inbound/property-share-replies.test.ts",
+              "case": "[INB-051]"
+            },
+            {
+              "file": "src/lib/contacts/stated-budget.test.ts",
+              "case": "[INB-051]"
+            },
+            {
+              "file": "src/lib/contacts/greeting-name.test.ts",
+              "case": "[INB-051]"
+            }
+          ]
+        },
+        {
           "id": "INB-014",
           "rule": "The qualification ladder never drops or re-asks what a lead already said: a bare size (\"1200 sqft\", \"30x40\") is filed as a requirement, lines of one burst are filed together and in order whatever order their webhooks land in, one conversation is qualified by one webhook at a time under the inbound chain's conversation lease (INB-016), never a second lease of its own (same-second lines are ordered by their ingestion sequence), buy-or-rent follows the newest line of the burst that states it (a bare \"Rent\" correcting \"Buy\" included) so no older webhook undoes a newer one, and a budget no rent could reach (₹10 L+, ₹1 Cr+ for commercial) answers buy-or-rent. A lead who asks for matches when nothing fits is told what was searched and asked the next missing rung, never told to change a brief they never gave.",
           "tests": [
@@ -3269,6 +3295,24 @@
             {
               "file": "src/lib/whatsapp/inventory-update-template.test.ts",
               "case": "[PRP-064]"
+            }
+          ]
+        },
+        {
+          "id": "PRP-065",
+          "rule": "When a contact's brief matches nothing, the listings offered as the closest options are the closest: unmatched stock is ordered by the category the brief names, then by how far its price sits from the stated budget, ahead of starred and recently edited listings. The property_selection_update parameter then names only the categories the brief asks for when they hold stock, and the inventory digest leads with them. A brief stating neither a category nor a budget keeps the starred, readiness and recency order. The full list a Send full list tap returns counts every published, available listing, the same stock the template counted, not the newest sixty.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/top-properties.test.ts",
+              "case": "[PRP-065]"
+            },
+            {
+              "file": "src/lib/whatsapp/inventory-update-template.test.ts",
+              "case": "[PRP-065]"
+            },
+            {
+              "file": "src/lib/inventory-summary-builder.test.ts",
+              "case": "[PRP-065]"
             }
           ]
         },

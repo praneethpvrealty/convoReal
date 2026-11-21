@@ -16,6 +16,10 @@ import {
   mirrorSharedListingsToPortfolio,
   portfolioLoginUrl,
 } from '@/lib/buyer/shared-listings';
+import {
+  listingExceedsStatedBudget,
+  STATED_BUDGET_COLUMNS,
+} from '@/lib/contacts/stated-budget';
 import type { PropertyRow } from '@/lib/whatsapp/webhook-handler';
 
 export const SHORTLIST_PROPERTY_PREFIX = 'shortlist_property:';
@@ -202,6 +206,14 @@ export async function handlePropertyShareYesReply(
     }
 
     if (followUp === 'none') return true;
+
+    const { data: budget } = await supabaseAdmin()
+      .from('contacts')
+      .select(STATED_BUDGET_COLUMNS)
+      .eq('id', contactId)
+      .eq('account_id', accountId)
+      .maybeSingle();
+    if (listingExceedsStatedBudget(typedProperty.price, budget)) return true;
 
     // This is the first confirmed reply after an out-of-window template.
     // Ask for explicit listing feedback now that WhatsApp permits a

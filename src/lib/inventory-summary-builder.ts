@@ -8,6 +8,10 @@ import type { Contact, Property } from '@/types';
 import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { rankInventoryProperties } from '@/lib/inventory/top-properties';
+import { greetingName } from '@/lib/contacts/greeting-name';
+
+export const INVENTORY_SUMMARY_PROPERTY_COLUMNS =
+  'id, title, type, listing_type, price, price_per_sqft, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, location, sublocality, city, project, property_code, listing_source, latitude, longitude, tags, is_starred, images, video_url, description, features, nearby_highlights, google_map_link, showcase_audience, created_at, updated_at';
 
 export type SummaryCategory =
   'Residential' | 'Commercial' | 'Agricultural' | 'Other';
@@ -189,10 +193,11 @@ function composeInventorySummary(
   }
 
   const categoryOrder = [...CATEGORY_ORDER];
-  if (ranking.personalized && ranking.matchCount > 0) {
+  const byMatch = ranking.personalized && ranking.matchCount > 0;
+  if (byMatch || ranking.closestFirst) {
     const firstMatchIndex = new Map<SummaryCategory, number>();
     ranking.properties.forEach((property, index) => {
-      if (!ranking.matchedPropertyIds.has(property.id)) return;
+      if (byMatch && !ranking.matchedPropertyIds.has(property.id)) return;
       const cat = categoryForType(property.type);
       if (!firstMatchIndex.has(cat)) firstMatchIndex.set(cat, index);
     });
@@ -226,7 +231,7 @@ function composeInventorySummary(
     sections.push(`*${cat.toUpperCase()}*\n${lines.join('\n')}`);
   }
 
-  const firstName = recipientName?.trim().split(/\s+/)[0];
+  const firstName = greetingName(recipientName);
   const greeting = firstName ? `Hi ${firstName}!` : 'Hi there!';
   if (sections.length === 0) {
     return contact

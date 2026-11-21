@@ -13,7 +13,10 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
-import { buildInventorySummary } from '@/lib/inventory-summary-builder';
+import {
+  buildInventorySummary,
+  INVENTORY_SUMMARY_PROPERTY_COLUMNS,
+} from '@/lib/inventory-summary-builder';
 import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
 import { MATCHING_CONTACT_COLUMNS } from '@/lib/v1/projections';
 import { accountShowcaseBase } from '@/lib/showcase/account-showcase-url';
@@ -110,13 +113,12 @@ export async function buildFullListMessage(
 ): Promise<string | null> {
   const { data } = await db
     .from('properties')
-    .select('*')
+    .select(INVENTORY_SUMMARY_PROPERTY_COLUMNS)
     .eq('account_id', accountId)
     .eq('is_published', true)
     .eq('status', 'Available')
-    .order('created_at', { ascending: false })
-    .limit(60);
-  let properties = (data || []) as Property[];
+    .order('created_at', { ascending: false });
+  let properties = (data || []) as unknown as Property[];
   if (properties.length === 0) return null;
   let contact: Contact | null = null;
   if (contactId) {

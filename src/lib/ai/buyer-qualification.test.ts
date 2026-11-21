@@ -1401,6 +1401,79 @@ describe('buildQualificationReply — enquiry budget disparity handling', () => 
   });
 });
 
+describe('[INB-051] enquiry budget disparity for a commercial brief', () => {
+  const commercialBuilding: Property = {
+    id: 'prop-2125',
+    account_id: 'acc',
+    title: 'Prime Commercial Building for Sale in HSR Layout',
+    property_code: 'PROP-2125',
+    price: 210_000_000,
+    location: 'HSR Layout',
+    sublocality: 'HSR Layout',
+    city: 'Bengaluru',
+    type: 'Commercial Building',
+    status: 'Available',
+    listing_type: 'Sale',
+    land_area: 2400,
+    land_area_unit: 'sqft',
+  } as Property;
+  const brief = prefs({
+    property_types: ['Commercial Building'],
+    property_categories: ['commercial'],
+    listing_types: ['Sale'],
+    budget_min: 100_000_000,
+    budget_max: 150_000_000,
+    areas: ['HSR Layout', 'Koramangala', 'BTM Layout', 'Indiranagar'],
+  });
+  const ack =
+    "Thanks Dr Subbaiha! Your enquiry for *Prime Commercial Building for Sale in HSR Layout* has reached our team — you'll receive the complete details right here shortly.";
+  const reply = (recentBotTexts: (string | null)[]) =>
+    buildQualificationReply(
+      brief,
+      'Dr Subbaiha',
+      [],
+      [],
+      'https://convoreal.com',
+      'contact-1',
+      ['budget', 'location'],
+      recentBotTexts,
+      { property: commercialBuilding, leadPortal: 'phone_import' }
+    ).reply;
+
+  it('never pitches residential stock to a lead who asked for commercial', () => {
+    const text = reply([ack]);
+    expect(text).not.toMatch(/residential|BHK|apartment|house/i);
+    expect(text).toContain('commercial building');
+    expect(text).toContain('above your ₹10 Cr–₹15 Cr budget');
+    expect(text).toContain(
+      'in HSR Layout, Koramangala, BTM Layout, and Indiranagar'
+    );
+  });
+
+  it('greets a titled lead by name and keeps the contact source out of the reply', () => {
+    const text = reply([ack]);
+    expect(text).toContain('Hi Dr Subbaiha,');
+    expect(text).not.toContain('phone_import');
+    expect(text).not.toContain(' on Housing.com');
+  });
+
+  it('does not point at details the thread has not sent yet', () => {
+    expect(reply([ack])).toContain('your initial inquiry was for');
+    expect(
+      reply([
+        '🏠 *Prime Commercial Building for Sale in HSR Layout*\n💰 *Price:* ₹21 Cr',
+      ])
+    ).toContain('the details above are for');
+  });
+
+  it('is never sent twice in a row', () => {
+    const first = reply([ack]);
+    const second = reply([first, ack]);
+    expect(second).not.toBe(first);
+    expect(second).toContain('Nothing in our live inventory matches');
+  });
+});
+
 describe('a bot question that is not the ladder’s own', () => {
   it('recognises each rung it asks', () => {
     expect(

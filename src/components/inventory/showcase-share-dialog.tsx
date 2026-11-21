@@ -40,6 +40,7 @@ import {
   buildInventorySummary,
   categoryForType,
 } from '@/lib/inventory-summary-builder';
+import { greetingName } from '@/lib/contacts/greeting-name';
 import { filterPropertiesBySearch } from '@/lib/inventory/search-filter';
 import { buildShowcaseShareLink } from '@/lib/inventory/showcase-share-link';
 import { formatShareAmount } from '@/lib/share-message-builder';
@@ -644,7 +645,7 @@ Best regards`;
     name?: string | null,
     summaryOverride?: string
   ) => {
-    const firstName = name?.trim().split(/\s+/)[0] || 'there';
+    const firstName = greetingName(name) || 'there';
     const rendered =
       messageMode === 'list'
         ? (summaryOverride ?? summaryMessage)
@@ -827,7 +828,7 @@ Best regards`;
         sendableContacts.map((contact) => contact.id)
       );
       for (const contact of sendableContacts) {
-        const firstName = contact.name?.trim().split(/\s+/)[0] || 'there';
+        const firstName = greetingName(contact.name) || 'there';
         const [selection] =
           summaries.personalized[contact.id]?.selection_template_params ??
           summaries.selection_template_params;

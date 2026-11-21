@@ -66,9 +66,7 @@ function propertiesDb(rows: unknown[]): SupabaseClient {
           eq: () => ({
             eq: () => ({
               eq: () => ({
-                order: () => ({
-                  limit: () => Promise.resolve({ data: rows, error: null }),
-                }),
+                order: () => Promise.resolve({ data: rows, error: null }),
               }),
             }),
           }),

@@ -248,3 +248,49 @@ describe('[PRP-064] property_selection_update readability', () => {
     ).toBe('Commercial Building for Sale…');
   });
 });
+
+describe('[PRP-065] property_selection_update for a brief nothing matches', () => {
+  it('names only the category the buyer asked for, nearest price first', () => {
+    const contact = {
+      id: 'c1',
+      user_id: 'u1',
+      phone: '+919999999999',
+      name: 'Dr Subbaiha',
+      requirement_active: true,
+      pref_property_categories: ['commercial'],
+      pref_budget_min: 100_000_000,
+      pref_budget_max: 150_000_000,
+      pref_areas: ['Indiranagar'],
+      strict_area_match: true,
+    } as unknown as Contact;
+    const [selection] = buildPropertySelectionUpdateParams(
+      [
+        prop({
+          title: 'IT Park in Domlur',
+          type: 'Commercial Building',
+          price: 3_800_000_000,
+          location: 'Domlur',
+          is_starred: true,
+        }),
+        prop({
+          title: 'Flat in Whitefield',
+          type: 'Flat/ Apartment',
+          price: 21_500_000,
+          location: 'Whitefield',
+        }),
+        prop({
+          title: 'Rented Building in Kundalahalli',
+          type: 'Commercial Building',
+          price: 200_000_000,
+          location: 'Kundalahalli',
+        }),
+      ],
+      contact
+    );
+    expect(selection).toMatch(/^Commercial: 2 available, closest options/);
+    expect(selection).not.toContain('Residential');
+    expect(selection.indexOf('Rented Building')).toBeLessThan(
+      selection.indexOf('IT Park')
+    );
+  });
+});
