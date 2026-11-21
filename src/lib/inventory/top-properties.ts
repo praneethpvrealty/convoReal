@@ -2,8 +2,7 @@ import type { Contact, Property } from '@/types';
 import { curateForBuyer, hasBuyerBrief } from '@/lib/buyer/matches-ranking';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
-import { isEnquiryBudgetAnchor } from '@/lib/matching';
-import { resolveBudgetBound } from '@/lib/contacts/budget-amount';
+import { statedBudgetSignature } from '@/lib/matching';
 
 export interface RankedInventory {
   properties: Property[];
@@ -67,23 +66,9 @@ function briefDistance(
   const source = resolveRequirementSource(contact);
   const wanted = briefCategories(source);
 
-  const positive = (value: unknown) =>
-    value != null && Number(value) > 0 ? Number(value) : null;
-  const explicitMax = positive(source.max_budget);
-  const statedMin = source.no_budget
-    ? null
-    : resolveBudgetBound(
-        positive(source.min_budget),
-        positive(source.pref_budget_min)
-      );
-  const max = source.no_budget
-    ? null
-    : resolveBudgetBound(explicitMax, positive(source.pref_budget_max));
-  const anchored =
-    explicitMax === null &&
-    statedMin === null &&
-    isEnquiryBudgetAnchor(max, source.pref_budget_anchor);
-  const min = anchored ? null : statedMin;
+  const band = statedBudgetSignature(contact);
+  const min = band?.min ?? null;
+  const max = band?.max ?? null;
   if (wanted.size === 0 && min === null && max === null) return null;
 
   return (property) => {

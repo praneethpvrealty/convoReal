@@ -83,6 +83,25 @@ describe('[INB-051] listingExceedsStatedBudget', () => {
     ).toBeNull();
   });
 
+  it('takes the widest ceiling across the briefs the matcher ranks on', () => {
+    const contact = {
+      requirements: 'Commercial building in HSR',
+      pref_budget_max: 150_000_000,
+      requirement_profiles: [
+        {
+          id: 'p2',
+          raw_text: 'Also open to a larger building',
+          active: true,
+          budget_max: 300_000_000,
+        },
+      ],
+    } as unknown as Parameters<typeof statedBudgetMax>[0];
+    expect(statedBudgetMax(contact)).toBe(300_000_000);
+    expect(listingExceedsStatedBudget({ price: 210_000_000 }, contact)).toBe(
+      false
+    );
+  });
+
   it('says nothing when the price or the budget is unknown', () => {
     expect(
       listingExceedsStatedBudget({ price: null }, { pref_budget_max: 1 })

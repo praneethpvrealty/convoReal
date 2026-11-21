@@ -10,6 +10,7 @@ import type { InteractiveButton } from '@/lib/whatsapp/meta-api';
 import {
   listingExceedsStatedBudget,
   STATED_BUDGET_COLUMNS,
+  type StatedBudgetFields,
 } from '@/lib/contacts/stated-budget';
 import {
   messageSenderLabel,
@@ -206,14 +207,19 @@ async function sendShareFeedback(
     .maybeSingle();
   if (!config) return 'retry';
 
-  const { data: contact } = await db
+  const { data: contactRow } = await db
     .from('contacts')
-    .select(
-      `name, preferred_language, assigned_agent_id, ${STATED_BUDGET_COLUMNS}`
-    )
+    .select(`preferred_language, assigned_agent_id, ${STATED_BUDGET_COLUMNS}`)
     .eq('id', share.contact_id)
     .eq('account_id', share.account_id)
     .maybeSingle();
+  const contact = contactRow as unknown as
+    | (StatedBudgetFields & {
+        name: string | null;
+        preferred_language: string | null;
+        assigned_agent_id: string | null;
+      })
+    | null;
   if (!contact) return 'retry';
 
   let sharedProperty: {

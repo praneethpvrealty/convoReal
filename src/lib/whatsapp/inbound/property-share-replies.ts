@@ -19,6 +19,7 @@ import {
 import {
   listingExceedsStatedBudget,
   STATED_BUDGET_COLUMNS,
+  type StatedBudgetFields,
 } from '@/lib/contacts/stated-budget';
 import type { PropertyRow } from '@/lib/whatsapp/webhook-handler';
 
@@ -213,7 +214,13 @@ export async function handlePropertyShareYesReply(
       .eq('id', contactId)
       .eq('account_id', accountId)
       .maybeSingle();
-    if (listingExceedsStatedBudget(typedProperty, budget)) return true;
+    if (
+      listingExceedsStatedBudget(
+        typedProperty,
+        budget as unknown as StatedBudgetFields | null
+      )
+    )
+      return true;
 
     // This is the first confirmed reply after an out-of-window template.
     // Ask for explicit listing feedback now that WhatsApp permits a

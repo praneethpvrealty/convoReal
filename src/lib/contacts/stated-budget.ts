@@ -1,53 +1,25 @@
-import { isEnquiryBudgetAnchor } from '@/lib/matching';
-import { resolveBudgetBound } from '@/lib/contacts/budget-amount';
-import { resolveRequirementSource } from '@/lib/requirements/profiles';
+import { statedBudgetSignature } from '@/lib/matching';
+import { MATCHING_CONTACT_COLUMNS } from '@/lib/v1/projections';
 import type { Contact } from '@/types';
 
 export const BUDGET_OVERSHOOT_FACTOR = 1.25;
 
-export const STATED_BUDGET_COLUMNS =
-  'pref_budget_max, max_budget, pref_budget_min, min_budget, no_budget, pref_budget_anchor, requirements, requirement_profiles';
+export const STATED_BUDGET_COLUMNS = MATCHING_CONTACT_COLUMNS;
 
-export type StatedBudgetFields = Pick<
-  Contact,
-  | 'pref_budget_max'
-  | 'max_budget'
-  | 'pref_budget_min'
-  | 'min_budget'
-  | 'no_budget'
-  | 'pref_budget_anchor'
-  | 'requirements'
-  | 'requirement_profiles'
->;
-
-const positive = (value: unknown): number | null =>
-  value != null && Number(value) > 0 ? Number(value) : null;
+export type StatedBudgetFields = Partial<Contact>;
 
 /**
- * The maximum the contact stated, resolved as the matcher does: the
- * active requirement profile's budget when the contact has no brief of
- * their own, the agent-typed figure ahead of the parsed one, and never a
- * figure seeded from the listing they enquired about.
+ * The maximum the contact stated, as the matcher reads it: the widest
+ * ceiling across every brief it ranks them on, and none when a brief
+ * leaves the budget open or the only figure is the price of the listing
+ * they enquired about.
  */
 export function statedBudgetMax(
   contact: StatedBudgetFields | null | undefined
 ): number | null {
   if (!contact) return null;
-  const source = resolveRequirementSource(contact as Contact);
-  if (source.no_budget) return null;
-  const explicit = positive(source.max_budget);
-  const max = resolveBudgetBound(explicit, positive(source.pref_budget_max));
-  const min = resolveBudgetBound(
-    positive(source.min_budget),
-    positive(source.pref_budget_min)
-  );
-  if (
-    explicit === null &&
-    min === null &&
-    isEnquiryBudgetAnchor(max, source.pref_budget_anchor)
-  )
-    return null;
-  return max;
+  const max = statedBudgetSignature(contact as Contact)?.max ?? null;
+  return max !== null && max > 0 ? max : null;
 }
 
 export interface BudgetedListing {
