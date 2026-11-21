@@ -213,7 +213,7 @@ export async function handlePropertyShareYesReply(
       .eq('id', contactId)
       .eq('account_id', accountId)
       .maybeSingle();
-    if (listingExceedsStatedBudget(typedProperty.price, budget)) return true;
+    if (listingExceedsStatedBudget(typedProperty, budget)) return true;
 
     // This is the first confirmed reply after an out-of-window template.
     // Ask for explicit listing feedback now that WhatsApp permits a

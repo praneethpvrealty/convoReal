@@ -220,11 +220,13 @@ async function sendShareFeedback(
     id: string;
     title: string | null;
     price: number | null;
+    rent_per_month: number | null;
+    listing_type: string | null;
   } | null = null;
   if (share.property_id) {
     const { data, error: propertyError } = await db
       .from('properties')
-      .select('id, title, price')
+      .select('id, title, price, rent_per_month, listing_type')
       .eq('id', share.property_id)
       .eq('account_id', share.account_id)
       .maybeSingle();
@@ -238,7 +240,7 @@ async function sendShareFeedback(
     sharedProperty = data;
   }
 
-  if (listingExceedsStatedBudget(sharedProperty?.price, contact)) {
+  if (listingExceedsStatedBudget(sharedProperty, contact)) {
     await db
       .from('property_shares')
       .update({ feedback_status: 'skipped', feedback_sent_at: null })

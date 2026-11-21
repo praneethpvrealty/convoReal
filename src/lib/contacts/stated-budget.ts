@@ -11,11 +11,21 @@ export interface StatedBudgetFields {
   pref_budget_anchor?: number | string | null;
 }
 
+export interface BudgetedListing {
+  price?: number | string | null;
+  rent_per_month?: number | string | null;
+  listing_type?: string | null;
+}
+
 export function listingExceedsStatedBudget(
-  price: number | string | null | undefined,
+  listing: BudgetedListing | null | undefined,
   contact: StatedBudgetFields | null | undefined
 ): boolean {
-  const amount = Number(price || 0);
+  const amount = Number(
+    (listing?.listing_type === 'Rent'
+      ? listing.rent_per_month
+      : listing?.price) || 0
+  );
   const stated = Number(contact?.pref_budget_max ?? contact?.max_budget ?? 0);
   if (!(amount > 0) || !(stated > 0)) return false;
   if (
