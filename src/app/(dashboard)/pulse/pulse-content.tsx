@@ -51,7 +51,10 @@ import {
   type PulseListingSort,
 } from '@/lib/pulse/viewed-listings';
 import { pulseVisitorLabelParts } from '@/lib/pulse/visitor-label';
-import { contactDetailsHref } from '@/lib/pulse/visitor-link';
+import {
+  activityPropertyHref,
+  contactDetailsHref,
+} from '@/lib/pulse/visitor-link';
 import {
   dedupeConsecutiveEvents,
   groupEventsByVisitor,
@@ -237,7 +240,20 @@ export default function PulsePage() {
   };
 
   const getEventDescription = (event: HydratedShowcaseEvent) => {
-    const propertyTitle = event.property ? event.property.title : 'a property';
+    const propertyHref = activityPropertyHref(event);
+    const propertyTitle = propertyHref ? (
+      <Link
+        href={propertyHref}
+        aria-label={`Open ${event.property!.title}`}
+        className="text-primary hover:underline"
+      >
+        {event.property!.title}
+      </Link>
+    ) : event.property ? (
+      event.property.title
+    ) : (
+      'a property'
+    );
 
     switch (event.event_type) {
       case 'open':

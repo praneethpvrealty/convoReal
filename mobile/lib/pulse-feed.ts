@@ -182,6 +182,20 @@ export function visitorContactRoute(
   return event.contact ? contactScreenRoute(event.contact.id) : null;
 }
 
+/** Web parity: activityPropertyHref in src/lib/pulse/visitor-link.ts. */
+export function propertyScreenRoute(
+  propertyId: string
+): `/(app)/property/${string}` {
+  return `/(app)/property/${propertyId}`;
+}
+
+export function activityPropertyRoute(
+  event: Pick<PulseEvent, 'event_type' | 'property'>
+): `/(app)/property/${string}` | null {
+  if (event.event_type === 'open' || event.event_type === 'search') return null;
+  return event.property ? propertyScreenRoute(event.property.id) : null;
+}
+
 export interface PulseVisitorLabelParts {
   before: string;
   contact: { id: string; label: string } | null;

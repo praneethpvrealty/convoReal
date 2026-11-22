@@ -8,6 +8,7 @@ import {
   PULSE_FEED_PAGE_SIZE,
   PULSE_LISTINGS_RENDER_STEP,
   pulseFeedCursorFilter,
+  activityPropertyRoute,
   contactScreenRoute,
   pulseVisitorLabel,
   pulseVisitorLabelParts,
@@ -388,5 +389,33 @@ describe('[PLS-004] viewed listings render incrementally', () => {
   it('never renders past the listings that exist', () => {
     expect(nextRenderedListingCount(495, 500, scroll(1560))).toBe(500);
     expect(nextRenderedListingCount(500, 500, scroll(1560))).toBe(500);
+  });
+});
+
+describe('[PLS-011] activity property link', () => {
+  const property = { id: 'p-1', title: 'Old House' };
+
+  it('opens the property screen from the property an activity row names', () => {
+    for (const event_type of [
+      'view_property',
+      'gallery',
+      'map_click',
+      'shortlist',
+      'whatsapp_click',
+    ] as const) {
+      expect(activityPropertyRoute({ event_type, property })).toBe(
+        '/(app)/property/p-1'
+      );
+    }
+  });
+
+  it('gives catalog opens, searches and unknown properties no link', () => {
+    expect(activityPropertyRoute({ event_type: 'open', property })).toBeNull();
+    expect(
+      activityPropertyRoute({ event_type: 'search', property })
+    ).toBeNull();
+    expect(
+      activityPropertyRoute({ event_type: 'view_property', property: null })
+    ).toBeNull();
   });
 });
