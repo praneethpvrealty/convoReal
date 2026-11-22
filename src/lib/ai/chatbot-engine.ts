@@ -1860,6 +1860,14 @@ export async function processOwnerChatbotMessage(
     return true;
   }
 
+  let fileEditBurnKey: string | null = null;
+  async function refundFileEdit(reason: string): Promise<void> {
+    if (!fileEditBurnKey) return;
+    const burnKey = fileEditBurnKey;
+    fileEditBurnKey = null;
+    await refundBurn(accountId, 'listing_parse', burnKey, { reason });
+  }
+
   if (editTarget) {
     try {
       if (
@@ -1881,12 +1889,11 @@ export async function processOwnerChatbotMessage(
         });
         if (outcome === 'edited') return true;
       } else {
-        if (
-          !(await gatedBurn(
-            accountId,
-            isEditFile ? 'listing_parse' : 'chatbot_classify'
-          ))
-        ) {
+        const editBurn = await gatedBurnReceipt(
+          accountId,
+          isEditFile ? 'listing_parse' : 'chatbot_classify'
+        );
+        if (!editBurn.allowed) {
           return await sendCreditsLockedReply(
             accountId,
             phoneNumberId,
@@ -1895,6 +1902,7 @@ export async function processOwnerChatbotMessage(
             conversation.id
           );
         }
+        if (isEditFile) fileEditBurnKey = editBurn.burnKey;
         const editFile = isEditFile ? await loadInboundMedia() : null;
         const result = await applyRecordUpdate({
           entityType: editTarget.entityType,
@@ -1907,6 +1915,7 @@ export async function processOwnerChatbotMessage(
               : undefined,
         });
         if (result && result !== 'stale' && result !== 'unchanged') {
+          fileEditBurnKey = null;
           const label =
             editTarget.entityType === 'contact'
               ? 'Contact updated'
@@ -1964,6 +1973,7 @@ export async function processOwnerChatbotMessage(
           return true;
         }
         if (result === null || (result === 'stale' && namedEdit)) {
+          await refundFileEdit('listing could not be updated');
           const reply = formatRecordUpdateFailureReply(editTarget.entityType);
           const sendRes = await sendTextMessage({
             phoneNumberId,
@@ -1977,6 +1987,7 @@ export async function processOwnerChatbotMessage(
       }
     } catch (err) {
       console.error('[chatbot-engine] quote-reply edit failed:', err);
+      await refundFileEdit('attachment edit failed');
       if (namedEdit || (isEditFile && editTarget.entityType === 'property')) {
         const reply = formatRecordUpdateFailureReply('property');
         const sendRes = await sendTextMessage({

@@ -52,7 +52,7 @@ export function parseNamedPropertyEdit(
 const LEAD_IN =
   /\b(?:need|want|wish|have|has|like|going|trying|able)\s+to\b|\b(?:how|where)\s+to\b/gi;
 const STATES_VALUE =
-  /\d|[=:]|\b(?:to|as|is|are|was|now|with|from|into)\s+\S|\b(?:sold|rented|leased|vacant|available|withdrawn|booked|occupied|off\s+market|under\s+contract)\b/i;
+  /\d|[=:]|\b(?:to|as|is|are|was|now|with|from|into)\s+\S|\b(?:sold|rented|leased|vacant|(?:un)?available|withdrawn|booked|occupied|archived?|inactive|closed|reserved|rejected|on\s+hold|off\s+(?:the\s+)?market|under\s+contract)\b/i;
 
 export function namedEditStatesChange(
   text: string | null | undefined

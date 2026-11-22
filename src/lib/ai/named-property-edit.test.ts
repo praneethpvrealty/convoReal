@@ -92,6 +92,10 @@ describe('[INB-053] an edit that names its listing by code', () => {
       'Change the title of PROP-2680 to Corner shop',
       'mark PROP-2680 as rented',
       'mark PROP-2680 sold',
+      'mark PROP-2680 archived',
+      'mark PROP-2680 unavailable',
+      'mark PROP-2680 off the market',
+      'put PROP-2680 on hold',
       'update rent of PROP-2680: seven lakh',
       'Need to change the advance of PROP-2680, it is now thirty five lakh',
     ]) {
@@ -208,6 +212,16 @@ describe('[INB-053] an edit that names its listing by code', () => {
     );
     expect(apply).toBeGreaterThan(-1);
     expect(apply).toBeLessThan(intake);
+    expect(source).toContain(
+      'if (isEditFile) fileEditBurnKey = editBurn.burnKey;'
+    );
+    expect(source).toContain(
+      "await refundBurn(accountId, 'listing_parse', burnKey, { reason });"
+    );
+    expect(source).toContain("await refundFileEdit('attachment edit failed');");
+    expect(source).toContain(
+      "await refundFileEdit('listing could not be updated');"
+    );
     expect(source.slice(apply - 400, apply)).toContain(
       'const editFile = isEditFile ? await loadInboundMedia() : null;'
     );
