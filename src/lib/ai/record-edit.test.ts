@@ -241,4 +241,61 @@ describe('buildRecordPatch', () => {
       })
     ).resolves.toBe('unchanged');
   });
+
+  it("[INB-053] writes rental terms and keeps a rent listing's two rent columns together", async () => {
+    const row = {
+      ...property,
+      listing_type: 'Rent',
+      price: 40000,
+      rent_per_month: 40000,
+      maintenance: null,
+      advance: null,
+      floor_tenancies: [],
+      rental_income: null,
+    };
+    const maybeSingle = vi.fn().mockResolvedValue({ data: row, error: null });
+    const select = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({ maybeSingle }),
+      }),
+    });
+    const updateAccount = vi.fn().mockResolvedValue({ error: null });
+    const update = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ eq: updateAccount }),
+    });
+    vi.mocked(supabaseAdmin).mockReturnValue({
+      from: vi.fn().mockReturnValue({ select, update }),
+    } as unknown as ReturnType<typeof supabaseAdmin>);
+    vi.mocked(generateJsonFromParts).mockResolvedValue(
+      JSON.stringify({
+        title: row.title,
+        price: '45,000',
+        maintenance: 3000,
+        advance: '3,00,000',
+        account_id: 'other',
+      })
+    );
+
+    await expect(
+      applyRecordUpdate({
+        entityType: 'property',
+        entityId: row.id,
+        accountId: row.account_id,
+        instruction: 'rent 45,000, maintenance 3000, advance 3 lakh',
+      })
+    ).resolves.toEqual({
+      price: 45000,
+      maintenance: 3000,
+      advance: 300000,
+      roi: null,
+    });
+    expect(update).toHaveBeenCalledWith({
+      price: 45000,
+      maintenance: 3000,
+      advance: 300000,
+      roi: null,
+      rent_per_month: 45000,
+    });
+    expect(updateAccount).toHaveBeenCalledWith('account_id', row.account_id);
+  });
 });

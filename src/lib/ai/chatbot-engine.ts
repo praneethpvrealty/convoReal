@@ -122,6 +122,14 @@ import {
   formatRecordUnchangedReply,
   formatRecordUpdateFailureReply,
 } from '@/lib/ai/record-edit';
+import {
+  findPropertyByCode,
+  formatNamedEditNotFound,
+  formatNamedEditPrompt,
+  parseNamedPropertyEdit,
+  pendingNamedEditTarget,
+  type NamedPropertyRow,
+} from '@/lib/ai/named-property-edit';
 import { matchProjectByName } from '@/lib/inventory/projects';
 import { extractEKhata } from '@/lib/inventory/e-khata';
 import {
@@ -1726,6 +1734,44 @@ export async function processOwnerChatbotMessage(
       ? await resolveBotTarget({ accountId, contextId: message.context?.id })
       : null;
 
+  // 1.652. An edit that names its listing by code ("update the rental
+  // details of PROP-2680") is aimed at that row as surely as a quote
+  // is. Without this it reached the intake below and opened a draft
+  // with every field Missing. The question it may be answered with is
+  // read back for the next plain text message only.
+  let namedEdit: NamedPropertyRow | null = null;
+  let answersNamedEditPrompt = false;
+  const isPlainText = message.type === 'text' || isAudioMsg;
+  if (!editTarget && cleanedText && isPlainText && !message.context?.id) {
+    const namedCode = parseNamedPropertyEdit(cleanedText);
+    if (namedCode) {
+      const found = await findPropertyByCode({ accountId, code: namedCode });
+      if (!found) {
+        const reply =
+          found === null
+            ? formatNamedEditNotFound(namedCode)
+            : formatRecordUpdateFailureReply('property');
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        return true;
+      }
+      namedEdit = found;
+      editTarget = { entityType: 'property', entityId: found.id };
+    } else {
+      editTarget = await pendingNamedEditTarget({
+        accountId,
+        conversationId: conversation.id,
+        text: cleanedText,
+      });
+      answersNamedEditPrompt = Boolean(editTarget);
+    }
+  }
+
   // 1.64. The answer to "how did it go?".
   //
   // The nudge asks a direct question, and the answer comes back the way
@@ -1854,7 +1900,24 @@ export async function processOwnerChatbotMessage(
           });
           return true;
         }
-        if (result === 'unchanged') {
+        if (result === 'unchanged' && namedEdit) {
+          const reply = formatNamedEditPrompt(namedEdit);
+          const sendRes = await sendTextMessage({
+            phoneNumberId,
+            accessToken,
+            to: contactRecord.phone,
+            text: reply,
+          });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          await recordBotTarget({
+            accountId,
+            waMessageId: sendRes.messageId,
+            entityType: 'property',
+            entityId: namedEdit.id,
+          });
+          return true;
+        }
+        if (result === 'unchanged' && !answersNamedEditPrompt) {
           const reply = formatRecordUnchangedReply(editTarget.entityType);
           const sendRes = await sendTextMessage({
             phoneNumberId,
@@ -1865,7 +1928,7 @@ export async function processOwnerChatbotMessage(
           await saveBotMessage(conversation.id, reply, sendRes.messageId);
           return true;
         }
-        if (result === null) {
+        if (result === null || (result === 'stale' && namedEdit)) {
           const reply = formatRecordUpdateFailureReply(editTarget.entityType);
           const sendRes = await sendTextMessage({
             phoneNumberId,
@@ -1879,6 +1942,17 @@ export async function processOwnerChatbotMessage(
       }
     } catch (err) {
       console.error('[chatbot-engine] quote-reply edit failed:', err);
+      if (namedEdit) {
+        const reply = formatRecordUpdateFailureReply('property');
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        return true;
+      }
     }
   }
 

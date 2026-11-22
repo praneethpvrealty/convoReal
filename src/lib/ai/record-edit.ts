@@ -19,7 +19,10 @@ import {
   totalMonthlyRent,
   type FloorTenancy,
 } from '@/lib/inventory/floor-tenancies';
-import { rentalYieldPercent } from '@/lib/inventory/rental-yield';
+import {
+  isMonthlyPricedListing,
+  rentalYieldPercent,
+} from '@/lib/inventory/rental-yield';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { formatInrPlain } from '@/lib/format/currency';
 
@@ -41,6 +44,9 @@ const EDITABLE_FIELDS: Record<EditableEntity, string[]> = {
     'area_sqft',
     'facing_direction',
     'rental_income',
+    'maintenance',
+    'advance',
+    'gst',
     'floor_tenancies',
   ],
 };
@@ -51,6 +57,9 @@ const NUMERIC_FIELDS = new Set([
   'bathrooms',
   'area_sqft',
   'rental_income',
+  'maintenance',
+  'advance',
+  'gst',
 ]);
 
 /** Only the whitelisted keys, only when the model actually changed
@@ -167,7 +176,11 @@ export async function parseRecordUpdate(params: {
     'Carry every field the instruction does not mention through UNCHANGED. Never blank a field just because it went unmentioned. ' +
     'Prices are plain rupee numbers (1.2 crore -> 12000000). ' +
     (params.entityType === 'property'
-      ? 'Floor-wise tenant, rent and lease details belong in floor_tenancies, NEVER in description. ' +
+      ? (isMonthlyPricedListing(String(params.current.listing_type ?? ''))
+          ? `This is a ${params.current.listing_type} listing: price is its monthly rent, so a new rent goes in price and rental_income stays as given. `
+          : 'rental_income is the monthly rent the property earns. ') +
+        'maintenance is a monthly rupee amount, advance is the refundable deposit in rupees, and gst is a percentage when 100 or less. ' +
+        'Floor-wise tenant, rent and lease details belong in floor_tenancies, NEVER in description. ' +
         'floor_tenancies is an array with one row per lease using exactly these keys: floor, area_sqft, tenant_name, monthly_rent, advance, lease_start, lease_end, lock_in_months, maintenance, notes. ' +
         'A tenant occupying several floors is one row whose floor label names all of them. Convert lock-in years to months. If the user gives elapsed or remaining lock-in time without exact dates, preserve that wording in notes and do not invent lease dates. ' +
         'When all floor rents are supplied, rental_income is their total monthly rent. '
@@ -256,11 +269,19 @@ export async function applyRecordUpdate(params: {
         : (row.rental_income as number | null)
     );
   }
+  const mirrored: Record<string, unknown> = {};
+  if (
+    params.entityType === 'property' &&
+    'price' in patch &&
+    isMonthlyPricedListing(String(row.listing_type ?? ''))
+  ) {
+    mirrored.rent_per_month = patch.price;
+  }
   if (Object.keys(patch).length === 0) return 'unchanged';
 
   const { error: updErr } = await admin
     .from(table)
-    .update(patch)
+    .update({ ...patch, ...mirrored })
     .eq('id', params.entityId)
     .eq('account_id', params.accountId);
   if (updErr) {

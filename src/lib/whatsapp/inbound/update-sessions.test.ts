@@ -14,6 +14,13 @@ describe('parseUpdateIntent', () => {
     });
   });
 
+  it('[INB-053] reads a code named anywhere in an edit instruction', () => {
+    expect(
+      parseUpdateIntent('Need to update the rental details of PROP-2680.')
+    ).toEqual({ type: 'property', identifier: 'PROP-2680' });
+    expect(parseUpdateIntent('any update on PROP-2680?')).toBeNull();
+  });
+
   it('falls back to the bare noun when no code is given', () => {
     expect(parseUpdateIntent('update property')).toEqual({ type: 'property' });
     expect(parseUpdateIntent('Update contact')).toEqual({ type: 'contact' });

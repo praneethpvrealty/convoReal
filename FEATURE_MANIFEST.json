@@ -990,6 +990,30 @@
             "src/lib/inventory/location-requests.ts",
             "src/lib/whatsapp/inbound/chain/steps/lead-question.ts"
           ]
+        },
+        {
+          "id": "INB-053",
+          "rule": "An edit the account owner sends to their own Engine number naming one existing listing by its code (\"Need to update the rental details of PROP-2680\", \"change the price of PROP-2680 to 1.2 cr\", \"mark PROP-2680 as rented\") edits that listing and never opens a new listing draft, whether or not a draft is open. An instruction that carries the new values is applied and confirmed with the changed fields; one that carries none is answered with the listing's current status, rent or price, maintenance, advance and GST and the question of what should change, and the owner's next plain message (within 15 minutes, with that question still the bot's latest message, at most 500 characters) is applied to that listing without quoting; a next message that changes nothing is left to the normal readers. A code that matches no listing in the account gets a not-found reply. A reply to that question naming a different listing code is never applied to the listing asked about, and a lookup or save that fails says so rather than opening a draft. A message that only mentions a code (a client update, a visit, two codes) is not an edit. Only whitelisted fields are written, now including maintenance, advance and GST; on a Rent or Built to Suit listing a new rent is written to both price and rent_per_month. Staff update sessions recognise the same phrasing.",
+          "tests": [
+            {
+              "file": "src/lib/ai/named-property-edit.test.ts",
+              "case": "[INB-053]"
+            },
+            {
+              "file": "src/lib/ai/record-edit.test.ts",
+              "case": "[INB-053]"
+            },
+            {
+              "file": "src/lib/whatsapp/inbound/update-sessions.test.ts",
+              "case": "[INB-053]"
+            }
+          ],
+          "guards": [
+            "src/lib/ai/named-property-edit.ts",
+            "src/lib/ai/record-edit.ts",
+            "src/lib/ai/chatbot-engine.ts",
+            "src/lib/whatsapp/inbound/update-sessions.ts"
+          ]
         }
       ]
     },
