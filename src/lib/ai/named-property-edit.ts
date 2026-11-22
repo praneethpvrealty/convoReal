@@ -27,16 +27,21 @@ export const NAMED_EDIT_PROMPT = /^✏️ \*What should change on /;
 export const NAMED_EDIT_ANSWER_WINDOW_MS = 15 * 60 * 1000;
 export const NAMED_EDIT_ANSWER_MAX_CHARS = 500;
 
+export function propertyCodesIn(text: string | null | undefined): Set<string> {
+  return new Set(
+    Array.from(
+      (text || '').matchAll(new RegExp(String.raw`\b${CODE}\b`, 'gi')),
+      (m) => m[0].replace(/\D/g, '')
+    )
+  );
+}
+
 export function parseNamedPropertyEdit(
   text: string | null | undefined
 ): string | null {
   const value = (text || '').trim();
   if (!value) return null;
-  const codes = new Set(
-    Array.from(value.matchAll(new RegExp(String.raw`\b${CODE}\b`, 'gi')), (m) =>
-      m[0].replace(/\D/g, '')
-    )
-  );
+  const codes = propertyCodesIn(value);
   if (codes.size !== 1) return null;
   if (!VERB_THEN_CODE.test(value) && !VERB_FIELD_OF_CODE.test(value)) {
     return null;
@@ -141,8 +146,11 @@ export async function pendingNamedEditTarget(params: {
       .limit(1)
       .maybeSingle();
     if (error || !data) return null;
-    if (!NAMED_EDIT_PROMPT.test((data.content_text as string) || '')) {
-      return null;
+    const asked = (data.content_text as string) || '';
+    if (!NAMED_EDIT_PROMPT.test(asked)) return null;
+    const askedCodes = propertyCodesIn(asked.split('\n')[0]);
+    for (const code of propertyCodesIn(params.text)) {
+      if (!askedCodes.has(code)) return null;
     }
     const askedAt = new Date(data.created_at as string).getTime();
     if ((params.now ?? Date.now()) - askedAt > NAMED_EDIT_ANSWER_WINDOW_MS) {

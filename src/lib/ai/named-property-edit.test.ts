@@ -121,10 +121,18 @@ describe('[INB-053] an edit that names its listing by code', () => {
       ask({ ...asked, content_text: '📝 *Draft Property Listing Created!*' })
     ).resolves.toBeNull();
     await expect(ask(asked, 'x'.repeat(501))).resolves.toBeNull();
+    await expect(ask(asked, 'PROP-2681 rent 50,000')).resolves.toBeNull();
+    await expect(
+      ask(asked, 'rent of PROP-2680 and PROP-2682 is 50,000')
+    ).resolves.toBeNull();
+    await expect(ask(asked, 'PROP-2680 rent 50,000')).resolves.toEqual({
+      entityType: 'property',
+      entityId: 'p1',
+    });
     await expect(ask(null)).resolves.toBeNull();
   });
 
-  it('is resolved before the intake and never answers its own question with "no changes"', () => {
+  it('is resolved before the intake, never falls through to it on a failed lookup, and never answers its own question with "no changes"', () => {
     const source = readFileSync(
       join(process.cwd(), 'src/lib/ai/chatbot-engine.ts'),
       'utf8'
@@ -138,6 +146,13 @@ describe('[INB-053] an edit that names its listing by code', () => {
       source.indexOf('// 2. Active Property Session Exists Flow')
     );
     expect(source).toContain("if (result === 'unchanged' && namedEdit) {");
+    expect(source).toContain(
+      "if (result === null || (result === 'stale' && namedEdit)) {"
+    );
+    const lookup = source.slice(named, named + 900);
+    expect(lookup).toContain('if (!found) {');
+    expect(lookup).toContain("formatRecordUpdateFailureReply('property')");
+    expect(lookup).toContain('return true;');
     expect(source).toContain(
       "if (result === 'unchanged' && !answersNamedEditPrompt) {"
     );

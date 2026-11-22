@@ -1746,8 +1746,11 @@ export async function processOwnerChatbotMessage(
     const namedCode = parseNamedPropertyEdit(cleanedText);
     if (namedCode) {
       const found = await findPropertyByCode({ accountId, code: namedCode });
-      if (found === null) {
-        const reply = formatNamedEditNotFound(namedCode);
+      if (!found) {
+        const reply =
+          found === null
+            ? formatNamedEditNotFound(namedCode)
+            : formatRecordUpdateFailureReply('property');
         const sendRes = await sendTextMessage({
           phoneNumberId,
           accessToken,
@@ -1757,10 +1760,8 @@ export async function processOwnerChatbotMessage(
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
       }
-      if (found) {
-        namedEdit = found;
-        editTarget = { entityType: 'property', entityId: found.id };
-      }
+      namedEdit = found;
+      editTarget = { entityType: 'property', entityId: found.id };
     } else {
       editTarget = await pendingNamedEditTarget({
         accountId,
@@ -1927,7 +1928,7 @@ export async function processOwnerChatbotMessage(
           await saveBotMessage(conversation.id, reply, sendRes.messageId);
           return true;
         }
-        if (result === null) {
+        if (result === null || (result === 'stale' && namedEdit)) {
           const reply = formatRecordUpdateFailureReply(editTarget.entityType);
           const sendRes = await sendTextMessage({
             phoneNumberId,
@@ -1941,6 +1942,17 @@ export async function processOwnerChatbotMessage(
       }
     } catch (err) {
       console.error('[chatbot-engine] quote-reply edit failed:', err);
+      if (namedEdit) {
+        const reply = formatRecordUpdateFailureReply('property');
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        return true;
+      }
     }
   }
 
