@@ -198,7 +198,11 @@ export async function parseRecordUpdate(params: {
       : '') +
     'Change ONLY what the instruction or its attachment states. Never invent, infer or estimate a value, never build rows from figures already on the record, and never rewrite a text field that was not asked about. An instruction that names what to update but gives no new value changes nothing. ' +
     (params.media
-      ? 'The attachment (a photo, screenshot or document) carries the new details; read every row of a table in it. If it clearly describes a different property, return the record exactly as given. '
+      ? 'The attachment (a photo, screenshot or document) carries the new details; read every row of a table in it. ' +
+        (params.entityType === 'property' && params.current.property_code
+          ? `This record is property ${String(params.current.property_code)}. If the attachment names a different property code, return the record exactly as given. `
+          : '') +
+        'If it clearly describes a different property, return the record exactly as given. '
       : '') +
     'If the instruction is not an edit to this record at all, return the record exactly as given.\n\n' +
     `Current record:\n${JSON.stringify(current, null, 2)}\n\n` +

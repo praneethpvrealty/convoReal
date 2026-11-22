@@ -302,6 +302,7 @@ describe('buildRecordPatch', () => {
   it('[INB-053] reads the new details from an attached photo and never asks the model to invent them', async () => {
     const row = {
       ...property,
+      property_code: 'PROP-2680',
       listing_type: 'Sale',
       floor_tenancies: [],
       rental_income: 700000,
@@ -364,6 +365,10 @@ describe('buildRecordPatch', () => {
     expect(system).toContain('Never invent, infer or estimate a value');
     expect(system).toContain('gives no new value changes nothing');
     expect(system).toContain('describes a different property');
+    expect(system).toContain(
+      'This record is property PROP-2680. If the attachment names a different property code, return the record exactly as given.'
+    );
+    expect(system).not.toContain('"property_code"');
     expect(result).toMatchObject({ advance: 3430000, rental_income: 226000 });
     expect((result as Record<string, string>).floor_tenancies).toContain(
       '– Basement · Arista · ₹85,000/month · advance ₹5,00,000 · maintenance 4000'
