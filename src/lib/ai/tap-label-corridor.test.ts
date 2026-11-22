@@ -37,7 +37,7 @@ describe('tap labels never enter the interpretive corridor', () => {
     ],
     [
       'quote-correction',
-      'cleanedText && !isInteractiveTap\n      ? await resolveBotTarget',
+      '(cleanedText || isEditFile) && !isInteractiveTap\n      ? await resolveBotTarget',
     ],
     [
       'event outcome',

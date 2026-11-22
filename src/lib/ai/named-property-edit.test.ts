@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   formatNamedEditPrompt,
+  namedEditStatesChange,
   parseNamedPropertyEdit,
   pendingNamedEditTarget,
   NAMED_EDIT_PROMPT,
@@ -76,6 +77,32 @@ describe('[INB-053] an edit that names its listing by code', () => {
     }
   });
 
+  it('tells an edit that states a new value from one that only names what to update', () => {
+    for (const text of [
+      'Need to update the rental details of PROP-2680.',
+      'update PROP-2680',
+      'Want to edit the listing prop2680',
+      'please correct the maintenance and advance for PROP-2680',
+      'how to change the rent of PROP-2680',
+    ]) {
+      expect(namedEditStatesChange(text)).toBe(false);
+    }
+    for (const text of [
+      'update PROP-2680 rent to 45k',
+      'Change the title of PROP-2680 to Corner shop',
+      'mark PROP-2680 as rented',
+      'mark PROP-2680 sold',
+      'mark PROP-2680 archived',
+      'mark PROP-2680 unavailable',
+      'mark PROP-2680 off the market',
+      'put PROP-2680 on hold',
+      'update rent of PROP-2680: seven lakh',
+      'Need to change the advance of PROP-2680, it is now thirty five lakh',
+    ]) {
+      expect(namedEditStatesChange(text)).toBe(true);
+    }
+  });
+
   it('asks what should change and shows the rental figures on file', () => {
     const prompt = formatNamedEditPrompt(property);
     expect(prompt).toMatch(NAMED_EDIT_PROMPT);
@@ -146,6 +173,9 @@ describe('[INB-053] an edit that names its listing by code', () => {
       source.indexOf('// 2. Active Property Session Exists Flow')
     );
     expect(source).toContain("if (result === 'unchanged' && namedEdit) {");
+    expect(source.slice(named, named + 1400)).toContain(
+      'if (!isEditFile && !namedEditStatesChange(cleanedText)) {'
+    );
     expect(source).toContain(
       "if (result === null || (result === 'stale' && namedEdit)) {"
     );
@@ -153,8 +183,47 @@ describe('[INB-053] an edit that names its listing by code', () => {
     expect(lookup).toContain('if (!found) {');
     expect(lookup).toContain("formatRecordUpdateFailureReply('property')");
     expect(lookup).toContain('return true;');
+    expect(source).toMatch(
+      /result === 'unchanged' &&\s+\(!answersNamedEditPrompt \|\| isEditFile\)/
+    );
+  });
+
+  it('reads a photo or PDF aimed at a listing as an edit to it, before the intake', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src/lib/ai/chatbot-engine.ts'),
+      'utf8'
+    );
+    const intake = source.indexOf(
+      '// 4. Start New Session Flow (No Session Exists)'
+    );
+    const quoted = source.indexOf(
+      '(cleanedText || isEditFile) && !isInteractiveTap'
+    );
+    expect(quoted).toBeGreaterThan(-1);
+    expect(quoted).toBeLessThan(intake);
     expect(source).toContain(
-      "if (result === 'unchanged' && !answersNamedEditPrompt) {"
+      "if (!cleanedText && editTarget?.entityType !== 'property') editTarget = null;"
+    );
+    expect(source).toContain(
+      '(isPlainText ? Boolean(cleanedText) : isEditFile) &&'
+    );
+    const apply = source.indexOf(
+      'instruction: cleanedText || MEDIA_EDIT_INSTRUCTION'
+    );
+    expect(apply).toBeGreaterThan(-1);
+    expect(apply).toBeLessThan(intake);
+    expect(source).toContain(
+      'if (isEditFile) fileEditBurnKey = editBurn.burnKey;'
+    );
+    expect(source).toContain(
+      "await refundBurn(accountId, 'listing_parse', burnKey, { reason });"
+    );
+    expect(source).toContain("await refundFileEdit('attachment edit failed');");
+    expect(source).toContain(
+      "await refundFileEdit('listing could not be updated');"
+    );
+    expect(source.slice(apply - 400, apply)).toContain(
+      'const editFile = isEditFile ? await loadInboundMedia() : null;'
     );
   });
 });

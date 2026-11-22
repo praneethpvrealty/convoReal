@@ -49,6 +49,20 @@ export function parseNamedPropertyEdit(
   return `PROP-${Array.from(codes)[0]}`;
 }
 
+const LEAD_IN =
+  /\b(?:need|want|wish|have|has|like|going|trying|able)\s+to\b|\b(?:how|where)\s+to\b/gi;
+const STATES_VALUE =
+  /\d|[=:]|\b(?:to|as|is|are|was|now|with|from|into)\s+\S|\b(?:sold|rented|leased|vacant|(?:un)?available|withdrawn|booked|occupied|archived?|inactive|closed|reserved|rejected|on\s+hold|off\s+(?:the\s+)?market|under\s+contract)\b/i;
+
+export function namedEditStatesChange(
+  text: string | null | undefined
+): boolean {
+  const stripped = (text || '')
+    .replace(new RegExp(String.raw`\b${CODE}\b`, 'gi'), ' ')
+    .replace(LEAD_IN, ' ');
+  return STATES_VALUE.test(stripped);
+}
+
 export interface NamedPropertyRow {
   id: string;
   title: string | null;
@@ -118,7 +132,7 @@ export function formatNamedEditPrompt(property: NamedPropertyRow): string {
       ? null
       : `• Floor-wise leases: ${tenancies.length || '_None recorded_'}`,
     '',
-    '_Send the new details in your next message, e.g. "rent 45,000, advance 3 lakh"._',
+    '_Send the new details in your next message, e.g. "rent 45,000, advance 3 lakh", or send a photo or PDF of them._',
   ];
   return lines.filter((line) => line !== null).join('\n');
 }
