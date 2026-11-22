@@ -5077,6 +5077,19 @@ describe('[PLS-009] mobile Showcase Pulse enquiries view reads the shared rules'
   });
 });
 
+describe('[PLS-011] Showcase Pulse activity rows link their property on web and mobile', () => {
+  it('routes the activity property through the shared link helper on both surfaces', () => {
+    const screen = mobileSource('app/(app)/pulse.tsx');
+    expect(screen).toContain('activityPropertyRoute(event)');
+    expect(screen).toContain('router.push(propertyRoute)');
+    const web = readFileSync(
+      join(process.cwd(), 'src/app/(dashboard)/pulse/pulse-content.tsx'),
+      'utf8'
+    );
+    expect(web).toContain('activityPropertyHref(event)');
+  });
+});
+
 describe('[PLS-004] mobile Showcase Pulse lists every viewed listing like web', () => {
   const mobile = mobileModule<{ PULSE_VIEWED_LISTINGS_LIMIT: number }>(
     'lib/pulse-feed.ts'

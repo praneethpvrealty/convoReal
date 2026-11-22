@@ -66,6 +66,7 @@ import {
   dedupeConsecutiveEvents,
   formatDwellTime,
   formatTimeAgo,
+  activityPropertyRoute,
   contactScreenRoute,
   pulseVisitorLabel,
   pulseVisitorLabelParts,
@@ -954,8 +955,25 @@ function EnquiryRow({ row }: { row: PulseEnquiryRow }) {
 }
 
 function ActivityLine({ event }: { event: DedupedPulseEvent }) {
-  const { colors } = useTheme();
-  const what = event.property?.title ?? 'a property';
+  const { colors, fonts: f } = useTheme();
+  const propertyRoute = activityPropertyRoute(event);
+  const what =
+    propertyRoute && event.property ? (
+      <Text
+        onPress={() => router.push(propertyRoute)}
+        accessibilityRole="link"
+        accessibilityLabel={`Open ${event.property.title}`}
+        style={{
+          fontFamily: f.bold,
+          color: colors.primary,
+          textDecorationLine: 'underline',
+        }}
+      >
+        {event.property.title}
+      </Text>
+    ) : (
+      (event.property?.title ?? 'a property')
+    );
   const searchQuery =
     event.event_type === 'search' && typeof event.metadata.query === 'string'
       ? event.metadata.query
@@ -979,14 +997,18 @@ function ActivityLine({ event }: { event: DedupedPulseEvent }) {
           color: colors.textMuted,
         }}
       >
-        {shortlistRemoval ? `Removed ${what} from their shortlist` : action}
-        {event.event_type === 'open' || shortlistRemoval
-          ? ''
-          : event.event_type === 'search'
-            ? searchQuery
-              ? ` “${searchQuery}”`
-              : ''
-            : ` ${what}`}
+        {shortlistRemoval ? <>Removed {what} from their shortlist</> : action}
+        {event.event_type === 'open' || shortlistRemoval ? (
+          ''
+        ) : event.event_type === 'search' ? (
+          searchQuery ? (
+            ` “${searchQuery}”`
+          ) : (
+            ''
+          )
+        ) : (
+          <> {what}</>
+        )}
         {dwell ? ` · ${dwell}` : ''}
       </Text>
     </View>
