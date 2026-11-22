@@ -1,6 +1,7 @@
 import { phonesMatch } from '@/lib/whatsapp/phone-utils';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { parseNamedPropertyEdit } from '@/lib/ai/named-property-edit';
 
 // ============================================================
 // Update Intent Handlers
@@ -64,6 +65,11 @@ export function parseUpdateIntent(text: string): {
   );
   if (propertyWithCode) {
     return { type: 'property', identifier: propertyWithCode[1].toUpperCase() };
+  }
+
+  const namedCode = parseNamedPropertyEdit(cleaned);
+  if (namedCode) {
+    return { type: 'property', identifier: namedCode };
   }
 
   const propertyGeneric = /\bupdate\s+property\b/i.test(cleaned);
