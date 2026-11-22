@@ -298,4 +298,75 @@ describe('buildRecordPatch', () => {
     });
     expect(updateAccount).toHaveBeenCalledWith('account_id', row.account_id);
   });
+
+  it('[INB-053] reads the new details from an attached photo and never asks the model to invent them', async () => {
+    const row = {
+      ...property,
+      listing_type: 'Sale',
+      floor_tenancies: [],
+      rental_income: 700000,
+      advance: 3500000,
+    };
+    const maybeSingle = vi.fn().mockResolvedValue({ data: row, error: null });
+    const select = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({ maybeSingle }),
+      }),
+    });
+    const update = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    });
+    vi.mocked(supabaseAdmin).mockReturnValue({
+      from: vi.fn().mockReturnValue({ select, update }),
+    } as unknown as ReturnType<typeof supabaseAdmin>);
+    vi.mocked(generateJsonFromParts).mockClear();
+    vi.mocked(generateJsonFromParts).mockResolvedValue(
+      JSON.stringify({
+        advance: 3430000,
+        floor_tenancies: [
+          {
+            floor: 'Basement',
+            tenant_name: 'Arista',
+            monthly_rent: 85000,
+            advance: 500000,
+            maintenance: '4000',
+          },
+          {
+            floor: 'Ground',
+            tenant_name: 'Delectable Gourmet',
+            monthly_rent: 141000,
+            advance: 750000,
+            maintenance: '4000',
+          },
+        ],
+      })
+    );
+
+    const result = await applyRecordUpdate({
+      entityType: 'property',
+      entityId: row.id,
+      accountId: row.account_id,
+      instruction: 'Apply the details in the attached file to this record.',
+      media: { buffer: Buffer.from('rent-roll'), mimeType: 'image/jpeg' },
+    });
+
+    const [parts, system, opts] = vi.mocked(generateJsonFromParts).mock
+      .calls[0];
+    expect(parts[0]).toEqual({
+      inlineData: {
+        mimeType: 'image/jpeg',
+        data: Buffer.from('rent-roll').toString('base64'),
+      },
+    });
+    expect(opts).toEqual({ feature: 'listing_update' });
+    expect(system).toContain('Never invent, infer or estimate a value');
+    expect(system).toContain('gives no new value changes nothing');
+    expect(system).toContain('describes a different property');
+    expect(result).toMatchObject({ advance: 3430000, rental_income: 226000 });
+    expect((result as Record<string, string>).floor_tenancies).toContain(
+      '– Basement · Arista · ₹85,000/month · advance ₹5,00,000 · maintenance 4000'
+    );
+  });
 });

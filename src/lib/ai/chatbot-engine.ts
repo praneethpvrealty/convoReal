@@ -119,6 +119,7 @@ import {
 import { resolveReplayTarget, replayText } from '@/lib/whatsapp/message-replay';
 import {
   applyRecordUpdate,
+  MEDIA_EDIT_INSTRUCTION,
   formatRecordUnchangedReply,
   formatRecordUpdateFailureReply,
 } from '@/lib/ai/record-edit';
@@ -126,6 +127,7 @@ import {
   findPropertyByCode,
   formatNamedEditNotFound,
   formatNamedEditPrompt,
+  namedEditStatesChange,
   parseNamedPropertyEdit,
   pendingNamedEditTarget,
   type NamedPropertyRow,
@@ -1729,10 +1731,12 @@ export async function processOwnerChatbotMessage(
   // is gone or no longer editable falls through to the create paths, so
   // the correction still lands — the reply just says "added" not
   // "updated".
+  const isEditFile = Boolean(isImageMsg || isDocMsg);
   let editTarget =
-    cleanedText && !isInteractiveTap
+    (cleanedText || isEditFile) && !isInteractiveTap
       ? await resolveBotTarget({ accountId, contextId: message.context?.id })
       : null;
+  if (!cleanedText && editTarget?.entityType !== 'property') editTarget = null;
 
   // 1.652. An edit that names its listing by code ("update the rental
   // details of PROP-2680") is aimed at that row as surely as a quote
@@ -1742,7 +1746,11 @@ export async function processOwnerChatbotMessage(
   let namedEdit: NamedPropertyRow | null = null;
   let answersNamedEditPrompt = false;
   const isPlainText = message.type === 'text' || isAudioMsg;
-  if (!editTarget && cleanedText && isPlainText && !message.context?.id) {
+  if (
+    !editTarget &&
+    (isPlainText ? Boolean(cleanedText) : isEditFile) &&
+    !message.context?.id
+  ) {
     const namedCode = parseNamedPropertyEdit(cleanedText);
     if (namedCode) {
       const found = await findPropertyByCode({ accountId, code: namedCode });
@@ -1761,6 +1769,23 @@ export async function processOwnerChatbotMessage(
         return true;
       }
       namedEdit = found;
+      if (!isEditFile && !namedEditStatesChange(cleanedText)) {
+        const reply = formatNamedEditPrompt(found);
+        const sendRes = await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: contactRecord.phone,
+          text: reply,
+        });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        await recordBotTarget({
+          accountId,
+          waMessageId: sendRes.messageId,
+          entityType: 'property',
+          entityId: found.id,
+        });
+        return true;
+      }
       editTarget = { entityType: 'property', entityId: found.id };
     } else {
       editTarget = await pendingNamedEditTarget({
@@ -1856,7 +1881,12 @@ export async function processOwnerChatbotMessage(
         });
         if (outcome === 'edited') return true;
       } else {
-        if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+        if (
+          !(await gatedBurn(
+            accountId,
+            isEditFile ? 'listing_parse' : 'chatbot_classify'
+          ))
+        ) {
           return await sendCreditsLockedReply(
             accountId,
             phoneNumberId,
@@ -1865,11 +1895,16 @@ export async function processOwnerChatbotMessage(
             conversation.id
           );
         }
+        const editFile = isEditFile ? await loadInboundMedia() : null;
         const result = await applyRecordUpdate({
           entityType: editTarget.entityType,
           entityId: editTarget.entityId,
           accountId,
-          instruction: cleanedText,
+          instruction: cleanedText || MEDIA_EDIT_INSTRUCTION,
+          media:
+            editFile?.buffer && editFile.mimeType
+              ? { buffer: editFile.buffer, mimeType: editFile.mimeType }
+              : undefined,
         });
         if (result && result !== 'stale' && result !== 'unchanged') {
           const label =
@@ -1917,7 +1952,7 @@ export async function processOwnerChatbotMessage(
           });
           return true;
         }
-        if (result === 'unchanged' && !answersNamedEditPrompt) {
+        if (result === 'unchanged' && (!answersNamedEditPrompt || isEditFile)) {
           const reply = formatRecordUnchangedReply(editTarget.entityType);
           const sendRes = await sendTextMessage({
             phoneNumberId,
@@ -1942,7 +1977,7 @@ export async function processOwnerChatbotMessage(
       }
     } catch (err) {
       console.error('[chatbot-engine] quote-reply edit failed:', err);
-      if (namedEdit) {
+      if (namedEdit || (isEditFile && editTarget.entityType === 'property')) {
         const reply = formatRecordUpdateFailureReply('property');
         const sendRes = await sendTextMessage({
           phoneNumberId,

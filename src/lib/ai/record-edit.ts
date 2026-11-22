@@ -125,6 +125,8 @@ function formatTenancy(row: FloorTenancy): string {
     row.monthly_rent !== null
       ? `${formatInrPlain(row.monthly_rent)}/month`
       : null,
+    row.advance !== null ? `advance ${formatInrPlain(row.advance)}` : null,
+    row.maintenance ? `maintenance ${row.maintenance}` : null,
     row.lock_in_months !== null ? `${row.lock_in_months}-month lock-in` : null,
     row.notes,
   ]
@@ -160,10 +162,19 @@ export function formatRecordUpdateFailureReply(
   return `⚠️ I couldn't update this ${label} right now. Please try again in a moment.`;
 }
 
+export interface RecordEditMedia {
+  buffer: Buffer;
+  mimeType: string;
+}
+
+export const MEDIA_EDIT_INSTRUCTION =
+  'Apply the details in the attached file to this record.';
+
 export async function parseRecordUpdate(params: {
   entityType: EditableEntity;
   current: Record<string, unknown>;
   instruction: string;
+  media?: RecordEditMedia;
 }): Promise<Record<string, unknown>> {
   const fields = EDITABLE_FIELDS[params.entityType];
   const current = Object.fromEntries(
@@ -183,19 +194,32 @@ export async function parseRecordUpdate(params: {
         'Floor-wise tenant, rent and lease details belong in floor_tenancies, NEVER in description. ' +
         'floor_tenancies is an array with one row per lease using exactly these keys: floor, area_sqft, tenant_name, monthly_rent, advance, lease_start, lease_end, lock_in_months, maintenance, notes. ' +
         'A tenant occupying several floors is one row whose floor label names all of them. Convert lock-in years to months. If the user gives elapsed or remaining lock-in time without exact dates, preserve that wording in notes and do not invent lease dates. ' +
-        'When all floor rents are supplied, rental_income is their total monthly rent. '
+        'When all floor rents are supplied, rental_income is their total monthly rent; when every floor states an advance or a maintenance amount, advance and maintenance are their totals. '
+      : '') +
+    'Change ONLY what the instruction or its attachment states. Never invent, infer or estimate a value, never build rows from figures already on the record, and never rewrite a text field that was not asked about. An instruction that names what to update but gives no new value changes nothing. ' +
+    (params.media
+      ? 'The attachment (a photo, screenshot or document) carries the new details; read every row of a table in it. If it clearly describes a different property, return the record exactly as given. '
       : '') +
     'If the instruction is not an edit to this record at all, return the record exactly as given.\n\n' +
     `Current record:\n${JSON.stringify(current, null, 2)}\n\n` +
     'Respond with ONLY the JSON object.';
 
   const raw = await generateJsonFromParts(
-    [{ text: params.instruction }],
+    params.media
+      ? [
+          {
+            inlineData: {
+              mimeType: params.media.mimeType,
+              data: params.media.buffer.toString('base64'),
+            },
+          },
+          { text: params.instruction },
+        ]
+      : [{ text: params.instruction }],
     system,
-    {
-      tier: 'lite',
-      feature: 'chatbot_classify',
-    }
+    params.media
+      ? { feature: 'listing_update' }
+      : { tier: 'lite', feature: 'chatbot_classify' }
   );
 
   try {
@@ -213,6 +237,7 @@ export async function applyRecordUpdate(params: {
   entityId: string;
   accountId: string;
   instruction: string;
+  media?: RecordEditMedia;
 }): Promise<Record<string, unknown> | 'stale' | 'unchanged' | null> {
   const admin = supabaseAdmin();
   const table = params.entityType === 'contact' ? 'contacts' : 'properties';
@@ -233,6 +258,7 @@ export async function applyRecordUpdate(params: {
     entityType: params.entityType,
     current: row as Record<string, unknown>,
     instruction: params.instruction,
+    media: params.media,
   });
   const patch = buildRecordPatch(
     params.entityType,
