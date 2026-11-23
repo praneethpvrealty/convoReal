@@ -1,13 +1,28 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
-import { Image, Text, View } from 'react-native';
+import {
+  Image,
+  Pressable,
+  Text,
+  View,
+  type GestureResponderEvent,
+} from 'react-native';
+
+import { GalleryViewer } from '@/components/gallery-viewer';
 
 import { mediaSource } from '@/lib/media-source';
 import { radius, useTheme } from '@/lib/theme';
 import { discardCachedMedia, useMediaFile } from '@/lib/use-media-file';
 
-export function MediaImage({ mediaUrl }: { mediaUrl: string }) {
+export function MediaImage({
+  mediaUrl,
+  onLongPress,
+}: {
+  mediaUrl: string;
+  onLongPress?: (event: GestureResponderEvent) => void;
+}) {
   const { colors } = useTheme();
+  const [viewerOpen, setViewerOpen] = useState(false);
   const resolved = useMemo(() => mediaSource(mediaUrl), [mediaUrl]);
   const proxied = useMediaFile(
     resolved?.kind === 'proxy' ? resolved.path : null
@@ -67,12 +82,27 @@ export function MediaImage({ mediaUrl }: { mediaUrl: string }) {
   }
 
   return (
-    <Image
-      key={proxied.dataUpdatedAt}
-      source={{ uri }}
-      style={{ width: 210, height: 210, borderRadius: radius.md }}
-      resizeMode="cover"
-      onError={onImageError}
-    />
+    <>
+      <Pressable
+        onPress={() => setViewerOpen(true)}
+        onLongPress={onLongPress}
+        accessibilityRole="imagebutton"
+        accessibilityLabel="View image"
+      >
+        <Image
+          key={proxied.dataUpdatedAt}
+          source={{ uri }}
+          style={{ width: 210, height: 210, borderRadius: radius.md }}
+          resizeMode="cover"
+          onError={onImageError}
+        />
+      </Pressable>
+      {viewerOpen ? (
+        <GalleryViewer
+          images={[{ uri }]}
+          onClose={() => setViewerOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }

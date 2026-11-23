@@ -6,9 +6,7 @@ import { Link, Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
   Image,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,7 +14,6 @@ import {
   TextInput,
   View,
   useWindowDimensions,
-  type ImageSourcePropType,
 } from 'react-native';
 
 import { BlurView } from 'expo-blur';
@@ -26,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContextMenu } from '@/components/context-menu';
 import { FlyerSheet } from '@/components/flyer-sheet';
+import { GalleryViewer } from '@/components/gallery-viewer';
 import { ListingAudienceSheet } from '@/components/listing-audience-sheet';
 import {
   HiddenMatches,
@@ -2505,88 +2503,6 @@ function MatchesSection({
   );
 }
 
-/**
- * Full-screen photo viewer: paged, pinch-to-zoom on iOS (ScrollView
- * zoom props are iOS-only; Android gets full-screen contain), photo
- * counter and safe-area close button.
- */
-function GalleryViewer({
-  images,
-  initialIndex,
-  onClose,
-}: {
-  images: ImageSourcePropType[];
-  initialIndex: number;
-  onClose: () => void;
-}) {
-  const { width, height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const [index, setIndex] = useState(initialIndex);
-
-  return (
-    <Modal
-      visible
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <View style={{ flex: 1, backgroundColor: '#000' }}>
-        <FlatList
-          data={images}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          initialScrollIndex={initialIndex}
-          getItemLayout={(_, i) => ({
-            length: width,
-            offset: width * i,
-            index: i,
-          })}
-          keyExtractor={(_, i) => String(i)}
-          onMomentumScrollEnd={(e) =>
-            setIndex(
-              Math.round(
-                e.nativeEvent.contentOffset.x /
-                  Math.max(1, e.nativeEvent.layoutMeasurement.width)
-              )
-            )
-          }
-          renderItem={({ item }) => (
-            <ScrollView
-              style={{ width, height }}
-              contentContainerStyle={{ width, height }}
-              minimumZoomScale={1}
-              maximumZoomScale={4}
-              bouncesZoom
-            >
-              <Image
-                source={item}
-                style={{ width, height }}
-                resizeMode="contain"
-                accessibilityIgnoresInvertColors
-              />
-            </ScrollView>
-          )}
-        />
-        <View style={[styles.viewerTopBar, { top: insets.top + spacing.sm }]}>
-          <Text style={styles.viewerCounter}>
-            {index + 1} / {images.length}
-          </Text>
-          <Pressable
-            onPress={onClose}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Close gallery"
-            style={styles.viewerClose}
-          >
-            <Ionicons name="close" size={22} color="#fff" />
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 function Spec({
   icon,
   label,
@@ -2709,32 +2625,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   expandChipText: { color: '#fff', fontSize: 12, fontFamily: fonts.bold },
-  viewerTopBar: {
-    position: 'absolute',
-    left: spacing.lg,
-    right: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  viewerCounter: {
-    color: '#fff',
-    fontSize: 14,
-    fontFamily: fonts.bold,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    overflow: 'hidden',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  viewerClose: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   actionRail: {
     flexDirection: 'row',
     flexWrap: 'wrap',

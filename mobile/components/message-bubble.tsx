@@ -568,7 +568,16 @@ export function MessageBubble({
               ) : null}
 
               {message.content_type === 'image' && message.media_url ? (
-                <MediaImage mediaUrl={message.media_url} />
+                <MediaImage
+                  mediaUrl={message.media_url}
+                  onLongPress={(e) =>
+                    onLongPress(
+                      message,
+                      e.nativeEvent.pageX,
+                      e.nativeEvent.pageY
+                    )
+                  }
+                />
               ) : null}
 
               {message.content_type === 'audio' && message.media_url ? (
