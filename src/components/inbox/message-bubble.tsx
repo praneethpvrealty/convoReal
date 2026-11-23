@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ReplyQuote } from './reply-quote';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { MessageReactions } from './message-reactions';
 import {
   deliveryFailurePresentation,
@@ -111,6 +112,7 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   const loadImage = useCallback(async () => {
     if (!url) return;
@@ -164,13 +166,39 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src ?? ''}
-      alt={alt}
-      className="max-h-64 max-w-60 rounded-lg object-cover"
-      onError={() => setError(true)}
-    />
+    <>
+      <button
+        type="button"
+        onClick={() => setViewerOpen(true)}
+        aria-label="View image"
+        className="block cursor-zoom-in rounded-lg"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src ?? ''}
+          alt={alt}
+          className="max-h-64 max-w-60 rounded-lg object-cover"
+          onError={() => setError(true)}
+        />
+      </button>
+      <div
+        className="contents"
+        onContextMenu={(e) => e.stopPropagation()}
+        onBlur={(e) => e.stopPropagation()}
+      >
+        <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+          <DialogContent className="max-h-[95vh] w-auto max-w-[95vw] bg-slate-950 p-2 sm:max-w-[95vw]">
+            <DialogTitle className="sr-only">{alt}</DialogTitle>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src ?? ''}
+              alt={alt}
+              className="max-h-[90vh] max-w-[92vw] rounded-lg object-contain"
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+    </>
   );
 }
 

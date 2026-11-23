@@ -1014,6 +1014,22 @@
             "src/lib/ai/chatbot-engine.ts",
             "src/lib/whatsapp/inbound/update-sessions.ts"
           ]
+        },
+        {
+          "id": "INB-054",
+          "rule": "A chat image is never a dead thumbnail: tapping it on mobile opens it in the shared full-screen gallery viewer (fit to screen, pinch-to-zoom on iOS, safe-area close), and clicking it on web opens it full size in an overlay, so a cropped site plan or brochure can be read in full. On mobile, holding the image still opens the message's actions menu.",
+          "tests": [
+            {
+              "file": "src/components/inbox/message-bubble.test.tsx",
+              "case": "[INB-054]"
+            }
+          ],
+          "guards": [
+            "src/components/inbox/message-bubble.tsx",
+            "mobile/components/media-image.tsx",
+            "mobile/components/gallery-viewer.tsx",
+            "mobile/components/message-bubble.tsx"
+          ]
         }
       ]
     },
