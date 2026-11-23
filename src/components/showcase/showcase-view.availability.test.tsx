@@ -2,6 +2,8 @@
 // @vitest-environment-options { "settings": { "disableIframePageLoading": true, "disableJavaScriptFileLoading": true, "disableCSSFileLoading": true } }
 
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, cleanup, screen } from '@testing-library/react';
 import type { Property, ShowcaseSettings } from '@/types';
 
@@ -120,6 +122,28 @@ describe('showcase detail — listing availability', () => {
     expect(screen.getByRole('status').textContent).toMatch(
       /check with the listing owner/i
     );
+  });
+
+  it('[PRP-014] keeps the stamp visible on a designed showcase', () => {
+    const css = readFileSync(
+      resolve(__dirname, 'showcase-designs.css'),
+      'utf8'
+    ).replace(/\s+/g, ' ');
+    const hidden = [...css.matchAll(/([^{}]+)\{[^}]*display: none/g)].map((m) =>
+      m[1].trim()
+    );
+    for (const selector of hidden) {
+      if (/\.showcase-listing-image > \.pointer-events-none/.test(selector)) {
+        expect(selector).toContain(':not(.showcase-status-stamp)');
+      }
+    }
+    renderListing('Sold');
+    for (const stamp of screen.getAllByTestId('listing-status-stamp')) {
+      expect(stamp.classList.contains('showcase-status-stamp')).toBe(true);
+      for (const el of [stamp, ...stamp.querySelectorAll('*')]) {
+        expect(el.className).not.toMatch(/(bg|border|from)-slate-/);
+      }
+    }
   });
 
   it('[PRP-014] stamps a sold listing as Sold and a let one as Rented', () => {

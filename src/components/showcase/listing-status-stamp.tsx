@@ -19,7 +19,7 @@ export function ListingStatusStamp({
     <div
       data-testid="listing-status-stamp"
       aria-hidden={size === 'detail' ? true : undefined}
-      className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-slate-950/25"
+      className="showcase-status-stamp pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-black/25"
     >
       <span
         className={cn(
