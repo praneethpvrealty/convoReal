@@ -181,21 +181,23 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
           onError={() => setError(true)}
         />
       </button>
-      <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
-        <DialogContent
-          className="max-h-[95vh] w-auto max-w-[95vw] bg-slate-950 p-2 sm:max-w-[95vw]"
-          onContextMenu={(e) => e.stopPropagation()}
-          onBlur={(e) => e.stopPropagation()}
-        >
-          <DialogTitle className="sr-only">{alt}</DialogTitle>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={src ?? ''}
-            alt={alt}
-            className="max-h-[90vh] max-w-[92vw] rounded-lg object-contain"
-          />
-        </DialogContent>
-      </Dialog>
+      <div
+        className="contents"
+        onContextMenu={(e) => e.stopPropagation()}
+        onBlur={(e) => e.stopPropagation()}
+      >
+        <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
+          <DialogContent className="max-h-[95vh] w-auto max-w-[95vw] bg-slate-950 p-2 sm:max-w-[95vw]">
+            <DialogTitle className="sr-only">{alt}</DialogTitle>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src ?? ''}
+              alt={alt}
+              className="max-h-[90vh] max-w-[92vw] rounded-lg object-contain"
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
     </>
   );
 }

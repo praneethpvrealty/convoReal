@@ -58,15 +58,19 @@ describe('chat image viewer [INB-054]', () => {
       expect(screen.getAllByAltText('Shared image')).toHaveLength(2)
     );
     const enlarged = screen.getAllByAltText('Shared image')[1];
-    const event = new MouseEvent('contextmenu', {
-      bubbles: true,
-      cancelable: true,
-    });
-    enlarged.dispatchEvent(event);
-    fireEvent.blur(enlarged);
+    const backdrop = document.querySelector('[data-slot="dialog-overlay"]');
+    expect(backdrop).not.toBeNull();
+    for (const target of [enlarged, backdrop as Element]) {
+      const event = new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+      });
+      target.dispatchEvent(event);
+      fireEvent.blur(target);
+      expect(event.defaultPrevented).toBe(false);
+    }
     expect(onContextMenu).not.toHaveBeenCalled();
     expect(onBlur).not.toHaveBeenCalled();
-    expect(event.defaultPrevented).toBe(false);
   });
 
   it('[INB-054] opens a chat image in the full-screen gallery on mobile and keeps hold-for-actions', () => {
