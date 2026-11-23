@@ -110,8 +110,42 @@ describe('showcase detail — listing availability', () => {
     expect(inquiryText()).toContain('marked "Sold"');
   });
 
+  it('[PRP-014] stamps the status in bold across the listing photo', () => {
+    renderListing('Under Contract');
+    const stamps = screen.getAllByTestId('listing-status-stamp');
+    expect(stamps.length).toBeGreaterThan(0);
+    for (const stamp of stamps) {
+      expect(stamp.textContent).toBe('Under contract');
+    }
+    expect(screen.getByRole('status').textContent).toMatch(
+      /check with the listing owner/i
+    );
+  });
+
+  it('[PRP-014] stamps a sold listing as Sold and a let one as Rented', () => {
+    renderListing('Sold');
+    expect(screen.getAllByTestId('listing-status-stamp')[0].textContent).toBe(
+      'Sold'
+    );
+    cleanup();
+    const rented = { ...listing('Sold'), listing_type: 'Rent' } as Property;
+    render(
+      <ShowcaseView
+        properties={[rented]}
+        settings={settings}
+        accountId="acct-1"
+        initialPropertyId={rented.id}
+        disableSavedState
+      />
+    );
+    expect(screen.getAllByTestId('listing-status-stamp')[0].textContent).toBe(
+      'Rented'
+    );
+  });
+
   it('[PRP-014] shows no notice for an available listing', () => {
     renderListing('Available');
+    expect(screen.queryByTestId('listing-status-stamp')).toBeNull();
     expect(screen.queryByText(/check with the listing owner/i)).toBeNull();
     expect(inquiryText()).not.toMatch(/latest status/);
     expect(askChat).toHaveBeenCalled();
