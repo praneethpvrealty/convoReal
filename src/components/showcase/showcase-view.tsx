@@ -99,6 +99,7 @@ import {
   listingAvailabilityNotice,
   listingStatusInquiryLine,
 } from '@/lib/inventory/listing-status';
+import { ListingStatusStamp } from '@/components/showcase/listing-status-stamp';
 import { ShowcaseShortlist } from '@/components/showcase/showcase-shortlist';
 import { VisitorCapturePrompt } from '@/components/showcase/visitor-capture-prompt';
 import {
@@ -2994,16 +2995,10 @@ export function ShowcaseView({
                           {property.type}
                         </div>
 
-                        {listingAvailabilityNotice(property.status) && (
-                          <div className="absolute bottom-3 left-3 rounded-full bg-amber-500 px-2.5 py-0.5 text-[10px] font-extrabold tracking-wider text-slate-950 uppercase shadow-md">
-                            {
-                              listingAvailabilityNotice(
-                                property.status,
-                                property.listing_type
-                              )?.label
-                            }
-                          </div>
-                        )}
+                        <ListingStatusStamp
+                          status={property.status}
+                          listingType={property.listing_type}
+                        />
 
                         {agencyDesign &&
                           !listingAvailabilityNotice(property.status) && (
@@ -3557,6 +3552,14 @@ export function ShowcaseView({
                         />
                       )}
 
+                      {!isVideoSlide && (
+                        <ListingStatusStamp
+                          status={selectedProperty.status}
+                          listingType={selectedProperty.listing_type}
+                          size="detail"
+                        />
+                      )}
+
                       {/* Slider Navigation */}
                       {detailMediaCount > 1 && (
                         <>
@@ -3653,6 +3656,11 @@ export function ShowcaseView({
                     <span className="text-xs font-semibold text-slate-500">
                       No Photos Available
                     </span>
+                    <ListingStatusStamp
+                      status={selectedProperty.status}
+                      listingType={selectedProperty.listing_type}
+                      size="detail"
+                    />
                   </div>
                 )}
               </div>
