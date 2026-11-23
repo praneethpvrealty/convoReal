@@ -182,7 +182,11 @@ function MediaImage({ url, alt }: { url: string; alt: string }) {
         />
       </button>
       <Dialog open={viewerOpen} onOpenChange={setViewerOpen}>
-        <DialogContent className="max-h-[95vh] w-auto max-w-[95vw] bg-slate-950 p-2 sm:max-w-[95vw]">
+        <DialogContent
+          className="max-h-[95vh] w-auto max-w-[95vw] bg-slate-950 p-2 sm:max-w-[95vw]"
+          onContextMenu={(e) => e.stopPropagation()}
+          onBlur={(e) => e.stopPropagation()}
+        >
           <DialogTitle className="sr-only">{alt}</DialogTitle>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

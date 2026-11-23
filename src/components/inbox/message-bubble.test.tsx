@@ -1,8 +1,14 @@
 // @vitest-environment happy-dom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Message } from '@/types';
 import { MessageBubble } from './message-bubble';
@@ -24,6 +30,8 @@ function mobileSource(path: string): string {
 }
 
 describe('chat image viewer [INB-054]', () => {
+  afterEach(cleanup);
+
   it('[INB-054] opens a received image full size when it is clicked on web', async () => {
     render(<MessageBubble message={imageMessage()} />);
     fireEvent.click(await screen.findByRole('button', { name: 'View image' }));
@@ -35,6 +43,30 @@ describe('chat image viewer [INB-054]', () => {
     expect(enlarged.getAttribute('src')).toBe(
       'https://cdn.example.com/site-plan.jpg'
     );
+  });
+
+  it('[INB-054] keeps right-click and blur in the overlay from reaching the message actions wrapper', async () => {
+    const onContextMenu = vi.fn();
+    const onBlur = vi.fn();
+    render(
+      <div onContextMenu={onContextMenu} onBlur={onBlur}>
+        <MessageBubble message={imageMessage()} />
+      </div>
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'View image' }));
+    await waitFor(() =>
+      expect(screen.getAllByAltText('Shared image')).toHaveLength(2)
+    );
+    const enlarged = screen.getAllByAltText('Shared image')[1];
+    const event = new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+    });
+    enlarged.dispatchEvent(event);
+    fireEvent.blur(enlarged);
+    expect(onContextMenu).not.toHaveBeenCalled();
+    expect(onBlur).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
   });
 
   it('[INB-054] opens a chat image in the full-screen gallery on mobile and keeps hold-for-actions', () => {
