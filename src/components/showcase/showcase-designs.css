@@ -293,7 +293,7 @@
 }
 .showcase-surface[data-showcase-design]
   .showcase-listing-image
-  > .pointer-events-none {
+  > .pointer-events-none:not(.showcase-status-stamp) {
   display: none;
 }
 .showcase-surface[data-showcase-design] > header > div > div:first-child {
