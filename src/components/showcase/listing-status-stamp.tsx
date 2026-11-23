@@ -23,7 +23,7 @@ export function ListingStatusStamp({
     >
       <span
         className={cn(
-          'max-w-[85%] -rotate-12 rounded-lg border-4 text-center leading-tight font-black tracking-[0.14em] uppercase shadow-2xl backdrop-blur-[2px]',
+          'max-w-[85%] -rotate-12 rounded-lg border-4 text-center leading-tight font-black tracking-[0.14em] break-words uppercase shadow-2xl backdrop-blur-[2px]',
           closed
             ? 'border-rose-500 bg-rose-600/85 text-white'
             : 'border-amber-400 bg-amber-500/85 text-slate-950',
