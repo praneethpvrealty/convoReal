@@ -1,8 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import {
+  Link,
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+} from 'expo-router';
 import {
   createContext,
+  Fragment,
   useCallback,
   useContext,
   useEffect,
@@ -1475,12 +1481,35 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
     });
   }
 
-  const meta = [
+  const contact = todo.contact;
+  const property = todo.property;
+  const linkStyle = { fontFamily: f.semibold };
+  const meta: React.ReactNode[] = [
     due
       ? `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${clockTime(due.toISOString())}`
       : null,
-    todo.contact ? todo.contact.name || todo.contact.phone : null,
-    todo.property?.title ?? null,
+    contact ? (
+      <Text
+        key="contact"
+        style={linkStyle}
+        onPress={() => router.push(`/(app)/contact/${contact.id}`)}
+        accessibilityRole="link"
+        accessibilityLabel={`Open contact ${contact.name || contact.phone}`}
+      >
+        {contact.name || contact.phone}
+      </Text>
+    ) : null,
+    property?.title ? (
+      <Text
+        key="property"
+        style={linkStyle}
+        onPress={() => router.push(`/(app)/property/${property.id}`)}
+        accessibilityRole="link"
+        accessibilityLabel={`Open property ${property.title}`}
+      >
+        {property.title}
+      </Text>
+    ) : null,
     todo.deal_id ? DEAL_TASK_LABEL : null,
   ].filter(Boolean);
 
@@ -1534,7 +1563,12 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
               numberOfLines={1}
             >
               {overdue ? `${OVERDUE_TODO_LABEL} · ` : ''}
-              {meta.join(' · ')}
+              {meta.map((part, i) => (
+                <Fragment key={i}>
+                  {i > 0 ? ' · ' : ''}
+                  {part}
+                </Fragment>
+              ))}
             </Text>
           ) : null}
           {!todo.completed ? (
