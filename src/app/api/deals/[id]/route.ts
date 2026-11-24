@@ -8,7 +8,10 @@ import {
 import { ensureClosingRecord } from '@/lib/deals/closing-record';
 import { parseEventSource } from '@/lib/deals/events';
 import { actorName } from '@/lib/deals/server';
-import { parseDealParticipants } from '@/lib/deals/participants';
+import {
+  parseDealParticipants,
+  participantsToStore,
+} from '@/lib/deals/participants';
 import {
   loadParticipantContacts,
   syncDealParticipants,
@@ -299,7 +302,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         userId: ctx.userId,
         actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
         source: parseEventSource(body.source),
-        participants: participants.value,
+        participants: participantsToStore(participants.value),
       });
       if (!synced.ok) {
         return NextResponse.json(

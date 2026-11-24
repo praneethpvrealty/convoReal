@@ -163,9 +163,10 @@ async function loadEventSeed(appointmentId: string): Promise<DealSeed> {
     property: (PropertyOption & { owner_contact_id?: string | null }) | null;
   };
   const ids = eventContactIds(row);
-  const { data: contactRows } = ids.length
+  const { data: contactRows, error: contactError } = ids.length
     ? await supabase.from('contacts').select(PERSON_COLUMNS).in('id', ids)
-    : { data: [] };
+    : { data: [], error: null };
+  if (contactError) throw contactError;
   const contacts = (contactRows ?? []) as Contact[];
   const byId = new Map(contacts.map((c) => [c.id, c]));
   const people = participantsFromEvent(

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, createElement } from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import type {
@@ -135,12 +136,11 @@ export function DealForm({
   const [value, setValue] = useState('');
   const [currency, setCurrency] = useState('INR');
   const [contactId, setContactId] = useState('');
-  const [primaryRole, setPrimaryRole] = useState<DealParticipantRole>('buyer');
-  const [otherPeople, setOtherPeople] = useState<DealParticipantInput[]>([]);
-  const peopleBaseline = useRef<string | null>(null);
-  const [peopleState, setPeopleState] = useState<
-    'loading' | 'ready' | 'failed'
-  >('ready');
+  const [primaryRoleEdit, setPrimaryRole] =
+    useState<DealParticipantRole | null>(null);
+  const [otherPeopleEdit, setOtherPeopleEdit] = useState<
+    DealParticipantInput[] | null
+  >(null);
   const [stageId, setStageId] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [expectedCloseDate, setExpectedCloseDate] = useState('');
@@ -203,10 +203,8 @@ export function DealForm({
       // contact_id is nullable when the contact has been deleted
       // (migration 004: ON DELETE SET NULL). "" means "no selection".
       setContactId(deal.contact_id ?? '');
-      setPrimaryRole('buyer');
-      setOtherPeople([]);
-      peopleBaseline.current = null;
-      setPeopleState('loading');
+      setPrimaryRole(null);
+      setOtherPeopleEdit(null);
       setStageId(deal.stage_id);
       setAssignedTo(deal.assigned_to ?? '');
       setExpectedCloseDate(deal.expected_close_date ?? '');
@@ -225,10 +223,8 @@ export function DealForm({
       const seedPrimary = seed?.participants[0] ?? null;
       const seedOthers = seed?.participants.slice(1) ?? [];
       setTitle(seed?.title ?? '');
-      setPrimaryRole(seedPrimary?.role ?? 'buyer');
-      setOtherPeople(seedOthers);
-      peopleBaseline.current = peopleSnapshot('', 'buyer', []);
-      setPeopleState('ready');
+      setPrimaryRole(seedPrimary?.role ?? null);
+      setOtherPeopleEdit(seedOthers);
       setValue('');
       if (accountId) {
         supabase
@@ -301,48 +297,60 @@ export function DealForm({
   // seller and broker stakeholders.
   const dealId = deal?.id ?? null;
   const dealContactId = deal?.contact_id ?? '';
-  useEffect(() => {
-    if (!open || !dealId) return;
-    let cancelled = false;
-    (async () => {
+  const storedPeople = useQuery({
+    queryKey: ['deal-people', dealId, dealContactId],
+    enabled: open && Boolean(dealId),
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('deal_stakeholders')
         .select('contact_id, role')
-        .eq('deal_id', dealId)
+        .eq('deal_id', dealId!)
         .not('contact_id', 'is', null)
         .order('created_at');
-      if (cancelled) return;
-      if (error) {
-        setPeopleState('failed');
-        return;
-      }
-      const people: DealParticipantInput[] = [];
+      if (error) throw error;
+      const stored: DealParticipantInput[] = [];
       for (const row of (data ?? []) as {
         contact_id: string;
         role: string;
       }[]) {
         const role = participantRoleForStakeholder(row.role);
-        if (!role || people.some((p) => p.contact_id === row.contact_id)) {
+        if (!role || stored.some((p) => p.contact_id === row.contact_id)) {
           continue;
         }
-        people.push({ contact_id: row.contact_id, role });
+        stored.push({ contact_id: row.contact_id, role });
       }
-      const storedPrimary =
-        people.find((p) => p.contact_id === dealContactId)?.role ?? 'buyer';
-      const others = people.filter((p) => p.contact_id !== dealContactId);
-      setPrimaryRole(storedPrimary);
-      setOtherPeople(others);
-      peopleBaseline.current = peopleSnapshot(
-        dealContactId,
-        storedPrimary,
-        others
-      );
-      setPeopleState('ready');
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, dealId, dealContactId, supabase]);
+      return {
+        primaryRole:
+          stored.find((p) => p.contact_id === dealContactId)?.role ??
+          ('buyer' as DealParticipantRole),
+        others: stored.filter((p) => p.contact_id !== dealContactId),
+      };
+    },
+  });
+  const peopleState: 'loading' | 'ready' | 'failed' = !dealId
+    ? 'ready'
+    : storedPeople.isError
+      ? 'failed'
+      : storedPeople.isFetching || !storedPeople.data
+        ? 'loading'
+        : 'ready';
+  const loadedPeople = peopleState === 'ready' ? storedPeople.data : undefined;
+  const primaryRole = primaryRoleEdit ?? loadedPeople?.primaryRole ?? 'buyer';
+  const otherPeople = otherPeopleEdit ?? loadedPeople?.others ?? [];
+  const peopleBaseline = !dealId
+    ? peopleSnapshot('', 'buyer', [])
+    : loadedPeople
+      ? peopleSnapshot(
+          dealContactId,
+          loadedPeople.primaryRole,
+          loadedPeople.others
+        )
+      : null;
+  const setOtherPeople = (
+    update: (prev: DealParticipantInput[]) => DealParticipantInput[]
+  ) => setOtherPeopleEdit(update(otherPeople));
 
   // Fetch linked conversation for the selected contact (newest open one).
   // Clearing on no-selection is sync with prop state; the populated
@@ -393,8 +401,8 @@ export function DealForm({
 
   function peopleChanged(): boolean {
     return (
-      peopleBaseline.current !== null &&
-      peopleBaseline.current !== peopleSnapshot(contactId, primaryRole, people)
+      peopleBaseline !== null &&
+      peopleBaseline !== peopleSnapshot(contactId, primaryRole, people)
     );
   }
 

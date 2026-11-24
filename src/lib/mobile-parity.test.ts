@@ -6810,6 +6810,7 @@ describe('the deal card messages the contact for its stage on both surfaces', ()
     expect(mobileSource('lib/deal-link.ts')).toContain('suggestDealsForEvent(');
     const mobileForm = mobileSource('app/(app)/deal-edit.tsx');
     expect(mobileForm).toContain('participantsFromEvent(');
+    expect(mobileForm).toContain('if (contactError) throw contactError;');
     expect(mobileForm).toContain('appointment_id: seed.appointmentId');
 
     const webPage = webSource('app/(dashboard)/calendar/page.tsx');

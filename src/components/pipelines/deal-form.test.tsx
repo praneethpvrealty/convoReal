@@ -9,6 +9,9 @@ import {
   waitFor,
 } from '@testing-library/react';
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactElement } from 'react';
+
 import type { Deal, PipelineStage } from '@/types';
 
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -67,15 +70,29 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+function withQueries(ui: ReactElement) {
+  return (
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      {ui}
+    </QueryClientProvider>
+  );
+}
+
 function renderForm(onOpenChange = vi.fn()) {
   render(
-    <DealForm
-      open
-      onOpenChange={onOpenChange}
-      pipelineId="pl1"
-      stages={STAGES}
-      onSaved={vi.fn()}
-    />
+    withQueries(
+      <DealForm
+        open
+        onOpenChange={onOpenChange}
+        pipelineId="pl1"
+        stages={STAGES}
+        onSaved={vi.fn()}
+      />
+    )
   );
   return onOpenChange;
 }
@@ -155,14 +172,16 @@ describe('[PIPE-007] DealForm other contacts', () => {
 
   function renderEdit() {
     render(
-      <DealForm
-        open
-        onOpenChange={vi.fn()}
-        deal={DEAL}
-        pipelineId="pl1"
-        stages={STAGES}
-        onSaved={vi.fn()}
-      />
+      withQueries(
+        <DealForm
+          open
+          onOpenChange={vi.fn()}
+          deal={DEAL}
+          pipelineId="pl1"
+          stages={STAGES}
+          onSaved={vi.fn()}
+        />
+      )
     );
   }
 

@@ -83,6 +83,20 @@ describe('[PIPE-007] PUT /api/deals/[id] with a contact list', () => {
     );
   });
 
+  it('syncs a lone buyer to an empty list, so swapping the only contact writes no stakeholder row', async () => {
+    state.knownContacts = true;
+    syncDealParticipants.mockReset();
+    syncDealParticipants.mockResolvedValue({ ok: true });
+    const res = await put({
+      contact_id: 'c9',
+      participants: [{ contact_id: 'c9', role: 'buyer' }],
+    });
+    expect(res.status).toBe(200);
+    expect(syncDealParticipants).toHaveBeenCalledWith(
+      expect.objectContaining({ participants: [] })
+    );
+  });
+
   it('leaves the contacts alone when no list is sent', async () => {
     syncDealParticipants.mockReset();
     const res = await put({ title: 'Renamed again' });
