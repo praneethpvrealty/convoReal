@@ -4184,6 +4184,34 @@
             }
           ],
           "guards": ["src/app/(dashboard)/pipelines/pipelines-content.tsx"]
+        },
+        {
+          "id": "PIPE-006",
+          "rule": "A deal card with a contact carries a Message action on both surfaces that drafts the next step for the deal's stage — arrange a site visit at Enquiry → Shortlist, fix the visit date at Shortlisted → Visit, then the owner's meeting, the offer, due diligence, the agreement date, the brokerage, a thank-you and referral ask once closed, and a re-engagement note when lost — read from the stage's stored type and the step after its arrow, so a renamed stage keeps its meaning. The draft is built by one shared module, is shown for editing before it goes anywhere, and opens either the contact's inbox thread with it in the composer or WhatsApp; nothing is sent from the board itself, and tapping Message never opens the deal. When the contact has not written in 24 hours the free-form draft is not handed to the inbox: web keeps it in the dialog for WhatsApp and offers the thread to pick a template, and the mobile thread shows its Template / own-WhatsApp banner.",
+          "tests": [
+            {
+              "file": "src/lib/pipelines/stage-message.test.ts",
+              "case": "[PIPE-006]"
+            },
+            {
+              "file": "src/components/pipelines/deal-card.test.tsx",
+              "case": "[PIPE-006]"
+            },
+            {
+              "file": "src/components/pipelines/deal-message-dialog.test.tsx",
+              "case": "[PIPE-006]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PIPE-006]"
+            }
+          ],
+          "guards": [
+            "src/lib/pipelines/stage-message.ts",
+            "src/components/pipelines/deal-card.tsx",
+            "src/components/pipelines/deal-message-dialog.tsx",
+            "mobile/app/(app)/deals.tsx"
+          ]
         }
       ]
     },

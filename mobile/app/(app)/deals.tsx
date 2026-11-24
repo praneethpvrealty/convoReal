@@ -4,6 +4,7 @@ import { Link, Stack, router } from 'expo-router';
 import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -33,6 +34,8 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { useBoardLayout } from '@/lib/board-layout-preference';
 import { contactFullName } from '@/lib/contact-name';
+import { openContactChat } from '@/lib/open-chat';
+import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import {
   BOARD_FOCUS_QUERY_KEY,
   BOARD_SCOPES,
@@ -74,6 +77,7 @@ import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { DEALS_VIEWS } from '@shared/lib/deals/routes';
+import { buildStageMessage } from '@shared/lib/pipelines/stage-message';
 import { BOARD_LAYOUTS } from '@shared/lib/pipelines/board-layout';
 import {
   dealCardCopy,
@@ -215,7 +219,7 @@ export default function DealsScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          '*, contact:contacts(id, name, second_name, phone), property:properties(id, title, unit_no), milestones:deal_milestones(count)'
+          '*, contact:contacts(id, name, second_name, phone), property:properties(id, title, unit_no, property_code), milestones:deal_milestones(count)'
         )
         .eq('pipeline_id', activePipeline!)
         .order('created_at', { ascending: false });
@@ -247,6 +251,50 @@ export default function DealsScreen() {
     Promise.all([refetch(), focusQuery.refetch()])
   );
   const { show, close, dialogProps } = useAppDialog();
+  const [messaging, setMessaging] = useState<{
+    deal: Deal;
+    title: string;
+    text: string;
+  } | null>(null);
+  const messageRequest = useRef(0);
+  async function messageDeal(deal: Deal, stage: PipelineStage | null) {
+    const contact = deal.contact;
+    if (!contact) return;
+    haptic.tap();
+    const request = ++messageRequest.current;
+    const name = contactFullName(contact) || contact.phone || 'this contact';
+    const propertyUrl = deal.property
+      ? await contactPropertyShareUrl(contact, deal.property).catch(() => null)
+      : null;
+    const { title, message } = buildStageMessage({
+      stage,
+      contactName: contactFullName(contact),
+      propertyTitle: deal.property?.title,
+      propertyCode: deal.property?.property_code,
+      propertyUrl,
+    });
+    if (request !== messageRequest.current) return;
+    setMessaging({ deal, title: `${title} · ${name}`, text: message });
+  }
+  async function sendDealMessageInApp() {
+    const contact = messaging?.deal.contact;
+    const text = messaging?.text.trim();
+    if (!contact || !text) return;
+    setMessaging(null);
+    const outcome = await openContactChat(contact, { draftText: text });
+    if (!outcome.ok && outcome.error) {
+      show({ title: 'Could not open thread', message: outcome.error });
+    }
+  }
+  function sendDealMessageOnWhatsApp() {
+    const phone = (messaging?.deal.contact?.phone ?? '').replace(/\D/g, '');
+    const text = messaging?.text.trim();
+    if (!phone || !text) return;
+    setMessaging(null);
+    void Linking.openURL(
+      `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+    );
+  }
   const boardLoadFailed =
     pipelinesQuery.isLoadingError || stagesQuery.isLoadingError || dealsError;
   const retryBoard = () => {
@@ -832,6 +880,7 @@ export default function DealsScreen() {
                 deal={item}
                 accountCurrency={accountCurrency}
                 stage={section.stage}
+                onMessage={() => void messageDeal(item, section.stage)}
                 onMove={() => setMovingDeal(item)}
                 onReopen={() => void reopenDeal(item)}
                 onEdit={() =>
@@ -870,6 +919,7 @@ export default function DealsScreen() {
                 deal={item}
                 accountCurrency={accountCurrency}
                 stage={selectedStage ?? null}
+                onMessage={() => void messageDeal(item, selectedStage ?? null)}
                 onMove={() => setMovingDeal(item)}
                 onReopen={() => void reopenDeal(item)}
                 onEdit={() =>
@@ -966,6 +1016,60 @@ export default function DealsScreen() {
               })
             }
           />
+        </View>
+      </BottomSheet>
+
+      <BottomSheet
+        visible={messaging !== null}
+        onClose={() => setMessaging(null)}
+      >
+        <View style={styles.modalHeader}>
+          <Text
+            style={[styles.modalTitle, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {messaging?.title}
+          </Text>
+          <Pressable
+            onPress={() => setMessaging(null)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <Ionicons name="close" size={20} color={colors.textMuted} />
+          </Pressable>
+        </View>
+        <View style={styles.brokerageForm}>
+          <TextField
+            label="Message"
+            value={messaging?.text ?? ''}
+            onChangeText={(text) =>
+              setMessaging((current) =>
+                current ? { ...current, text } : current
+              )
+            }
+            multiline
+          />
+          <PrimaryButton
+            label="Open in ConvoReal"
+            icon="chatbubble-ellipses-outline"
+            disabled={!messaging?.text.trim()}
+            onPress={() => void sendDealMessageInApp()}
+          />
+          {messaging?.deal.contact?.phone ? (
+            <Pressable
+              onPress={sendDealMessageOnWhatsApp}
+              disabled={!messaging.text.trim()}
+              accessibilityRole="button"
+              accessibilityLabel="Send from your own WhatsApp"
+              style={[styles.whatsAppButton, { borderColor: colors.success }]}
+            >
+              <Ionicons name="logo-whatsapp" size={16} color={colors.success} />
+              <Text style={{ fontFamily: f.bold, color: colors.success }}>
+                WhatsApp
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </BottomSheet>
 
@@ -1204,11 +1308,13 @@ function DealCard({
   onMove,
   onReopen,
   onEdit,
+  onMessage,
   accountCurrency,
 }: {
   deal: Deal;
   stage: PipelineStage | null;
   accountCurrency: string;
+  onMessage: () => void;
   onMove: () => void;
   onReopen: () => void;
   onEdit: () => void;
@@ -1335,6 +1441,7 @@ function DealCard({
         {deal.status !== 'open' ? (
           <Text
             style={{
+              marginRight: 'auto',
               fontSize: 12,
               fontFamily: f.bold,
               color: deal.status === 'won' ? colors.success : colors.danger,
@@ -1342,9 +1449,31 @@ function DealCard({
           >
             {deal.status === 'won' ? 'Won' : 'Lost'}
           </Text>
-        ) : (
-          <View />
-        )}
+        ) : null}
+        {deal.contact ? (
+          <Pressable
+            onPress={onMessage}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Message ${contactName ?? 'the contact'} about ${deal.title}`}
+            style={[styles.moveButton, { backgroundColor: colors.primarySoft }]}
+          >
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={14}
+              color={colors.primary}
+            />
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              Message
+            </Text>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={() => router.push(`/deal/${deal.id}`)}
           hitSlop={8}
@@ -1466,8 +1595,10 @@ const styles = StyleSheet.create({
   receiptRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cardBottom: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
   },
   moveButton: {
     flexDirection: 'row',
@@ -1485,6 +1616,15 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   modalTitle: { flex: 1, fontSize: 15.5, fontFamily: fonts.bold },
+  whatsAppButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingVertical: 12,
+  },
   brokerageForm: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,

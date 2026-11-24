@@ -1,7 +1,7 @@
 'use client';
 
 import type { Deal, PipelineStage } from '@/types';
-import { Calendar, Check, X } from 'lucide-react';
+import { Calendar, Check, MessageCircle, X } from 'lucide-react';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { isBrokeragePaidStage } from '@/lib/pipelines/stage-semantics';
 import { lostReasonLabel } from '@/lib/pipelines/lost-reasons';
@@ -31,6 +31,7 @@ interface DealCardProps {
   deal: Deal;
   stage: PipelineStage | null;
   onEdit: (deal: Deal) => void;
+  onMessage?: (deal: Deal) => void;
   isOverlay?: boolean;
   currency?: string;
 }
@@ -39,6 +40,7 @@ export function DealCard({
   deal,
   stage,
   onEdit,
+  onMessage,
   isOverlay,
   currency,
 }: DealCardProps) {
@@ -51,12 +53,21 @@ export function DealCard({
   const feeSet = dealFee(deal) !== null;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={isOverlay ? -1 : 0}
       onClick={(e) => {
         // `onClick` still fires after a non-drag tap because the PointerSensor
         // requires 5px movement before it counts as a drag.
         if (isOverlay) return;
+        e.stopPropagation();
+        onEdit(deal);
+      }}
+      onKeyDown={(e) => {
+        if (isOverlay || e.key !== 'Enter' || e.target !== e.currentTarget) {
+          return;
+        }
+        e.preventDefault();
         e.stopPropagation();
         onEdit(deal);
       }}
@@ -146,16 +157,34 @@ export function DealCard({
         </p>
       )}
 
-      {assigneeLabel && (
-        <div className="mt-2 flex items-center justify-end">
-          <span
-            title={assigneeLabel}
-            className="bg-primary/15 text-primary flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold"
-          >
-            {initials(assigneeLabel)}
-          </span>
+      {(assigneeLabel || (onMessage && deal.contact)) && (
+        <div className="mt-2 flex items-center justify-end gap-2">
+          {onMessage && deal.contact && !isOverlay ? (
+            <button
+              type="button"
+              onPointerDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMessage(deal);
+              }}
+              aria-label={`Message ${contactLabel} about this deal`}
+              className="bg-primary/15 text-primary hover:bg-primary/25 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors"
+            >
+              <MessageCircle className="h-3 w-3" />
+              Message
+            </button>
+          ) : null}
+          {assigneeLabel && (
+            <span
+              title={assigneeLabel}
+              className="bg-primary/15 text-primary flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold"
+            >
+              {initials(assigneeLabel)}
+            </span>
+          )}
         </div>
       )}
-    </button>
+    </div>
   );
 }
