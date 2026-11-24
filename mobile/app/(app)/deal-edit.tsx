@@ -13,7 +13,11 @@ import {
   View,
 } from 'react-native';
 
-import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import {
+  AppDialog,
+  showAppDialog,
+  useAppDialog,
+} from '@/components/app-dialog';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { DealInvoices } from '@/components/deal-invoices';
 import { ConvoRealLoader } from '@/components/loader';
@@ -46,11 +50,13 @@ import {
   DEAL_PARTICIPANT_ROLES,
   DEAL_PARTICIPANT_ROLE_LABELS,
   MAX_DEAL_PARTICIPANTS,
+  dealCreateWarning,
   dealTitleFromEvent,
   eventContactIds,
   participantRoleForContact,
   participantRoleForStakeholder,
   participantsFromEvent,
+  type DealCreateResult,
   type DealParticipantRole,
 } from '@shared/lib/deals/participants';
 import { useDiscardGuard } from '@/lib/use-discard-guard';
@@ -441,41 +447,44 @@ function DealForm({
     setSaving(true);
     setError(null);
     try {
-      await apiFetch(deal ? `/api/deals/${deal.id}` : '/api/deals', {
-        method: deal ? 'PUT' : 'POST',
-        body: JSON.stringify({
-          title: title.trim(),
-          value: parseAmountInput(value) ?? 0,
-          currency: dealCurrency,
-          contact_id: contact.id,
-          source: 'mobile',
-          ...(!deal || peopleKey !== initialPeopleKey
-            ? {
-                participants: people.map((p) => ({
-                  contact_id: p.contact.id,
-                  role: p.role,
-                })),
-              }
-            : {}),
-          ...(!deal && seed?.appointmentId
-            ? { appointment_id: seed.appointmentId }
-            : {}),
-          pipeline_id: pipelineId,
-          stage_id: selectedStage.id,
-          notes: notes.trim() || null,
-          expected_close_date: closeDate ? localDateString(closeDate) : null,
-          actual_close_date:
-            isClosedStage && actualCloseDate
-              ? localDateString(actualCloseDate)
-              : null,
-          property_id: property?.id ?? null,
-          status: dealStatusForStage(selectedStage),
-          stage_name: selectedStage.name,
-          ...(isLostStage(selectedStage) && lostReason
-            ? { lost_reason: lostReason, lost_note: lostNote.trim() || null }
-            : {}),
-        }),
-      });
+      const result = await apiFetch<DealCreateResult>(
+        deal ? `/api/deals/${deal.id}` : '/api/deals',
+        {
+          method: deal ? 'PUT' : 'POST',
+          body: JSON.stringify({
+            title: title.trim(),
+            value: parseAmountInput(value) ?? 0,
+            currency: dealCurrency,
+            contact_id: contact.id,
+            source: 'mobile',
+            ...(!deal || peopleKey !== initialPeopleKey
+              ? {
+                  participants: people.map((p) => ({
+                    contact_id: p.contact.id,
+                    role: p.role,
+                  })),
+                }
+              : {}),
+            ...(!deal && seed?.appointmentId
+              ? { appointment_id: seed.appointmentId }
+              : {}),
+            pipeline_id: pipelineId,
+            stage_id: selectedStage.id,
+            notes: notes.trim() || null,
+            expected_close_date: closeDate ? localDateString(closeDate) : null,
+            actual_close_date:
+              isClosedStage && actualCloseDate
+                ? localDateString(actualCloseDate)
+                : null,
+            property_id: property?.id ?? null,
+            status: dealStatusForStage(selectedStage),
+            stage_name: selectedStage.name,
+            ...(isLostStage(selectedStage) && lostReason
+              ? { lost_reason: lostReason, lost_note: lostNote.trim() || null }
+              : {}),
+          }),
+        }
+      );
       haptic.success();
       allowLeave();
       for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
@@ -490,6 +499,8 @@ function DealForm({
       if (seed?.appointmentId) {
         queryClient.invalidateQueries({ queryKey: ['appointments'] });
       }
+      const warning = deal ? null : dealCreateWarning(result);
+      if (warning) showAppDialog({ title: 'Deal created', message: warning });
       router.back();
     } catch (err) {
       haptic.warn();

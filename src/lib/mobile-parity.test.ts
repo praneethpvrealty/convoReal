@@ -6794,6 +6794,8 @@ describe('the deal card messages the contact for its stage on both surfaces', ()
     expect(web).toContain("from '@/lib/deals/participants'");
     expect(web).toContain('DEAL_PARTICIPANT_ROLES.map(');
     expect(web).toContain('participants: [');
+    expect(mobile).toContain('dealCreateWarning(result)');
+    expect(web).toContain('dealCreateWarning(');
   });
 
   it('[CAL-022] both calendars connect an event to a deal or start one from it', () => {

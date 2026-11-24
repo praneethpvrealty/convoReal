@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   MAX_DEAL_PARTICIPANTS,
+  dealCreateWarning,
   dealTitleFromEvent,
   parseDealParticipants,
   participantRoleForContact,
@@ -153,5 +154,33 @@ describe('[CAL-022] a calendar event connects to a deal', () => {
     expect(
       suggestDealsForEvent(deals, event, { side: ['ashwath'] }).map((d) => d.id)
     ).toEqual(['both', 'side', 'won', 'property', 'contact']);
+  });
+});
+
+describe('[PIPE-007] a deal whose contacts or event link were not saved says so', () => {
+  it('is silent when everything was saved', () => {
+    expect(dealCreateWarning({ id: 'd1' })).toBeNull();
+    expect(
+      dealCreateWarning({
+        id: 'd1',
+        participants_saved: true,
+        appointment_linked: true,
+      })
+    ).toBeNull();
+  });
+
+  it('names what was not saved', () => {
+    expect(dealCreateWarning({ participants_saved: false })).toContain(
+      'other contacts were not saved'
+    );
+    expect(dealCreateWarning({ appointment_linked: false })).toContain(
+      'calendar event was not connected'
+    );
+    const both = dealCreateWarning({
+      participants_saved: false,
+      appointment_linked: false,
+    });
+    expect(both).toContain('other contacts were not saved');
+    expect(both).toContain('calendar event was not connected');
   });
 });

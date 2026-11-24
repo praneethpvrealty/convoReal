@@ -61,6 +61,7 @@ import {
   DEAL_PARTICIPANT_ROLES,
   DEAL_PARTICIPANT_ROLE_LABELS,
   MAX_DEAL_PARTICIPANTS,
+  dealCreateWarning,
   participantRoleForContact,
   participantRoleForStakeholder,
   type DealParticipantInput,
@@ -500,6 +501,7 @@ export function DealForm({
         : {}),
     };
 
+    let warning: string | null = null;
     try {
       const url = deal ? `/api/deals/${deal.id}` : '/api/deals';
       const method = deal ? 'PUT' : 'POST';
@@ -518,6 +520,9 @@ export function DealForm({
         setSaving(false);
         return;
       }
+      if (!deal) {
+        warning = dealCreateWarning(await res.json().catch(() => null));
+      }
     } catch {
       toast.error('Failed to save deal');
       setSaving(false);
@@ -525,7 +530,8 @@ export function DealForm({
     }
 
     setSaving(false);
-    toast.success(deal ? 'Deal updated' : 'Deal created');
+    if (warning) toast.warning(warning);
+    else toast.success(deal ? 'Deal updated' : 'Deal created');
     onOpenChange(false);
     onSaved();
   }

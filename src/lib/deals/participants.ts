@@ -239,3 +239,29 @@ export function suggestDealsForEvent<T extends DealForEvent>(
     })
     .map((row) => row.deal);
 }
+
+/** What POST /api/deals reports beyond the new deal's id. */
+export interface DealCreateResult {
+  id?: string;
+  participants_saved?: boolean;
+  appointment_linked?: boolean;
+}
+
+/** What to tell the agent when the deal was created but a follow-on
+ *  write was not; null when everything was saved. */
+export function dealCreateWarning(
+  result: DealCreateResult | null | undefined
+): string | null {
+  const contacts = result?.participants_saved === false;
+  const event = result?.appointment_linked === false;
+  if (contacts && event) {
+    return 'Deal created, but its other contacts were not saved and the calendar event was not connected. Open the deal and the event to add them.';
+  }
+  if (contacts) {
+    return 'Deal created, but its other contacts were not saved. Open the deal and add them again.';
+  }
+  if (event) {
+    return 'Deal created, but the calendar event was not connected. Open the event and connect it to the deal.';
+  }
+  return null;
+}
