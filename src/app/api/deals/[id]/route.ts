@@ -9,7 +9,10 @@ import { ensureClosingRecord } from '@/lib/deals/closing-record';
 import { parseEventSource } from '@/lib/deals/events';
 import { actorName } from '@/lib/deals/server';
 import { parseDealParticipants } from '@/lib/deals/participants';
-import { syncDealParticipants } from '@/lib/deals/participants-server';
+import {
+  loadParticipantContacts,
+  syncDealParticipants,
+} from '@/lib/deals/participants-server';
 import {
   applyDealStageMove,
   parseBrokerageCapture,
@@ -73,6 +76,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         : parseDealParticipants(body.participants);
     if (participants && !participants.ok) {
       return NextResponse.json({ error: participants.error }, { status: 400 });
+    }
+    if (participants?.ok && participants.value.length > 0) {
+      const known = await loadParticipantContacts(
+        ctx.supabase,
+        ctx.accountId,
+        participants.value.map((p) => p.contact_id)
+      );
+      if (!known) {
+        return NextResponse.json(
+          { error: 'One or more contacts are invalid' },
+          { status: 400 }
+        );
+      }
     }
 
     const updateData: Record<string, unknown> = {};

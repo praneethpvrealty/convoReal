@@ -137,6 +137,9 @@ export function DealForm({
   const [primaryRole, setPrimaryRole] = useState<DealParticipantRole>('buyer');
   const [otherPeople, setOtherPeople] = useState<DealParticipantInput[]>([]);
   const peopleBaseline = useRef<string | null>(null);
+  const [peopleState, setPeopleState] = useState<
+    'loading' | 'ready' | 'failed'
+  >('ready');
   const [stageId, setStageId] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [expectedCloseDate, setExpectedCloseDate] = useState('');
@@ -202,6 +205,7 @@ export function DealForm({
       setPrimaryRole('buyer');
       setOtherPeople([]);
       peopleBaseline.current = null;
+      setPeopleState('loading');
       setStageId(deal.stage_id);
       setAssignedTo(deal.assigned_to ?? '');
       setExpectedCloseDate(deal.expected_close_date ?? '');
@@ -223,6 +227,7 @@ export function DealForm({
       setPrimaryRole(seedPrimary?.role ?? 'buyer');
       setOtherPeople(seedOthers);
       peopleBaseline.current = peopleSnapshot('', 'buyer', []);
+      setPeopleState('ready');
       setValue('');
       if (accountId) {
         supabase
@@ -299,13 +304,17 @@ export function DealForm({
     if (!open || !dealId) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('deal_stakeholders')
         .select('contact_id, role')
         .eq('deal_id', dealId)
         .not('contact_id', 'is', null)
         .order('created_at');
       if (cancelled) return;
+      if (error) {
+        setPeopleState('failed');
+        return;
+      }
       const people: DealParticipantInput[] = [];
       for (const row of (data ?? []) as {
         contact_id: string;
@@ -327,6 +336,7 @@ export function DealForm({
         storedPrimary,
         others
       );
+      setPeopleState('ready');
     })();
     return () => {
       cancelled = true;
@@ -740,6 +750,7 @@ export function DealForm({
                 </select>
                 <select
                   aria-label="Primary contact's role"
+                  disabled={peopleState !== 'ready'}
                   value={primaryRole}
                   onChange={(e) =>
                     setPrimaryRole(e.target.value as DealParticipantRole)
@@ -806,39 +817,50 @@ export function DealForm({
                 );
               })}
 
-              {contactId && people.length + 1 < MAX_DEAL_PARTICIPANTS && (
-                <select
-                  aria-label="Add another contact to this deal"
-                  value=""
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    if (!next) return;
-                    setOtherPeople((prev) => [
-                      ...prev.filter((p) => p.contact_id !== next),
-                      {
-                        contact_id: next,
-                        role: participantRoleForContact(
-                          contacts.find((c) => c.id === next)?.classification
-                        ),
-                      },
-                    ]);
-                  }}
-                  className="focus:border-primary h-9 w-full rounded-lg border border-dashed border-slate-700 bg-slate-800/40 px-2.5 text-sm text-slate-300 outline-none"
-                >
-                  <option value="">+ Add another buyer, seller or agent</option>
-                  {contacts
-                    .filter(
-                      (c) =>
-                        c.id !== contactId &&
-                        !people.some((p) => p.contact_id === c.id)
-                    )
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name || c.phone}
-                      </option>
-                    ))}
-                </select>
+              {peopleState === 'failed' && (
+                <p role="alert" className="text-xs font-medium text-red-400">
+                  Could not load this deal&apos;s other contacts, so they cannot
+                  be changed here. Close and reopen the deal to try again.
+                </p>
               )}
+
+              {peopleState === 'ready' &&
+                contactId &&
+                people.length + 1 < MAX_DEAL_PARTICIPANTS && (
+                  <select
+                    aria-label="Add another contact to this deal"
+                    value=""
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      if (!next) return;
+                      setOtherPeople((prev) => [
+                        ...prev.filter((p) => p.contact_id !== next),
+                        {
+                          contact_id: next,
+                          role: participantRoleForContact(
+                            contacts.find((c) => c.id === next)?.classification
+                          ),
+                        },
+                      ]);
+                    }}
+                    className="focus:border-primary h-9 w-full rounded-lg border border-dashed border-slate-700 bg-slate-800/40 px-2.5 text-sm text-slate-300 outline-none"
+                  >
+                    <option value="">
+                      + Add another buyer, seller or agent
+                    </option>
+                    {contacts
+                      .filter(
+                        (c) =>
+                          c.id !== contactId &&
+                          !people.some((p) => p.contact_id === c.id)
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name || c.phone}
+                        </option>
+                      ))}
+                  </select>
+                )}
 
               {linkedConversation && (
                 <Link
