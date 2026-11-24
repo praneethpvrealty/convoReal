@@ -256,10 +256,12 @@ export default function DealsScreen() {
     title: string;
     text: string;
   } | null>(null);
+  const messageRequest = useRef(0);
   async function messageDeal(deal: Deal, stage: PipelineStage | null) {
     const contact = deal.contact;
     if (!contact) return;
     haptic.tap();
+    const request = ++messageRequest.current;
     const name = contactFullName(contact) || contact.phone || 'this contact';
     const propertyUrl = deal.property
       ? await contactPropertyShareUrl(contact, deal.property).catch(() => null)
@@ -271,6 +273,7 @@ export default function DealsScreen() {
       propertyCode: deal.property?.property_code,
       propertyUrl,
     });
+    if (request !== messageRequest.current) return;
     setMessaging({ deal, title: `${title} · ${name}`, text: message });
   }
   async function sendDealMessageInApp() {
