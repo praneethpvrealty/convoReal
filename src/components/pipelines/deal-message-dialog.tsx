@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { MessageCircle, Send } from 'lucide-react';
@@ -62,23 +63,20 @@ function DealMessageForm({
   const { user, accountId } = useAuth();
   const contact = deal.contact ?? null;
   const property = deal.property ?? null;
-  const [propertyUrl, setPropertyUrl] = useState<string | null>(null);
   const [edited, setEdited] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
+  const [closedThreadId, setClosedThreadId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!property || !contact || !accountId) return;
-    let cancelled = false;
-    void accountShowcaseBase(supabase, accountId).then((base) => {
-      if (cancelled) return;
-      setPropertyUrl(
-        `${propertyShowcaseUrl(base, property)}&v=${encodeURIComponent(contact.id)}`
-      );
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [supabase, accountId, property, contact]);
+  const { data: showcaseBase } = useQuery({
+    queryKey: ['showcase-base', accountId],
+    queryFn: () => accountShowcaseBase(supabase, accountId!),
+    enabled: Boolean(accountId),
+    staleTime: Infinity,
+  });
+  const propertyUrl =
+    showcaseBase && property && contact
+      ? `${propertyShowcaseUrl(showcaseBase, property)}&v=${encodeURIComponent(contact.id)}`
+      : null;
 
   const { title, message: suggested } = buildStageMessage({
     stage,
@@ -105,6 +103,18 @@ function DealMessageForm({
     if (!conversation) {
       setOpening(false);
       toast.error(error?.message ?? 'Could not open the chat thread');
+      return;
+    }
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversation.id)
+      .eq('sender_type', 'customer')
+      .gte('created_at', since);
+    if ((count ?? 0) === 0) {
+      setOpening(false);
+      setClosedThreadId(conversation.id);
       return;
     }
     router.push(
@@ -136,6 +146,24 @@ function DealMessageForm({
           rows={7}
           className="border-slate-700 bg-slate-800 text-sm text-slate-100"
         />
+        {closedThreadId ? (
+          <p
+            role="status"
+            className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200"
+          >
+            {name} hasn&apos;t written in the last 24 hours, so WhatsApp only
+            accepts an approved template from the inbox. Send this draft with
+            the WhatsApp button, or{' '}
+            <button
+              type="button"
+              className="font-semibold underline"
+              onClick={() => router.push(`/inbox?c=${closedThreadId}`)}
+            >
+              open the chat to pick a template
+            </button>
+            .
+          </p>
+        ) : null}
       </div>
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
@@ -159,7 +187,7 @@ function DealMessageForm({
         ) : null}
         <Button
           onClick={() => void openInInbox()}
-          disabled={opening || !message.trim()}
+          disabled={opening || !message.trim() || closedThreadId !== null}
         >
           <Send className="h-4 w-4" />
           Open in inbox
