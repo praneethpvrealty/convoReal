@@ -6,6 +6,7 @@ import { writeDealEvent, type DealEventSource } from './events';
 import {
   DEAL_PARTICIPANT_ROLE_LABELS,
   participantRoleForStakeholder,
+  participantsToStore,
   stakeholderFieldsForParticipant,
   type DealParticipantInput,
 } from './participants';
@@ -62,6 +63,9 @@ function stakeholderPhone(raw: string | null): string | null {
  * stakeholders match `participants`: adds the missing, re-roles the
  * changed and removes the ones no longer listed. Stakeholders typed
  * in by hand (no contact) and the other roles are never touched.
+ *
+ * A lone buyer gets no new row (they are simply the deal's contact),
+ * but a row they already have is kept: it may carry a share link.
  */
 export async function syncDealParticipants(
   input: SyncInput
@@ -102,6 +106,9 @@ export async function syncDealParticipants(
   ).filter((row) => participantRoleForStakeholder(row.role) !== null);
   const byContact = new Map(managed.map((row) => [row.contact_id, row]));
   const wanted = new Set(participants.map((p) => p.contact_id));
+  const creatable = new Set(
+    participantsToStore(participants).map((p) => p.contact_id)
+  );
 
   const event = (
     eventType:
@@ -141,6 +148,7 @@ export async function syncDealParticipants(
       );
       continue;
     }
+    if (!creatable.has(participant.contact_id)) continue;
     const contact = contacts.get(participant.contact_id)!;
     const name = (contact.name ?? '').trim() || contact.phone || 'Contact';
     const { data: created, error } = await db

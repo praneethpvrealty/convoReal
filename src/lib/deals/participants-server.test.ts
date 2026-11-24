@@ -132,6 +132,38 @@ describe('[PIPE-007] syncDealParticipants', () => {
     expect(state.inserted).toHaveLength(0);
   });
 
+  it("writes no row when a deal's only contact is swapped for another lone buyer, and drops the old one", async () => {
+    state.contacts = [
+      { id: 'b', name: 'B', phone: '919000000002', email: null },
+    ];
+    state.stakeholders = [
+      { id: 's-a', contact_id: 'a', name: 'A', role: 'buyer' },
+    ];
+    const result = await sync([{ contact_id: 'b', role: 'buyer' }]);
+    expect(result).toMatchObject({ ok: true, added: 0, removed: 1 });
+    expect(state.inserted).toHaveLength(0);
+    expect(state.deleted).toEqual(['s-a']);
+  });
+
+  it("keeps the primary buyer's existing row, and its share link, when the other contacts are removed", async () => {
+    state.contacts = [
+      { id: 'a', name: 'A', phone: '919000000001', email: null },
+    ];
+    state.stakeholders = [
+      { id: 's-a', contact_id: 'a', name: 'A', role: 'buyer' },
+      { id: 's-b', contact_id: 'b', name: 'B', role: 'seller' },
+    ];
+    const result = await sync([{ contact_id: 'a', role: 'buyer' }]);
+    expect(result).toMatchObject({
+      ok: true,
+      added: 0,
+      updated: 0,
+      removed: 1,
+    });
+    expect(state.deleted).toEqual(['s-b']);
+    expect(state.inserted).toHaveLength(0);
+  });
+
   it('writes nothing when a contact is not in the account', async () => {
     state.contacts = [];
     const result = await sync([{ contact_id: 'stranger', role: 'buyer' }]);
