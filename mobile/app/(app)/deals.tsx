@@ -4,6 +4,7 @@ import { Link, Stack, router } from 'expo-router';
 import { Fragment, useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -33,6 +34,8 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { useBoardLayout } from '@/lib/board-layout-preference';
 import { contactFullName } from '@/lib/contact-name';
+import { openContactChat } from '@/lib/open-chat';
+import { contactPropertyShareUrl } from '@/lib/showcase-share';
 import {
   BOARD_FOCUS_QUERY_KEY,
   BOARD_SCOPES,
@@ -74,6 +77,7 @@ import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { DEALS_VIEWS } from '@shared/lib/deals/routes';
+import { buildStageMessage } from '@shared/lib/pipelines/stage-message';
 import { BOARD_LAYOUTS } from '@shared/lib/pipelines/board-layout';
 import {
   dealCardCopy,
@@ -215,7 +219,7 @@ export default function DealsScreen() {
       const { data, error } = await supabase
         .from('deals')
         .select(
-          '*, contact:contacts(id, name, second_name, phone), property:properties(id, title, unit_no), milestones:deal_milestones(count)'
+          '*, contact:contacts(id, name, second_name, phone), property:properties(id, title, unit_no, property_code), milestones:deal_milestones(count)'
         )
         .eq('pipeline_id', activePipeline!)
         .order('created_at', { ascending: false });
@@ -247,6 +251,55 @@ export default function DealsScreen() {
     Promise.all([refetch(), focusQuery.refetch()])
   );
   const { show, close, dialogProps } = useAppDialog();
+  async function messageDeal(deal: Deal, stage: PipelineStage | null) {
+    const contact = deal.contact;
+    if (!contact) return;
+    haptic.tap();
+    const name = contactFullName(contact) || contact.phone || 'this contact';
+    const propertyUrl = deal.property
+      ? await contactPropertyShareUrl(contact, deal.property).catch(() => null)
+      : null;
+    const { title, message } = buildStageMessage({
+      stage,
+      contactName: contactFullName(contact),
+      propertyTitle: deal.property?.title,
+      propertyCode: deal.property?.property_code,
+      propertyUrl,
+    });
+    show({
+      title: `${title} · ${name}`,
+      message,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'ConvoReal',
+          onPress: async () => {
+            close();
+            const outcome = await openContactChat(contact, {
+              draftText: message,
+            });
+            if (!outcome.ok && outcome.error) {
+              show({ title: 'Could not open thread', message: outcome.error });
+            }
+          },
+        },
+        ...(contact.phone
+          ? [
+              {
+                label: 'WhatsApp',
+                variant: 'primary' as const,
+                onPress: () => {
+                  close();
+                  void Linking.openURL(
+                    `https://wa.me/${(contact.phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
+                  );
+                },
+              },
+            ]
+          : []),
+      ],
+    });
+  }
   const boardLoadFailed =
     pipelinesQuery.isLoadingError || stagesQuery.isLoadingError || dealsError;
   const retryBoard = () => {
@@ -832,6 +885,7 @@ export default function DealsScreen() {
                 deal={item}
                 accountCurrency={accountCurrency}
                 stage={section.stage}
+                onMessage={() => void messageDeal(item, section.stage)}
                 onMove={() => setMovingDeal(item)}
                 onReopen={() => void reopenDeal(item)}
                 onEdit={() =>
@@ -870,6 +924,7 @@ export default function DealsScreen() {
                 deal={item}
                 accountCurrency={accountCurrency}
                 stage={selectedStage ?? null}
+                onMessage={() => void messageDeal(item, selectedStage ?? null)}
                 onMove={() => setMovingDeal(item)}
                 onReopen={() => void reopenDeal(item)}
                 onEdit={() =>
@@ -1204,11 +1259,13 @@ function DealCard({
   onMove,
   onReopen,
   onEdit,
+  onMessage,
   accountCurrency,
 }: {
   deal: Deal;
   stage: PipelineStage | null;
   accountCurrency: string;
+  onMessage: () => void;
   onMove: () => void;
   onReopen: () => void;
   onEdit: () => void;
@@ -1335,6 +1392,7 @@ function DealCard({
         {deal.status !== 'open' ? (
           <Text
             style={{
+              marginRight: 'auto',
               fontSize: 12,
               fontFamily: f.bold,
               color: deal.status === 'won' ? colors.success : colors.danger,
@@ -1342,9 +1400,31 @@ function DealCard({
           >
             {deal.status === 'won' ? 'Won' : 'Lost'}
           </Text>
-        ) : (
-          <View />
-        )}
+        ) : null}
+        {deal.contact ? (
+          <Pressable
+            onPress={onMessage}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`Message ${contactName ?? 'the contact'} about ${deal.title}`}
+            style={[styles.moveButton, { backgroundColor: colors.primarySoft }]}
+          >
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={14}
+              color={colors.primary}
+            />
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              Message
+            </Text>
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={() => router.push(`/deal/${deal.id}`)}
           hitSlop={8}
@@ -1466,8 +1546,10 @@ const styles = StyleSheet.create({
   receiptRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cardBottom: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
   },
   moveButton: {
     flexDirection: 'row',

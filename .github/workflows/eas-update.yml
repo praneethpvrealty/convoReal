@@ -92,6 +92,8 @@ on:
       - 'src/lib/pipelines/board-layout.ts'
       - 'src/lib/pipelines/brokerage.ts'
       - 'src/lib/pipelines/deal-money.ts'
+      - 'src/lib/pipelines/stage-message.ts'
+      - 'src/lib/pipelines/stage-semantics.ts'
       - 'src/lib/pulse/internal-view.ts'
       - 'src/lib/pulse/viewed-listings.ts'
       - 'src/lib/pulse/enquiries.ts'

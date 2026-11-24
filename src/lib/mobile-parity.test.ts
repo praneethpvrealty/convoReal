@@ -6773,3 +6773,15 @@ describe("[PRP-055] the broadcast picker opens on the listing's ranked buyers", 
     );
   });
 });
+
+describe('the deal card messages the contact for its stage on both surfaces', () => {
+  it('[PIPE-006] builds the stage message with the shared web module', () => {
+    const mobile = mobileSource('app/(app)/deals.tsx');
+    expect(mobile).toContain("from '@shared/lib/pipelines/stage-message'");
+    expect(mobile).toContain('buildStageMessage({');
+    expect(mobile).toContain('openContactChat(contact, {');
+    const web = webSource('components/pipelines/deal-message-dialog.tsx');
+    expect(web).toContain("from '@/lib/pipelines/stage-message'");
+    expect(web).toContain('buildStageMessage({');
+  });
+});

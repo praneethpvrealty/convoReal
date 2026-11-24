@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/core';
 import type { Deal, PipelineStage } from '@/types';
 import { DealCard } from './deal-card';
+import { DealMessageDialog } from './deal-message-dialog';
 import { StageWheel } from './stage-wheel';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -57,6 +58,7 @@ export function PipelineBoard({
   layout,
 }: PipelineBoardProps) {
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
+  const [messagingDeal, setMessagingDeal] = useState<Deal | null>(null);
   const [expandedStageIds, setExpandedStageIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -133,6 +135,7 @@ export function PipelineBoard({
         totals={stageTotals(stageDeals)}
         onAddDeal={onAddDeal}
         onEditDeal={onEditDeal}
+        onMessageDeal={setMessagingDeal}
         currency={currency}
         layout={stageLayout}
       />
@@ -262,6 +265,16 @@ export function PipelineBoard({
           }
         }
       `}</style>
+      <DealMessageDialog
+        deal={messagingDeal}
+        stage={
+          messagingDeal
+            ? (sortedStages.find((s) => s.id === messagingDeal.stage_id) ??
+              null)
+            : null
+        }
+        onClose={() => setMessagingDeal(null)}
+      />
     </DndContext>
   );
 }
@@ -274,6 +287,7 @@ function StageColumn({
   totals,
   onAddDeal,
   onEditDeal,
+  onMessageDeal,
   currency,
   layout,
 }: {
@@ -282,6 +296,7 @@ function StageColumn({
   totals: StageTotals;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  onMessageDeal: (deal: Deal) => void;
   currency: string;
   layout: StageLayout;
 }) {
@@ -344,6 +359,7 @@ function StageColumn({
               deal={deal}
               stage={stage}
               onEdit={onEditDeal}
+              onMessage={onMessageDeal}
               currency={currency}
             />
           ))
@@ -444,11 +460,13 @@ function DraggableDealCard({
   deal,
   stage,
   onEdit,
+  onMessage,
   currency,
 }: {
   deal: Deal;
   stage: PipelineStage;
   onEdit: (deal: Deal) => void;
+  onMessage: (deal: Deal) => void;
   currency: string;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -464,7 +482,13 @@ function DraggableDealCard({
       data-deal-draggable
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: 'none' }}
     >
-      <DealCard deal={deal} stage={stage} onEdit={onEdit} currency={currency} />
+      <DealCard
+        deal={deal}
+        stage={stage}
+        onEdit={onEdit}
+        onMessage={onMessage}
+        currency={currency}
+      />
     </div>
   );
 }

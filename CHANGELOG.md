@@ -17,6 +17,17 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 24 November 2026
+
+- **Message a deal's contact for its stage.** Every deal card on the Deals
+  board, on web and mobile, has a Message action that drafts the next step for
+  the stage the deal is in: at Enquiry → Shortlist it asks whether to arrange a
+  site visit, at Shortlisted → Visit it asks for a day and time, and later
+  stages cover the owner's meeting, the offer, due diligence, the agreement
+  date, the brokerage, a thank-you once closed and a re-engagement note when
+  lost. Edit the draft, then open it in the contact's inbox thread or in
+  WhatsApp.
+
 #### 21 November 2026
 
 - **Open a property from Showcase Pulse.** Each listing in the viewed listings
