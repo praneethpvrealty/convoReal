@@ -42,6 +42,17 @@ import {
   parseAmountInput,
 } from '@shared/lib/format/currency';
 import { dealFormMissing } from '@/lib/deal-form';
+import {
+  DEAL_PARTICIPANT_ROLES,
+  DEAL_PARTICIPANT_ROLE_LABELS,
+  MAX_DEAL_PARTICIPANTS,
+  dealTitleFromEvent,
+  eventContactIds,
+  participantRoleForContact,
+  participantRoleForStakeholder,
+  participantsFromEvent,
+  type DealParticipantRole,
+} from '@shared/lib/deals/participants';
 import { useDiscardGuard } from '@/lib/use-discard-guard';
 import { contactHandle, hasPhone } from '@/lib/reachability';
 import { dealStatusForStage, isLostStage } from '@/lib/stage-semantics';
@@ -58,6 +69,12 @@ import { LostReasonPicker } from '@/components/lost-reason-sheet';
  * all three sync the linked property's status server-side off the
  * stage name. Assignment, brokerage and non-INR currencies stay on
  * the web's fuller form.
+ *
+ * A deal takes several contacts, each a buyer, a seller or an agent;
+ * the first is the deal's own contact and the rest are saved by the
+ * same request as stakeholders. With `?appointmentId=`, the form
+ * starts from that calendar event's contacts and property, and the
+ * new deal is connected to the event.
  *
  * With `?id=`, the deal loads before the form mounts so every field
  * starts at its stored value — no prop-to-state effect to keep in sync.
@@ -81,13 +98,97 @@ interface DealRow extends Deal {
   notes?: string | null;
 }
 
+interface DealPerson {
+  contact: Contact;
+  role: DealParticipantRole;
+}
+
+interface DealSeed {
+  appointmentId: string | null;
+  title: string;
+  people: DealPerson[];
+  property: PropertyOption | null;
+}
+
+const PERSON_COLUMNS = 'id, name, phone, name_tag, classification';
+
+async function loadDealPeople(deal: DealRow): Promise<DealPerson[]> {
+  const { data, error } = await supabase
+    .from('deal_stakeholders')
+    .select(`role, contact:contacts(${PERSON_COLUMNS})`)
+    .eq('deal_id', deal.id)
+    .not('contact_id', 'is', null)
+    .order('created_at');
+  if (error) throw error;
+  const people: DealPerson[] = [];
+  for (const row of (data ?? []) as unknown as {
+    role: string;
+    contact: Contact | null;
+  }[]) {
+    const role = participantRoleForStakeholder(row.role);
+    if (!role || !row.contact) continue;
+    if (people.some((p) => p.contact.id === row.contact!.id)) continue;
+    people.push({ contact: row.contact, role });
+  }
+  const primary = deal.contact ?? null;
+  if (!primary) return people;
+  const stored = people.find((p) => p.contact.id === primary.id);
+  return [
+    { contact: primary, role: stored?.role ?? 'buyer' },
+    ...people.filter((p) => p.contact.id !== primary.id),
+  ];
+}
+
+async function loadEventSeed(appointmentId: string): Promise<DealSeed> {
+  const { data: event, error } = await supabase
+    .from('appointments')
+    .select(
+      'id, title, contact_id, contact_ids, property_id, property:properties(id, title, property_code, location, sublocality, owner_contact_id)'
+    )
+    .eq('id', appointmentId)
+    .single();
+  if (error) throw error;
+  const row = event as unknown as {
+    id: string;
+    title: string;
+    contact_id: string | null;
+    contact_ids: string[] | null;
+    property_id: string | null;
+    property: (PropertyOption & { owner_contact_id?: string | null }) | null;
+  };
+  const ids = eventContactIds(row);
+  const { data: contactRows } = ids.length
+    ? await supabase.from('contacts').select(PERSON_COLUMNS).in('id', ids)
+    : { data: [] };
+  const contacts = (contactRows ?? []) as Contact[];
+  const byId = new Map(contacts.map((c) => [c.id, c]));
+  const people = participantsFromEvent(
+    row,
+    contacts,
+    row.property?.owner_contact_id
+  ).map((p) => ({ contact: byId.get(p.contact_id)!, role: p.role }));
+  const lead = people.find((p) => p.role === 'buyer') ?? people[0];
+  return {
+    appointmentId: row.id,
+    title: dealTitleFromEvent({
+      eventTitle: row.title,
+      propertyTitle: row.property?.title,
+      contactName: lead?.contact.name,
+    }),
+    people: lead ? [lead, ...people.filter((p) => p !== lead)] : [],
+    property: row.property,
+  };
+}
+
 export default function DealFormScreen() {
   const params = useLocalSearchParams<{
     id?: string;
     pipelineId?: string;
     stageId?: string;
+    appointmentId?: string;
   }>();
   const dealId = params.id ?? null;
+  const appointmentId = dealId ? null : (params.appointmentId ?? null);
 
   const existing = useQuery({
     queryKey: ['deal', dealId],
@@ -105,13 +206,65 @@ export default function DealFormScreen() {
     },
   });
 
-  if (dealId && !existing.data) {
+  const people = useQuery({
+    queryKey: ['deal-people', dealId],
+    enabled: Boolean(existing.data),
+    gcTime: 0,
+    queryFn: () => loadDealPeople(existing.data!),
+  });
+  const seed = useQuery({
+    queryKey: ['deal-event-seed', appointmentId],
+    enabled: Boolean(appointmentId),
+    gcTime: 0,
+    queryFn: () => loadEventSeed(appointmentId!),
+  });
+  const needsPipeline = !dealId && !params.pipelineId;
+  const defaultPipeline = useQuery({
+    queryKey: ['pipelines', 'default'],
+    enabled: needsPipeline,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('pipelines')
+        .select('id')
+        .order('created_at')
+        .limit(1);
+      if (error) throw error;
+      return (data?.[0]?.id as string | undefined) ?? null;
+    },
+  });
+
+  const failed =
+    existing.isError ||
+    people.isError ||
+    seed.isError ||
+    defaultPipeline.isError ||
+    (needsPipeline && defaultPipeline.data === null);
+  const waiting =
+    (dealId && (!existing.data || !people.data)) ||
+    (appointmentId && !seed.data) ||
+    (needsPipeline && !defaultPipeline.data);
+
+  if (failed || waiting) {
     return (
       <View style={{ flex: 1 }}>
-        <Stack.Screen options={{ headerShown: true, title: 'Edit deal' }} />
-        {existing.isError ? (
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            title: dealId ? 'Edit deal' : 'New deal',
+          }}
+        />
+        {failed ? (
           <View style={styles.container}>
-            <Banner kind="error" text="Could not load this deal." />
+            <Banner
+              kind="error"
+              text={
+                dealId
+                  ? 'Could not load this deal.'
+                  : needsPipeline && defaultPipeline.data === null
+                    ? 'Open Deals once to set up your pipeline, then try again.'
+                    : 'Could not start a deal from this event.'
+              }
+            />
           </View>
         ) : (
           <ConvoRealLoader style={{ alignSelf: 'center', marginTop: 60 }} />
@@ -123,7 +276,14 @@ export default function DealFormScreen() {
   return (
     <DealForm
       deal={existing.data ?? null}
-      pipelineId={existing.data?.pipeline_id ?? params.pipelineId ?? null}
+      initialPeople={people.data ?? seed.data?.people ?? []}
+      seed={seed.data ?? null}
+      pipelineId={
+        existing.data?.pipeline_id ??
+        params.pipelineId ??
+        defaultPipeline.data ??
+        null
+      }
       defaultStageId={existing.data?.stage_id ?? params.stageId ?? null}
     />
   );
@@ -131,10 +291,14 @@ export default function DealFormScreen() {
 
 function DealForm({
   deal,
+  initialPeople,
+  seed,
   pipelineId,
   defaultStageId,
 }: {
   deal: DealRow | null;
+  initialPeople: DealPerson[];
+  seed: DealSeed | null;
   pipelineId: string | null;
   defaultStageId: string | null;
 }) {
@@ -143,13 +307,14 @@ function DealForm({
   const accountCurrency = useAccountCurrency();
   const dealCurrency = deal?.currency || accountCurrency;
 
-  const [title, setTitle] = useState(deal?.title ?? '');
+  const [title, setTitle] = useState(deal?.title ?? seed?.title ?? '');
   const [value, setValue] = useState(deal?.value ? String(deal.value) : '');
   const [stageId, setStageId] = useState<string | null>(defaultStageId);
-  const [contact, setContact] = useState<Contact | null>(deal?.contact ?? null);
+  const [people, setPeople] = useState<DealPerson[]>(initialPeople);
+  const contact = people[0]?.contact ?? null;
   const [contactSearch, setContactSearch] = useState('');
   const [property, setProperty] = useState<PropertyOption | null>(
-    (deal?.property as PropertyOption | undefined) ?? null
+    (deal?.property as PropertyOption | undefined) ?? seed?.property ?? null
   );
   const [propertySearch, setPropertySearch] = useState('');
   const [closeDate, setCloseDate] = useState<Date | null>(
@@ -173,7 +338,7 @@ function DealForm({
     title,
     value,
     stageId,
-    contact?.id ?? null,
+    people.map((p) => [p.contact.id, p.role]),
     property?.id ?? null,
     closeDate?.getTime() ?? null,
     actualCloseDate?.getTime() ?? null,
@@ -181,11 +346,29 @@ function DealForm({
     lostReason,
     lostNote,
   ]);
-  const [initialDraft] = useState(draft);
+  const [initialDraft] = useState(
+    seed
+      ? JSON.stringify([
+          '',
+          '',
+          defaultStageId,
+          [],
+          null,
+          null,
+          null,
+          '',
+          null,
+          '',
+        ])
+      : draft
+  );
   const allowLeave = useDiscardGuard(
     draft !== initialDraft && !deleting,
     dialog
   );
+  const peopleKey = JSON.stringify(people.map((p) => [p.contact.id, p.role]));
+  const [initialPeopleKey] = useState(peopleKey);
+  const canAddPerson = people.length < MAX_DEAL_PARTICIPANTS;
 
   const debouncedContactSearch = useDebounced(contactSearch);
   const debouncedPropertySearch = useDebounced(propertySearch);
@@ -222,12 +405,12 @@ function DealForm({
 
   const { data: contactOptions } = useQuery({
     queryKey: ['contact-picker', debouncedContactSearch],
-    enabled: debouncedContactSearch.trim().length >= 2 && !contact,
+    enabled: debouncedContactSearch.trim().length >= 2 && canAddPerson,
     queryFn: async () => {
       const term = `%${debouncedContactSearch.trim()}%`;
       const { data } = await supabase
         .from('contacts')
-        .select('id, name, name_tag, phone')
+        .select(PERSON_COLUMNS)
         .eq('is_merged', false)
         .or(`name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term}`)
         .limit(6);
@@ -265,6 +448,18 @@ function DealForm({
           value: parseAmountInput(value) ?? 0,
           currency: dealCurrency,
           contact_id: contact.id,
+          source: 'mobile',
+          ...(!deal || peopleKey !== initialPeopleKey
+            ? {
+                participants: people.map((p) => ({
+                  contact_id: p.contact.id,
+                  role: p.role,
+                })),
+              }
+            : {}),
+          ...(!deal && seed?.appointmentId
+            ? { appointment_id: seed.appointmentId }
+            : {}),
           pipeline_id: pipelineId,
           stage_id: selectedStage.id,
           notes: notes.trim() || null,
@@ -286,7 +481,15 @@ function DealForm({
       for (const queryKey of DEAL_SAVED_QUERY_KEYS) {
         queryClient.invalidateQueries({ queryKey });
       }
-      if (deal) queryClient.invalidateQueries({ queryKey: ['deal', deal.id] });
+      if (deal) {
+        queryClient.invalidateQueries({ queryKey: ['deal', deal.id] });
+        queryClient.invalidateQueries({
+          queryKey: ['deal-stakeholders', deal.id],
+        });
+      }
+      if (seed?.appointmentId) {
+        queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      }
       router.back();
     } catch (err) {
       haptic.warn();
@@ -372,53 +575,149 @@ function DealForm({
         />
         <PriceHint value={parseAmountInput(value)} currency={dealCurrency} />
 
-        {contact ? (
-          <SelectedRow
-            label={contact.name || contact.phone}
-            nameTag={contact.name_tag}
-            avatar
-            onClear={() => setContact(null)}
+        {seed ? (
+          <Banner
+            kind="info"
+            text="Started from your calendar event. Check each person's role, then create the deal."
           />
-        ) : (
-          <View style={{ gap: spacing.sm }}>
-            <TextField
-              label="Contact"
-              placeholder="Search name or phone (required)"
-              value={contactSearch}
-              onChangeText={setContactSearch}
+        ) : null}
+
+        {people.length > 0 ? (
+          <Text
+            style={[
+              styles.label,
+              { color: colors.textFaint, fontFamily: f.bold },
+            ]}
+          >
+            Contacts on this deal
+          </Text>
+        ) : null}
+        {people.map((person, index) => (
+          <View key={person.contact.id} style={{ gap: 6 }}>
+            <SelectedRow
+              label={person.contact.name || person.contact.phone}
+              detail={index === 0 ? 'Primary contact' : null}
+              nameTag={person.contact.name_tag}
+              avatar
+              onClear={() =>
+                setPeople((prev) =>
+                  prev.filter((p) => p.contact.id !== person.contact.id)
+                )
+              }
             />
-            {(contactOptions ?? []).map((c) => (
-              <Pressable
-                key={c.id}
-                style={[
-                  styles.optionRow,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                  },
-                ]}
-                onPress={() => {
-                  haptic.tap();
-                  setContact(c);
-                  setContactSearch('');
-                }}
-              >
-                <Avatar name={c.name || contactHandle(c)} size={30} />
-                <Text
-                  style={{ flexShrink: 1, fontSize: 14.5, color: colors.text }}
-                  numberOfLines={1}
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                gap: spacing.sm,
+              }}
+            >
+              {DEAL_PARTICIPANT_ROLES.map((role) => (
+                <ChoiceChip
+                  key={role}
+                  label={DEAL_PARTICIPANT_ROLE_LABELS[role]}
+                  accessibilityLabel={`${person.contact.name || 'Contact'} is the ${DEAL_PARTICIPANT_ROLE_LABELS[role].toLowerCase()}`}
+                  selected={person.role === role}
+                  onPress={() => {
+                    haptic.tap();
+                    setPeople((prev) =>
+                      prev.map((p) =>
+                        p.contact.id === person.contact.id ? { ...p, role } : p
+                      )
+                    );
+                  }}
+                />
+              ))}
+              {index > 0 ? (
+                <Pressable
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Make ${person.contact.name || 'this contact'} the primary contact`}
+                  onPress={() => {
+                    haptic.tap();
+                    setPeople((prev) => [
+                      person,
+                      ...prev.filter((p) => p.contact.id !== person.contact.id),
+                    ]);
+                  }}
                 >
-                  {c.name || c.phone}
-                </Text>
-                {c.name_tag ? (
-                  <View style={nameTagCap}>
-                    <Tag label={c.name_tag} />
-                  </View>
-                ) : null}
-              </Pressable>
-            ))}
+                  <Text
+                    style={{
+                      fontSize: 12.5,
+                      fontFamily: f.semibold,
+                      color: colors.primary,
+                    }}
+                  >
+                    Make primary
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
-        )}
+        ))}
+
+        {canAddPerson ? (
+          <View style={{ gap: spacing.sm }}>
+            {people.length > 0 ? (
+              <TextField
+                label="Add another contact"
+                placeholder="Another buyer, seller or agent (optional)"
+                value={contactSearch}
+                onChangeText={setContactSearch}
+              />
+            ) : (
+              <TextField
+                label="Contact"
+                placeholder="Search name or phone (required)"
+                value={contactSearch}
+                onChangeText={setContactSearch}
+              />
+            )}
+            {(contactOptions ?? [])
+              .filter((c) => !people.some((p) => p.contact.id === c.id))
+              .map((c) => (
+                <Pressable
+                  key={c.id}
+                  style={[
+                    styles.optionRow,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  onPress={() => {
+                    haptic.tap();
+                    setPeople((prev) => [
+                      ...prev,
+                      {
+                        contact: c,
+                        role: participantRoleForContact(c.classification),
+                      },
+                    ]);
+                    setContactSearch('');
+                  }}
+                >
+                  <Avatar name={c.name || contactHandle(c)} size={30} />
+                  <Text
+                    style={{
+                      flexShrink: 1,
+                      fontSize: 14.5,
+                      color: colors.text,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {c.name || c.phone}
+                  </Text>
+                  {c.name_tag ? (
+                    <View style={nameTagCap}>
+                      <Tag label={c.name_tag} />
+                    </View>
+                  ) : null}
+                </Pressable>
+              ))}
+          </View>
+        ) : null}
 
         {property ? (
           <SelectedRow

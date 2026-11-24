@@ -119,6 +119,7 @@ jobs:
               - 'src/lib/deals/deadline-rules.ts'
               - 'src/lib/deals/financials.ts'
               - 'src/lib/deals/milestones.ts'
+              - 'src/lib/deals/participants.ts'
               - 'src/lib/deals/routes.ts'
               - 'src/lib/deals/timeline-attribution.ts'
               - 'src/lib/deals/visibility.ts'

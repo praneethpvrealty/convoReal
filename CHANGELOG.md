@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 24 November 2026
 
+- **Connect a calendar event to a deal, and put several people on a deal.**
+  An event's panel, on web and mobile, now has Connect to a deal: pick a deal
+  that already shares the event's property or contacts, search for any other,
+  or create a new deal from the event, which opens the deal form with the
+  event's contacts and property filled in. The deal form takes more than one
+  contact, each marked Buyer, Seller or Agent; the first is the primary
+  contact and all of them appear under the deal's Stakeholders.
+  **Migration required:** `20261124101500_appointments_deal_link.sql`.
+
 - **Message a deal's contact for its stage.** Every deal card on the Deals
   board, on web and mobile, has a Message action that drafts the next step for
   the stage the deal is in: at Enquiry → Shortlist it asks whether to arrange a

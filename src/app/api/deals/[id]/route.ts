@@ -8,6 +8,8 @@ import {
 import { ensureClosingRecord } from '@/lib/deals/closing-record';
 import { parseEventSource } from '@/lib/deals/events';
 import { actorName } from '@/lib/deals/server';
+import { parseDealParticipants } from '@/lib/deals/participants';
+import { syncDealParticipants } from '@/lib/deals/participants-server';
 import {
   applyDealStageMove,
   parseBrokerageCapture,
@@ -64,6 +66,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       stage_name,
       deal_group_id,
     } = body;
+
+    const participants =
+      body.participants === undefined
+        ? null
+        : parseDealParticipants(body.participants);
+    if (participants && !participants.ok) {
+      return NextResponse.json({ error: participants.error }, { status: 400 });
+    }
 
     const updateData: Record<string, unknown> = {};
     if (deal_group_id !== undefined)
@@ -261,6 +271,30 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         console.warn(
           '[PUT /api/deals/[id]] Previous property not re-synced:',
           previousPropertyId
+        );
+      }
+    }
+
+    if (participants?.ok) {
+      const synced = await syncDealParticipants({
+        db: ctx.supabase,
+        accountId: ctx.accountId,
+        dealId,
+        userId: ctx.userId,
+        actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
+        source: parseEventSource(body.source),
+        participants: participants.value,
+      });
+      if (!synced.ok) {
+        return NextResponse.json(
+          {
+            error: `The deal was saved, but its contacts were not: ${synced.error}`,
+            code: 'PARTICIPANTS_NOT_SAVED',
+          },
+          {
+            status:
+              synced.error === 'One or more contacts are invalid' ? 400 : 500,
+          }
         );
       }
     }

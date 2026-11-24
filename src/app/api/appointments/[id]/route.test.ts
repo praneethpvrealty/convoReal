@@ -10,18 +10,22 @@ const state = vi.hoisted(() => ({
     contact_ids: [],
   } as Record<string, unknown>,
   updates: [] as Array<Record<string, unknown>>,
+  deal: { id: 'deal-1' } as { id: string } | null,
 }));
 
 vi.mock('@/lib/auth/account', () => ({
   requireRole: async () => ({
     accountId: 'acct-1',
     supabase: {
-      from: () => {
+      from: (table: string) => {
         const builder = {
           select: () => builder,
           eq: () => builder,
           in: () => builder,
-          maybeSingle: async () => ({ data: state.existing, error: null }),
+          maybeSingle: async () => ({
+            data: table === 'deals' ? state.deal : state.existing,
+            error: null,
+          }),
           update: (payload: Record<string, unknown>) => {
             state.updates.push(payload);
             return builder;
@@ -59,6 +63,35 @@ function put(body: Record<string, unknown>) {
     { params: Promise.resolve({ id: 'appt-1' }) }
   );
 }
+
+describe('[CAL-022] PUT /api/appointments/[id] connects an event to a deal', () => {
+  it("links a deal in the caller's account and leaves the reminders alone", async () => {
+    state.updates = [];
+    state.deal = { id: 'deal-1' };
+    const res = await put({ deal_id: 'deal-1' });
+    expect(res.status).toBe(200);
+    expect(state.updates[0]).toMatchObject({ deal_id: 'deal-1' });
+    expect(state.updates[0]).not.toHaveProperty('reminders_rearmed_at');
+  });
+
+  it('refuses a deal the account does not have', async () => {
+    state.updates = [];
+    state.deal = null;
+    const res = await put({ deal_id: 'someone-elses' });
+    expect(res.status).toBe(404);
+    expect(state.updates).toHaveLength(0);
+    state.deal = { id: 'deal-1' };
+  });
+
+  it('disconnects with null and does not touch the link on other edits', async () => {
+    state.updates = [];
+    await put({ deal_id: null });
+    expect(state.updates[0]).toMatchObject({ deal_id: null });
+    state.updates = [];
+    await put({ title: 'Renamed' });
+    expect(state.updates[0].deal_id).toBeUndefined();
+  });
+});
 
 describe('PUT /api/appointments/[id]', () => {
   const rearmed = (update: Record<string, unknown>) => {
