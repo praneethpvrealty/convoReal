@@ -251,6 +251,11 @@ export default function DealsScreen() {
     Promise.all([refetch(), focusQuery.refetch()])
   );
   const { show, close, dialogProps } = useAppDialog();
+  const [messaging, setMessaging] = useState<{
+    deal: Deal;
+    title: string;
+    text: string;
+  } | null>(null);
   async function messageDeal(deal: Deal, stage: PipelineStage | null) {
     const contact = deal.contact;
     if (!contact) return;
@@ -266,39 +271,26 @@ export default function DealsScreen() {
       propertyCode: deal.property?.property_code,
       propertyUrl,
     });
-    show({
-      title: `${title} · ${name}`,
-      message,
-      actions: [
-        { label: 'Cancel', variant: 'muted', onPress: close },
-        {
-          label: 'ConvoReal',
-          onPress: async () => {
-            close();
-            const outcome = await openContactChat(contact, {
-              draftText: message,
-            });
-            if (!outcome.ok && outcome.error) {
-              show({ title: 'Could not open thread', message: outcome.error });
-            }
-          },
-        },
-        ...(contact.phone
-          ? [
-              {
-                label: 'WhatsApp',
-                variant: 'primary' as const,
-                onPress: () => {
-                  close();
-                  void Linking.openURL(
-                    `https://wa.me/${(contact.phone ?? '').replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
-                  );
-                },
-              },
-            ]
-          : []),
-      ],
-    });
+    setMessaging({ deal, title: `${title} · ${name}`, text: message });
+  }
+  async function sendDealMessageInApp() {
+    const contact = messaging?.deal.contact;
+    const text = messaging?.text.trim();
+    if (!contact || !text) return;
+    setMessaging(null);
+    const outcome = await openContactChat(contact, { draftText: text });
+    if (!outcome.ok && outcome.error) {
+      show({ title: 'Could not open thread', message: outcome.error });
+    }
+  }
+  function sendDealMessageOnWhatsApp() {
+    const phone = (messaging?.deal.contact?.phone ?? '').replace(/\D/g, '');
+    const text = messaging?.text.trim();
+    if (!phone || !text) return;
+    setMessaging(null);
+    void Linking.openURL(
+      `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+    );
   }
   const boardLoadFailed =
     pipelinesQuery.isLoadingError || stagesQuery.isLoadingError || dealsError;
@@ -1024,6 +1016,60 @@ export default function DealsScreen() {
         </View>
       </BottomSheet>
 
+      <BottomSheet
+        visible={messaging !== null}
+        onClose={() => setMessaging(null)}
+      >
+        <View style={styles.modalHeader}>
+          <Text
+            style={[styles.modalTitle, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {messaging?.title}
+          </Text>
+          <Pressable
+            onPress={() => setMessaging(null)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <Ionicons name="close" size={20} color={colors.textMuted} />
+          </Pressable>
+        </View>
+        <View style={styles.brokerageForm}>
+          <TextField
+            label="Message"
+            value={messaging?.text ?? ''}
+            onChangeText={(text) =>
+              setMessaging((current) =>
+                current ? { ...current, text } : current
+              )
+            }
+            multiline
+          />
+          <PrimaryButton
+            label="Open in ConvoReal"
+            icon="chatbubble-ellipses-outline"
+            disabled={!messaging?.text.trim()}
+            onPress={() => void sendDealMessageInApp()}
+          />
+          {messaging?.deal.contact?.phone ? (
+            <Pressable
+              onPress={sendDealMessageOnWhatsApp}
+              disabled={!messaging.text.trim()}
+              accessibilityRole="button"
+              accessibilityLabel="Send from your own WhatsApp"
+              style={[styles.whatsAppButton, { borderColor: colors.success }]}
+            >
+              <Ionicons name="logo-whatsapp" size={16} color={colors.success} />
+              <Text style={{ fontFamily: f.bold, color: colors.success }}>
+                WhatsApp
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </BottomSheet>
+
       {/* Stage picker for the deal being moved. */}
       <BottomSheet
         visible={Boolean(movingDeal)}
@@ -1567,6 +1613,15 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   modalTitle: { flex: 1, fontSize: 15.5, fontFamily: fonts.bold },
+  whatsAppButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingVertical: 12,
+  },
   brokerageForm: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,
