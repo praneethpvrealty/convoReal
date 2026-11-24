@@ -139,6 +139,21 @@ const VISIT_DATE_CUE =
 const VISIT_TIME_CUE =
   /\b(?:at\s*)?\d{1,2}(?::\d{2})?\s*(?:am|pm)\b|\b\d{1,2}:\d{2}\b/i;
 
+const AVAILABILITY_CONDITION =
+  /\bif\s+(?:u|you|there)\s+(?:have|has|got|get|find|is|are)\s+(?:a|an|any|some|something|anything)\b|\bif\s+(?:any|some)(?:thing|one)?\b|\bif\s+(?:(?:it|that|this|the\s+\w+)\s*(?:is|'s)\s+)?(?:still\s+)?available\b|\b(?:let\s+me\s+know|message\s+me|tell\s+me|inform\s+me)\s+if\b/i;
+const PROPERTY_SEARCH =
+  /\b(?:looking|searching)\s+(?!forward\b)(?:out\s+)?(?:for\s+)?(?:a\s+|an\s+|some\s+|any\s+)?(?:\d+(?:\.\d+)?\s*(?:bhk|rk|bed|cr|crore|lakh|lac|sq|acre|cent|gunta)|(?:propert\w*|flats?|apartments?|villas?|plots?|sites?|houses?|homes?|land|units?|options?)\b(?!\s+(?:visit|viewing|tour)))/i;
+const INBOUND_CONFIRMATION = /noted your request|updated your request/i;
+const LOOSE_CLOCK_TIME =
+  /\bat\s+\d{1,2}\b|\b\d{1,2}\s*o'?\s*clock\b|\b(?:noon|midday|midnight)\b|\bhalf\s+past\s+\d{1,2}\b/i;
+const LEAD_CHANGE_CUE =
+  /\b(?:reschedul\w*|postpon\w*|prepon\w*|instead|make\s+it|change|shift|move|different\s+(?:time|day|date))\b/i;
+
+export function isAvailabilityConditionedRequest(text: string): boolean {
+  const value = text.trim();
+  return AVAILABILITY_CONDITION.test(value) || PROPERTY_SEARCH.test(value);
+}
+
 export function isInboundVisitRequest(text: string): boolean {
   return INBOUND_VISIT_REQUEST.test(text.trim());
 }
@@ -496,7 +511,12 @@ export function formatInboundConfirmation(params: {
   startIso: string;
   propertyTitle: string | null;
   location: string | null;
+  updated?: boolean;
+  note?: string | null;
 }): string {
+  const titleText = params.title.toLowerCase();
+  const repeatsTitle = (value: string | null) =>
+    !value || titleText.includes(value.trim().toLowerCase());
   const when = new Date(params.startIso).toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
     weekday: 'short',
@@ -510,11 +530,14 @@ export function formatInboundConfirmation(params: {
   return [
     `Hi ${params.contactName || 'there'},`,
     '',
-    "🗓 *I've noted your request:*",
+    params.updated
+      ? "🗓 *I've updated your request:*"
+      : "🗓 *I've noted your request:*",
     `${emoji} ${params.title}`,
     `🕐 ${when}`,
-    params.propertyTitle ? `🏡 ${params.propertyTitle}` : null,
-    params.location ? `📌 ${params.location}` : null,
+    repeatsTitle(params.propertyTitle) ? null : `🏡 ${params.propertyTitle}`,
+    repeatsTitle(params.location) ? null : `📌 ${params.location}`,
+    params.note ? `📝 "${params.note}"` : null,
     '',
     'Our team will confirm shortly. Reply here if you need a different time.',
   ]
@@ -2316,7 +2339,7 @@ export interface InboundSchedulingParams {
 }
 
 interface PendingVisitPrompt {
-  property: SchedulerProperty;
+  property: SchedulerProperty | null;
   promptText: string;
   waMessageId: string;
 }
@@ -2325,20 +2348,32 @@ async function pendingVisitPrompt(params: {
   admin: ReturnType<typeof supabaseAdmin>;
   accountId: string;
   conversationId: string;
+  contactId: string;
   properties: SchedulerProperty[];
 }): Promise<PendingVisitPrompt | null> {
-  const target = await latestBotTargetForPrompt({
+  const lookup = {
     accountId: params.accountId,
     conversationId: params.conversationId,
-    entityType: 'property',
     prompt: VISIT_PROMPT,
     withinHours: 24,
     client: params.admin,
+  };
+  const propertyTarget = await latestBotTargetForPrompt({
+    ...lookup,
+    entityType: 'property',
   });
+  const target =
+    propertyTarget ||
+    (await latestBotTargetForPrompt({ ...lookup, entityType: 'contact' }));
   if (!target?.waMessageId) return null;
 
-  const property = params.properties.find((p) => p.id === target.entityId);
-  if (!property) return null;
+  const property =
+    target.entityType === 'property'
+      ? params.properties.find((p) => p.id === target.entityId) || null
+      : null;
+  if (target.entityType === 'property' && !property) return null;
+  if (target.entityType === 'contact' && target.entityId !== params.contactId)
+    return null;
 
   const { data } = await params.admin
     .from('messages')
@@ -2473,7 +2508,16 @@ export async function tryHandleInboundScheduling(
   const visitRequest = isInboundVisitRequest(text);
   const schedulingRequest = looksLikeSchedulingText(text);
   const possibleVisitReply = missingVisitDetails(text).length < 2;
-  if (!visitRequest && !schedulingRequest && !possibleVisitReply) return false;
+  const changeRequest =
+    LEAD_CHANGE_CUE.test(text) && hasScheduleTimeCorrection(text);
+  if (
+    !visitRequest &&
+    !schedulingRequest &&
+    !possibleVisitReply &&
+    !changeRequest
+  )
+    return false;
+  if (isAvailabilityConditionedRequest(text)) return false;
 
   const admin = supabaseAdmin();
   const { data: propertyRows } = await admin
@@ -2485,8 +2529,26 @@ export async function tryHandleInboundScheduling(
     admin,
     accountId,
     conversationId: conversation.id,
+    contactId: contactRecord.id,
     properties,
   });
+  if (
+    !pending &&
+    !visitRequest &&
+    (!schedulingRequest || LEAD_CHANGE_CUE.test(text)) &&
+    (await applyLeadVisitCorrection({
+      admin,
+      text,
+      contactRecord,
+      conversationId: conversation.id,
+      accountId,
+      agentUserId,
+      accessToken,
+      phoneNumberId,
+    }))
+  ) {
+    return true;
+  }
   if (!pending && !visitRequest && !schedulingRequest) return false;
 
   const selectedProperty =
@@ -2499,7 +2561,7 @@ export async function tryHandleInboundScheduling(
         })
       : null);
   const schedulingText = pending
-    ? `Schedule a site visit to ${pending.property.title || pending.property.property_code || 'the selected property'}. ${pending.promptText}\nLead reply: ${text}`
+    ? `Schedule a site visit${pending.property ? ` to ${pending.property.title || pending.property.property_code || 'the selected property'}` : ''}. ${pending.promptText}\nLead reply: ${text}`
     : text;
   const missing = missingVisitDetails(schedulingText);
 
@@ -2541,6 +2603,26 @@ export async function tryHandleInboundScheduling(
       toPhone: contactRecord.phone,
       conversationId: conversation.id,
       text: 'Which property would you like to visit? Please share its property code or name.',
+    });
+    return true;
+  }
+
+  if (missing.includes('time') && !LOOSE_CLOCK_TIME.test(schedulingText)) {
+    if (pending || missing.includes('date') || !/\bvisit/i.test(text))
+      return false;
+    const wamid = await replyAndLog({
+      phoneNumberId,
+      accessToken,
+      toPhone: contactRecord.phone,
+      conversationId: conversation.id,
+      text: `🗓 *Visit time needed*\n\nWhat time would suit you for the visit?\n\n_Request noted: ${text.replace(/\s+/g, ' ').slice(0, 300)}_`,
+    });
+    await recordBotTarget({
+      accountId,
+      waMessageId: wamid,
+      entityType: 'contact',
+      entityId: contactRecord.id,
+      client: admin,
     });
     return true;
   }
@@ -2669,7 +2751,7 @@ export async function tryHandleInboundScheduling(
       .join('\n'),
   });
 
-  await replyAndLog({
+  const confirmationWamid = await replyAndLog({
     phoneNumberId,
     accessToken,
     toPhone: contactRecord.phone,
@@ -2682,6 +2764,183 @@ export async function tryHandleInboundScheduling(
       propertyTitle: property?.title || null,
       location: draft.location,
     }),
+  });
+  await recordBotTarget({
+    accountId,
+    waMessageId: confirmationWamid,
+    entityType: 'appointment',
+    entityId: inserted.id as string,
+    client: admin,
+  });
+  return true;
+}
+
+async function applyLeadVisitCorrection(params: {
+  admin: ReturnType<typeof supabaseAdmin>;
+  text: string;
+  contactRecord: { id: string; phone: string; name?: string | null };
+  conversationId: string;
+  accountId: string;
+  agentUserId: string;
+  accessToken: string;
+  phoneNumberId: string;
+}): Promise<boolean> {
+  const { admin, text, contactRecord, conversationId, accountId } = params;
+  const instruction = normalizeCompactMeridiemTime(text);
+  const namesClockTime = VISIT_TIME_CUE.test(instruction);
+  if (
+    !hasScheduleTimeCorrection(instruction) ||
+    (!namesClockTime && !LEAD_CHANGE_CUE.test(instruction))
+  ) {
+    return false;
+  }
+
+  const target = await latestBotTargetForPrompt({
+    accountId,
+    conversationId,
+    entityType: 'appointment',
+    prompt: INBOUND_CONFIRMATION,
+    withinHours: 24,
+    client: admin,
+  });
+  if (!target?.waMessageId) return false;
+
+  const { data: row, error } = await admin
+    .from('appointments')
+    .select(
+      'id, title, event_type, start_time, end_time, location, description, transcript, status, assigned_to'
+    )
+    .eq('id', target.entityId)
+    .eq('account_id', accountId)
+    .eq('contact_id', contactRecord.id)
+    .maybeSingle();
+  if (error || !row || row.status !== 'scheduled') return false;
+
+  if (!(await hardBurn(accountId, 'event_parse'))) return false;
+
+  let draft: ParsedEventDraft;
+  try {
+    draft = await parseEventUpdate({
+      current: {
+        title: row.title as string,
+        event_type: (row.event_type as string) ?? null,
+        start_time: utcIsoToIstLocal(row.start_time as string),
+        end_time: utcIsoToIstLocal((row.end_time as string) ?? null),
+        location: (row.location as string) ?? null,
+        agenda: null,
+        contact_name: null,
+        property_hint: null,
+      },
+      instruction,
+    });
+  } catch (err) {
+    console.error('[wa-scheduler] lead correction parse failed:', err);
+    return false;
+  }
+
+  const startIso = istLocalToUtcIso(draft.start_time);
+  if (draft.intent !== 'schedule' || !startIso) return false;
+  const startMs = new Date(startIso).getTime();
+  if (startMs <= Date.now()) return false;
+
+  const previousStartMs = new Date(row.start_time as string).getTime();
+  const previousEndMs = row.end_time
+    ? new Date(row.end_time as string).getTime()
+    : previousStartMs + 60 * 60 * 1000;
+  const parsedEnd = istLocalToUtcIso(draft.end_time);
+  const parsedEndMs = parsedEnd ? new Date(parsedEnd).getTime() : null;
+  const endMs =
+    parsedEndMs !== null &&
+    parsedEndMs > startMs &&
+    (startMs === previousStartMs || parsedEndMs !== previousEndMs)
+      ? parsedEndMs
+      : startMs + Math.max(previousEndMs - previousStartMs, 15 * 60 * 1000);
+  const moved = startMs !== previousStartMs || endMs !== previousEndMs;
+  if (!moved && !namesClockTime) return false;
+
+  const leadNote = text.replace(/\s+/g, ' ').trim().slice(0, 300);
+  const { error: updErr } = await admin
+    .from('appointments')
+    .update({
+      start_time: new Date(startMs).toISOString(),
+      end_time: new Date(endMs).toISOString(),
+      description: [row.description as string | null, `Lead: ${leadNote}`]
+        .filter(Boolean)
+        .join('\n'),
+      transcript: [row.transcript as string | null, text]
+        .filter(Boolean)
+        .join('\n'),
+      ...(moved
+        ? {
+            reminder_morning_sent: false,
+            reminder_1h_sent: false,
+            agent_reminder_sent: false,
+            reschedule_requested_at: null,
+            client_confirmed_at: null,
+          }
+        : {}),
+    })
+    .eq('id', row.id as string)
+    .eq('account_id', accountId);
+  if (updErr) {
+    console.error('[wa-scheduler] lead correction update failed:', updErr);
+    return false;
+  }
+
+  const finalStartIso = new Date(startMs).toISOString();
+  const leadName = contactRecord.name || contactRecord.phone;
+  const title = row.title as string;
+  const eventType = (row.event_type as string) || 'other';
+  await createNotification({
+    accountId,
+    userId: (row.assigned_to as string | null) || params.agentUserId,
+    type: 'appointment_booked',
+    eventKey: 'appointment_booked',
+    title: `${leadName} asked to change the time`,
+    body: [title, `🕐 ${whenLabel(finalStartIso)}`, `📝 ${leadNote}`].join(
+      '\n'
+    ),
+    entityType: 'appointment',
+    entityId: row.id as string,
+    link: '/calendar',
+    whatsappText: [
+      '📅 *A lead asked to change the time*',
+      `👤 ${leadName}`,
+      `${EVENT_TYPE_EMOJI[eventType] || '🗓'} ${title}`,
+      `🕐 ${whenLabel(finalStartIso)}`,
+      `📝 ${leadNote}`,
+      '',
+      '_Confirm or adjust it on your Calendar._',
+    ].join('\n'),
+  });
+
+  const wamid = await replyAndLog({
+    phoneNumberId: params.phoneNumberId,
+    accessToken: params.accessToken,
+    toPhone: contactRecord.phone,
+    conversationId,
+    text: formatInboundConfirmation({
+      contactName: contactRecord.name ?? null,
+      title,
+      eventType,
+      startIso: finalStartIso,
+      propertyTitle: null,
+      location: (row.location as string) ?? null,
+      updated: true,
+      note: leadNote,
+    }),
+  });
+  await recordBotTarget({
+    accountId,
+    waMessageId: wamid,
+    entityType: 'appointment',
+    entityId: row.id as string,
+    client: admin,
+  });
+  await clearBotTarget({
+    accountId,
+    waMessageId: target.waMessageId,
+    client: admin,
   });
   return true;
 }

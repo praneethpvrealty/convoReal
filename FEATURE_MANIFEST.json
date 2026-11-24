@@ -1806,6 +1806,17 @@
               "case": "[CAL-021]"
             }
           ]
+        },
+        {
+          "id": "CAL-022",
+          "rule": "A lead's WhatsApp message becomes an appointment only on what the lead actually said. A message that states a property search or makes the visit conditional on availability (\"if you have a unit\", \"if available\", \"let me know if\") books nothing and spends no AI credit: it falls through to the handlers that capture the requirement and reach the agent. A booking request with a day but no clock time is never given a guessed time: a visit request is asked \"What time would suit you\", and the answer typed straight back books it; a meeting or call with no time is left to the agent. The confirmation sent to the lead is registered against its appointment, so for 24 hours a plain reply naming a clock time or asking to change, move or postpone edits that same appointment (only the lead's own, only while scheduled, never into the past), adds the lead's words to it, re-arms reminders when the time moved, tells the assigned agent and answers the lead with the updated request, instead of going unanswered. The confirmation never repeats a location or property the title already names.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/inbound-visit-booking.test.ts",
+              "case": "[CAL-022]"
+            }
+          ],
+          "guards": ["src/lib/calendar/whatsapp-scheduler.ts"]
         }
       ]
     },
