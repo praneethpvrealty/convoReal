@@ -161,6 +161,29 @@ describe('[CAL-022] a lead booking is made only on what the lead actually said',
         'Looking forward to the visit tomorrow at 4pm'
       )
     ).toBe(false);
+    expect(
+      isAvailabilityConditionedRequest(
+        "I'm looking for a site visit on Saturday at 3pm"
+      )
+    ).toBe(false);
+    expect(
+      isAvailabilityConditionedRequest('Looking for 3pm tomorrow for the visit')
+    ).toBe(false);
+    expect(
+      isAvailabilityConditionedRequest('Looking for 3 bhk, visit tomorrow 3pm')
+    ).toBe(true);
+  });
+
+  it('takes noon as a stated time', async () => {
+    expect(await send('Site visit tomorrow at noon please')).toBe(true);
+    expect(parseEventFromInput).toHaveBeenCalled();
+    expect(sentTexts()[0]).toContain("I've noted your request");
+  });
+
+  it('does not ask for a time when no day was named either', async () => {
+    expect(await send('Remind me about the visit')).toBe(false);
+    expect(sendTextMessage).not.toHaveBeenCalled();
+    expect(recordBotTarget).not.toHaveBeenCalled();
   });
 
   it('books nothing and spends nothing on the recorded conditional request', async () => {
@@ -302,6 +325,17 @@ describe('[CAL-022] a lead booking is made only on what the lead actually said',
     expect(clearBotTarget).toHaveBeenCalledWith(
       expect.objectContaining({ waMessageId: 'wamid.confirmation' })
     );
+  });
+
+  it('keeps the visit length when the model carries the old end time through', async () => {
+    standingConfirmation();
+    parseEventUpdate.mockResolvedValue(
+      draft({ start_time: '2099-11-24T09:00', end_time: '2099-11-25T11:00' })
+    );
+    expect(await send('Make it 9 am the day before')).toBe(true);
+    const patch = updates.find((u) => u.table === 'appointments')?.patch;
+    expect(patch?.start_time).toBe('2099-11-24T03:30:00.000Z');
+    expect(patch?.end_time).toBe('2099-11-24T04:30:00.000Z');
   });
 
   it('does not treat a passing mention of the day as a change', async () => {

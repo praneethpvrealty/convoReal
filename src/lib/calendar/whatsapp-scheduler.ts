@@ -142,9 +142,10 @@ const VISIT_TIME_CUE =
 const AVAILABILITY_CONDITION =
   /\bif\s+(?:u|you|there)\s+(?:have|has|got|get|find|is|are)\s+(?:a|an|any|some|something|anything)\b|\bif\s+(?:any|some)(?:thing|one)?\b|\bif\s+(?:(?:it|that|this|the\s+\w+)\s*(?:is|'s)\s+)?(?:still\s+)?available\b|\b(?:let\s+me\s+know|message\s+me|tell\s+me|inform\s+me)\s+if\b/i;
 const PROPERTY_SEARCH =
-  /\b(?:looking|searching)\s+(?!forward\b)(?:out\s+)?(?:for\s+)?(?:a\s+|an\s+|some\s+|any\s+)?(?:\d|propert|flats?\b|apartments?\b|villas?\b|plots?\b|sites?\b|houses?\b|homes?\b|land\b|units?\b|options?\b)/i;
+  /\b(?:looking|searching)\s+(?!forward\b)(?:out\s+)?(?:for\s+)?(?:a\s+|an\s+|some\s+|any\s+)?(?:\d+(?:\.\d+)?\s*(?:bhk|rk|bed|cr|crore|lakh|lac|sq|acre|cent|gunta)|(?:propert\w*|flats?|apartments?|villas?|plots?|sites?|houses?|homes?|land|units?|options?)\b(?!\s+(?:visit|viewing|tour)))/i;
 const INBOUND_CONFIRMATION = /noted your request|updated your request/i;
-const LOOSE_CLOCK_TIME = /\bat\s+\d{1,2}\b|\b\d{1,2}\s*o'?\s*clock\b/i;
+const LOOSE_CLOCK_TIME =
+  /\bat\s+\d{1,2}\b|\b\d{1,2}\s*o'?\s*clock\b|\b(?:noon|midday|midnight)\b|\bhalf\s+past\s+\d{1,2}\b/i;
 const LEAD_CHANGE_CUE =
   /\b(?:reschedul\w*|postpon\w*|prepon\w*|instead|make\s+it|change|shift|move|different\s+(?:time|day|date))\b/i;
 
@@ -2601,7 +2602,8 @@ export async function tryHandleInboundScheduling(
   }
 
   if (missing.includes('time') && !LOOSE_CLOCK_TIME.test(schedulingText)) {
-    if (pending || !/\bvisit/i.test(text)) return false;
+    if (pending || missing.includes('date') || !/\bvisit/i.test(text))
+      return false;
     const wamid = await replyAndLog({
       phoneNumberId,
       accessToken,
@@ -2840,9 +2842,12 @@ async function applyLeadVisitCorrection(params: {
     ? new Date(row.end_time as string).getTime()
     : previousStartMs + 60 * 60 * 1000;
   const parsedEnd = istLocalToUtcIso(draft.end_time);
+  const parsedEndMs = parsedEnd ? new Date(parsedEnd).getTime() : null;
   const endMs =
-    parsedEnd && new Date(parsedEnd).getTime() > startMs
-      ? new Date(parsedEnd).getTime()
+    parsedEndMs !== null &&
+    parsedEndMs > startMs &&
+    (startMs === previousStartMs || parsedEndMs !== previousEndMs)
+      ? parsedEndMs
       : startMs + Math.max(previousEndMs - previousStartMs, 15 * 60 * 1000);
   const moved = startMs !== previousStartMs || endMs !== previousEndMs;
   if (!moved && !namesClockTime) return false;
