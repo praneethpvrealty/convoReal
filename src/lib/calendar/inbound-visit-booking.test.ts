@@ -244,6 +244,17 @@ describe('[CAL-022] a lead booking is made only on what the lead actually said',
     );
   });
 
+  it('does not book a conditional answer to the time question', async () => {
+    latestBotTargetForPrompt.mockResolvedValue({
+      entityType: 'contact',
+      entityId: 'contact-1',
+      waMessageId: 'wamid.prompt',
+    });
+    expect(await send('If available tomorrow at 4pm')).toBe(false);
+    expect(burnCredits).not.toHaveBeenCalled();
+    expect(inserts).toEqual([]);
+  });
+
   it("ignores a time question addressed to another lead's thread", async () => {
     latestBotTargetForPrompt.mockImplementation(
       async (p: { entityType: string }) =>
@@ -336,6 +347,17 @@ describe('[CAL-022] a lead booking is made only on what the lead actually said',
     const patch = updates.find((u) => u.table === 'appointments')?.patch;
     expect(patch?.start_time).toBe('2099-11-24T03:30:00.000Z');
     expect(patch?.end_time).toBe('2099-11-24T04:30:00.000Z');
+  });
+
+  it('moves the visit on "postpone to next week"', async () => {
+    standingConfirmation();
+    parseEventUpdate.mockResolvedValue(
+      draft({ start_time: '2099-12-02T10:00', end_time: null })
+    );
+    expect(await send('Postpone to next week')).toBe(true);
+    const patch = updates.find((u) => u.table === 'appointments')?.patch;
+    expect(patch?.start_time).toBe('2099-12-02T04:30:00.000Z');
+    expect(patch?.reminder_morning_sent).toBe(false);
   });
 
   it('does not treat a passing mention of the day as a change', async () => {

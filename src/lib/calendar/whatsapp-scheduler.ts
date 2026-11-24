@@ -2508,9 +2508,16 @@ export async function tryHandleInboundScheduling(
   const visitRequest = isInboundVisitRequest(text);
   const schedulingRequest = looksLikeSchedulingText(text);
   const possibleVisitReply = missingVisitDetails(text).length < 2;
-  if (!visitRequest && !schedulingRequest && !possibleVisitReply) return false;
-  const conditioned = isAvailabilityConditionedRequest(text);
-  if (conditioned && !possibleVisitReply) return false;
+  const changeRequest =
+    LEAD_CHANGE_CUE.test(text) && hasScheduleTimeCorrection(text);
+  if (
+    !visitRequest &&
+    !schedulingRequest &&
+    !possibleVisitReply &&
+    !changeRequest
+  )
+    return false;
+  if (isAvailabilityConditionedRequest(text)) return false;
 
   const admin = supabaseAdmin();
   const { data: propertyRows } = await admin
@@ -2525,7 +2532,6 @@ export async function tryHandleInboundScheduling(
     contactId: contactRecord.id,
     properties,
   });
-  if (!pending && conditioned) return false;
   if (
     !pending &&
     !visitRequest &&
