@@ -28,6 +28,15 @@ than a written entry. Newest first.
   contact and all of them appear under the deal's Stakeholders.
   **Migration required:** `20261124101500_appointments_deal_link.sql`.
 
+- **The WhatsApp bot no longer books a visit the lead did not ask for.** A lead
+  who says what they are looking for, or who makes the visit depend on
+  availability ("if you have a unit in that tower…"), is no longer answered with
+  a booked site visit; the message goes on to requirement capture and the
+  agent. "Tomorrow morning" is no longer turned into 10:00 am: the bot asks what
+  time suits and books from the answer. And a reply to the bot's "I've noted
+  your request" message that names a time or asks to move the visit now updates
+  that appointment, tells the agent and answers the lead, instead of going
+  unanswered.
 - **Message a deal's contact for its stage.** Every deal card on the Deals
   board, on web and mobile, has a Message action that drafts the next step for
   the stage the deal is in: at Enquiry → Shortlist it asks whether to arrange a

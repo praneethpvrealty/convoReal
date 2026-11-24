@@ -17,4 +17,4 @@ CREATE INDEX IF NOT EXISTS idx_appointments_deal
   WHERE deal_id IS NOT NULL;
 
 COMMENT ON COLUMN appointments.deal_id IS
-  'The deal this event belongs to, when the agent connected one (CAL-022).';
+  'The deal this event belongs to, when the agent connected one (CAL-023).';

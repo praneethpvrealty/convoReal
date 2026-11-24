@@ -6798,7 +6798,7 @@ describe('the deal card messages the contact for its stage on both surfaces', ()
     expect(web).toContain('dealCreateWarning(');
   });
 
-  it('[CAL-022] both calendars connect an event to a deal or start one from it', () => {
+  it('[CAL-023] both calendars connect an event to a deal or start one from it', () => {
     const mobileSheet = mobileSource('app/(app)/(tabs)/calendar.tsx');
     expect(mobileSheet).toContain('<EventDealLink');
     expect(mobileSheet).toContain('deal:deals(id, title)');

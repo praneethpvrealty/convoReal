@@ -64,7 +64,7 @@ function put(body: Record<string, unknown>) {
   );
 }
 
-describe('[CAL-022] PUT /api/appointments/[id] connects an event to a deal', () => {
+describe('[CAL-023] PUT /api/appointments/[id] connects an event to a deal', () => {
   it("links a deal in the caller's account and leaves the reminders alone", async () => {
     state.updates = [];
     state.deal = { id: 'deal-1' };

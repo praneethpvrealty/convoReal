@@ -140,7 +140,7 @@ describe('[PIPE-007] POST /api/deals saves every contact on the deal', () => {
   });
 });
 
-describe('[CAL-022] POST /api/deals connects the new deal to its calendar event', () => {
+describe('[CAL-023] POST /api/deals connects the new deal to its calendar event', () => {
   it('links the event to the deal it was created from', async () => {
     const res = await create({
       contact_id: 'ashwath',

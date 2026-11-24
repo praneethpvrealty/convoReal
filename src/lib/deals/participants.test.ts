@@ -92,7 +92,7 @@ describe('[PIPE-007] a deal takes several contacts, each a buyer, seller or agen
   });
 });
 
-describe('[CAL-022] a calendar event connects to a deal', () => {
+describe('[CAL-023] a calendar event connects to a deal', () => {
   const event = {
     title: 'Meeting — Commercial Building',
     contact_id: 'ashwath',
