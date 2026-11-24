@@ -61,6 +61,7 @@ import { AgendaView } from '@/components/calendar/agenda-view';
 import { TasksList } from '@/components/calendar/tasks-list';
 import { AgendaPdfButton } from '@/components/calendar/agenda-pdf-button';
 import { SubscribeFeedDialog } from '@/components/calendar/subscribe-feed-dialog';
+import { EventDealLink } from '@/components/calendar/event-deal-link';
 import {
   CalendarEvent,
   TeamMember,
@@ -313,7 +314,7 @@ export default function CalendarPage() {
         supabase
           .from('appointments')
           .select(
-            '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+            '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality), deal:deals(id, title)'
           )
           .eq('account_id', accountId)
           .order('start_time', { ascending: true }),
@@ -2245,6 +2246,28 @@ export default function CalendarPage() {
                     />
                   </div>
                 </div>
+
+                {selectedAppt && (
+                  <EventDealLink
+                    key={selectedAppt.id}
+                    event={selectedAppt}
+                    contacts={contacts}
+                    properties={properties}
+                    canEdit={canEdit}
+                    onChanged={(deal) => {
+                      setSelectedAppt((current) =>
+                        current
+                          ? { ...current, deal, deal_id: deal?.id ?? null }
+                          : current
+                      );
+                      loadData();
+                    }}
+                    onDealCreated={() => {
+                      setIsApptModalOpen(false);
+                      loadData();
+                    }}
+                  />
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>

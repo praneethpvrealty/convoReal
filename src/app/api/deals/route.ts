@@ -9,6 +9,17 @@ import { propertyStatusForPipelineStage } from '@/lib/pipelines/stage-semantics'
 import { setListingStatusFromDeal } from '@/lib/inventory/listing-status-sync';
 import { resolveStage } from '@/lib/deals/stage-move';
 import { focusNewDealJourney } from '@/lib/deals/new-deal-focus';
+import { parseEventSource } from '@/lib/deals/events';
+import {
+  parseDealParticipants,
+  participantsToStore,
+  primaryContactId,
+} from '@/lib/deals/participants';
+import {
+  loadParticipantContacts,
+  syncDealParticipants,
+} from '@/lib/deals/participants-server';
+import { actorName } from '@/lib/deals/server';
 import {
   LOST_REASON_REQUIRED_ERROR,
   lostReasonMissing,
@@ -85,13 +96,52 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    const participants = parseDealParticipants(body.participants);
+    if (!participants.ok) {
+      return NextResponse.json({ error: participants.error }, { status: 400 });
+    }
+    if (participants.value.length > 0) {
+      const known = await loadParticipantContacts(
+        ctx.supabase,
+        ctx.accountId,
+        participants.value.map((p) => p.contact_id)
+      );
+      if (!known) {
+        return NextResponse.json(
+          { error: 'One or more contacts are invalid' },
+          { status: 400 }
+        );
+      }
+    }
+    const appointmentId =
+      typeof body.appointment_id === 'string' && body.appointment_id.trim()
+        ? body.appointment_id.trim()
+        : null;
+    if (appointmentId) {
+      const { data: appointment } = await ctx.supabase
+        .from('appointments')
+        .select('id')
+        .eq('id', appointmentId)
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+      if (!appointment) {
+        return NextResponse.json(
+          { error: 'Calendar event not found' },
+          { status: 404 }
+        );
+      }
+    }
+
     const insertData = {
       user_id: ctx.userId,
       account_id: ctx.accountId,
       title: title.trim(),
       value: typeof value === 'number' ? value : 0,
       currency: typeof currency === 'string' ? currency : 'INR',
-      contact_id: typeof contact_id === 'string' ? contact_id : null,
+      contact_id: primaryContactId(
+        participants.value,
+        typeof contact_id === 'string' && contact_id.trim() ? contact_id : null
+      ),
       pipeline_id: pipeline_id.trim(),
       stage_id: stage_id.trim(),
       assigned_to:
@@ -170,7 +220,46 @@ export async function POST(request: Request) {
       console.warn('[POST /api/deals] Journey not moved to Focus:', focusErr);
     }
 
-    return NextResponse.json({ id: created.id }, { status: 201 });
+    let participantsSaved = true;
+    const stored = participantsToStore(participants.value);
+    if (stored.length > 0) {
+      const synced = await syncDealParticipants({
+        db: ctx.supabase,
+        accountId: ctx.accountId,
+        dealId: created.id,
+        userId: ctx.userId,
+        actorName: await actorName(ctx.supabase, ctx.accountId, ctx.userId),
+        source: parseEventSource(body.source),
+        participants: stored,
+      });
+      if (!synced.ok) {
+        participantsSaved = false;
+        console.warn('[POST /api/deals] Participants not saved:', synced.error);
+      }
+    }
+
+    let appointmentLinked = false;
+    if (appointmentId) {
+      const { data: linked, error: linkErr } = await ctx.supabase
+        .from('appointments')
+        .update({ deal_id: created.id })
+        .eq('id', appointmentId)
+        .eq('account_id', ctx.accountId)
+        .select('id');
+      appointmentLinked = !linkErr && Boolean(linked?.length);
+      if (!appointmentLinked) {
+        console.warn('[POST /api/deals] Event not linked:', linkErr);
+      }
+    }
+
+    return NextResponse.json(
+      {
+        id: created.id,
+        ...(stored.length > 0 ? { participants_saved: participantsSaved } : {}),
+        ...(appointmentId ? { appointment_linked: appointmentLinked } : {}),
+      },
+      { status: 201 }
+    );
   } catch (err) {
     return toErrorResponse(err);
   }

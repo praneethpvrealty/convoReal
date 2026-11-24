@@ -196,6 +196,8 @@ export function eventTypeFields(key?: string | null): EventExtraField[] {
 }
 
 export interface CalendarEvent {
+  deal_id?: string | null;
+  deal?: { id: string; title: string } | null;
   id: string;
   account_id: string;
   user_id: string;

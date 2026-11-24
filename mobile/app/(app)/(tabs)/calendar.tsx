@@ -42,6 +42,7 @@ import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { ContactPeekCard } from '@/components/contact-peek-card';
+import { EventDealLink } from '@/components/event-deal-link';
 import {
   ChoiceChip,
   EmptyState,
@@ -191,7 +192,7 @@ async function fetchMonth(month: Date): Promise<Appointment[]> {
     const { data, error } = await supabase
       .from('appointments')
       .select(
-        '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+        '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality), deal:deals(id, title)'
       )
       .gte('start_time', from.toISOString())
       .lt('start_time', to.toISOString())
@@ -207,7 +208,7 @@ async function fetchAppointment(id: string): Promise<Appointment | null> {
   const { data, error } = await supabase
     .from('appointments')
     .select(
-      '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+      '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality), deal:deals(id, title)'
     )
     .eq('id', id)
     .maybeSingle();
@@ -223,7 +224,7 @@ async function fetchUpcomingAppointments(now: Date): Promise<Appointment[]> {
     const { data, error } = await supabase
       .from('appointments')
       .select(
-        '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
+        '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality), deal:deals(id, title)'
       )
       .gte('start_time', tomorrow.toISOString())
       .order('start_time', { ascending: true })
@@ -3236,6 +3237,14 @@ function AppointmentDetail({
               />
             </Pressable>
           </Link>
+        ) : null}
+        {!editingDetails ? (
+          <EventDealLink
+            key={appointment.id}
+            appointment={appointment}
+            canEdit={canEdit}
+            onNavigate={onClose}
+          />
         ) : null}
 
         {error ? (

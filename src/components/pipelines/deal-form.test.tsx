@@ -9,7 +9,10 @@ import {
   waitFor,
 } from '@testing-library/react';
 
-import type { PipelineStage } from '@/types';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactElement } from 'react';
+
+import type { Deal, PipelineStage } from '@/types';
 
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock('sonner', () => ({ toast: toastMock }));
@@ -18,17 +21,24 @@ vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({ accountId: null }),
 }));
 
+const stakeholderLoad = vi.hoisted(() => ({ fails: false }));
 const client = vi.hoisted(() => ({
   db: {
     from: (table: string) => {
-      const result = {
-        data:
-          table === 'contacts' ? [{ id: 'c1', name: 'Ravi', phone: '91' }] : [],
-        error: null,
-      };
+      const result =
+        table === 'deal_stakeholders' && stakeholderLoad.fails
+          ? { data: null, error: { message: 'network' } }
+          : {
+              data:
+                table === 'contacts'
+                  ? [{ id: 'c1', name: 'Ravi', phone: '91' }]
+                  : [],
+              error: null,
+            };
       const chain: Record<string, unknown> = {
         select: () => chain,
         eq: () => chain,
+        not: () => chain,
         order: () => chain,
         limit: () => chain,
         maybeSingle: () => Promise.resolve({ data: null, error: null }),
@@ -60,15 +70,29 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+function withQueries(ui: ReactElement) {
+  return (
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      {ui}
+    </QueryClientProvider>
+  );
+}
+
 function renderForm(onOpenChange = vi.fn()) {
   render(
-    <DealForm
-      open
-      onOpenChange={onOpenChange}
-      pipelineId="pl1"
-      stages={STAGES}
-      onSaved={vi.fn()}
-    />
+    withQueries(
+      <DealForm
+        open
+        onOpenChange={onOpenChange}
+        pipelineId="pl1"
+        stages={STAGES}
+        onSaved={vi.fn()}
+      />
+    )
   );
   return onOpenChange;
 }
@@ -132,5 +156,64 @@ describe('DealForm', () => {
       expect(document.activeElement).toBe(screen.getByLabelText('Contact'))
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('[PIPE-007] DealForm other contacts', () => {
+  const DEAL = {
+    id: 'd1',
+    title: 'Ravi — Lake View',
+    value: 100,
+    currency: 'INR',
+    contact_id: 'c1',
+    stage_id: 'st1',
+    status: 'open',
+  } as unknown as Deal;
+
+  function renderEdit() {
+    render(
+      withQueries(
+        <DealForm
+          open
+          onOpenChange={vi.fn()}
+          deal={DEAL}
+          pipelineId="pl1"
+          stages={STAGES}
+          onSaved={vi.fn()}
+        />
+      )
+    );
+  }
+
+  it("offers to add another buyer, seller or agent once the deal's contacts have loaded", async () => {
+    stakeholderLoad.fails = false;
+    renderEdit();
+    expect(
+      await screen.findByLabelText('Add another contact to this deal')
+    ).toBeTruthy();
+  });
+
+  it('never offers an edit, and sends no contact list, when the existing contacts failed to load', async () => {
+    stakeholderLoad.fails = true;
+    const fetchMock = vi.fn(async () => Response.json({ id: 'd1' }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderEdit();
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Could not load this deal'
+    );
+    expect(
+      screen.queryByLabelText('Add another contact to this deal')
+    ).toBeNull();
+    expect(
+      (screen.getByLabelText("Primary contact's role") as HTMLSelectElement)
+        .disabled
+    ).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /save|update/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body
+    );
+    expect(body).not.toHaveProperty('participants');
+    stakeholderLoad.fails = false;
   });
 });

@@ -19,6 +19,15 @@ than a written entry. Newest first.
 
 #### 24 November 2026
 
+- **Connect a calendar event to a deal, and put several people on a deal.**
+  An event's panel, on web and mobile, now has Connect to a deal: pick a deal
+  that already shares the event's property or contacts, search for any other,
+  or create a new deal from the event, which opens the deal form with the
+  event's contacts and property filled in. The deal form takes more than one
+  contact, each marked Buyer, Seller or Agent; the first is the primary
+  contact and all of them appear under the deal's Stakeholders.
+  **Migration required:** `20261124101500_appointments_deal_link.sql`.
+
 - **The WhatsApp bot no longer books a visit the lead did not ask for.** A lead
   who says what they are looking for, or who makes the visit depend on
   availability ("if you have a unit in that tower…"), is no longer answered with

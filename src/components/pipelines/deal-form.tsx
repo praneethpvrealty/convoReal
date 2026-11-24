@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, createElement } from 'react';
 import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import type {
@@ -57,6 +58,16 @@ import {
 } from '@/lib/pipelines/lost-reasons';
 import { formatCurrency } from '@/lib/format/currency';
 import { focusFirstField } from '@/lib/forms/focus-first-field';
+import {
+  DEAL_PARTICIPANT_ROLES,
+  DEAL_PARTICIPANT_ROLE_LABELS,
+  MAX_DEAL_PARTICIPANTS,
+  dealCreateWarning,
+  participantRoleForContact,
+  participantRoleForStakeholder,
+  type DealParticipantInput,
+  type DealParticipantRole,
+} from '@/lib/deals/participants';
 
 interface DealFormFields {
   title: string;
@@ -79,6 +90,24 @@ function dealFormSnapshot(fields: DealFormFields): string {
   return JSON.stringify(fields);
 }
 
+export interface DealFormSeed {
+  appointmentId: string | null;
+  title: string;
+  participants: DealParticipantInput[];
+  propertyId: string | null;
+}
+
+function peopleSnapshot(
+  contactId: string,
+  primaryRole: DealParticipantRole,
+  others: readonly DealParticipantInput[]
+): string {
+  return JSON.stringify([
+    [contactId, primaryRole],
+    ...others.map((p) => [p.contact_id, p.role]),
+  ]);
+}
+
 interface DealFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -86,6 +115,7 @@ interface DealFormProps {
   pipelineId: string;
   stages: PipelineStage[];
   defaultStageId?: string;
+  seed?: DealFormSeed | null;
   onSaved: () => void;
 }
 
@@ -96,6 +126,7 @@ export function DealForm({
   pipelineId,
   stages,
   defaultStageId,
+  seed,
   onSaved,
 }: DealFormProps) {
   const supabase = createClient();
@@ -105,6 +136,11 @@ export function DealForm({
   const [value, setValue] = useState('');
   const [currency, setCurrency] = useState('INR');
   const [contactId, setContactId] = useState('');
+  const [primaryRoleEdit, setPrimaryRole] =
+    useState<DealParticipantRole | null>(null);
+  const [otherPeopleEdit, setOtherPeopleEdit] = useState<
+    DealParticipantInput[] | null
+  >(null);
   const [stageId, setStageId] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
   const [expectedCloseDate, setExpectedCloseDate] = useState('');
@@ -167,6 +203,8 @@ export function DealForm({
       // contact_id is nullable when the contact has been deleted
       // (migration 004: ON DELETE SET NULL). "" means "no selection".
       setContactId(deal.contact_id ?? '');
+      setPrimaryRole(null);
+      setOtherPeopleEdit(null);
       setStageId(deal.stage_id);
       setAssignedTo(deal.assigned_to ?? '');
       setExpectedCloseDate(deal.expected_close_date ?? '');
@@ -182,7 +220,11 @@ export function DealForm({
         deal.brokerage_value ? String(deal.brokerage_value) : ''
       );
     } else {
-      setTitle('');
+      const seedPrimary = seed?.participants[0] ?? null;
+      const seedOthers = seed?.participants.slice(1) ?? [];
+      setTitle(seed?.title ?? '');
+      setPrimaryRole(seedPrimary?.role ?? null);
+      setOtherPeopleEdit(seedOthers);
       setValue('');
       if (accountId) {
         supabase
@@ -216,7 +258,7 @@ export function DealForm({
         brokerageType: 'percentage',
         brokerageValue: '',
       };
-      setContactId('');
+      setContactId(seed?.participants[0]?.contact_id ?? '');
       setStageId(defaultStageId || stages[0]?.id || '');
       setAssignedTo('');
       setExpectedCloseDate('');
@@ -224,11 +266,11 @@ export function DealForm({
       setNotes('');
       setLostReason(null);
       setLostNote('');
-      setPropertyId('');
+      setPropertyId(seed?.propertyId ?? '');
       setBrokerageType('percentage');
       setBrokerageValue('');
     }
-  }, [open, deal, defaultStageId, stages, accountId, supabase]);
+  }, [open, deal, defaultStageId, stages, accountId, supabase, seed]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Load supporting data once the sheet is open
@@ -250,6 +292,65 @@ export function DealForm({
       cancelled = true;
     };
   }, [open, supabase]);
+
+  // An existing deal's other contacts are its contact-linked buyer,
+  // seller and broker stakeholders.
+  const dealId = deal?.id ?? null;
+  const dealContactId = deal?.contact_id ?? '';
+  const storedPeople = useQuery({
+    queryKey: ['deal-people', dealId, dealContactId],
+    enabled: open && Boolean(dealId),
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('deal_stakeholders')
+        .select('contact_id, role')
+        .eq('deal_id', dealId!)
+        .not('contact_id', 'is', null)
+        .order('created_at');
+      if (error) throw error;
+      const stored: DealParticipantInput[] = [];
+      for (const row of (data ?? []) as {
+        contact_id: string;
+        role: string;
+      }[]) {
+        const role = participantRoleForStakeholder(row.role);
+        if (!role || stored.some((p) => p.contact_id === row.contact_id)) {
+          continue;
+        }
+        stored.push({ contact_id: row.contact_id, role });
+      }
+      return {
+        primaryRole:
+          stored.find((p) => p.contact_id === dealContactId)?.role ??
+          ('buyer' as DealParticipantRole),
+        others: stored.filter((p) => p.contact_id !== dealContactId),
+      };
+    },
+  });
+  const peopleState: 'loading' | 'ready' | 'failed' = !dealId
+    ? 'ready'
+    : storedPeople.isError
+      ? 'failed'
+      : storedPeople.isFetching || !storedPeople.data
+        ? 'loading'
+        : 'ready';
+  const loadedPeople = peopleState === 'ready' ? storedPeople.data : undefined;
+  const primaryRole = primaryRoleEdit ?? loadedPeople?.primaryRole ?? 'buyer';
+  const otherPeople = otherPeopleEdit ?? loadedPeople?.others ?? [];
+  const peopleBaseline = !dealId
+    ? peopleSnapshot('', 'buyer', [])
+    : loadedPeople
+      ? peopleSnapshot(
+          dealContactId,
+          loadedPeople.primaryRole,
+          loadedPeople.others
+        )
+      : null;
+  const setOtherPeople = (
+    update: (prev: DealParticipantInput[]) => DealParticipantInput[]
+  ) => setOtherPeopleEdit(update(otherPeople));
 
   // Fetch linked conversation for the selected contact (newest open one).
   // Clearing on no-selection is sync with prop state; the populated
@@ -296,12 +397,22 @@ export function DealForm({
     });
   }
 
+  const people = otherPeople.filter((p) => p.contact_id !== contactId);
+
+  function peopleChanged(): boolean {
+    return (
+      peopleBaseline !== null &&
+      peopleBaseline !== peopleSnapshot(contactId, primaryRole, people)
+    );
+  }
+
   function handleOpenChange(nextOpen: boolean) {
     if (
       !nextOpen &&
       !saving &&
       baseline.current !== null &&
-      dealFormSnapshot(baseline.current) !== currentSnapshot() &&
+      (dealFormSnapshot(baseline.current) !== currentSnapshot() ||
+        peopleChanged()) &&
       !window.confirm('Discard your unsaved changes to this deal?')
     ) {
       return;
@@ -385,8 +496,20 @@ export function DealForm({
         : {}),
       // Server uses this to atomically sync property status
       stage_name: selectedStage?.name ?? null,
+      ...(peopleChanged()
+        ? {
+            participants: [
+              { contact_id: contactId, role: primaryRole },
+              ...people,
+            ],
+          }
+        : {}),
+      ...(!deal && seed?.appointmentId
+        ? { appointment_id: seed.appointmentId }
+        : {}),
     };
 
+    let warning: string | null = null;
     try {
       const url = deal ? `/api/deals/${deal.id}` : '/api/deals';
       const method = deal ? 'PUT' : 'POST';
@@ -405,6 +528,9 @@ export function DealForm({
         setSaving(false);
         return;
       }
+      if (!deal) {
+        warning = dealCreateWarning(await res.json().catch(() => null));
+      }
     } catch {
       toast.error('Failed to save deal');
       setSaving(false);
@@ -412,7 +538,8 @@ export function DealForm({
     }
 
     setSaving(false);
-    toast.success(deal ? 'Deal updated' : 'Deal created');
+    if (warning) toast.warning(warning);
+    else toast.success(deal ? 'Deal updated' : 'Deal created');
     onOpenChange(false);
     onSaved();
   }
@@ -613,19 +740,141 @@ export function DealForm({
               <Label htmlFor="deal-contact" className="text-slate-300">
                 Contact
               </Label>
-              <select
-                id="deal-contact"
-                value={contactId}
-                onChange={(e) => setContactId(e.target.value)}
-                className="focus:border-primary focus:ring-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:ring-1"
-              >
-                <option value="">Select a contact</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name || c.phone}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-[1fr_110px] gap-2">
+                <select
+                  id="deal-contact"
+                  value={contactId}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setContactId(next);
+                    setPrimaryRole(
+                      participantRoleForContact(
+                        contacts.find((c) => c.id === next)?.classification
+                      )
+                    );
+                  }}
+                  className="focus:border-primary focus:ring-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:ring-1"
+                >
+                  <option value="">Select a contact</option>
+                  {contacts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || c.phone}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Primary contact's role"
+                  disabled={peopleState !== 'ready'}
+                  value={primaryRole}
+                  onChange={(e) =>
+                    setPrimaryRole(e.target.value as DealParticipantRole)
+                  }
+                  className="focus:border-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none"
+                >
+                  {DEAL_PARTICIPANT_ROLES.map((role) => (
+                    <option key={role} value={role}>
+                      {DEAL_PARTICIPANT_ROLE_LABELS[role]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {people.map((person) => {
+                const contact = contacts.find(
+                  (c) => c.id === person.contact_id
+                );
+                const name = contact?.name || contact?.phone || 'Contact';
+                return (
+                  <div
+                    key={person.contact_id}
+                    className="grid grid-cols-[1fr_110px_auto] items-center gap-2"
+                  >
+                    <span className="truncate rounded-lg border border-slate-700 bg-slate-800/60 px-2.5 py-2 text-sm text-white">
+                      {name}
+                    </span>
+                    <select
+                      aria-label={`${name}'s role`}
+                      value={person.role}
+                      onChange={(e) =>
+                        setOtherPeople((prev) =>
+                          prev.map((p) =>
+                            p.contact_id === person.contact_id
+                              ? {
+                                  ...p,
+                                  role: e.target.value as DealParticipantRole,
+                                }
+                              : p
+                          )
+                        )
+                      }
+                      className="focus:border-primary h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none"
+                    >
+                      {DEAL_PARTICIPANT_ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {DEAL_PARTICIPANT_ROLE_LABELS[role]}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      aria-label={`Remove ${name} from this deal`}
+                      onClick={() =>
+                        setOtherPeople((prev) =>
+                          prev.filter((p) => p.contact_id !== person.contact_id)
+                        )
+                      }
+                      className="rounded-md p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })}
+
+              {peopleState === 'failed' && (
+                <p role="alert" className="text-xs font-medium text-red-400">
+                  Could not load this deal&apos;s other contacts, so they cannot
+                  be changed here. Close and reopen the deal to try again.
+                </p>
+              )}
+
+              {peopleState === 'ready' &&
+                contactId &&
+                people.length + 1 < MAX_DEAL_PARTICIPANTS && (
+                  <select
+                    aria-label="Add another contact to this deal"
+                    value=""
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      if (!next) return;
+                      setOtherPeople((prev) => [
+                        ...prev.filter((p) => p.contact_id !== next),
+                        {
+                          contact_id: next,
+                          role: participantRoleForContact(
+                            contacts.find((c) => c.id === next)?.classification
+                          ),
+                        },
+                      ]);
+                    }}
+                    className="focus:border-primary h-9 w-full rounded-lg border border-dashed border-slate-700 bg-slate-800/40 px-2.5 text-sm text-slate-300 outline-none"
+                  >
+                    <option value="">
+                      + Add another buyer, seller or agent
+                    </option>
+                    {contacts
+                      .filter(
+                        (c) =>
+                          c.id !== contactId &&
+                          !people.some((p) => p.contact_id === c.id)
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name || c.phone}
+                        </option>
+                      ))}
+                  </select>
+                )}
 
               {linkedConversation && (
                 <Link

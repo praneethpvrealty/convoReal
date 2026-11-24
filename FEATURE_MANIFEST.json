@@ -1817,6 +1817,34 @@
             }
           ],
           "guards": ["src/lib/calendar/whatsapp-scheduler.ts"]
+        },
+        {
+          "id": "CAL-023",
+          "rule": "A calendar event can belong to one deal (appointments.deal_id, cleared when the deal is deleted). An event's panel on both surfaces shows its deal and opens it, or offers Connect to a deal: deals that share the event's property or one of its contacts are suggested best match first by one shared rule, any deal can be found by title, and Create a new deal from this event opens the deal form already holding every contact on the event, each with a role read off the contact (the property's owner as seller), and the event's property; saving connects the new deal to the event in the same request. PUT /api/appointments/[id] links only a deal in the caller's account, disconnects with null, leaves the link alone when the field is absent, and never re-arms reminders for it.",
+          "tests": [
+            {
+              "file": "src/lib/deals/participants.test.ts",
+              "case": "[CAL-023]"
+            },
+            {
+              "file": "src/app/api/appointments/[id]/route.test.ts",
+              "case": "[CAL-023]"
+            },
+            {
+              "file": "src/app/api/deals/route.participants.test.ts",
+              "case": "[CAL-023]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CAL-023]"
+            }
+          ],
+          "guards": [
+            "src/lib/deals/participants.ts",
+            "src/components/calendar/event-deal-link.tsx",
+            "mobile/components/event-deal-link.tsx",
+            "supabase/migrations/20261124101500_appointments_deal_link.sql"
+          ]
         }
       ]
     },
@@ -4222,6 +4250,42 @@
             "src/components/pipelines/deal-card.tsx",
             "src/components/pipelines/deal-message-dialog.tsx",
             "mobile/app/(app)/deals.tsx"
+          ]
+        },
+        {
+          "id": "PIPE-007",
+          "rule": "A deal takes more than one contact on both surfaces: the deal form lists every contact with a role of Buyer, Seller or Agent, any number of each up to twelve people, and the first is the primary contact stored on the deal itself. The people are saved by the same request as the deal and stored as contact-linked deal_stakeholders rows (buyer, seller, or broker on the internal side), so the Stakeholders tab, share links and co-broking read the same people. A lone buyer gets no new stakeholder row, on create or on edit, but a row they already have is kept with its share links; the form's edit sends the list only when it changed, and the server then adds, re-roles and removes only contact-linked buyer, seller and broker rows, never a stakeholder typed in by hand or an advocate, banker or witness. A contact outside the account or an unknown role is refused before anything is written, on create and on edit alike, and a form that could not load a deal's existing contacts offers no change to them and sends no list. When the deal is created but its other contacts or its calendar event link were not saved, both forms say which instead of reporting plain success.",
+          "tests": [
+            {
+              "file": "src/lib/deals/participants.test.ts",
+              "case": "[PIPE-007]"
+            },
+            {
+              "file": "src/app/api/deals/route.participants.test.ts",
+              "case": "[PIPE-007]"
+            },
+            {
+              "file": "src/lib/deals/participants-server.test.ts",
+              "case": "[PIPE-007]"
+            },
+            {
+              "file": "src/app/api/deals/[id]/route.participants.test.ts",
+              "case": "[PIPE-007]"
+            },
+            {
+              "file": "src/components/pipelines/deal-form.test.tsx",
+              "case": "[PIPE-007]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PIPE-007]"
+            }
+          ],
+          "guards": [
+            "src/lib/deals/participants.ts",
+            "src/lib/deals/participants-server.ts",
+            "src/components/pipelines/deal-form.tsx",
+            "mobile/app/(app)/deal-edit.tsx"
           ]
         }
       ]

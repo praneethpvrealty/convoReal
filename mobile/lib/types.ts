@@ -281,6 +281,8 @@ export interface Appointment {
   client_confirmed_at?: string | null;
   contact?: Contact | null;
   property?: { id: string; title: string; location?: string | null } | null;
+  deal_id?: string | null;
+  deal?: { id: string; title: string } | null;
 }
 
 // ------------------------------------------------------------------

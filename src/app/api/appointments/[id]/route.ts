@@ -33,6 +33,7 @@ export async function PUT(
       outcome,
       notify_participants,
       notification_scope,
+      deal_id,
     } = body;
 
     const { data: existing, error: existingError } = await supabase
@@ -84,7 +85,26 @@ export async function PUT(
       }
     }
 
+    const dealId =
+      deal_id === undefined
+        ? undefined
+        : typeof deal_id === 'string' && deal_id.trim()
+          ? deal_id.trim()
+          : null;
+    if (dealId) {
+      const { data: deal } = await supabase
+        .from('deals')
+        .select('id')
+        .eq('id', dealId)
+        .eq('account_id', accountId)
+        .maybeSingle();
+      if (!deal) {
+        return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+      }
+    }
+
     const updatePayload: Record<string, unknown> = {
+      deal_id: dealId,
       contact_id: contact_id !== undefined ? contact_id : undefined,
       contact_ids: requestedContactIds ?? undefined,
       property_id: property_id !== undefined ? property_id : undefined,
@@ -175,7 +195,7 @@ export async function PUT(
       .eq('id', id)
       .eq('account_id', accountId)
       .select(
-        '*, contact:contacts(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state)'
+        '*, contact:contacts(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state), deal:deals(id, title)'
       )
       .single();
 

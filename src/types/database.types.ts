@@ -1072,6 +1072,7 @@ export type Database = {
           contact_ids: string[];
           copilot_search_text: string | null;
           created_at: string | null;
+          deal_id: string | null;
           description: string | null;
           end_time: string;
           event_type: string;
@@ -1108,6 +1109,7 @@ export type Database = {
           contact_ids?: string[];
           copilot_search_text?: string | null;
           created_at?: string | null;
+          deal_id?: string | null;
           description?: string | null;
           end_time: string;
           event_type?: string;
@@ -1144,6 +1146,7 @@ export type Database = {
           contact_ids?: string[];
           copilot_search_text?: string | null;
           created_at?: string | null;
+          deal_id?: string | null;
           description?: string | null;
           end_time?: string;
           event_type?: string;

@@ -6784,4 +6784,48 @@ describe('the deal card messages the contact for its stage on both surfaces', ()
     expect(web).toContain("from '@/lib/pipelines/stage-message'");
     expect(web).toContain('buildStageMessage({');
   });
+
+  it('[PIPE-007] both deal forms send every contact with its role through the shared module', () => {
+    const mobile = mobileSource('app/(app)/deal-edit.tsx');
+    expect(mobile).toContain("from '@shared/lib/deals/participants'");
+    expect(mobile).toContain('DEAL_PARTICIPANT_ROLES.map(');
+    expect(mobile).toContain('participants: people.map(');
+    const web = webSource('components/pipelines/deal-form.tsx');
+    expect(web).toContain("from '@/lib/deals/participants'");
+    expect(web).toContain('DEAL_PARTICIPANT_ROLES.map(');
+    expect(web).toContain('participants: [');
+    expect(mobile).toContain('dealCreateWarning(result)');
+    expect(web).toContain('dealCreateWarning(');
+  });
+
+  it('[CAL-023] both calendars connect an event to a deal or start one from it', () => {
+    const mobileSheet = mobileSource('app/(app)/(tabs)/calendar.tsx');
+    expect(mobileSheet).toContain('<EventDealLink');
+    expect(mobileSheet).toContain('deal:deals(id, title)');
+    const mobile = mobileSource('components/event-deal-link.tsx');
+    expect(mobile).toContain('Connect to a deal');
+    expect(mobile).toContain('Create a new deal from this event');
+    expect(mobile).toContain('params: { appointmentId: appointment.id }');
+    expect(mobile).toContain('deal_id: next?.id ?? null');
+    expect(mobileSource('lib/deal-link.ts')).toContain('suggestDealsForEvent(');
+    const mobileForm = mobileSource('app/(app)/deal-edit.tsx');
+    expect(mobileForm).toContain('participantsFromEvent(');
+    expect(mobileForm).toContain('if (contactError) throw contactError;');
+    expect(mobileForm).toContain('appointment_id: seed.appointmentId');
+
+    const webPage = webSource('app/(dashboard)/calendar/page.tsx');
+    expect(webPage).toContain('<EventDealLink');
+    expect(webPage).toContain('deal:deals(id, title)');
+    const web = webSource('components/calendar/event-deal-link.tsx');
+    expect(web).toContain('Connect to a deal');
+    expect(web).toContain('Create a new deal from this event');
+    expect(web).toContain('participantsFromEvent(');
+    expect(web).toContain('deal_id: next?.id ?? null');
+    expect(webSource('lib/deals/event-deal-options.ts')).toContain(
+      'suggestDealsForEvent('
+    );
+    expect(webSource('components/pipelines/deal-form.tsx')).toContain(
+      'appointment_id: seed.appointmentId'
+    );
+  });
 });
