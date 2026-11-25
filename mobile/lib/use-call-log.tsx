@@ -51,17 +51,22 @@ export function useCallLog() {
     options: DialOptions;
   } | null>(null);
   const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function save(
     contactId: string,
     outcome: QuickCallOutcome,
     calledAt: string,
     callNotes = '',
-    options: DialOptions = {}
+    options: DialOptions = {},
+    fromConnectedStep = false
   ): Promise<boolean> {
     close();
-    setConnected(null);
-    setNotes('');
+    if (fromConnectedStep) {
+      setSaving(true);
+      setSaveError(null);
+    }
     try {
       await apiFetch(`/api/contacts/${contactId}/calls`, {
         method: 'POST',
@@ -72,18 +77,28 @@ export function useCallLog() {
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['contact', contactId] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      setConnected(null);
+      setNotes('');
+      setSaveError(null);
       options.onLogged?.(outcome);
       return true;
     } catch (err) {
       haptic.warn();
-      show({
-        title: 'Could not log call',
-        message: friendlyError(
-          err instanceof Error ? err.message : 'Try again.'
-        ),
-      });
+      const message = friendlyError(
+        err instanceof Error ? err.message : 'Try again.'
+      );
+      if (fromConnectedStep) setSaveError(message);
+      else show({ title: 'Could not log call', message });
       return false;
+    } finally {
+      if (fromConnectedStep) setSaving(false);
     }
+  }
+
+  function discardConnected() {
+    setConnected(null);
+    setNotes('');
+    setSaveError(null);
   }
 
   function openEvent(contact: DialedContact, eventType: string, title: string) {
@@ -100,9 +115,16 @@ export function useCallLog() {
   }
 
   async function saveConnected(addEvent: boolean) {
-    if (!connected) return;
+    if (!connected || saving) return;
     const { contact, dialedAt, options } = connected;
-    const ok = await save(contact.id, 'connected', dialedAt, notes, options);
+    const ok = await save(
+      contact.id,
+      'connected',
+      dialedAt,
+      notes,
+      options,
+      true
+    );
     if (!ok || !addEvent) return;
     openEvent(contact, CALL_FOLLOW_UP_EVENT_TYPE, callFollowUpTitle(contact));
   }
@@ -147,6 +169,7 @@ export function useCallLog() {
           onPress: () => {
             close();
             setNotes('');
+            setSaveError(null);
             setConnected({ contact, dialedAt, options });
           },
         },
@@ -167,12 +190,23 @@ export function useCallLog() {
     ? {
         visible: true,
         onClose: () => saveConnected(false),
-        title: 'Call connected',
-        message: `${connected.contact.name || connected.contact.phone} · Add notes or plan the next step.`,
+        title: saveError ? 'Could not log call' : 'Call connected',
+        message: saveError
+          ? `${saveError} Your notes are kept — try again.`
+          : `${connected.contact.name || connected.contact.phone} · Add notes or plan the next step.`,
         actions: [
+          ...(saveError
+            ? [
+                {
+                  label: 'Discard',
+                  variant: 'muted' as const,
+                  onPress: discardConnected,
+                },
+              ]
+            : []),
           { label: 'Add event', onPress: () => saveConnected(true) },
           {
-            label: 'Save',
+            label: saving ? 'Saving…' : saveError ? 'Retry' : 'Save',
             variant: 'primary' as const,
             onPress: () => saveConnected(false),
           },

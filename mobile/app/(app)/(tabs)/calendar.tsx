@@ -347,9 +347,13 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
     }, [])
   );
   const [dealOnly, setDealOnly] = useState(false);
+  const canSeeCallBacks = useAuthStore(
+    (s) => !!s.profile && s.profile.account_role !== 'viewer'
+  );
   const callBacksQuery = useQuery({
     queryKey: CALL_BACKS_QUERY_KEY,
     queryFn: fetchCallBacks,
+    enabled: canSeeCallBacks,
   });
   const callBacks = callBacksQuery.data ?? [];
   const callBacksDue = callBacks.filter(
@@ -769,35 +773,37 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
             }}
           />
           <View style={{ flex: 1 }} />
-          <Pressable
-            testID="calendar-call-backs"
-            onPress={() => {
-              haptic.tap();
-              router.push('/(app)/call-backs');
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={`Call backs, ${callBacks.length} open, ${callBacksDue} due`}
-            style={[
-              styles.callBacksButton,
-              {
-                backgroundColor:
-                  callBacksDue > 0 ? colors.primarySoft : colors.glass,
-                borderColor:
-                  callBacksDue > 0 ? colors.primary : colors.glassBorder,
-              },
-            ]}
-          >
-            <Ionicons name="call" size={14} color={colors.primary} />
-            <Text
-              style={{
-                fontSize: 13,
-                fontFamily: f.bold,
-                color: colors.primary,
+          {canSeeCallBacks ? (
+            <Pressable
+              testID="calendar-call-backs"
+              onPress={() => {
+                haptic.tap();
+                router.push('/(app)/call-backs');
               }}
+              accessibilityRole="button"
+              accessibilityLabel={`Call backs, ${callBacks.length} open, ${callBacksDue} due`}
+              style={[
+                styles.callBacksButton,
+                {
+                  backgroundColor:
+                    callBacksDue > 0 ? colors.primarySoft : colors.glass,
+                  borderColor:
+                    callBacksDue > 0 ? colors.primary : colors.glassBorder,
+                },
+              ]}
             >
-              Call backs{callBacks.length ? ` (${callBacks.length})` : ''}
-            </Text>
-          </Pressable>
+              <Ionicons name="call" size={14} color={colors.primary} />
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.bold,
+                  color: colors.primary,
+                }}
+              >
+                Call backs{callBacks.length ? ` (${callBacks.length})` : ''}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Grid */}

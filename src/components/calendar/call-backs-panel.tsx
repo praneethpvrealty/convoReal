@@ -76,6 +76,7 @@ export function CallBacksPanel({
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: CALL_BACKS_QUERY_KEY,
     queryFn: fetchCallBacks,
+    enabled: canEdit,
   });
   const callBacks = useMemo(() => data ?? [], [data]);
   const groups = useMemo(
@@ -107,6 +108,8 @@ export function CallBacksPanel({
       setBusyId(null);
     }
   }
+
+  if (!canEdit) return null;
 
   return (
     <>
