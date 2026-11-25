@@ -35,6 +35,7 @@ import {
 import {
   DEFAULT_EVENT_TYPE,
   EVENT_TYPE_LABELS,
+  type EventTypeValue,
 } from '@/lib/calendar/event-type-defaults';
 import {
   PAST_START_CONFIRM,
@@ -76,6 +77,7 @@ interface ScheduleDialogProps {
   contactId?: string | null;
   propertyId?: string | null;
   initialTitle?: string;
+  eventType?: EventTypeValue;
   onSuccess?: () => void;
 }
 
@@ -105,6 +107,7 @@ export function ScheduleDialog({
   contactId,
   propertyId,
   initialTitle,
+  eventType,
   onSuccess,
 }: ScheduleDialogProps) {
   const supabase = createClient();
@@ -358,6 +361,7 @@ export function ScheduleDialog({
         contact_ids: selectedContactIds,
         property_id: selectedPropertyId || null,
         remind_creator: remindMe,
+        ...(eventType ? { event_type: eventType } : {}),
       });
 
       if (error) throw error;

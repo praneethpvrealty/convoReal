@@ -41,6 +41,7 @@ on:
       # src/lib/mobile-parity.test.ts keeps this list whole.
       - 'src/lib/ai/unit-preferences.ts'
       - 'src/lib/contacts/brief-edit.ts'
+      - 'src/lib/contacts/call-follow-up.ts'
       - 'src/lib/contacts/budget-amount.ts'
       - 'src/lib/den/value-view.ts'
       - 'src/lib/market/city.ts'
@@ -50,6 +51,7 @@ on:
       - 'src/lib/automations/step-tree.ts'
       - 'src/lib/automations/trigger-meta.ts'
       - 'src/lib/calendar/archive-sort.ts'
+      - 'src/lib/calendar/call-backs.ts'
       - 'src/lib/calendar/todo-groups.ts'
       - 'src/lib/calendar/event-timing.ts'
       - 'src/lib/calendar/property-hashtag.ts'

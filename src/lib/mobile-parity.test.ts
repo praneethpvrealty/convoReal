@@ -676,6 +676,42 @@ describe('the portal link invite is one server draft on both surfaces', () => {
     expect(areaInput).not.toMatch(/setInput\(''\);\s*setFocused\(false\)/);
   });
 
+  it('[CAL-024] lists call backs from one route and rule on both surfaces', () => {
+    const mobileScreen = mobileSource('app/(app)/call-backs.tsx');
+    const mobileLib = mobileSource('lib/call-backs.ts');
+    const mobileCalendar = mobileSource('app/(app)/(tabs)/calendar.tsx');
+    const webPanel = webSource('components/calendar/call-backs-panel.tsx');
+    const webCalendar = webSource('app/(dashboard)/calendar/page.tsx');
+
+    expect(mobileLib).toContain("'/api/appointments/call-backs'");
+    expect(webPanel).toContain("'/api/appointments/call-backs'");
+    for (const source of [mobileScreen, webPanel]) {
+      expect(source).toContain('groupCallBacks(');
+      expect(source).toContain("outcome === 'connected'");
+      expect(source).toContain("status: 'completed'");
+      expect(source).toContain('CALL_BACK_DEFAULT_TITLE');
+    }
+    expect(mobileCalendar).toContain("'/(app)/call-backs'");
+    expect(webCalendar).toContain('<CallBacksPanel');
+  });
+
+  it('[CTM-020] offers scheduling from the call button and notes plus a follow-up event after a connected call', () => {
+    const mobileHook = mobileSource('lib/use-call-log.tsx');
+    const webPrompt = webSource('components/contacts/log-call-prompt.tsx');
+
+    for (const source of [mobileHook, webPrompt]) {
+      expect(source).toContain('callLogPayload(');
+      expect(source).toContain('callFollowUpTitle(');
+      expect(source).toContain("'Call connected'");
+      expect(source).toContain('scheduledCallTitle(');
+      expect(source).toContain('Schedule call');
+    }
+    expect(mobileHook).toContain('SCHEDULED_CALL_EVENT_TYPE');
+    expect(mobileHook).toContain('CALL_FOLLOW_UP_EVENT_TYPE');
+    expect(mobileHook).toContain("'/(app)/appointment-new'");
+    expect(webPrompt).toContain('<ScheduleDialog');
+  });
+
   it('[CTM-004] shares hand-picked listings with a buyer from the contact record and saves them to their Portfolio', () => {
     const mobileContact = mobileSource('app/(app)/contact/[id].tsx');
     const mobileSheet = mobileSource('components/showcase-share-sheet.tsx');

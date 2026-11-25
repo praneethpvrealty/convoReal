@@ -61,6 +61,8 @@ import { AgendaView } from '@/components/calendar/agenda-view';
 import { TasksList } from '@/components/calendar/tasks-list';
 import { AgendaPdfButton } from '@/components/calendar/agenda-pdf-button';
 import { SubscribeFeedDialog } from '@/components/calendar/subscribe-feed-dialog';
+import { CallBacksPanel } from '@/components/calendar/call-backs-panel';
+import { CALL_BACKS_QUERY_KEY } from '@/lib/calendar/call-backs';
 import { EventDealLink } from '@/components/calendar/event-deal-link';
 import {
   CalendarEvent,
@@ -942,6 +944,17 @@ export default function CalendarPage() {
     openEditApptModal(appointment);
   }, [appointments, openEditApptModal, requestedEventId]);
 
+  useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: CALL_BACKS_QUERY_KEY });
+  }, [appointments, queryClient]);
+
+  const openCallBack = (id: string) => {
+    const appointment = appointments.find((item) => item.id === id);
+    if (!appointment) return;
+    setCurrentDate(new Date(appointment.start_time));
+    openEditApptModal(appointment);
+  };
+
   const changeApptStart = (value: string) => {
     const nextStart = new Date(value);
     if (apptStartTime && Number.isFinite(nextStart.getTime())) {
@@ -1534,6 +1547,11 @@ export default function CalendarPage() {
                     </div>
                   </>
                 )}
+                <CallBacksPanel
+                  canEdit={canEdit}
+                  onOpenEvent={openCallBack}
+                  onChanged={loadData}
+                />
                 <AgendaPdfButton date={currentDate} />
                 <SubscribeFeedDialog />
                 <button
