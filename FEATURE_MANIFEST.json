@@ -1439,6 +1439,18 @@
             }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "CTM-020",
+          "rule": "Logging a dialled call as Connected on web (LogCallPrompt) or mobile (useCallLog) opens a second step for optional notes and a follow-up calendar event before the call is saved. Notes and duration are kept only on a connected call and blank values are stored as null (callLogPayload in src/lib/contacts/call-follow-up.ts). Save & add event (web) / Add event (mobile) saves the call first, then opens the new-event form with the contact attached and titled Follow-up with <name> (Follow-up type on mobile). Dismissing the connected step still logs the call as connected with whatever notes were typed. The call button also schedules a call for later: on mobile it asks Call now or Schedule call before dialling, on web the log prompt offers Schedule call; both open a new event for the contact titled Call <name> (scheduledCallTitle; Call type on mobile).",
+          "tests": [
+            {
+              "file": "src/lib/contacts/call-follow-up.test.ts",
+              "case": "[CTM-020]"
+            },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[CTM-020]" }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },

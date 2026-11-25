@@ -1,6 +1,8 @@
-import { useCallback, useState } from 'react';
+import { type ReactNode, useCallback, useState } from 'react';
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -80,12 +82,14 @@ export function AppDialog({
   title,
   message,
   actions,
+  children,
 }: {
   visible: boolean;
   onClose: () => void;
   title: string;
   message?: string;
   actions?: DialogAction[];
+  children?: ReactNode;
 }) {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
@@ -101,96 +105,102 @@ export function AppDialog({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable
-        style={[
-          styles.backdrop,
-          { backgroundColor: colors.backdrop, paddingBottom: insets.bottom },
-        ]}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Dismiss"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Pressable
-          onPress={() => {}}
-          accessibilityViewIsModal
           style={[
-            styles.card,
-            {
-              backgroundColor: colors.surfaceWell,
-              borderColor: colors.glassBorder,
-            },
+            styles.backdrop,
+            { backgroundColor: colors.backdrop, paddingBottom: insets.bottom },
           ]}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss"
         >
-          <Text
-            style={{ fontSize: 17, fontFamily: f.bold, color: colors.text }}
+          <Pressable
+            onPress={() => {}}
+            accessibilityViewIsModal
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surfaceWell,
+                borderColor: colors.glassBorder,
+              },
+            ]}
           >
-            {title}
-          </Text>
-          {message ? (
-            // Scrolls rather than growing: a long message on a short
-            // screen — landscape, or an unfolded device — would otherwise
-            // push the actions past the bottom of the card, leaving a
-            // confirmation with no reachable way to confirm.
-            <ScrollView style={{ flexGrow: 0, flexShrink: 1 }}>
-              <Text
-                style={{
-                  fontSize: 13.5,
-                  lineHeight: 20,
-                  color: colors.textMuted,
-                }}
-              >
-                {message}
-              </Text>
-            </ScrollView>
-          ) : null}
-          <View style={styles.actions}>
-            {resolvedActions.map((a) => {
-              const isPrimary = a.variant === 'primary';
-              const isDestructive = a.variant === 'destructive';
-              return (
-                <Pressable
-                  key={a.label}
-                  onPress={a.onPress}
-                  accessibilityRole="button"
-                  accessibilityLabel={a.label}
-                  style={[
-                    styles.action,
-                    isPrimary
-                      ? { backgroundColor: colors.primary }
-                      : isDestructive
-                        ? {
-                            backgroundColor: colors.dangerSoft,
-                            borderColor: colors.danger,
-                            borderWidth: 1,
-                          }
-                        : {
-                            backgroundColor: colors.glass,
-                            borderColor: colors.glassBorder,
-                            borderWidth: 1,
-                          },
-                  ]}
+            <Text
+              style={{ fontSize: 17, fontFamily: f.bold, color: colors.text }}
+            >
+              {title}
+            </Text>
+            {message ? (
+              // Scrolls rather than growing: a long message on a short
+              // screen — landscape, or an unfolded device — would otherwise
+              // push the actions past the bottom of the card, leaving a
+              // confirmation with no reachable way to confirm.
+              <ScrollView style={{ flexGrow: 0, flexShrink: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 13.5,
+                    lineHeight: 20,
+                    color: colors.textMuted,
+                  }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontFamily: f.bold,
-                      color: isPrimary
-                        ? colors.onPrimary
+                  {message}
+                </Text>
+              </ScrollView>
+            ) : null}
+            {children}
+            <View style={styles.actions}>
+              {resolvedActions.map((a) => {
+                const isPrimary = a.variant === 'primary';
+                const isDestructive = a.variant === 'destructive';
+                return (
+                  <Pressable
+                    key={a.label}
+                    onPress={a.onPress}
+                    accessibilityRole="button"
+                    accessibilityLabel={a.label}
+                    style={[
+                      styles.action,
+                      isPrimary
+                        ? { backgroundColor: colors.primary }
                         : isDestructive
-                          ? colors.danger
-                          : a.variant === 'muted'
-                            ? colors.textMuted
-                            : colors.text,
-                    }}
+                          ? {
+                              backgroundColor: colors.dangerSoft,
+                              borderColor: colors.danger,
+                              borderWidth: 1,
+                            }
+                          : {
+                              backgroundColor: colors.glass,
+                              borderColor: colors.glassBorder,
+                              borderWidth: 1,
+                            },
+                    ]}
                   >
-                    {a.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontFamily: f.bold,
+                        color: isPrimary
+                          ? colors.onPrimary
+                          : isDestructive
+                            ? colors.danger
+                            : a.variant === 'muted'
+                              ? colors.textMuted
+                              : colors.text,
+                      }}
+                    >
+                      {a.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
