@@ -1857,6 +1857,22 @@
             "mobile/components/event-deal-link.tsx",
             "supabase/migrations/20261124101500_appointments_deal_link.sql"
           ]
+        },
+        {
+          "id": "CAL-024",
+          "rule": "The calendar has a Call backs list on web (CallBacksPanel, opened from the calendar header) and mobile (/(app)/call-backs, opened from the calendar's Call backs button): the caller's own scheduled Call events (event_type call, status scheduled, start no older than 30 days) from GET /api/appointments/call-backs, grouped Overdue, Later today, Upcoming by groupCallBacks (src/lib/calendar/call-backs.ts). Each row calls the contact through the same log-call prompt as everywhere else; logging it Connected marks the event completed, No answer or Busy leaves it on the list. Each row can also be marked done or opened as the event, and the list can schedule a new call. A call scheduled from a contact's call button is saved as a Call event on both surfaces so it lands here.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/call-backs.test.ts",
+              "case": "[CAL-024]"
+            },
+            {
+              "file": "src/app/api/appointments/call-backs/route.test.ts",
+              "case": "[CAL-024]"
+            },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[CAL-024]" }
+          ],
+          "guards": [".github/workflows/eas-update.yml"]
         }
       ]
     },

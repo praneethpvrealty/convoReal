@@ -23,6 +23,10 @@ interface DialedContact {
   phone: string;
 }
 
+interface DialOptions {
+  onLogged?: (outcome: QuickCallOutcome) => void;
+}
+
 /**
  * Call now or schedule the call, and after a dial ask how it went.
  *
@@ -44,6 +48,7 @@ export function useCallLog() {
   const [connected, setConnected] = useState<{
     contact: DialedContact;
     dialedAt: string;
+    options: DialOptions;
   } | null>(null);
   const [notes, setNotes] = useState('');
 
@@ -51,7 +56,8 @@ export function useCallLog() {
     contactId: string,
     outcome: QuickCallOutcome,
     calledAt: string,
-    callNotes = ''
+    callNotes = '',
+    options: DialOptions = {}
   ): Promise<boolean> {
     close();
     setConnected(null);
@@ -66,6 +72,7 @@ export function useCallLog() {
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['contact', contactId] });
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      options.onLogged?.(outcome);
       return true;
     } catch (err) {
       haptic.warn();
@@ -94,8 +101,8 @@ export function useCallLog() {
 
   async function saveConnected(addEvent: boolean) {
     if (!connected) return;
-    const { contact, dialedAt } = connected;
-    const ok = await save(contact.id, 'connected', dialedAt, notes);
+    const { contact, dialedAt, options } = connected;
+    const ok = await save(contact.id, 'connected', dialedAt, notes, options);
     if (!ok || !addEvent) return;
     openEvent(contact, CALL_FOLLOW_UP_EVENT_TYPE, callFollowUpTitle(contact));
   }
@@ -126,7 +133,7 @@ export function useCallLog() {
     });
   }
 
-  function dial(contact: DialedContact) {
+  function dial(contact: DialedContact, options: DialOptions = {}) {
     const dialedAt = new Date().toISOString();
     haptic.tap();
     Linking.openURL(`tel:${contact.phone}`);
@@ -140,14 +147,17 @@ export function useCallLog() {
           onPress: () => {
             close();
             setNotes('');
-            setConnected({ contact, dialedAt });
+            setConnected({ contact, dialedAt, options });
           },
         },
         {
           label: 'No answer',
-          onPress: () => save(contact.id, 'no_answer', dialedAt),
+          onPress: () => save(contact.id, 'no_answer', dialedAt, '', options),
         },
-        { label: 'Busy', onPress: () => save(contact.id, 'busy', dialedAt) },
+        {
+          label: 'Busy',
+          onPress: () => save(contact.id, 'busy', dialedAt, '', options),
+        },
         { label: 'Skip', variant: 'muted', onPress: close },
       ],
     });
@@ -179,5 +189,5 @@ export function useCallLog() {
       }
     : dialogProps;
 
-  return { startCall, callLogProps };
+  return { startCall, dial, callLogProps };
 }

@@ -20,7 +20,12 @@ import {
   PhoneMissed,
   PhoneOff,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { EventTypeValue } from '@/lib/calendar/event-type-defaults';
+import { CALL_BACKS_QUERY_KEY } from '@/lib/calendar/call-backs';
 import {
+  CALL_FOLLOW_UP_EVENT_TYPE,
+  SCHEDULED_CALL_EVENT_TYPE,
   callFollowUpTitle,
   callLogPayload,
   scheduledCallTitle,
@@ -50,8 +55,13 @@ export function LogCallPrompt({
 }: {
   dial: PendingDial | null;
   onOpenChange: (open: boolean) => void;
-  onLogged?: (contactId: string, calledAt: string) => void;
+  onLogged?: (
+    contactId: string,
+    calledAt: string,
+    outcome: QuickCallOutcome
+  ) => void;
 }) {
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState<QuickCallOutcome | 'schedule' | null>(
     null
   );
@@ -61,6 +71,7 @@ export function LogCallPrompt({
   const [schedule, setSchedule] = useState<{
     contactId: string;
     title: string;
+    eventType: EventTypeValue;
   } | null>(null);
 
   function reset() {
@@ -90,11 +101,12 @@ export function LogCallPrompt({
         throw new Error(err?.error || 'Failed to log call');
       }
       toast.success('Call logged');
-      onLogged?.(dial.contactId, dial.dialedAt);
+      onLogged?.(dial.contactId, dial.dialedAt, outcome);
       if (thenSchedule) {
         setSchedule({
           contactId: dial.contactId,
           title: callFollowUpTitle(dial),
+          eventType: CALL_FOLLOW_UP_EVENT_TYPE,
         });
       }
       onOpenChange(false);
@@ -242,6 +254,7 @@ export function LogCallPrompt({
                     setSchedule({
                       contactId: dial.contactId,
                       title: scheduledCallTitle(dial),
+                      eventType: SCHEDULED_CALL_EVENT_TYPE,
                     });
                     handleOpenChange(false);
                   }}
@@ -272,6 +285,10 @@ export function LogCallPrompt({
         }}
         contactId={schedule?.contactId ?? null}
         initialTitle={schedule?.title}
+        eventType={schedule?.eventType}
+        onSuccess={() =>
+          queryClient.invalidateQueries({ queryKey: CALL_BACKS_QUERY_KEY })
+        }
       />
     </>
   );

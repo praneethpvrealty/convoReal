@@ -39,7 +39,7 @@ export function callFollowUpTitle(contact: {
   return `Follow-up with ${contact.name?.trim() || contact.phone}`;
 }
 
-export const CALL_FOLLOW_UP_EVENT_TYPE = 'follow_up';
+export const CALL_FOLLOW_UP_EVENT_TYPE = 'follow_up' as const;
 
 export function scheduledCallTitle(contact: {
   name?: string | null;
@@ -48,4 +48,4 @@ export function scheduledCallTitle(contact: {
   return `Call ${contact.name?.trim() || contact.phone}`;
 }
 
-export const SCHEDULED_CALL_EVENT_TYPE = 'call';
+export const SCHEDULED_CALL_EVENT_TYPE = 'call' as const;

@@ -51,6 +51,8 @@ import {
 } from '@/components/ui';
 import { useUndoBar, type UndoBarHandle } from '@/components/undo-bar';
 import { apiFetch, ApiError } from '@/lib/api';
+import { CALL_BACKS_QUERY_KEY, fetchCallBacks } from '@/lib/call-backs';
+import { callBackBucket } from '@shared/lib/calendar/call-backs';
 import { agendaPdfPath } from '@/lib/agenda-pdf';
 import { useAuthStore } from '@/lib/auth-store';
 import {
@@ -345,6 +347,14 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
     }, [])
   );
   const [dealOnly, setDealOnly] = useState(false);
+  const callBacksQuery = useQuery({
+    queryKey: CALL_BACKS_QUERY_KEY,
+    queryFn: fetchCallBacks,
+  });
+  const callBacks = callBacksQuery.data ?? [];
+  const callBacksDue = callBacks.filter(
+    (c) => callBackBucket(c.start_time, today) !== 'upcoming'
+  ).length;
   const userId = useAuthStore((s) => s.session?.user.id);
   const archivedViewQuery = useQuery({
     queryKey: ['calendar-archived-view', userId],
@@ -758,6 +768,36 @@ function CalendarContent({ undoBar }: { undoBar: React.ReactNode }) {
               setDealOnly(true);
             }}
           />
+          <View style={{ flex: 1 }} />
+          <Pressable
+            testID="calendar-call-backs"
+            onPress={() => {
+              haptic.tap();
+              router.push('/(app)/call-backs');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Call backs, ${callBacks.length} open, ${callBacksDue} due`}
+            style={[
+              styles.callBacksButton,
+              {
+                backgroundColor:
+                  callBacksDue > 0 ? colors.primarySoft : colors.glass,
+                borderColor:
+                  callBacksDue > 0 ? colors.primary : colors.glassBorder,
+              },
+            ]}
+          >
+            <Ionicons name="call" size={14} color={colors.primary} />
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              Call backs{callBacks.length ? ` (${callBacks.length})` : ''}
+            </Text>
+          </Pressable>
         </View>
 
         {/* Grid */}
@@ -3509,6 +3549,15 @@ function SheetButton({
 }
 
 const styles = StyleSheet.create({
+  callBacksButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
   screenHeader: {
     flexDirection: 'row',
     alignItems: 'center',
