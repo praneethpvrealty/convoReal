@@ -18,6 +18,7 @@ import {
 } from '@/components/contacts/log-call-prompt';
 import {
   CALL_BACKS_QUERY_KEY,
+  CALL_BACK_DEFAULT_TITLE,
   CALL_BACK_EVENT_TYPE,
   callBackBucket,
   groupCallBacks,
@@ -281,7 +282,7 @@ export function CallBacksPanel({
         open={scheduleOpen}
         onOpenChange={setScheduleOpen}
         eventType={CALL_BACK_EVENT_TYPE}
-        initialTitle="Call back"
+        initialTitle={CALL_BACK_DEFAULT_TITLE}
         onSuccess={() => {
           void queryClient.invalidateQueries({
             queryKey: CALL_BACKS_QUERY_KEY,

@@ -29,6 +29,7 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 import { useCallLog } from '@/lib/use-call-log';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import {
+  CALL_BACK_DEFAULT_TITLE,
   CALL_BACK_EVENT_TYPE,
   groupCallBacks,
   type CallBackBucket,
@@ -133,7 +134,10 @@ export default function CallBacksScreen() {
                   haptic.tap();
                   router.push({
                     pathname: '/(app)/appointment-new',
-                    params: { eventType: CALL_BACK_EVENT_TYPE },
+                    params: {
+                      eventType: CALL_BACK_EVENT_TYPE,
+                      title: CALL_BACK_DEFAULT_TITLE,
+                    },
                   });
                 }}
                 hitSlop={10}

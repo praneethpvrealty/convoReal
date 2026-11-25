@@ -689,6 +689,7 @@ describe('the portal link invite is one server draft on both surfaces', () => {
       expect(source).toContain('groupCallBacks(');
       expect(source).toContain("outcome === 'connected'");
       expect(source).toContain("status: 'completed'");
+      expect(source).toContain('CALL_BACK_DEFAULT_TITLE');
     }
     expect(mobileCalendar).toContain("'/(app)/call-backs'");
     expect(webCalendar).toContain('<CallBacksPanel');

@@ -5,6 +5,7 @@
  */
 
 export const CALL_BACK_EVENT_TYPE = 'call' as const;
+export const CALL_BACK_DEFAULT_TITLE = 'Call back';
 export const CALL_BACK_LOOKBACK_DAYS = 30;
 export const CALL_BACK_LIMIT = 200;
 export const CALL_BACKS_QUERY_KEY = ['call-backs'];
