@@ -8,7 +8,6 @@ import {
 } from 'expo-router';
 import {
   createContext,
-  Fragment,
   useCallback,
   useContext,
   useEffect,
@@ -1484,35 +1483,32 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
 
   const contact = todo.contact;
   const property = todo.property;
-  const linkStyle = { fontFamily: f.semibold };
-  const meta: React.ReactNode[] = [
+  const meta = [
     due
       ? `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${clockTime(due.toISOString())}`
       : null,
-    contact ? (
-      <Text
-        key="contact"
-        style={linkStyle}
-        onPress={() => router.push(`/(app)/contact/${contact.id}`)}
-        accessibilityRole="link"
-        accessibilityLabel={`Open contact ${contact.name || contact.phone}`}
-      >
-        {contact.name || contact.phone}
-      </Text>
-    ) : null,
-    property?.title ? (
-      <Text
-        key="property"
-        style={linkStyle}
-        onPress={() => router.push(`/(app)/property/${property.id}`)}
-        accessibilityRole="link"
-        accessibilityLabel={`Open property ${property.title}`}
-      >
-        {property.title}
-      </Text>
-    ) : null,
     todo.deal_id ? DEAL_TASK_LABEL : null,
   ].filter(Boolean);
+  const recordLinks = [
+    contact
+      ? {
+          key: 'contact',
+          icon: 'person-outline' as const,
+          label: contact.name || contact.phone,
+          a11y: `Open contact ${contact.name || contact.phone}`,
+          href: `/(app)/contact/${contact.id}` as const,
+        }
+      : null,
+    property?.title
+      ? {
+          key: 'property',
+          icon: 'home-outline' as const,
+          label: property.title,
+          a11y: `Open property ${property.title}`,
+          href: `/(app)/property/${property.id}` as const,
+        }
+      : null,
+  ].filter((link) => link !== null);
 
   return (
     <>
@@ -1564,13 +1560,44 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
               numberOfLines={1}
             >
               {overdue ? `${OVERDUE_TODO_LABEL} · ` : ''}
-              {meta.map((part, i) => (
-                <Fragment key={i}>
-                  {i > 0 ? ' · ' : ''}
-                  {part}
-                </Fragment>
-              ))}
+              {meta.join(' · ')}
             </Text>
+          ) : null}
+          {recordLinks.length > 0 ? (
+            <View style={styles.todoRecordLinks}>
+              {recordLinks.map((link) => (
+                <Pressable
+                  key={link.key}
+                  onPress={() => router.push(link.href)}
+                  hitSlop={6}
+                  accessibilityRole="link"
+                  accessibilityLabel={link.a11y}
+                  style={({ pressed }) => [
+                    styles.todoRecordLink,
+                    { backgroundColor: colors.primarySoft },
+                    pressed && { opacity: 0.6 },
+                  ]}
+                >
+                  <Ionicons name={link.icon} size={13} color={colors.primary} />
+                  <Text
+                    style={{
+                      flexShrink: 1,
+                      fontSize: 12,
+                      fontFamily: f.semibold,
+                      color: colors.primary,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {link.label}
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={12}
+                    color={colors.primary}
+                  />
+                </Pressable>
+              ))}
+            </View>
           ) : null}
           {!todo.completed ? (
             <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -3603,6 +3630,21 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   todoAddRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  todoRecordLinks: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  todoRecordLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    maxWidth: '100%',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
   todoIconButton: {
     minWidth: 44,
     minHeight: 44,
