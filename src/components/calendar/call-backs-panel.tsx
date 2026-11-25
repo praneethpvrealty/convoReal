@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Check, Loader2, Phone, PhoneCall, Plus } from 'lucide-react';
@@ -78,13 +78,18 @@ export function CallBacksPanel({
     queryFn: fetchCallBacks,
     enabled: canEdit,
   });
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const callBacks = useMemo(() => data ?? [], [data]);
   const groups = useMemo(
-    () => groupCallBacks(callBacks, new Date()),
-    [callBacks]
+    () => groupCallBacks(callBacks, now),
+    [callBacks, now]
   );
   const due = callBacks.filter(
-    (c) => callBackBucket(c.start_time, new Date()) !== 'upcoming'
+    (c) => callBackBucket(c.start_time, now) !== 'upcoming'
   ).length;
 
   async function markDone(id: string) {

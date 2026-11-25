@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -60,14 +60,19 @@ export default function CallBacksScreen() {
     queryFn: fetchCallBacks,
   });
   const pull = usePullRefresh(refetch);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const sections = useMemo(
     () =>
-      groupCallBacks(data ?? [], new Date()).map((group) => ({
+      groupCallBacks(data ?? [], now).map((group) => ({
         key: group.bucket,
         title: `${group.label} (${group.items.length})`,
         data: group.items,
       })),
-    [data]
+    [data, now]
   );
 
   async function markDone(callBack: CallBack) {
