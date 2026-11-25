@@ -4449,11 +4449,12 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
       '<Link href={`/(app)/property/${todo.property.id}`} asChild>'
     );
     expect(mobileCalendar).toContain(
-      'onPress={() => router.push(`/(app)/contact/${contact.id}`)}'
+      'href: `/(app)/contact/${contact.id}` as const,'
     );
     expect(mobileCalendar).toContain(
-      'onPress={() => router.push(`/(app)/property/${property.id}`)}'
+      'href: `/(app)/property/${property.id}` as const,'
     );
+    expect(mobileCalendar).toContain('onPress={() => router.push(link.href)}');
     const webSmartAdd = webSource('components/calendar/smart-add-bar.tsx');
     expect(webSmartAdd).toContain(
       "contact_id: kind === 'todo' ? null : resolved?.contact?.id || null"
