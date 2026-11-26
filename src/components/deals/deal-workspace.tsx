@@ -533,6 +533,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
           onMoveStage={pickStage}
           contactId={deal.contact?.id ?? null}
           propertyId={deal.property?.id ?? null}
+          currency={currency}
         />
       )}
       {tab === 'tasks' && (

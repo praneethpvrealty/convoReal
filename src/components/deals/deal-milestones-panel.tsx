@@ -69,6 +69,7 @@ interface DealMilestonesPanelProps {
   onMoveStage?: (stageId: string) => void;
   contactId?: string | null;
   propertyId?: string | null;
+  currency?: string;
 }
 
 interface MoneyPrompt {
@@ -103,6 +104,7 @@ export function DealMilestonesPanel({
   onMoveStage,
   contactId = null,
   propertyId = null,
+  currency = 'INR',
 }: DealMilestonesPanelProps) {
   const queryClient = useQueryClient();
   const { busy, lock, release } = useBusyIds();
@@ -266,7 +268,7 @@ export function DealMilestonesPanel({
       return;
     }
     setMoneyAmount('');
-    setMoneyDate(new Date().toISOString().slice(0, 10));
+    setMoneyDate(format(new Date(), 'yyyy-MM-dd'));
     setMoneyRef('');
     setMoneyPrompt({ key: m.template_key, title: m.title });
   }
@@ -768,7 +770,7 @@ export function DealMilestonesPanel({
               </p>
               <div>
                 <Label htmlFor="milestone-money-amount">
-                  {MONEY_MILESTONES[moneyPrompt.key].amountLabel} (₹)
+                  {MONEY_MILESTONES[moneyPrompt.key].amountLabel} ({currency})
                 </Label>
                 <Input
                   id="milestone-money-amount"

@@ -352,7 +352,7 @@ describe('[TXW-034] milestones in step with the stage and Money', () => {
       await screen.findByRole('button', { name: 'Mark completed' })
     );
     expect(await screen.findByText('Record it in Money')).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('Token amount (₹)'), {
+    fireEvent.change(screen.getByLabelText('Token amount (INR)'), {
       target: { value: '500000' },
     });
     fireEvent.change(screen.getByLabelText('Instrument / UTR'), {

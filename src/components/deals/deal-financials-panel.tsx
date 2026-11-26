@@ -16,7 +16,11 @@ import {
   type TdsStatus,
   type TokenSource,
 } from '@/lib/deals/financials';
-import { milestonesSettledByFinancials } from '@/lib/deals/closing-phases';
+import {
+  MONEY_MILESTONES,
+  isMoneyMilestone,
+  milestonesSettledByFinancials,
+} from '@/lib/deals/closing-phases';
 import type { DealMilestone } from '@/lib/deals/milestones';
 import { equivalentPriceLabel } from '@/lib/format/currency';
 import { formatDealAmount } from '@/lib/pipelines/deal-money';
@@ -150,6 +154,10 @@ function FinancialsForm({
           dealId,
         ]) ?? [],
         json.data
+      ).filter(
+        (m) =>
+          isMoneyMilestone(m.template_key) &&
+          MONEY_MILESTONES[m.template_key].amountField in patch
       );
       for (const milestone of settled) {
         toast.message(`Mark "${milestone.title}" done?`, {

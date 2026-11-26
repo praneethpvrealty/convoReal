@@ -54,6 +54,15 @@ describe('[TXW-034] closing phases tie milestones to stages', () => {
       ['Brokerage paid / Closed', 5],
       ['Closed Lost', 0],
     ]);
+    expect(
+      phasesDoneForStage({ name: 'Negotiation/Token', stage_type: 'committed' })
+    ).toBe(0);
+    expect(
+      milestonesBehindStage(checklist(), {
+        name: 'Negotiation/Token',
+        stage_type: 'committed',
+      })
+    ).toEqual([]);
   });
 
   it('flags the milestones a Registered deal skipped, as on the reported deal', () => {
@@ -135,9 +144,11 @@ describe('[TXW-034] closing phases tie milestones to stages', () => {
     expect(suggestedNextStage(stages, dd, checklist(ddKeys.slice(1)))).toBe(
       null
     );
-    expect(suggestedNextStage(stages, dd, checklist(ddKeys))?.name).toBe(
-      'Legal done → Agreement/Registration'
-    );
+    const negotiated = ['initial_negotiation', 'commercial_terms_agreed'];
+    expect(
+      suggestedNextStage(stages, dd, checklist([...negotiated, ...ddKeys]))
+        ?.name
+    ).toBe('Legal done → Agreement/Registration');
     expect(
       suggestedNextStage(
         stages,
@@ -154,6 +165,39 @@ describe('[TXW-034] closing phases tie milestones to stages', () => {
     ).toBe('Deal confirmed → Due diligence');
     expect(
       suggestedNextStage(stages, stageNamed('Brokerage paid'), checklist())
+    ).toBe(null);
+    const allButBrokerage = checklist([
+      'initial_negotiation',
+      'commercial_terms_agreed',
+      ...ddKeys,
+      'draft_agreement_shared',
+      'agreement_executed',
+      'conditions_precedent',
+      'tds_and_instruments',
+      'registration_scheduled',
+      'sale_deed_registered',
+      'possession_handover',
+    ]);
+    expect(
+      suggestedNextStage(stages, stageNamed('Registered'), allButBrokerage)
+    ).toBe(null);
+    expect(
+      suggestedNextStage(
+        stages,
+        stageNamed('Registered'),
+        allButBrokerage.map((m) => ({ ...m, status: 'completed' as const }))
+      )?.name
+    ).toBe('Brokerage paid / Closed');
+    expect(
+      suggestedNextStage(
+        stages,
+        dd,
+        checklist([...negotiated, ...ddKeys]).map((m) =>
+          m.id === 'initial_negotiation'
+            ? { ...m, status: 'pending' as const }
+            : m
+        )
+      )
     ).toBe(null);
   });
 

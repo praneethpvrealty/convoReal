@@ -85,8 +85,11 @@ export function phasesDoneForStage(stage: StageRef): number {
     case 'lost':
     case 'open':
       return 0;
-    case 'committed':
+    case 'committed': {
+      const step = name.includes('→') ? name.split('→').pop()! : name;
+      if (/negotiation/.test(step)) return 0;
       return /agreement|registration|legal done/.test(name) ? 2 : 1;
+    }
     case 'won':
     case 'brokerage_pending':
       return 3;
@@ -166,20 +169,24 @@ export function suggestedNextStage<S extends StageLike>(
     return null;
   }
   const phase = CLOSING_PHASES[done];
-  const inPhase = milestones.filter((m) =>
-    phase.keys.includes(m.template_key ?? '')
+  if (!milestones.some((m) => phase.keys.includes(m.template_key ?? ''))) {
+    return null;
+  }
+  const next = [...stages]
+    .sort((a, b) => a.position - b.position)
+    .find(
+      (s) =>
+        s.position > current.position &&
+        stageTypeOf(s) !== 'lost' &&
+        phasesDoneForStage(s) > done
+    );
+  if (!next) return null;
+  const required = new Set(
+    CLOSING_PHASES.slice(0, phasesDoneForStage(next)).flatMap((p) => p.keys)
   );
-  if (inPhase.length === 0 || inPhase.some(isOpen)) return null;
-  return (
-    [...stages]
-      .sort((a, b) => a.position - b.position)
-      .find(
-        (s) =>
-          s.position > current.position &&
-          stageTypeOf(s) !== 'lost' &&
-          phasesDoneForStage(s) > done
-      ) ?? null
-  );
+  return milestones.some((m) => isOpen(m) && required.has(m.template_key ?? ''))
+    ? null
+    : next;
 }
 
 export type MoneyMilestoneKey =
