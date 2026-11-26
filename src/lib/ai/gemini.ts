@@ -554,10 +554,16 @@ const OFFER_SIGNAL =
 const NAMED_REQUIREMENT =
   /\b(?:client|buyer|customer|lead|my|our|his|her|their)(?:['’]s)?\s+requirements?\b/i;
 
+const OPENING_REQUIREMENT = /^[^\n]{0,60}?\brequirements?\b/i;
+
 function statesItsOwnRequirement(cleanText: string): boolean {
+  const untailored = cleanText.replace(TAILORING_PHRASE, ' ');
+  const opening = OPENING_REQUIREMENT.exec(untailored);
+  const offerAt = untailored.search(OFFER_SIGNAL);
   return (
     REQUIREMENT_LABEL.test(cleanText) ||
-    NAMED_REQUIREMENT.test(cleanText.replace(TAILORING_PHRASE, ' '))
+    (!!opening && (offerAt === -1 || opening[0].length <= offerAt)) ||
+    NAMED_REQUIREMENT.test(untailored)
   );
 }
 
