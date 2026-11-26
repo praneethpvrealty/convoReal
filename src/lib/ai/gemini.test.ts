@@ -739,6 +739,112 @@ describe('classifyImageOrText schedule class', () => {
   });
 });
 
+const LEASE_LISTING_FORWARD = [
+  'SPACE AVAILABLE FOR LEASE – BOGANAHALLI, BENGALURU',
+  '',
+  'Location: New Horizon Gurukul Preschool, Boganahalli, off Bellandur / Kadubeesanahalli.',
+  '',
+  'Built-up Area:',
+  '• Second Floor – 15,526 sq. ft.',
+  '• Third Floor – 19,949 sq. ft.',
+  '• Total – 35,475 sq. ft.',
+  '',
+  'Suitable for: Corporate offices, co-working spaces, co-living, student hostels and other suitable commercial uses.',
+  '',
+  'Property Highlights:',
+  '• Previously utilised as a college hostel.',
+  '• Ground and first floors are occupied by the preschool and are not available for lease.',
+  '• Separate, independent access will be provided.',
+  '• Open to internal modifications to suit tenant requirements.',
+  '• Floors available independently or together.',
+  '',
+  'Expected Rental: ₹55 per sq. ft. per month on built-up area (negotiable).',
+  '',
+  'Google Maps Location:',
+  'https://maps.app.goo.gl/5FMHqjtUS81zus8k6',
+  '',
+  'Floor plans attached. Kindly share with prospective tenants.',
+].join('\n');
+
+describe('[JRN-027] a listing that mentions requirements is still a listing', () => {
+  const stubClassifier = (classification: string) => {
+    vi.stubGlobal('fetch', async () => ({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: classification }] } }],
+      }),
+    }));
+  };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('does not read "to suit tenant requirements" as a buyer brief', () => {
+    expect(looksLikeBuyerRequirement(LEASE_LISTING_FORWARD)).toBe(false);
+    expect(
+      looksLikeBuyerRequirement(
+        'Bare shell office, can be fitted out as per your requirement. 4200 sqft.'
+      )
+    ).toBe(false);
+    expect(
+      looksLikeBuyerRequirement(
+        'Warehouse available for rent in Hoskote. Requirements: 6 months deposit.'
+      )
+    ).toBe(false);
+  });
+
+  it('still reads a brief that names itself or asks for a property', () => {
+    expect(
+      looksLikeBuyerRequirement(
+        'Client requirement: office space for lease in Bellandur, 5000 sqft'
+      )
+    ).toBe(true);
+    expect(
+      looksLikeBuyerRequirement(
+        'Looking for space available for lease near Bellandur to suit our requirements'
+      )
+    ).toBe(true);
+  });
+
+  it('keeps the forwarded lease listing on property when the model says property', async () => {
+    stubClassifier('property');
+    expect(await classifyImageOrText(LEASE_LISTING_FORWARD)).toBe('property');
+  });
+
+  it('keeps it on property when the model itself says requirement', async () => {
+    stubClassifier('requirement');
+    expect(await classifyImageOrText(LEASE_LISTING_FORWARD)).toBe('property');
+  });
+
+  it('keeps it on property when the model says contact', async () => {
+    stubClassifier('contact');
+    expect(looksLikePropertyListing(LEASE_LISTING_FORWARD)).toBe(true);
+    expect(await classifyImageOrText(LEASE_LISTING_FORWARD)).toBe('property');
+  });
+
+  it('leaves a real brief on requirement whichever way the model reads it', async () => {
+    const brief =
+      'Looking for North Bangalore near airport, residential land 1 acre, budget 8cr to 10cr';
+    stubClassifier('property');
+    expect(await classifyImageOrText(brief)).toBe('requirement');
+    stubClassifier('requirement');
+    expect(await classifyImageOrText(brief)).toBe('requirement');
+  });
+
+  it('does not send the parsed draft to client-reply capture when rent is the only price', () => {
+    expect(
+      draftReadsAsRequirement(
+        {
+          price: null,
+          title: 'Commercial Space for Lease in Boganahalli',
+          description:
+            'Open to internal modifications to suit tenant requirements.',
+        },
+        LEASE_LISTING_FORWARD
+      )
+    ).toBe(false);
+  });
+});
+
 describe('generationConfig — temperature', () => {
   let sent: Record<string, unknown>[] = [];
 

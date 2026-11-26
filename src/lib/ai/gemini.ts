@@ -505,6 +505,9 @@ export async function isListingMessage(text: string): Promise<boolean> {
 const LEAD_FORWARD_SIGNAL =
   /interested in|looking for|requirement|refer(?:red|ral)\b|budget|magicbricks|99acres|housing\.com/i;
 
+const TAILORING_PHRASE =
+  /\b(?:suit|meet|per|according to)(?:\s+[\w'’]+){0,3}?\s+requirements?\b/gi;
+
 const PROPERTY_LISTING_SIGNALS: RegExp[] = [
   /\bsq\.?\s?ft\b|\bsqft\b|\bsq\s?feet\b/i,
   /\b\d{2,4}\s*[*x×]\s*\d{2,4}\b/,
@@ -525,14 +528,39 @@ const PROPERTY_LISTING_SIGNALS: RegExp[] = [
  */
 export function looksLikePropertyListing(text?: string): boolean {
   const cleanText = (text || '').trim();
-  if (!cleanText || LEAD_FORWARD_SIGNAL.test(cleanText)) return false;
+  if (
+    !cleanText ||
+    LEAD_FORWARD_SIGNAL.test(cleanText.replace(TAILORING_PHRASE, ' '))
+  )
+    return false;
   return (
-    PROPERTY_LISTING_SIGNALS.filter((re) => re.test(cleanText)).length >= 2
+    [...PROPERTY_LISTING_SIGNALS, OFFER_SIGNAL].filter((re) =>
+      re.test(cleanText)
+    ).length >= 2
   );
 }
 
-const BUYER_REQUIREMENT_SIGNAL =
-  /\brequirements?\b|\b(?:looking (?:for|to buy|to rent)|want(?:s|ed)? to (?:buy|rent|purchase)|searching for|in the market for|budget (?:is|of|around|up ?to)|interested in buying)\b/i;
+const BUYER_DEMAND_SIGNAL =
+  /\b(?:looking (?:for|to buy|to rent)|want(?:s|ed)? to (?:buy|rent|purchase)|searching for|in the market for|budget (?:is|of|around|up ?to)|interested in buying)\b/i;
+
+const REQUIREMENT_WORD = /\brequirements?\b/i;
+
+const OFFER_SIGNAL =
+  /\bavailable (?:for|on) (?:lease|rent|sale|resale|j[vd])\b|\bto[- ]let\b|\b(?:expected|asking|quoted) (?:rent(?:al)?|price|rate)\b/i;
+
+/**
+ * True when the text is a property being OFFERED in so many words
+ * ("space available for lease", "expected rental ₹55 per sq ft") and
+ * nobody in it says they are hunting for one.
+ */
+export function looksLikeOfferedListing(text?: string): boolean {
+  const cleanText = (text || '').trim();
+  return (
+    !!cleanText &&
+    OFFER_SIGNAL.test(cleanText) &&
+    !BUYER_DEMAND_SIGNAL.test(cleanText)
+  );
+}
 
 /**
  * True when the text reads as a BUYER stating what they want (a
@@ -540,10 +568,20 @@ const BUYER_REQUIREMENT_SIGNAL =
  * Used to keep a buyer requirement attached to the contact draft instead of
  * misrouting it into the property-listing flow, even though it mentions
  * sqft/plot/BHK/localities.
+ *
+ * The bare word "requirement" is the weak half of the signal: a listing
+ * says "open to modifications to suit tenant requirements" about itself.
+ * It counts only outside that tailoring phrase, and never in a text that
+ * offers the property outright.
  */
 export function looksLikeBuyerRequirement(text?: string): boolean {
   const cleanText = (text || '').trim();
-  return !!cleanText && BUYER_REQUIREMENT_SIGNAL.test(cleanText);
+  if (!cleanText) return false;
+  if (BUYER_DEMAND_SIGNAL.test(cleanText)) return true;
+  return (
+    REQUIREMENT_WORD.test(cleanText.replace(TAILORING_PHRASE, ' ')) &&
+    !OFFER_SIGNAL.test(cleanText)
+  );
 }
 
 /**
@@ -705,7 +743,9 @@ export async function classifyImageOrText(
       classification.includes('client')
     )
       return 'client_reply';
-    if (classification.includes('requirement')) return 'requirement';
+    if (classification.includes('requirement')) {
+      return looksLikeOfferedListing(text) ? 'property' : 'requirement';
+    }
     if (classification.includes('property')) {
       // Demand read as supply. Free: the caption already says
       // "looking for"/"budget" and looksLikePropertyListing is false
