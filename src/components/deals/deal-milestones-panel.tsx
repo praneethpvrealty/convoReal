@@ -4,7 +4,10 @@ import { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import {
+  AlertTriangle,
+  ArrowRight,
   Check,
+  ClipboardList,
   ListChecks,
   Loader2,
   Plus,
@@ -14,7 +17,24 @@ import {
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  MONEY_MILESTONES,
+  earlierOpenMilestones,
+  groupMilestonesByPhase,
+  isMoneyMilestone,
+  milestonesBehindStage,
+  suggestedNextStage,
+  type MoneyMilestoneKey,
+} from '@/lib/deals/closing-phases';
 import {
   DEAL_MILESTONE_STATUSES,
   DEAL_MILESTONE_STATUS_LABELS,
@@ -32,9 +52,28 @@ import {
 } from '@/lib/deals/visibility';
 import { cn } from '@/lib/utils';
 
+import type { FinancialsResponse } from './deal-financials-panel';
+
+interface StageOption {
+  id: string;
+  name: string;
+  position: number;
+  stage_type?: string | null;
+}
+
 interface DealMilestonesPanelProps {
   dealId: string;
   canEdit: boolean;
+  stage?: StageOption | null;
+  stages?: StageOption[];
+  onMoveStage?: (stageId: string) => void;
+  contactId?: string | null;
+  propertyId?: string | null;
+}
+
+interface MoneyPrompt {
+  key: MoneyMilestoneKey;
+  title: string;
 }
 
 function milestoneMeta(m: DealMilestone): string {
@@ -59,12 +98,26 @@ function milestoneMeta(m: DealMilestone): string {
 export function DealMilestonesPanel({
   dealId,
   canEdit,
+  stage = null,
+  stages = [],
+  onMoveStage,
+  contactId = null,
+  propertyId = null,
 }: DealMilestonesPanelProps) {
   const queryClient = useQueryClient();
   const { busy, lock, release } = useBusyIds();
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState('');
   const [optionsFor, setOptionsFor] = useState<string | null>(null);
+  const [orderPrompt, setOrderPrompt] = useState<{
+    target: DealMilestone;
+    earlier: DealMilestone[];
+  } | null>(null);
+  const [moneyPrompt, setMoneyPrompt] = useState<MoneyPrompt | null>(null);
+  const [moneyAmount, setMoneyAmount] = useState('');
+  const [moneyDate, setMoneyDate] = useState('');
+  const [moneyRef, setMoneyRef] = useState('');
+  const [savingMoney, setSavingMoney] = useState(false);
 
   const { data: milestones = [], isLoading } = useQuery({
     queryKey: ['deal-milestones', dealId],
@@ -147,7 +200,10 @@ export function DealMilestonesPanel({
     }
   }
 
-  async function patch(m: DealMilestone, body: MilestonePatch) {
+  async function patch(
+    m: DealMilestone,
+    body: MilestonePatch
+  ): Promise<boolean> {
     const key = ['deal-milestones', dealId];
     lock(m.id);
     await queryClient.cancelQueries({ queryKey: key });
@@ -164,6 +220,7 @@ export function DealMilestonesPanel({
         { method: 'PATCH', body: JSON.stringify({ ...body, source: 'web' }) },
         'Could not update the milestone'
       );
+      return true;
     } catch (err) {
       if (previousRow) {
         queryClient.setQueryData<DealMilestone[]>(
@@ -174,12 +231,141 @@ export function DealMilestonesPanel({
       toast.error(
         err instanceof Error ? err.message : 'Could not update the milestone'
       );
+      return false;
     } finally {
       const remaining = release(m.id);
       const stillSaving = queryClient
         .getQueryData<DealMilestone[]>(key)
         ?.some((row) => remaining.has(row.id));
       if (!stillSaving) void refresh();
+    }
+  }
+
+  async function askForMoney(m: DealMilestone) {
+    if (!isMoneyMilestone(m.template_key)) return;
+    const financials = await queryClient
+      .fetchQuery({
+        queryKey: ['deal-financials', dealId],
+        queryFn: async (): Promise<FinancialsResponse> => {
+          const json = await call(
+            `/api/deals/${dealId}/financials`,
+            {},
+            'Could not load financials'
+          );
+          return json.data;
+        },
+      })
+      .catch(() => null);
+    if (!financials) return;
+    const spec = MONEY_MILESTONES[m.template_key];
+    if (financials[spec.amountField] != null) return;
+    if (
+      m.template_key === 'token_paid' &&
+      financials.token_source === 'token_safe'
+    ) {
+      return;
+    }
+    setMoneyAmount('');
+    setMoneyDate(new Date().toISOString().slice(0, 10));
+    setMoneyRef('');
+    setMoneyPrompt({ key: m.template_key, title: m.title });
+  }
+
+  async function complete(m: DealMilestone, alsoEarlier: DealMilestone[]) {
+    setOrderPrompt(null);
+    for (const earlier of alsoEarlier) {
+      await patch(earlier, { status: 'completed' });
+    }
+    if (await patch(m, { status: 'completed' })) await askForMoney(m);
+  }
+
+  function toggle(m: DealMilestone) {
+    if (m.status === 'completed') {
+      void patch(m, { status: 'pending' });
+      return;
+    }
+    const earlier = earlierOpenMilestones(milestones, m).filter(
+      (row) => !busy.has(row.id)
+    );
+    if (earlier.length > 0) {
+      setOrderPrompt({ target: m, earlier });
+      return;
+    }
+    void complete(m, []);
+  }
+
+  async function settleBehind(status: 'completed' | 'skipped') {
+    for (const m of behind) {
+      await patch(m, { status });
+    }
+  }
+
+  async function saveMoney() {
+    if (!moneyPrompt) return;
+    const spec = MONEY_MILESTONES[moneyPrompt.key];
+    const amount = Number(moneyAmount);
+    if (!moneyAmount.trim() || !Number.isFinite(amount) || amount <= 0) {
+      toast.error('Enter the amount received.');
+      return;
+    }
+    const body: Record<string, unknown> = {
+      [spec.amountField]: amount,
+      source: 'web',
+    };
+    if (spec.dateField && moneyDate) body[spec.dateField] = moneyDate;
+    if (spec.refField && moneyRef.trim()) body[spec.refField] = moneyRef.trim();
+    setSavingMoney(true);
+    try {
+      const json = await call(
+        `/api/deals/${dealId}/financials`,
+        { method: 'PATCH', body: JSON.stringify(body) },
+        'Could not save to Money'
+      );
+      queryClient.setQueryData(['deal-financials', dealId], json.data);
+      await queryClient.invalidateQueries({
+        queryKey: ['deal-events', dealId],
+      });
+      setMoneyPrompt(null);
+      toast.success(`${spec.amountLabel} saved to Money.`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Could not save to Money'
+      );
+    } finally {
+      setSavingMoney(false);
+    }
+  }
+
+  async function makeTask(m: DealMilestone) {
+    lock(`task-${m.id}`);
+    try {
+      await call(
+        '/api/todos',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            title: m.title,
+            due_date: m.target_date
+              ? new Date(`${m.target_date}T09:00:00`).toISOString()
+              : null,
+            priority: 'medium',
+            contact_id: contactId,
+            property_id: propertyId,
+            deal_id: dealId,
+          }),
+        },
+        'Could not add the task'
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ['deal-tasks', dealId],
+      });
+      toast.success(`Task added: ${m.title}.`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Could not add the task'
+      );
+    } finally {
+      release(`task-${m.id}`);
     }
   }
 
@@ -203,6 +389,10 @@ export function DealMilestonesPanel({
   }
 
   const progress = milestoneProgress(milestones);
+  const behind = milestonesBehindStage(milestones, stage);
+  const nextStage = suggestedNextStage(stages, stage, milestones);
+  const groups = groupMilestonesByPhase(milestones);
+  const settlingBehind = behind.some((m) => busy.has(m.id));
 
   return (
     <div className="space-y-4">
@@ -210,8 +400,8 @@ export function DealMilestonesPanel({
         <div>
           <h3 className="text-sm font-semibold text-white">Milestones</h3>
           <p className="text-xs text-slate-400">
-            The closing checklist. Completing a milestone never moves the
-            pipeline stage; the board stays the board.
+            The closing checklist, grouped by the stage each step belongs to.
+            Ticking a milestone never moves the stage by itself.
           </p>
         </div>
         {milestones.length > 0 && (
@@ -248,136 +438,233 @@ export function DealMilestonesPanel({
           )}
         </div>
       ) : (
-        <ol className="space-y-2">
-          {milestones.map((m) => {
-            const done = m.status === 'completed' || m.status === 'skipped';
-            const meta = milestoneMeta(m);
-            const optionsOpen = optionsFor === m.id;
-            return (
-              <li
-                key={m.id}
-                className={cn(
-                  'rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3',
-                  done && !optionsOpen && 'opacity-70'
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    disabled={!canEdit || busy.has(m.id)}
-                    onClick={() =>
-                      patch(m, {
-                        status:
-                          m.status === 'completed' ? 'pending' : 'completed',
-                      })
-                    }
-                    className={cn(
-                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors',
-                      m.status === 'completed'
-                        ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
-                        : 'border-slate-600 text-transparent hover:border-slate-400'
-                    )}
-                    aria-label={
-                      m.status === 'completed' ? 'Reopen' : 'Mark completed'
-                    }
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                  </button>
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={cn(
-                        'text-sm font-medium text-white',
-                        m.status === 'completed' && 'line-through'
-                      )}
-                    >
-                      {m.title}
-                    </p>
-                    {meta && (
-                      <p className="text-[11px] text-slate-500">{meta}</p>
-                    )}
-                  </div>
+        <div className="space-y-5">
+          {behind.length > 0 && stage && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-amber-100">
+                    {behind.length === 1
+                      ? '1 milestone is behind the stage'
+                      : `${behind.length} milestones are behind the stage`}
+                  </p>
+                  <p className="mt-0.5 text-xs text-amber-200/80">
+                    The deal is on {stage.name}, but{' '}
+                    {behind.map((m) => m.title).join(', ')}{' '}
+                    {behind.length === 1 ? 'is' : 'are'} still open.
+                  </p>
                   {canEdit && (
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      onClick={() => setOptionsFor(optionsOpen ? null : m.id)}
-                      aria-label={`Options for ${m.title}`}
-                      aria-expanded={optionsOpen}
-                    >
-                      <Settings2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                {canEdit && optionsOpen && (
-                  <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-slate-800 pt-3">
-                    <label className="grid gap-1 text-[11px] text-slate-400">
-                      Status
-                      <select
-                        className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
-                        value={m.status}
-                        disabled={busy.has(m.id)}
-                        onChange={(e) =>
-                          patch(m, {
-                            status: e.target.value as DealMilestoneStatus,
-                          })
-                        }
-                      >
-                        {DEAL_MILESTONE_STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {DEAL_MILESTONE_STATUS_LABELS[s]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="grid gap-1 text-[11px] text-slate-400">
-                      Who can see it
-                      <select
-                        className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
-                        value={m.visibility ?? 'internal'}
-                        disabled={busy.has(m.id)}
-                        onChange={(e) =>
-                          patch(m, {
-                            visibility: e.target.value as DealVisibility,
-                          })
-                        }
-                      >
-                        {DEAL_VISIBILITIES.map((v) => (
-                          <option key={v} value={v}>
-                            {DEAL_VISIBILITY_LABELS[v]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="grid gap-1 text-[11px] text-slate-400">
-                      Due
-                      <input
-                        type="date"
-                        className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
-                        value={m.target_date ?? ''}
-                        disabled={busy.has(m.id)}
-                        onChange={(e) =>
-                          patch(m, { target_date: e.target.value || null })
-                        }
-                      />
-                    </label>
-                    {!m.template_key && (
+                    <div className="mt-3 flex flex-wrap gap-2">
                       <Button
                         size="sm"
-                        variant="ghost"
-                        onClick={() => remove(m)}
-                        disabled={busy.has(m.id)}
-                        className="text-slate-400 hover:text-rose-300"
+                        disabled={settlingBehind}
+                        onClick={() => void settleBehind('completed')}
                       >
-                        <Trash2 className="h-4 w-4" />
-                        Remove
+                        {settlingBehind ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
+                        Mark them done
                       </Button>
-                    )}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={settlingBehind}
+                        onClick={() => void settleBehind('skipped')}
+                      >
+                        Skip them
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {nextStage && canEdit && onMoveStage && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+              <p className="text-sm text-emerald-100">
+                Everything for this stage is done. Move the deal to{' '}
+                <span className="font-semibold">{nextStage.name}</span>?
+              </p>
+              <Button size="sm" onClick={() => onMoveStage(nextStage.id)}>
+                Move stage
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          {groups.map((group) => (
+            <section key={group.label} aria-label={group.label}>
+              <div className="mb-2 flex items-center gap-3">
+                <h4 className="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">
+                  {group.label}
+                </h4>
+                <span
+                  className={cn(
+                    'text-[11px]',
+                    group.done === group.items.length
+                      ? 'text-emerald-400'
+                      : 'text-slate-500'
+                  )}
+                >
+                  {group.done} / {group.items.length}
+                </span>
+                <div className="h-px flex-1 bg-slate-800" />
+              </div>
+              <ol className="space-y-2">
+                {group.items.map((m) => {
+                  const done =
+                    m.status === 'completed' || m.status === 'skipped';
+                  const meta = milestoneMeta(m);
+                  const optionsOpen = optionsFor === m.id;
+                  return (
+                    <li
+                      key={m.id}
+                      className={cn(
+                        'rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3',
+                        done && !optionsOpen && 'opacity-70'
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          disabled={!canEdit || busy.has(m.id)}
+                          onClick={() => toggle(m)}
+                          className={cn(
+                            'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors',
+                            m.status === 'completed'
+                              ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                              : 'border-slate-600 text-transparent hover:border-slate-400'
+                          )}
+                          aria-label={
+                            m.status === 'completed'
+                              ? 'Reopen'
+                              : 'Mark completed'
+                          }
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={cn(
+                              'text-sm font-medium text-white',
+                              m.status === 'completed' && 'line-through'
+                            )}
+                          >
+                            {m.title}
+                          </p>
+                          {meta && (
+                            <p className="text-[11px] text-slate-500">{meta}</p>
+                          )}
+                          {behind.some((b) => b.id === m.id) && (
+                            <p className="text-[11px] text-amber-300">
+                              Behind the stage
+                            </p>
+                          )}
+                        </div>
+                        {canEdit && (
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            onClick={() =>
+                              setOptionsFor(optionsOpen ? null : m.id)
+                            }
+                            aria-label={`Options for ${m.title}`}
+                            aria-expanded={optionsOpen}
+                          >
+                            <Settings2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {canEdit && optionsOpen && (
+                        <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-slate-800 pt-3">
+                          <label className="grid gap-1 text-[11px] text-slate-400">
+                            Status
+                            <select
+                              className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                              value={m.status}
+                              disabled={busy.has(m.id)}
+                              onChange={(e) =>
+                                patch(m, {
+                                  status: e.target.value as DealMilestoneStatus,
+                                })
+                              }
+                            >
+                              {DEAL_MILESTONE_STATUSES.map((s) => (
+                                <option key={s} value={s}>
+                                  {DEAL_MILESTONE_STATUS_LABELS[s]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="grid gap-1 text-[11px] text-slate-400">
+                            Who can see it
+                            <select
+                              className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                              value={m.visibility ?? 'internal'}
+                              disabled={busy.has(m.id)}
+                              onChange={(e) =>
+                                patch(m, {
+                                  visibility: e.target.value as DealVisibility,
+                                })
+                              }
+                            >
+                              {DEAL_VISIBILITIES.map((v) => (
+                                <option key={v} value={v}>
+                                  {DEAL_VISIBILITY_LABELS[v]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="grid gap-1 text-[11px] text-slate-400">
+                            Due
+                            <input
+                              type="date"
+                              className="h-8 rounded-md border border-slate-700 bg-slate-950 px-2 text-xs text-white"
+                              value={m.target_date ?? ''}
+                              disabled={busy.has(m.id)}
+                              onChange={(e) =>
+                                patch(m, {
+                                  target_date: e.target.value || null,
+                                })
+                              }
+                            />
+                          </label>
+                          {m.status !== 'completed' &&
+                            m.status !== 'skipped' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => void makeTask(m)}
+                                disabled={busy.has(`task-${m.id}`)}
+                                className="text-slate-300 hover:text-white"
+                              >
+                                <ClipboardList className="h-4 w-4" />
+                                Make a task
+                              </Button>
+                            )}
+                          {!m.template_key && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => remove(m)}
+                              disabled={busy.has(m.id)}
+                              className="text-slate-400 hover:text-rose-300"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+          ))}
+        </div>
       )}
 
       {canEdit && milestones.length > 0 && (
@@ -417,6 +704,118 @@ export function DealMilestonesPanel({
           </Button>
         </div>
       )}
+
+      <Dialog
+        open={orderPrompt !== null}
+        onOpenChange={(open) => !open && setOrderPrompt(null)}
+      >
+        <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              Earlier milestones are still open
+            </DialogTitle>
+          </DialogHeader>
+          {orderPrompt && (
+            <div className="space-y-2 text-sm text-slate-300">
+              <p>
+                {orderPrompt.target.title} comes after{' '}
+                {orderPrompt.earlier.length === 1
+                  ? 'a milestone that is'
+                  : `${orderPrompt.earlier.length} milestones that are`}{' '}
+                not done yet:
+              </p>
+              <ul className="list-disc space-y-0.5 pl-5 text-slate-400">
+                {orderPrompt.earlier.map((m) => (
+                  <li key={m.id}>{m.title}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() =>
+                orderPrompt && void complete(orderPrompt.target, [])
+              }
+            >
+              Only this one
+            </Button>
+            <Button
+              onClick={() =>
+                orderPrompt &&
+                void complete(orderPrompt.target, orderPrompt.earlier)
+              }
+            >
+              Complete them too
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={moneyPrompt !== null}
+        onOpenChange={(open) => !open && setMoneyPrompt(null)}
+      >
+        <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white">Record it in Money</DialogTitle>
+          </DialogHeader>
+          {moneyPrompt && (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-300">
+                {moneyPrompt.title} is done. Save the amount so the Money tab
+                and the dashboards agree.
+              </p>
+              <div>
+                <Label htmlFor="milestone-money-amount">
+                  {MONEY_MILESTONES[moneyPrompt.key].amountLabel} (₹)
+                </Label>
+                <Input
+                  id="milestone-money-amount"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  value={moneyAmount}
+                  onChange={(e) => setMoneyAmount(e.target.value)}
+                  className="mt-1 border-slate-700 bg-slate-950"
+                />
+              </div>
+              {MONEY_MILESTONES[moneyPrompt.key].dateField && (
+                <div>
+                  <Label htmlFor="milestone-money-date">Received on</Label>
+                  <Input
+                    id="milestone-money-date"
+                    type="date"
+                    value={moneyDate}
+                    onChange={(e) => setMoneyDate(e.target.value)}
+                    className="mt-1 border-slate-700 bg-slate-950"
+                  />
+                </div>
+              )}
+              {MONEY_MILESTONES[moneyPrompt.key].refField && (
+                <div>
+                  <Label htmlFor="milestone-money-ref">Instrument / UTR</Label>
+                  <Input
+                    id="milestone-money-ref"
+                    value={moneyRef}
+                    onChange={(e) => setMoneyRef(e.target.value)}
+                    className="mt-1 border-slate-700 bg-slate-950"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setMoneyPrompt(null)}>
+              Later
+            </Button>
+            <Button onClick={() => void saveMoney()} disabled={savingMoney}>
+              {savingMoney && <Loader2 className="h-4 w-4 animate-spin" />}
+              Save to Money
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

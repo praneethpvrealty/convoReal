@@ -237,3 +237,150 @@ describe('DealMilestonesPanel', () => {
     expect(screen.queryByRole('button', { name: 'Reopen' })).toBeNull();
   });
 });
+
+describe('[TXW-034] milestones in step with the stage and Money', () => {
+  const row = (id: string, position: number, status = 'pending') => ({
+    id,
+    title: id.replace(/_/g, ' '),
+    position,
+    status,
+    target_date: null,
+    completed_at: null,
+    visibility: 'internal',
+    template_key: id,
+  });
+
+  function mount(
+    rows: ReturnType<typeof row>[],
+    financials: Record<string, unknown> = { token_amount: null }
+  ) {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve(
+            String(url).endsWith('/financials')
+              ? { data: { ...financials, token_source: 'deal' } }
+              : init?.method
+                ? { data: {} }
+                : { data: rows }
+          ),
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <DealMilestonesPanel
+          dealId="deal-1"
+          canEdit
+          stage={{
+            id: 's6',
+            name: 'Registered → Brokerage',
+            position: 6,
+            stage_type: 'brokerage_pending',
+          }}
+          stages={[]}
+        />
+      </QueryClientProvider>
+    );
+    const patches = () =>
+      fetchMock.mock.calls
+        .filter(([, init]) => init?.method === 'PATCH')
+        .map(([url, init]) => [
+          String(url),
+          JSON.parse(String(init?.body ?? '{}')),
+        ]);
+    return { patches };
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('groups by phase and flags milestones the stage has passed', async () => {
+    const { patches } = mount([
+      row('initial_negotiation', 0, 'completed'),
+      row('agreement_executed', 1),
+      row('possession_handover', 2),
+    ]);
+    expect(
+      await screen.findByText('1 milestone is behind the stage')
+    ).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Negotiation' })).toBeTruthy();
+    expect(
+      screen.getByRole('region', { name: 'Agreement & registration' })
+    ).toBeTruthy();
+    expect(screen.getAllByText('Behind the stage')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /Mark them done/ }));
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    expect(patches()[0]).toEqual([
+      '/api/deals/deal-1/milestones/agreement_executed',
+      { status: 'completed', source: 'web' },
+    ]);
+  });
+
+  it('asks before ticking a milestone ahead of open ones', async () => {
+    const { patches } = mount([
+      row('draft_agreement_shared', 0),
+      row('registration_scheduled', 1),
+    ]);
+    const ticks = await screen.findAllByRole('button', {
+      name: 'Mark completed',
+    });
+    fireEvent.click(ticks[1]);
+    expect(
+      await screen.findByText('Earlier milestones are still open')
+    ).toBeTruthy();
+    expect(patches()).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Complete them too' }));
+    await waitFor(() => expect(patches()).toHaveLength(2));
+    expect(patches().map(([url]) => url)).toEqual([
+      '/api/deals/deal-1/milestones/draft_agreement_shared',
+      '/api/deals/deal-1/milestones/registration_scheduled',
+    ]);
+  });
+
+  it('offers to record the amount when a money milestone is ticked', async () => {
+    const { patches } = mount([row('token_paid', 0)]);
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Mark completed' })
+    );
+    expect(await screen.findByText('Record it in Money')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Token amount (₹)'), {
+      target: { value: '500000' },
+    });
+    fireEvent.change(screen.getByLabelText('Instrument / UTR'), {
+      target: { value: 'UTR123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save to Money' }));
+    await waitFor(() =>
+      expect(
+        patches().some(([url]) => url === '/api/deals/deal-1/financials')
+      ).toBe(true)
+    );
+    const [, body] = patches().find(
+      ([url]) => url === '/api/deals/deal-1/financials'
+    )!;
+    expect(body).toMatchObject({
+      token_amount: 500000,
+      token_instrument_ref: 'UTR123',
+      source: 'web',
+    });
+    expect(body.token_received_at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('does not ask for an amount Money already holds', async () => {
+    const { patches } = mount([row('token_paid', 0)], { token_amount: 1 });
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Mark completed' })
+    );
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    expect(screen.queryByText('Record it in Money')).toBeNull();
+  });
+});

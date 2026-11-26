@@ -4880,6 +4880,29 @@
             "src/components/deals/deal-overview-panel.tsx",
             "mobile/app/(app)/deal/[id].tsx"
           ]
+        },
+        {
+          "id": "TXW-034",
+          "rule": "Milestones and stages stay independent (TXW-003) but never drift silently. Every standard milestone belongs to one closing phase (negotiation, due diligence, agreement and registration, handover, brokerage) and a stage reads how many phases it says are finished; on web and mobile the Milestones tab groups the checklist by phase, flags open milestones the stage has passed with a one-tap Mark done or Skip, and offers — never makes — the move to the next stage once the stage's own phase is done, and the workspace header and Overview show the same behind-stage count. Ticking a milestone while earlier ones are open asks whether to complete them too. Ticking Token paid, Sale deed registered or Brokerage collected with no amount in Money asks for it (web saves it in place, mobile opens Money), a saved amount offers to tick its milestone on web, and the Overview flags a ticked money milestone with no amount and a won or brokerage-pending deal with no live invoice. The Overview labels brokerage figures as Brokerage collected and Brokerage outstanding. Both surfaces read these rules from src/lib/deals/closing-phases.ts.",
+          "tests": [
+            {
+              "file": "src/lib/deals/closing-phases.test.ts",
+              "case": "[TXW-034]"
+            },
+            {
+              "file": "src/components/deals/deal-milestones-panel.test.tsx",
+              "case": "[TXW-034]"
+            },
+            { "file": "src/lib/mobile-parity.test.ts", "case": "[TXW-034]" }
+          ],
+          "guards": [
+            "src/lib/deals/closing-phases.ts",
+            "src/components/deals/deal-milestones-panel.tsx",
+            "src/components/deals/deal-overview-panel.tsx",
+            "src/components/deals/deal-workspace.tsx",
+            "src/components/deals/deal-financials-panel.tsx",
+            "mobile/app/(app)/deal/[id].tsx"
+          ]
         }
       ]
     },

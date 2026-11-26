@@ -3,10 +3,22 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, formatDistanceToNow, isValid, parseISO } from 'date-fns';
-import { ArrowRight, Check, Loader2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  Check,
+  FileText,
+  Loader2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import {
+  MONEY_MILESTONES,
+  isMoneyMilestone,
+  milestonesBehindStage,
+  moneyMissingForMilestones,
+} from '@/lib/deals/closing-phases';
 import {
   DEAL_EVENT_LABELS,
   timelineActorLabel,
@@ -30,6 +42,7 @@ import {
   dealBrokerageShare,
   formatDealAmount,
 } from '@/lib/pipelines/deal-money';
+import { stageTypeOf, type StageRef } from '@/lib/pipelines/stage-semantics';
 import { cn } from '@/lib/utils';
 
 import type { FinancialsResponse } from './deal-financials-panel';
@@ -45,6 +58,7 @@ interface DealOverviewPanelProps {
     brokerage_amount: number | null;
     co_broker_payout_total: number | null;
   };
+  stage?: StageRef | null;
   canEdit: boolean;
   onOpenTab: (tab: TabId) => void;
 }
@@ -84,6 +98,7 @@ function shortDate(value: string | null | undefined): string | null {
 export function DealOverviewPanel({
   dealId,
   deal,
+  stage = null,
   canEdit,
   onOpenTab,
 }: DealOverviewPanelProps) {
@@ -154,6 +169,17 @@ export function DealOverviewPanel({
         'Could not load the payment schedule'
       );
       return json.data;
+    },
+  });
+
+  const invoices = useQuery({
+    queryKey: ['deal-invoices', dealId],
+    queryFn: async (): Promise<Array<{ id: string; status: string }>> => {
+      const json = await load<{ data?: Array<{ id: string; status: string }> }>(
+        `/api/deals/${dealId}/brokerage-invoices`,
+        'Could not load invoices'
+      );
+      return json.data ?? [];
     },
   });
 
@@ -253,6 +279,17 @@ export function DealOverviewPanel({
         : null;
   const tokenReceived = shortDate(token?.received_at);
   const schedule = tranches.data?.summary;
+  const behind = milestonesBehindStage(milestoneRows, stage);
+  const moneyMissing = moneyMissingForMilestones(
+    milestoneRows,
+    financials.data ?? null
+  ).filter((m) => !(m.template_key === 'token_paid' && tokenSafe));
+  const stageType = stage ? stageTypeOf(stage) : null;
+  const needsInvoice =
+    (stageType === 'won' || stageType === 'brokerage_pending') &&
+    invoices.isSuccess &&
+    !invoices.data.some((invoice) => invoice.status !== 'cancelled') &&
+    totalBrokerage > 0;
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -290,6 +327,21 @@ export function DealOverviewPanel({
                 {progress.done} / {progress.total} done
               </p>
             </div>
+            {behind.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onOpenTab('milestones')}
+                className="flex w-full cursor-pointer items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-left text-xs text-amber-200 hover:bg-amber-500/15"
+              >
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {behind.length === 1
+                    ? '1 milestone is'
+                    : `${behind.length} milestones are`}{' '}
+                  behind the stage: {behind.map((m) => m.title).join(', ')}
+                </span>
+              </button>
+            )}
             {nextMilestone ? (
               <div className="flex items-center gap-3">
                 <TickButton
@@ -302,10 +354,21 @@ export function DealOverviewPanel({
                   <p className="text-sm font-medium text-white">
                     {nextMilestone.title}
                   </p>
-                  {nextMilestone.target_date && (
+                  {nextMilestone.target_date ? (
                     <p className="text-[11px] text-slate-500">
                       Due {shortDate(nextMilestone.target_date)}
                     </p>
+                  ) : (
+                    canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenTab('milestones')}
+                        className="cursor-pointer text-[11px] text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
+                      >
+                        No due date — set one so it reaches Today and the
+                        calendar
+                      </button>
+                    )
                   )}
                 </div>
               </div>
@@ -460,11 +523,11 @@ export function DealOverviewPanel({
           ) : (
             <>
               <MoneyRow
-                label="Collected"
+                label="Brokerage collected"
                 value={formatDealAmount(collected, currency)}
               />
               <MoneyRow
-                label="Outstanding"
+                label="Brokerage outstanding"
                 value={formatDealAmount(
                   Math.max(0, totalBrokerage - collected),
                   currency
@@ -503,6 +566,43 @@ export function DealOverviewPanel({
             />
           )}
         </dl>
+        {(moneyMissing.length > 0 || needsInvoice) && (
+          <div className="mt-4 space-y-2 border-t border-slate-800 pt-3">
+            {moneyMissing.map((m) =>
+              isMoneyMilestone(m.template_key) ? (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => onOpenTab('money')}
+                  className="flex w-full cursor-pointer items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-left text-xs text-amber-200 hover:bg-amber-500/15"
+                >
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    {m.title} is ticked, but no{' '}
+                    {MONEY_MILESTONES[m.template_key].amountLabel.toLowerCase()}{' '}
+                    is recorded in Money.
+                  </span>
+                </button>
+              ) : null
+            )}
+            {needsInvoice && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2">
+                <span className="flex items-center gap-2 text-xs text-slate-300">
+                  <FileText className="h-3.5 w-3.5 text-slate-400" />
+                  No brokerage invoice yet for{' '}
+                  {formatDealAmount(totalBrokerage, currency)}.
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onOpenTab('invoices')}
+                >
+                  Raise invoice
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </OverviewCard>
     </div>
   );

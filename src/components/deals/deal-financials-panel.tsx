@@ -16,6 +16,8 @@ import {
   type TdsStatus,
   type TokenSource,
 } from '@/lib/deals/financials';
+import { milestonesSettledByFinancials } from '@/lib/deals/closing-phases';
+import type { DealMilestone } from '@/lib/deals/milestones';
 import { equivalentPriceLabel } from '@/lib/format/currency';
 import { formatDealAmount } from '@/lib/pipelines/deal-money';
 
@@ -142,10 +144,54 @@ function FinancialsForm({
         queryKey: ['deal-events', dealId],
       });
       toast.success('Financials saved.');
+      const settled = milestonesSettledByFinancials(
+        queryClient.getQueryData<DealMilestone[]>([
+          'deal-milestones',
+          dealId,
+        ]) ?? [],
+        json.data
+      );
+      for (const milestone of settled) {
+        toast.message(`Mark "${milestone.title}" done?`, {
+          description: 'The Money tab now records it.',
+          duration: 10000,
+          action: {
+            label: 'Mark done',
+            onClick: () => void markMilestoneDone(milestone),
+          },
+        });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not save');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function markMilestoneDone(milestone: DealMilestone) {
+    try {
+      const response = await fetch(
+        `/api/deals/${dealId}/milestones/${milestone.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'completed', source: 'web' }),
+        }
+      );
+      const json = await response.json().catch(() => null);
+      if (!response.ok)
+        throw new Error(json?.error || 'Could not update the milestone');
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['deal-milestones', dealId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ['deal-events', dealId] }),
+      ]);
+      toast.success(`${milestone.title} marked done.`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Could not update the milestone'
+      );
     }
   }
 

@@ -6866,3 +6866,29 @@ describe('the deal card messages the contact for its stage on both surfaces', ()
     );
   });
 });
+
+describe('[TXW-034] milestones stay in step with the stage and Money on both surfaces', () => {
+  it('reads the same closing-phase rules on web and mobile', () => {
+    const mobile = mobileSource('app/(app)/deal/[id].tsx');
+    expect(mobile).toContain("from '@shared/lib/deals/closing-phases'");
+    for (const rule of [
+      'milestonesBehindStage(',
+      'earlierOpenMilestones(',
+      'groupMilestonesByPhase(',
+      'suggestedNextStage(',
+      'moneyMissingForMilestones(',
+    ]) {
+      expect(mobile).toContain(rule);
+    }
+    const webPanel = webSource('components/deals/deal-milestones-panel.tsx');
+    const webOverview = webSource('components/deals/deal-overview-panel.tsx');
+    expect(webPanel).toContain('milestonesBehindStage(');
+    expect(webPanel).toContain('earlierOpenMilestones(');
+    expect(webPanel).toContain('groupMilestonesByPhase(');
+    expect(webPanel).toContain('suggestedNextStage(');
+    expect(webOverview).toContain('moneyMissingForMilestones(');
+    for (const source of [mobile, webOverview]) {
+      expect(source).toContain('Brokerage outstanding');
+    }
+  });
+});
