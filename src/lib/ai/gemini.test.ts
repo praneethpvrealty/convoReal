@@ -822,6 +822,22 @@ describe('[JRN-027] a listing that mentions requirements is still a listing', ()
     }
   });
 
+  it('a requirement named mid-message wins over offer wording', async () => {
+    const brief =
+      'Hi Praneeth, sharing my client requirement. Office space available for lease in Bellandur, 5000 sqft, expected rent 60 per sqft';
+    expect(looksLikeBuyerRequirement(brief)).toBe(true);
+    expect(looksLikeOfferedListing(brief)).toBe(false);
+    stubClassifier('requirement');
+    expect(await classifyImageOrText(brief)).toBe('requirement');
+    stubClassifier('property');
+    expect(await classifyImageOrText(brief)).toBe('requirement');
+    expect(
+      looksLikeBuyerRequirement(
+        'Shop available for rent in Jayanagar, can be partitioned as per client requirement'
+      )
+    ).toBe(false);
+  });
+
   it('does not rescue a lead forward that repeats offer wording', async () => {
     const forward =
       'Ravi 9886217718 wants to rent a 3 BHK available for rent in HSR';

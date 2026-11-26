@@ -551,6 +551,16 @@ const REQUIREMENT_LABEL =
 const OFFER_SIGNAL =
   /\bavailable (?:for|on) (?:lease|rent|sale|resale|j[vd])\b|\bto[- ]let\b|\b(?:expected|asking|quoted) (?:rent(?:al)?|price|rate)\b/i;
 
+const NAMED_REQUIREMENT =
+  /\b(?:client|buyer|customer|lead|my|our|his|her|their)(?:['’]s)?\s+requirements?\b/i;
+
+function statesItsOwnRequirement(cleanText: string): boolean {
+  return (
+    REQUIREMENT_LABEL.test(cleanText) ||
+    NAMED_REQUIREMENT.test(cleanText.replace(TAILORING_PHRASE, ' '))
+  );
+}
+
 /**
  * True when the text is a property being OFFERED in so many words
  * ("space available for lease", "expected rental ₹55 per sq ft") and
@@ -562,7 +572,7 @@ export function looksLikeOfferedListing(text?: string): boolean {
     !!cleanText &&
     OFFER_SIGNAL.test(cleanText) &&
     !BUYER_DEMAND_SIGNAL.test(cleanText) &&
-    !REQUIREMENT_LABEL.test(cleanText)
+    !statesItsOwnRequirement(cleanText)
   );
 }
 
@@ -577,13 +587,14 @@ export function looksLikeOfferedListing(text?: string): boolean {
  * says "open to modifications to suit tenant requirements" about itself.
  * It counts only outside that tailoring phrase, and never in a text that
  * offers the property outright — unless the text opens by naming itself
- * a requirement ("Client requirement: …", "Wanted …"), which a buyer who
- * writes "expected rent 30k" still means.
+ * a requirement ("Client requirement: …", "Wanted …") or says whose it is
+ * anywhere ("sharing my client's requirement"), which a buyer who writes
+ * "expected rent 30k" still means.
  */
 export function looksLikeBuyerRequirement(text?: string): boolean {
   const cleanText = (text || '').trim();
   if (!cleanText) return false;
-  if (BUYER_DEMAND_SIGNAL.test(cleanText) || REQUIREMENT_LABEL.test(cleanText))
+  if (BUYER_DEMAND_SIGNAL.test(cleanText) || statesItsOwnRequirement(cleanText))
     return true;
   return (
     REQUIREMENT_WORD.test(cleanText.replace(TAILORING_PHRASE, ' ')) &&
