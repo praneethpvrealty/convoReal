@@ -15,6 +15,7 @@ import {
   updateContactDraft,
   looksLikePropertyListing,
   looksLikeBuyerRequirement,
+  looksLikeOfferedListing,
   draftReadsAsRequirement,
   inferBuyerFromRequirements,
   normalizeClassification,
@@ -802,6 +803,31 @@ describe('[JRN-027] a listing that mentions requirements is still a listing', ()
       looksLikeBuyerRequirement(
         'Looking for space available for lease near Bellandur to suit our requirements'
       )
+    ).toBe(true);
+  });
+
+  it('a brief that opens by naming itself wins over offer wording', async () => {
+    const briefs = [
+      'Client requirement: office space available for lease in Bellandur, 5000 sqft',
+      'Client requirement: 2BHK in HSR, expected rent 30k',
+      'Wanted 3BHK in Indiranagar, asking price up to 2cr',
+    ];
+    for (const brief of briefs) {
+      expect(looksLikeBuyerRequirement(brief)).toBe(true);
+      expect(looksLikeOfferedListing(brief)).toBe(false);
+      stubClassifier('property');
+      expect(await classifyImageOrText(brief)).toBe('requirement');
+      stubClassifier('requirement');
+      expect(await classifyImageOrText(brief)).toBe('requirement');
+    }
+  });
+
+  it('reads "to suit our requirement" as the buyer speaking', () => {
+    expect(
+      looksLikeBuyerRequirement('Need 3BHK to suit our requirement, budget 1cr')
+    ).toBe(true);
+    expect(
+      looksLikeBuyerRequirement('Show me plots as per my requirement')
     ).toBe(true);
   });
 

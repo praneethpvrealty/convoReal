@@ -506,7 +506,7 @@ const LEAD_FORWARD_SIGNAL =
   /interested in|looking for|requirement|refer(?:red|ral)\b|budget|magicbricks|99acres|housing\.com/i;
 
 const TAILORING_PHRASE =
-  /\b(?:suit|meet|per|according to)(?:\s+[\w'’]+){0,3}?\s+requirements?\b/gi;
+  /\b(?:suit|meet|per|according to)(?:\s+(?!our\b|my\b)[\w'’]+){0,3}?\s+requirements?\b/gi;
 
 const PROPERTY_LISTING_SIGNALS: RegExp[] = [
   /\bsq\.?\s?ft\b|\bsqft\b|\bsq\s?feet\b/i,
@@ -545,6 +545,9 @@ const BUYER_DEMAND_SIGNAL =
 
 const REQUIREMENT_WORD = /\brequirements?\b/i;
 
+const REQUIREMENT_LABEL =
+  /^\s*(?:(?:[\w'’]+\s+){0,2}requirements?\s*[:\-–—]|(?:urgent(?:ly)?\s+)?(?:need(?:ed)?|wanted|required)\b)/i;
+
 const OFFER_SIGNAL =
   /\bavailable (?:for|on) (?:lease|rent|sale|resale|j[vd])\b|\bto[- ]let\b|\b(?:expected|asking|quoted) (?:rent(?:al)?|price|rate)\b/i;
 
@@ -558,7 +561,8 @@ export function looksLikeOfferedListing(text?: string): boolean {
   return (
     !!cleanText &&
     OFFER_SIGNAL.test(cleanText) &&
-    !BUYER_DEMAND_SIGNAL.test(cleanText)
+    !BUYER_DEMAND_SIGNAL.test(cleanText) &&
+    !REQUIREMENT_LABEL.test(cleanText)
   );
 }
 
@@ -572,12 +576,15 @@ export function looksLikeOfferedListing(text?: string): boolean {
  * The bare word "requirement" is the weak half of the signal: a listing
  * says "open to modifications to suit tenant requirements" about itself.
  * It counts only outside that tailoring phrase, and never in a text that
- * offers the property outright.
+ * offers the property outright — unless the text opens by naming itself
+ * a requirement ("Client requirement: …", "Wanted …"), which a buyer who
+ * writes "expected rent 30k" still means.
  */
 export function looksLikeBuyerRequirement(text?: string): boolean {
   const cleanText = (text || '').trim();
   if (!cleanText) return false;
-  if (BUYER_DEMAND_SIGNAL.test(cleanText)) return true;
+  if (BUYER_DEMAND_SIGNAL.test(cleanText) || REQUIREMENT_LABEL.test(cleanText))
+    return true;
   return (
     REQUIREMENT_WORD.test(cleanText.replace(TAILORING_PHRASE, ' ')) &&
     !OFFER_SIGNAL.test(cleanText)
