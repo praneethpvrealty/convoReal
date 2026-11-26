@@ -159,6 +159,49 @@ describe('[PIPE-001] the flat Deals board', () => {
     );
     expect(screen.getByRole('heading', { name: 'Site visit' })).toBeTruthy();
     expect(screen.getByText('Drop a deal here')).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Collapse Site visit' })
+    );
+    expect(screen.queryByRole('heading', { name: 'Site visit' })).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Show Site visit, no deals' })
+    ).toBeTruthy();
+  });
+
+  it('offers no collapse on a stage that holds deals', () => {
+    renderBoard('flat');
+    expect(screen.getByRole('heading', { name: 'Enquiry' })).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: 'Collapse Enquiry' })
+    ).toBeNull();
+  });
+
+  it('shows scroll arrows only in the direction the stage row overflows', () => {
+    const scrollWidth = vi
+      .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
+      .mockReturnValue(1600);
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+      .mockReturnValue(800);
+    const scrollBy = vi.fn();
+    HTMLElement.prototype.scrollBy = scrollBy;
+    try {
+      renderBoard('flat');
+      expect(
+        screen.queryByRole('button', { name: 'Scroll stages left' })
+      ).toBeNull();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Scroll stages right' })
+      );
+      expect(scrollBy).toHaveBeenCalledWith({
+        left: 640,
+        behavior: 'smooth',
+      });
+    } finally {
+      scrollWidth.mockRestore();
+      clientWidth.mockRestore();
+    }
   });
 });
 

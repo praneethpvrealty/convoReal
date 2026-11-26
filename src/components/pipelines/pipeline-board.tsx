@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -19,7 +19,12 @@ import { DealCard } from './deal-card';
 import { DealMessageDialog } from './deal-message-dialog';
 import { StageWheel } from './stage-wheel';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRightLeft,
+  Plus,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   isBrokeragePaidStage,
@@ -62,6 +67,11 @@ export function PipelineBoard({
   const [expandedStageIds, setExpandedStageIds] = useState<Set<string>>(
     () => new Set()
   );
+  const flatRowRef = useRef<HTMLDivElement>(null);
+  const [rowOverflow, setRowOverflow] = useState({
+    left: false,
+    right: false,
+  });
 
   const sortedStages = useMemo(
     () => [...stages].sort((a, b) => a.position - b.position),
@@ -90,6 +100,42 @@ export function PipelineBoard({
     }
     return map;
   }, [sortedStages, deals]);
+
+  useEffect(() => {
+    const row = flatRowRef.current;
+    if (layout !== 'flat' || !row) return;
+    const measure = () => {
+      const maxScroll = row.scrollWidth - row.clientWidth;
+      const left = row.scrollLeft > 1;
+      const right = row.scrollLeft < maxScroll - 1;
+      setRowOverflow((current) =>
+        current.left === left && current.right === right
+          ? current
+          : { left, right }
+      );
+    };
+    measure();
+    row.addEventListener('scroll', measure, { passive: true });
+    const observer =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(measure);
+    observer?.observe(row);
+    for (const child of Array.from(row.children)) observer?.observe(child);
+    return () => {
+      row.removeEventListener('scroll', measure);
+      observer?.disconnect();
+    };
+  }, [layout, flatStages, expandedStageIds, deals]);
+
+  function scrollFlatRow(direction: -1 | 1) {
+    const row = flatRowRef.current;
+    if (!row) return;
+    row.scrollBy({
+      left: direction * Math.max(row.clientWidth * 0.8, 260),
+      behavior: 'smooth',
+    });
+  }
 
   const sensors = useSensors(
     // 5px activation distance avoids clicks being interpreted as drags.
@@ -125,7 +171,11 @@ export function PipelineBoard({
     setActiveDealId(null);
   }
 
-  function renderStage(stage: PipelineStage, stageLayout: StageLayout) {
+  function renderStage(
+    stage: PipelineStage,
+    stageLayout: StageLayout,
+    onCollapse?: () => void
+  ) {
     const stageDeals = dealsByStage.get(stage.id) ?? [];
     return (
       <StageColumn
@@ -138,6 +188,7 @@ export function PipelineBoard({
         onMessageDeal={setMessagingDeal}
         currency={currency}
         layout={stageLayout}
+        onCollapse={onCollapse}
       />
     );
   }
@@ -151,40 +202,64 @@ export function PipelineBoard({
       onDragCancel={handleDragCancel}
     >
       {layout === 'flat' ? (
-        <div
-          role="group"
-          aria-label="Pipeline stages"
-          className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:snap-none"
-        >
-          {flatStages.map((stage, index) => {
-            const outcome = pipelineOutcomeForStage(stage);
-            const divider =
-              OUTCOME_DIVIDERS[outcome] &&
-              flatStages.findIndex(
-                (other) => pipelineOutcomeForStage(other) === outcome
-              ) === index
-                ? OUTCOME_DIVIDERS[outcome]
-                : null;
-            const stageDeals = dealsByStage.get(stage.id) ?? [];
-            return (
-              <Fragment key={stage.id}>
-                {divider && <OutcomeDivider label={divider} />}
-                {stageDeals.length === 0 && !expandedStageIds.has(stage.id) ? (
-                  <StageRail
-                    stage={stage}
-                    onAddDeal={onAddDeal}
-                    onExpand={() =>
-                      setExpandedStageIds((current) =>
-                        new Set(current).add(stage.id)
-                      )
-                    }
-                  />
-                ) : (
-                  renderStage(stage, 'flat')
-                )}
-              </Fragment>
-            );
-          })}
+        <div className="relative">
+          <div
+            ref={flatRowRef}
+            role="group"
+            aria-label="Pipeline stages"
+            className="pipeline-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 lg:snap-none"
+          >
+            {flatStages.map((stage, index) => {
+              const outcome = pipelineOutcomeForStage(stage);
+              const divider =
+                OUTCOME_DIVIDERS[outcome] &&
+                flatStages.findIndex(
+                  (other) => pipelineOutcomeForStage(other) === outcome
+                ) === index
+                  ? OUTCOME_DIVIDERS[outcome]
+                  : null;
+              const stageDeals = dealsByStage.get(stage.id) ?? [];
+              return (
+                <Fragment key={stage.id}>
+                  {divider && <OutcomeDivider label={divider} />}
+                  {stageDeals.length === 0 &&
+                  !expandedStageIds.has(stage.id) ? (
+                    <StageRail
+                      stage={stage}
+                      onAddDeal={onAddDeal}
+                      onExpand={() =>
+                        setExpandedStageIds((current) =>
+                          new Set(current).add(stage.id)
+                        )
+                      }
+                    />
+                  ) : (
+                    renderStage(
+                      stage,
+                      'flat',
+                      stageDeals.length === 0
+                        ? () =>
+                            setExpandedStageIds((current) => {
+                              const next = new Set(current);
+                              next.delete(stage.id);
+                              return next;
+                            })
+                        : undefined
+                    )
+                  )}
+                </Fragment>
+              );
+            })}
+          </div>
+          {rowOverflow.left && (
+            <BoardScrollButton
+              direction={-1}
+              onClick={() => scrollFlatRow(-1)}
+            />
+          )}
+          {rowOverflow.right && (
+            <BoardScrollButton direction={1} onClick={() => scrollFlatRow(1)} />
+          )}
         </div>
       ) : (
         <div className="space-y-5">
@@ -256,12 +331,9 @@ export function PipelineBoard({
           scroll-behavior: smooth;
         }
         @media (hover: hover) and (pointer: fine) {
-          .pipeline-scroll::-webkit-scrollbar {
-            height: 0;
-            display: none;
-          }
           .pipeline-scroll {
-            scrollbar-width: none;
+            scrollbar-width: thin;
+            scrollbar-color: rgb(51 65 85) transparent;
           }
         }
       `}</style>
@@ -290,6 +362,7 @@ function StageColumn({
   onMessageDeal,
   currency,
   layout,
+  onCollapse,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -299,6 +372,7 @@ function StageColumn({
   onMessageDeal: (deal: Deal) => void;
   currency: string;
   layout: StageLayout;
+  onCollapse?: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
@@ -328,9 +402,24 @@ function StageColumn({
         <h3 className="truncate text-sm font-semibold text-white">
           {stage.name}
         </h3>
-        <span className="shrink-0 rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-300">
-          {deals.length}
-        </span>
+        <div className="flex shrink-0 items-center gap-1">
+          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-300">
+            {deals.length}
+          </span>
+          {onCollapse && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-expanded
+              aria-label={`Collapse ${stage.name}`}
+              title={`Collapse ${stage.name}`}
+              onClick={onCollapse}
+              className="text-slate-400 hover:bg-slate-800 hover:text-white"
+            >
+              <ChevronsRightLeft className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       </div>
       <p className="text-xs text-slate-400">
         {stageTotalsLabel(totals, {
@@ -378,6 +467,29 @@ function StageColumn({
         </Button>
       )}
     </div>
+  );
+}
+
+function BoardScrollButton({
+  direction,
+  onClick,
+}: {
+  direction: -1 | 1;
+  onClick: () => void;
+}) {
+  const Icon = direction < 0 ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      aria-label={direction < 0 ? 'Scroll stages left' : 'Scroll stages right'}
+      onClick={onClick}
+      className={cn(
+        'absolute top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-700 bg-slate-900/90 text-slate-200 shadow-lg backdrop-blur transition-colors hover:bg-slate-800 hover:text-white md:flex',
+        direction < 0 ? 'left-1' : 'right-1'
+      )}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
   );
 }
 
