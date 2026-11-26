@@ -534,9 +534,9 @@ export function looksLikePropertyListing(text?: string): boolean {
   )
     return false;
   return (
-    [...PROPERTY_LISTING_SIGNALS, OFFER_SIGNAL].filter((re) =>
-      re.test(cleanText)
-    ).length >= 2
+    PROPERTY_LISTING_SIGNALS.filter((re) => re.test(cleanText)).length +
+      (looksLikeOfferedListing(cleanText) ? 1 : 0) >=
+    2
   );
 }
 

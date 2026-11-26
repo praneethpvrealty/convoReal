@@ -822,6 +822,14 @@ describe('[JRN-027] a listing that mentions requirements is still a listing', ()
     }
   });
 
+  it('does not rescue a lead forward that repeats offer wording', async () => {
+    const forward =
+      'Ravi 9886217718 wants to rent a 3 BHK available for rent in HSR';
+    expect(looksLikePropertyListing(forward)).toBe(false);
+    stubClassifier('contact');
+    expect(await classifyImageOrText(forward)).toBe('contact');
+  });
+
   it('reads "to suit our requirement" as the buyer speaking', () => {
     expect(
       looksLikeBuyerRequirement('Need 3BHK to suit our requirement, budget 1cr')
