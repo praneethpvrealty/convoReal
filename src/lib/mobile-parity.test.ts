@@ -6890,5 +6890,11 @@ describe('[TXW-034] milestones stay in step with the stage and Money on both sur
     for (const source of [mobile, webOverview]) {
       expect(source).toContain('Brokerage outstanding');
     }
+    expect(mobile).toContain(
+      'const behindStage = milestonesBehindStage(headMilestones, currentStage);'
+    );
+    expect(webSource('components/deals/deal-workspace.tsx')).toContain(
+      'milestonesBehindStage(milestones, currentStage)'
+    );
   });
 });

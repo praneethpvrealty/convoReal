@@ -379,6 +379,12 @@ export default function DealWorkspaceScreen() {
   const stageName = head ? (one(head.stage)?.name ?? '—') : null;
   const currentStage =
     (stages ?? []).find((s) => s.id === head?.stage_id) ?? null;
+  const { data: headMilestones = [] } = useQuery({
+    queryKey: ['deal-milestones', dealId],
+    queryFn: () => fetchDealMilestones(dealId),
+    enabled: Boolean(dealId),
+  });
+  const behindStage = milestonesBehindStage(headMilestones, currentStage);
   const headGroup = head ? one(head.group) : null;
   const headContact = head ? one(head.contact) : null;
   const headContactName =
@@ -433,6 +439,22 @@ export default function DealWorkspaceScreen() {
               {stageName}
             </Text>
           )
+        ) : null}
+        {behindStage.length > 0 ? (
+          <Pressable
+            onPress={() => setTab('milestones')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`${behindStage.length} milestones behind the stage. Open Milestones`}
+            style={styles.bundleRow}
+          >
+            <Ionicons name="warning-outline" size={14} color={colors.warning} />
+            <Text style={[styles.bundleLine, { color: colors.warning }]}>
+              {behindStage.length === 1
+                ? '1 milestone behind stage'
+                : `${behindStage.length} milestones behind stage`}
+            </Text>
+          </Pressable>
         ) : null}
         {head && (headGroup || canEdit) ? (
           <Pressable
