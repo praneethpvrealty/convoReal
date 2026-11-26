@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  AlertTriangle,
   ArrowLeft,
   Building2,
   ChevronDown,
@@ -29,7 +30,9 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { DEAL_SAVED_QUERY_KEYS } from '@/lib/deals/board-focus';
+import { milestonesBehindStage } from '@/lib/deals/closing-phases';
 import { netOfPayouts } from '@/lib/deals/co-broking';
+import type { DealMilestone } from '@/lib/deals/milestones';
 import { CLOSING_RECORDS_LABEL, dealsHref } from '@/lib/deals/routes';
 import { formatInrPlain } from '@/lib/format/currency';
 import { brokerageAmount, type BrokerageType } from '@/lib/pipelines/brokerage';
@@ -189,6 +192,18 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
     enabled: Boolean(pipelineId),
   });
 
+  const { data: milestones = [] } = useQuery({
+    queryKey: ['deal-milestones', dealId],
+    queryFn: async (): Promise<DealMilestone[]> => {
+      const response = await fetch(`/api/deals/${dealId}/milestones`);
+      const json = await response.json();
+      if (!response.ok)
+        throw new Error(json?.error || 'Could not load milestones');
+      return json.data ?? [];
+    },
+    enabled: Boolean(accountId),
+  });
+
   function pickStage(stageId: string) {
     if (!deal) return;
     const stage = stages.find((s) => s.id === stageId);
@@ -302,6 +317,9 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
   const collected = Number(financials?.brokerage_received_amount ?? 0);
   const currency = deal.currency ?? 'INR';
 
+  const currentStage = stages.find((s) => s.id === deal.stage_id) ?? null;
+  const behindStage = milestonesBehindStage(milestones, currentStage);
+
   const contactName = [deal.contact?.name, deal.contact?.second_name]
     .filter(Boolean)
     .join(' ');
@@ -347,6 +365,19 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
                 {deal.stage.name}
               </span>
             )
+          )}
+          {behindStage.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setTab('milestones')}
+              className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-amber-200 hover:bg-amber-500/20"
+              title="Milestones the stage says are done are still open"
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {behindStage.length === 1
+                ? '1 milestone behind stage'
+                : `${behindStage.length} milestones behind stage`}
+            </button>
           )}
           {contactName && (
             <Link
@@ -482,6 +513,7 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         <DealOverviewPanel
           dealId={dealId}
           deal={deal}
+          stage={currentStage}
           canEdit={canEdit}
           onOpenTab={setTab}
         />
@@ -493,7 +525,16 @@ export function DealWorkspace({ dealId }: { dealId: string }) {
         <DealTimelinePanel dealId={dealId} canEdit={canEdit} />
       )}
       {tab === 'milestones' && (
-        <DealMilestonesPanel dealId={dealId} canEdit={canEdit} />
+        <DealMilestonesPanel
+          dealId={dealId}
+          canEdit={canEdit}
+          stage={currentStage}
+          stages={stages}
+          onMoveStage={pickStage}
+          contactId={deal.contact?.id ?? null}
+          propertyId={deal.property?.id ?? null}
+          currency={currency}
+        />
       )}
       {tab === 'tasks' && (
         <DealTasksPanel

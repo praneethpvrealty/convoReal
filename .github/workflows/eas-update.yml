@@ -73,6 +73,7 @@ on:
       - 'src/lib/copilot/tours.ts'
       - 'src/lib/dashboard/approval-order.ts'
       - 'src/lib/dashboard/document-approvals.ts'
+      - 'src/lib/deals/closing-phases.ts'
       - 'src/lib/deals/co-broking.ts'
       - 'src/lib/deals/deadline-rules.ts'
       - 'src/lib/deals/financials.ts'

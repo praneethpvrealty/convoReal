@@ -180,6 +180,7 @@ import {
   dealStatusForStage,
   isLostStage,
   needsBrokerageCapture,
+  stageTypeOf,
 } from '@/lib/stage-semantics';
 import { supabase } from '@/lib/supabase';
 import { haptic } from '@/lib/haptics';
@@ -189,6 +190,15 @@ import {
   applyMilestonePatch,
   withMilestoneRow,
 } from '@shared/lib/deals/milestones';
+import {
+  MONEY_MILESTONES,
+  earlierOpenMilestones,
+  groupMilestonesByPhase,
+  isMoneyMilestone,
+  milestonesBehindStage,
+  moneyMissingForMilestones,
+  suggestedNextStage,
+} from '@shared/lib/deals/closing-phases';
 import { CLOSING_RECORD_LABEL } from '@shared/lib/deals/routes';
 import {
   dealBrokerageShare,
@@ -367,6 +377,14 @@ export default function DealWorkspaceScreen() {
   }
 
   const stageName = head ? (one(head.stage)?.name ?? '—') : null;
+  const currentStage =
+    (stages ?? []).find((s) => s.id === head?.stage_id) ?? null;
+  const { data: headMilestones = [] } = useQuery({
+    queryKey: ['deal-milestones', dealId],
+    queryFn: () => fetchDealMilestones(dealId),
+    enabled: Boolean(dealId),
+  });
+  const behindStage = milestonesBehindStage(headMilestones, currentStage);
   const headGroup = head ? one(head.group) : null;
   const headContact = head ? one(head.contact) : null;
   const headContactName =
@@ -422,6 +440,22 @@ export default function DealWorkspaceScreen() {
             </Text>
           )
         ) : null}
+        {behindStage.length > 0 ? (
+          <Pressable
+            onPress={() => setTab('milestones')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={`${behindStage.length} milestones behind the stage. Open Milestones`}
+            style={styles.bundleRow}
+          >
+            <Ionicons name="warning-outline" size={14} color={colors.warning} />
+            <Text style={[styles.bundleLine, { color: colors.warning }]}>
+              {behindStage.length === 1
+                ? '1 milestone behind stage'
+                : `${behindStage.length} milestones behind stage`}
+            </Text>
+          </Pressable>
+        ) : null}
         {head && (headGroup || canEdit) ? (
           <Pressable
             onPress={() => setBundleOpen(true)}
@@ -459,6 +493,7 @@ export default function DealWorkspaceScreen() {
           <OverviewTab
             dealId={dealId}
             head={head ?? null}
+            stage={currentStage}
             canEdit={canEdit}
             onOpenTab={setTab}
           />
@@ -475,7 +510,16 @@ export default function DealWorkspaceScreen() {
           <TimelineTab dealId={dealId} canEdit={canEdit} />
         )}
         {tab === 'milestones' && (
-          <MilestonesTab dealId={dealId} canEdit={canEdit} />
+          <MilestonesTab
+            dealId={dealId}
+            canEdit={canEdit}
+            stage={currentStage}
+            stages={stages ?? []}
+            onMoveStage={pickStage}
+            onOpenTab={setTab}
+            contactId={head?.contact_id ?? null}
+            propertyId={head?.property_id ?? null}
+          />
         )}
         {tab === 'tasks' && (
           <TasksTab
@@ -1060,11 +1104,13 @@ function OverviewFigure({
 function OverviewTab({
   dealId,
   head,
+  stage,
   canEdit,
   onOpenTab,
 }: {
   dealId: string;
   head: DealHead | null;
+  stage: PipelineStage | null;
   canEdit: boolean;
   onOpenTab: (tab: DealWorkspaceTab) => void;
 }) {
@@ -1102,6 +1148,11 @@ function OverviewTab({
   const tranchesQuery = useQuery({
     queryKey: ['deal-tranches', dealId],
     queryFn: () => fetchDealTranches(dealId),
+    enabled,
+  });
+  const invoicesQuery = useQuery({
+    queryKey: ['deal-invoices', dealId],
+    queryFn: () => fetchInvoices(dealId),
     enabled,
   });
 
@@ -1168,6 +1219,16 @@ function OverviewTab({
   const currency = head?.currency ?? 'INR';
   const money = (amount: number | null | undefined) =>
     formatDealAmount(amount, currency);
+  const behind = milestonesBehindStage(milestones, stage);
+  const moneyMissing = moneyMissingForMilestones(milestones, financials).filter(
+    (m) => !(m.template_key === 'token_paid' && tokenSafe)
+  );
+  const stageType = stage ? stageTypeOf(stage) : null;
+  const needsInvoice =
+    (stageType === 'won' || stageType === 'brokerage_pending') &&
+    invoicesQuery.isSuccess &&
+    !invoicesQuery.data.some((invoice) => invoice.status !== 'cancelled') &&
+    brokerage > 0;
 
   return (
     <ScrollView contentContainerStyle={styles.list}>
@@ -1187,6 +1248,12 @@ function OverviewTab({
             <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
               {milestonesDone} / {milestones.length} done
             </Text>
+            {behind.length > 0 ? (
+              <WarningRow
+                text={`${behind.length === 1 ? '1 milestone is' : `${behind.length} milestones are`} behind the stage: ${behind.map((m) => m.title).join(', ')}`}
+                onPress={() => onOpenTab('milestones')}
+              />
+            ) : null}
             {nextMilestone ? (
               <View style={styles.row}>
                 <Pressable
@@ -1229,6 +1296,18 @@ function OverviewTab({
                     >
                       Due {auditDate(nextMilestone.target_date)}
                     </Text>
+                  ) : canEdit ? (
+                    <Pressable
+                      onPress={() => onOpenTab('milestones')}
+                      accessibilityRole="button"
+                    >
+                      <Text
+                        style={[styles.cardMeta, { color: colors.textMuted }]}
+                      >
+                        No due date — set one so it reaches Today and the
+                        calendar
+                      </Text>
+                    </Pressable>
                   ) : null}
                 </View>
               </View>
@@ -1388,9 +1467,12 @@ function OverviewTab({
           <ActivityIndicator color={colors.primary} />
         ) : (
           <>
-            <OverviewFigure label="Collected" value={money(collected)} />
             <OverviewFigure
-              label="Outstanding"
+              label="Brokerage collected"
+              value={money(collected)}
+            />
+            <OverviewFigure
+              label="Brokerage outstanding"
               value={money(Math.max(0, brokerage - collected))}
               strong
             />
@@ -1430,9 +1512,63 @@ function OverviewTab({
             }
           />
         )}
+        {moneyMissing.map((m) =>
+          isMoneyMilestone(m.template_key) ? (
+            <WarningRow
+              key={m.id}
+              text={`${m.title} is ticked, but no ${MONEY_MILESTONES[m.template_key].amountLabel.toLowerCase()} is recorded in Money.`}
+              onPress={() => onOpenTab('money')}
+            />
+          ) : null
+        )}
+        {needsInvoice ? (
+          <WarningRow
+            text={`No brokerage invoice yet for ${money(brokerage)}. Tap to raise one.`}
+            onPress={() => onOpenTab('invoices')}
+            tone="muted"
+          />
+        ) : null}
       </OverviewSection>
       <AppDialog {...dialog.dialogProps} />
     </ScrollView>
+  );
+}
+
+function WarningRow({
+  text,
+  onPress,
+  tone = 'warning',
+}: {
+  text: string;
+  onPress?: () => void;
+  tone?: 'warning' | 'muted';
+}) {
+  const { colors } = useTheme();
+  const color = tone === 'warning' ? colors.warning : colors.textMuted;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      accessibilityRole={onPress ? 'button' : 'text'}
+      accessibilityLabel={text}
+      style={[
+        styles.warningRow,
+        {
+          borderColor: color,
+          backgroundColor:
+            tone === 'warning' ? colors.warningSoft : colors.surface,
+        },
+      ]}
+    >
+      <Ionicons
+        name={tone === 'warning' ? 'warning-outline' : 'document-text-outline'}
+        size={15}
+        color={color}
+      />
+      <Text style={[styles.warningRowText, { color: colors.text }]}>
+        {text}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -2607,9 +2743,21 @@ async function tickMilestone(
 function MilestonesTab({
   dealId,
   canEdit,
+  stage,
+  stages,
+  onMoveStage,
+  onOpenTab,
+  contactId,
+  propertyId,
 }: {
   dealId: string;
   canEdit: boolean;
+  stage: PipelineStage | null;
+  stages: PipelineStage[];
+  onMoveStage: (stage: PipelineStage) => void;
+  onOpenTab: (tab: DealWorkspaceTab) => void;
+  contactId: string | null;
+  propertyId: string | null;
 }) {
   const { colors } = useTheme();
   const queryClient = useQueryClient();
@@ -2627,6 +2775,7 @@ function MilestonesTab({
     queryFn: () => fetchDealMilestones(dealId),
     enabled: Boolean(dealId),
   });
+  const behind = milestonesBehindStage(milestones, stage);
 
   const refresh = () =>
     Promise.all([
@@ -2669,11 +2818,144 @@ function MilestonesTab({
     });
   }
 
+  const showError = (err: unknown) =>
+    dialog.show({
+      title: 'That did not work',
+      message: friendlyError(errorText(err)),
+    });
+
+  async function nudgeMoney(rows: DealMilestoneRow[]) {
+    const money = rows.filter((row) => isMoneyMilestone(row.template_key));
+    if (money.length === 0) return;
+    const financials = await queryClient
+      .fetchQuery({
+        queryKey: ['deal-financials', dealId],
+        queryFn: () => fetchDealFinancials(dealId),
+      })
+      .catch(() => null);
+    if (!financials) return;
+    const m = money.find(
+      (row) =>
+        isMoneyMilestone(row.template_key) &&
+        financials[MONEY_MILESTONES[row.template_key].amountField] == null &&
+        !(
+          row.template_key === 'token_paid' &&
+          financials.token_source === 'token_safe'
+        )
+    );
+    if (!m || !isMoneyMilestone(m.template_key)) return;
+    const spec = MONEY_MILESTONES[m.template_key];
+    dialog.show({
+      title: 'Record it in Money',
+      message: `${m.title} is done. Add the ${spec.amountLabel.toLowerCase()} in Money so the figures agree.`,
+      actions: [
+        {
+          label: 'Open Money',
+          onPress: () => {
+            dialog.close();
+            onOpenTab('money');
+          },
+        },
+        { label: 'Later', variant: 'muted' as const, onPress: dialog.close },
+      ],
+    });
+  }
+
+  async function complete(m: DealMilestoneRow, earlier: DealMilestoneRow[]) {
+    dialog.close();
+    const done: DealMilestoneRow[] = [];
+    for (const row of [...earlier, m]) {
+      let ok = true;
+      await tickMilestone(queryClient, dealId, row.id, 'completed', {
+        lock,
+        release,
+        onError: (err) => {
+          ok = false;
+          showError(err);
+        },
+      });
+      if (ok) done.push(row);
+    }
+    await nudgeMoney(done.includes(m) ? [m, ...done] : done);
+  }
+
+  function toggle(m: DealMilestoneRow) {
+    if (m.status === 'completed') {
+      void tickMilestone(queryClient, dealId, m.id, 'pending', {
+        lock,
+        release,
+        onError: showError,
+      });
+      return;
+    }
+    const earlier = earlierOpenMilestones(milestones, m).filter(
+      (row) => !busy.has(row.id)
+    );
+    if (earlier.length === 0) {
+      void complete(m, []);
+      return;
+    }
+    dialog.show({
+      title: 'Earlier milestones are still open',
+      message: `${m.title} comes after: ${earlier.map((row) => row.title).join(', ')}.`,
+      actions: [
+        {
+          label: 'Complete them too',
+          onPress: () => void complete(m, earlier),
+        },
+        { label: 'Only this one', onPress: () => void complete(m, []) },
+        { label: 'Cancel', variant: 'muted' as const, onPress: dialog.close },
+      ],
+    });
+  }
+
+  async function settleBehind(status: 'completed' | 'skipped') {
+    const done: DealMilestoneRow[] = [];
+    for (const row of behind) {
+      let ok = true;
+      await tickMilestone(queryClient, dealId, row.id, status, {
+        lock,
+        release,
+        onError: (err) => {
+          ok = false;
+          showError(err);
+        },
+      });
+      if (ok) done.push(row);
+    }
+    if (status === 'completed') await nudgeMoney(done);
+  }
+
   function chooseStatus(m: DealMilestoneRow) {
     dialog.show({
       title: m.title,
-      message: 'Completing a milestone never moves the pipeline stage.',
+      message: 'Ticking a milestone never moves the stage by itself.',
       actions: [
+        ...(m.status === 'pending' || m.status === 'in_progress'
+          ? [
+              {
+                label: 'Make a task',
+                onPress: () => {
+                  dialog.close();
+                  void run(`task-${m.id}`, () =>
+                    addDealTask(dealId, {
+                      title: m.title,
+                      priority: 'medium',
+                      dueDate: m.target_date
+                        ? new Date(`${m.target_date}T09:00:00`).toISOString()
+                        : null,
+                      contactId,
+                      propertyId,
+                    }).then(() =>
+                      queryClient.invalidateQueries({
+                        queryKey: ['deal-tasks', dealId],
+                      })
+                    )
+                  );
+                },
+              },
+            ]
+          : []),
         {
           label: `Visibility: ${DEAL_VISIBILITY_LABELS[m.visibility ?? 'internal']}`,
           onPress: () => {
@@ -2711,6 +2993,9 @@ function MilestonesTab({
   const done = milestones.filter(
     (m) => m.status === 'completed' || m.status === 'skipped'
   ).length;
+  const nextStage = suggestedNextStage(stages, stage, milestones);
+  const groups = groupMilestonesByPhase(milestones);
+  const settling = behind.some((m) => busy.has(m.id));
 
   return (
     <ScrollView
@@ -2739,104 +3024,171 @@ function MilestonesTab({
           <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
             {done} / {milestones.length} done
           </Text>
-          {milestones.map((m) => {
-            const isDone = m.status === 'completed' || m.status === 'skipped';
-            const checked = m.status === 'completed';
-            const meta = [
-              m.target_date ? `Due ${auditDate(m.target_date)}` : null,
-              m.completed_at ? `Done ${auditDate(m.completed_at)}` : null,
-              m.status === 'in_progress' || m.status === 'skipped'
-                ? DEAL_MILESTONE_STATUS_LABELS[m.status]
-                : null,
-              m.visibility && m.visibility !== 'internal'
-                ? DEAL_VISIBILITY_LABELS[m.visibility]
-                : null,
-            ]
-              .filter(Boolean)
-              .join(' · ');
-            return (
-              <View
-                key={m.id}
-                style={[
-                  styles.card,
-                  styles.row,
-                  {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                    opacity: isDone ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <Pressable
-                  disabled={!canEdit || busy.has(m.id)}
-                  onPress={() =>
-                    void tickMilestone(
-                      queryClient,
-                      dealId,
-                      m.id,
-                      checked ? 'pending' : 'completed',
-                      {
-                        lock,
-                        release,
-                        onError: (err) =>
-                          dialog.show({
-                            title: 'That did not work',
-                            message: friendlyError(errorText(err)),
-                          }),
-                      }
-                    )
-                  }
-                  hitSlop={10}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{
-                    checked,
-                    disabled: !canEdit || busy.has(m.id),
-                  }}
-                  accessibilityLabel={
-                    checked ? `Reopen ${m.title}` : `Mark ${m.title} completed`
-                  }
-                >
-                  <Ionicons
-                    name={
-                      checked
-                        ? 'checkmark-circle'
-                        : m.status === 'skipped'
-                          ? 'remove-circle-outline'
-                          : 'ellipse-outline'
-                    }
-                    size={24}
-                    color={checked ? colors.success : colors.textMuted}
+          {behind.length > 0 && stage ? (
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.warningSoft,
+                  borderColor: colors.warning,
+                },
+              ]}
+            >
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                {behind.length === 1
+                  ? '1 milestone is behind the stage'
+                  : `${behind.length} milestones are behind the stage`}
+              </Text>
+              <Text style={[styles.cardMeta, { color: colors.textMuted }]}>
+                The deal is on {stage.name}, but{' '}
+                {behind.map((m) => m.title).join(', ')}{' '}
+                {behind.length === 1 ? 'is' : 'are'} still open.
+              </Text>
+              {canEdit ? (
+                <View style={[styles.row, { marginTop: spacing.sm }]}>
+                  <ActionButton
+                    label="Mark them done"
+                    icon="checkmark-done-outline"
+                    busy={settling}
+                    onPress={() => void settleBehind('completed')}
                   />
-                </Pressable>
-                <Pressable
-                  style={{ flex: 1 }}
-                  disabled={!canEdit || busy.has(m.id)}
-                  onPress={() => chooseStatus(m)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`More options for ${m.title}`}
-                >
-                  <Text
+                  <ActionButton
+                    label="Skip them"
+                    icon="play-skip-forward-outline"
+                    busy={settling}
+                    onPress={() => void settleBehind('skipped')}
+                  />
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          {nextStage && canEdit ? (
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.success,
+                },
+              ]}
+            >
+              <Text style={[styles.cardMeta, { color: colors.text }]}>
+                Everything for this stage is done. Move the deal to{' '}
+                {nextStage.name}?
+              </Text>
+              <View style={[styles.row, { marginTop: spacing.sm }]}>
+                <ActionButton
+                  label="Move stage"
+                  icon="arrow-forward"
+                  onPress={() => onMoveStage(nextStage)}
+                />
+              </View>
+            </View>
+          ) : null}
+          {groups.map((group) => (
+            <View key={group.label} style={{ gap: spacing.sm }}>
+              <Text
+                style={[styles.phaseHeading, { color: colors.textMuted }]}
+                accessibilityRole="header"
+              >
+                {group.label.toUpperCase()} · {group.done}/{group.items.length}
+              </Text>
+              {group.items.map((m) => {
+                const isDone =
+                  m.status === 'completed' || m.status === 'skipped';
+                const checked = m.status === 'completed';
+                const meta = [
+                  m.target_date ? `Due ${auditDate(m.target_date)}` : null,
+                  m.completed_at ? `Done ${auditDate(m.completed_at)}` : null,
+                  m.status === 'in_progress' || m.status === 'skipped'
+                    ? DEAL_MILESTONE_STATUS_LABELS[m.status]
+                    : null,
+                  m.visibility && m.visibility !== 'internal'
+                    ? DEAL_VISIBILITY_LABELS[m.visibility]
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ');
+                return (
+                  <View
+                    key={m.id}
                     style={[
-                      styles.cardTitle,
+                      styles.card,
+                      styles.row,
                       {
-                        color: colors.text,
-                        textDecorationLine: checked ? 'line-through' : 'none',
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        opacity: isDone ? 0.7 : 1,
                       },
                     ]}
                   >
-                    {m.title}
-                  </Text>
-                  {meta ? (
-                    <Text
-                      style={[styles.cardMeta, { color: colors.textMuted }]}
+                    <Pressable
+                      disabled={!canEdit || busy.has(m.id)}
+                      onPress={() => toggle(m)}
+                      hitSlop={10}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{
+                        checked,
+                        disabled: !canEdit || busy.has(m.id),
+                      }}
+                      accessibilityLabel={
+                        checked
+                          ? `Reopen ${m.title}`
+                          : `Mark ${m.title} completed`
+                      }
                     >
-                      {meta}
-                    </Text>
-                  ) : null}
-                </Pressable>
-              </View>
-            );
-          })}
+                      <Ionicons
+                        name={
+                          checked
+                            ? 'checkmark-circle'
+                            : m.status === 'skipped'
+                              ? 'remove-circle-outline'
+                              : 'ellipse-outline'
+                        }
+                        size={24}
+                        color={checked ? colors.success : colors.textMuted}
+                      />
+                    </Pressable>
+                    <Pressable
+                      style={{ flex: 1 }}
+                      disabled={!canEdit || busy.has(m.id)}
+                      onPress={() => chooseStatus(m)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`More options for ${m.title}`}
+                    >
+                      <Text
+                        style={[
+                          styles.cardTitle,
+                          {
+                            color: colors.text,
+                            textDecorationLine: checked
+                              ? 'line-through'
+                              : 'none',
+                          },
+                        ]}
+                      >
+                        {m.title}
+                      </Text>
+                      {meta ? (
+                        <Text
+                          style={[styles.cardMeta, { color: colors.textMuted }]}
+                        >
+                          {meta}
+                        </Text>
+                      ) : null}
+                      {behind.some((b) => b.id === m.id) ? (
+                        <Text
+                          style={[styles.cardMeta, { color: colors.warning }]}
+                        >
+                          Behind the stage
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
+          ))}
           {canEdit ? (
             <>
               <TextField
@@ -4778,6 +5130,22 @@ function Loading() {
 }
 
 const styles = StyleSheet.create({
+  warningRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  warningRowText: { flex: 1, fontSize: 13, lineHeight: 18 },
+  phaseHeading: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    marginTop: spacing.sm,
+  },
   screen: { flex: 1 },
   stageLine: {
     fontFamily: fonts.medium,
