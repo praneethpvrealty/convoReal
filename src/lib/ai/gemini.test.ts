@@ -15,6 +15,7 @@ import {
   updateContactDraft,
   looksLikePropertyListing,
   looksLikeBuyerRequirement,
+  looksLikeOfferedListing,
   draftReadsAsRequirement,
   inferBuyerFromRequirements,
   normalizeClassification,
@@ -736,6 +737,175 @@ describe('classifyImageOrText schedule class', () => {
       'image/jpeg'
     );
     expect(result).toBe('property');
+  });
+});
+
+const LEASE_LISTING_FORWARD = [
+  'SPACE AVAILABLE FOR LEASE – BOGANAHALLI, BENGALURU',
+  '',
+  'Location: New Horizon Gurukul Preschool, Boganahalli, off Bellandur / Kadubeesanahalli.',
+  '',
+  'Built-up Area:',
+  '• Second Floor – 15,526 sq. ft.',
+  '• Third Floor – 19,949 sq. ft.',
+  '• Total – 35,475 sq. ft.',
+  '',
+  'Suitable for: Corporate offices, co-working spaces, co-living, student hostels and other suitable commercial uses.',
+  '',
+  'Property Highlights:',
+  '• Previously utilised as a college hostel.',
+  '• Ground and first floors are occupied by the preschool and are not available for lease.',
+  '• Separate, independent access will be provided.',
+  '• Open to internal modifications to suit tenant requirements.',
+  '• Floors available independently or together.',
+  '',
+  'Expected Rental: ₹55 per sq. ft. per month on built-up area (negotiable).',
+  '',
+  'Google Maps Location:',
+  'https://maps.app.goo.gl/5FMHqjtUS81zus8k6',
+  '',
+  'Floor plans attached. Kindly share with prospective tenants.',
+].join('\n');
+
+describe('[JRN-027] a listing that mentions requirements is still a listing', () => {
+  const stubClassifier = (classification: string) => {
+    vi.stubGlobal('fetch', async () => ({
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: classification }] } }],
+      }),
+    }));
+  };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('does not read "to suit tenant requirements" as a buyer brief', () => {
+    expect(looksLikeBuyerRequirement(LEASE_LISTING_FORWARD)).toBe(false);
+    expect(
+      looksLikeBuyerRequirement(
+        'Bare shell office, can be fitted out as per your requirement. 4200 sqft.'
+      )
+    ).toBe(false);
+    expect(
+      looksLikeBuyerRequirement(
+        'Warehouse available for rent in Hoskote. Requirements: 6 months deposit.'
+      )
+    ).toBe(false);
+  });
+
+  it('still reads a brief that names itself or asks for a property', () => {
+    expect(
+      looksLikeBuyerRequirement(
+        'Client requirement: office space for lease in Bellandur, 5000 sqft'
+      )
+    ).toBe(true);
+    expect(
+      looksLikeBuyerRequirement(
+        'Looking for space available for lease near Bellandur to suit our requirements'
+      )
+    ).toBe(true);
+  });
+
+  it('a brief that opens by naming itself wins over offer wording', async () => {
+    const briefs = [
+      'Client requirement: office space available for lease in Bellandur, 5000 sqft',
+      'Client requirement: 2BHK in HSR, expected rent 30k',
+      'Wanted 3BHK in Indiranagar, asking price up to 2cr',
+    ];
+    for (const brief of briefs) {
+      expect(looksLikeBuyerRequirement(brief)).toBe(true);
+      expect(looksLikeOfferedListing(brief)).toBe(false);
+      stubClassifier('property');
+      expect(await classifyImageOrText(brief)).toBe('requirement');
+      stubClassifier('requirement');
+      expect(await classifyImageOrText(brief)).toBe('requirement');
+    }
+  });
+
+  it('a requirement named mid-message wins over offer wording', async () => {
+    const brief =
+      'Hi Praneeth, sharing my client requirement. Office space available for lease in Bellandur, 5000 sqft, expected rent 60 per sqft';
+    expect(looksLikeBuyerRequirement(brief)).toBe(true);
+    expect(looksLikeOfferedListing(brief)).toBe(false);
+    stubClassifier('requirement');
+    expect(await classifyImageOrText(brief)).toBe('requirement');
+    stubClassifier('property');
+    expect(await classifyImageOrText(brief)).toBe('requirement');
+    expect(
+      looksLikeBuyerRequirement(
+        'Shop available for rent in Jayanagar, can be partitioned as per client requirement'
+      )
+    ).toBe(false);
+  });
+
+  it('a requirement named in the opening line wins with a preamble or no colon', async () => {
+    const briefs = [
+      'Hi sir, requirement: office space available for lease in Bellandur, 5000 sqft',
+      'Urgent requirement office space available for lease in Bellandur, expected rent 60 per sqft',
+    ];
+    for (const brief of briefs) {
+      expect(looksLikeBuyerRequirement(brief)).toBe(true);
+      stubClassifier('requirement');
+      expect(await classifyImageOrText(brief)).toBe('requirement');
+      stubClassifier('property');
+      expect(await classifyImageOrText(brief)).toBe('requirement');
+    }
+  });
+
+  it('does not rescue a lead forward that repeats offer wording', async () => {
+    const forward =
+      'Ravi 9886217718 wants to rent a 3 BHK available for rent in HSR';
+    expect(looksLikePropertyListing(forward)).toBe(false);
+    stubClassifier('contact');
+    expect(await classifyImageOrText(forward)).toBe('contact');
+  });
+
+  it('reads "to suit our requirement" as the buyer speaking', () => {
+    expect(
+      looksLikeBuyerRequirement('Need 3BHK to suit our requirement, budget 1cr')
+    ).toBe(true);
+    expect(
+      looksLikeBuyerRequirement('Show me plots as per my requirement')
+    ).toBe(true);
+  });
+
+  it('keeps the forwarded lease listing on property when the model says property', async () => {
+    stubClassifier('property');
+    expect(await classifyImageOrText(LEASE_LISTING_FORWARD)).toBe('property');
+  });
+
+  it('keeps it on property when the model itself says requirement', async () => {
+    stubClassifier('requirement');
+    expect(await classifyImageOrText(LEASE_LISTING_FORWARD)).toBe('property');
+  });
+
+  it('keeps it on property when the model says contact', async () => {
+    stubClassifier('contact');
+    expect(looksLikePropertyListing(LEASE_LISTING_FORWARD)).toBe(true);
+    expect(await classifyImageOrText(LEASE_LISTING_FORWARD)).toBe('property');
+  });
+
+  it('leaves a real brief on requirement whichever way the model reads it', async () => {
+    const brief =
+      'Looking for North Bangalore near airport, residential land 1 acre, budget 8cr to 10cr';
+    stubClassifier('property');
+    expect(await classifyImageOrText(brief)).toBe('requirement');
+    stubClassifier('requirement');
+    expect(await classifyImageOrText(brief)).toBe('requirement');
+  });
+
+  it('does not send the parsed draft to client-reply capture when rent is the only price', () => {
+    expect(
+      draftReadsAsRequirement(
+        {
+          price: null,
+          title: 'Commercial Space for Lease in Boganahalli',
+          description:
+            'Open to internal modifications to suit tenant requirements.',
+        },
+        LEASE_LISTING_FORWARD
+      )
+    ).toBe(false);
   });
 });
 

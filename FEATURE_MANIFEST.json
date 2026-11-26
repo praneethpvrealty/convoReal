@@ -3999,6 +3999,14 @@
             "supabase/migrations/20261024163100_journey_lead_interest_signals.sql",
             "supabase/migrations/20261024163200_copilot_property_interest_said_interested.sql"
           ]
+        },
+        {
+          "id": "JRN-027",
+          "rule": "A listing an agent forwards to the Engine's WhatsApp number opens a property draft even when its own wording mentions requirements: \"open to modifications to suit tenant requirements\", \"as per your requirement\" and the like describe the property and never make it a buyer's brief, and a text that offers the property outright (\"available for lease\", \"to let\", \"expected rental\", \"asking price\") with nobody in it hunting for one is read as a listing whichever class the model returns, so it is never answered with \"Reading the client's reply\" or asked who the client is. A message that names itself a requirement (\"Client requirement: …\") or states a search (\"looking for\", \"wants to buy\", \"budget is\") is still captured against the client and never filed as inventory.",
+          "tests": [
+            { "file": "src/lib/ai/gemini.test.ts", "case": "[JRN-027]" }
+          ],
+          "guards": ["src/lib/ai/gemini.ts", "src/lib/ai/chatbot-engine.ts"]
         }
       ]
     },
