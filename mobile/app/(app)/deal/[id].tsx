@@ -2802,8 +2802,9 @@ function MilestonesTab({
       message: friendlyError(errorText(err)),
     });
 
-  async function nudgeMoney(m: DealMilestoneRow) {
-    if (!isMoneyMilestone(m.template_key)) return;
+  async function nudgeMoney(rows: DealMilestoneRow[]) {
+    const money = rows.filter((row) => isMoneyMilestone(row.template_key));
+    if (money.length === 0) return;
     const financials = await queryClient
       .fetchQuery({
         queryKey: ['deal-financials', dealId],
@@ -2811,13 +2812,17 @@ function MilestonesTab({
       })
       .catch(() => null);
     if (!financials) return;
+    const m = money.find(
+      (row) =>
+        isMoneyMilestone(row.template_key) &&
+        financials[MONEY_MILESTONES[row.template_key].amountField] == null &&
+        !(
+          row.template_key === 'token_paid' &&
+          financials.token_source === 'token_safe'
+        )
+    );
+    if (!m || !isMoneyMilestone(m.template_key)) return;
     const spec = MONEY_MILESTONES[m.template_key];
-    if (financials[spec.amountField] != null) return;
-    if (
-      m.template_key === 'token_paid' &&
-      financials.token_source === 'token_safe'
-    )
-      return;
     dialog.show({
       title: 'Record it in Money',
       message: `${m.title} is done. Add the ${spec.amountLabel.toLowerCase()} in Money so the figures agree.`,
@@ -2836,23 +2841,20 @@ function MilestonesTab({
 
   async function complete(m: DealMilestoneRow, earlier: DealMilestoneRow[]) {
     dialog.close();
-    for (const row of earlier) {
+    const done: DealMilestoneRow[] = [];
+    for (const row of [...earlier, m]) {
+      let ok = true;
       await tickMilestone(queryClient, dealId, row.id, 'completed', {
         lock,
         release,
-        onError: showError,
+        onError: (err) => {
+          ok = false;
+          showError(err);
+        },
       });
+      if (ok) done.push(row);
     }
-    let ok = true;
-    await tickMilestone(queryClient, dealId, m.id, 'completed', {
-      lock,
-      release,
-      onError: (err) => {
-        ok = false;
-        showError(err);
-      },
-    });
-    if (ok) await nudgeMoney(m);
+    await nudgeMoney(done.includes(m) ? [m, ...done] : done);
   }
 
   function toggle(m: DealMilestoneRow) {
@@ -2886,13 +2888,20 @@ function MilestonesTab({
   }
 
   async function settleBehind(status: 'completed' | 'skipped') {
+    const done: DealMilestoneRow[] = [];
     for (const row of behind) {
+      let ok = true;
       await tickMilestone(queryClient, dealId, row.id, status, {
         lock,
         release,
-        onError: showError,
+        onError: (err) => {
+          ok = false;
+          showError(err);
+        },
       });
+      if (ok) done.push(row);
     }
+    if (status === 'completed') await nudgeMoney(done);
   }
 
   function chooseStatus(m: DealMilestoneRow) {

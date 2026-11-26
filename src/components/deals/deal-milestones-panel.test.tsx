@@ -375,6 +375,21 @@ describe('[TXW-034] milestones in step with the stage and Money', () => {
     expect(body.token_received_at).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 
+  it('asks for the amount when Mark them done ticks a money milestone', async () => {
+    mount(
+      [
+        row('initial_negotiation', 0, 'completed'),
+        row('sale_deed_registered', 1),
+      ],
+      { registered_consideration: null }
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: /Mark them done/ })
+    );
+    expect(await screen.findByText('Record it in Money')).toBeTruthy();
+    expect(screen.getByLabelText('Registered value (INR)')).toBeTruthy();
+  });
+
   it('does not ask for an amount Money already holds', async () => {
     const { patches } = mount([row('token_paid', 0)], { token_amount: 1 });
     fireEvent.click(

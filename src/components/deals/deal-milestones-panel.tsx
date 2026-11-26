@@ -243,8 +243,9 @@ export function DealMilestonesPanel({
     }
   }
 
-  async function askForMoney(m: DealMilestone) {
-    if (!isMoneyMilestone(m.template_key)) return;
+  async function askForMoney(rows: DealMilestone[]) {
+    const money = rows.filter((row) => isMoneyMilestone(row.template_key));
+    if (money.length === 0) return;
     const financials = await queryClient
       .fetchQuery({
         queryKey: ['deal-financials', dealId],
@@ -259,14 +260,16 @@ export function DealMilestonesPanel({
       })
       .catch(() => null);
     if (!financials) return;
-    const spec = MONEY_MILESTONES[m.template_key];
-    if (financials[spec.amountField] != null) return;
-    if (
-      m.template_key === 'token_paid' &&
-      financials.token_source === 'token_safe'
-    ) {
-      return;
-    }
+    const m = money.find(
+      (row) =>
+        isMoneyMilestone(row.template_key) &&
+        financials[MONEY_MILESTONES[row.template_key].amountField] == null &&
+        !(
+          row.template_key === 'token_paid' &&
+          financials.token_source === 'token_safe'
+        )
+    );
+    if (!m || !isMoneyMilestone(m.template_key)) return;
     setMoneyAmount('');
     setMoneyDate(format(new Date(), 'yyyy-MM-dd'));
     setMoneyRef('');
@@ -275,10 +278,12 @@ export function DealMilestonesPanel({
 
   async function complete(m: DealMilestone, alsoEarlier: DealMilestone[]) {
     setOrderPrompt(null);
+    const done: DealMilestone[] = [];
     for (const earlier of alsoEarlier) {
-      await patch(earlier, { status: 'completed' });
+      if (await patch(earlier, { status: 'completed' })) done.push(earlier);
     }
-    if (await patch(m, { status: 'completed' })) await askForMoney(m);
+    if (await patch(m, { status: 'completed' })) done.unshift(m);
+    await askForMoney(done);
   }
 
   function toggle(m: DealMilestone) {
@@ -297,9 +302,11 @@ export function DealMilestonesPanel({
   }
 
   async function settleBehind(status: 'completed' | 'skipped') {
+    const done: DealMilestone[] = [];
     for (const m of behind) {
-      await patch(m, { status });
+      if (await patch(m, { status })) done.push(m);
     }
+    if (status === 'completed') await askForMoney(done);
   }
 
   async function saveMoney() {
