@@ -132,6 +132,9 @@ export interface AccountContext {
   supabase: SupabaseClient;
   /** `auth.uid()` for the caller. Always defined when this resolves. */
   userId: string;
+  /** The caller's `profiles.id`, which is not always `auth.uid()`. Use it
+   *  for every column that references `profiles(id)`. */
+  profileId: string;
   /** Caller's account_id from their profile row. */
   accountId: string;
   /** Caller's role within their account. Kept in sync with `orgRole` by a
@@ -184,7 +187,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   const { data, error } = await supabase
     .from('profiles')
     .select(
-      'account_id, account_role, org_role, team_id, is_read_only, active_ui_language, account:accounts!inner(id, name, status, default_language)'
+      'id, account_id, account_role, org_role, team_id, is_read_only, active_ui_language, account:accounts!inner(id, name, status, default_language)'
     )
     .eq('user_id', user.id)
     .maybeSingle();
@@ -231,6 +234,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   return {
     supabase,
     userId: user.id,
+    profileId: data.id,
     accountId: data.account_id,
     role: data.account_role,
     orgRole: data.org_role,

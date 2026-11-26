@@ -70,7 +70,7 @@ export async function POST(
       accountId: ctx.accountId,
       invoiceId: id,
       event: 'cancelled',
-      actorId: ctx.userId,
+      actorId: ctx.profileId,
       request,
       metadata: { reason, invoice_number: existing.invoice_number },
     });
