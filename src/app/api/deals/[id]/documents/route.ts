@@ -251,7 +251,7 @@ export async function POST(
         storage_path: `${DEAL_DOCUMENT_BUCKET}/${objectPath}`,
         mime_type: mimeType,
         size_bytes: sizeBytes,
-        uploaded_by: ctx.userId,
+        uploaded_by: ctx.profileId,
       })
       .select('*')
       .single();

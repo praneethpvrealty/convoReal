@@ -199,7 +199,7 @@ export async function POST(
         party_id: partyId,
         status: 'draft',
         signature: signatureFrom(settings),
-        created_by: ctx.userId,
+        created_by: ctx.profileId,
       })
       .select('*')
       .single();
@@ -212,7 +212,7 @@ export async function POST(
       accountId: ctx.accountId,
       invoiceId: invoice.id,
       event: 'created',
-      actorId: ctx.userId,
+      actorId: ctx.profileId,
       request,
       metadata: { deal_id: dealId, side: invoice.side },
     });

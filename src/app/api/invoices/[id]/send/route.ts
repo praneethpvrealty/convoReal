@@ -242,7 +242,7 @@ async function markSent(
     accountId: ctx.accountId,
     invoiceId: id,
     event: 'sent',
-    actorId: ctx.userId,
+    actorId: ctx.profileId,
     request,
     documentHash: hash,
     metadata: { channel, to, invoice_number: invoice.invoice_number },

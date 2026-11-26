@@ -74,7 +74,7 @@ export async function POST(
       accountId: ctx.accountId,
       invoiceId: id,
       event: 'paid',
-      actorId: ctx.userId,
+      actorId: ctx.profileId,
       request,
       metadata: {
         amount: existing.grand_total,

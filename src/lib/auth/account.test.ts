@@ -37,6 +37,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 const activeProfile = {
+  id: 'profile-1',
   account_id: 'acc-1',
   account_role: 'owner',
   org_role: 'org_manager',
@@ -79,6 +80,12 @@ describe('getCurrentAccount — archived account block', () => {
     expect(ctx.account.name).toBe('Acme Realty');
     expect(ctx.isReadOnly).toBe(false);
     expect(ctx.activeUiLanguage).toBe('en');
+  });
+
+  it('returns the profile id separately from the auth user id, for columns that reference profiles(id)', async () => {
+    const ctx = await getCurrentAccount();
+    expect(ctx.userId).toBe('user-1');
+    expect(ctx.profileId).toBe('profile-1');
   });
 
   it('returns the active UI language with an English fallback', async () => {

@@ -48,6 +48,7 @@ vi.mock('@/lib/auth/account', () => ({
     },
     accountId: 'acc-1',
     userId: 'user-1',
+    profileId: 'profile-1',
   }),
   toErrorResponse: (err: unknown) =>
     Response.json(
@@ -127,6 +128,7 @@ describe('POST /api/deals/[id]/documents', () => {
       size_bytes: 4096,
       title: 'Sale deed',
       category: 'agreement',
+      uploaded_by: 'profile-1',
     });
   });
 

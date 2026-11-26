@@ -50,7 +50,7 @@ export async function GET(
         accountId: ctx.accountId,
         invoiceId: id,
         event: 'downloaded',
-        actorId: ctx.userId,
+        actorId: ctx.profileId,
         request,
         documentHash: hash,
         metadata: tampered ? { hash_mismatch: true } : {},

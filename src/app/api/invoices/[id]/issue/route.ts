@@ -140,7 +140,7 @@ export async function POST(
       accountId: ctx.accountId,
       invoiceId: id,
       event: 'issued',
-      actorId: ctx.userId,
+      actorId: ctx.profileId,
       request,
       documentHash: hash,
       metadata: {
@@ -154,7 +154,7 @@ export async function POST(
         accountId: ctx.accountId,
         invoiceId: id,
         event: 'signed',
-        actorId: ctx.userId,
+        actorId: ctx.profileId,
         request,
         documentHash: hash,
         metadata: {
