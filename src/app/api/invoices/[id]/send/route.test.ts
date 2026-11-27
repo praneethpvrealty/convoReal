@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   adminContact: { do_not_contact: true } as Record<string, unknown> | null,
   adminFilters: {} as Record<string, unknown>,
+  addressRows: [] as Record<string, unknown>[],
+  invoiceContactId: 'c-hidden' as string | null,
   rendered: 0,
   sent: 0,
 }));
@@ -22,7 +24,7 @@ vi.mock('@/lib/auth/account', () => ({
                   data: {
                     id: 'inv-1',
                     status: 'issued',
-                    contact_id: 'c-hidden',
+                    contact_id: state.invoiceContactId,
                     bill_to: { phone: '+919000000000', email: 'a@b.c' },
                   },
                   error: null,
@@ -45,7 +47,12 @@ vi.mock('@/lib/supabase/admin', () => ({
         state.adminFilters[column] = value;
         return builder;
       },
+      like: () => builder,
+      ilike: () => builder,
+      limit: () => builder,
       maybeSingle: async () => ({ data: state.adminContact, error: null }),
+      then: (resolve: (v: unknown) => unknown) =>
+        Promise.resolve({ data: state.addressRows, error: null }).then(resolve),
     };
     return { from: () => builder };
   },
@@ -98,6 +105,8 @@ describe('[CTM-021] invoice delivery to a do-not-contact customer', () => {
   beforeEach(() => {
     state.adminContact = { do_not_contact: true };
     state.adminFilters = {};
+    state.addressRows = [];
+    state.invoiceContactId = 'c-hidden';
     state.rendered = 0;
     state.sent = 0;
   });
@@ -125,6 +134,22 @@ describe('[CTM-021] invoice delivery to a do-not-contact customer', () => {
     state.adminContact = null;
     const res = await send('email');
     expect(res.status).toBe(503);
+    expect(state.sent).toBe(0);
+  });
+
+  it('refuses an invoice with no linked contact going to a blocked number', async () => {
+    state.invoiceContactId = null;
+    state.addressRows = [{ phone: '+919000000000' }];
+    const res = await send('whatsapp');
+    expect(res.status).toBe(409);
+    expect(state.sent).toBe(0);
+  });
+
+  it('refuses an email to a blocked address even when the linked contact is clear', async () => {
+    state.adminContact = { do_not_contact: false };
+    state.addressRows = [{ id: 'c-other' }];
+    const res = await send('email');
+    expect(res.status).toBe(409);
     expect(state.sent).toBe(0);
   });
 });

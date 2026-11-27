@@ -9,6 +9,7 @@ import {
   DO_NOT_CONTACT_BLOCKED_MESSAGE,
   isDoNotContact,
 } from '@/lib/contacts/do-not-contact';
+import { addressIsDoNotContact } from '@/lib/contacts/do-not-contact-address';
 import { sendTransactionalEmail } from '@/lib/email';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { invoiceFilename } from '@/lib/invoices/pdf';
@@ -33,6 +34,29 @@ import {
   isWithinCustomerWindow,
 } from '@/lib/whatsapp/customer-window';
 import { sendMediaMessage } from '@/lib/whatsapp/meta-api';
+
+async function refuseDoNotContactAddress(
+  accountId: string,
+  address: { phone?: string; email?: string }
+): Promise<NextResponse | null> {
+  const blocked = await addressIsDoNotContact(
+    supabaseAdmin(),
+    accountId,
+    address
+  );
+  if (blocked === null) {
+    return NextResponse.json(
+      { error: 'Could not check this customer. Try again.' },
+      { status: 503 }
+    );
+  }
+  return blocked
+    ? NextResponse.json(
+        { error: DO_NOT_CONTACT_BLOCKED_MESSAGE, code: 'DO_NOT_CONTACT' },
+        { status: 409 }
+      )
+    : null;
+}
 
 // POST /api/invoices/[id]/send — deliver the invoice to the customer.
 //
@@ -125,6 +149,10 @@ export async function POST(
           { status: 400 }
         );
       }
+      const blocked = await refuseDoNotContactAddress(ctx.accountId, {
+        email: to,
+      });
+      if (blocked) return blocked;
 
       const result = await sendTransactionalEmail({
         to,
@@ -155,6 +183,10 @@ export async function POST(
         { status: 400 }
       );
     }
+    const blocked = await refuseDoNotContactAddress(ctx.accountId, {
+      phone: to,
+    });
+    if (blocked) return blocked;
 
     const { data: config } = await ctx.supabase
       .from('whatsapp_config')
