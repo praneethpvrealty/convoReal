@@ -1454,7 +1454,7 @@
         },
         {
           "id": "CTM-021",
-          "rule": "An agent can mark a contact Do not contact from the contact form on web (DoNotContactControl) or the contact screen on mobile (DoNotContactField); both call PATCH /api/contacts/[id]/do-not-contact, which records who set it, when and an optional reason, and writes an audit note either way. While set, the WhatsApp dispatcher refuses every send to the contact with no override, including an agent's inbox reply and a merged alias's sends, and the inbox composer on both surfaces is replaced by the Do not contact notice. The inbound chain runs no step for the contact's messages, so no bot or flow replies; the messages are still stored. Appointment reminders and reminder calls, voice-campaign dialling (recorded as opted_out), post-call follow-ups, owner and buyer digests, realtime buyer alerts, showcase view nudges and hot-viewer alerts, broadcast and greeting audiences, the portal-lead greeting and invoice delivery all skip the contact. Matching, listings and owner assignment are unaffected, and the owner/agent picker labels the contact Do not contact.",
+          "rule": "An agent can mark a contact Do not contact from the contact form on web (DoNotContactControl) or the contact screen on mobile (DoNotContactField); both call PATCH /api/contacts/[id]/do-not-contact, which records who set it, when and an optional reason, and writes an audit note either way. While set, the WhatsApp dispatcher refuses every send to the contact with no override, including an agent's inbox reply and a merged alias's sends, and the inbox composer on both surfaces is replaced by the Do not contact notice. The inbound chain runs no step for the contact's messages, so no bot or flow replies; the messages are still stored. Appointment reminders and reminder calls, voice-campaign dialling (recorded as opted_out), post-call follow-ups, owner and buyer digests, realtime buyer alerts, showcase view nudges and hot-viewer alerts, broadcast and greeting audiences, the portal-lead greeting and invoice delivery all skip the contact. Merging contacts keeps the block when either side carried it (buildContactMergePatch), and the contact list projection carries the flag so the edit form opened from a list row shows the saved state. Matching, listings and owner assignment are unaffected, and the owner/agent picker labels the contact Do not contact.",
           "tests": [
             {
               "file": "src/lib/whatsapp/meta-api-dispatcher.test.ts",
@@ -1466,6 +1466,10 @@
             },
             {
               "file": "src/app/api/contacts/[id]/do-not-contact/route.test.ts",
+              "case": "[CTM-021]"
+            },
+            {
+              "file": "src/lib/contacts/merge.test.ts",
               "case": "[CTM-021]"
             }
           ]

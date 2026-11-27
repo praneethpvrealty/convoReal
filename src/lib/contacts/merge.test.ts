@@ -72,4 +72,25 @@ describe('contact merge profile', () => {
         '4000 sqft residential plots in Koramangala 3rd block or HSR Layout.\nUp to ₹12 Cr',
     });
   });
+
+  it('[CTM-021] keeps a do-not-contact block from either side of a merge', () => {
+    const blocked = contact({
+      do_not_contact: true,
+      do_not_contact_at: '2026-11-20T10:00:00.000Z',
+      do_not_contact_by: 'user-1',
+      do_not_contact_reason: 'deals via his son',
+    });
+
+    expect(
+      buildContactMergePatch(blocked, contact(), '2026-11-27T00:00:00.000Z')
+    ).toMatchObject({
+      do_not_contact: true,
+      do_not_contact_at: '2026-11-20T10:00:00.000Z',
+      do_not_contact_by: 'user-1',
+      do_not_contact_reason: 'deals via his son',
+    });
+    expect(
+      buildContactMergePatch(contact(), blocked, '2026-11-27T00:00:00.000Z')
+    ).not.toHaveProperty('do_not_contact');
+  });
 });

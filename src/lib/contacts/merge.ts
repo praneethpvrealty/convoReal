@@ -19,6 +19,10 @@ export interface MergeableContactProfile {
   areas_of_interest: string[] | null;
   property_interests: string[] | null;
   requirements: string | null;
+  do_not_contact?: boolean | null;
+  do_not_contact_at?: string | null;
+  do_not_contact_by?: string | null;
+  do_not_contact_reason?: string | null;
 }
 
 function unionStrings(
@@ -121,6 +125,13 @@ export function buildContactMergePatch(
       : sourceRequirements;
   }
   if (requirements) patch.requirements = requirements;
+
+  if (source.do_not_contact && !target.do_not_contact) {
+    patch.do_not_contact = true;
+    patch.do_not_contact_at = source.do_not_contact_at ?? updatedAt;
+    patch.do_not_contact_by = source.do_not_contact_by ?? null;
+    patch.do_not_contact_reason = source.do_not_contact_reason ?? null;
+  }
 
   return patch;
 }
