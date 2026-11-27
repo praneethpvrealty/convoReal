@@ -885,6 +885,7 @@ export async function sendOwnerStatusDigests(options?: {
           'id, name, phone, preferred_language, owner_digest_consent, owner_digest_consent_requested_at'
         )
         .eq('account_id', accountId)
+        .eq('do_not_contact', false)
         .in('id', ownerIds);
       const ownerById = new Map(
         (ownerRows || []).map((c) => [

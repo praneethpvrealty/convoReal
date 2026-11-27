@@ -244,6 +244,12 @@ export interface Contact {
    *  `is_dead`, and hidden from the contact list. Reversible. */
   is_archived?: boolean;
   archived_at?: string | null;
+  /** An agent's instruction that nothing is sent to this person — no
+   *  WhatsApp (inbox replies included), no bot reply, no call. Unlike
+   *  `is_dead` the contact stays live for matching and listings. */
+  do_not_contact?: boolean;
+  do_not_contact_at?: string | null;
+  do_not_contact_reason?: string | null;
   min_roi?: number | null;
   /** Hard buyer constraint: only currently tenanted / pre-leased assets. */
   requires_tenanted?: boolean | null;

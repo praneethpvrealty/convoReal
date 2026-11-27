@@ -700,6 +700,7 @@ function CampaignDetailDialog({
         .select('id, name, phone, name_tag')
         .eq('is_merged', false)
         .eq('do_not_call', false)
+        .eq('do_not_contact', false)
         .not('phone', 'is', null)
         .order('created_at', { ascending: false })
         .limit(2000);

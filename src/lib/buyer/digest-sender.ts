@@ -238,6 +238,7 @@ async function runAccount(
     .eq('account_id', accountId)
     .eq('status', 'active')
     .eq('is_merged', false)
+    .eq('do_not_contact', false)
     .in('classification', BUYER_CLASSIFICATIONS)
     .not('phone', 'is', null)
     .limit(MAX_BUYERS_PER_ACCOUNT);

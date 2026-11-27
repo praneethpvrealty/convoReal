@@ -57,6 +57,7 @@ import {
   DEFAULT_CONTACT_CLASSIFICATION,
 } from '@/lib/contacts/classifications';
 import { AlertsConsentControl } from '@/components/contacts/alerts-consent-control';
+import { DoNotContactControl } from '@/components/contacts/do-not-contact-control';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
 import { formatCurrency } from '@/lib/format/currency';
 
@@ -980,6 +981,14 @@ export function ContactForm({
                 </button>
               )}
             </div>
+
+            {contact?.id && (
+              <DoNotContactControl
+                contactId={contact.id}
+                enabled={contact.do_not_contact}
+                reason={contact.do_not_contact_reason}
+              />
+            )}
 
             {contact?.id && (
               <AlertsConsentControl

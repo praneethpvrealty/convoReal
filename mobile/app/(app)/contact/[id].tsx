@@ -16,7 +16,9 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -74,6 +76,11 @@ import { useHeaderHeight } from '@/lib/use-header-height';
 import { useKeyboardReveal } from '@/lib/use-keyboard-reveal';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { contactPhone } from '@shared/lib/format/phone';
+import {
+  DO_NOT_CONTACT_HINT,
+  DO_NOT_CONTACT_LABEL,
+  DO_NOT_CONTACT_REASON_MAX,
+} from '@shared/lib/contacts/do-not-contact';
 import {
   LEAD_TEMP_NONE_LABEL,
   LEAD_TEMP_OPTIONS,
@@ -206,7 +213,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
         'avatar_url, min_budget, max_budget, pref_budget_min, pref_budget_max, no_budget, pref_listing_types, areas_of_interest, pref_areas, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, pref_facing, pref_towers, pref_floor_min, pref_floor_max, requirements, lead_temp, status, referrer, referrer_contact_id, source, ' +
         'requirement_profiles, ' +
-        'preferred_update_channel, preferred_language, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
+        'preferred_update_channel, preferred_language, buyer_alerts_consent, buyer_alerts_consent_requested_at, do_not_contact, do_not_contact_reason, ' +
         'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +
         'is_favorite, user_id, created_at, updated_at'
     )
@@ -2432,6 +2439,12 @@ function ContactEditor({
           </Pressable>
         </View>
 
+        <DoNotContactField
+          contactId={contact.id}
+          enabled={contact.do_not_contact}
+          reason={contact.do_not_contact_reason}
+        />
+
         <AlertsConsentField
           contactId={contact.id}
           consent={contact.buyer_alerts_consent}
@@ -2663,6 +2676,173 @@ function ContactEditor({
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/**
+ * Do not contact. Saves immediately like consent: it changes what the
+ * dispatcher, bot, reminders and calls may do, not a draft field.
+ */
+function DoNotContactField({
+  contactId,
+  enabled,
+  reason,
+}: {
+  contactId: string;
+  enabled?: boolean | null;
+  reason?: string | null;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const { show, dialogProps } = useAppDialog();
+  const [value, setValue] = useState(enabled === true);
+  const [savedReason, setSavedReason] = useState(reason ?? '');
+  const [draftReason, setDraftReason] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const apply = async (next: boolean) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await apiFetch(`/api/contacts/${contactId}/do-not-contact`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          enabled: next,
+          reason: next ? draftReason : undefined,
+        }),
+      });
+      setValue(next);
+      setSavedReason(next ? draftReason.trim() : '');
+      setDraftReason('');
+      setConfirming(false);
+      haptic.success();
+    } catch (err) {
+      haptic.warn();
+      show({
+        title: 'Could not update',
+        message: err instanceof Error ? err.message : 'Could not update',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onToggle = (next: boolean) => {
+    if (next) setConfirming(true);
+    else if (confirming) {
+      setConfirming(false);
+      setDraftReason('');
+    } else void apply(false);
+  };
+
+  return (
+    <View
+      style={{
+        gap: spacing.xs,
+        padding: spacing.md,
+        borderRadius: radius.md,
+        borderWidth: value ? 1 : StyleSheet.hairlineWidth,
+        borderColor: value ? colors.danger : colors.border,
+        backgroundColor: value ? colors.dangerSoft : colors.surface,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.sm,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="ban-outline" size={16} color={colors.danger} />
+          <Text
+            style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}
+          >
+            {DO_NOT_CONTACT_LABEL}
+          </Text>
+        </View>
+        <Switch
+          value={value || confirming}
+          disabled={saving}
+          onValueChange={onToggle}
+          accessibilityLabel={DO_NOT_CONTACT_LABEL}
+        />
+      </View>
+      <Text style={[styles.hint, { color: colors.textFaint }]}>
+        {DO_NOT_CONTACT_HINT}
+      </Text>
+      {value && savedReason ? (
+        <Text style={[styles.hint, { color: colors.danger }]}>
+          Reason: {savedReason}
+        </Text>
+      ) : null}
+      {confirming && !value ? (
+        <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
+          <TextInput
+            value={draftReason}
+            onChangeText={setDraftReason}
+            maxLength={DO_NOT_CONTACT_REASON_MAX}
+            placeholder="Why? (optional) — e.g. deals only through his son"
+            placeholderTextColor={colors.textFaint}
+            style={{
+              fontSize: 14,
+              fontFamily: f.regular,
+              color: colors.text,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 8,
+              borderRadius: radius.sm,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.border,
+              backgroundColor: colors.surface,
+            }}
+          />
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable
+              disabled={saving}
+              onPress={() => void apply(true)}
+              accessibilityRole="button"
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: radius.full,
+                backgroundColor: colors.danger,
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              <Text
+                style={{ fontSize: 13, fontFamily: f.semibold, color: '#fff' }}
+              >
+                {saving ? 'Saving…' : 'Stop all communication'}
+              </Text>
+            </Pressable>
+            <Pressable
+              disabled={saving}
+              onPress={() => onToggle(false)}
+              accessibilityRole="button"
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: radius.full,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.border,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.semibold,
+                  color: colors.textMuted,
+                }}
+              >
+                Cancel
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+      <AppDialog {...dialogProps} />
+    </View>
   );
 }
 

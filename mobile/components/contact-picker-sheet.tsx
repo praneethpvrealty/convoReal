@@ -22,6 +22,10 @@ import { useDebounced } from '@/lib/use-debounced';
 import { contactHandle } from '@/lib/reachability';
 import { rankContactSearchResults } from '@/lib/contact-search-rank';
 import {
+  DO_NOT_CONTACT_LABEL,
+  isDoNotContact,
+} from '@shared/lib/contacts/do-not-contact';
+import {
   defaultShareRecipients,
   hasRealName,
 } from '@shared/lib/inventory/share-recipients';
@@ -138,7 +142,7 @@ export function ContactPickerSheet({
         digits.length >= 4
           ? `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},phone.ilike.%${digits}%`
           : `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term}`;
-      const columns = 'id, name, name_tag, phone';
+      const columns = 'id, name, name_tag, phone, do_not_contact';
       const [exactResult, broadResult] = await Promise.all([
         supabase
           .from('contacts')
@@ -191,7 +195,7 @@ export function ContactPickerSheet({
     queryFn: async () => {
       const { data: rows } = await supabase
         .from('contacts')
-        .select('id, name, name_tag, phone, last_contacted_at')
+        .select('id, name, name_tag, phone, last_contacted_at, do_not_contact')
         .eq('is_merged', false)
         .eq('status', 'active')
         .not('phone', 'is', null)
@@ -299,6 +303,9 @@ export function ContactPickerSheet({
               <View style={nameTagCap}>
                 <Tag label={c.name_tag} />
               </View>
+            ) : null}
+            {isDoNotContact(c) ? (
+              <Tag label={DO_NOT_CONTACT_LABEL} color={colors.danger} />
             ) : null}
           </View>
           <View style={styles.metaRow}>

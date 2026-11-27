@@ -1573,6 +1573,7 @@ export function MessageThread({
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
         contactDead={Boolean(contact?.is_dead || contact?.is_archived)}
+        doNotContact={contact?.do_not_contact === true}
         initialText={initialDraft}
       />
 

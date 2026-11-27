@@ -88,7 +88,7 @@ export async function processHotViewerAlerts(
       db
         .from('contacts')
         .select(
-          'name, phone, assigned_agent_id, is_dead, is_archived, chain_only, classification'
+          'name, phone, assigned_agent_id, is_dead, is_archived, do_not_contact, chain_only, classification'
         )
         .eq('id', candidate.contact_id)
         .eq('account_id', candidate.account_id)

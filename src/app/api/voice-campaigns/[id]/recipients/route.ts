@@ -57,6 +57,7 @@ export async function POST(
         .in('id', contactIds.slice(i, i + LOOKUP_CHUNK))
         .not('phone', 'is', null)
         .eq('do_not_call', false)
+        .eq('do_not_contact', false)
         .eq('is_merged', false);
       callable.push(...(data ?? []));
     }

@@ -6,6 +6,10 @@ import type { Contact } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import {
+  DO_NOT_CONTACT_LABEL,
+  isDoNotContact,
+} from '@/lib/contacts/do-not-contact';
 import { hasPhone } from '@/lib/contacts/reachability';
 import type { SetPropertyFormField } from '@/hooks/usePropertyForm';
 import type { PropertyFormValues } from '@/lib/inventory/property-form-state';
@@ -34,6 +38,9 @@ export function OwnerSection({
   const [isContactDropdownOpen, setIsContactDropdownOpen] = useState(false);
 
   const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false);
+  const ownerIsDoNotContact = isDoNotContact(
+    contacts.find((c) => c.id === ownerContactId)
+  );
 
   // Close owner dropdown on click outside
   useEffect(() => {
@@ -203,6 +210,11 @@ export function OwnerSection({
                         {contact.name || 'Unnamed'} ({contact.phone})
                       </span>
                       <NameTagBadge tag={contact.name_tag} />
+                      {isDoNotContact(contact) && (
+                        <span className="shrink-0 rounded bg-rose-500/20 px-1.5 py-0.5 text-[10px] text-rose-300">
+                          {DO_NOT_CONTACT_LABEL}
+                        </span>
+                      )}
                     </span>
                     <span
                       className={`rounded px-1.5 py-0.5 text-[10px] ${
@@ -220,6 +232,12 @@ export function OwnerSection({
               </div>
             )}
           </div>
+          {ownerIsDoNotContact && (
+            <p className="text-xs text-rose-300">
+              {DO_NOT_CONTACT_LABEL} — this person gets no owner digests or
+              messages.
+            </p>
+          )}
         </div>
 
         <div className="col-span-2 space-y-1.5 md:col-span-1">

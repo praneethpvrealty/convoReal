@@ -44,6 +44,7 @@ import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only';
 import { MAX_MERGE_HOPS } from '@/lib/contacts/merge-chain';
 import { phoneMatchKey } from '@/lib/contacts/phone-key';
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle';
+import { DO_NOT_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/do-not-contact';
 import {
   agentReplyBotPauseUpdate,
   BOT_PAUSED_BLOCKED_MESSAGE,
@@ -247,6 +248,7 @@ interface OutboundContact {
   chain_only: boolean;
   is_dead: boolean;
   is_archived: boolean;
+  do_not_contact?: boolean | null;
   whatsapp_marketing_suppressed_until: string | null;
   whatsapp_marketing_suppression_code: number | null;
 }
@@ -331,7 +333,14 @@ export async function sendWhatsAppMessageAndPersist(
         if (!matching.some((c: { is_merged?: boolean }) => c.is_merged)) {
           targetPhone = existing.phone;
         }
-        resolvedContact = existing as OutboundContact;
+        resolvedContact = {
+          ...(existing as OutboundContact),
+          do_not_contact:
+            !!existing.do_not_contact ||
+            matching.some(
+              (c: { do_not_contact?: boolean | null }) => !!c.do_not_contact
+            ),
+        };
       } else {
         const { data: newContact, error: createError } = await db
           .from('contacts')
@@ -360,7 +369,7 @@ export async function sendWhatsAppMessageAndPersist(
           const result = await db
             .from('contacts')
             .select(
-              'id, phone, name, salutation, chain_only, is_dead, is_archived, whatsapp_marketing_suppressed_until, whatsapp_marketing_suppression_code, is_merged, merged_into_id'
+              'id, phone, name, salutation, chain_only, is_dead, is_archived, do_not_contact, whatsapp_marketing_suppressed_until, whatsapp_marketing_suppression_code, is_merged, merged_into_id'
             )
             .eq('id', id)
             .eq('account_id', accountId)
@@ -411,6 +420,7 @@ export async function sendWhatsAppMessageAndPersist(
           chain_only: winner.chain_only || alias.chain_only,
           is_dead: winner.is_dead || alias.is_dead,
           is_archived: winner.is_archived || alias.is_archived,
+          do_not_contact: !!winner.do_not_contact || !!alias.do_not_contact,
           ...(aliasPauseLater
             ? {
                 whatsapp_marketing_suppressed_until:
@@ -479,6 +489,12 @@ export async function sendWhatsAppMessageAndPersist(
     // once. `allowDeadContact` is the inbox composer's opt-out — an
     // agent answering a lead who called back is a deliberate personal
     // reply, not the automation this blocks.
+    // 1d. Do not contact is an agent's instruction that nothing at all
+    // reaches this person, so no flag a caller can pass opens it — the
+    // inbox composer and every system sender are refused alike.
+    if (resolvedContactId && resolvedContact.do_not_contact) {
+      throw new Error(DO_NOT_CONTACT_BLOCKED_MESSAGE);
+    }
     if (resolvedContactId && !(args.allowChainOnly && args.allowDeadContact)) {
       if (!args.allowChainOnly && resolvedContact.chain_only) {
         throw new Error(CHAIN_ONLY_BLOCKED_MESSAGE);

@@ -17,6 +17,19 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 27 November 2026
+
+- **Do not contact.** Mark a contact Do not contact from the contact form on
+  web or the contact screen on mobile, with an optional reason. Nothing is
+  then sent to them: no WhatsApp message (the inbox composer is replaced by a
+  notice, so not even a manual reply), no bot or flow reply to what they
+  write, no digest, reminder, alert, broadcast, greeting, invoice or voice
+  call. Their messages still arrive in the inbox, they still match
+  properties, and they can still be assigned as a listing's owner; the
+  owner/agent picker labels them. Every change leaves a note on the contact.
+  **Migration required:** `20261127012430_contact_do_not_contact.sql`, then
+  `20261127021215_broadcast_audience_do_not_contact.sql`.
+
 #### 24 November 2026
 
 - **Connect a calendar event to a deal, and put several people on a deal.**

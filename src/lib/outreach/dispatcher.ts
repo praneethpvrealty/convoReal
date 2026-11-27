@@ -347,12 +347,15 @@ async function sendClaimedFollowUp(
   try {
     const { data: contact } = await admin
       .from('contacts')
-      .select('id, name, phone, do_not_call, is_merged')
+      .select('id, name, phone, do_not_call, do_not_contact, is_merged')
       .eq('id', followup.contact_id)
       .eq('account_id', accountId)
       .maybeSingle();
     if (!contact?.phone || contact.is_merged) {
       return finish('skipped', { skip_reason: 'contact_unreachable' });
+    }
+    if (contact.do_not_contact) {
+      return finish('skipped', { skip_reason: 'do_not_contact' });
     }
 
     const { conversation, error: conversationError } =

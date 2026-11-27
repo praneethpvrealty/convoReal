@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { DO_NOT_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/do-not-contact';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
@@ -465,6 +466,22 @@ export async function POST(request: Request) {
       pausesBot: pauses_bot === true,
       customDbClient: supabase,
     });
+
+    if (!result.success && result.error === DO_NOT_CONTACT_BLOCKED_MESSAGE) {
+      return NextResponse.json(
+        {
+          error: DO_NOT_CONTACT_BLOCKED_MESSAGE,
+          code: 'DO_NOT_CONTACT',
+          errorInfo: {
+            title: 'Do not contact',
+            userMessage: DO_NOT_CONTACT_BLOCKED_MESSAGE,
+            suggestedActions: [],
+            isRetryable: false,
+          },
+        },
+        { status: 409 }
+      );
+    }
 
     if (!result.success) {
       const errorInfo = parseMetaErrorInfo(result.error);

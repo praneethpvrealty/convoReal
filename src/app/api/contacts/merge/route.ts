@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const { data: contacts, error: fetchErr } = await admin
       .from('contacts')
       .select(
-        'id, account_id, name, email, phone, secondary_phones, min_budget, max_budget, no_budget, min_roi, areas_of_interest, property_interests, source, classification, referrer, referrer_contact_id, is_merged, company, lead_temp, requirements, assigned_agent_id, assigned_team_id'
+        'id, account_id, name, email, phone, secondary_phones, min_budget, max_budget, no_budget, min_roi, areas_of_interest, property_interests, source, classification, referrer, referrer_contact_id, is_merged, company, lead_temp, requirements, assigned_agent_id, assigned_team_id, do_not_contact, do_not_contact_at, do_not_contact_by, do_not_contact_reason'
       )
       .in('id', [sourceId, targetId])
       .eq('account_id', ctx.accountId);

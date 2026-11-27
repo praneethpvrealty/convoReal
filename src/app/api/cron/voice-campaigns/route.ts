@@ -164,7 +164,7 @@ export async function GET(request: Request) {
       const { data: recipients } = await supabase
         .from('voice_campaign_recipients')
         .select(
-          'id, contact_id, attempts, contact:contacts(id, name, phone, do_not_call, assigned_agent_id)'
+          'id, contact_id, attempts, contact:contacts(id, name, phone, do_not_call, do_not_contact, assigned_agent_id)'
         )
         .eq('account_id', campaign.account_id)
         .eq('campaign_id', campaign.id)
@@ -178,10 +178,11 @@ export async function GET(request: Request) {
         const contact = Array.isArray(recipient.contact)
           ? recipient.contact[0]
           : recipient.contact;
-        if (!contact?.phone || contact.do_not_call) {
+        const optedOut = !!contact?.do_not_call || !!contact?.do_not_contact;
+        if (!contact?.phone || optedOut) {
           await supabase
             .from('voice_campaign_recipients')
-            .update({ status: contact?.do_not_call ? 'opted_out' : 'failed' })
+            .update({ status: optedOut ? 'opted_out' : 'failed' })
             .eq('id', recipient.id)
             .eq('status', 'queued')
             .select('id');

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle';
 import { BOT_PAUSED_BLOCKED_MESSAGE } from '@/lib/conversations/bot-pause';
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only';
+import { DO_NOT_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/do-not-contact';
 import type { InboundChainPayload } from './context';
 
 const steps = vi.hoisted(() => ({
@@ -105,6 +106,32 @@ describe('[INB-049] a dispatcher policy refusal inside a step', () => {
     expect(isSendPolicyRefusal(new Error(CHAIN_ONLY_BLOCKED_MESSAGE))).toBe(
       true
     );
+    expect(isSendPolicyRefusal(new Error(DO_NOT_CONTACT_BLOCKED_MESSAGE))).toBe(
+      true
+    );
     expect(isSendPolicyRefusal(new Error('Meta returned 500'))).toBe(false);
+  });
+});
+
+describe('[CTM-021] a message from a do-not-contact contact', () => {
+  beforeEach(() => {
+    steps.first.mockReset();
+    steps.second.mockReset();
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+  });
+
+  it('runs no step, so nothing replies to it', async () => {
+    await handleInboundChain(
+      {
+        ...payload,
+        contactRecord: { id: 'c-1', do_not_contact: true },
+      } as unknown as InboundChainPayload,
+      { waited: false },
+      'acc-1',
+      'token'
+    );
+
+    expect(steps.first).not.toHaveBeenCalled();
+    expect(steps.second).not.toHaveBeenCalled();
   });
 });

@@ -1516,7 +1516,7 @@ function EditForm({ property }: { property: Property }) {
         visible={sheet === 'owner'}
         onClose={() => setSheet(null)}
         title="Owner / Agent"
-        hint="Search your contacts — the assigned person shows on the property and gets owner digests."
+        hint="Search your contacts — the assigned person shows on the property and gets owner digests, unless they are marked Do not contact."
         onSelect={(contact) => {
           setOwnerContactId(contact.id);
           setOwnerLabel(contact.name || contactHandle(contact));

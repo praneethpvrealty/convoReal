@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { DO_NOT_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/do-not-contact';
 import { encrypt } from './encryption';
 import { isReengagementError } from './customer-window';
 import { isChainOnlyBlockedError } from '@/lib/contacts/chain-only';
@@ -42,6 +43,8 @@ function makeDb(
     chainOnly?: boolean;
     isDead?: boolean;
     isArchived?: boolean;
+    doNotContact?: boolean;
+    phoneRows?: Row[];
     contactLookupErrors?: number;
     configLookupErrors?: number;
     journeyItems?: Row[];
@@ -169,6 +172,7 @@ function makeDb(
               chain_only: overrides.chainOnly ?? false,
               is_dead: overrides.isDead ?? false,
               is_archived: overrides.isArchived ?? false,
+              do_not_contact: overrides.doNotContact ?? false,
               whatsapp_marketing_suppressed_until:
                 overrides.marketingSuppressedUntil ?? null,
               whatsapp_marketing_suppression_code:
@@ -209,6 +213,12 @@ function makeDb(
         if (table === 'journey_items') {
           return Promise.resolve({
             data: overrides.journeyItems ?? [],
+            error: null,
+          }).then(resolve);
+        }
+        if (table === 'contacts' && overrides.phoneRows) {
+          return Promise.resolve({
+            data: overrides.phoneRows,
             error: null,
           }).then(resolve);
         }
@@ -1311,6 +1321,110 @@ describe('sendWhatsAppMessageAndPersist', () => {
         senderType: 'bot',
         text: 'a co-broker wants the location',
         allowChainOnly: true,
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('[CTM-021] do-not-contact contacts', () => {
+    it('refuses an agent inbox reply even with allowDeadContact', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
+      const db = makeDb({
+        doNotContact: true,
+        existingConversation: { id: 'conv-existing' },
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: 'text',
+        senderType: 'agent',
+        text: 'checking in on the plot',
+        allowDeadContact: true,
+        allowChainOnly: true,
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(DO_NOT_CONTACT_BLOCKED_MESSAGE);
+      expect(fetch).not.toHaveBeenCalled();
+      expect(db._inserts.messages).toHaveLength(0);
+    });
+
+    it('refuses an automated template send', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
+      const db = makeDb({ doNotContact: true });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: 'text',
+        senderType: 'bot',
+        text: 'your owner digest',
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(DO_NOT_CONTACT_BLOCKED_MESSAGE);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('takes the flag from a merged alias on a send addressed by phone', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
+      const db = makeDb({
+        phoneRows: [
+          {
+            id: 'alias-1',
+            phone: '+919876543210',
+            is_merged: true,
+            merged_into_id: 'winner-1',
+            do_not_contact: true,
+          },
+        ],
+        contactRows: { 'winner-1': { id: 'winner-1' } },
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        toPhone: '+919876543210',
+        kind: 'text',
+        senderType: 'bot',
+        text: 'hello',
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(DO_NOT_CONTACT_BLOCKED_MESSAGE);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('takes the flag from a merged alias as well as the winner', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
+      const db = makeDb({
+        contactRows: {
+          [CONTACT_ID]: {
+            id: CONTACT_ID,
+            do_not_contact: true,
+            is_merged: true,
+            merged_into_id: 'winner-1',
+          },
+          'winner-1': { id: 'winner-1' },
+        },
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: 'text',
+        senderType: 'bot',
+        text: 'hello',
         customDbClient: db,
       });
 
