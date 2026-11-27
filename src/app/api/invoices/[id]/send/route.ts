@@ -10,6 +10,7 @@ import {
   isDoNotContact,
 } from '@/lib/contacts/do-not-contact';
 import { sendTransactionalEmail } from '@/lib/email';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { invoiceFilename } from '@/lib/invoices/pdf';
 import {
   canTransition,
@@ -88,13 +89,15 @@ export async function POST(
     }
 
     if (invoice.contact_id) {
-      const { data: recipient, error: recipientError } = await ctx.supabase
+      // Read past contact visibility: an agent may open an invoice whose
+      // contact RLS hides from them, and the block must hold regardless.
+      const { data: recipient, error: recipientError } = await supabaseAdmin()
         .from('contacts')
         .select('do_not_contact')
         .eq('account_id', ctx.accountId)
         .eq('id', invoice.contact_id)
         .maybeSingle();
-      if (recipientError) {
+      if (recipientError || !recipient) {
         return NextResponse.json(
           { error: 'Could not check this customer. Try again.' },
           { status: 503 }
