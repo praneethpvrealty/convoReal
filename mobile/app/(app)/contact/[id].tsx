@@ -18,6 +18,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -78,6 +79,7 @@ import { contactPhone } from '@shared/lib/format/phone';
 import {
   DO_NOT_CONTACT_HINT,
   DO_NOT_CONTACT_LABEL,
+  DO_NOT_CONTACT_REASON_MAX,
 } from '@shared/lib/contacts/do-not-contact';
 import {
   LEAD_TEMP_NONE_LABEL,
@@ -2691,8 +2693,11 @@ function DoNotContactField({
   reason?: string | null;
 }) {
   const { colors, fonts: f } = useTheme();
-  const { show, close, dialogProps } = useAppDialog();
+  const { show, dialogProps } = useAppDialog();
   const [value, setValue] = useState(enabled === true);
+  const [savedReason, setSavedReason] = useState(reason ?? '');
+  const [draftReason, setDraftReason] = useState('');
+  const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const apply = async (next: boolean) => {
@@ -2701,9 +2706,15 @@ function DoNotContactField({
     try {
       await apiFetch(`/api/contacts/${contactId}/do-not-contact`, {
         method: 'PATCH',
-        body: JSON.stringify({ enabled: next }),
+        body: JSON.stringify({
+          enabled: next,
+          reason: next ? draftReason : undefined,
+        }),
       });
       setValue(next);
+      setSavedReason(next ? draftReason.trim() : '');
+      setDraftReason('');
+      setConfirming(false);
       haptic.success();
     } catch (err) {
       haptic.warn();
@@ -2717,25 +2728,11 @@ function DoNotContactField({
   };
 
   const onToggle = (next: boolean) => {
-    if (!next) {
-      void apply(false);
-      return;
-    }
-    show({
-      title: `Mark ${DO_NOT_CONTACT_LABEL}?`,
-      message: DO_NOT_CONTACT_HINT,
-      actions: [
-        {
-          label: 'Stop all communication',
-          variant: 'primary',
-          onPress: () => {
-            close();
-            void apply(true);
-          },
-        },
-        { label: 'Cancel', variant: 'muted', onPress: close },
-      ],
-    });
+    if (next) setConfirming(true);
+    else if (confirming) {
+      setConfirming(false);
+      setDraftReason('');
+    } else void apply(false);
   };
 
   return (
@@ -2766,7 +2763,7 @@ function DoNotContactField({
           </Text>
         </View>
         <Switch
-          value={value}
+          value={value || confirming}
           disabled={saving}
           onValueChange={onToggle}
           accessibilityLabel={DO_NOT_CONTACT_LABEL}
@@ -2775,10 +2772,74 @@ function DoNotContactField({
       <Text style={[styles.hint, { color: colors.textFaint }]}>
         {DO_NOT_CONTACT_HINT}
       </Text>
-      {value && reason ? (
+      {value && savedReason ? (
         <Text style={[styles.hint, { color: colors.danger }]}>
-          Reason: {reason}
+          Reason: {savedReason}
         </Text>
+      ) : null}
+      {confirming && !value ? (
+        <View style={{ gap: spacing.sm, marginTop: spacing.xs }}>
+          <TextInput
+            value={draftReason}
+            onChangeText={setDraftReason}
+            maxLength={DO_NOT_CONTACT_REASON_MAX}
+            placeholder="Why? (optional) — e.g. deals only through his son"
+            placeholderTextColor={colors.textFaint}
+            style={{
+              fontSize: 14,
+              fontFamily: f.regular,
+              color: colors.text,
+              paddingHorizontal: spacing.sm,
+              paddingVertical: 8,
+              borderRadius: radius.sm,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.border,
+              backgroundColor: colors.surface,
+            }}
+          />
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Pressable
+              disabled={saving}
+              onPress={() => void apply(true)}
+              accessibilityRole="button"
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: radius.full,
+                backgroundColor: colors.danger,
+                opacity: saving ? 0.6 : 1,
+              }}
+            >
+              <Text
+                style={{ fontSize: 13, fontFamily: f.semibold, color: '#fff' }}
+              >
+                {saving ? 'Saving…' : 'Stop all communication'}
+              </Text>
+            </Pressable>
+            <Pressable
+              disabled={saving}
+              onPress={() => onToggle(false)}
+              accessibilityRole="button"
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: radius.full,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.border,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.semibold,
+                  color: colors.textMuted,
+                }}
+              >
+                Cancel
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       ) : null}
       <AppDialog {...dialogProps} />
     </View>

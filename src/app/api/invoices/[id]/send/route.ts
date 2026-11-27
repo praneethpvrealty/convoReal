@@ -88,12 +88,18 @@ export async function POST(
     }
 
     if (invoice.contact_id) {
-      const { data: recipient } = await ctx.supabase
+      const { data: recipient, error: recipientError } = await ctx.supabase
         .from('contacts')
         .select('do_not_contact')
         .eq('account_id', ctx.accountId)
         .eq('id', invoice.contact_id)
         .maybeSingle();
+      if (recipientError) {
+        return NextResponse.json(
+          { error: 'Could not check this customer. Try again.' },
+          { status: 503 }
+        );
+      }
       if (isDoNotContact(recipient)) {
         return NextResponse.json(
           { error: DO_NOT_CONTACT_BLOCKED_MESSAGE, code: 'DO_NOT_CONTACT' },

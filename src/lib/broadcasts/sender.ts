@@ -329,8 +329,7 @@ export async function resolveAudienceOnServer(
   } else {
     ids = await audienceContactIds(supabase, accountId, audience, optedInOnly);
   }
-  const contacts = await contactsByIds<Contact>(supabase, accountId, ids, '*');
-  return contacts.filter((contact) => !contact.do_not_contact);
+  return contactsByIds<Contact>(supabase, accountId, ids, '*');
 }
 
 export async function countAudienceOnServer(

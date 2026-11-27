@@ -27,7 +27,8 @@ than a written entry. Newest first.
   call. Their messages still arrive in the inbox, they still match
   properties, and they can still be assigned as a listing's owner; the
   owner/agent picker labels them. Every change leaves a note on the contact.
-  **Migration required:** `20261127012430_contact_do_not_contact.sql`.
+  **Migration required:** `20261127012430_contact_do_not_contact.sql`, then
+  `20261127021215_broadcast_audience_do_not_contact.sql`.
 
 #### 24 November 2026
 

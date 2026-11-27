@@ -333,7 +333,14 @@ export async function sendWhatsAppMessageAndPersist(
         if (!matching.some((c: { is_merged?: boolean }) => c.is_merged)) {
           targetPhone = existing.phone;
         }
-        resolvedContact = existing as OutboundContact;
+        resolvedContact = {
+          ...(existing as OutboundContact),
+          do_not_contact:
+            !!existing.do_not_contact ||
+            matching.some(
+              (c: { do_not_contact?: boolean | null }) => !!c.do_not_contact
+            ),
+        };
       } else {
         const { data: newContact, error: createError } = await db
           .from('contacts')

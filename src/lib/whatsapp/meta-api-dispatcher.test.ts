@@ -44,6 +44,7 @@ function makeDb(
     isDead?: boolean;
     isArchived?: boolean;
     doNotContact?: boolean;
+    phoneRows?: Row[];
     contactLookupErrors?: number;
     configLookupErrors?: number;
     journeyItems?: Row[];
@@ -212,6 +213,12 @@ function makeDb(
         if (table === 'journey_items') {
           return Promise.resolve({
             data: overrides.journeyItems ?? [],
+            error: null,
+          }).then(resolve);
+        }
+        if (table === 'contacts' && overrides.phoneRows) {
+          return Promise.resolve({
+            data: overrides.phoneRows,
             error: null,
           }).then(resolve);
         }
@@ -1359,6 +1366,36 @@ describe('sendWhatsAppMessageAndPersist', () => {
         kind: 'text',
         senderType: 'bot',
         text: 'your owner digest',
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(DO_NOT_CONTACT_BLOCKED_MESSAGE);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('takes the flag from a merged alias on a send addressed by phone', async () => {
+      const { sendWhatsAppMessageAndPersist } =
+        await import('./meta-api-dispatcher');
+      const db = makeDb({
+        phoneRows: [
+          {
+            id: 'alias-1',
+            phone: '+919876543210',
+            is_merged: true,
+            merged_into_id: 'winner-1',
+            do_not_contact: true,
+          },
+        ],
+        contactRows: { 'winner-1': { id: 'winner-1' } },
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        toPhone: '+919876543210',
+        kind: 'text',
+        senderType: 'bot',
+        text: 'hello',
         customDbClient: db,
       });
 
