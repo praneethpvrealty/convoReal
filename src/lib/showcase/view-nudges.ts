@@ -266,6 +266,7 @@ export async function processShowcaseViewNudges(
 
 export interface ShowcaseOutreachContact {
   is_dead?: boolean | null;
+  do_not_contact?: boolean | null;
   is_archived?: boolean | null;
   chain_only?: boolean | null;
   classification?: string | null;
@@ -276,6 +277,7 @@ export function showcaseOutreachExclusion(
   contact: ShowcaseOutreachContact,
   property: { owner_contact_id?: string | null }
 ): string | null {
+  if (contact.do_not_contact) return 'do_not_contact';
   if (contact.is_dead) return 'contact_dead';
   if (contact.is_archived) return 'contact_archived';
   if (contact.chain_only) return 'chain_only';
@@ -345,7 +347,7 @@ async function sendViewNudge(
   const { data: contact, error: contactError } = await db
     .from('contacts')
     .select(
-      'name, phone, buyer_alerts_consent, is_dead, is_archived, chain_only, classification, pitch_quiet_until'
+      'name, phone, buyer_alerts_consent, is_dead, is_archived, do_not_contact, chain_only, classification, pitch_quiet_until'
     )
     .eq('id', contactId)
     .eq('account_id', accountId)

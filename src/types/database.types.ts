@@ -2858,6 +2858,10 @@ export type Database = {
           dead_at: string | null;
           dead_reason: string | null;
           do_not_call: boolean;
+          do_not_contact: boolean;
+          do_not_contact_at: string | null;
+          do_not_contact_by: string | null;
+          do_not_contact_reason: string | null;
           dob: string | null;
           email: string | null;
           feedback_status: string;
@@ -2946,6 +2950,10 @@ export type Database = {
           dead_at?: string | null;
           dead_reason?: string | null;
           do_not_call?: boolean;
+          do_not_contact?: boolean;
+          do_not_contact_at?: string | null;
+          do_not_contact_by?: string | null;
+          do_not_contact_reason?: string | null;
           dob?: string | null;
           email?: string | null;
           feedback_status?: string;
@@ -3034,6 +3042,10 @@ export type Database = {
           dead_at?: string | null;
           dead_reason?: string | null;
           do_not_call?: boolean;
+          do_not_contact?: boolean;
+          do_not_contact_at?: string | null;
+          do_not_contact_by?: string | null;
+          do_not_contact_reason?: string | null;
           dob?: string | null;
           email?: string | null;
           feedback_status?: string;

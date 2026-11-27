@@ -1021,7 +1021,7 @@ export async function POST(request: Request) {
     const cleanPhone = normalizedPhoneNum.replace(/\D/g, '');
     const { data: existingContact } = await supabase
       .from('contacts')
-      .select('id, name, pref_areas, is_dead, dead_reason')
+      .select('id, name, pref_areas, is_dead, dead_reason, do_not_contact')
       .eq('account_id', accountId)
       .or(`phone.eq.${normalizedPhoneNum},phone.eq.${cleanPhone}`)
       .maybeSingle();
@@ -1315,7 +1315,11 @@ export async function POST(request: Request) {
         match: matchAudit,
       });
 
-      if (staysDead) {
+      if (existingContact.do_not_contact) {
+        console.log(
+          `[lead-webhook] Contact ${existingContact.id} is marked do not contact; enquiry recorded, no greeting sent`
+        );
+      } else if (staysDead) {
         console.log(
           `[lead-webhook] Contact ${existingContact.id} was taken off automated sending (${existingContact.dead_reason}); enquiry recorded, no greeting sent`
         );

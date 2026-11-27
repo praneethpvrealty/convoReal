@@ -16,9 +16,11 @@ import {
   Loader2,
   MessageCircle,
   ArrowRightCircle,
+  Ban,
   UserX,
 } from 'lucide-react';
 import { DEAD_CONTACT_NOTICE } from '@/lib/contacts/lifecycle';
+import { DO_NOT_CONTACT_NOTICE } from '@/lib/contacts/do-not-contact';
 import {
   CUSTOMER_WINDOW_COMPOSER_NOTICE,
   CUSTOMER_WINDOW_COMPOSER_PLACEHOLDER,
@@ -64,6 +66,9 @@ interface MessageComposerProps {
    *  is still allowed here — this is the one channel a dead contact can
    *  be reached on — but the agent should know before they type. */
   contactDead?: boolean;
+  /** An agent marked the contact Do not contact: nothing may be sent,
+   *  this box included, so the composer gives way to the notice. */
+  doNotContact?: boolean;
   /** Draft handed in by whoever opened the thread (the journey sheet's
    *  check-in nudge, today). Seeds the box once per distinct value and
    *  never overwrites something the agent has already typed. */
@@ -81,6 +86,7 @@ export function MessageComposer({
   replyTo,
   onClearReply,
   contactDead = false,
+  doNotContact = false,
   initialText,
 }: MessageComposerProps) {
   const [text, setText] = useState(() => readDraft(conversationId));
@@ -258,6 +264,17 @@ export function MessageComposer({
     },
     []
   );
+
+  if (doNotContact) {
+    return (
+      <div className="relative z-10 border-t border-slate-900/60 bg-slate-950/70 p-4 backdrop-blur-md">
+        <div className="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2">
+          <Ban className="mt-0.5 size-3.5 shrink-0 text-rose-400" />
+          <p className="text-xs text-rose-200">{DO_NOT_CONTACT_NOTICE}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative z-10 border-t border-slate-900/60 bg-slate-950/70 p-4 backdrop-blur-md">

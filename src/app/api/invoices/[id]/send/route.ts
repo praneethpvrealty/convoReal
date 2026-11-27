@@ -5,6 +5,10 @@ import {
   toErrorResponse,
   type AccountContext,
 } from '@/lib/auth/account';
+import {
+  DO_NOT_CONTACT_BLOCKED_MESSAGE,
+  isDoNotContact,
+} from '@/lib/contacts/do-not-contact';
 import { sendTransactionalEmail } from '@/lib/email';
 import { invoiceFilename } from '@/lib/invoices/pdf';
 import {
@@ -81,6 +85,21 @@ export async function POST(
         { error: 'This invoice has been cancelled.' },
         { status: 409 }
       );
+    }
+
+    if (invoice.contact_id) {
+      const { data: recipient } = await ctx.supabase
+        .from('contacts')
+        .select('do_not_contact')
+        .eq('account_id', ctx.accountId)
+        .eq('id', invoice.contact_id)
+        .maybeSingle();
+      if (isDoNotContact(recipient)) {
+        return NextResponse.json(
+          { error: DO_NOT_CONTACT_BLOCKED_MESSAGE, code: 'DO_NOT_CONTACT' },
+          { status: 409 }
+        );
+      }
     }
 
     const { pdf, hash } = await renderInvoice(invoice);

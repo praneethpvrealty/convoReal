@@ -123,6 +123,10 @@ import {
   usePendingShares,
 } from '@/lib/pending-share';
 import { queryClient } from '@/lib/query';
+import {
+  DO_NOT_CONTACT_NOTICE,
+  isDoNotContact,
+} from '@shared/lib/contacts/do-not-contact';
 import { useCallLog } from '@/lib/use-call-log';
 import { supabase, uniqueChannel } from '@/lib/supabase';
 import {
@@ -904,31 +908,53 @@ export default function ConversationScreen() {
         </View>
       )}
 
-      <Composer
-        conversationId={id}
-        groupId={conversation?.group?.id}
-        sessionExpired={sessionExpired}
-        contactName={contactName}
-        contactPhone={conversation?.contact?.phone || undefined}
-        contact={conversation?.contact}
-        seedDraft={seedDraft}
-        replyTo={replyTo}
-        onClearReply={() => setReplyTo(null)}
-        resend={resend}
-        onResendHandled={() => setResend(null)}
-        onPending={(m) =>
-          // Also drops anything the thread has caught up with since the
-          // last send, so the list cannot grow for the life of the screen.
-          setPending((prev) => [m, ...settlePending(prev, messages ?? [])])
-        }
-        onPendingSettled={(pendingId, patch) =>
-          setPending((prev) =>
-            patch === null
-              ? prev.filter((m) => m.id !== pendingId)
-              : prev.map((m) => (m.id === pendingId ? { ...m, ...patch } : m))
-          )
-        }
-      />
+      {isDoNotContact(conversation?.contact) ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 8,
+            margin: 12,
+            marginBottom: 28,
+            padding: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.danger,
+            backgroundColor: colors.dangerSoft,
+          }}
+        >
+          <Ionicons name="ban-outline" size={16} color={colors.danger} />
+          <Text style={{ flex: 1, fontSize: 13, color: colors.text }}>
+            {DO_NOT_CONTACT_NOTICE}
+          </Text>
+        </View>
+      ) : (
+        <Composer
+          conversationId={id}
+          groupId={conversation?.group?.id}
+          sessionExpired={sessionExpired}
+          contactName={contactName}
+          contactPhone={conversation?.contact?.phone || undefined}
+          contact={conversation?.contact}
+          seedDraft={seedDraft}
+          replyTo={replyTo}
+          onClearReply={() => setReplyTo(null)}
+          resend={resend}
+          onResendHandled={() => setResend(null)}
+          onPending={(m) =>
+            // Also drops anything the thread has caught up with since the
+            // last send, so the list cannot grow for the life of the screen.
+            setPending((prev) => [m, ...settlePending(prev, messages ?? [])])
+          }
+          onPendingSettled={(pendingId, patch) =>
+            setPending((prev) =>
+              patch === null
+                ? prev.filter((m) => m.id !== pendingId)
+                : prev.map((m) => (m.id === pendingId ? { ...m, ...patch } : m))
+            )
+          }
+        />
+      )}
 
       <ContextMenu
         anchor={actionsFor ? { x: actionsFor.x, y: actionsFor.y } : null}

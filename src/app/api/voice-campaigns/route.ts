@@ -167,6 +167,7 @@ export async function POST(request: NextRequest) {
             .in('id', contactIds.slice(i, i + 200))
             .not('phone', 'is', null)
             .eq('do_not_call', false)
+            .eq('do_not_contact', false)
             .eq('is_merged', false);
           callable.push(...(data ?? []));
         }

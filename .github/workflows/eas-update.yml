@@ -60,6 +60,7 @@ on:
       - 'src/lib/auth/sign-out-reason.ts'
       - 'src/lib/contacts/approve-listing-prompt.ts'
       - 'src/lib/contacts/list-columns.ts'
+      - 'src/lib/contacts/do-not-contact.ts'
       - 'src/lib/contacts/phone-key.ts'
       - 'src/lib/contacts/search-filter.ts'
       - 'src/lib/postgrest-search.ts'

@@ -7,6 +7,10 @@ import {
 } from '@/lib/conversations/bot-pause';
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only';
 import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle';
+import {
+  DO_NOT_CONTACT_BLOCKED_MESSAGE,
+  isDoNotContact,
+} from '@/lib/contacts/do-not-contact';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isEarliestCustomerMessage } from '@/lib/whatsapp/serialized-inbound';
 import type { InboundChainContext, InboundChainPayload } from './context';
@@ -139,6 +143,15 @@ export async function handleInboundChain(
     accountId,
     accessToken
   );
+  // Several steps answer with a direct Meta call rather than through the
+  // dispatcher, so its refusal alone would not keep them quiet. The
+  // message is already stored for the inbox; nothing replies to it.
+  if (isDoNotContact(ctx.contactRecord)) {
+    console.info(
+      `[webhook] ${ctx.message.id} from a do-not-contact contact — no automated reply`
+    );
+    return;
+  }
   const steps = (await isBotPaused(
     supabaseAdmin(),
     accountId,
@@ -171,6 +184,7 @@ export async function handleInboundChain(
 
 const SEND_POLICY_REFUSALS = [
   DEAD_CONTACT_BLOCKED_MESSAGE,
+  DO_NOT_CONTACT_BLOCKED_MESSAGE,
   BOT_PAUSED_BLOCKED_MESSAGE,
   CHAIN_ONLY_BLOCKED_MESSAGE,
 ];

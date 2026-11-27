@@ -1294,6 +1294,7 @@ export interface ContactRow {
   owner_digest_consent_requested_at?: string | null;
   is_merged?: boolean;
   merged_into_id?: string | null;
+  do_not_contact?: boolean | null;
 }
 
 export interface PropertyRow {

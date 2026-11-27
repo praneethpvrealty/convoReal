@@ -55,6 +55,7 @@ function canReceiveRealtimeAlert(contact: RealtimeAlertContact): boolean {
     contact.requirement_active !== false &&
     !contact.is_dead &&
     !contact.is_archived &&
+    !contact.do_not_contact &&
     !contact.is_merged
   );
 }

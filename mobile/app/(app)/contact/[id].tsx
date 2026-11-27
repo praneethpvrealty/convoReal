@@ -16,6 +16,7 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -74,6 +75,10 @@ import { useHeaderHeight } from '@/lib/use-header-height';
 import { useKeyboardReveal } from '@/lib/use-keyboard-reveal';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { contactPhone } from '@shared/lib/format/phone';
+import {
+  DO_NOT_CONTACT_HINT,
+  DO_NOT_CONTACT_LABEL,
+} from '@shared/lib/contacts/do-not-contact';
 import {
   LEAD_TEMP_NONE_LABEL,
   LEAD_TEMP_OPTIONS,
@@ -206,7 +211,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
         'avatar_url, min_budget, max_budget, pref_budget_min, pref_budget_max, no_budget, pref_listing_types, areas_of_interest, pref_areas, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requires_tenanted, pref_requires_tenanted, pref_facing, pref_towers, pref_floor_min, pref_floor_max, requirements, lead_temp, status, referrer, referrer_contact_id, source, ' +
         'requirement_profiles, ' +
-        'preferred_update_channel, preferred_language, buyer_alerts_consent, buyer_alerts_consent_requested_at, ' +
+        'preferred_update_channel, preferred_language, buyer_alerts_consent, buyer_alerts_consent_requested_at, do_not_contact, do_not_contact_reason, ' +
         'property_interests, last_inquired_property_id, lead_portal, lead_portal_listing_id, ' +
         'is_favorite, user_id, created_at, updated_at'
     )
@@ -2432,6 +2437,12 @@ function ContactEditor({
           </Pressable>
         </View>
 
+        <DoNotContactField
+          contactId={contact.id}
+          enabled={contact.do_not_contact}
+          reason={contact.do_not_contact_reason}
+        />
+
         <AlertsConsentField
           contactId={contact.id}
           consent={contact.buyer_alerts_consent}
@@ -2663,6 +2674,114 @@ function ContactEditor({
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/**
+ * Do not contact. Saves immediately like consent: it changes what the
+ * dispatcher, bot, reminders and calls may do, not a draft field.
+ */
+function DoNotContactField({
+  contactId,
+  enabled,
+  reason,
+}: {
+  contactId: string;
+  enabled?: boolean | null;
+  reason?: string | null;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const { show, close, dialogProps } = useAppDialog();
+  const [value, setValue] = useState(enabled === true);
+  const [saving, setSaving] = useState(false);
+
+  const apply = async (next: boolean) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await apiFetch(`/api/contacts/${contactId}/do-not-contact`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: next }),
+      });
+      setValue(next);
+      haptic.success();
+    } catch (err) {
+      haptic.warn();
+      show({
+        title: 'Could not update',
+        message: err instanceof Error ? err.message : 'Could not update',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onToggle = (next: boolean) => {
+    if (!next) {
+      void apply(false);
+      return;
+    }
+    show({
+      title: `Mark ${DO_NOT_CONTACT_LABEL}?`,
+      message: DO_NOT_CONTACT_HINT,
+      actions: [
+        {
+          label: 'Stop all communication',
+          variant: 'primary',
+          onPress: () => {
+            close();
+            void apply(true);
+          },
+        },
+        { label: 'Cancel', variant: 'muted', onPress: close },
+      ],
+    });
+  };
+
+  return (
+    <View
+      style={{
+        gap: spacing.xs,
+        padding: spacing.md,
+        borderRadius: radius.md,
+        borderWidth: value ? 1 : StyleSheet.hairlineWidth,
+        borderColor: value ? colors.danger : colors.border,
+        backgroundColor: value ? colors.dangerSoft : colors.surface,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: spacing.sm,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Ionicons name="ban-outline" size={16} color={colors.danger} />
+          <Text
+            style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}
+          >
+            {DO_NOT_CONTACT_LABEL}
+          </Text>
+        </View>
+        <Switch
+          value={value}
+          disabled={saving}
+          onValueChange={onToggle}
+          accessibilityLabel={DO_NOT_CONTACT_LABEL}
+        />
+      </View>
+      <Text style={[styles.hint, { color: colors.textFaint }]}>
+        {DO_NOT_CONTACT_HINT}
+      </Text>
+      {value && reason ? (
+        <Text style={[styles.hint, { color: colors.danger }]}>
+          Reason: {reason}
+        </Text>
+      ) : null}
+      <AppDialog {...dialogProps} />
+    </View>
   );
 }
 

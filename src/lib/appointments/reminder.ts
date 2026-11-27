@@ -217,6 +217,7 @@ interface ReminderContact {
   name: string | null;
   phone: string | null;
   preferred_update_channel?: string | null;
+  do_not_contact?: boolean | null;
 }
 
 interface ReminderAppointment {
@@ -264,7 +265,7 @@ async function loadContacts(
   if (ids.length === 0) return map;
   const { data, error } = await admin
     .from('contacts')
-    .select('id, name, phone, preferred_update_channel')
+    .select('id, name, phone, preferred_update_channel, do_not_contact')
     .in('id', ids);
   if (error) {
     console.error('[Reminder Cron] contacts fetch failed:', error);
@@ -578,7 +579,10 @@ async function sendToAllRecipients(
     .map((id) => contacts.get(id))
     .filter(
       (c): c is ReminderContact =>
-        !!c && !!c.phone && isValidE164(sanitizePhoneForMeta(c.phone))
+        !!c &&
+        !c.do_not_contact &&
+        !!c.phone &&
+        isValidE164(sanitizePhoneForMeta(c.phone))
     );
 
   if (reachable.length === 0) {
