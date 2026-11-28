@@ -205,7 +205,7 @@ const DEFAULT_LOCALITY_RADIUS_KM = 10;
 
 async function fetchFullProperty(id: string): Promise<Property | null> {
   try {
-    const response = await fetch(`/api/properties/${id}`, {
+    const response = await fetch(`/api/properties/${encodeURIComponent(id)}`, {
       cache: 'no-store',
     });
     if (!response.ok) return null;
