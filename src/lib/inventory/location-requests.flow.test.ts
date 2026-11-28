@@ -576,6 +576,38 @@ describe('multi-hop consent flow, end to end', () => {
     expect(await sweepConsentTimeouts(admin)).toBe(0);
   });
 
+  it('[PRP-068] never lets a stale sweep expire a newer ask to the same co-broker', async () => {
+    const tables = freshTables();
+    const admin = fakeAdmin(tables);
+    seedRequest(tables, {
+      pending_consent_contact_id: C,
+      consent_requested_at: new Date(Date.now() - 5 * 3600_000).toISOString(),
+      consent_deadline_at: new Date(Date.now() - 60_000).toISOString(),
+    });
+    const fresh = new Date().toISOString();
+    const realFrom = admin.from;
+    admin.from = (table: string) => {
+      const q = realFrom(table);
+      const realUpdate = q.update.bind(q);
+      q.update = (patch: Row) => {
+        if ('consent_chain' in patch) {
+          Object.assign(tables.property_location_requests[0], {
+            consent_requested_at: fresh,
+            consent_deadline_at: new Date(Date.now() + 3600_000).toISOString(),
+          });
+        }
+        return realUpdate(patch);
+      };
+      return q;
+    };
+
+    expect(await sweepConsentTimeouts(admin)).toBe(0);
+    const row = tables.property_location_requests[0];
+    expect(row.pending_consent_contact_id).toBe(C);
+    expect(row.consent_requested_at).toBe(fresh);
+    expect(row.consent_chain).toEqual([]);
+  });
+
   it('[PRP-068] lets the listing side ask the silent co-broker again', async () => {
     const tables = freshTables();
     const admin = fakeAdmin(tables);

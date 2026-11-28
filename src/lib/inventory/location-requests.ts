@@ -442,7 +442,10 @@ export function buildConsentReminderMessage(consentText: string): string {
   return `⏰ *Reminder* — this request is still waiting for your reply.\n\n${consentText}`;
 }
 
-/** Sent to an intermediary whose window closed without an answer. */
+/** Sent to an intermediary whose window closed without an answer.
+ *  Free-form only: it goes out when their 24-hour window is open and
+ *  is skipped otherwise, since the request itself has moved on and no
+ *  approved template carries this notice. */
 export function buildConsentStalledNotice(propertyTitle: string): string {
   return (
     `⌛ We did not hear back in time, so the location request for *${propertyTitle}* ` +
@@ -1440,6 +1443,7 @@ export async function sweepConsentReminders(
       .eq('id', row.id)
       .eq('status', 'pending')
       .eq('pending_consent_contact_id', row.pending_consent_contact_id!)
+      .eq('consent_requested_at', row.consent_requested_at!)
       .is('consent_reminded_at', null)
       .select('id');
     if (!claimed || claimed.length === 0) continue;
@@ -1514,6 +1518,7 @@ export async function sweepConsentTimeouts(
       .eq('id', row.id)
       .eq('status', 'pending')
       .eq('pending_consent_contact_id', contactId)
+      .eq('consent_requested_at', row.consent_requested_at!)
       .select('id');
     if (!claimed || claimed.length === 0) continue;
     stalled += 1;
@@ -1530,7 +1535,7 @@ export async function sweepConsentTimeouts(
 
     const title = await propertyTitle(admin, row.account_id, row.property_id);
     try {
-      await sendWhatsAppMessageAndPersist({
+      const notice = await sendWhatsAppMessageAndPersist({
         accountId: row.account_id,
         contactId,
         kind: 'text',
@@ -1538,6 +1543,12 @@ export async function sweepConsentTimeouts(
         text: buildConsentStalledNotice(title),
         allowChainOnly: true,
       });
+      if (!notice.success && !isReengagementError(notice.error)) {
+        console.error(
+          '[location-requests] Stalled notice failed:',
+          notice.error
+        );
+      }
     } catch (err) {
       console.error('[location-requests] Stalled notice failed:', err);
     }
