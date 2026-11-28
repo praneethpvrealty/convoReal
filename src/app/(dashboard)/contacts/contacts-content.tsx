@@ -7,6 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CONTACT_CLASSIFICATIONS } from '@/lib/contacts/classifications';
 import {
@@ -74,11 +75,7 @@ import {
   ArrowUpDown,
   SlidersHorizontal,
 } from 'lucide-react';
-import { ContactForm } from '@/components/contacts/contact-form';
-import { ContactCleanupDialog } from '@/components/contacts/cleanup-dialog';
-import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { UnmappedPortalAds } from '@/components/contacts/unmapped-portal-ads';
-import { ReengageWizard } from '@/components/contacts/reengage-wizard';
 import { useCan } from '@/hooks/useCan';
 import { GatedButton } from '@/components/ui/gated-button';
 import {
@@ -96,17 +93,11 @@ import {
 import { splitImportedName } from '@/lib/contacts/name-tag-split';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { resolveRequirementSource } from '@/lib/requirements/profiles';
-import {
-  BulkImportModal,
-  type BulkImportContact,
-} from '@/components/contacts/bulk-import-modal';
+import type { BulkImportContact } from '@/components/contacts/bulk-import-modal';
 import {
   LogCallPrompt,
   type PendingDial,
 } from '@/components/contacts/log-call-prompt';
-import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
-import { OwnerDetailsRequestDialog } from '@/components/contacts/owner-details-request-dialog';
-import { ContactRequirementsDialog } from '@/components/contacts/contact-requirements-dialog';
 import { CalendarDays } from 'lucide-react';
 import { DuplicatesPanel } from '@/components/contacts/duplicates-panel';
 import { InfoHint } from '@/components/ui/info-hint';
@@ -136,6 +127,7 @@ import { useT } from '@/hooks/useLocale';
 import {
   CONTACTS_PAGE_SIZE,
   loadAreaOptions,
+  loadContactTabCounts,
   loadContactsPage,
   loadContactsShowcaseSettings,
   loadProjectChoices,
@@ -144,12 +136,70 @@ import {
   type ContactListPage,
   type ContactListParams,
   type ContactListTab,
+  type ContactTabCounts,
   type StarredProperty,
 } from '@/lib/contacts/list-queries';
 import { formatAuditDateTime } from '@/lib/audit-timestamps';
 import { splitChips, splitTagChips } from '@/lib/contacts/chip-overflow';
 import { formatInrCompact } from '@/lib/format/currency';
 import { listTime } from '@/lib/format/list-time';
+
+// The dialogs stay out of the list's first bundle: none of them is
+// needed to paint the table, and the contact view alone is larger than
+// the page that opens it.
+const ContactForm = dynamic(
+  () => import('@/components/contacts/contact-form').then((m) => m.ContactForm),
+  { ssr: false }
+);
+const ContactCleanupDialog = dynamic(
+  () =>
+    import('@/components/contacts/cleanup-dialog').then(
+      (m) => m.ContactCleanupDialog
+    ),
+  { ssr: false }
+);
+const ContactDetailView = dynamic(
+  () =>
+    import('@/components/contacts/contact-detail-view').then(
+      (m) => m.ContactDetailView
+    ),
+  { ssr: false }
+);
+const ReengageWizard = dynamic(
+  () =>
+    import('@/components/contacts/reengage-wizard').then(
+      (m) => m.ReengageWizard
+    ),
+  { ssr: false }
+);
+const BulkImportModal = dynamic(
+  () =>
+    import('@/components/contacts/bulk-import-modal').then(
+      (m) => m.BulkImportModal
+    ),
+  { ssr: false }
+);
+const ScheduleDialog = dynamic(
+  () =>
+    import('@/components/calendar/schedule-dialog').then(
+      (m) => m.ScheduleDialog
+    ),
+  { ssr: false }
+);
+const OwnerDetailsRequestDialog = dynamic(
+  () =>
+    import('@/components/contacts/owner-details-request-dialog').then(
+      (m) => m.OwnerDetailsRequestDialog
+    ),
+  { ssr: false }
+);
+const ContactRequirementsDialog = dynamic(
+  () =>
+    import('@/components/contacts/contact-requirements-dialog').then(
+      (m) => m.ContactRequirementsDialog
+    ),
+  { ssr: false }
+);
 
 const INTEREST_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -675,6 +725,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const handleToggleFavorite = async (contact: ContactWithTags) => {
     const next = !contact.is_favorite;
     const previousPage = queryClient.getQueryData<ContactListPage>(listKey);
+    const previousCounts =
+      queryClient.getQueryData<ContactTabCounts>(tabCountsKey);
 
     setFavoritingId(contact.id);
     queryClient.setQueryData<ContactListPage>(listKey, (prev) =>
@@ -687,13 +739,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : prev.contacts.map((c) =>
                     c.id === contact.id ? { ...c, is_favorite: next } : c
                   ),
-            counts: {
-              ...prev.counts,
-              favoritesCount: Math.max(
-                0,
-                prev.counts.favoritesCount + (next ? 1 : -1)
-              ),
-            },
+          }
+        : prev
+    );
+    queryClient.setQueryData<ContactTabCounts>(tabCountsKey, (prev) =>
+      prev
+        ? {
+            ...prev,
+            favoritesCount: Math.max(0, prev.favoritesCount + (next ? 1 : -1)),
           }
         : prev
     );
@@ -716,6 +769,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       );
     } catch (err: unknown) {
       queryClient.setQueryData(listKey, previousPage);
+      queryClient.setQueryData(tabCountsKey, previousCounts);
       toast.error(
         err instanceof Error ? err.message : 'Failed to update favourite'
       );
@@ -921,8 +975,24 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     enabled: listParams !== null,
     placeholderData: keepPreviousData,
   });
+  // The tab counters are their own query: the list does not wait on
+  // them, and paging or filtering does not recount the account.
+  const tabCountsKey = ['contacts', 'tab-counts', accountId];
+  const tabCountsQuery = useQuery({
+    queryKey: tabCountsKey,
+    queryFn: () => loadContactTabCounts(supabase, accountId!),
+    enabled: Boolean(accountId),
+    staleTime: 60_000,
+  });
   const invalidateList = () =>
-    queryClient.invalidateQueries({ queryKey: ['contacts', 'list'] });
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['contacts', 'list'] }),
+      queryClient.invalidateQueries({ queryKey: ['contacts', 'tab-counts'] }),
+    ]);
+  const retryLoad = () => {
+    void listQuery.refetch();
+    void tabCountsQuery.refetch();
+  };
 
   const contacts = useMemo<ContactWithTags[]>(() => {
     const loaded = listQuery.data;
@@ -938,7 +1008,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // null = not fetched yet. The tab labels render plain ("All
   // Contacts") until real numbers exist — a "(0)"/"(...)" placeholder
   // while counts load reads as broken data.
-  const counts = listQuery.data?.counts ?? null;
+  const counts = tabCountsQuery.data ?? null;
   const activeCount = counts?.activeCount ?? null;
   const reviewCount = counts?.reviewCount ?? null;
   const favoritesCount = counts?.favoritesCount ?? null;
@@ -1206,7 +1276,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         This is taking longer than usual — the connection may have stalled.
       </p>
       <Button
-        onClick={() => listQuery.refetch()}
+        onClick={retryLoad}
         variant="outline"
         className="h-8 cursor-pointer border-slate-700 px-4 text-xs text-slate-300 hover:bg-slate-800"
       >
@@ -1922,7 +1992,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             <Button
               variant="outline"
               size="sm"
-              onClick={() => listQuery.refetch()}
+              onClick={retryLoad}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               Retry

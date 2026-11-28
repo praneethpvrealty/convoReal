@@ -5449,6 +5449,89 @@ describe('the Today insights come from one SQL aggregate on both surfaces', () =
   });
 });
 
+describe('[CTM-022] both contact lists load their rows through contacts_listable', () => {
+  // Five sequential requests per web load (staff phones, the staff
+  // contacts, the page, the tab counts, the page's tags) and a staff
+  // rule on mobile that disagreed with the one its own counts used.
+  const web = webSource('lib/contacts/list-queries.ts');
+  const screen = webSource('app/(dashboard)/contacts/contacts-content.tsx');
+  const mobile = mobileSource('app/(app)/(tabs)/contacts.tsx');
+  const migration = readFileSync(
+    join(
+      process.cwd(),
+      'supabase/migrations/20261128040725_contacts_listable.sql'
+    ),
+    'utf8'
+  );
+
+  it('neither surface reads the list from the table or resolves staff phones itself', () => {
+    for (const source of [web, mobile]) {
+      expect(source).toContain("'contacts_listable'");
+      expect(source).toContain("'contacts_listable_tagged'");
+      expect(source).not.toContain(".eq('is_merged', false)");
+      expect(source).not.toContain(".eq('chain_only', false)");
+      expect(source).not.toContain("select('phone')");
+      expect(source).not.toContain('contact_tags!inner');
+      expect(source).not.toContain("select('contact_id, tag");
+    }
+    expect(web).not.toContain('phone.like.');
+    expect(mobile).not.toContain('staff-phone-filter');
+  });
+
+  it('the tab counts are their own cached query on both, refreshed with the list', () => {
+    expect(web).toContain('export async function loadContactTabCounts(');
+    expect(screen).toContain("['contacts', 'tab-counts', accountId]");
+    expect(screen).toContain("queryKey: ['contacts', 'tab-counts'] }");
+    expect(screen).toContain('staleTime: 60_000');
+    expect(mobile).toContain("queryKey: ['contact-counts', accountId]");
+    const listInvalidations =
+      mobile.match(/invalidateQueries\(\{ queryKey: \['contacts'\] \}\)/g) ??
+      [];
+    const countInvalidations =
+      mobile.match(
+        /invalidateQueries\(\{\s*queryKey: \['contact-counts'\],?\s*\}\)/g
+      ) ?? [];
+    expect(listInvalidations.length).toBeGreaterThan(0);
+    expect(countInvalidations.length).toBe(listInvalidations.length);
+  });
+
+  it('the function runs as the caller, can be inlined and keeps the three exclusions', () => {
+    expect(migration).toContain(
+      'CREATE FUNCTION public.contacts_listable(p_account_id UUID)'
+    );
+    expect(migration).toContain('RETURNS SETOF public.contacts');
+    expect(migration).not.toContain('SECURITY DEFINER');
+    expect(migration).not.toMatch(/\bSET search_path\b/);
+    expect(migration).not.toContain('CREATE OR REPLACE');
+    expect(migration).toContain('WHERE c.account_id = p_account_id');
+    expect(migration).toContain('AND c.is_merged = false');
+    expect(migration).toContain('AND c.chain_only = false');
+    expect(migration).toContain(
+      "AND length(regexp_replace(pr.phone, '\\D', '', 'g')) >= 8"
+    );
+    expect(migration).toContain(
+      "= right(regexp_replace(c.phone, '\\D', '', 'g'), 8)"
+    );
+    expect(migration).toContain(
+      'FROM public.contacts_listable(p_account_id) c'
+    );
+    for (const signature of [
+      'contacts_listable(UUID)',
+      'contacts_listable_tagged(UUID, UUID)',
+    ]) {
+      expect(migration).toContain(
+        `REVOKE ALL ON FUNCTION public.${signature} FROM PUBLIC;`
+      );
+      expect(migration).toContain(
+        `REVOKE ALL ON FUNCTION public.${signature} FROM anon;`
+      );
+      expect(migration).toContain(
+        `GRANT EXECUTE ON FUNCTION public.${signature} TO authenticated;`
+      );
+    }
+  });
+});
+
 describe('[CTM-015] both contact lists select the one shared column spec', () => {
   // Web and mobile each carried their own select string for the contacts
   // list, so a column added for one surface was quietly missing on the
@@ -5461,13 +5544,15 @@ describe('[CTM-015] both contact lists select the one shared column spec', () =>
     expect(web).toContain(
       "import { CONTACT_LIST_COLUMNS } from '@/lib/contacts/list-columns';"
     );
-    expect(web).toContain(".select(CONTACT_LIST_COLUMNS, { count: 'exact' })");
+    expect(web).toContain(
+      'export const CONTACT_LIST_SELECT = `${CONTACT_LIST_COLUMNS}, contact_tags(tag_id)`;'
+    );
+    expect(web).toContain('.select(CONTACT_LIST_SELECT)');
     expect(mobile).toContain(
       "import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';"
     );
-    expect(mobile).toContain('CONTACT_LIST_COLUMNS +');
     expect(mobile).toContain(
-      "(filters.tagId ? ', contact_tags!inner(tag_id)' : '')"
+      ".select(CONTACT_LIST_COLUMNS + ', contact_tags(tag:tags(name))')"
     );
     for (const source of [web, screen, mobile]) {
       expect(source).not.toContain("'id, user_id, name, name_tag");

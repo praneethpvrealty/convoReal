@@ -1481,6 +1481,20 @@
               "case": "[CTM-021]"
             }
           ]
+        },
+        {
+          "id": "CTM-022",
+          "rule": "The web Contacts list and the mobile Contacts tab read their rows through the SQL function contacts_listable, never from the contacts table: one request returns the page, its tag ids (web) or tag names (mobile) as an embed and, on web, the exact count, with every tab, filter, search and sort applied on top. The function runs as the caller with no SECURITY DEFINER and no SET clause, so row-level security on contacts and profiles applies as it does to a direct read, and it leaves out merged contacts, chain-only contacts and the team's own numbers by the rule contacts_tab_counts uses (last eight digits of a profile phone of at least eight digits), so the rows and the tab counters agree on both surfaces. The tag filter is a join inside contacts_listable_tagged, never an id list in the request URL, and a tag filter that is not a tag id returns no rows. Every column the list can be sorted by is in CONTACT_LIST_COLUMNS, because a function's rows are projected to the selected columns before they are ordered. The tab counters are their own cached query on both surfaces, so the list never waits on them and paging or filtering does not recount, and every change that refreshes the list refreshes them too.",
+          "tests": [
+            {
+              "file": "src/lib/contacts/list-queries.test.ts",
+              "case": "[CTM-022]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[CTM-022]"
+            }
+          ]
         }
       ]
     },
