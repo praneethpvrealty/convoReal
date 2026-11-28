@@ -12,8 +12,10 @@
 // guest of that agent enquired, with the guest's name and number
 // masked. The agent is asked on WhatsApp to approve or decline. On
 // approval the guest becomes an ordinary lead credited to the agent;
-// on a decline, or after two hours without an answer, the guest is
-// pointed back to the agent and never reaches the contacts list.
+// on a decline, or when four daytime hours pass without an answer
+// (the clock stops in the account's client quiet hours, and the agent
+// is reminded halfway), the guest is pointed back to the agent and
+// never reaches the contacts list.
 //
 // Only links shared with a contact classified as Agent go through
 // this. A buyer or owner who forwards a link is credited as the
@@ -38,8 +40,11 @@ import {
 } from '@/lib/whatsapp/phone-utils';
 import { maskName, maskPhone } from '@/lib/inventory/location-guard';
 import {
+  buildConsentReminderMessage,
   buildSeekerRedirectMessage,
+  consentScheduleFor,
   propertyTitle as seekerSafePropertyTitle,
+  quietNowChecker,
 } from '@/lib/inventory/location-requests';
 import { createNotification } from '@/lib/notifications/create';
 import { alertAgentOfPropertyEnquiry } from '@/lib/whatsapp/enquiry-alert';
@@ -49,7 +54,7 @@ import {
 } from '@/lib/showcase/file-inquiry';
 import type { MessageTemplate } from '@/types';
 
-export const REFERRAL_CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+export const LEGACY_REFERRAL_CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 export const REPEAT_DECLINE_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const WHATSAPP_TAP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -83,6 +88,9 @@ export interface ReferredEnquiryRow {
   payload: ShowcaseInquiryInput | WhatsAppEnquiryPayload;
   status: ReferredEnquiryStatus;
   consent_requested_at: string | null;
+  consent_remind_at?: string | null;
+  consent_reminded_at?: string | null;
+  consent_deadline_at?: string | null;
   decided_at: string | null;
 }
 
@@ -129,7 +137,7 @@ export function buildReferrerAskMessage(args: {
     `has asked for more details on *${args.subject}*.\n\n` +
     `Approve and our team will take the enquiry forward with them directly, with you recorded as the referrer. ` +
     `Decline and we will not contact them: they will be asked to speak with you instead.\n\n` +
-    `No answer within 2 hours counts as a decline.`
+    `No answer within four daytime hours counts as a decline.`
   );
 }
 
@@ -358,11 +366,18 @@ async function askReferrer(
   admin: SupabaseClient,
   row: ReferredEnquiryRow,
   referrer: ShowcaseReferrer,
-  subject: string
+  subject: string,
+  reminder = false
 ): Promise<boolean> {
   if (!referrer.phone || !normalizePhoneWithCountryCode(referrer.phone)) {
     return false;
   }
+  const askText = buildReferrerAskMessage({
+    referrerName: firstName(referrer.name),
+    subject,
+    requesterName: row.requester_name,
+    requesterPhone: row.requester_phone,
+  });
   const approveId = `${REFERRED_APPROVE_PREFIX}${row.id}`;
   const declineId = `${REFERRED_DECLINE_PREFIX}${row.id}`;
   try {
@@ -372,12 +387,9 @@ async function askReferrer(
       kind: 'interactive',
       senderType: 'bot',
       interactiveType: 'buttons',
-      interactiveBody: buildReferrerAskMessage({
-        referrerName: firstName(referrer.name),
-        subject,
-        requesterName: row.requester_name,
-        requesterPhone: row.requester_phone,
-      }),
+      interactiveBody: reminder
+        ? buildConsentReminderMessage(askText)
+        : askText,
       interactiveButtons: [
         { id: approveId, title: '✅ Approve' },
         { id: declineId, title: '❌ Decline' },
@@ -570,12 +582,22 @@ export async function openReferredEnquiry(
     session_key: sessionKey,
   });
   let earlier: Array<
-    Pick<ReferredEnquiryRow, 'status' | 'consent_requested_at' | 'decided_at'>
+    Pick<
+      ReferredEnquiryRow,
+      | 'status'
+      | 'consent_requested_at'
+      | 'consent_remind_at'
+      | 'consent_reminded_at'
+      | 'consent_deadline_at'
+      | 'decided_at'
+    >
   > = [];
   if (filter) {
     const { data, error } = await admin
       .from('referred_enquiries')
-      .select('status, consent_requested_at, decided_at')
+      .select(
+        'status, consent_requested_at, consent_remind_at, consent_reminded_at, consent_deadline_at, decided_at'
+      )
       .eq('account_id', args.accountId)
       .eq('via_contact_id', args.referrer.contactId)
       .or(filter)
@@ -594,6 +616,9 @@ export async function openReferredEnquiry(
       ...base,
       status: 'pending',
       consent_requested_at: waiting.consent_requested_at,
+      consent_remind_at: waiting.consent_remind_at ?? null,
+      consent_reminded_at: waiting.consent_reminded_at ?? null,
+      consent_deadline_at: waiting.consent_deadline_at ?? null,
     });
     if (error) {
       console.error('[referred-enquiries] Insert failed:', error);
@@ -628,12 +653,20 @@ export async function openReferredEnquiry(
     return 'closed';
   }
 
+  const askedAt = new Date();
+  const { remindAt, deadlineAt } = await consentScheduleFor(
+    admin,
+    args.accountId,
+    askedAt
+  );
   const { data: inserted, error: insertError } = await admin
     .from('referred_enquiries')
     .insert({
       ...base,
       status: 'pending',
-      consent_requested_at: new Date().toISOString(),
+      consent_requested_at: askedAt.toISOString(),
+      consent_remind_at: remindAt.toISOString(),
+      consent_deadline_at: deadlineAt.toISOString(),
     })
     .select('*')
     .single();
@@ -660,7 +693,7 @@ export async function openReferredEnquiry(
     title: `${args.referrer.name}'s guest enquired`,
     body:
       `${maskedGuest(row.requester_name, row.requester_phone)} asked for details on ${subject} through the link you shared with ${args.referrer.name}. ` +
-      `Waiting for ${args.referrer.name} to approve. Their details stay private until then, and no answer in 2 hours closes the enquiry.`,
+      `Waiting for ${args.referrer.name} to approve. Their details stay private until then, and no answer within four daytime hours closes the enquiry.`,
     contactId: args.referrer.contactId,
   });
   return 'pending';
@@ -905,32 +938,119 @@ export async function handleReferredEnquiryReply(args: {
   return true;
 }
 
+const SWEEP_COLUMNS =
+  'id, account_id, via_contact_id, requester_name, requester_phone, session_key, source, property_id, payload, status, consent_requested_at, consent_remind_at, consent_reminded_at, consent_deadline_at, decided_at, contact_id, conversation_id';
+
 /**
- * Closes enquiries whose agent has not answered within two hours. Each
- * guest is pointed back to the agent, exactly as on a decline. Returns
- * the number of enquiries closed.
+ * Reminds an agent once, halfway through their window, about a guest
+ * enquiry they have not answered. A guest with several waiting
+ * enquiries shares one ask, so the reminder is claimed for all of them
+ * at once and sent once. Nothing is sent during client quiet hours.
+ */
+export async function sweepReferredEnquiryReminders(
+  admin: SupabaseClient
+): Promise<number> {
+  const now = new Date().toISOString();
+  const { data } = await admin
+    .from('referred_enquiries')
+    .select(SWEEP_COLUMNS)
+    .eq('status', 'pending')
+    .is('consent_reminded_at', null)
+    .lt('consent_remind_at', now)
+    .order('consent_remind_at', { ascending: true })
+    .limit(50);
+
+  const isQuietNow = quietNowChecker(admin);
+  let reminded = 0;
+  for (const row of (data ?? []) as ReferredEnquiryRow[]) {
+    if (row.consent_deadline_at && row.consent_deadline_at <= now) continue;
+    if (await isQuietNow(row.account_id)) continue;
+    const filter = guestFilter(row);
+    const query = admin
+      .from('referred_enquiries')
+      .update({ consent_reminded_at: now })
+      .eq('account_id', row.account_id)
+      .eq('via_contact_id', row.via_contact_id)
+      .eq('status', 'pending')
+      .is('consent_reminded_at', null);
+    const { data: claimed } = await (
+      filter ? query.or(filter) : query.eq('id', row.id)
+    ).select('id');
+    if (!claimed || claimed.length === 0) continue;
+
+    const { data: via } = await admin
+      .from('contacts')
+      .select('id, name, phone, classification')
+      .eq('id', row.via_contact_id)
+      .eq('account_id', row.account_id)
+      .maybeSingle();
+    if (!via) continue;
+    const referrer: ShowcaseReferrer = {
+      contactId: via.id as string,
+      name: ((via.name as string) || '').trim() || 'An agent',
+      phone: (via.phone as string | null) ?? null,
+      isAgent: via.classification === 'Agent',
+    };
+    if (
+      await askReferrer(
+        admin,
+        row,
+        referrer,
+        await enquirySubject(admin, row),
+        true
+      )
+    ) {
+      reminded += 1;
+    }
+  }
+  return reminded;
+}
+
+/**
+ * Closes enquiries whose agent has not answered by their deadline
+ * (four daytime hours; two hours for enquiries opened before deadlines
+ * were stamped). Each guest is pointed back to the agent, exactly as on
+ * a decline. Nothing is sent during client quiet hours: the first sweep
+ * after they end closes the enquiry. Returns the number of enquiries
+ * closed.
  */
 export async function sweepReferredEnquiryTimeouts(
   admin: SupabaseClient
 ): Promise<number> {
-  const cutoff = new Date(
-    Date.now() - REFERRAL_CONSENT_TIMEOUT_MS
+  const now = new Date().toISOString();
+  const legacyCutoff = new Date(
+    Date.now() - LEGACY_REFERRAL_CONSENT_TIMEOUT_MS
   ).toISOString();
-  const { data } = await admin
-    .from('referred_enquiries')
-    .select('id, account_id, via_contact_id, requester_phone, session_key')
-    .eq('status', 'pending')
-    .lt('consent_requested_at', cutoff)
-    .order('consent_requested_at', { ascending: true })
-    .limit(50);
+  const [scheduled, legacy] = await Promise.all([
+    admin
+      .from('referred_enquiries')
+      .select('id, account_id, via_contact_id, requester_phone, session_key')
+      .eq('status', 'pending')
+      .lt('consent_deadline_at', now)
+      .order('consent_deadline_at', { ascending: true })
+      .limit(50),
+    admin
+      .from('referred_enquiries')
+      .select('id, account_id, via_contact_id, requester_phone, session_key')
+      .eq('status', 'pending')
+      .is('consent_deadline_at', null)
+      .lt('consent_requested_at', legacyCutoff)
+      .order('consent_requested_at', { ascending: true })
+      .limit(50),
+  ]);
 
+  const isQuietNow = quietNowChecker(admin);
   let closed = 0;
-  for (const row of (data ?? []) as Array<
+  for (const row of [
+    ...(scheduled.data ?? []),
+    ...(legacy.data ?? []),
+  ] as Array<
     Pick<
       ReferredEnquiryRow,
       'id' | 'account_id' | 'via_contact_id' | 'requester_phone' | 'session_key'
     >
   >) {
+    if (await isQuietNow(row.account_id)) continue;
     const rows = await claimGuestRows(admin, row, 'expired');
     if (rows.length === 0) continue;
     await closeGuestRows(admin, rows, 'expired');

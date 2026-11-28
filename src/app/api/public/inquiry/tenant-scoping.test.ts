@@ -217,6 +217,15 @@ describe('showcase shortlist enquiries', () => {
       expect(inserts.messages[0].content_text).toContain(id);
     }
   });
+
+  it('[INB-055] files the web form in the thread as a private note, never as a WhatsApp message from the lead', async () => {
+    expect((await post(batch)).status).toBe(200);
+    expect(inserts.messages[0]).toMatchObject({
+      sender_type: 'bot',
+      private: true,
+    });
+    expect(String(inserts.messages[0].message_id)).toMatch(/^web-inquiry-/);
+  });
   it.each([
     { account_id: 'other' },
     { is_published: false },

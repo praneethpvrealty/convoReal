@@ -116,6 +116,14 @@ describe('POST /api/public/requirements — cross-tenant user_id scoping', () =>
 
     expect(inserts.contacts?.[0].user_id).toBe('user-victim-agent');
   });
+
+  it('[INB-055] files the requirements form in the thread as a private note, never as a WhatsApp message from the lead', async () => {
+    await post({ accountId: VICTIM, phone: '9900277111' });
+    expect(inserts.messages?.[0]).toMatchObject({
+      sender_type: 'bot',
+      private: true,
+    });
+  });
 });
 
 describe('POST /api/public/requirements — budget magnitude inference', () => {

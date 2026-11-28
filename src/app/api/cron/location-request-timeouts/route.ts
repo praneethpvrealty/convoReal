@@ -5,7 +5,10 @@ import {
   sweepConsentReminders,
   sweepConsentTimeouts,
 } from '@/lib/inventory/location-requests';
-import { sweepReferredEnquiryTimeouts } from '@/lib/showcase/referred-enquiries';
+import {
+  sweepReferredEnquiryReminders,
+  sweepReferredEnquiryTimeouts,
+} from '@/lib/showcase/referred-enquiries';
 
 /**
  * Location-request consent sweep — a co-broker asked to consent to a
@@ -13,7 +16,9 @@ import { sweepReferredEnquiryTimeouts } from '@/lib/showcase/referred-enquiries'
  * the account's client quiet hours) and is reminded halfway; past that
  * the request moves to the listing side's queue marked as stalled.
  * An agent asked to approve a guest's enquiry (see
- * referred-enquiries.ts) has the same 2 hours, swept here too.
+ * referred-enquiries.ts) gets the same clock and reminder, swept here
+ * too; their timeout still closes the enquiry and points the guest
+ * back to them.
  * Registered in vercel.json every 15 minutes; idempotent
  * (expired rows leave the pending state, so reruns are no-ops).
  *
@@ -41,12 +46,24 @@ export async function GET(request: Request) {
   try {
     const reminded = await sweepConsentReminders(supabaseAdmin());
     const expired = await sweepConsentTimeouts(supabaseAdmin());
+    const referredReminded =
+      await sweepReferredEnquiryReminders(supabaseAdmin());
     const referredExpired = await sweepReferredEnquiryTimeouts(supabaseAdmin());
-    if (reminded > 0 || expired > 0 || referredExpired > 0)
+    if (
+      reminded > 0 ||
+      expired > 0 ||
+      referredReminded > 0 ||
+      referredExpired > 0
+    )
       console.log(
-        `[location-request-timeouts] reminded=${reminded} expired=${expired} referred=${referredExpired}`
+        `[location-request-timeouts] reminded=${reminded} expired=${expired} referredReminded=${referredReminded} referred=${referredExpired}`
       );
-    return NextResponse.json({ reminded, expired, referredExpired });
+    return NextResponse.json({
+      reminded,
+      expired,
+      referredReminded,
+      referredExpired,
+    });
   } catch (err) {
     console.error('[location-request-timeouts] sweep failed:', err);
     return NextResponse.json({ error: 'sweep failed' }, { status: 500 });

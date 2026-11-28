@@ -1030,6 +1030,24 @@
             "mobile/components/gallery-viewer.tsx",
             "mobile/components/message-bubble.tsx"
           ]
+        },
+        {
+          "id": "INB-055",
+          "rule": "A web form a lead fills in (the showcase inquiry, the requirements form, a document or location request) is filed in their thread as a private bot note, never as a message from the lead. Only a real inbound WhatsApp message opens Meta's 24-hour free-form window, and every send path that checks the window reads the lead's last customer message, so a form row counted as one made free-form sends look allowed and Meta then failed them with 131047. The rows the inquiry and requirements forms filed that way before are converted to private notes.",
+          "tests": [
+            {
+              "file": "src/app/api/public/inquiry/tenant-scoping.test.ts",
+              "case": "[INB-055]"
+            },
+            {
+              "file": "src/app/api/public/requirements/tenant-scoping.test.ts",
+              "case": "[INB-055]"
+            }
+          ],
+          "guards": [
+            "src/lib/showcase/file-inquiry.ts",
+            "src/app/api/public/requirements/route.ts"
+          ]
         }
       ]
     },
@@ -6002,7 +6020,7 @@
         },
         {
           "id": "PLS-010",
-          "rule": "An enquiry from a guest of a link shared with a contact classified as Agent, made on the showcase form or through its WhatsApp button, is held: the listing side is notified at once with the guest's name and number masked, no lead is filed and the guest stays out of the contacts list, and the agent is asked on WhatsApp to approve or decline. Approve files every waiting enquiry of that guest as a lead with the agent as referrer; Decline, or two hours without an answer, points the guest back to the agent and files nothing. The referrer is read from the session's recorded events, never from an id the browser sends, and a WhatsApp enquiry is tied to a guest's session only by the reference the showcase button writes into the message on a personalized link, so a direct buyer is never held; a declined WhatsApp guest stays hidden on later messages; an approval that could not be filed returns to waiting; only the agent the link was shared with can decide; a visitor who is already a lead is never held; a guest of a link forwarded by anyone else is filed straight away with that contact as referrer; and an agent who cannot be reached on WhatsApp holds nothing.",
+          "rule": "An enquiry from a guest of a link shared with a contact classified as Agent, made on the showcase form or through its WhatsApp button, is held: the listing side is notified at once with the guest's name and number masked, no lead is filed and the guest stays out of the contacts list, and the agent is asked on WhatsApp to approve or decline. Approve files every waiting enquiry of that guest as a lead with the agent as referrer; Decline, or no answer by the deadline PLS-012 sets, points the guest back to the agent and files nothing. The referrer is read from the session's recorded events, never from an id the browser sends, and a WhatsApp enquiry is tied to a guest's session only by the reference the showcase button writes into the message on a personalized link, so a direct buyer is never held; a declined WhatsApp guest stays hidden on later messages; an approval that could not be filed returns to waiting; only the agent the link was shared with can decide; a visitor who is already a lead is never held; a guest of a link forwarded by anyone else is filed straight away with that contact as referrer; and an agent who cannot be reached on WhatsApp holds nothing.",
           "tests": [
             {
               "file": "src/lib/showcase/referred-enquiries.test.ts",
@@ -6023,6 +6041,20 @@
           ],
           "guards": [
             "supabase/migrations/20261117043000_referred_enquiries.sql"
+          ]
+        },
+        {
+          "id": "PLS-012",
+          "rule": "An agent asked to approve a guest enquiry has four daytime hours to answer: the clock stops during the account's client quiet hours, and the enquiry stamps consent_remind_at and consent_deadline_at, which a later enquiry from the same guest shares. The 15-minute sweep reminds the agent once, halfway through, with the same Approve and Decline buttons and the guest still masked; a guest's waiting enquiries share that one reminder. Neither the reminder nor the closing messages go out during client quiet hours: the first sweep after they end sends them. Enquiries opened before deadlines were stamped close after two hours. A timeout still closes the enquiry and points the guest back to the agent, because that guest is the agent's client and is never handed to the listing side without the agent's consent.",
+          "tests": [
+            {
+              "file": "src/lib/showcase/referred-enquiries.test.ts",
+              "case": "[PLS-012]"
+            }
+          ],
+          "guards": [
+            "src/lib/showcase/referred-enquiries.ts",
+            "src/app/api/cron/location-request-timeouts/route.ts"
           ]
         }
       ]

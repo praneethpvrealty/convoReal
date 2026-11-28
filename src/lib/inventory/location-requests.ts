@@ -581,7 +581,7 @@ async function clientQuietPeriod(admin: SupabaseClient, accountId: string) {
   return quietPeriodFromAccount(data, 'client');
 }
 
-async function consentScheduleFor(
+export async function consentScheduleFor(
   admin: SupabaseClient,
   accountId: string,
   askedAt: Date
@@ -592,7 +592,7 @@ async function consentScheduleFor(
 /** Per-sweep memo: is it client quiet hours for this account now?
  *  A sweep leaves a due row alone while it is, and the first sweep
  *  after quiet hours end handles it. */
-function quietNowChecker(admin: SupabaseClient) {
+export function quietNowChecker(admin: SupabaseClient) {
   const memo = new Map<string, Promise<boolean>>();
   const now = new Date();
   return (accountId: string) => {
