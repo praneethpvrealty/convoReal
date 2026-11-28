@@ -27,6 +27,15 @@ than a written entry. Newest first.
   with its code instead of running on inside the task title, and the line
   under the date says how many tasks are high priority.
 
+#### 28 November 2026
+
+- **Contacts counts no longer slow down as the contact list grows.** The
+  database rule that decides which contacts a member may read checked their
+  membership once for every contact; it now checks once per query. Counting
+  one account's 864 contacts went from about 35 ms to under 2 ms, and every
+  member sees exactly the contacts they saw before (ACC-013).
+  **Migration required:** `20261128043424_contacts_select_member_initplan.sql`.
+
 #### 27 November 2026
 
 - **Do not contact.** Mark a contact Do not contact from the contact form on
