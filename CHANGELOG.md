@@ -40,7 +40,7 @@ than a written entry. Newest first.
   platform-admin, Portfolio owner and Portfolio buyer routes still ask
   Supabase Auth on every request. Requires asymmetric JWT signing keys on the
   Supabase project; a project still on the legacy shared secret keeps the old
-  behaviour automatically (ACC-011).
+  behaviour automatically (ACC-012).
 
 #### 27 November 2026
 

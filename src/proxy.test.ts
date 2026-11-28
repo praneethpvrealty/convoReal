@@ -259,7 +259,7 @@ describe('proxy — skips the auth round-trip when no session cookie is present'
     expect(location.searchParams.has('reason')).toBe(false);
   });
 
-  it('[ACC-011] verifies a cookie session locally, without a GoTrue getUser call', async () => {
+  it('[ACC-012] verifies a cookie session locally, without a GoTrue getUser call', async () => {
     mockUser = { id: 'user-1' };
     const res = await proxy(signedInReq('/dashboard'));
     expect(res.headers.get('location')).toBeNull();

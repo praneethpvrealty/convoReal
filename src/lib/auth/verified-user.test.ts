@@ -7,7 +7,7 @@ const getUserNever = () =>
   });
 
 describe('resolveVerifiedUser', () => {
-  it('[ACC-011] takes the user id from locally verified claims without asking GoTrue', async () => {
+  it('[ACC-012] takes the user id from locally verified claims without asking GoTrue', async () => {
     const getUser = getUserNever();
     const result = await resolveVerifiedUser({
       getClaims: async () => ({
@@ -20,7 +20,7 @@ describe('resolveVerifiedUser', () => {
     expect(getUser).not.toHaveBeenCalled();
   });
 
-  it('[ACC-011] treats a token that fails verification as signed out, without a GoTrue fallback', async () => {
+  it('[ACC-012] treats a token that fails verification as signed out, without a GoTrue fallback', async () => {
     const getUser = getUserNever();
     const invalid = Object.assign(new Error('Invalid JWT signature'), {
       code: 'invalid_jwt',
@@ -34,7 +34,7 @@ describe('resolveVerifiedUser', () => {
     expect(getUser).not.toHaveBeenCalled();
   });
 
-  it('[ACC-011] treats a missing session and a token with no subject as signed out', async () => {
+  it('[ACC-012] treats a missing session and a token with no subject as signed out', async () => {
     const getUser = getUserNever();
     expect(
       await resolveVerifiedUser({
@@ -54,7 +54,7 @@ describe('resolveVerifiedUser', () => {
     expect(getUser).not.toHaveBeenCalled();
   });
 
-  it('[ACC-011] asks GoTrue when local verification cannot run', async () => {
+  it('[ACC-012] asks GoTrue when local verification cannot run', async () => {
     const getUser = vi.fn(async () => ({
       data: { user: { id: 'user-2' } },
       error: null,
@@ -69,7 +69,7 @@ describe('resolveVerifiedUser', () => {
     expect(getUser).toHaveBeenCalledTimes(1);
   });
 
-  it('[ACC-011] reports signed out when GoTrue refuses the fallback', async () => {
+  it('[ACC-012] reports signed out when GoTrue refuses the fallback', async () => {
     const refused = new Error('no session');
     const result = await resolveVerifiedUser({
       getClaims: async () => {

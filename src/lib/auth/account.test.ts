@@ -83,13 +83,13 @@ beforeEach(async () => {
 });
 
 describe('getCurrentAccount — archived account block', () => {
-  it('[ACC-011] resolves the caller from verified claims without a GoTrue getUser call', async () => {
+  it('[ACC-012] resolves the caller from verified claims without a GoTrue getUser call', async () => {
     const ctx = await getCurrentAccount();
     expect(ctx.userId).toBe('user-1');
     expect(h.state.getUserCalls).toBe(0);
   });
 
-  it('[ACC-011] rejects a caller whose token does not verify', async () => {
+  it('[ACC-012] rejects a caller whose token does not verify', async () => {
     h.state.user = null;
     await expect(getCurrentAccount()).rejects.toBeInstanceOf(UnauthorizedError);
     expect(h.state.getUserCalls).toBe(0);

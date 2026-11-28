@@ -72,7 +72,7 @@ describe('createClient bearer transport', () => {
     expect(h.getUser).toHaveBeenCalledWith(FAKE_JWT);
   });
 
-  it('[ACC-011] verifies the bearer JWT, not a cookie session, when claims are read with no args', async () => {
+  it('[ACC-012] verifies the bearer JWT, not a cookie session, when claims are read with no args', async () => {
     h.state.authorization = `Bearer ${FAKE_JWT}`;
 
     const client = await createClient();
