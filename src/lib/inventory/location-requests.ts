@@ -20,9 +20,14 @@
 // request walks contact → parent → … until the hop whose parent
 // is the listing side, then lands in the owner's queue.
 //
-// Rejection, owner rejection, or a 2-hour consent timeout all end
-// the same way: the seeker is politely redirected to the person
-// who shared them the property.
+// Rejection and owner rejection end the same way: the seeker is
+// politely redirected to the person who shared them the property.
+// An intermediary who does not answer is reminded halfway through
+// their window (four daytime hours; the clock stops during the
+// account's client quiet hours). When the window closes the request
+// is not dropped: it lands in the listing side's queue marked as
+// stalled, where the listing side can decide or ask again, and a late
+// tap from the intermediary still counts.
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -58,15 +63,30 @@ import {
   teaserTitle,
 } from '@/lib/inventory/showcase-visibility';
 import { createNotification } from '@/lib/notifications/create';
+import {
+  ACCOUNT_QUIET_HOURS_COLUMNS,
+  quietPeriodFromAccount,
+} from '@/lib/notifications/quiet-hours';
+import {
+  consentSchedule,
+  LEGACY_CONSENT_TIMEOUT_MS,
+} from '@/lib/inventory/consent-clock';
 import { resolveChannels } from '@/lib/notifications/preferences';
 import type { MessageTemplate, Property } from '@/types';
 import { buildRevealTemplateFacts } from '@/lib/share-message-builder';
 
-export const CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 export const REVEAL_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
 
 export const CONSENT_APPROVE_PREFIX = 'locreq_approve:';
 export const CONSENT_DECLINE_PREFIX = 'locreq_decline:';
+
+const CLEARED_CONSENT_ASK = {
+  pending_consent_contact_id: null,
+  consent_requested_at: null,
+  consent_remind_at: null,
+  consent_reminded_at: null,
+  consent_deadline_at: null,
+};
 
 export const OWNER_APPROVE_PREFIX = 'locreq_owner_approve:';
 export const OWNER_REJECT_PREFIX = 'locreq_owner_reject:';
@@ -83,6 +103,9 @@ export interface LocationRequestRow {
   consent_chain: Array<{ contact_id: string; decision: string; at: string }>;
   pending_consent_contact_id: string | null;
   consent_requested_at: string | null;
+  consent_remind_at?: string | null;
+  consent_reminded_at?: string | null;
+  consent_deadline_at?: string | null;
   share_token: string | null;
   contact_id?: string | null;
   /** What was asked for (migration 254). 'location' is every request
@@ -409,19 +432,30 @@ async function sendRevealToSeeker(
   return res.success;
 }
 
-/**
- * Asks the given intermediary contact for consent with interactive
- * Approve / Decline buttons, stamping the pending-hop fields. Returns
- * false when the contact has no reachable phone (callers fall back to
- * the owner queue rather than stranding the request).
- */
-export async function requestConsentFromContact(
+type ConsentAskRequest = Pick<
+  LocationRequestRow,
+  'id' | 'account_id' | 'property_id' | 'requester_name' | 'requester_phone'
+>;
+
+/** Prefixed to a consent ask the intermediary has not answered yet. */
+export function buildConsentReminderMessage(consentText: string): string {
+  return `⏰ *Reminder* — this request is still waiting for your reply.\n\n${consentText}`;
+}
+
+/** Sent to an intermediary whose window closed without an answer. */
+export function buildConsentStalledNotice(propertyTitle: string): string {
+  return (
+    `⌛ We did not hear back in time, so the location request for *${propertyTitle}* ` +
+    `has been passed to the listing side to decide. The requester's details remain private. ` +
+    `You can still tap Approve or Decline on the earlier message.`
+  );
+}
+
+async function sendConsentAsk(
   admin: SupabaseClient,
-  request: Pick<
-    LocationRequestRow,
-    'id' | 'account_id' | 'property_id' | 'requester_name' | 'requester_phone'
-  >,
-  contactId: string
+  request: ConsentAskRequest,
+  contactId: string,
+  reminder: boolean
 ): Promise<boolean> {
   const { data: contact } = await admin
     .from('contacts')
@@ -441,12 +475,13 @@ export async function requestConsentFromContact(
     request.property_id
   );
 
-  const consentText = buildConsentMessage({
+  const askText = buildConsentMessage({
     coBrokerName: contact.name || 'there',
     propertyTitle: title,
     requesterName: request.requester_name,
     requesterPhone: request.requester_phone,
   });
+  const consentText = reminder ? buildConsentReminderMessage(askText) : askText;
 
   try {
     const interactive = await sendWhatsAppMessageAndPersist({
@@ -462,81 +497,118 @@ export async function requestConsentFromContact(
       ],
       allowChainOnly: true,
     });
-    if (!interactive.success) {
-      if (!isReengagementError(interactive.error)) {
-        console.error(
-          '[location-requests] Consent send failed:',
-          interactive.error
-        );
-        return false;
-      }
-
-      const { template, language, fellBack } =
-        await loadTemplateForContact<MessageTemplate>(admin, {
-          accountId: request.account_id,
-          contactId: contact.id,
-          names: [LOCATION_CONSENT_TEMPLATE_NAME],
-        });
-      if (fellBack) {
-        warnLanguageFallback(
-          'location-consent',
-          request.account_id,
-          language,
-          template
-        );
-      }
-      if (!template || (template.status ?? '').toUpperCase() !== 'APPROVED') {
-        console.error(
-          '[location-requests] Consent undeliverable: window closed and no approved location_consent_request template'
-        );
-        return false;
-      }
-
-      const params = truncateParametersToBudget(
-        template.body_text,
-        buildLocationConsentParams(
-          contact.name,
-          title,
-          `${maskName(request.requester_name)} (${maskPhone(request.requester_phone)})`
-        )
+    if (interactive.success) return true;
+    if (!isReengagementError(interactive.error)) {
+      console.error(
+        '[location-requests] Consent send failed:',
+        interactive.error
       );
-      const templateSend = await sendWhatsAppMessageAndPersist({
+      return false;
+    }
+
+    const { template, language, fellBack } =
+      await loadTemplateForContact<MessageTemplate>(admin, {
         accountId: request.account_id,
         contactId: contact.id,
-        kind: 'template',
-        senderType: 'bot',
-        templateName: template.name,
-        templateLanguage: template.language || 'en_US',
-        templateParams: params,
-        messageParams: {
-          body: params,
-          buttonParams: {
-            0: `${CONSENT_APPROVE_PREFIX}${request.id}`,
-            1: `${CONSENT_DECLINE_PREFIX}${request.id}`,
-          },
-        },
-        templateRow: template,
-        text: resolveTemplateBodyText(template.body_text, params),
-        allowChainOnly: true,
+        names: [LOCATION_CONSENT_TEMPLATE_NAME],
       });
-      if (!templateSend.success) {
-        console.error(
-          '[location-requests] Consent template send failed:',
-          templateSend.error
-        );
-        return false;
-      }
+    if (fellBack) {
+      warnLanguageFallback(
+        'location-consent',
+        request.account_id,
+        language,
+        template
+      );
     }
+    if (!template || (template.status ?? '').toUpperCase() !== 'APPROVED') {
+      console.error(
+        '[location-requests] Consent undeliverable: window closed and no approved location_consent_request template'
+      );
+      return false;
+    }
+
+    const params = truncateParametersToBudget(
+      template.body_text,
+      buildLocationConsentParams(
+        contact.name,
+        title,
+        `${maskName(request.requester_name)} (${maskPhone(request.requester_phone)})`
+      )
+    );
+    const templateSend = await sendWhatsAppMessageAndPersist({
+      accountId: request.account_id,
+      contactId: contact.id,
+      kind: 'template',
+      senderType: 'bot',
+      templateName: template.name,
+      templateLanguage: template.language || 'en_US',
+      templateParams: params,
+      messageParams: {
+        body: params,
+        buttonParams: {
+          0: `${CONSENT_APPROVE_PREFIX}${request.id}`,
+          1: `${CONSENT_DECLINE_PREFIX}${request.id}`,
+        },
+      },
+      templateRow: template,
+      text: resolveTemplateBodyText(template.body_text, params),
+      allowChainOnly: true,
+    });
+    if (!templateSend.success) {
+      console.error(
+        '[location-requests] Consent template send failed:',
+        templateSend.error
+      );
+      return false;
+    }
+    return true;
   } catch (err) {
     console.error('[location-requests] Consent send failed:', err);
     return false;
   }
+}
 
+async function consentScheduleFor(
+  admin: SupabaseClient,
+  accountId: string,
+  askedAt: Date
+) {
+  const { data } = await admin
+    .from('accounts')
+    .select(ACCOUNT_QUIET_HOURS_COLUMNS)
+    .eq('id', accountId)
+    .maybeSingle();
+  return consentSchedule(askedAt, quietPeriodFromAccount(data, 'client'));
+}
+
+/**
+ * Asks the given intermediary contact for consent with interactive
+ * Approve / Decline buttons, stamping the pending-hop fields and the
+ * reminder and deadline times. Returns false when the contact has no
+ * reachable phone (callers fall back to the owner queue rather than
+ * stranding the request).
+ */
+export async function requestConsentFromContact(
+  admin: SupabaseClient,
+  request: ConsentAskRequest,
+  contactId: string
+): Promise<boolean> {
+  if (!(await sendConsentAsk(admin, request, contactId, false))) return false;
+
+  const askedAt = new Date();
+  const { remindAt, deadlineAt } = await consentScheduleFor(
+    admin,
+    request.account_id,
+    askedAt
+  );
   await admin
     .from('property_location_requests')
     .update({
       pending_consent_contact_id: contactId,
-      consent_requested_at: new Date().toISOString(),
+      consent_requested_at: askedAt.toISOString(),
+      consent_remind_at: remindAt.toISOString(),
+      consent_reminded_at: null,
+      consent_deadline_at: deadlineAt.toISOString(),
     })
     .eq('id', request.id);
 
@@ -636,7 +708,11 @@ export async function notifyOwnerQueue(
     | 'requester_phone'
     | 'via_contact_id'
     | 'scope'
-  >
+  >,
+  opts: {
+    stalledContactName?: string | null;
+    lateConsentName?: string | null;
+  } = {}
 ): Promise<void> {
   const { data: property } = await admin
     .from('properties')
@@ -661,9 +737,18 @@ export async function notifyOwnerQueue(
     : `From: ${request.requester_name} · ${request.requester_phone}`;
   const propertyLine = `${property.title}${property.property_code ? ` (${property.property_code})` : ''}`;
   const listingScope = request.scope === 'listing';
-  const headline = listingScope
-    ? '🔓 Listing access request'
-    : '📍 Location reveal request';
+  const stalledLine = opts.stalledContactName
+    ? `${opts.stalledContactName} did not answer the consent ask in time — the decision is yours, or ask them again from the dashboard.`
+    : opts.lateConsentName
+      ? `${opts.lateConsentName} has now consented, after their window closed.`
+      : null;
+  const headline = opts.stalledContactName
+    ? `⏳ ${opts.stalledContactName} didn't reply — your call`
+    : opts.lateConsentName
+      ? `✅ ${opts.lateConsentName} consented — your call`
+      : listingScope
+        ? '🔓 Listing access request'
+        : '📍 Location reveal request';
 
   const channels = await resolveChannels(
     request.account_id,
@@ -675,7 +760,9 @@ export async function notifyOwnerQueue(
     userId: targetUserId,
     type: 'location_request',
     title: headline,
-    body: `${propertyLine} — ${fromLine}`,
+    body: stalledLine
+      ? `${propertyLine} — ${fromLine}. ${stalledLine}`
+      : `${propertyLine} — ${fromLine}`,
     entityType: 'property',
     entityId: property.id,
     link: `/inventory?propertyId=${property.property_code || property.id}`,
@@ -696,6 +783,7 @@ export async function notifyOwnerQueue(
       `${listingScope ? '🔓 *New Listing Access Request*' : '📍 *New Location Reveal Request*'}\n` +
       `Property: ${propertyLine}\n` +
       `${fromLine}\n\n` +
+      (stalledLine ? `${stalledLine}\n\n` : '') +
       (listingScope
         ? `Approve to open the full listing page for this requester on WhatsApp — their link expires in 7 days, ` +
           `is revocable, and every photo they see is watermarked to them. Reject to redirect them `
@@ -1013,8 +1101,7 @@ export async function approveRequestAndSendReveal(
       granted_share_id: grant?.id ?? null,
       approved_by: approvedByUserId,
       approved_at: new Date().toISOString(),
-      pending_consent_contact_id: null,
-      consent_requested_at: null,
+      ...CLEARED_CONSENT_ASK,
     })
     .eq('id', request.id);
 
@@ -1074,8 +1161,7 @@ export async function closeRequestWithRedirect(
     .from('property_location_requests')
     .update({
       status,
-      pending_consent_contact_id: null,
-      consent_requested_at: null,
+      ...CLEARED_CONSENT_ASK,
     })
     .eq('id', request.id);
 
@@ -1112,16 +1198,22 @@ export async function handleLocationConsentReply(args: {
     .eq('account_id', args.accountId)
     .maybeSingle();
   const request = data as LocationRequestRow | null;
-  if (!request) return true;
-  if (request.status !== 'pending' || !request.pending_consent_contact_id)
-    return true;
+  if (!request || request.status !== 'pending') return true;
+  // A request whose ask timed out waits in the listing side's queue;
+  // the intermediary who missed the window may still answer it late.
+  const lateContactId = request.pending_consent_contact_id
+    ? null
+    : stalledConsentContactId(request);
+  const answeringContactId =
+    request.pending_consent_contact_id ?? lateContactId;
+  if (!answeringContactId) return true;
 
   // Only the intermediary the ask was sent to may answer it — a
   // forwarded consent message tapped by someone else is not consent.
   const { data: pendingContact } = await args.admin
     .from('contacts')
     .select('id, phone')
-    .eq('id', request.pending_consent_contact_id)
+    .eq('id', answeringContactId)
     .eq('account_id', args.accountId)
     .maybeSingle();
   if (
@@ -1135,7 +1227,7 @@ export async function handleLocationConsentReply(args: {
     ? request.consent_chain
     : [];
   const hop = {
-    contact_id: request.pending_consent_contact_id,
+    contact_id: answeringContactId,
     decision: parsed.decision === 'approve' ? 'approved' : 'declined',
     at: new Date().toISOString(),
   };
@@ -1146,7 +1238,36 @@ export async function handleLocationConsentReply(args: {
       .update({ consent_chain: [...chain, hop] })
       .eq('id', request.id);
     await closeRequestWithRedirect(args.admin, request, 'rejected');
-    await ackConsentContact(args.admin, request, 'declined');
+    await ackConsentContact(
+      args.admin,
+      request,
+      answeringContactId,
+      'declined'
+    );
+    return true;
+  }
+
+  if (lateContactId) {
+    await args.admin
+      .from('property_location_requests')
+      .update({ consent_chain: [...chain, hop] })
+      .eq('id', request.id);
+    const { data: lateContact } = await args.admin
+      .from('contacts')
+      .select('name')
+      .eq('id', lateContactId)
+      .eq('account_id', args.accountId)
+      .maybeSingle();
+    await notifyOwnerQueue(args.admin, request, {
+      lateConsentName: lateContact?.name || 'The co-broker',
+    });
+    await ackConsentContact(
+      args.admin,
+      request,
+      lateContactId,
+      'approved',
+      'owner'
+    );
     return true;
   }
 
@@ -1157,7 +1278,7 @@ export async function handleLocationConsentReply(args: {
   const nextIntermediary = await resolveNextIntermediary(
     args.admin,
     request,
-    request.pending_consent_contact_id,
+    answeringContactId,
     nextChain
   );
 
@@ -1165,8 +1286,7 @@ export async function handleLocationConsentReply(args: {
     .from('property_location_requests')
     .update({
       consent_chain: nextChain,
-      pending_consent_contact_id: null,
-      consent_requested_at: null,
+      ...CLEARED_CONSENT_ASK,
     })
     .eq('id', request.id);
 
@@ -1177,7 +1297,13 @@ export async function handleLocationConsentReply(args: {
       nextIntermediary
     );
     if (asked) {
-      await ackConsentContact(args.admin, request, 'approved', 'intermediary');
+      await ackConsentContact(
+        args.admin,
+        request,
+        answeringContactId,
+        'approved',
+        'intermediary'
+      );
       return true;
     }
     // Unreachable next hop: fail open to the owner queue rather than
@@ -1185,7 +1311,13 @@ export async function handleLocationConsentReply(args: {
   }
 
   await notifyOwnerQueue(args.admin, request);
-  await ackConsentContact(args.admin, request, 'approved', 'owner');
+  await ackConsentContact(
+    args.admin,
+    request,
+    answeringContactId,
+    'approved',
+    'owner'
+  );
   return true;
 }
 
@@ -1205,7 +1337,8 @@ export async function resolveNextIntermediary(
   contactId: string,
   consentChain: Array<{ contact_id: string }>
 ): Promise<string | null> {
-  if (consentChain.length >= MAX_CONSENT_HOPS) return null;
+  if (new Set(consentChain.map((h) => h.contact_id)).size >= MAX_CONSENT_HOPS)
+    return null;
 
   const { data: reshare } = await admin
     .from('property_reshare_links')
@@ -1231,10 +1364,10 @@ export async function resolveNextIntermediary(
 async function ackConsentContact(
   admin: SupabaseClient,
   request: LocationRequestRow,
+  contactId: string,
   decision: 'approved' | 'declined',
   forwardedTo: 'owner' | 'intermediary' = 'owner'
 ): Promise<void> {
-  if (!request.pending_consent_contact_id) return;
   const title = await propertyTitle(
     admin,
     request.account_id,
@@ -1249,7 +1382,7 @@ async function ackConsentContact(
   try {
     await sendWhatsAppMessageAndPersist({
       accountId: request.account_id,
-      contactId: request.pending_consent_contact_id,
+      contactId,
       kind: 'text',
       senderType: 'bot',
       text,
@@ -1261,54 +1394,173 @@ async function ackConsentContact(
 }
 
 /**
- * Expires consent asks older than 2 hours. Each expired request ends
- * with the seeker redirect. Returns the number of requests expired.
+ * The intermediary whose consent ask timed out, when that timeout is
+ * what left the request in the listing side's queue: the request is
+ * pending, no ask is open, and the last hop is a timeout.
+ */
+export function stalledConsentContactId(
+  row: Pick<
+    LocationRequestRow,
+    'status' | 'pending_consent_contact_id' | 'consent_chain'
+  >
+): string | null {
+  if (row.status !== 'pending' || row.pending_consent_contact_id) return null;
+  const chain = Array.isArray(row.consent_chain) ? row.consent_chain : [];
+  const last = chain[chain.length - 1];
+  return last?.decision === 'timed_out' ? last.contact_id : null;
+}
+
+const SWEEP_COLUMNS =
+  'id, account_id, property_id, requester_name, requester_phone, status, via_contact_id, scope, consent_chain, pending_consent_contact_id, consent_requested_at, consent_remind_at, consent_reminded_at, consent_deadline_at';
+
+/**
+ * Reminds intermediaries halfway through their consent window. Each
+ * ask is reminded at most once: the reminder is claimed before it is
+ * sent, so overlapping sweeps cannot both send it.
+ */
+export async function sweepConsentReminders(
+  admin: SupabaseClient
+): Promise<number> {
+  const now = new Date().toISOString();
+  const { data } = await admin
+    .from('property_location_requests')
+    .select(SWEEP_COLUMNS)
+    .eq('status', 'pending')
+    .not('pending_consent_contact_id', 'is', null)
+    .is('consent_reminded_at', null)
+    .lt('consent_remind_at', now)
+    .limit(50);
+
+  let reminded = 0;
+  for (const row of (data || []) as LocationRequestRow[]) {
+    if (row.consent_deadline_at && row.consent_deadline_at <= now) continue;
+    const { data: claimed } = await admin
+      .from('property_location_requests')
+      .update({ consent_reminded_at: now })
+      .eq('id', row.id)
+      .eq('status', 'pending')
+      .eq('pending_consent_contact_id', row.pending_consent_contact_id!)
+      .is('consent_reminded_at', null)
+      .select('id');
+    if (!claimed || claimed.length === 0) continue;
+    if (
+      await sendConsentAsk(admin, row, row.pending_consent_contact_id!, true)
+    ) {
+      reminded += 1;
+    }
+  }
+  return reminded;
+}
+
+async function loadExpiredConsentAsks(
+  admin: SupabaseClient
+): Promise<LocationRequestRow[]> {
+  const now = new Date().toISOString();
+  const legacyCutoff = new Date(
+    Date.now() - LEGACY_CONSENT_TIMEOUT_MS
+  ).toISOString();
+  const [scheduled, legacy] = await Promise.all([
+    admin
+      .from('property_location_requests')
+      .select(SWEEP_COLUMNS)
+      .eq('status', 'pending')
+      .not('pending_consent_contact_id', 'is', null)
+      .lt('consent_deadline_at', now)
+      .limit(50),
+    admin
+      .from('property_location_requests')
+      .select(SWEEP_COLUMNS)
+      .eq('status', 'pending')
+      .not('pending_consent_contact_id', 'is', null)
+      .is('consent_deadline_at', null)
+      .lt('consent_requested_at', legacyCutoff)
+      .limit(50),
+  ]);
+  return [
+    ...((scheduled.data || []) as LocationRequestRow[]),
+    ...((legacy.data || []) as LocationRequestRow[]),
+  ];
+}
+
+/**
+ * Closes consent asks whose window has run out. The request is not
+ * dropped: the timeout is recorded as a hop, the request lands in the
+ * listing side's queue marked as stalled (in-app, push and WhatsApp,
+ * per their notification settings), and the intermediary is told it
+ * moved on. Returns the number of asks closed.
  */
 export async function sweepConsentTimeouts(
   admin: SupabaseClient
 ): Promise<number> {
-  const cutoff = new Date(Date.now() - CONSENT_TIMEOUT_MS).toISOString();
-  const { data } = await admin
-    .from('property_location_requests')
-    .select(
-      'id, account_id, property_id, requester_phone, consent_chain, pending_consent_contact_id'
-    )
-    .eq('status', 'pending')
-    .not('pending_consent_contact_id', 'is', null)
-    .lt('consent_requested_at', cutoff)
-    .limit(50);
+  const rows = await loadExpiredConsentAsks(admin);
 
-  const rows = (data || []) as Array<
-    Pick<
-      LocationRequestRow,
-      | 'id'
-      | 'account_id'
-      | 'property_id'
-      | 'requester_phone'
-      | 'consent_chain'
-      | 'pending_consent_contact_id'
-    >
-  >;
-
+  let stalled = 0;
   for (const row of rows) {
+    const contactId = row.pending_consent_contact_id!;
     const chain = Array.isArray(row.consent_chain) ? row.consent_chain : [];
-    await admin
+    const { data: claimed } = await admin
       .from('property_location_requests')
       .update({
         consent_chain: [
           ...chain,
           {
-            contact_id: row.pending_consent_contact_id,
+            contact_id: contactId,
             decision: 'timed_out',
             at: new Date().toISOString(),
           },
         ],
+        ...CLEARED_CONSENT_ASK,
       })
-      .eq('id', row.id);
-    await closeRequestWithRedirect(admin, row, 'expired');
+      .eq('id', row.id)
+      .eq('status', 'pending')
+      .eq('pending_consent_contact_id', contactId)
+      .select('id');
+    if (!claimed || claimed.length === 0) continue;
+    stalled += 1;
+
+    const { data: contact } = await admin
+      .from('contacts')
+      .select('name')
+      .eq('id', contactId)
+      .eq('account_id', row.account_id)
+      .maybeSingle();
+    await notifyOwnerQueue(admin, row, {
+      stalledContactName: contact?.name || 'The co-broker',
+    });
+
+    const title = await propertyTitle(admin, row.account_id, row.property_id);
+    try {
+      await sendWhatsAppMessageAndPersist({
+        accountId: row.account_id,
+        contactId,
+        kind: 'text',
+        senderType: 'bot',
+        text: buildConsentStalledNotice(title),
+        allowChainOnly: true,
+      });
+    } catch (err) {
+      console.error('[location-requests] Stalled notice failed:', err);
+    }
   }
 
-  return rows.length;
+  return stalled;
+}
+
+/**
+ * Asks the intermediary whose consent timed out once more, on the
+ * listing side's request. Returns 'not_stalled' when the request is not
+ * waiting on a timed-out ask, and 'unreachable' when the ask could not
+ * be delivered.
+ */
+export async function reaskStalledConsent(
+  admin: SupabaseClient,
+  request: LocationRequestRow
+): Promise<'asked' | 'unreachable' | 'not_stalled'> {
+  const contactId = stalledConsentContactId(request);
+  if (!contactId) return 'not_stalled';
+  return (await requestConsentFromContact(admin, request, contactId))
+    ? 'asked'
+    : 'unreachable';
 }
 
 // ── Re-share links ──────────────────────────────────────────────

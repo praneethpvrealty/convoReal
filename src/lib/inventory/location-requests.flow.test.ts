@@ -58,6 +58,8 @@ import {
   approveRequestAndSendReveal,
   closeRequestWithRedirect,
   sweepConsentTimeouts,
+  sweepConsentReminders,
+  reaskStalledConsent,
   resolveNextIntermediary,
   fileChatLocationRequest,
   CONSENT_APPROVE_PREFIX,
@@ -99,6 +101,12 @@ class FakeQuery {
     this.filters.push((r) => r[col] === val);
     return this;
   }
+  is(col: string, val: unknown) {
+    if (val === null) {
+      this.filters.push((r) => r[col] === null || r[col] === undefined);
+    }
+    return this;
+  }
   not(col: string, op: string, val: unknown) {
     if (op === 'is' && val === null) {
       this.filters.push((r) => r[col] !== null && r[col] !== undefined);
@@ -133,8 +141,9 @@ class FakeQuery {
 
   private run(): { data: Row[] | null; error: null } {
     if (this.op === 'update') {
-      for (const row of this.matching()) Object.assign(row, this.patch);
-      return { data: null, error: null };
+      const matched = this.matching();
+      for (const row of matched) Object.assign(row, this.patch);
+      return { data: structuredClone(matched), error: null };
     }
     if (this.op === 'insert') {
       const withIds = (this.inserted || []).map((r) => ({
@@ -469,29 +478,172 @@ describe('multi-hop consent flow, end to end', () => {
     expect(redirect?.text).toContain('informed decision');
   });
 
-  it('the 2-hour sweep expires stale consent asks with the same redirect', async () => {
+  it('[PRP-067] stamps a reminder and a deadline that skip the night when a co-broker is asked', async () => {
+    const tables = freshTables();
+    const admin = fakeAdmin(tables);
+    const request = seedRequest(tables);
+
+    await requestConsentFromContact(admin, request, C);
+
+    const row = tables.property_location_requests[0];
+    const asked = Date.parse(row.consent_requested_at as string);
+    const remind = Date.parse(row.consent_remind_at as string);
+    const deadline = Date.parse(row.consent_deadline_at as string);
+    expect(remind - asked).toBeGreaterThanOrEqual(2 * 3600_000);
+    expect(deadline - asked).toBeGreaterThanOrEqual(4 * 3600_000);
+    expect(deadline).toBeGreaterThan(remind);
+    expect(row.consent_reminded_at).toBeNull();
+  });
+
+  it('[PRP-067] reminds the co-broker once, halfway through the window', async () => {
     const tables = freshTables();
     const admin = fakeAdmin(tables);
     seedRequest(tables, {
       pending_consent_contact_id: C,
-      consent_requested_at: new Date(
-        Date.now() - 3 * 60 * 60 * 1000
-      ).toISOString(),
+      consent_requested_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+      consent_remind_at: new Date(Date.now() - 60_000).toISOString(),
+      consent_reminded_at: null,
+      consent_deadline_at: new Date(Date.now() + 3600_000).toISOString(),
+    });
+
+    expect(await sweepConsentReminders(admin)).toBe(1);
+    const reminder = sent.at(-1)!;
+    expect(reminder.contactId).toBe(C);
+    expect(reminder.interactiveBody).toContain('Reminder');
+    expect(reminder.interactiveBody).not.toContain('Rahul Sharma');
+    expect(reminder.interactiveButtons?.map((b) => b.id)).toEqual([
+      `${CONSENT_APPROVE_PREFIX}req-1`,
+      `${CONSENT_DECLINE_PREFIX}req-1`,
+    ]);
+    expect(await sweepConsentReminders(admin)).toBe(0);
+    expect(tables.property_location_requests[0].status).toBe('pending');
+  });
+
+  it('[PRP-068] hands a timed-out ask to the listing side instead of dropping it', async () => {
+    const tables = freshTables();
+    const admin = fakeAdmin(tables);
+    seedRequest(tables, {
+      pending_consent_contact_id: C,
+      consent_requested_at: new Date(Date.now() - 5 * 3600_000).toISOString(),
+      consent_deadline_at: new Date(Date.now() - 60_000).toISOString(),
+    });
+    seedRequest(tables, {
+      id: 'req-legacy',
+      pending_consent_contact_id: C,
+      consent_requested_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
     });
     seedRequest(tables, {
       id: 'req-fresh',
       pending_consent_contact_id: C,
       consent_requested_at: new Date().toISOString(),
+      consent_deadline_at: new Date(Date.now() + 3600_000).toISOString(),
     });
 
-    const expired = await sweepConsentTimeouts(admin);
-    expect(expired).toBe(1);
-    expect(tables.property_location_requests[0].status).toBe('expired');
-    expect(tables.property_location_requests[1].status).toBe('pending');
-    const redirect = sent.find((m) => m.toPhone === '+919876543210');
-    expect(redirect?.text).toContain(
-      'speak with the person who shared you the property details'
+    expect(await sweepConsentTimeouts(admin)).toBe(2);
+    const [stalled, legacy, fresh] = tables.property_location_requests;
+    for (const row of [stalled, legacy]) {
+      expect(row.status).toBe('pending');
+      expect(row.pending_consent_contact_id).toBeNull();
+      expect(row.consent_deadline_at).toBeNull();
+      expect((row.consent_chain as Row[]).at(-1)).toMatchObject({
+        contact_id: C,
+        decision: 'timed_out',
+      });
+    }
+    expect(fresh.pending_consent_contact_id).toBe(C);
+
+    expect(
+      sent.some((m) => m.toPhone === '+919876543210' || m.contactId === null)
+    ).toBe(false);
+    const ownerPing = notified.find((n) =>
+      String(n.title).includes("Broker C didn't reply")
     );
+    expect(ownerPing?.body).not.toContain('Rahul Sharma');
+    expect(
+      sent.some(
+        (m) =>
+          m.contactId === C && m.text?.includes('passed to the listing side')
+      )
+    ).toBe(true);
+    expect(
+      sent.some((m) =>
+        m.interactiveButtons?.some(
+          (b) => b.id === `${OWNER_APPROVE_PREFIX}req-1`
+        )
+      )
+    ).toBe(true);
+
+    expect(await sweepConsentTimeouts(admin)).toBe(0);
+  });
+
+  it('[PRP-068] lets the listing side ask the silent co-broker again', async () => {
+    const tables = freshTables();
+    const admin = fakeAdmin(tables);
+    const request = seedRequest(tables, {
+      consent_chain: [
+        { contact_id: C, decision: 'timed_out', at: new Date().toISOString() },
+      ],
+    });
+
+    expect(await reaskStalledConsent(admin, request)).toBe('asked');
+    const row = tables.property_location_requests[0];
+    expect(row.pending_consent_contact_id).toBe(C);
+    expect(row.consent_deadline_at).toBeTruthy();
+    expect(sent.at(-1)?.contactId).toBe(C);
+
+    const direct = seedRequest(tables, { id: 'req-direct' });
+    expect(await reaskStalledConsent(admin, direct)).toBe('not_stalled');
+  });
+
+  it('[PRP-068] still honours a late tap from the co-broker who timed out', async () => {
+    const tables = freshTables();
+    const admin = fakeAdmin(tables);
+    seedRequest(tables, {
+      consent_chain: [
+        { contact_id: C, decision: 'timed_out', at: new Date().toISOString() },
+      ],
+    });
+    seedRequest(tables, {
+      id: 'req-2',
+      consent_chain: [
+        { contact_id: C, decision: 'timed_out', at: new Date().toISOString() },
+      ],
+    });
+
+    await handleLocationConsentReply({
+      admin,
+      accountId: ACCOUNT,
+      replyId: `${CONSENT_APPROVE_PREFIX}req-1`,
+      senderPhone: '+919800000001',
+    });
+    expect(
+      (tables.property_location_requests[0].consent_chain as Row[]).length
+    ).toBe(1);
+
+    await handleLocationConsentReply({
+      admin,
+      accountId: ACCOUNT,
+      replyId: `${CONSENT_APPROVE_PREFIX}req-1`,
+      senderPhone: '+919800000002',
+    });
+    const approved = tables.property_location_requests[0];
+    expect(approved.status).toBe('pending');
+    expect(approved.pending_consent_contact_id).toBeNull();
+    expect((approved.consent_chain as Row[]).at(-1)).toMatchObject({
+      contact_id: C,
+      decision: 'approved',
+    });
+    expect(
+      notified.some((n) => String(n.title).includes('Broker C consented'))
+    ).toBe(true);
+
+    await handleLocationConsentReply({
+      admin,
+      accountId: ACCOUNT,
+      replyId: `${CONSENT_DECLINE_PREFIX}req-2`,
+      senderPhone: '+919800000002',
+    });
+    expect(tables.property_location_requests[1].status).toBe('rejected');
   });
 
   it('owner rejection uses the same seeker redirect', async () => {

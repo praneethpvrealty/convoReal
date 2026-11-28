@@ -13,6 +13,7 @@ import {
 import {
   approveRequestAndSendReveal,
   closeRequestWithRedirect,
+  reaskStalledConsent,
   type LocationRequestRow,
 } from '@/lib/inventory/location-requests';
 
@@ -75,7 +76,8 @@ export async function GET(
 // PATCH /api/properties/[id]/location-requests
 // The listing side's final decision. Only an admin or the property's
 // listing agent may decide; a request still awaiting co-broker consent
-// can be rejected but not approved.
+// can be rejected but not approved. 'reask' sends a timed-out consent
+// ask to the same co-broker again.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -86,9 +88,12 @@ export async function PATCH(
 
     const body = await request.json().catch(() => null);
     const { request_id, action } = body || {};
-    if (!request_id || !['approve', 'reject'].includes(action)) {
+    if (!request_id || !['approve', 'reject', 'reask'].includes(action)) {
       return NextResponse.json(
-        { error: "request_id and action ('approve'|'reject') are required" },
+        {
+          error:
+            "request_id and action ('approve'|'reject'|'reask') are required",
+        },
         { status: 400 }
       );
     }
@@ -143,6 +148,28 @@ export async function PATCH(
 
     if (action === 'reject') {
       await closeRequestWithRedirect(admin, locRequest, 'rejected');
+      const { data: updated } = await ctx.supabase
+        .from('property_location_requests')
+        .select('*')
+        .eq('id', request_id)
+        .maybeSingle();
+      return NextResponse.json({ data: maskAttributed(updated) });
+    }
+
+    if (action === 'reask') {
+      const outcome = await reaskStalledConsent(admin, locRequest);
+      if (outcome === 'not_stalled') {
+        return NextResponse.json(
+          { error: 'This request is not waiting on a timed-out consent ask' },
+          { status: 409 }
+        );
+      }
+      if (outcome === 'unreachable') {
+        return NextResponse.json(
+          { error: 'The co-broker could not be reached on WhatsApp' },
+          { status: 502 }
+        );
+      }
       const { data: updated } = await ctx.supabase
         .from('property_location_requests')
         .select('*')
