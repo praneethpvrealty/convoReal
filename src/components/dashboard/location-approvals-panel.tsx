@@ -13,11 +13,17 @@ import {
   User,
   Loader2,
   ChevronRight,
+  Send,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format/date';
-import { splitLocationApprovals } from '@/lib/dashboard/approval-order';
+import {
+  canDecideLocationRequest,
+  locationApprovalStatus,
+  splitLocationApprovals,
+  type LocationApprovalTone,
+} from '@/lib/dashboard/approval-order';
 
 interface ConsentHop {
   contact_id: string;
@@ -39,47 +45,33 @@ interface LocationApprovalRow {
   consent_chain: ConsentHop[];
   pending_consent_contact_name: string | null;
   consent_requested_at: string | null;
+  consent_deadline_at: string | null;
+  stalled_contact_name: string | null;
   approved_at: string | null;
   share_sent_at: string | null;
   view_count: number;
   created_at: string;
 }
 
+const TONE_CHIP: Record<LocationApprovalTone, string> = {
+  wait: 'bg-sky-500/20 text-sky-400',
+  decide: 'bg-amber-500/20 text-amber-400',
+  stalled: 'bg-amber-500/20 text-amber-400',
+  ok: 'bg-emerald-500/20 text-emerald-400',
+  muted: 'bg-slate-800 text-slate-400',
+};
+
 function statusChip(row: LocationApprovalRow) {
-  if (row.status === 'pending' && row.pending_consent_contact_name) {
-    return (
-      <span className="flex items-center gap-1 rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] font-bold text-sky-400">
-        <Clock className="size-2.5" /> Awaiting{' '}
-        {row.pending_consent_contact_name}
-      </span>
-    );
-  }
-  switch (row.status) {
-    case 'pending':
-      return (
-        <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
-          <Clock className="size-2.5" /> Your decision
-        </span>
-      );
-    case 'approved':
-      return (
-        <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-          <CheckCircle className="size-2.5" /> Approved
-        </span>
-      );
-    case 'rejected':
-      return (
-        <span className="flex items-center gap-1 rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-400">
-          <XCircle className="size-2.5" /> Rejected
-        </span>
-      );
-    default:
-      return (
-        <span className="flex items-center gap-1 rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-400">
-          <Clock className="size-2.5" /> Timed out
-        </span>
-      );
-  }
+  const { text, tone } = locationApprovalStatus(row);
+  const Icon =
+    tone === 'ok' ? CheckCircle : row.status === 'rejected' ? XCircle : Clock;
+  return (
+    <span
+      className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${TONE_CHIP[tone]}`}
+    >
+      <Icon className="size-2.5" /> {text}
+    </span>
+  );
 }
 
 function hopLabel(decision: string): { text: string; className: string } {
@@ -125,7 +117,7 @@ export function LocationApprovalsPanel() {
 
   const handleAction = async (
     row: LocationApprovalRow,
-    action: 'approve' | 'reject'
+    action: 'approve' | 'reject' | 'reask'
   ) => {
     setProcessingId(row.id);
     try {
@@ -139,7 +131,11 @@ export function LocationApprovalsPanel() {
       );
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || 'Action failed');
-      if (action === 'approve') {
+      if (action === 'reask') {
+        toast.success(
+          `Asked ${row.stalled_contact_name ?? 'the co-broker'} again on WhatsApp.`
+        );
+      } else if (action === 'approve') {
         toast.success(
           'Request approved! Location link sent to the requester via WhatsApp.'
         );
@@ -160,7 +156,8 @@ export function LocationApprovalsPanel() {
   // clean for accounts that never use guarded locations.
   if (rows === null || rows.length === 0) return null;
 
-  const { open, approved } = splitLocationApprovals(rows);
+  const { open, closed, approved } = splitLocationApprovals(rows);
+  const decisionCount = rows.filter(canDecideLocationRequest).length;
 
   const renderRow = (row: LocationApprovalRow) => (
     <div
@@ -224,7 +221,10 @@ export function LocationApprovalsPanel() {
             <Clock className="size-3 shrink-0" />
             Waiting on {row.pending_consent_contact_name}
             {row.consent_requested_at
-              ? ` since ${formatDateTime(row.consent_requested_at)} (2h window)`
+              ? ` since ${formatDateTime(row.consent_requested_at)}`
+              : ''}
+            {row.consent_deadline_at
+              ? ` · comes to you ${formatDateTime(row.consent_deadline_at)} if no reply`
               : ''}
           </p>
         )}
@@ -244,8 +244,8 @@ export function LocationApprovalsPanel() {
         )}
       </div>
 
-      {row.status === 'pending' && !row.pending_consent_contact_name && (
-        <div className="border-slate-850 flex gap-2 border-t pt-2">
+      {canDecideLocationRequest(row) && (
+        <div className="border-slate-850 flex flex-wrap gap-2 border-t pt-2">
           <Button
             type="button"
             size="sm"
@@ -271,6 +271,19 @@ export function LocationApprovalsPanel() {
             <XCircle className="size-3" />
             Reject
           </Button>
+          {row.stalled_contact_name && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={processingId === row.id}
+              onClick={() => handleAction(row, 'reask')}
+              className="h-7 basis-full text-xs font-bold"
+            >
+              <Send className="size-3" />
+              Ask {row.stalled_contact_name} again
+            </Button>
+          )}
         </div>
       )}
     </div>
@@ -282,16 +295,9 @@ export function LocationApprovalsPanel() {
         <h3 className="flex items-center gap-2 text-sm font-bold text-white">
           <MapPin className="text-primary size-4" />
           Location Reveal Approvals
-          {rows.filter(
-            (r) => r.status === 'pending' && !r.pending_consent_contact_name
-          ).length > 0 && (
+          {decisionCount > 0 && (
             <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-black text-black">
-              {
-                rows.filter(
-                  (r) =>
-                    r.status === 'pending' && !r.pending_consent_contact_name
-                ).length
-              }
+              {decisionCount}
             </span>
           )}
         </h3>
@@ -318,6 +324,17 @@ export function LocationApprovalsPanel() {
               </span>
             </summary>
             <div className="mt-2 space-y-2.5">{approved.map(renderRow)}</div>
+          </details>
+        )}
+        {closed.length > 0 && (
+          <details className="group/closed">
+            <summary className="cursor-pointer list-none py-1 text-[11px] font-semibold text-slate-400 hover:text-white">
+              <span className="inline-flex items-center gap-1">
+                <ChevronRight className="size-3 transition-transform group-open/closed:rotate-90" />
+                Closed ({closed.length})
+              </span>
+            </summary>
+            <div className="mt-2 space-y-2.5">{closed.map(renderRow)}</div>
           </details>
         )}
       </div>

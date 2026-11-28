@@ -10,7 +10,12 @@ import { chatListTime } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
-import { splitLocationApprovals } from '@shared/lib/dashboard/approval-order';
+import {
+  canDecideLocationRequest,
+  locationApprovalStatus,
+  splitLocationApprovals,
+  type LocationApprovalTone,
+} from '@shared/lib/dashboard/approval-order';
 
 interface LocationApprovalRow {
   id: string;
@@ -23,27 +28,11 @@ interface LocationApprovalRow {
   via_contact_name: string | null;
   status: string;
   pending_consent_contact_name: string | null;
+  stalled_contact_name: string | null;
   created_at: string;
 }
 
 export const LOCATION_APPROVALS_QUERY_KEY = 'location-approvals';
-
-function statusLine(row: LocationApprovalRow): {
-  text: string;
-  tone: 'warn' | 'wait' | 'ok' | 'muted';
-} {
-  if (row.status === 'pending' && row.pending_consent_contact_name) {
-    return {
-      text: `Awaiting ${row.pending_consent_contact_name}`,
-      tone: 'wait',
-    };
-  }
-  if (row.status === 'pending') return { text: 'Your decision', tone: 'warn' };
-  if (row.status === 'approved')
-    return { text: 'Approved · link sent', tone: 'ok' };
-  if (row.status === 'rejected') return { text: 'Rejected', tone: 'muted' };
-  return { text: 'Timed out', tone: 'muted' };
-}
 
 /** Guarded-location reveal requests with inline Approve/Reject —
  *  the mobile arm of the web dashboard's approvals panel. Hidden
@@ -52,6 +41,7 @@ export function LocationApprovals() {
   const { colors, fonts: f } = useTheme();
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [showApproved, setShowApproved] = useState(false);
+  const [showClosed, setShowClosed] = useState(false);
   const { show, dialogProps } = useAppDialog();
 
   const { data } = useQuery({
@@ -64,11 +54,11 @@ export function LocationApprovals() {
   });
   const rows = data?.data ?? [];
   if (rows.length === 0) return null;
-  const { open, approved } = splitLocationApprovals(rows);
+  const { open, closed, approved } = splitLocationApprovals(rows);
 
   const act = async (
     row: LocationApprovalRow,
-    action: 'approve' | 'reject'
+    action: 'approve' | 'reject' | 'reask'
   ) => {
     haptic.tap();
     setProcessingId(row.id);
@@ -84,7 +74,12 @@ export function LocationApprovals() {
     } catch (err) {
       haptic.warn();
       show({
-        title: action === 'approve' ? 'Approval failed' : 'Rejection failed',
+        title:
+          action === 'approve'
+            ? 'Approval failed'
+            : action === 'reask'
+              ? 'Could not ask again'
+              : 'Rejection failed',
         message: err instanceof Error ? err.message : 'Please try again.',
       });
     } finally {
@@ -92,17 +87,17 @@ export function LocationApprovals() {
     }
   };
 
-  const toneColor = {
-    warn: colors.danger,
+  const toneColor: Record<LocationApprovalTone, string> = {
+    decide: colors.danger,
+    stalled: colors.danger,
     wait: colors.primary,
     ok: colors.primary,
     muted: colors.textMuted,
   };
 
   const renderRow = (row: LocationApprovalRow) => {
-    const s = statusLine(row);
-    const actionable =
-      row.status === 'pending' && !row.pending_consent_contact_name;
+    const s = locationApprovalStatus(row);
+    const actionable = canDecideLocationRequest(row);
     return (
       <View
         key={row.id}
@@ -203,6 +198,33 @@ export function LocationApprovals() {
             </Pressable>
           </View>
         ) : null}
+        {actionable && row.stalled_contact_name ? (
+          <Pressable
+            onPress={() => act(row, 'reask')}
+            disabled={processingId === row.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Ask ${row.stalled_contact_name} again`}
+            style={({ pressed }) => [
+              styles.button,
+              styles.rejectButton,
+              {
+                flex: 0,
+                borderColor: colors.primary,
+                opacity: processingId === row.id ? 0.5 : pressed ? 0.8 : 1,
+              },
+            ]}
+          >
+            <Ionicons name="send-outline" size={14} color={colors.primary} />
+            <Text
+              style={[
+                styles.buttonText,
+                { fontFamily: f.bold, color: colors.primary },
+              ]}
+            >
+              Ask {row.stalled_contact_name} again
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     );
   };
@@ -235,6 +257,30 @@ export function LocationApprovals() {
         </Pressable>
       ) : null}
       {showApproved ? approved.map(renderRow) : null}
+      {closed.length > 0 ? (
+        <Pressable
+          onPress={() => setShowClosed((v) => !v)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: showClosed }}
+          style={styles.disclosure}
+        >
+          <Ionicons
+            name={showClosed ? 'chevron-down' : 'chevron-forward'}
+            size={14}
+            color={colors.textMuted}
+          />
+          <Text
+            style={{
+              fontSize: 12.5,
+              fontFamily: f.bold,
+              color: colors.textMuted,
+            }}
+          >
+            Closed ({closed.length})
+          </Text>
+        </Pressable>
+      ) : null}
+      {showClosed ? closed.map(renderRow) : null}
       <AppDialog {...dialogProps} />
     </View>
   );

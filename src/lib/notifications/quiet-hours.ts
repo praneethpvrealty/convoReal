@@ -60,6 +60,36 @@ export function quietPeriodStatus(
   return { isQuiet: true, deliverAt };
 }
 
+export interface AccountQuietHoursRow {
+  client_quiet_hours_enabled?: boolean | null;
+  client_quiet_hours_start?: string | null;
+  client_quiet_hours_end?: string | null;
+  agent_quiet_hours_enabled?: boolean | null;
+  agent_quiet_hours_start?: string | null;
+  agent_quiet_hours_end?: string | null;
+}
+
+export const ACCOUNT_QUIET_HOURS_COLUMNS =
+  'client_quiet_hours_enabled, client_quiet_hours_start, client_quiet_hours_end, agent_quiet_hours_enabled, agent_quiet_hours_start, agent_quiet_hours_end';
+
+export function quietPeriodFromAccount(
+  data: AccountQuietHoursRow | null | undefined,
+  audience: QuietAudience
+): QuietPeriod {
+  const defaults = DEFAULT_QUIET_PERIODS[audience];
+  return audience === 'client'
+    ? {
+        enabled: data?.client_quiet_hours_enabled ?? defaults.enabled,
+        start: data?.client_quiet_hours_start ?? defaults.start,
+        end: data?.client_quiet_hours_end ?? defaults.end,
+      }
+    : {
+        enabled: data?.agent_quiet_hours_enabled ?? defaults.enabled,
+        start: data?.agent_quiet_hours_start ?? defaults.start,
+        end: data?.agent_quiet_hours_end ?? defaults.end,
+      };
+}
+
 export async function resolveQuietPeriod(
   accountId: string,
   audience: QuietAudience,
@@ -70,26 +100,12 @@ export async function resolveQuietPeriod(
   try {
     const { data, error } = await supabaseAdmin()
       .from('accounts')
-      .select(
-        'client_quiet_hours_enabled, client_quiet_hours_start, client_quiet_hours_end, agent_quiet_hours_enabled, agent_quiet_hours_start, agent_quiet_hours_end'
-      )
+      .select(ACCOUNT_QUIET_HOURS_COLUMNS)
       .eq('id', accountId)
       .maybeSingle();
     if (error) throw error;
 
-    const period =
-      audience === 'client'
-        ? {
-            enabled: data?.client_quiet_hours_enabled ?? defaults.enabled,
-            start: data?.client_quiet_hours_start ?? defaults.start,
-            end: data?.client_quiet_hours_end ?? defaults.end,
-          }
-        : {
-            enabled: data?.agent_quiet_hours_enabled ?? defaults.enabled,
-            start: data?.agent_quiet_hours_start ?? defaults.start,
-            end: data?.agent_quiet_hours_end ?? defaults.end,
-          };
-    return quietPeriodStatus(now, period);
+    return quietPeriodStatus(now, quietPeriodFromAccount(data, audience));
   } catch (error) {
     console.error(
       '[quiet-hours] settings lookup failed, using defaults:',

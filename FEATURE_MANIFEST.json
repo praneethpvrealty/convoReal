@@ -3393,6 +3393,74 @@
             "src/components/inventory/property-form.tsx",
             "mobile/app/(app)/property-edit.tsx"
           ]
+        },
+        {
+          "id": "PRP-067",
+          "rule": "A co-broker asked to consent to a guarded location or listing request has four daytime hours to answer: the clock stops during the account's client quiet hours (21:00-08:00 IST by default), so an ask sent at 06:08 is reminded at 10:00 and closes at 12:00. The consent ask stamps consent_remind_at and consent_deadline_at, and the 15-minute sweep sends one reminder with the same Approve and Decline buttons halfway through, claimed before it is sent so overlapping sweeps cannot both send it. The seeker stays masked in the reminder. Neither a reminder nor a deadline falls inside quiet hours (one that would is moved to when they end), and a sweep that runs during them leaves due rows alone until the first sweep after.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/consent-clock.test.ts",
+              "case": "[PRP-067]"
+            },
+            {
+              "file": "src/lib/inventory/location-requests.flow.test.ts",
+              "case": "[PRP-067]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/location-requests.ts",
+            "src/lib/inventory/consent-clock.ts",
+            "src/app/api/cron/location-request-timeouts/route.ts"
+          ]
+        },
+        {
+          "id": "PRP-068",
+          "rule": "A consent ask that times out never drops the request: the timeout is recorded as a hop, the request stays pending in the listing side's queue and the listing side is notified (in-app, push and WhatsApp with Approve and Reject, per their notification settings) that the co-broker did not reply, with the seeker still masked; the seeker is not redirected and the co-broker is told the request moved on when their 24-hour WhatsApp window is open (no template carries that notice, so a closed window skips it). A re-ask claims the stalled request before sending, so concurrent re-asks send one ask, and a request decided meanwhile, or whose co-broker answered late meanwhile, is never re-asked; an undeliverable re-ask releases its claim. A stale sweep can never expire a newer ask: the timeout and the reminder are claimed against the ask's consent_requested_at. Web and mobile show it as '<name> didn't reply - your call' with Approve, Reject and 'Ask <name> again' (PATCH action reask, which sends a fresh ask with a fresh window), and a late Approve or Decline from that co-broker is still recorded: a late approval tells the listing side they consented, a late decline closes the request with the seeker redirect. Asks stamped before deadlines existed time out after two hours.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/location-requests.flow.test.ts",
+              "case": "[PRP-068]"
+            },
+            {
+              "file": "src/lib/dashboard/approval-order.test.ts",
+              "case": "[PRP-068]"
+            },
+            {
+              "file": "src/lib/mobile-parity.test.ts",
+              "case": "[PRP-068]"
+            }
+          ],
+          "guards": [
+            "src/lib/inventory/location-requests.ts",
+            "src/app/api/properties/[id]/location-requests/route.ts",
+            "src/app/api/location-requests/route.ts",
+            "src/components/dashboard/location-approvals-panel.tsx",
+            "mobile/components/location-approvals.tsx"
+          ]
+        },
+        {
+          "id": "PRP-069",
+          "rule": "The Overview location approvals list on web and mobile keeps only pending requests open, decisions first and requests still waiting on a co-broker after them, and tucks approved requests under 'Recently approved' and rejected or timed-out ones under 'Closed', through the one shared splitLocationApprovals rule.",
+          "tests": [
+            {
+              "file": "src/lib/dashboard/approval-order.test.ts",
+              "case": "[PRP-069]"
+            }
+          ],
+          "guards": ["src/lib/dashboard/approval-order.ts"]
+        },
+        {
+          "id": "PRP-070",
+          "rule": "A location or listing request from someone who is already an ordinary lead of the account (a non-merged, non-chain-only contact with that number) goes straight to the listing side's queue even when it arrived through a co-broker's link: the co-broker consent step protects a co-broker's client, and this requester is already the listing side's own contact.",
+          "tests": [
+            {
+              "file": "src/app/api/public/properties/[id]/location-request/route.test.ts",
+              "case": "[PRP-070]"
+            }
+          ],
+          "guards": [
+            "src/app/api/public/properties/[id]/location-request/route.ts"
+          ]
         }
       ]
     },
