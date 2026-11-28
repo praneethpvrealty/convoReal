@@ -142,6 +142,7 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { useDebounced } from '@/lib/use-debounced';
 import { CONTACT_LIST_COLUMNS } from '@shared/lib/contacts/list-columns';
 import { EVENT_TYPE_LABELS } from '@shared/lib/calendar/event-type-defaults';
+import { APPOINTMENT_SELECT } from '@shared/lib/calendar/calendar-data';
 import {
   CLIENT_RESPONSE_LABELS,
   clientResponse,
@@ -192,29 +193,25 @@ async function fetchMonth(month: Date): Promise<Appointment[]> {
   return loadEveryPage(async (start, end) => {
     const { data, error } = await supabase
       .from('appointments')
-      .select(
-        '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality), deal:deals(id, title)'
-      )
+      .select(APPOINTMENT_SELECT)
       .gte('start_time', from.toISOString())
       .lt('start_time', to.toISOString())
       .order('start_time', { ascending: true })
       .order('id', { ascending: true })
       .range(start, end);
     if (error) throw error;
-    return (data ?? []) as Appointment[];
+    return (data ?? []) as unknown as Appointment[];
   });
 }
 
 async function fetchAppointment(id: string): Promise<Appointment | null> {
   const { data, error } = await supabase
     .from('appointments')
-    .select(
-      '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality), deal:deals(id, title)'
-    )
+    .select(APPOINTMENT_SELECT)
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
-  return data as Appointment | null;
+  return data as unknown as Appointment | null;
 }
 
 async function fetchUpcomingAppointments(now: Date): Promise<Appointment[]> {
@@ -224,15 +221,13 @@ async function fetchUpcomingAppointments(now: Date): Promise<Appointment[]> {
   return loadEveryPage(async (from, to) => {
     const { data, error } = await supabase
       .from('appointments')
-      .select(
-        '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality), deal:deals(id, title)'
-      )
+      .select(APPOINTMENT_SELECT)
       .gte('start_time', tomorrow.toISOString())
       .order('start_time', { ascending: true })
       .order('id', { ascending: true })
       .range(from, to);
     if (error) throw error;
-    return (data ?? []) as Appointment[];
+    return (data ?? []) as unknown as Appointment[];
   });
 }
 
@@ -1443,10 +1438,10 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
     setBusy(true);
     setError(null);
     try {
-      await deleteTodo(todo.id);
+      const deleted = await deleteTodo(todo.id);
       queryClient.invalidateQueries({ queryKey: ['todos'] });
       showUndo(`Deleted "${todo.title}"`, async () => {
-        await restoreTodo(todo as unknown as Record<string, unknown>);
+        await restoreTodo(deleted);
         queryClient.invalidateQueries({ queryKey: ['todos'] });
       });
     } catch {

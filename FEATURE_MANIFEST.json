@@ -1903,6 +1903,16 @@
             { "file": "src/lib/mobile-parity.test.ts", "case": "[CAL-024]" }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "CAL-025",
+          "rule": "The calendar never reads an account's whole appointment or to-do history to open. Web and mobile read the same named columns (APPOINTMENT_SELECT and TODO_SELECT in src/lib/calendar/calendar-data.ts, never select *). On web the Month, Week and Team views read the month before, the month shown and the month after, which contains the six-week grid and any week or day in that month, and read again only when the month changes; the Agenda reads every event from today on and past events newest first a page at a time behind Show past events, with Load earlier events for the next page; an event opened from a link or the Call backs list is read by id when it is outside what is loaded. The To-dos list reads every open to-do and the Done group a page at a time with its full count, Show more loads the next page, and Clear completed still deletes every done to-do under the list's filter, not only the page shown. Every read runs to its end in pages, so a list longer than the API row cap is never cut short. Reads are cached per account under the ['calendar', accountId] query key, so a revisit paints the last result at once and refreshes behind it, an edit made on the page updates every cached read of that event, and a stored view opens without waiting on deal dates. Deleting a to-do returns the whole deleted row, which is what Undo puts back (CAL-009). Mobile reads a month at a time, every event from tomorrow on and every to-do in pages, with the same columns.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/calendar-data.test.ts",
+              "case": "[CAL-025]"
+            }
+          ]
         }
       ]
     },

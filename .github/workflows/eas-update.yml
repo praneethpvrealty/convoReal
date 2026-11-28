@@ -56,6 +56,7 @@ on:
       - 'src/lib/calendar/event-timing.ts'
       - 'src/lib/calendar/property-hashtag.ts'
       - 'src/lib/calendar/auto-link.ts'
+      - 'src/lib/calendar/calendar-data.ts'
       - 'src/lib/calendar/client-response.ts'
       - 'src/lib/auth/sign-out-reason.ts'
       - 'src/lib/contacts/approve-listing-prompt.ts'

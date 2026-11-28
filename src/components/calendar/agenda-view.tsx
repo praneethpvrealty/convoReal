@@ -19,6 +19,10 @@ interface AgendaViewProps {
   onStatusChange: (event: CalendarEvent, status: AppointmentStatus) => void;
   onArchive: (event: CalendarEvent, archived: boolean) => void;
   onMilestoneDone: (dealDate: DealDeadline) => void;
+  /** Past events arrive a page at a time, newest first (CAL-025). */
+  hasMorePast?: boolean;
+  loadingMorePast?: boolean;
+  onLoadMorePast?: () => void;
 }
 
 type AgendaItem =
@@ -55,6 +59,9 @@ export function AgendaView({
   onStatusChange,
   onArchive,
   onMilestoneDone,
+  hasMorePast = false,
+  loadingMorePast = false,
+  onLoadMorePast,
 }: AgendaViewProps) {
   const [showPast, setShowPast] = useState(false);
 
@@ -148,7 +155,7 @@ export function AgendaView({
         </div>
       ))}
 
-      {pastGroups.length > 0 && (
+      {(pastGroups.length > 0 || hasMorePast) && (
         <div className="border-t border-slate-800 pt-3">
           <button
             onClick={() => setShowPast(!showPast)}
@@ -162,7 +169,7 @@ export function AgendaView({
             />
             {showPast
               ? 'Hide past events'
-              : `Show past events (${pastGroups.reduce((n, g) => n + g.items.length, 0)})`}
+              : `Show past events (${pastGroups.reduce((n, g) => n + g.items.length, 0)}${hasMorePast ? '+' : ''})`}
           </button>
           {showPast && (
             <div className="mt-3 space-y-4">
@@ -176,6 +183,15 @@ export function AgendaView({
                   </div>
                 </div>
               ))}
+              {hasMorePast && onLoadMorePast && (
+                <button
+                  onClick={onLoadMorePast}
+                  disabled={loadingMorePast}
+                  className="text-[11px] font-semibold text-slate-500 transition-colors hover:text-white disabled:opacity-50"
+                >
+                  {loadingMorePast ? 'Loading…' : 'Load earlier events'}
+                </button>
+              )}
             </div>
           )}
         </div>

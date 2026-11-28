@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 28 November 2026
 
+- **Calendar opens faster.** The calendar no longer reads every appointment
+  and to-do an account ever created each time it opens. The Month, Week and
+  Team views read the months around the one shown, the Agenda reads everything
+  from today on and past events a page at a time (Load earlier events), and
+  the Done to-dos group loads a page at a time with its full count. Coming
+  back to the calendar shows the last result at once and refreshes behind it
+  instead of a blank grid, and a calendar that remembers your view no longer
+  waits on deal dates to draw. Every list is read to its end in pages, so the
+  API's row cap can no longer cut a long calendar short. Web and mobile read
+  the same named columns (CAL-025).
+
 - **Contacts, Inventory and Calendar open from the last copy on web.** The
   lists you have already loaded are kept in the browser and shown at once on
   the next visit or reload, then refreshed in the background, as the mobile
