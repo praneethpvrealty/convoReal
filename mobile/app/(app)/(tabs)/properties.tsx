@@ -6,8 +6,8 @@ import {
 } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { Link, router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -208,21 +208,25 @@ export default function PropertiesScreen() {
   const accountRole = useAuthStore((state) => state.profile?.account_role);
   // Listings another brokerage shared with this agent are copied in
   // beside the list, not ahead of it; the list reloads only when the
-  // sync brought something new.
-  useEffect(() => {
+  // sync brought something new. It runs each time the tab comes into
+  // focus and on pull-to-refresh, since the list request no longer
+  // does it.
+  const syncSharedListings = useCallback(async () => {
     if (!accountId || !accountRole || accountRole === 'viewer') return;
-    let cancelled = false;
-    void apiFetch<unknown>('/api/agents/inventory-sync', { method: 'POST' })
-      .then(async (body) => {
-        if (cancelled || !syncImportedListings(body)) return;
-        await queryClient.cancelQueries({ queryKey: ['properties'] });
-        await queryClient.invalidateQueries({ queryKey: ['properties'] });
-      })
-      .catch(() => null);
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const body = await apiFetch<unknown>('/api/agents/inventory-sync', {
+        method: 'POST',
+      });
+      if (!syncImportedListings(body)) return;
+      await queryClient.cancelQueries({ queryKey: ['properties'] });
+      await queryClient.invalidateQueries({ queryKey: ['properties'] });
+    } catch {}
   }, [accountId, accountRole]);
+  useFocusEffect(
+    useCallback(() => {
+      void syncSharedListings();
+    }, [syncSharedListings])
+  );
   const { data: attentionCount } = useQuery({
     queryKey: ['properties', 'attention-count', accountId],
     enabled: Boolean(accountId),
@@ -310,7 +314,10 @@ export default function PropertiesScreen() {
     // otherwise every keystroke wipes the list to skeletons.
     placeholderData: keepPreviousData,
   });
-  const pull = usePullRefresh(refetch);
+  const pull = usePullRefresh(() => {
+    void syncSharedListings();
+    return refetch();
+  });
 
   const properties = useMemo(
     () => data?.pages.flatMap((page) => page.data) ?? EMPTY_PROPERTIES,

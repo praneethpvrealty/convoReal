@@ -393,22 +393,29 @@ export default function InventoryPage() {
 
   // Listings another brokerage shared with this agent are copied in by
   // their own request, beside the list rather than ahead of it, and the
-  // list reloads only when the sync brought something new.
+  // list reloads only when the sync brought something new. It runs when
+  // the page opens and each time the window regains focus, since the
+  // list request no longer does it.
   useEffect(() => {
     if (!accountId || !canEdit) return;
     let cancelled = false;
-    void fetch('/api/agents/inventory-sync', { method: 'POST' })
-      .then((response) => (response.ok ? response.json() : null))
-      .then(async (body) => {
-        if (cancelled || !(Number(body?.data?.imported) > 0)) return;
-        // A first load still in flight began before the import landed and
-        // would be reused by an invalidation, so it is dropped first.
-        await queryClient.cancelQueries({ queryKey: ['inventory'] });
-        await queryClient.invalidateQueries({ queryKey: ['inventory'] });
-      })
-      .catch(() => {});
+    const syncSharedListings = () => {
+      void fetch('/api/agents/inventory-sync', { method: 'POST' })
+        .then((response) => (response.ok ? response.json() : null))
+        .then(async (body) => {
+          if (cancelled || !(Number(body?.data?.imported) > 0)) return;
+          // A load still in flight began before the import landed and
+          // would be reused by an invalidation, so it is dropped first.
+          await queryClient.cancelQueries({ queryKey: ['inventory'] });
+          await queryClient.invalidateQueries({ queryKey: ['inventory'] });
+        })
+        .catch(() => {});
+    };
+    syncSharedListings();
+    window.addEventListener('focus', syncSharedListings);
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', syncSharedListings);
     };
   }, [accountId, canEdit, queryClient]);
 
