@@ -111,7 +111,7 @@ beforeEach(() => {
 });
 
 describe('GET /api/properties source inventory sync', () => {
-  it('[PRP-067] answers the list before the sync runs, then runs it', async () => {
+  it('[PRP-072] answers the list before the sync runs, then runs it', async () => {
     const response = await GET(new Request('http://test/api/properties'));
 
     expect(response.status).toBe(200);
@@ -121,7 +121,7 @@ describe('GET /api/properties source inventory sync', () => {
     expect(syncAgentSourceInventory).toHaveBeenCalledTimes(1);
   });
 
-  it('[PRP-067] leaves the sync to a client that runs it itself', async () => {
+  it('[PRP-072] leaves the sync to a client that runs it itself', async () => {
     const response = await GET(
       new Request('http://test/api/properties', {
         headers: { 'x-inventory-sync': 'client' },
@@ -133,14 +133,14 @@ describe('GET /api/properties source inventory sync', () => {
     expect(syncAgentSourceInventory).not.toHaveBeenCalled();
   });
 
-  it('[PRP-067] never syncs for a viewer', async () => {
+  it('[PRP-072] never syncs for a viewer', async () => {
     callerRole = 'viewer';
     await GET(new Request('http://test/api/properties'));
 
     expect(afterTasks).toHaveLength(0);
   });
 
-  it('[PRP-067] a failed sync does not fail the list', async () => {
+  it('[PRP-072] a failed sync does not fail the list', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     syncAgentSourceInventory.mockRejectedValue(new Error('boom'));
     const response = await GET(new Request('http://test/api/properties'));
@@ -152,13 +152,13 @@ describe('GET /api/properties source inventory sync', () => {
 });
 
 describe('GET /api/properties card projection', () => {
-  it('[PRP-066] selects every column unless the caller asks for the card set', async () => {
+  it('[PRP-071] selects every column unless the caller asks for the card set', async () => {
     await GET(new Request('http://test/api/properties'));
 
     expect(selects.at(-1)).toMatch(/^\*, owner:contacts!/);
   });
 
-  it('[PRP-066] selects the card columns with the same embeds for fields=card', async () => {
+  it('[PRP-071] selects the card columns with the same embeds for fields=card', async () => {
     await GET(new Request('http://test/api/properties?fields=card'));
 
     const select = selects.at(-1) ?? '';

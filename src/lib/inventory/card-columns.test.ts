@@ -37,7 +37,7 @@ function tableColumns(): string[] {
 }
 
 describe('inventory card projection', () => {
-  it('[PRP-066] decides every properties column, once', () => {
+  it('[PRP-071] decides every properties column, once', () => {
     const kept = new Set<string>(PROPERTY_CARD_COLUMNS);
     const omitted = new Set<string>(PROPERTY_CARD_OMITTED_COLUMNS);
     expect(kept.size).toBe(PROPERTY_CARD_COLUMNS.length);
@@ -49,7 +49,7 @@ describe('inventory card projection', () => {
     ).toEqual([]);
   });
 
-  it('[PRP-066] omits no column a card, row, pin or row action reads', () => {
+  it('[PRP-071] omits no column a card, row, pin or row action reads', () => {
     const read: string[] = [];
     for (const file of CARD_SURFACES) {
       const source = readFileSync(join(ROOT, file), 'utf8');

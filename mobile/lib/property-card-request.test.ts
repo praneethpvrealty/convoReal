@@ -7,7 +7,7 @@ import {
 } from './property-card-request';
 
 describe('cardListRequest', () => {
-  it('[PRP-066] asks the list for card columns and keeps every other param', () => {
+  it('[PRP-071] asks the list for card columns and keeps every other param', () => {
     const { path } = cardListRequest(
       new URLSearchParams({ page: '0', limit: '20', search: 'villa' })
     );
@@ -19,7 +19,7 @@ describe('cardListRequest', () => {
     expect(params.get('limit')).toBe('20');
   });
 
-  it('[PRP-067] tells the route this client runs the source sync itself', () => {
+  it('[PRP-072] tells the route this client runs the source sync itself', () => {
     expect(INVENTORY_SYNC_HEADER).toBe(WEB_HEADER);
     expect(cardListRequest(new URLSearchParams()).init).toEqual({
       headers: { 'x-inventory-sync': 'client' },
@@ -28,7 +28,7 @@ describe('cardListRequest', () => {
 });
 
 describe('syncImportedListings', () => {
-  it('[PRP-067] reloads the list only when the sync imported something', () => {
+  it('[PRP-072] reloads the list only when the sync imported something', () => {
     expect(syncImportedListings({ data: { imported: 2, matched: 3 } })).toBe(
       true
     );

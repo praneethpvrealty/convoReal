@@ -80,7 +80,7 @@ beforeEach(() => {
 });
 
 describe('GET /api/properties/match-counts', () => {
-  it('[PRP-068] counts matching buyers per listing on the server, inside the session account', async () => {
+  it('[PRP-073] counts matching buyers per listing on the server, inside the session account', async () => {
     state.properties = [
       { id: ID_A, user_id: 'user-1' },
       { id: ID_B, user_id: 'user-1' },
@@ -110,7 +110,7 @@ describe('GET /api/properties/match-counts', () => {
     expect(state.selects).toContainEqual(['contacts', MATCH_BUYER_COLUMNS]);
   });
 
-  it('[PRP-068] returns no counts, and no buyers, for an account without buyers', async () => {
+  it('[PRP-073] returns no counts, and no buyers, for an account without buyers', async () => {
     state.properties = [{ id: ID_A, user_id: 'user-1' }];
 
     const res = await GET(request(ID_A));
@@ -119,14 +119,14 @@ describe('GET /api/properties/match-counts', () => {
     expect(state.matches).not.toHaveBeenCalled();
   });
 
-  it('[PRP-068] reads nothing when no ids are asked for', async () => {
+  it('[PRP-073] reads nothing when no ids are asked for', async () => {
     const res = await GET(request(''));
 
     expect(await res.json()).toEqual({ data: {} });
     expect(state.selects).toHaveLength(0);
   });
 
-  it('[PRP-068] refuses malformed ids and more than 100 ids', async () => {
+  it('[PRP-073] refuses malformed ids and more than 100 ids', async () => {
     expect((await GET(request('not-a-uuid'))).status).toBe(400);
     const many = Array.from(
       { length: 101 },
@@ -136,7 +136,7 @@ describe('GET /api/properties/match-counts', () => {
     expect(state.selects).toHaveLength(0);
   });
 
-  it('[PRP-068] refuses without a session', async () => {
+  it('[PRP-073] refuses without a session', async () => {
     state.authError = new Error('no session');
 
     const res = await GET(request(ID_A));

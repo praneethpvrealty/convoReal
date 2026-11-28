@@ -903,7 +903,7 @@ describe('inventory list load failure', () => {
 });
 
 describe('inventory first load', () => {
-  it('[PRP-066] asks for card columns and opens a row action on the whole listing', async () => {
+  it('[PRP-071] asks for card columns and opens a row action on the whole listing', async () => {
     const fetchMock = mockPropertiesFetch(vi.fn());
     vi.stubGlobal('fetch', fetchMock);
     renderInventory();
@@ -925,7 +925,7 @@ describe('inventory first load', () => {
     ).toBe(true);
   });
 
-  it('[PRP-066] does not open a row action on a listing it could not load', async () => {
+  it('[PRP-071] does not open a row action on a listing it could not load', async () => {
     const fetchMock = mockPropertiesFetch(vi.fn());
     const base = fetchMock.getMockImplementation() as (
       url: string
@@ -951,7 +951,7 @@ describe('inventory first load', () => {
     expect(screen.queryByTestId('property-share-dialog')).toBeNull();
   });
 
-  it('[PRP-067] runs the source sync beside the list and reloads only when it imported', async () => {
+  it('[PRP-072] runs the source sync beside the list and reloads only when it imported', async () => {
     const fetchMock = mockPropertiesFetch(vi.fn());
     const base = fetchMock.getMockImplementation() as (
       url: string
@@ -982,7 +982,7 @@ describe('inventory first load', () => {
     );
   });
 
-  it('[PRP-067] does not reload the list when the sync imported nothing', async () => {
+  it('[PRP-072] does not reload the list when the sync imported nothing', async () => {
     const fetchMock = mockPropertiesFetch(vi.fn());
     vi.stubGlobal('fetch', fetchMock);
     renderInventory();
@@ -999,7 +999,7 @@ describe('inventory first load', () => {
     expect(propertiesCalls(fetchMock)).toHaveLength(1);
   });
 
-  it('[PRP-068] shows match counts the server worked out for the listings on screen', async () => {
+  it('[PRP-073] shows match counts the server worked out for the listings on screen', async () => {
     const fetchMock = mockPropertiesFetch(vi.fn());
     vi.stubGlobal('fetch', fetchMock);
     renderInventory();

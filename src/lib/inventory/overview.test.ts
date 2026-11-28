@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { EMPTY_INVENTORY_STATS, parseInventoryOverview } from './overview';
 
 describe('parseInventoryOverview', () => {
-  it('[PRP-069] reads the three shapes the composed functions return', () => {
+  it('[PRP-074] reads the three shapes the composed functions return', () => {
     const overview = parseInventoryOverview({
       stats: {
         total: 12,
@@ -47,7 +47,7 @@ describe('parseInventoryOverview', () => {
     expect(overview.sourceBreakdown[0].listings).toBe(7);
   });
 
-  it('[PRP-069] reads a non-member NULL as an empty overview', () => {
+  it('[PRP-074] reads a non-member NULL as an empty overview', () => {
     expect(parseInventoryOverview(null)).toEqual({
       stats: EMPTY_INVENTORY_STATS,
       attention: [],
@@ -55,7 +55,7 @@ describe('parseInventoryOverview', () => {
     });
   });
 
-  it('[PRP-069] the SQL composes the three functions behind the membership guard', () => {
+  it('[PRP-074] the SQL composes the three functions behind the membership guard', () => {
     const sql = readFileSync(
       join(
         __dirname,
