@@ -1,14 +1,18 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { sweepConsentTimeouts } from '@/lib/inventory/location-requests';
+import {
+  sweepConsentReminders,
+  sweepConsentTimeouts,
+} from '@/lib/inventory/location-requests';
 import { sweepReferredEnquiryTimeouts } from '@/lib/showcase/referred-enquiries';
 
 /**
- * Location-request consent timeout sweep — a co-broker asked to consent
- * to a location reveal has 2 hours to answer; past that the request
- * expires and the seeker is redirected to the person who shared them
- * the property. An agent asked to approve a guest's enquiry (see
+ * Location-request consent sweep — a co-broker asked to consent to a
+ * location reveal has four daytime hours to answer (the clock stops in
+ * the account's client quiet hours) and is reminded halfway; past that
+ * the request moves to the listing side's queue marked as stalled.
+ * An agent asked to approve a guest's enquiry (see
  * referred-enquiries.ts) has the same 2 hours, swept here too.
  * Registered in vercel.json every 15 minutes; idempotent
  * (expired rows leave the pending state, so reruns are no-ops).
@@ -35,13 +39,14 @@ export async function GET(request: Request) {
   }
 
   try {
+    const reminded = await sweepConsentReminders(supabaseAdmin());
     const expired = await sweepConsentTimeouts(supabaseAdmin());
     const referredExpired = await sweepReferredEnquiryTimeouts(supabaseAdmin());
-    if (expired > 0 || referredExpired > 0)
+    if (reminded > 0 || expired > 0 || referredExpired > 0)
       console.log(
-        `[location-request-timeouts] expired=${expired} referred=${referredExpired}`
+        `[location-request-timeouts] reminded=${reminded} expired=${expired} referred=${referredExpired}`
       );
-    return NextResponse.json({ expired, referredExpired });
+    return NextResponse.json({ reminded, expired, referredExpired });
   } catch (err) {
     console.error('[location-request-timeouts] sweep failed:', err);
     return NextResponse.json({ error: 'sweep failed' }, { status: 500 });

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { maskName, maskPhone } from '@/lib/inventory/location-guard';
+import { stalledConsentContactId } from '@/lib/inventory/location-requests';
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 50;
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     const { data, error } = await ctx.supabase
       .from('property_location_requests')
       .select(
-        'id, property_id, requester_name, requester_phone, status, via_contact_id, via_share_id, consent_chain, pending_consent_contact_id, consent_requested_at, approved_at, share_sent_at, view_count, last_viewed_at, created_at, property:properties(id, title, property_code)'
+        'id, property_id, requester_name, requester_phone, status, via_contact_id, via_share_id, consent_chain, pending_consent_contact_id, consent_requested_at, consent_deadline_at, approved_at, share_sent_at, view_count, last_viewed_at, created_at, property:properties(id, title, property_code)'
       )
       .eq('account_id', ctx.accountId)
       .order('created_at', { ascending: false })
@@ -75,6 +76,7 @@ export async function GET(request: Request) {
         ...hop,
         contact_name: nameById.get(hop.contact_id) || 'Unknown contact',
       }));
+      const stalledId = stalledConsentContactId(row);
       const property = Array.isArray(row.property)
         ? row.property[0]
         : row.property;
@@ -99,6 +101,10 @@ export async function GET(request: Request) {
           ? nameById.get(row.pending_consent_contact_id) || 'Unknown contact'
           : null,
         consent_requested_at: row.consent_requested_at,
+        consent_deadline_at: row.consent_deadline_at,
+        stalled_contact_name: stalledId
+          ? nameById.get(stalledId) || 'Unknown contact'
+          : null,
         approved_at: row.approved_at,
         share_sent_at: row.share_sent_at,
         view_count: row.view_count ?? 0,
