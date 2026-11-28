@@ -1596,9 +1596,47 @@ export async function reaskStalledConsent(
 ): Promise<'asked' | 'unreachable' | 'not_stalled'> {
   const contactId = stalledConsentContactId(request);
   if (!contactId) return 'not_stalled';
-  return (await requestConsentFromContact(admin, request, contactId))
-    ? 'asked'
-    : 'unreachable';
+
+  const askedAt = new Date();
+  const { data: claimed } = await admin
+    .from('property_location_requests')
+    .update({
+      pending_consent_contact_id: contactId,
+      consent_requested_at: askedAt.toISOString(),
+    })
+    .eq('id', request.id)
+    .eq('account_id', request.account_id)
+    .eq('status', 'pending')
+    .is('pending_consent_contact_id', null)
+    .select('id');
+  if (!claimed || claimed.length === 0) return 'not_stalled';
+
+  if (!(await sendConsentAsk(admin, request, contactId, false))) {
+    await admin
+      .from('property_location_requests')
+      .update({ ...CLEARED_CONSENT_ASK })
+      .eq('id', request.id)
+      .eq('pending_consent_contact_id', contactId)
+      .eq('consent_requested_at', askedAt.toISOString());
+    return 'unreachable';
+  }
+
+  const { remindAt, deadlineAt } = await consentScheduleFor(
+    admin,
+    request.account_id,
+    askedAt
+  );
+  await admin
+    .from('property_location_requests')
+    .update({
+      consent_remind_at: remindAt.toISOString(),
+      consent_reminded_at: null,
+      consent_deadline_at: deadlineAt.toISOString(),
+    })
+    .eq('id', request.id)
+    .eq('pending_consent_contact_id', contactId)
+    .eq('consent_requested_at', askedAt.toISOString());
+  return 'asked';
 }
 
 // ── Re-share links ──────────────────────────────────────────────

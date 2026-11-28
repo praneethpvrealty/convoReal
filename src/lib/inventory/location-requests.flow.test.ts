@@ -662,6 +662,52 @@ describe('multi-hop consent flow, end to end', () => {
     expect(await reaskStalledConsent(admin, direct)).toBe('not_stalled');
   });
 
+  it('[PRP-068] sends one ask when two re-asks race, and none once the request is decided', async () => {
+    const tables = freshTables();
+    const admin = fakeAdmin(tables);
+    const timedOut = [
+      { contact_id: C, decision: 'timed_out', at: new Date().toISOString() },
+    ];
+    const request = seedRequest(tables, { consent_chain: timedOut });
+
+    const outcomes = await Promise.all([
+      reaskStalledConsent(admin, request),
+      reaskStalledConsent(admin, request),
+    ]);
+    expect(outcomes.sort()).toEqual(['asked', 'not_stalled']);
+    expect(sent.filter((m) => m.contactId === C)).toHaveLength(1);
+
+    const decided = seedRequest(tables, {
+      id: 'req-decided',
+      consent_chain: timedOut,
+    });
+    tables.property_location_requests[1].status = 'rejected';
+    sent.length = 0;
+    expect(await reaskStalledConsent(admin, decided)).toBe('not_stalled');
+    expect(sent).toHaveLength(0);
+    expect(
+      tables.property_location_requests[1].pending_consent_contact_id
+    ).toBeNull();
+  });
+
+  it('[PRP-068] releases the claim when the re-ask cannot be delivered', async () => {
+    const tables = freshTables();
+    const admin = fakeAdmin(tables);
+    tables.contacts = tables.contacts.map((c) =>
+      c.id === C ? { ...c, phone: null } : c
+    );
+    const request = seedRequest(tables, {
+      consent_chain: [
+        { contact_id: C, decision: 'timed_out', at: new Date().toISOString() },
+      ],
+    });
+
+    expect(await reaskStalledConsent(admin, request)).toBe('unreachable');
+    const row = tables.property_location_requests[0];
+    expect(row.pending_consent_contact_id).toBeNull();
+    expect(row.consent_requested_at).toBeNull();
+  });
+
   it('[PRP-068] still honours a late tap from the co-broker who timed out', async () => {
     const tables = freshTables();
     const admin = fakeAdmin(tables);
