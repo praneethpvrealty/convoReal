@@ -14090,6 +14090,10 @@ export type Database = {
           property_id: string;
         }[];
       };
+      inventory_overview: {
+        Args: { p_account_id: string };
+        Returns: Json;
+      };
       inventory_source_breakdown: {
         Args: { p_account_id: string };
         Returns: {

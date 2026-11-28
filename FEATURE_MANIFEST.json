@@ -1917,6 +1917,16 @@
             { "file": "src/lib/mobile-parity.test.ts", "case": "[CAL-024]" }
           ],
           "guards": [".github/workflows/eas-update.yml"]
+        },
+        {
+          "id": "CAL-025",
+          "rule": "The calendar never reads an account's whole appointment or to-do history to open. Web and mobile read the same named columns (APPOINTMENT_SELECT and TODO_SELECT in src/lib/calendar/calendar-data.ts, never select *). On web the Month, Week and Team views read the month before, the month shown and the month after, which contains the six-week grid and any week or day in that month, and read again only when the month changes; the Agenda reads every event from today on and past events newest first a page at a time behind Show past events, with Load earlier events for the next page; an event opened from a link or the Call backs list is read by id when it is outside what is loaded. The To-dos list reads every open to-do and the Done group a page at a time with its full count, Show more loads the next page, and Clear completed still deletes every done to-do under the list's filter, not only the page shown. Every read runs to its end in pages, so a list longer than the API row cap is never cut short. Reads are cached per account under the ['calendar', accountId] query key, so a revisit paints the last result at once and refreshes behind it, an edit made on the page updates every cached read of that event, and a stored view opens without waiting on deal dates. Deleting a to-do returns the whole deleted row, which is what Undo puts back (CAL-009). Mobile reads a month at a time, every event from tomorrow on and every to-do in pages, with the same columns.",
+          "tests": [
+            {
+              "file": "src/lib/calendar/calendar-data.test.ts",
+              "case": "[CAL-025]"
+            }
+          ]
         }
       ]
     },
@@ -3474,6 +3484,73 @@
           ],
           "guards": [
             "src/app/api/public/properties/[id]/location-request/route.ts"
+          ]
+        },
+        {
+          "id": "PRP-071",
+          "rule": "The web Inventory list and map and the mobile Properties list and map ask GET /api/properties for fields=card, an explicit column list shared from src/lib/inventory/card-columns with the same owner and interested-contacts embeds, while every other caller still gets every column. Each properties column is either in the card list or in its omitted list, and no omitted column is read by a card, table row, map pin or row action, so anything opened from a row on web (view, edit, flyer, share, email share, portals, promote, a deep link) loads the whole listing by id first and does not open when that load fails, rather than opening on a row with blank fields.",
+          "tests": [
+            {
+              "file": "src/lib/inventory/card-columns.test.ts",
+              "case": "[PRP-071]"
+            },
+            {
+              "file": "src/app/api/properties/route.test.ts",
+              "case": "[PRP-071]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-071]"
+            },
+            {
+              "file": "mobile/lib/property-card-request.test.ts",
+              "case": "[PRP-071]"
+            }
+          ]
+        },
+        {
+          "id": "PRP-072",
+          "rule": "Listing inventory never waits for the agent source-inventory sync. The web Inventory screen and the mobile Properties tab run the sync themselves through POST /api/agents/inventory-sync beside the list (when the screen opens, each time the web window or the mobile tab regains focus, and on a mobile pull-to-refresh, so a listing shared while the screen stays open is still picked up), mark their list requests with x-inventory-sync: client, and reload the list only when the sync imported a listing, dropping a first load still in flight so the reload shows the import. A list request without that header (an older mobile build, a picker) still triggers the sync, after the response has been sent; a viewer never triggers it, and a failed sync never fails the list.",
+          "tests": [
+            {
+              "file": "src/app/api/properties/route.test.ts",
+              "case": "[PRP-072]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-072]"
+            },
+            {
+              "file": "mobile/lib/property-card-request.test.ts",
+              "case": "[PRP-072]"
+            }
+          ]
+        },
+        {
+          "id": "PRP-073",
+          "rule": "The per-listing match counts on the web Inventory cards and table are worked out on the server by GET /api/properties/match-counts for at most 100 listing ids, with the caller's own session (so row-level security decides which buyers count), scoped to the session account, using the same buyer columns, enquiry-derived listing intent, viewer location mask and src/lib/matching rules the browser used; the buyer list is not sent to the browser, and an account with no visible buyers gets no counts.",
+          "tests": [
+            {
+              "file": "src/app/api/properties/match-counts/route.test.ts",
+              "case": "[PRP-073]"
+            },
+            {
+              "file": "src/app/(dashboard)/inventory/inventory-content.test.tsx",
+              "case": "[PRP-073]"
+            }
+          ]
+        },
+        {
+          "id": "PRP-074",
+          "rule": "The web Inventory summary tiles, Needs attention tile and tab and listing-party counts load from one call, inventory_overview, which returns exactly what inventory_stats, inventory_attention_counts and inventory_source_breakdown return and only for a member of the account; those three functions stay the single definition of each count (PRP-026, PRP-030).",
+          "tests": [
+            {
+              "file": "src/lib/inventory/overview.test.ts",
+              "case": "[PRP-074]"
+            }
+          ],
+          "guards": [
+            "supabase/migrations/20261128043149_inventory_overview.sql"
           ]
         }
       ]
@@ -6484,6 +6561,26 @@
             }
           ],
           "guards": ["mobile/lib/session-expiry.ts", "mobile/lib/api.ts"]
+        },
+        {
+          "id": "ACC-011",
+          "rule": "On web, the contacts, inventory and calendar list queries a member has already loaded are written to that browser's localStorage and painted from it on the next visit, then refreshed in the background, the way the mobile app already restores its lists from AsyncStorage. Only the query keys in PERSISTED_QUERY_PREFIXES (src/lib/query/cache-persistence.ts) are stored, and only when they succeeded: the buyer list the inventory match counts are computed from, a pending or failed query and every other screen stay in memory only. The stored copy is keyed by the signed-in user id and AuthProvider starts it only once the session names that user, so one member's data can never paint for another on a shared browser: starting it for a user deletes every other user's copy, and a session that ends for any reason (Sign out, an expired session, another user signing in) clears the in-memory cache and deletes the stored copies. A copy from a different build or older than 24 hours is discarded, the stored queries stay in memory for the same 24 hours so they are not dropped before they can be restored, and a browser that refuses storage (private mode, quota) simply runs without it. Sidebar links keep viewport prefetching off and prefetch their route once when the pointer, keyboard focus or a touch reaches them.",
+          "tests": [
+            {
+              "file": "src/lib/query/cache-persistence.test.ts",
+              "case": "[ACC-011]"
+            },
+            { "file": "src/hooks/useAuth.test.tsx", "case": "[ACC-011]" },
+            {
+              "file": "src/components/layout/intent-prefetch-link.test.tsx",
+              "case": "[ACC-011]"
+            }
+          ],
+          "guards": [
+            "src/components/layout/query-provider.tsx",
+            "src/components/layout/sidebar.tsx",
+            "mobile/lib/query.ts"
+          ]
         },
         {
           "id": "ACC-012",

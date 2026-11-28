@@ -19,6 +19,36 @@ than a written entry. Newest first.
 
 #### 28 November 2026
 
+- **Inventory opens faster.** The listing list no longer waits for the
+  shared-inventory sync: web and mobile run it beside the list and reload
+  only when it brought a new listing in. The list and map fetch the columns
+  a card shows instead of every column, and anything opened from a row
+  (view, edit, flyer, share, portals, promote) loads the whole listing
+  first. Match counts on the web cards are worked out on the server, so the
+  browser no longer downloads every buyer to count them, and the summary
+  tiles, Needs attention and tab counts arrive in one call instead of three.
+  The form, the map and the dialogs load after the list rather than with
+  it. **Migration required:** `20261128043149_inventory_overview.sql`.
+
+- **Calendar opens faster.** The calendar no longer reads every appointment
+  and to-do an account ever created each time it opens. The Month, Week and
+  Team views read the months around the one shown, the Agenda reads everything
+  from today on and past events a page at a time (Load earlier events), and
+  the Done to-dos group loads a page at a time with its full count. Coming
+  back to the calendar shows the last result at once and refreshes behind it
+  instead of a blank grid, and a calendar that remembers your view no longer
+  waits on deal dates to draw. Every list is read to its end in pages, so the
+  API's row cap can no longer cut a long calendar short. Web and mobile read
+  the same named columns (CAL-025).
+
+- **Contacts, Inventory and Calendar open from the last copy on web.** The
+  lists you have already loaded are kept in the browser and shown at once on
+  the next visit or reload, then refreshed in the background, as the mobile
+  app already does. The copy is kept per signed-in user, is deleted when you
+  sign out or your session ends, and is dropped after a day or a new release.
+  Sidebar pages also start loading as soon as you point at, focus or touch
+  their link.
+
 - **Contacts list loads in one request.** The web Contacts list and the
   mobile Contacts tab used to make up to five requests one after another
   before showing a page (the team's phone numbers, the contacts on those

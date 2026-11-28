@@ -5,6 +5,7 @@ import { loadEveryPage } from '@/lib/calendar-upcoming';
 import { buildTodoParticipantCheckIn } from '@/lib/todo-check-in';
 import { sortTodos as sortTodosImpl } from '@/lib/todo-sort';
 import { supabase } from '@/lib/supabase';
+import { TODO_SELECT } from '@shared/lib/calendar/calendar-data';
 
 /**
  * Web parity: the calendar's To-Do task list. Todos are plain
@@ -121,9 +122,7 @@ export async function fetchTodos(): Promise<Todo[]> {
   const rows = await loadEveryPage<Row>(async (from, to) => {
     const { data, error } = await supabase
       .from('todos')
-      .select(
-        '*, contact:contacts(id, name, phone), property:properties(id, title)'
-      )
+      .select(TODO_SELECT)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .range(from, to);
@@ -226,7 +225,9 @@ export async function updateTodo(
   if (!data?.length) throw new Error('Todo not found');
 }
 
-export async function deleteTodo(id: string): Promise<void> {
+/** Deletes a to-do and returns the whole deleted row, so Undo can put
+ *  back every column whatever the list itself reads (CAL-009). */
+export async function deleteTodo(id: string): Promise<Record<string, unknown>> {
   // Same guard as setTodoCompleted: a delete RLS refuses removes zero
   // rows and reports no error, so without reading the row back this
   // resolves as success and the caller re-renders the task it just told
@@ -235,17 +236,16 @@ export async function deleteTodo(id: string): Promise<void> {
     .from('todos')
     .delete()
     .eq('id', id)
-    .select('id');
+    .select('*');
   if (error) throw error;
-  if (!data?.length) throw new Error('Todo not found');
+  const row = data?.[0] as Record<string, unknown> | undefined;
+  if (!row) throw new Error('Todo not found');
+  return row;
 }
 
-/** Re-inserts a row read by fetchTodos, keeping its id and every column. */
+/** Re-inserts a row deleteTodo returned, keeping its id and every column. */
 export async function restoreTodo(row: Record<string, unknown>): Promise<void> {
-  const columns = { ...row };
-  delete columns.contact;
-  delete columns.property;
-  const { error } = await supabase.from('todos').insert(columns);
+  const { error } = await supabase.from('todos').insert(row);
   if (error) throw error;
 }
 

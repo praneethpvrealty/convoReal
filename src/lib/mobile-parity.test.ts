@@ -4449,6 +4449,9 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
       "title: 'Clear completed',\n      message: clearCompletedPrompt(todos.length),"
     );
     expect(webCalendar).toContain('completedTodoIds(doneTodos)');
+    expect(webCalendar).toMatch(
+      /doneTodosQuery\.hasNextPage \|\| doneTodosQuery\.isPlaceholderData\s+\? await loadDoneTodoIds\(supabase, accountId, todoFilter\)/
+    );
     expect(mobileCalendar).toContain(
       'deleteCompletedTodos(completedTodoIds(todos))'
     );
@@ -4461,7 +4464,7 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
 
   it('deleting a to-do and cancelling an appointment offer Undo on both surfaces', () => {
     expect(webCalendar).toContain(
-      "action: { label: 'Undo', onClick: () => void restoreTodo(todo) },"
+      "action: { label: 'Undo', onClick: () => void restoreTodo(deleted) },"
     );
     expect(webCalendar).toContain(
       "onClick: () => void setAppointmentStatus(appt, 'scheduled'),"
@@ -4471,9 +4474,7 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
     );
     expect(mobileTodos).toContain('export async function restoreTodo(');
     expect(mobileCalendar).toContain('showUndo(`Deleted "${todo.title}"`');
-    expect(mobileCalendar).toContain(
-      'await restoreTodo(todo as unknown as Record<string, unknown>);'
-    );
+    expect(mobileCalendar).toContain('await restoreTodo(deleted);');
     expect(mobileCalendar).toContain(
       "showUndo('Cancelled — it stays on its day', async () => {"
     );
@@ -6937,7 +6938,10 @@ describe('the deal card messages the contact for its stage on both surfaces', ()
   it('[CAL-023] both calendars connect an event to a deal or start one from it', () => {
     const mobileSheet = mobileSource('app/(app)/(tabs)/calendar.tsx');
     expect(mobileSheet).toContain('<EventDealLink');
-    expect(mobileSheet).toContain('deal:deals(id, title)');
+    expect(mobileSheet).toContain('.select(APPOINTMENT_SELECT)');
+    expect(webSource('lib/calendar/calendar-data.ts')).toContain(
+      'deal:deals(id, title)'
+    );
     const mobile = mobileSource('components/event-deal-link.tsx');
     expect(mobile).toContain('Connect to a deal');
     expect(mobile).toContain('Create a new deal from this event');
@@ -6951,7 +6955,9 @@ describe('the deal card messages the contact for its stage on both surfaces', ()
 
     const webPage = webSource('app/(dashboard)/calendar/page.tsx');
     expect(webPage).toContain('<EventDealLink');
-    expect(webPage).toContain('deal:deals(id, title)');
+    expect(webSource('lib/calendar/calendar-fetch.ts')).toContain(
+      '.select(APPOINTMENT_SELECT)'
+    );
     const web = webSource('components/calendar/event-deal-link.tsx');
     expect(web).toContain('Connect to a deal');
     expect(web).toContain('Create a new deal from this event');
