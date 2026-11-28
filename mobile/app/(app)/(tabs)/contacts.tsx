@@ -860,7 +860,10 @@ export default function ContactsScreen() {
             isError ? (
               <LoadErrorState
                 title="Could not load contacts"
-                onRetry={() => void refetch()}
+                onRetry={() => {
+                  void refetch();
+                  void counts.refetch();
+                }}
               />
             ) : (
               <EmptyState
