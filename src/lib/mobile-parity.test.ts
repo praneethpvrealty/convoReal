@@ -567,10 +567,24 @@ describe('Overview approvals read the same on web and mobile', () => {
     expect(webPanel).toContain('splitLocationApprovals(rows)');
     expect(mobilePanel).toContain('splitLocationApprovals(rows)');
     expect(mobilePanel).toContain(
-      "import { splitLocationApprovals } from '@shared/lib/dashboard/approval-order';"
+      "} from '@shared/lib/dashboard/approval-order';"
     );
     expect(webPanel).toContain('Recently approved ({approved.length})');
     expect(mobilePanel).toContain('Recently approved ({approved.length})');
+  });
+
+  it('[PRP-068] shows a stalled co-broker ask, the decision and "ask again" with one shared rule on both surfaces', () => {
+    const webPanel = webSource(
+      'components/dashboard/location-approvals-panel.tsx'
+    );
+    const mobilePanel = mobileSource('components/location-approvals.tsx');
+    for (const panel of [webPanel, mobilePanel]) {
+      expect(panel).toContain('locationApprovalStatus(row)');
+      expect(panel).toContain('canDecideLocationRequest');
+      expect(panel).toContain("'reask'");
+      expect(panel).toContain('Ask {row.stalled_contact_name} again');
+      expect(panel).toContain('Closed ({closed.length})');
+    }
   });
 
   it('[DOC-001] reads the document approval stage, wording and grouping from one shared rule on both surfaces', () => {

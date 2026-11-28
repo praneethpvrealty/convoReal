@@ -9,6 +9,7 @@ import {
   requestConsentFromContact,
 } from '@/lib/inventory/location-requests';
 import { isTeaserGated } from '@/lib/inventory/showcase-visibility';
+import { isExistingLead } from '@/lib/showcase/referred-enquiries';
 
 const LOCREQ_IP_LIMIT = { limit: 5, windowMs: 60_000 };
 const LOCREQ_ACCOUNT_LIMIT = { limit: 40, windowMs: 60_000 };
@@ -127,8 +128,11 @@ export async function POST(
     // a forged id from another tenant must not route consent anywhere.
     // The consent chain applies only when the link's recipient is a
     // CO-BROKER — classification 'Agent' or a recorded re-sharer of this
-    // property: buyer-attributed links (v= is used for both) and a
-    // co-broker requesting for themselves are direct requests.
+    // property: buyer-attributed links (v= is used for both), a
+    // co-broker requesting for themselves, and a requester who is
+    // already an ordinary lead of this account (they are the listing
+    // side's own contact whatever link they arrived through) are
+    // direct requests.
     let viaContactId: string | null = null;
     if (typeof via_contact_id === 'string' && UUID_RE.test(via_contact_id)) {
       const { data: viaContact } = await admin
@@ -142,7 +146,13 @@ export async function POST(
         normalizePhoneWithCountryCode(viaContact.phone || '') !==
           normalizedPhone &&
         (viaContact.classification === 'Agent' ||
-          (await hasReshareLink(admin, account_id, propertyId, viaContact.id)))
+          (await hasReshareLink(
+            admin,
+            account_id,
+            propertyId,
+            viaContact.id
+          ))) &&
+        !(await isExistingLead(admin, account_id, normalizedPhone))
       ) {
         viaContactId = viaContact.id;
       }
