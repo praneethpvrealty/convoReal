@@ -29,6 +29,15 @@ than a written entry. Newest first.
   tiles, Needs attention and tab counts arrive in one call instead of three.
   The form, the map and the dialogs load after the list rather than with
   it. **Migration required:** `20261128043149_inventory_overview.sql`.
+
+- **Contacts, Inventory and Calendar open from the last copy on web.** The
+  lists you have already loaded are kept in the browser and shown at once on
+  the next visit or reload, then refreshed in the background, as the mobile
+  app already does. The copy is kept per signed-in user, is deleted when you
+  sign out or your session ends, and is dropped after a day or a new release.
+  Sidebar pages also start loading as soon as you point at, focus or touch
+  their link.
+
 - **Morning schedule on WhatsApp: links and a cleaner layout.** Each item in
   the morning digest and the "today" reply now carries a link that opens the
   record in the mobile app (or on the web): the buyer's contact, labelled

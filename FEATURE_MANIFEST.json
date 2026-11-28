@@ -6469,6 +6469,26 @@
             }
           ],
           "guards": ["mobile/lib/session-expiry.ts", "mobile/lib/api.ts"]
+        },
+        {
+          "id": "ACC-011",
+          "rule": "On web, the contacts, inventory and calendar list queries a member has already loaded are written to that browser's localStorage and painted from it on the next visit, then refreshed in the background, the way the mobile app already restores its lists from AsyncStorage. Only the query keys in PERSISTED_QUERY_PREFIXES (src/lib/query/cache-persistence.ts) are stored, and only when they succeeded: the buyer list the inventory match counts are computed from, a pending or failed query and every other screen stay in memory only. The stored copy is keyed by the signed-in user id and AuthProvider starts it only once the session names that user, so one member's data can never paint for another on a shared browser: starting it for a user deletes every other user's copy, and a session that ends for any reason (Sign out, an expired session, another user signing in) clears the in-memory cache and deletes the stored copies. A copy from a different build or older than 24 hours is discarded, the stored queries stay in memory for the same 24 hours so they are not dropped before they can be restored, and a browser that refuses storage (private mode, quota) simply runs without it. Sidebar links keep viewport prefetching off and prefetch their route once when the pointer, keyboard focus or a touch reaches them.",
+          "tests": [
+            {
+              "file": "src/lib/query/cache-persistence.test.ts",
+              "case": "[ACC-011]"
+            },
+            { "file": "src/hooks/useAuth.test.tsx", "case": "[ACC-011]" },
+            {
+              "file": "src/components/layout/intent-prefetch-link.test.tsx",
+              "case": "[ACC-011]"
+            }
+          ],
+          "guards": [
+            "src/components/layout/query-provider.tsx",
+            "src/components/layout/sidebar.tsx",
+            "mobile/lib/query.ts"
+          ]
         }
       ]
     },
