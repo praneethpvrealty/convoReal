@@ -1,18 +1,21 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GateStatsMap } from '@/lib/inventory/gate-stats';
-import { GateRequestsDrawer } from '@/components/inventory/gate-requests-drawer';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { useCan } from '@/hooks/useCan';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { Contact, Property, ShowcaseSettings } from '@/types';
-import { getMatchingContacts } from '@/lib/matching';
-import { attachInquiredListingTypes } from '@/lib/contacts/inquired-intent';
+import type { Property, ShowcaseSettings } from '@/types';
+import {
+  EMPTY_INVENTORY_STATS,
+  parseInventoryOverview,
+} from '@/lib/inventory/overview';
+import { INVENTORY_SYNC_HEADER } from '@/lib/inventory/card-columns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -54,8 +57,6 @@ import {
   ChevronDown,
   CircleAlert,
 } from 'lucide-react';
-import { PropertyForm } from '@/components/inventory/property-form';
-import { PropertyMapView } from '@/components/inventory/property-map-view';
 import { LoadError } from '@/components/ui/load-error';
 import { useT } from '@/hooks/useLocale';
 import { PropertyList } from '@/components/inventory/property-list';
@@ -72,20 +73,11 @@ import {
   LocalityAutocomplete,
   type PickedLocality,
 } from '@/components/ui/locality-autocomplete';
-import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog';
-import { PromotePropertyDialog } from '@/components/inventory/promote-property-dialog';
 
 // Kill switch — the Promote button/dialog only exist where Meta Ads is
 // configured on the deployment (see docs/meta-ads-integration-plan.md §2).
 const META_ADS_ENABLED = !!process.env.NEXT_PUBLIC_META_ADS_APP_ID;
-import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
-import { ImportSharedDialog } from '@/components/inventory/import-shared-dialog';
-import { PropertyEmailShareDialog } from '@/components/inventory/property-email-share-dialog';
-import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
-import { PortalPostDialog } from '@/components/inventory/portal-post-dialog';
-import { PortalSyncDialog } from '@/components/inventory/portal-sync-dialog';
-import { ImportOwnerLeadsDialog } from '@/components/inventory/import-owner-leads-dialog';
 import { PortalDriftPanel } from '@/components/inventory/portal-drift-panel';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import type { PortalBadge } from '@/components/inventory/property-list';
@@ -101,7 +93,6 @@ import {
   attentionSummary,
   type AttentionCountRow,
   type InventoryTile,
-  type SourceBreakdownRow,
 } from '@/lib/inventory/list-scope';
 import {
   DropdownMenu,
@@ -109,6 +100,91 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+
+// Dialogs, the form and the map are not needed to paint the list, so
+// each loads as its own chunk after it.
+const GateRequestsDrawer = dynamic(
+  () =>
+    import('@/components/inventory/gate-requests-drawer').then(
+      (m) => m.GateRequestsDrawer
+    ),
+  { ssr: false }
+);
+const PropertyForm = dynamic(
+  () =>
+    import('@/components/inventory/property-form').then((m) => m.PropertyForm),
+  { ssr: false }
+);
+const PropertyMapView = dynamic(
+  () =>
+    import('@/components/inventory/property-map-view').then(
+      (m) => m.PropertyMapView
+    ),
+  { ssr: false }
+);
+const FlyerCreatorDialog = dynamic(
+  () =>
+    import('@/components/inventory/flyer-creator-dialog').then(
+      (m) => m.FlyerCreatorDialog
+    ),
+  { ssr: false }
+);
+const PromotePropertyDialog = dynamic(
+  () =>
+    import('@/components/inventory/promote-property-dialog').then(
+      (m) => m.PromotePropertyDialog
+    ),
+  { ssr: false }
+);
+const PropertyShareDialog = dynamic(
+  () =>
+    import('@/components/inventory/property-share-dialog').then(
+      (m) => m.PropertyShareDialog
+    ),
+  { ssr: false }
+);
+const ImportSharedDialog = dynamic(
+  () =>
+    import('@/components/inventory/import-shared-dialog').then(
+      (m) => m.ImportSharedDialog
+    ),
+  { ssr: false }
+);
+const PropertyEmailShareDialog = dynamic(
+  () =>
+    import('@/components/inventory/property-email-share-dialog').then(
+      (m) => m.PropertyEmailShareDialog
+    ),
+  { ssr: false }
+);
+const ShowcaseShareDialog = dynamic(
+  () =>
+    import('@/components/inventory/showcase-share-dialog').then(
+      (m) => m.ShowcaseShareDialog
+    ),
+  { ssr: false }
+);
+const PortalPostDialog = dynamic(
+  () =>
+    import('@/components/inventory/portal-post-dialog').then(
+      (m) => m.PortalPostDialog
+    ),
+  { ssr: false }
+);
+const PortalSyncDialog = dynamic(
+  () =>
+    import('@/components/inventory/portal-sync-dialog').then(
+      (m) => m.PortalSyncDialog
+    ),
+  { ssr: false }
+);
+const ImportOwnerLeadsDialog = dynamic(
+  () =>
+    import('@/components/inventory/import-owner-leads-dialog').then(
+      (m) => m.ImportOwnerLeadsDialog
+    ),
+  { ssr: false }
+);
 
 // Counts across ALL properties, independent of the current page/filters
 // so the summary cards always show accurate totals.
@@ -118,22 +194,29 @@ const EMPTY_AD_STATUSES: Record<string, 'ACTIVE' | 'PAUSED'> = {};
 // that feeds PropertyList, same reason EMPTY_BADGES exists.
 const EMPTY_GATE_STATS: GateStatsMap = {};
 
-const EMPTY_COUNTS: Record<string, number> = {};
+const EMPTY_ATTENTION: AttentionCountRow[] = [];
 const EMPTY_IMPORT_COUNTS: ImportCountMap = {};
 const NEAREST_SORT_KEY = 'nearest';
+const CLIENT_SYNC_HEADERS = { [INVENTORY_SYNC_HEADER]: 'client' };
 
 type TileFilter = InventoryTile;
 const DEFAULT_NEAR_ME_RADIUS_KM = 5;
 const DEFAULT_LOCALITY_RADIUS_KM = 10;
 
-const EMPTY_STATS = {
-  total: 0,
-  published: 0,
-  available: 0,
-  soldOrContract: 0,
-  pendingReview: 0,
-  activeTotal: 0,
-};
+async function fetchFullProperty(id: string): Promise<Property | null> {
+  try {
+    const response = await fetch(`/api/properties/${encodeURIComponent(id)}`, {
+      cache: 'no-store',
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as Property;
+  } catch {
+    return null;
+  }
+}
+
+const isNewer = (listed: Property, held: Property) =>
+  Date.parse(listed.updated_at) > Date.parse(held.updated_at);
 
 export default function InventoryPage() {
   const t = useT();
@@ -289,73 +372,58 @@ export default function InventoryPage() {
   const showcaseSettings = showcaseSettingsQuery.data ?? null;
   const currency = showcaseSettings?.currency ?? 'INR';
 
-  // Unfiltered, unpaginated counts for the summary stats panel, from a
-  // single scan of the account's inventory (migration 168). This was
-  // five parallel `count: 'exact'` HEAD requests — those are real
-  // COUNT(*)s, not metadata reads, so they scanned the account's whole
-  // inventory once each on every visit.
-  const globalStatsQuery = useQuery({
-    queryKey: ['inventory', 'stats', accountId],
+  // The summary tiles, the Needs attention tile and the tab and
+  // listing-party counts come from one call (inventory_overview), which
+  // composes the three SQL functions that used to be three requests.
+  const overviewQuery = useQuery({
+    queryKey: ['inventory', 'overview', accountId],
     queryFn: async () => {
       const supabase = createClient();
-      const { data, error } = await supabase
-        .rpc('inventory_stats', { p_account_id: accountId })
-        .maybeSingle<{
-          total: number;
-          published: number;
-          available: number;
-          sold_or_contract: number;
-          pending_review: number;
-          active_total: number;
-        }>();
-      if (error) throw error;
-      return {
-        total: data?.total ?? 0,
-        published: data?.published ?? 0,
-        available: data?.available ?? 0,
-        soldOrContract: data?.sold_or_contract ?? 0,
-        pendingReview: data?.pending_review ?? 0,
-        activeTotal: data?.active_total ?? 0,
-      };
-    },
-    enabled: Boolean(accountId),
-  });
-  const globalStats = globalStatsQuery.data ?? EMPTY_STATS;
-
-  // The tab and listing-party counts, grouped by the columns the list
-  // filters on so each pill counts the rows it yields on the tab and
-  // tile in force — not the account's active total on every tab.
-  const attentionQuery = useQuery({
-    queryKey: ['inventory', 'attention', accountId],
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase.rpc('inventory_attention_counts', {
-        p_account_id: accountId,
+      const { data, error } = await supabase.rpc('inventory_overview', {
+        p_account_id: accountId!,
       });
       if (error) throw error;
-      return (data ?? []) as AttentionCountRow[];
+      return parseInventoryOverview(data);
     },
     enabled: Boolean(accountId),
   });
-  const attention = attentionSummary(attentionQuery.data ?? []);
+  const globalStats = overviewQuery.data?.stats ?? EMPTY_INVENTORY_STATS;
+  const attentionRows = overviewQuery.data?.attention ?? EMPTY_ATTENTION;
+  const attention = attentionSummary(attentionRows);
 
-  const sourceBreakdownQuery = useQuery({
-    queryKey: ['inventory', 'source-breakdown', accountId],
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase.rpc('inventory_source_breakdown', {
-        p_account_id: accountId,
-      });
-      if (error) throw error;
-      return (data ?? []) as SourceBreakdownRow[];
-    },
-    enabled: Boolean(accountId),
-  });
+  // Listings another brokerage shared with this agent are copied in by
+  // their own request, beside the list rather than ahead of it, and the
+  // list reloads only when the sync brought something new. It runs when
+  // the page opens and each time the window regains focus, since the
+  // list request no longer does it.
+  useEffect(() => {
+    if (!accountId || !canEdit) return;
+    let cancelled = false;
+    const syncSharedListings = () => {
+      void fetch('/api/agents/inventory-sync', { method: 'POST' })
+        .then((response) => (response.ok ? response.json() : null))
+        .then(async (body) => {
+          if (cancelled || !(Number(body?.data?.imported) > 0)) return;
+          // A load still in flight began before the import landed and
+          // would be reused by an invalidation, so it is dropped first.
+          await queryClient.cancelQueries({ queryKey: ['inventory'] });
+          await queryClient.invalidateQueries({ queryKey: ['inventory'] });
+        })
+        .catch(() => {});
+    };
+    syncSharedListings();
+    window.addEventListener('focus', syncSharedListings);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', syncSharedListings);
+    };
+  }, [accountId, canEdit, queryClient]);
 
   const listParams = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),
       limit: '25',
+      fields: 'card',
     });
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
     if (pickedPlace) {
@@ -410,7 +478,9 @@ export default function InventoryPage() {
   const propertiesQuery = useQuery({
     queryKey: ['inventory', 'list', listParams],
     queryFn: async () => {
-      const response = await fetch(`/api/properties?${listParams}`);
+      const response = await fetch(`/api/properties?${listParams}`, {
+        headers: CLIENT_SYNC_HEADERS,
+      });
       if (!response.ok) throw new Error('Failed to fetch properties');
       return (await response.json()) as {
         data: Property[];
@@ -447,7 +517,9 @@ export default function InventoryPage() {
     queryKey: ['inventory', 'map', mapParams],
     enabled: view === 'map',
     queryFn: async () => {
-      const response = await fetch(`/api/properties?${mapParams}`);
+      const response = await fetch(`/api/properties?${mapParams}`, {
+        headers: CLIENT_SYNC_HEADERS,
+      });
       if (!response.ok) throw new Error('Failed to fetch properties');
       return (await response.json()) as {
         data: Property[];
@@ -548,21 +620,10 @@ export default function InventoryPage() {
     }
 
     const loadAndOpen = async () => {
-      let prop = properties.find(
+      const listed = properties.find(
         (p) => p.id === pid || p.property_code === pid
       );
-      if (!prop) {
-        try {
-          const response = await fetch(`/api/properties/${pid}`, {
-            cache: 'no-store',
-          });
-          if (response.ok) {
-            prop = await response.json();
-          }
-        } catch {
-          // ignore
-        }
-      }
+      const prop = await fetchFullProperty(listed?.id ?? pid);
       if (prop) {
         if (mode === 'share') {
           setShareProperty(prop);
@@ -594,23 +655,36 @@ export default function InventoryPage() {
   // out from under anyone using it, and re-triggering its loading spinner
   // over an already-loaded, otherwise-untouched contact list.
   useEffect(() => {
-    if (selectedProperty) {
-      const updated = properties.find((p) => p.id === selectedProperty.id);
-      if (updated && updated.updated_at !== selectedProperty.updated_at) {
-        setSelectedProperty(updated);
-      }
-    }
-    if (flyerProperty) {
-      const updated = properties.find((p) => p.id === flyerProperty.id);
-      if (updated && updated.updated_at !== flyerProperty.updated_at) {
-        setFlyerProperty(updated);
-      }
-    }
-    if (shareProperty) {
-      const updated = properties.find((p) => p.id === shareProperty.id);
-      if (updated && updated.updated_at !== shareProperty.updated_at) {
-        setShareProperty(updated);
-      }
+    const held: [Property | null, (full: Property) => void][] = [
+      [
+        selectedProperty,
+        (full) =>
+          setSelectedProperty((current) =>
+            current?.id === full.id ? full : current
+          ),
+      ],
+      [
+        flyerProperty,
+        (full) =>
+          setFlyerProperty((current) =>
+            current?.id === full.id ? full : current
+          ),
+      ],
+      [
+        shareProperty,
+        (full) =>
+          setShareProperty((current) =>
+            current?.id === full.id ? full : current
+          ),
+      ],
+    ];
+    for (const [property, apply] of held) {
+      if (!property) continue;
+      const listed = properties.find((p) => p.id === property.id);
+      if (!listed || !isNewer(listed, property)) continue;
+      void fetchFullProperty(property.id).then((full) => {
+        if (full) apply(full);
+      });
     }
   }, [properties, selectedProperty, flyerProperty, shareProperty]);
 
@@ -647,51 +721,36 @@ export default function InventoryPage() {
     );
   }
 
+  // The list carries card columns only, so anything that opens from a
+  // row reads the whole listing first rather than a row with blanks.
+  async function openFull(property: Property, open: (full: Property) => void) {
+    const full = await fetchFullProperty(property.id);
+    if (!full) {
+      toast.error('Could not load that listing. Please try again.');
+      return;
+    }
+    open(full);
+  }
+
   async function handleViewClick(
     property: Property,
     tab: 'details' | 'matches' = 'details'
   ) {
     setFormInitialTab(tab);
-    try {
-      const response = await fetch(`/api/properties/${property.id}`, {
-        cache: 'no-store',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch property details');
-      }
-      const fullProperty = await response.json();
-      setSelectedProperty(fullProperty);
+    await openFull(property, (full) => {
+      setSelectedProperty(full);
       setFormViewOnly(true);
       setFormOpen(true);
-    } catch (err) {
-      console.error('Failed to load property details:', err);
-      // Fallback to list property if detail fetch fails
-      setSelectedProperty(property);
-      setFormViewOnly(true);
-      setFormOpen(true);
-    }
+    });
   }
 
   async function handleEditClick(property: Property) {
     setFormInitialTab('details');
-    try {
-      const response = await fetch(`/api/properties/${property.id}`, {
-        cache: 'no-store',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch property details');
-      }
-      const fullProperty = await response.json();
-      setSelectedProperty(fullProperty);
+    await openFull(property, (full) => {
+      setSelectedProperty(full);
       setFormViewOnly(false);
       setFormOpen(true);
-    } catch (err) {
-      console.error('Failed to load property details:', err);
-      // Fallback to list property if detail fetch fails
-      setSelectedProperty(property);
-      setFormViewOnly(false);
-      setFormOpen(true);
-    }
+    });
   }
 
   async function handleDuplicateClick(property: Property) {
@@ -743,19 +802,32 @@ export default function InventoryPage() {
 
   // Handle flyer click
   function handleFlyerClick(property: Property) {
-    setFlyerProperty(property);
-    setFlyerOpen(true);
+    void openFull(property, (full) => {
+      setFlyerProperty(full);
+      setFlyerOpen(true);
+    });
   }
 
   function handlePromoteClick(property: Property) {
-    setPromoteProperty(property);
-    setPromoteOpen(true);
+    void openFull(property, (full) => {
+      setPromoteProperty(full);
+      setPromoteOpen(true);
+    });
   }
 
   // Handle share click
   function handleShareClick(property: Property) {
-    setShareProperty(property);
-    setShareOpen(true);
+    void openFull(property, (full) => {
+      setShareProperty(full);
+      setShareOpen(true);
+    });
+  }
+
+  function handlePortalsClick(property: Property) {
+    void openFull(property, (full) => {
+      setPortalProperty(full);
+      setPortalOpen(true);
+    });
   }
 
   function handleShareOpenChange(open: boolean) {
@@ -800,8 +872,10 @@ export default function InventoryPage() {
 
   // Handle email share click
   function handleEmailShareClick(property: Property) {
-    setEmailShareProperty(property);
-    setEmailShareOpen(true);
+    void openFull(property, (full) => {
+      setEmailShareProperty(full);
+      setEmailShareOpen(true);
+    });
   }
 
   // Handle delete confirmation click
@@ -958,40 +1032,23 @@ export default function InventoryPage() {
   const [gateRequestsProperty, setGateRequestsProperty] =
     useState<Property | null>(null);
 
-  // Buyer contacts for the per-card match counts, fetched once per visit
-  // with only the columns src/lib/matching.ts reads — far lighter than
-  // the form's full `select('*')` it repeats on every dialog open.
-  const matchContactsQuery = useQuery({
-    queryKey: ['inventory', 'match-contacts', accountId],
-    queryFn: async () => {
-      const supabaseClient = createClient();
-      const { data, error } = await supabaseClient
-        .from('contacts')
-        .select(
-          'id, classification, requirements, requirement_profiles, requirement_active, min_budget, max_budget, no_budget, min_roi, requires_tenanted, property_interests, areas_of_interest, areas_of_interest_geo, projects_of_interest, strict_project_match, strict_area_match, pref_property_types, pref_property_categories, pref_bhk_min, pref_bhk_max, pref_budget_min, pref_budget_max, pref_budget_anchor, pref_land_area_min_sqft, pref_land_area_max_sqft, pref_areas, pref_excluded_areas, pref_projects, pref_min_roi, pref_requires_tenanted, pref_facing, pref_towers, pref_floor_min, pref_floor_max, pref_listing_types, pref_extracted_at, contact_notes(note_text)'
-        )
-        .eq('classification', 'Buyer');
-      if (error) throw error;
-      return attachInquiredListingTypes(
-        supabaseClient,
-        accountId!,
-        (data ?? []) as unknown as Contact[]
+  // Per-card match counts are worked out on the server for the listings
+  // on screen, so the buyer list never travels to the browser.
+  const matchCountsQuery = useQuery({
+    queryKey: ['inventory', 'match-counts', accountId, visiblePropertyIds],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const res = await fetch(
+        `/api/properties/match-counts?ids=${visiblePropertyIds.join(',')}`
       );
+      if (!res.ok) throw new Error('Could not load match counts');
+      const body = await res.json();
+      return (body?.data ?? {}) as Record<string, number>;
     },
-    enabled: Boolean(accountId),
+    enabled: Boolean(accountId) && visiblePropertyIds.length > 0,
     staleTime: 60_000,
+    placeholderData: (prev) => prev,
   });
-
-  const matchCounts = useMemo(() => {
-    const buyers = matchContactsQuery.data;
-    if (!buyers || buyers.length === 0 || properties.length === 0)
-      return EMPTY_COUNTS;
-    const counts: Record<string, number> = {};
-    for (const property of properties) {
-      counts[property.id] = getMatchingContacts(property, buyers).length;
-    }
-    return counts;
-  }, [matchContactsQuery.data, properties]);
+  const matchCounts = matchCountsQuery.data;
 
   // Toggle the Contacts-page interest-filter star. The server enforces
   // the cap too; this pre-check just gives a friendlier local error.
@@ -1129,15 +1186,13 @@ export default function InventoryPage() {
   // mobile). Counts follow the active tab and tile, so each pill shows
   // the rows it yields there, and are held back until the breakdown
   // loads so the labels don't flash "(0)".
-  const sourceBreakdown = sourceBreakdownQuery.data;
-  const statsReady =
-    Boolean(sourceBreakdown) &&
-    (tileFilter !== 'attention' || Boolean(attentionQuery.data));
+  const sourceBreakdown = overviewQuery.data?.sourceBreakdown;
+  const statsReady = Boolean(overviewQuery.data);
   const pillCounts = partyCounts(
     sourceBreakdown ?? [],
     reviewTab,
     tileFilter,
-    attentionQuery.data ?? []
+    attentionRows
   );
   const archivedCount = tabCount(sourceBreakdown ?? [], 'archived');
   const emptyStateCopy = inventoryEmptyState({
@@ -1880,13 +1935,10 @@ export default function InventoryPage() {
               onFlyer={handleFlyerClick}
               onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
               onEmailShare={handleEmailShareClick}
-              onPortals={(property) => {
-                setPortalProperty(property);
-                setPortalOpen(true);
-              }}
+              onPortals={handlePortalsClick}
               onShare={handleShareClick}
               onMatches={(property) => handleViewClick(property, 'matches')}
-              matchCounts={matchContactsQuery.data ? matchCounts : undefined}
+              matchCounts={matchCounts}
               importCounts={importCounts}
               canEdit={canEdit}
               currency={currency}
@@ -1910,10 +1962,7 @@ export default function InventoryPage() {
               onDelete={handleDeleteClick}
               onTogglePublish={handleTogglePublish}
               onToggleStar={handleToggleStar}
-              onPortals={(property) => {
-                setPortalProperty(property);
-                setPortalOpen(true);
-              }}
+              onPortals={handlePortalsClick}
               portalBadges={portalBadges}
               adStatuses={adStatuses}
               gateStats={gateStats}
@@ -1923,7 +1972,7 @@ export default function InventoryPage() {
               onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
               onShare={handleShareClick}
               onMatches={(property) => handleViewClick(property, 'matches')}
-              matchCounts={matchContactsQuery.data ? matchCounts : undefined}
+              matchCounts={matchCounts}
               importCounts={importCounts}
               onEmailShare={handleEmailShareClick}
               onApprove={handleApprove}

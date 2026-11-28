@@ -19,6 +19,17 @@ than a written entry. Newest first.
 
 #### 28 November 2026
 
+- **Inventory opens faster.** The listing list no longer waits for the
+  shared-inventory sync: web and mobile run it beside the list and reload
+  only when it brought a new listing in. The list and map fetch the columns
+  a card shows instead of every column, and anything opened from a row
+  (view, edit, flyer, share, portals, promote) loads the whole listing
+  first. Match counts on the web cards are worked out on the server, so the
+  browser no longer downloads every buyer to count them, and the summary
+  tiles, Needs attention and tab counts arrive in one call instead of three.
+  The form, the map and the dialogs load after the list rather than with
+  it. **Migration required:** `20261128043149_inventory_overview.sql`.
+
 - **Calendar opens faster.** The calendar no longer reads every appointment
   and to-do an account ever created each time it opens. The Month, Week and
   Team views read the months around the one shown, the Agenda reads everything
