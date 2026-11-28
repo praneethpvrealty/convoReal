@@ -29,6 +29,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { createClient } from '@/lib/supabase/server';
+import { resolveVerifiedUser } from '@/lib/auth/verified-user';
 import { toLanguageCode, type LanguageCode } from '@/lib/languages';
 import {
   hasMinRole,
@@ -171,11 +172,8 @@ export interface AccountContext {
 export async function getCurrentAccount(): Promise<AccountContext> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: userErr,
-  } = await supabase.auth.getUser();
-  if (userErr || !user) {
+  const { userId } = await resolveVerifiedUser(supabase.auth);
+  if (!userId) {
     throw new UnauthorizedError();
   }
 
@@ -189,7 +187,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     .select(
       'id, account_id, account_role, org_role, team_id, is_read_only, active_ui_language, account:accounts!inner(id, name, status, default_language)'
     )
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .maybeSingle();
 
   if (error) {
@@ -233,7 +231,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
 
   return {
     supabase,
-    userId: user.id,
+    userId,
     profileId: data.id,
     accountId: data.account_id,
     role: data.account_role,

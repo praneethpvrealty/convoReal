@@ -32,7 +32,18 @@ than a written entry. Newest first.
   with its code instead of running on inside the task title, and the line
   under the date says how many tasks are high priority.
 
-#### 28 November 2026
+- **Faster API responses: the session is verified without a round trip.**
+  Every dashboard request used to ask Supabase Auth who was calling twice,
+  once in the proxy and once in the route. Both now verify the access token
+  against the project's signing keys, which are cached in memory, so neither
+  makes a network call for a live session. Membership, role, read-only and
+  archived-account checks still read the database on every request. A session
+  revoked in Supabase Auth (sign-out on another device, a password change)
+  now stays usable until its access token expires, up to an hour by default;
+  platform-admin, Portfolio owner and Portfolio buyer routes still ask
+  Supabase Auth on every request. Requires asymmetric JWT signing keys on the
+  Supabase project; a project still on the legacy shared secret keeps the old
+  behaviour automatically (ACC-012).
 
 - **Contacts counts no longer slow down as the contact list grows.** The
   database rule that decides which contacts a member may read checked their

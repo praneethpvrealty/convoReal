@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   state: {
     user: { id: 'user-1' } as { id: string } | null,
     profile: null as Record<string, unknown> | null,
+    getUserCalls: 0,
   },
 }));
 
@@ -19,11 +20,18 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: () =>
     Promise.resolve({
       auth: {
-        getUser: () =>
+        getClaims: () =>
           Promise.resolve({
-            data: { user: h.state.user },
+            data: h.state.user ? { claims: { sub: h.state.user.id } } : null,
             error: h.state.user ? null : new Error('no session'),
           }),
+        getUser: () => {
+          h.state.getUserCalls++;
+          return Promise.resolve({
+            data: { user: h.state.user },
+            error: h.state.user ? null : new Error('no session'),
+          });
+        },
       },
       from: () => ({
         select: () => ({
@@ -62,6 +70,7 @@ let UnauthorizedError: typeof import('./account').UnauthorizedError;
 beforeEach(async () => {
   h.state.user = { id: 'user-1' };
   h.state.profile = activeProfile;
+  h.state.getUserCalls = 0;
   vi.resetModules();
   ({
     getCurrentAccount,
@@ -74,6 +83,18 @@ beforeEach(async () => {
 });
 
 describe('getCurrentAccount — archived account block', () => {
+  it('[ACC-012] resolves the caller from verified claims without a GoTrue getUser call', async () => {
+    const ctx = await getCurrentAccount();
+    expect(ctx.userId).toBe('user-1');
+    expect(h.state.getUserCalls).toBe(0);
+  });
+
+  it('[ACC-012] rejects a caller whose token does not verify', async () => {
+    h.state.user = null;
+    await expect(getCurrentAccount()).rejects.toBeInstanceOf(UnauthorizedError);
+    expect(h.state.getUserCalls).toBe(0);
+  });
+
   it('resolves normally for an active account', async () => {
     const ctx = await getCurrentAccount();
     expect(ctx.accountId).toBe('acc-1');
