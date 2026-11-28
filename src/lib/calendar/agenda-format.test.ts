@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { agendaItemTitle, callablePhone, contactLine } from './agenda-format';
+import {
+  agendaItemTitle,
+  callablePhone,
+  contactLine,
+  overdueText,
+} from './agenda-format';
 
 describe('[CAL-017] agenda contact formatting', () => {
   it('turns a stored phone into a dialable international number', () => {
@@ -45,6 +50,20 @@ describe('[CAL-017] agenda contact formatting', () => {
     expect(agendaItemTitle('HSR Plot (PROP-1)', null, property)).toBe(
       'HSR Plot (PROP-1)'
     );
+  });
+
+  it('counts overdue days from the start of the IST day, whatever the timestamp format', () => {
+    const dayStart = '2026-11-27T18:30:00.000Z';
+    expect(overdueText('2026-07-02T06:00:00+00:00', dayStart)).toBe(
+      'Due 2 Jul · 149 days overdue'
+    );
+    expect(overdueText('2026-11-27T18:29:59+00:00', dayStart)).toBe(
+      'Due 27 Nov · 1 day overdue'
+    );
+    expect(overdueText('2026-11-27T18:30:00+00:00', dayStart)).toBeNull();
+    expect(overdueText('2026-11-28T06:00:00.000Z', dayStart)).toBeNull();
+    expect(overdueText(null, dayStart)).toBeNull();
+    expect(overdueText('2026-07-02T06:00:00+00:00', null)).toBeNull();
   });
 
   it('shows the name and a tappable phone', () => {
