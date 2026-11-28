@@ -8,7 +8,11 @@ import {
   type RGB,
 } from 'pdf-lib';
 
-import { agendaItemTitle, callablePhone } from '@/lib/calendar/agenda-format';
+import {
+  agendaItemTitle,
+  callablePhone,
+  overdueText,
+} from '@/lib/calendar/agenda-format';
 import type {
   DailyAgenda,
   DailyAgendaEvent,
@@ -53,14 +57,6 @@ function istTime(iso: string): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-  });
-}
-
-function istShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    day: 'numeric',
-    month: 'short',
   });
 }
 
@@ -316,9 +312,10 @@ function drawTodo(w: Writer, todo: DailyAgendaTodo, dayStartIso: string) {
   const high = todo.priority === 'high';
   const badgeW = high ? 34 : 0;
   const width = CONTENT_W - 22 - (badgeW ? badgeW + 8 : 0);
-  const title = agendaItemTitle(todo.title, todo.contact);
+  const late = overdueText(todo.dueDate, dayStartIso);
+  const overdue = late !== null;
+  const title = agendaItemTitle(todo.title, todo.contact, null, { overdue });
   const titleLines = w.wrap(title, high ? w.bold : w.regular, 11, width);
-  const overdue = !!todo.dueDate && todo.dueDate < dayStartIso;
   const height =
     titleLines.length * 15 + (todo.contact ? 15 : 0) + (overdue ? 13 : 0) + 12;
   w.ensure(height);
@@ -353,15 +350,8 @@ function drawTodo(w: Writer, todo: DailyAgendaTodo, dayStartIso: string) {
     w.move(15);
   }
   if (drawContact(w, textX, todo.contact)) w.move(15);
-  if (overdue && todo.dueDate) {
-    w.text(
-      `Overdue since ${istShortDate(todo.dueDate)}`,
-      textX,
-      w.cursor + 2,
-      w.regular,
-      8.5,
-      DANGER
-    );
+  if (late) {
+    w.text(late, textX, w.cursor + 2, w.regular, 8.5, DANGER);
     w.move(13);
   }
   w.move(9);
