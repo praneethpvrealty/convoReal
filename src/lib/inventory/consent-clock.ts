@@ -6,6 +6,8 @@ import {
 export const CONSENT_AWAKE_MS = 4 * 60 * 60 * 1000;
 export const CONSENT_REMINDER_AWAKE_MS = 2 * 60 * 60 * 1000;
 export const LEGACY_CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+export const SWEEP_SCAN_LIMIT = 1000;
+export const SWEEP_ACT_LIMIT = 50;
 
 const STEP_MS = 60 * 1000;
 const MAX_STEPS = 14 * 24 * 60;

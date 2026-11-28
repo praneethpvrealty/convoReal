@@ -61,6 +61,8 @@ import { handleInboundChain } from '@/lib/whatsapp/inbound/chain/run';
 import { isBotPaused } from '@/lib/conversations/bot-pause';
 import type { InboundChainPayload } from '@/lib/whatsapp/inbound/chain/context';
 
+import { FIRST_CONTACT_FILTER } from '@/lib/conversations/first-contact';
+
 export interface WhatsAppMessage {
   id: string;
   /** The PARTICIPANT's phone on a group message, not the group. */
@@ -927,7 +929,7 @@ async function processMessage(
     .from('messages')
     .select('id', { count: 'exact', head: true })
     .eq('conversation_id', conversation.id)
-    .eq('sender_type', 'customer');
+    .or(FIRST_CONTACT_FILTER);
   const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0;
 
   const { error: msgError } = await supabaseAdmin()

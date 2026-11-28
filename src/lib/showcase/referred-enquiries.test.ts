@@ -139,9 +139,18 @@ const alertAgent = vi.fn<(args: Row) => Promise<void>>(async () => undefined);
 vi.mock('@/lib/whatsapp/enquiry-alert', () => ({
   alertAgentOfPropertyEnquiry: (args: Row) => alertAgent(args),
 }));
+const quietNow = vi.fn<(accountId?: string) => Promise<boolean>>(
+  async () => false
+);
 vi.mock('@/lib/inventory/location-requests', () => ({
   propertyTitle: async () => 'Commercial Building in Munnekolal',
   buildSeekerRedirectMessage: (title: string) => `speak to sharer: ${title}`,
+  buildConsentReminderMessage: (text: string) => `REMINDER ${text}`,
+  consentScheduleFor: async (_admin: unknown, _account: string, at: Date) => ({
+    remindAt: new Date(at.getTime() + 2 * 3600_000),
+    deadlineAt: new Date(at.getTime() + 4 * 3600_000),
+  }),
+  quietNowChecker: () => (accountId: string) => quietNow(accountId),
 }));
 const loadTemplate = vi.fn();
 vi.mock('@/lib/whatsapp/template-language', () => ({
@@ -152,7 +161,7 @@ vi.mock('@/lib/whatsapp/template-language', () => ({
 const {
   REFERRED_APPROVE_PREFIX,
   REFERRED_DECLINE_PREFIX,
-  REFERRAL_CONSENT_TIMEOUT_MS,
+  LEGACY_REFERRAL_CONSENT_TIMEOUT_MS,
   buildReferrerAskMessage,
   handleReferredEnquiryReply,
   isExistingLead,
@@ -160,6 +169,7 @@ const {
   openReferredEnquiry,
   resolveSessionReferrer,
   resolveWhatsAppTapReferrer,
+  sweepReferredEnquiryReminders,
   sweepReferredEnquiryTimeouts,
 } = await import('./referred-enquiries');
 
@@ -234,6 +244,8 @@ beforeEach(() => {
   };
   send.mockReset();
   send.mockResolvedValue({ success: true });
+  quietNow.mockReset();
+  quietNow.mockResolvedValue(false);
   notify.mockClear();
   fileInquiry.mockClear();
   alertAgent.mockClear();
@@ -462,7 +474,7 @@ describe('[PLS-010] an agent’s guest is held until the agent approves', () => 
     });
     expect(text).toContain('ma••• Po•••');
     expect(text).toContain('recorded as the referrer');
-    expect(text).toContain('2 hours');
+    expect(text).toContain('four daytime hours');
   });
 
   it('falls back to the approved consent template when the agent’s window is closed', async () => {
@@ -750,23 +762,114 @@ describe('[PLS-010] an agent’s guest is held until the agent approves', () => 
     expect(fileInquiry).not.toHaveBeenCalled();
   });
 
-  it('closes an enquiry the agent left unanswered for two hours, exactly like a decline', async () => {
+  it('[PLS-012] closes an enquiry the agent left unanswered past its deadline, exactly like a decline', async () => {
     await openWebsite();
+    const row = tables.referred_enquiries[0];
+    expect(
+      Date.parse(row.consent_deadline_at as string) -
+        Date.parse(row.consent_requested_at as string)
+    ).toBe(4 * 3600_000);
     send.mockClear();
     notify.mockClear();
     expect(await sweepReferredEnquiryTimeouts(makeAdmin() as never)).toBe(0);
 
-    tables.referred_enquiries[0].consent_requested_at = new Date(
-      Date.now() - REFERRAL_CONSENT_TIMEOUT_MS - 60_000
-    ).toISOString();
+    row.consent_deadline_at = new Date(Date.now() - 60_000).toISOString();
     expect(await sweepReferredEnquiryTimeouts(makeAdmin() as never)).toBe(1);
-    expect(tables.referred_enquiries[0].status).toBe('expired');
+    expect(row.status).toBe('expired');
     expect(fileInquiry).not.toHaveBeenCalled();
     expect(send.mock.calls[0][0].toPhone).toContain('9845077813');
     expect(notify.mock.calls[0][0].title).toBe(
       'No answer from Nimmy on a guest enquiry'
     );
     expect(await sweepReferredEnquiryTimeouts(makeAdmin() as never)).toBe(0);
+  });
+
+  it('[PLS-012] still closes an enquiry opened before deadlines existed after two hours', async () => {
+    await openWebsite();
+    const row = tables.referred_enquiries[0];
+    row.consent_deadline_at = null;
+    row.consent_requested_at = new Date(
+      Date.now() - LEGACY_REFERRAL_CONSENT_TIMEOUT_MS - 60_000
+    ).toISOString();
+    expect(await sweepReferredEnquiryTimeouts(makeAdmin() as never)).toBe(1);
+    expect(row.status).toBe('expired');
+  });
+
+  it("[PLS-012] reminds the agent once, halfway through, for all of a guest's waiting enquiries", async () => {
+    await openWebsite();
+    await openWebsite();
+    expect(tables.referred_enquiries).toHaveLength(2);
+    for (const row of tables.referred_enquiries) {
+      row.consent_remind_at = new Date(Date.now() - 60_000).toISOString();
+    }
+    send.mockClear();
+
+    expect(await sweepReferredEnquiryReminders(makeAdmin() as never)).toBe(1);
+    expect(send).toHaveBeenCalledTimes(1);
+    const reminder = send.mock.calls[0][0];
+    expect(reminder.contactId).toBe(NIMMY);
+    expect(reminder.interactiveBody).toMatch(/^REMINDER /);
+    expect(reminder.interactiveBody).not.toContain('manju Poojappa');
+    expect(reminder.interactiveBody).toContain(
+      'No answer within the next two daytime hours'
+    );
+    expect(reminder.interactiveBody).not.toContain('four daytime hours');
+    expect(
+      reminder.interactiveButtons.map((b: { id: string }) => b.id)
+    ).toEqual([askId(REFERRED_APPROVE_PREFIX), askId(REFERRED_DECLINE_PREFIX)]);
+    expect(await sweepReferredEnquiryReminders(makeAdmin() as never)).toBe(0);
+    expect(tables.referred_enquiries.every((r) => r.status === 'pending')).toBe(
+      true
+    );
+  });
+
+  it('[PLS-012] sends neither reminder nor closing messages during client quiet hours', async () => {
+    await openWebsite();
+    const row = tables.referred_enquiries[0];
+    row.consent_remind_at = new Date(Date.now() - 3 * 3600_000).toISOString();
+    row.consent_deadline_at = new Date(Date.now() - 60_000).toISOString();
+    send.mockClear();
+    quietNow.mockResolvedValue(true);
+
+    expect(await sweepReferredEnquiryReminders(makeAdmin() as never)).toBe(0);
+    expect(await sweepReferredEnquiryTimeouts(makeAdmin() as never)).toBe(0);
+    expect(send).not.toHaveBeenCalled();
+    expect(row.status).toBe('pending');
+
+    quietNow.mockResolvedValue(false);
+    expect(await sweepReferredEnquiryTimeouts(makeAdmin() as never)).toBe(1);
+  });
+
+  it("[PLS-012] does not let a quiet account's backlog hold up another account", async () => {
+    const past = new Date(Date.now() - 3600_000).toISOString();
+    for (let i = 0; i < 60; i += 1) {
+      tables.referred_enquiries.push({
+        id: `quiet-${i}`,
+        account_id: 'acc-quiet',
+        via_contact_id: NIMMY,
+        requester_name: 'Guest',
+        requester_phone: `+91980000${String(i).padStart(4, '0')}`,
+        session_key: null,
+        status: 'pending',
+        consent_requested_at: past,
+        consent_remind_at: past,
+        consent_deadline_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
+      });
+    }
+    await openWebsite();
+    const awake = tables.referred_enquiries.at(-1)!;
+    awake.consent_deadline_at = new Date(Date.now() - 60_000).toISOString();
+    quietNow.mockImplementation(
+      async (accountId?: string) => accountId === 'acc-quiet'
+    );
+
+    expect(await sweepReferredEnquiryTimeouts(makeAdmin() as never)).toBe(1);
+    expect(awake.status).toBe('expired');
+    expect(
+      tables.referred_enquiries
+        .filter((r) => r.account_id === 'acc-quiet')
+        .every((r) => r.status === 'pending')
+    ).toBe(true);
   });
 
   it('does not ask the agent again within a day of their decline', async () => {

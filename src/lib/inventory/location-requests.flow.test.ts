@@ -611,6 +611,49 @@ describe('multi-hop consent flow, end to end', () => {
     }
   });
 
+  it("[PRP-067] does not let a quiet account's backlog hold up another account", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-17T22:30:00+05:30'));
+    try {
+      const tables = freshTables();
+      tables.accounts.push({
+        id: 'acct-quiet',
+        owner_user_id: OWNER_USER,
+        client_quiet_hours_enabled: true,
+      });
+      const admin = fakeAdmin(tables);
+      const overdue = new Date(Date.now() - 3600_000).toISOString();
+      for (let i = 0; i < 60; i += 1) {
+        seedRequest(tables, {
+          id: `quiet-${i}`,
+          account_id: 'acct-quiet',
+          pending_consent_contact_id: C,
+          consent_requested_at: overdue,
+          consent_deadline_at: new Date(Date.now() - 7200_000).toISOString(),
+        });
+      }
+      seedRequest(tables, {
+        id: 'awake',
+        pending_consent_contact_id: C,
+        consent_requested_at: overdue,
+        consent_deadline_at: new Date(Date.now() - 60_000).toISOString(),
+      });
+
+      expect(await sweepConsentTimeouts(admin)).toBe(1);
+      const rows = tables.property_location_requests;
+      expect(
+        rows.find((r) => r.id === 'awake')?.pending_consent_contact_id
+      ).toBeNull();
+      expect(
+        rows
+          .filter((r) => r.account_id === 'acct-quiet')
+          .every((r) => r.pending_consent_contact_id === C)
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('[PRP-068] never lets a stale sweep expire a newer ask to the same co-broker', async () => {
     const tables = freshTables();
     const admin = fakeAdmin(tables);

@@ -71,6 +71,8 @@ import {
 import {
   consentSchedule,
   LEGACY_CONSENT_TIMEOUT_MS,
+  SWEEP_ACT_LIMIT,
+  SWEEP_SCAN_LIMIT,
 } from '@/lib/inventory/consent-clock';
 import { resolveChannels } from '@/lib/notifications/preferences';
 import type { MessageTemplate, Property } from '@/types';
@@ -581,7 +583,7 @@ async function clientQuietPeriod(admin: SupabaseClient, accountId: string) {
   return quietPeriodFromAccount(data, 'client');
 }
 
-async function consentScheduleFor(
+export async function consentScheduleFor(
   admin: SupabaseClient,
   accountId: string,
   askedAt: Date
@@ -592,7 +594,7 @@ async function consentScheduleFor(
 /** Per-sweep memo: is it client quiet hours for this account now?
  *  A sweep leaves a due row alone while it is, and the first sweep
  *  after quiet hours end handles it. */
-function quietNowChecker(admin: SupabaseClient) {
+export function quietNowChecker(admin: SupabaseClient) {
   const memo = new Map<string, Promise<boolean>>();
   const now = new Date();
   return (accountId: string) => {
@@ -1455,11 +1457,13 @@ export async function sweepConsentReminders(
     .not('pending_consent_contact_id', 'is', null)
     .is('consent_reminded_at', null)
     .lt('consent_remind_at', now)
-    .limit(50);
+    .limit(SWEEP_SCAN_LIMIT);
 
   const isQuietNow = quietNowChecker(admin);
   let reminded = 0;
+  let acted = 0;
   for (const row of (data || []) as LocationRequestRow[]) {
+    if (acted >= SWEEP_ACT_LIMIT) break;
     if (row.consent_deadline_at && row.consent_deadline_at <= now) continue;
     if (await isQuietNow(row.account_id)) continue;
     const { data: claimed } = await admin
@@ -1472,6 +1476,7 @@ export async function sweepConsentReminders(
       .is('consent_reminded_at', null)
       .select('id');
     if (!claimed || claimed.length === 0) continue;
+    acted += 1;
     if (
       await sendConsentAsk(admin, row, row.pending_consent_contact_id!, true)
     ) {
@@ -1495,7 +1500,7 @@ async function loadExpiredConsentAsks(
       .eq('status', 'pending')
       .not('pending_consent_contact_id', 'is', null)
       .lt('consent_deadline_at', now)
-      .limit(50),
+      .limit(SWEEP_SCAN_LIMIT),
     admin
       .from('property_location_requests')
       .select(SWEEP_COLUMNS)
@@ -1503,7 +1508,7 @@ async function loadExpiredConsentAsks(
       .not('pending_consent_contact_id', 'is', null)
       .is('consent_deadline_at', null)
       .lt('consent_requested_at', legacyCutoff)
-      .limit(50),
+      .limit(SWEEP_SCAN_LIMIT),
   ]);
   return [
     ...((scheduled.data || []) as LocationRequestRow[]),
@@ -1526,6 +1531,7 @@ export async function sweepConsentTimeouts(
 
   let stalled = 0;
   for (const row of rows) {
+    if (stalled >= SWEEP_ACT_LIMIT) break;
     if (await isQuietNow(row.account_id)) continue;
     const contactId = row.pending_consent_contact_id!;
     const chain = Array.isArray(row.consent_chain) ? row.consent_chain : [];
