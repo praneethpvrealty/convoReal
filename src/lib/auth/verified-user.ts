@@ -29,7 +29,20 @@ export interface VerifiedUser {
  * and account checks that follow still run against the database on
  * every request. Only when local verification cannot run at all (the
  * signing keys could not be fetched) does this ask GoTrue instead.
+ * supabase-js reports that as a returned error, not a thrown one, so
+ * the error is read: a network failure, a 5xx or an unknown error is
+ * the service being unavailable, anything else is the token's verdict.
  */
+function isUnavailable(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const { name, status } = error as { name?: unknown; status?: unknown };
+  return (
+    name === 'AuthRetryableFetchError' ||
+    name === 'AuthUnknownError' ||
+    (typeof status === 'number' && (status === 0 || status >= 500))
+  );
+}
+
 export async function resolveVerifiedUser(
   auth: VerifiedUserAuth
 ): Promise<VerifiedUser> {
@@ -39,7 +52,7 @@ export async function resolveVerifiedUser(
   } catch {
     claims = null;
   }
-  if (claims) {
+  if (claims && !isUnavailable(claims.error)) {
     if (claims.error) {
       return { userId: null, error: claims.error as VerifiedUser['error'] };
     }

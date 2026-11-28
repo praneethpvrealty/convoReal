@@ -69,6 +69,58 @@ describe('resolveVerifiedUser', () => {
     expect(getUser).toHaveBeenCalledTimes(1);
   });
 
+  it('[ACC-012] asks GoTrue when the signing keys cannot be fetched, which supabase-js returns as an error', async () => {
+    const failures = [
+      Object.assign(new Error('fetch failed'), {
+        name: 'AuthRetryableFetchError',
+        status: 0,
+      }),
+      Object.assign(new Error('upstream unavailable'), {
+        name: 'AuthApiError',
+        status: 503,
+      }),
+      Object.assign(new Error('unexpected'), { name: 'AuthUnknownError' }),
+    ];
+    for (const failure of failures) {
+      const getUser = vi.fn(async () => ({
+        data: { user: { id: 'user-3' } },
+        error: null,
+      }));
+      const result = await resolveVerifiedUser({
+        getClaims: async () => ({ data: null, error: failure }),
+        getUser,
+      });
+      expect(result).toEqual({ userId: 'user-3', error: null });
+      expect(getUser).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('[ACC-012] does not ask GoTrue about a dead refresh token or an expired token', async () => {
+    const verdicts = [
+      Object.assign(
+        new Error('Invalid Refresh Token: Refresh Token Not Found'),
+        {
+          name: 'AuthApiError',
+          status: 400,
+          code: 'refresh_token_not_found',
+        }
+      ),
+      Object.assign(new Error('JWT has expired'), {
+        name: 'AuthInvalidJwtError',
+        status: 400,
+      }),
+    ];
+    for (const verdict of verdicts) {
+      const getUser = getUserNever();
+      const result = await resolveVerifiedUser({
+        getClaims: async () => ({ data: null, error: verdict }),
+        getUser,
+      });
+      expect(result).toEqual({ userId: null, error: verdict });
+      expect(getUser).not.toHaveBeenCalled();
+    }
+  });
+
   it('[ACC-012] reports signed out when GoTrue refuses the fallback', async () => {
     const refused = new Error('no session');
     const result = await resolveVerifiedUser({
