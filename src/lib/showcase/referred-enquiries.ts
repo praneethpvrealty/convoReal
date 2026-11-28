@@ -134,6 +134,7 @@ export function buildReferrerAskMessage(args: {
   subject: string;
   requesterName: string;
   requesterPhone: string;
+  reminder?: boolean;
 }): string {
   return (
     `🤝 Hi ${args.referrerName},\n\n` +
@@ -141,7 +142,9 @@ export function buildReferrerAskMessage(args: {
     `has asked for more details on *${args.subject}*.\n\n` +
     `Approve and our team will take the enquiry forward with them directly, with you recorded as the referrer. ` +
     `Decline and we will not contact them: they will be asked to speak with you instead.\n\n` +
-    `No answer within four daytime hours counts as a decline.`
+    (args.reminder
+      ? `No answer within the next two daytime hours counts as a decline.`
+      : `No answer within four daytime hours counts as a decline.`)
   );
 }
 
@@ -381,6 +384,7 @@ async function askReferrer(
     subject,
     requesterName: row.requester_name,
     requesterPhone: row.requester_phone,
+    reminder,
   });
   const approveId = `${REFERRED_APPROVE_PREFIX}${row.id}`;
   const declineId = `${REFERRED_DECLINE_PREFIX}${row.id}`;

@@ -810,6 +810,10 @@ describe('[PLS-010] an agent’s guest is held until the agent approves', () => 
     expect(reminder.contactId).toBe(NIMMY);
     expect(reminder.interactiveBody).toMatch(/^REMINDER /);
     expect(reminder.interactiveBody).not.toContain('manju Poojappa');
+    expect(reminder.interactiveBody).toContain(
+      'No answer within the next two daytime hours'
+    );
+    expect(reminder.interactiveBody).not.toContain('four daytime hours');
     expect(
       reminder.interactiveButtons.map((b: { id: string }) => b.id)
     ).toEqual([askId(REFERRED_APPROVE_PREFIX), askId(REFERRED_DECLINE_PREFIX)]);
