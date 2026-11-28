@@ -1033,7 +1033,7 @@
         },
         {
           "id": "INB-055",
-          "rule": "A web form a lead fills in (the showcase inquiry, the requirements form, a document or location request) is filed in their thread as a private bot note, never as a message from the lead. Only a real inbound WhatsApp message opens Meta's 24-hour free-form window, and every send path that checks the window reads the lead's last customer message, so a form row counted as one made free-form sends look allowed and Meta then failed them with 131047. The rows the inquiry and requirements forms filed that way before are converted to private notes.",
+          "rule": "A web form a lead fills in (the showcase inquiry, the requirements form, a document or location request) is filed in their thread as a private bot note, never as a message from the lead. Only a real inbound WhatsApp message opens Meta's 24-hour free-form window, and every send path that checks the window reads the lead's last customer message, so a form row counted as one made free-form sends look allowed and Meta then failed them with 131047. The rows the inquiry and requirements forms filed that way before are converted to private notes. A filed inquiry or requirements form still counts as the lead making first contact (FIRST_CONTACT_FILTER), so the new-lead ping and first-message automations and flows do not fire again when that lead later writes on WhatsApp, exactly as before.",
           "tests": [
             {
               "file": "src/app/api/public/inquiry/tenant-scoping.test.ts",
@@ -1041,6 +1041,10 @@
             },
             {
               "file": "src/app/api/public/requirements/tenant-scoping.test.ts",
+              "case": "[INB-055]"
+            },
+            {
+              "file": "src/lib/conversations/first-contact.test.ts",
               "case": "[INB-055]"
             }
           ],
