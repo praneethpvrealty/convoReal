@@ -19,6 +19,21 @@ than a written entry. Newest first.
 
 #### 28 November 2026
 
+- **Contacts list loads in one request.** The web Contacts list and the
+  mobile Contacts tab used to make up to five requests one after another
+  before showing a page (the team's phone numbers, the contacts on those
+  numbers, the page itself, the tab counts, then the page's tags). The page,
+  its count and its tags now arrive together, and the tab counts load beside
+  the list instead of after it and are not recounted on every page turn or
+  filter change. The tag filter is applied in the database, so a tag held by
+  hundreds of contacts no longer travels as a list of ids. The mobile list
+  now hides the team's own numbers by the same rule as its tab counts. On
+  web, the contact form, contact view and import dialogs load separately
+  from the list. **Migration required:**
+  `20261128040725_contacts_listable.sql` (adds the functions
+  `contacts_listable` and `contacts_listable_tagged`; nothing existing
+  changes).
+
 - **Morning schedule on WhatsApp: links and a cleaner layout.** Each item in
   the morning digest and the "today" reply now carries a link that opens the
   record in the mobile app (or on the web): the buyer's contact, labelled

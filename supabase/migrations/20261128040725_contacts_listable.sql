@@ -32,3 +32,29 @@ REVOKE ALL ON FUNCTION public.contacts_listable(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.contacts_listable(UUID) FROM anon;
 GRANT EXECUTE ON FUNCTION public.contacts_listable(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.contacts_listable(UUID) TO service_role;
+
+-- The tag filter as a join. A filter on an embedded table cannot be
+-- applied to a function's result, and the ids of a popular tag do not
+-- fit in a request URL.
+CREATE FUNCTION public.contacts_listable_tagged(p_account_id UUID, p_tag_id UUID)
+RETURNS SETOF public.contacts
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT c.*
+  FROM public.contacts_listable(p_account_id) c
+  WHERE EXISTS (
+    SELECT 1
+    FROM public.contact_tags ct
+    WHERE ct.contact_id = c.id
+      AND ct.tag_id = p_tag_id
+  );
+$$;
+
+COMMENT ON FUNCTION public.contacts_listable_tagged(UUID, UUID) IS
+  'contacts_listable narrowed to the contacts carrying one tag, so the tag filter is a join in SQL instead of an id list in the request URL.';
+
+REVOKE ALL ON FUNCTION public.contacts_listable_tagged(UUID, UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.contacts_listable_tagged(UUID, UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.contacts_listable_tagged(UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.contacts_listable_tagged(UUID, UUID) TO service_role;

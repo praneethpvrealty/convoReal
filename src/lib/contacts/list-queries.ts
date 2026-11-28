@@ -60,9 +60,20 @@ export interface ContactTabCounts {
 export interface ContactListPage {
   contacts: Contact[];
   totalCount: number;
-  counts: ContactTabCounts;
   contactTagsByContact: Record<string, string[]>;
 }
+
+// A set-returning function is projected to the selected columns before
+// PostgREST orders it, so every column the list can sort by has to be
+// in CONTACT_LIST_COLUMNS. Each row's tag ids ride along as an embed.
+export const CONTACT_LIST_SELECT = `${CONTACT_LIST_COLUMNS}, contact_tags(tag_id)`;
+
+type ContactListRow = Contact & {
+  contact_tags: { tag_id: string }[] | null;
+};
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface StarredProperty {
   id: string;
@@ -193,49 +204,32 @@ async function runContactsPage(
   const from = page * CONTACTS_PAGE_SIZE;
   const to = from + CONTACTS_PAGE_SIZE - 1;
 
-  // Fetch profile phone numbers for this account to exclude them
-  const { data: profilesData } = await db
-    .from('profiles')
-    .select('phone')
-    .eq('account_id', accountId);
+  // contacts_listable returns the account's contacts already less the
+  // three kinds that are never listed: a merged contact (folded into
+  // another and kept only so its history resolves — listing it shows
+  // the same person twice), a chain-only contact (a re-share
+  // intermediary's attribution, not a lead of this account — listing
+  // them turns the consent chain into a poachable contact list) and
+  // the team's own numbers. One request carries the page, its exact
+  // count and each row's tag ids. The tag filter is a join inside
+  // contacts_listable_tagged, not an id list in the request URL.
+  const tagged = tag !== 'All' && UUID_PATTERN.test(tag);
+  let query = (
+    tagged
+      ? db.rpc(
+          'contacts_listable_tagged',
+          { p_account_id: accountId, p_tag_id: tag },
+          { count: 'exact' }
+        )
+      : db.rpc(
+          'contacts_listable',
+          { p_account_id: accountId },
+          { count: 'exact' }
+        )
+  ).select(CONTACT_LIST_SELECT);
 
-  const profilePhones = (profilesData || [])
-    .map((p) => (p.phone ? p.phone.replace(/\D/g, '') : ''))
-    .filter((p) => p.length >= 8);
-
-  let internalContactIds: string[] = [];
-  if (profilePhones.length > 0) {
-    const orConditions = profilePhones
-      .map((p) => `phone.like.%${p.slice(-8)}`)
-      .join(',');
-    const { data: matchingContacts } = await db
-      .from('contacts')
-      .select('id')
-      .eq('account_id', accountId)
-      .or(orConditions);
-
-    if (matchingContacts) {
-      internalContactIds = matchingContacts.map((c) => c.id);
-    }
-  }
-
-  let query = db
-    .from('contacts')
-    .select(CONTACT_LIST_COLUMNS, { count: 'exact' })
-    .eq('account_id', accountId)
-    // A merged contact has been folded into another and is kept only
-    // so its history resolves. Listing it shows the same person twice
-    // and makes the duplicate check look like it missed a pair it had
-    // in fact already merged.
-    .eq('is_merged', false)
-    // A chain-only contact is a re-share intermediary's attribution,
-    // not a lead of this account — someone downstream of a co-broker
-    // who registered to forward a link onward. Listing them here is
-    // what turns the consent chain into a poachable contact list.
-    .eq('chain_only', false);
-
-  if (internalContactIds.length > 0) {
-    query = query.not('id', 'in', `(${internalContactIds.join(',')})`);
+  if (tag !== 'All' && !tagged) {
+    query = query.eq('id', '00000000-0000-0000-0000-000000000000');
   }
 
   // Archived contacts are filed away on purpose: they leave every
@@ -319,25 +313,6 @@ async function runContactsPage(
 
   if (classification !== 'All') {
     query = query.eq('classification', classification);
-  }
-
-  if (tag !== 'All') {
-    const { data: matchedTags } = await db
-      .from('contact_tags')
-      .select('contact_id')
-      .eq('tag_id', tag);
-
-    const tagContactIds = matchedTags
-      ? Array.from(
-          new Set(matchedTags.map((t) => t.contact_id).filter(Boolean))
-        )
-      : [];
-
-    if (tagContactIds.length > 0) {
-      query = query.in('id', tagContactIds);
-    } else {
-      query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-    }
   }
 
   if (interestProperty !== 'All' || interestProject !== 'All') {
@@ -642,51 +617,41 @@ async function runContactsPage(
 
   if (error) throw error;
 
-  // Six tab counters from one scan of the account's contacts
-  // (migration 20261003174500); the staff and won-deal rules
-  // live in SQL, shared with the mobile tab.
-  const { data: tabCountsRow, error: tabCountsError } = await db
+  const tagsByContact: Record<string, string[]> = {};
+  const contacts = ((data ?? []) as unknown as ContactListRow[]).map(
+    ({ contact_tags: contactTags, ...contact }) => {
+      if (contactTags && contactTags.length > 0) {
+        tagsByContact[contact.id] = contactTags.map((ct) => ct.tag_id);
+      }
+      return contact as Contact;
+    }
+  );
+
+  return {
+    contacts,
+    totalCount: count ?? 0,
+    contactTagsByContact: tagsByContact,
+  };
+}
+
+// Six tab counters from one scan of the account's contacts
+// (migration 20261003174500); the staff and won-deal rules
+// live in SQL, shared with the mobile tab. Its own query, so the
+// list never waits on it and a page turn does not recount.
+export async function loadContactTabCounts(
+  db: DB,
+  accountId: string
+): Promise<ContactTabCounts> {
+  const { data: tabCountsRow, error } = await db
     .rpc('contacts_tab_counts', { p_account_id: accountId })
     .maybeSingle();
-  if (tabCountsError) {
-    console.error('Error loading contact tab counts:', tabCountsError);
-  }
-  const counts: ContactTabCounts = {
+  if (error) throw error;
+  return {
     activeCount: tabCountsRow?.active ?? 0,
     reviewCount: tabCountsRow?.pending_review ?? 0,
     favoritesCount: tabCountsRow?.favorites ?? 0,
     transactedCount: tabCountsRow?.transacted ?? 0,
     marketActiveCount: tabCountsRow?.market_active ?? 0,
     archivedCount: tabCountsRow?.archived ?? 0,
-  };
-
-  const contacts = (data ?? []) as Contact[];
-  if (contacts.length === 0) {
-    return {
-      contacts,
-      totalCount: count ?? 0,
-      counts,
-      contactTagsByContact: {},
-    };
-  }
-
-  // Fetch tags for these contacts
-  const contactIds = contacts.map((c) => c.id);
-  const { data: contactTags } = await db
-    .from('contact_tags')
-    .select('contact_id, tag_id')
-    .in('contact_id', contactIds);
-
-  const tagsByContact: Record<string, string[]> = {};
-  contactTags?.forEach((ct) => {
-    if (!tagsByContact[ct.contact_id]) tagsByContact[ct.contact_id] = [];
-    tagsByContact[ct.contact_id].push(ct.tag_id);
-  });
-
-  return {
-    contacts,
-    totalCount: count ?? 0,
-    counts,
-    contactTagsByContact: tagsByContact,
   };
 }

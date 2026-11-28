@@ -142,6 +142,10 @@ export interface ContactsPage {
   interestMatches: Record<string, string>;
 }
 
+type ContactListRow = Contact & {
+  contact_tags: { tag: { name: string } | { name: string }[] | null }[] | null;
+};
+
 const CONTACTS_PAGE_SIZE = 50;
 
 const EMPTY_PAGE: ContactsPage = {
@@ -262,39 +266,6 @@ async function resolveInterest(interest: InterestFilter): Promise<{
  * to ids first (same technique the web uses for notes). Segments follow
  * the web's quick-filter tabs exactly.
  */
-/**
- * Team members message the shared number too, which lands their own
- * phones in `contacts`. They're staff, not leads — keep them out of
- * the list and the segment counts. PostgREST filter string over the
- * common stored formats of each staff number's last 10 digits.
- */
-async function staffPhoneFilter(): Promise<string | null> {
-  return queryClient.fetchQuery({
-    queryKey: ['staff-phone-filter'],
-    staleTime: 10 * 60_000,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('phone')
-        .not('phone', 'is', null);
-      const digits = Array.from(
-        new Set(
-          (data ?? [])
-            .map((p: { phone: string | null }) =>
-              String(p.phone ?? '')
-                .replace(/\D/g, '')
-                .slice(-10)
-            )
-            .filter((d) => d.length === 10)
-        )
-      );
-      if (digits.length === 0) return null;
-      const variants = digits.flatMap((d) => [d, `91${d}`, `+91${d}`]);
-      return `(${variants.map((v) => `"${v}"`).join(',')})`;
-    },
-  });
-}
-
 /** The grouped area options the filters sheet shows; the list needs
  *  them too, to turn a selected group back into its stored spellings. */
 async function areaOptions(): Promise<AreaOption[]> {
@@ -320,6 +291,7 @@ function paramNumber(value: string | string[] | undefined): number | null {
 }
 
 async function fetchContacts(
+  accountId: string,
   search: string,
   segment: SegmentKey,
   interest: InterestFilter | null,
@@ -327,31 +299,29 @@ async function fetchContacts(
   offset: number
 ): Promise<ContactsPage> {
   const q = search.trim();
-  const staffFilter = await staffPhoneFilter();
   const order = sortColumn(filters.sort);
-  let query = supabase
-    .from('contacts')
-    .select(
-      CONTACT_LIST_COLUMNS +
-        // An inner join rather than a fetch-then-`.in()`: a popular tag
-        // holds more contacts than an id list can travel in a URL.
-        (filters.tagId ? ', contact_tags!inner(tag_id)' : '')
-    )
-    // Web parity: a chain-only contact is a re-share intermediary's
-    // attribution, not a lead of this account, and a merge loser is the
-    // soft-deleted half of a duplicate — its winner is the row to show.
-    .eq('chain_only', false)
-    .eq('is_merged', false)
+  // Web parity, in one request: contacts_listable returns the account's
+  // contacts less chain-only attributions, merge losers and the team's
+  // own numbers — the rule the segment counts use — and each row's tag
+  // names ride along as an embed. The tag filter is a join inside
+  // contacts_listable_tagged: a popular tag holds more contacts than an
+  // id list can travel in a URL. A set-returning function is projected
+  // to the selected columns before it is ordered, so every sort column
+  // has to be in CONTACT_LIST_COLUMNS.
+  let query = (
+    filters.tagId
+      ? supabase.rpc('contacts_listable_tagged', {
+          p_account_id: accountId,
+          p_tag_id: filters.tagId,
+        })
+      : supabase.rpc('contacts_listable', { p_account_id: accountId })
+  )
+    .select(CONTACT_LIST_COLUMNS + ', contact_tags(tag:tags(name))')
     .eq('is_archived', segment === 'archived')
     .order(order.column, { ascending: order.ascending, nullsFirst: false })
     .order('id', { ascending: true })
     .range(offset, offset + CONTACTS_PAGE_SIZE - 1);
 
-  if (staffFilter) {
-    query = query.not('phone', 'in', staffFilter);
-  }
-
-  if (filters.tagId) query = query.eq('contact_tags.tag_id', filters.tagId);
   if (filters.classification)
     query = query.eq('classification', filters.classification);
   // A min budget admits the no-budget-set contacts; a max budget cannot,
@@ -450,13 +420,21 @@ async function fetchContacts(
 
   const { data, error } = await query;
   if (error) throw error;
-  const contacts = (data ?? []) as unknown as Contact[];
+  const tags: Record<string, string[]> = {};
+  const contacts = ((data ?? []) as unknown as ContactListRow[]).map(
+    ({ contact_tags: contactTags, ...contact }) => {
+      for (const row of contactTags ?? []) {
+        const tag = Array.isArray(row.tag) ? row.tag[0] : row.tag;
+        if (tag?.name) (tags[contact.id] ??= []).push(tag.name);
+      }
+      return contact as Contact;
+    }
+  );
 
-  // Batch the row decorations: tag chips + interested-property codes.
-  // Only last_inquired_property_id is a property id — property_interests
-  // holds category strings ("Flat/ Apartment"), which Postgres rejects
-  // outright when they reach an id filter.
-  const ids = contacts.map((c) => c.id);
+  // The interested-property codes are the one decoration left to
+  // fetch. Only last_inquired_property_id is a property id —
+  // property_interests holds category strings ("Flat/ Apartment"),
+  // which Postgres rejects outright when they reach an id filter.
   const interestIds = Array.from(
     new Set(
       contacts
@@ -465,31 +443,13 @@ async function fetchContacts(
     )
   ).slice(0, 100);
 
-  const [tagRows, propRows] = await Promise.all([
-    ids.length
-      ? supabase
-          .from('contact_tags')
-          .select('contact_id, tag:tags(name)')
-          .in('contact_id', ids)
-          .limit(600)
-      : Promise.resolve({ data: [] }),
-    interestIds.length
-      ? supabase
-          .from('properties')
-          .select('id, property_code, title')
-          .in('id', interestIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const propRows = interestIds.length
+    ? await supabase
+        .from('properties')
+        .select('id, property_code, title')
+        .in('id', interestIds)
+    : { data: [], error: null };
 
-  const tags: Record<string, string[]> = {};
-  for (const row of (tagRows.data ?? []) as {
-    contact_id: string;
-    tag: { name: string } | { name: string }[] | null;
-  }[]) {
-    const tag = Array.isArray(row.tag) ? row.tag[0] : row.tag;
-    if (!tag?.name) continue;
-    (tags[row.contact_id] ??= []).push(tag.name);
-  }
   if (propRows.error) {
     console.error('[contacts] property decoration failed:', propRows.error);
   }
@@ -600,7 +560,7 @@ export default function ContactsScreen() {
 
   const {
     data: pages,
-    isLoading,
+    isPending: isLoading,
     isFetching,
     isError,
     refetch,
@@ -617,8 +577,16 @@ export default function ContactsScreen() {
       interest?.value,
       filtersKey(filters),
     ],
+    enabled: Boolean(accountId),
     queryFn: ({ pageParam }) =>
-      fetchContacts(debounced, segment, interest, filters, pageParam),
+      fetchContacts(
+        accountId!,
+        debounced,
+        segment,
+        interest,
+        filters,
+        pageParam
+      ),
     initialPageParam: 0,
     getNextPageParam: (last, all) =>
       last.contacts.length < CONTACTS_PAGE_SIZE
@@ -1040,6 +1008,9 @@ export default function ContactsScreen() {
           contact={requirementsContact}
           onChanged={() => {
             void queryClient.invalidateQueries({ queryKey: ['contacts'] });
+            void queryClient.invalidateQueries({
+              queryKey: ['contact-counts'],
+            });
           }}
         />
       ) : null}
