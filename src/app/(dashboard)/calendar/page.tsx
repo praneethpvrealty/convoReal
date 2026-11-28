@@ -3,13 +3,20 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import dynamic from 'next/dynamic';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { DEFAULT_EVENT_TYPE } from '@/lib/calendar/event-type-defaults';
 import {
   clientResponse,
   clientResponseNotice,
 } from '@/lib/calendar/client-response';
 import { createClient } from '@/lib/supabase/client';
+import type { Database } from '@/types/database.types';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import {
@@ -42,8 +49,6 @@ import { toast } from 'sonner';
 import { CalendarGridSkeleton } from '@/components/calendar/calendar-skeleton';
 import { MonthCell } from '@/components/calendar/month-cell';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
-import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
-import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import {
   linkPropertyParticipants,
   linkedPropertyForContacts,
@@ -55,15 +60,12 @@ import {
   SmartAddBar,
   ConfirmedEventDraft,
 } from '@/components/calendar/smart-add-bar';
-import { TeamView } from '@/components/calendar/team-view';
-import { WeekView } from '@/components/calendar/week-view';
 import { AgendaView } from '@/components/calendar/agenda-view';
 import { TasksList } from '@/components/calendar/tasks-list';
 import { AgendaPdfButton } from '@/components/calendar/agenda-pdf-button';
 import { SubscribeFeedDialog } from '@/components/calendar/subscribe-feed-dialog';
 import { CallBacksPanel } from '@/components/calendar/call-backs-panel';
 import { CALL_BACKS_QUERY_KEY } from '@/lib/calendar/call-backs';
-import { EventDealLink } from '@/components/calendar/event-deal-link';
 import {
   CalendarEvent,
   TeamMember,
@@ -121,14 +123,61 @@ import {
 import {
   CALENDAR_VIEW_STORAGE_KEY,
   resolveInitialView,
+  toCalendarView,
   type CalendarViewMode,
 } from '@/lib/calendar/default-view';
+import {
+  DONE_TODOS_PAGE_SIZE,
+  PAST_APPOINTMENTS_PAGE_SIZE,
+  appointmentWindow,
+  calendarWindowKey,
+  inCalendarWindow,
+  mergeById,
+  nextPageOffset,
+  patchCachedRows,
+  startOfLocalDay,
+} from '@/lib/calendar/calendar-data';
+import {
+  appointmentsKey,
+  calendarKey,
+  loadAppointmentById,
+  loadDoneTodoIds,
+  loadDoneTodosPage,
+  loadOpenTodos,
+  loadPastAppointmentsPage,
+  loadUpcomingAppointments,
+  loadWindowAppointments,
+  todosKey,
+  type CalendarTodo,
+} from '@/lib/calendar/calendar-fetch';
 import {
   PAST_START_CONFIRM,
   eventTimesError,
   movedEventEnd,
   startsInPast,
 } from '@/lib/calendar/event-timing';
+
+const SearchableContactMultiSelect = dynamic(() =>
+  import('@/components/ui/searchable-contact-multi-select').then(
+    (m) => m.SearchableContactMultiSelect
+  )
+);
+const SearchablePropertySelect = dynamic(() =>
+  import('@/components/ui/searchable-property-select').then(
+    (m) => m.SearchablePropertySelect
+  )
+);
+const TeamView = dynamic(
+  () => import('@/components/calendar/team-view').then((m) => m.TeamView),
+  { loading: () => <CalendarGridSkeleton /> }
+);
+const WeekView = dynamic(
+  () => import('@/components/calendar/week-view').then((m) => m.WeekView),
+  { loading: () => <CalendarGridSkeleton /> }
+);
+const EventDealLink = dynamic(() =>
+  import('@/components/calendar/event-deal-link').then((m) => m.EventDealLink)
+);
 
 const EMPTY_EXTRAS: Record<EventFieldKey, string> = {
   agenda: '',
@@ -141,31 +190,8 @@ function formatDateTimeLocal(d: Date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** A lightweight to-do (CAL-009): title, notes, due, priority. The
- *  contact/property/deal links are read-only here — a deal task carries
- *  its deal from the workspace; the calendar never tags one. */
-interface Todo {
-  id: string;
-  title: string;
-  description: string | null;
-  due_date: string | null;
-  priority: 'low' | 'medium' | 'high';
-  completed: boolean;
-  contact_id?: string | null;
-  property_id?: string | null;
-  deal_id?: string | null;
-  contact?: {
-    id: string;
-    name: string;
-    phone: string;
-  } | null;
-  property?: {
-    id: string;
-    title: string;
-    location: string | null;
-    sublocality: string | null;
-  } | null;
-}
+type Todo = CalendarTodo;
+type TodoRow = Database['public']['Tables']['todos']['Row'];
 
 interface SimpleContact {
   id: string;
@@ -207,16 +233,17 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewMode>('month');
   const viewResolvedRef = useRef(false);
+  const [todayKey, setTodayKey] = useState(() => todayDateKey());
+  const [storedView, setStoredView] = useState<string | null | undefined>(
+    undefined
+  );
   const chooseView = (next: ViewMode) => {
     setView(next);
     try {
       window.localStorage.setItem(CALENDAR_VIEW_STORAGE_KEY, next);
     } catch {}
   };
-  const [appointments, setAppointments] = useState<CalendarEvent[]>([]);
-  const [todos, setTodos] = useState<Todo[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
-  const [loading, setLoading] = useState(true);
 
   // Filters
   const [typeFilter, setTypeFilter] = useState<CalendarTypeFilter>('all');
@@ -307,46 +334,134 @@ export default function CalendarPage() {
   >('medium');
   const [editTodoCompleted, setEditTodoCompleted] = useState(false);
 
-  // Fetch appointments and todos
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
+  const reloadCalendar = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: calendarKey(accountId) }),
+    [queryClient, accountId]
+  );
+  const patchAppointments = useCallback(
+    (patch: (appointment: CalendarEvent) => CalendarEvent) => {
+      queryClient.setQueriesData(
+        { queryKey: appointmentsKey(accountId) },
+        (data: unknown) => patchCachedRows(data, patch)
+      );
+    },
+    [queryClient, accountId]
+  );
 
-      const [apptResult, todoResult] = await Promise.all([
-        supabase
-          .from('appointments')
-          .select(
-            '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality), deal:deals(id, title)'
-          )
-          .eq('account_id', accountId)
-          .order('start_time', { ascending: true }),
-        supabase
-          .from('todos')
-          .select(
-            '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)'
-          )
-          .eq('account_id', accountId)
-          .order('created_at', { ascending: true }),
-      ]);
-
-      if (apptResult.error) throw apptResult.error;
-      if (todoResult.error) throw todoResult.error;
-      setAppointments((apptResult.data || []) as CalendarEvent[]);
-      setTodos(todoResult.data || []);
-    } catch (err) {
-      console.error('[CALENDAR PAGE] loadData caught error:', err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || 'Failed to load calendar data');
-    } finally {
-      setLoading(false);
-    }
-  }, [accountId, supabase]);
-
+  // What the calendar reads (CAL-025): the grid views read the months
+  // around the one shown, the Agenda every event from today on plus past
+  // events a page at a time, and the to-do list every open to-do plus
+  // done ones a page at a time. Nothing waits on the stored view.
   useEffect(() => {
-    if (accountId) {
-      loadData();
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(CALENDAR_VIEW_STORAGE_KEY);
+    } catch {}
+    setStoredView(stored);
+    if (toCalendarView(stored)) {
+      viewResolvedRef.current = true;
+      setView(resolveInitialView(stored, 0));
     }
-  }, [accountId, loadData]);
+  }, []);
+  const calendarWindow = useMemo(
+    () => appointmentWindow(currentDate),
+    [currentDate]
+  );
+  const windowKey = calendarWindowKey(calendarWindow);
+  const dayStart = useMemo(
+    () => startOfLocalDay(dealDateLocalDay(todayKey)),
+    [todayKey]
+  );
+  const readsReady = !!accountId && storedView !== undefined;
+  const windowQuery = useQuery({
+    queryKey: [...appointmentsKey(accountId), 'window', windowKey],
+    queryFn: () => loadWindowAppointments(supabase, accountId!, calendarWindow),
+    enabled: readsReady && view !== 'agenda',
+    placeholderData: keepPreviousData,
+  });
+  const upcomingQuery = useQuery({
+    queryKey: [...appointmentsKey(accountId), 'upcoming', todayKey],
+    queryFn: () => loadUpcomingAppointments(supabase, accountId!, dayStart),
+    enabled: readsReady && view === 'agenda',
+  });
+  const pastQuery = useInfiniteQuery({
+    queryKey: [...appointmentsKey(accountId), 'past', todayKey],
+    queryFn: ({ pageParam }) =>
+      loadPastAppointmentsPage(supabase, accountId!, dayStart, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (_last, pages) =>
+      nextPageOffset(pages, PAST_APPOINTMENTS_PAGE_SIZE),
+    enabled: readsReady && view === 'agenda',
+  });
+  const requestedEventQuery = useQuery({
+    queryKey: [...appointmentsKey(accountId), 'event', requestedEventId],
+    queryFn: () => loadAppointmentById(supabase, accountId!, requestedEventId!),
+    enabled: !!accountId && !!requestedEventId,
+  });
+  const openTodosQuery = useQuery({
+    queryKey: [...todosKey(accountId), 'open'],
+    queryFn: () => loadOpenTodos(supabase, accountId!),
+    enabled: !!accountId,
+  });
+  const doneTodosQuery = useInfiniteQuery({
+    queryKey: [...todosKey(accountId), 'done', todoFilter],
+    queryFn: ({ pageParam }) =>
+      loadDoneTodosPage(supabase, accountId!, todoFilter, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (_last, pages) =>
+      nextPageOffset(
+        pages.map((page) => page.rows),
+        DONE_TODOS_PAGE_SIZE
+      ),
+    enabled: !!accountId,
+    placeholderData: keepPreviousData,
+  });
+
+  const windowAppointments = windowQuery.data;
+  const appointments = useMemo<CalendarEvent[]>(
+    () =>
+      view === 'agenda'
+        ? mergeById(upcomingQuery.data, pastQuery.data?.pages.flat())
+        : (windowAppointments ?? []).filter((appointment) =>
+            inCalendarWindow(appointment.start_time, calendarWindow)
+          ),
+    [
+      view,
+      upcomingQuery.data,
+      pastQuery.data,
+      windowAppointments,
+      calendarWindow,
+    ]
+  );
+  const todos = useMemo<Todo[]>(
+    () => openTodosQuery.data ?? [],
+    [openTodosQuery.data]
+  );
+  const loadedDoneTodos = useMemo<Todo[]>(
+    () => doneTodosQuery.data?.pages.flatMap((page) => page.rows) ?? [],
+    [doneTodosQuery.data]
+  );
+  const doneTodosTotal =
+    doneTodosQuery.data?.pages[0]?.total ?? loadedDoneTodos.length;
+  const loading =
+    view === 'agenda'
+      ? upcomingQuery.isPending || pastQuery.isPending
+      : windowQuery.isPending;
+  const calendarLoadError =
+    windowQuery.error ??
+    upcomingQuery.error ??
+    pastQuery.error ??
+    openTodosQuery.error ??
+    doneTodosQuery.error;
+  useEffect(() => {
+    if (!calendarLoadError) return;
+    console.error('[CALENDAR PAGE] load error:', calendarLoadError);
+    toast.error(
+      calendarLoadError instanceof Error && calendarLoadError.message
+        ? calendarLoadError.message
+        : 'Failed to load calendar data'
+    );
+  }, [calendarLoadError]);
 
   // The schedule dialog's contact and property pickers load on first
   // open rather than with the page: both lists grow with the account.
@@ -393,12 +508,10 @@ export default function CalendarPage() {
       const appointmentId = (event as CustomEvent<{ appointmentId?: string }>)
         .detail?.appointmentId;
       if (!appointmentId) return;
-      setAppointments((current) =>
-        current.map((appointment) =>
-          appointment.id === appointmentId
-            ? { ...appointment, status: 'completed' }
-            : appointment
-        )
+      patchAppointments((appointment) =>
+        appointment.id === appointmentId
+          ? { ...appointment, status: 'completed' }
+          : appointment
       );
       setSelectedAppt((current) =>
         current?.id === appointmentId
@@ -418,7 +531,7 @@ export default function CalendarPage() {
         COPILOT_APPOINTMENT_COMPLETED_EVENT,
         syncCompletedAppointment
       );
-  }, [selectedAppt?.id]);
+  }, [selectedAppt?.id, patchAppointments]);
 
   // Team roster for lanes, assignee select, and initials badges.
   useEffect(() => {
@@ -520,12 +633,12 @@ export default function CalendarPage() {
   // The To-Do list holds to-dos alone (CAL-009); appointments and deal
   // dates are pinned on the calendar and listed in Tasks beneath it.
   const visibleTodos = useMemo(() => {
-    const filtered =
+    const open =
       todoFilter === 'priority'
         ? todos.filter((t) => t.priority === 'high' || t.priority === 'medium')
         : todos;
 
-    return [...filtered].sort((a, b) => {
+    return [...open, ...loadedDoneTodos].sort((a, b) => {
       if (a.completed !== b.completed) {
         return a.completed ? 1 : -1;
       }
@@ -533,11 +646,12 @@ export default function CalendarPage() {
       const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
       return dateA - dateB;
     });
-  }, [todos, todoFilter]);
+  }, [todos, loadedDoneTodos, todoFilter]);
   const { open: openTodos, done: doneTodos } = useMemo(
     () => splitTodosByCompletion(visibleTodos),
     [visibleTodos]
   );
+  const doneTodosCount = Math.max(doneTodosTotal, doneTodos.length);
   const [overdueClock, setOverdueClock] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setOverdueClock(Date.now()), 60_000);
@@ -582,7 +696,6 @@ export default function CalendarPage() {
   // tranches and expected close dates the deal_deadlines rule decides
   // are live (TXW-020), read once a year ahead and pinned on their day.
   // The calendar never writes one; each chip opens the deal record.
-  const [todayKey, setTodayKey] = useState(() => todayDateKey());
   useEffect(() => {
     const rollDay = () => {
       const next = todayDateKey();
@@ -623,26 +736,32 @@ export default function CalendarPage() {
     enabled: !!accountId,
   });
   // First visit on this browser: a sparse month opens in the Agenda.
+  // A stored view was applied on mount and waits on nothing.
   useEffect(() => {
-    if (viewResolvedRef.current || loading || dealDatesQuery.isPending) return;
+    if (
+      viewResolvedRef.current ||
+      storedView === undefined ||
+      windowQuery.isPending ||
+      dealDatesQuery.isPending
+    )
+      return;
     viewResolvedRef.current = true;
-    let stored: string | null = null;
-    try {
-      stored = window.localStorage.getItem(CALENDAR_VIEW_STORAGE_KEY);
-    } catch {}
     const sameMonth = (d: Date) =>
       d.getFullYear() === year && d.getMonth() === month;
     const itemsThisMonth =
-      appointments.filter((a) => sameMonth(new Date(a.start_time))).length +
+      (windowAppointments ?? []).filter((a) =>
+        sameMonth(new Date(a.start_time))
+      ).length +
       (dealDatesQuery.data ?? []).filter((d) =>
         sameMonth(dealDateLocalDay(d.dueDate))
       ).length;
-    setView(resolveInitialView(stored, itemsThisMonth));
+    setView(resolveInitialView(storedView, itemsThisMonth));
   }, [
-    loading,
+    storedView,
+    windowQuery.isPending,
     dealDatesQuery.isPending,
     dealDatesQuery.data,
-    appointments,
+    windowAppointments,
     year,
     month,
   ]);
@@ -750,12 +869,10 @@ export default function CalendarPage() {
       toast.error(errorMessage || 'Failed to update the events');
     } finally {
       if (changed.size > 0) {
-        setAppointments((current) =>
-          current.map((item) =>
-            changed.has(item.id)
-              ? { ...item, archived_at: changed.get(item.id) ?? null }
-              : item
-          )
+        patchAppointments((item) =>
+          changed.has(item.id)
+            ? { ...item, archived_at: changed.get(item.id) ?? null }
+            : item
         );
       }
       setTaskBusyKey(null);
@@ -796,16 +913,14 @@ export default function CalendarPage() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok)
         throw new Error(result.error || 'Failed to update the event');
-      setAppointments((current) =>
-        current.map((item) =>
-          item.id === appt.id
-            ? {
-                ...item,
-                status,
-                ...(status === 'scheduled' ? { archived_at: null } : {}),
-              }
-            : item
-        )
+      patchAppointments((item) =>
+        item.id === appt.id
+          ? {
+              ...item,
+              status,
+              ...(status === 'scheduled' ? { archived_at: null } : {}),
+            }
+          : item
       );
       if (status === 'cancelled') {
         toast.success('Cancelled — it stays on its day, struck through', {
@@ -935,24 +1050,33 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!requestedEventId || openedEventIdRef.current === requestedEventId)
       return;
-    const appointment = appointments.find(
-      (item) => item.id === requestedEventId
-    );
-    if (!appointment) return;
+    const appointment = requestedEventQuery.data;
+    if (!appointment || appointment.id !== requestedEventId) return;
     openedEventIdRef.current = requestedEventId;
     setCurrentDate(new Date(appointment.start_time));
     openEditApptModal(appointment);
-  }, [appointments, openEditApptModal, requestedEventId]);
+  }, [requestedEventQuery.data, openEditApptModal, requestedEventId]);
 
   useEffect(() => {
     void queryClient.invalidateQueries({ queryKey: CALL_BACKS_QUERY_KEY });
   }, [appointments, queryClient]);
 
-  const openCallBack = (id: string) => {
-    const appointment = appointments.find((item) => item.id === id);
-    if (!appointment) return;
-    setCurrentDate(new Date(appointment.start_time));
-    openEditApptModal(appointment);
+  const openCallBack = async (id: string) => {
+    if (!accountId) return;
+    try {
+      const appointment =
+        appointments.find((item) => item.id === id) ??
+        (await queryClient.fetchQuery({
+          queryKey: [...appointmentsKey(accountId), 'event', id],
+          queryFn: () => loadAppointmentById(supabase, accountId, id),
+        }));
+      if (!appointment) return;
+      setCurrentDate(new Date(appointment.start_time));
+      openEditApptModal(appointment);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || 'Failed to open the event');
+    }
   };
 
   const changeApptStart = (value: string) => {
@@ -1115,7 +1239,7 @@ export default function CalendarPage() {
       }
 
       setIsApptModalOpen(false);
-      loadData();
+      void reloadCalendar();
     } catch (err) {
       console.error('[CALENDAR SAVE] caught error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -1146,7 +1270,7 @@ export default function CalendarPage() {
         throw new Error('That appointment is no longer there.');
       toast.success('Appointment deleted successfully');
       setIsApptModalOpen(false);
-      loadData();
+      void reloadCalendar();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || 'Failed to delete appointment');
@@ -1197,7 +1321,7 @@ export default function CalendarPage() {
         if (error) throw error;
         toast.success('Task added');
       }
-      loadData();
+      void reloadCalendar();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || 'Failed to save');
@@ -1276,7 +1400,7 @@ export default function CalendarPage() {
       setTodoDesc('');
       setTodoDueDate('');
       setTodoPriority('medium');
-      loadData();
+      void reloadCalendar();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || 'Failed to add task');
@@ -1327,7 +1451,7 @@ export default function CalendarPage() {
       toast.success('Task updated successfully');
       setIsTodoModalOpen(false);
       setSelectedTodo(null);
-      loadData();
+      void reloadCalendar();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || 'Failed to update task');
@@ -1375,7 +1499,7 @@ export default function CalendarPage() {
 
       if (error) throw error;
       if (!data?.length) throw new Error('That task is no longer there.');
-      loadData();
+      void reloadCalendar();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || 'Failed to toggle task');
@@ -1383,10 +1507,14 @@ export default function CalendarPage() {
   };
 
   const clearCompletedTodos = async () => {
-    const ids = completedTodoIds(doneTodos);
-    if (ids.length === 0 || !confirm(clearCompletedPrompt(ids.length))) return;
+    if (!accountId || doneTodosCount === 0) return;
     setClearingTodos(true);
     try {
+      const ids = doneTodosQuery.hasNextPage
+        ? await loadDoneTodoIds(supabase, accountId, todoFilter)
+        : completedTodoIds(doneTodos);
+      if (ids.length === 0 || !confirm(clearCompletedPrompt(ids.length)))
+        return;
       let removed = 0;
       for (const chunk of chunkIds(ids)) {
         const { data, error } = await supabase
@@ -1401,7 +1529,7 @@ export default function CalendarPage() {
       toast.success(
         removed === 1 ? 'Cleared 1 to-do' : `Cleared ${removed} to-dos`
       );
-      loadData();
+      void reloadCalendar();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || 'Failed to clear the done to-dos');
@@ -1410,17 +1538,12 @@ export default function CalendarPage() {
     }
   };
 
-  const restoreTodo = async (todo: Todo) => {
+  const restoreTodo = async (row: TodoRow) => {
     try {
-      const row = Object.fromEntries(
-        Object.entries(todo).filter(
-          ([key]) => key !== 'contact' && key !== 'property'
-        )
-      );
       const { error } = await supabase.from('todos').insert(row);
       if (error) throw error;
       toast.success('Restored');
-      loadData();
+      void reloadCalendar();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || 'Failed to restore the to-do');
@@ -1434,14 +1557,19 @@ export default function CalendarPage() {
         .delete()
         .eq('id', todo.id)
         .eq('account_id', accountId)
-        .select('id');
+        .select('*');
 
       if (error) throw error;
-      if (!data?.length) throw new Error('That task is no longer there.');
-      setTodos((current) => current.filter((item) => item.id !== todo.id));
+      const deleted = data?.[0];
+      if (!deleted) throw new Error('That task is no longer there.');
+      queryClient.setQueryData<Todo[]>(
+        [...todosKey(accountId), 'open'],
+        (current) => current?.filter((item) => item.id !== todo.id)
+      );
+      void queryClient.invalidateQueries({ queryKey: todosKey(accountId) });
       toast.success(`Deleted "${todo.title}"`, {
         duration: 8000,
-        action: { label: 'Undo', onClick: () => void restoreTodo(todo) },
+        action: { label: 'Undo', onClick: () => void restoreTodo(deleted) },
       });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -1550,7 +1678,7 @@ export default function CalendarPage() {
                 <CallBacksPanel
                   canEdit={canEdit}
                   onOpenEvent={openCallBack}
-                  onChanged={loadData}
+                  onChanged={reloadCalendar}
                 />
                 <AgendaPdfButton date={currentDate} />
                 <SubscribeFeedDialog />
@@ -1695,6 +1823,9 @@ export default function CalendarPage() {
               onStatusChange={setAppointmentStatus}
               onArchive={archiveAppointment}
               onMilestoneDone={completeMilestone}
+              hasMorePast={pastQuery.hasNextPage}
+              loadingMorePast={pastQuery.isFetchingNextPage}
+              onLoadMorePast={() => void pastQuery.fetchNextPage()}
             />
           ) : (
             <>
@@ -1886,13 +2017,13 @@ export default function CalendarPage() {
               {openTodos.length === 0 && (
                 <div className="flex h-24 flex-col items-center justify-center text-center text-slate-500">
                   <p className="text-xs">
-                    {doneTodos.length === 0
+                    {doneTodosCount === 0
                       ? 'Nothing to do. Add one above.'
                       : 'All done.'}
                   </p>
                 </div>
               )}
-              {doneTodos.length > 0 && (
+              {doneTodosCount > 0 && (
                 <div className="flex items-center justify-between gap-2 pt-1">
                   <button
                     type="button"
@@ -1906,7 +2037,7 @@ export default function CalendarPage() {
                         !doneTodosOpen && '-rotate-90'
                       )}
                     />
-                    {DONE_TODOS_LABEL} ({doneTodos.length})
+                    {DONE_TODOS_LABEL} ({doneTodosCount})
                   </button>
                   {canEdit && (
                     <button
@@ -2071,6 +2202,19 @@ export default function CalendarPage() {
                     </div>
                   </div>
                 )
+              )}
+              {doneTodosOpen && doneTodosQuery.hasNextPage && (
+                <button
+                  type="button"
+                  onClick={() => void doneTodosQuery.fetchNextPage()}
+                  disabled={doneTodosQuery.isFetchingNextPage}
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-800 px-2 py-1.5 text-[11px] font-semibold text-slate-400 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-50"
+                >
+                  {doneTodosQuery.isFetchingNextPage && (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  )}
+                  Show more done to-dos
+                </button>
               )}
             </div>
           </div>
@@ -2278,11 +2422,11 @@ export default function CalendarPage() {
                           ? { ...current, deal, deal_id: deal?.id ?? null }
                           : current
                       );
-                      loadData();
+                      void reloadCalendar();
                     }}
                     onDealCreated={() => {
                       setIsApptModalOpen(false);
-                      loadData();
+                      void reloadCalendar();
                     }}
                   />
                 )}
