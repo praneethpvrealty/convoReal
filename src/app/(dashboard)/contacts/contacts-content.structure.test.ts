@@ -44,4 +44,12 @@ describe('contacts list reads go through react-query', () => {
     expect(source).toContain("searchParams?.get('filter')");
     expect(source).toContain("searchParams?.get('interest')");
   });
+
+  it('[CTM-022] reloads the tab counters with the list on Retry', () => {
+    expect(source).not.toContain('onClick={() => listQuery.refetch()}');
+    expect(source.match(/onClick=\{retryLoad\}/g)).toHaveLength(2);
+    expect(source).toMatch(
+      /const retryLoad = \(\) => \{\s+void listQuery\.refetch\(\);\s+void tabCountsQuery\.refetch\(\);/
+    );
+  });
 });

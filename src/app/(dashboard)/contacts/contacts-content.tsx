@@ -989,6 +989,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       queryClient.invalidateQueries({ queryKey: ['contacts', 'list'] }),
       queryClient.invalidateQueries({ queryKey: ['contacts', 'tab-counts'] }),
     ]);
+  const retryLoad = () => {
+    void listQuery.refetch();
+    void tabCountsQuery.refetch();
+  };
 
   const contacts = useMemo<ContactWithTags[]>(() => {
     const loaded = listQuery.data;
@@ -1272,7 +1276,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         This is taking longer than usual — the connection may have stalled.
       </p>
       <Button
-        onClick={() => listQuery.refetch()}
+        onClick={retryLoad}
         variant="outline"
         className="h-8 cursor-pointer border-slate-700 px-4 text-xs text-slate-300 hover:bg-slate-800"
       >
@@ -1988,7 +1992,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             <Button
               variant="outline"
               size="sm"
-              onClick={() => listQuery.refetch()}
+              onClick={retryLoad}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               Retry
