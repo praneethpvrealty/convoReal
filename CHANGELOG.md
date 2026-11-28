@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 28 November 2026
 
+- **Overdue tasks say so in the morning schedule.** A task that was due
+  before today shows its due date and how many days overdue it is, and an
+  overdue "New Buyer Requirements" or "New Website Inquiry" task is no longer
+  called new, in the WhatsApp message and the PDF.
+
 - **Morning schedule on WhatsApp: links and a cleaner layout.** Each item in
   the morning digest and the "today" reply now carries a link that opens the
   record in the mobile app (or on the web): the buyer's contact, labelled
@@ -26,8 +31,6 @@ than a written entry. Newest first.
   appointment linked to a property. A linked property sits on its own line
   with its code instead of running on inside the task title, and the line
   under the date says how many tasks are high priority.
-
-#### 28 November 2026
 
 - **Faster API responses: the session is verified without a round trip.**
   Every dashboard request used to ask Supabase Auth who was calling twice,
@@ -41,6 +44,13 @@ than a written entry. Newest first.
   Supabase Auth on every request. Requires asymmetric JWT signing keys on the
   Supabase project; a project still on the legacy shared secret keeps the old
   behaviour automatically (ACC-012).
+
+- **Contacts counts no longer slow down as the contact list grows.** The
+  database rule that decides which contacts a member may read checked their
+  membership once for every contact; it now checks once per query. Counting
+  one account's 864 contacts went from about 35 ms to under 2 ms, and every
+  member sees exactly the contacts they saw before (ACC-013).
+  **Migration required:** `20261128043424_contacts_select_member_initplan.sql`.
 
 #### 27 November 2026
 

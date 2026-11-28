@@ -435,6 +435,7 @@ export async function sendDailyScheduleDigests(
           property: t.property as unknown as AgendaProperty | null,
         })),
         {
+          dayStartIso: startIso,
           pdfUrl: agendaPdfLinkFor(
             {
               accountId: entry.accountId,

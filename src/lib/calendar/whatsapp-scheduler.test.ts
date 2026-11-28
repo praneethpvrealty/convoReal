@@ -454,6 +454,48 @@ describe('formatAgendaMessage', () => {
     expect(msg.match(/inventory\?propertyId=prop-1/g)).toHaveLength(2);
   });
 
+  it('[CAL-017] stops calling an overdue requirement new and says how late it is', () => {
+    const todos = [
+      {
+        title: 'New Buyer Requirements - @Gourishankar',
+        priority: 'high',
+        due_date: '2026-07-02T06:00:00.000Z',
+        contact: { id: 'contact-1', name: 'Gourishankar', phone: '7829111981' },
+      },
+      {
+        title: 'New Website Inquiry - @Pavan',
+        priority: 'high',
+        due_date: '2026-11-28T06:00:00.000Z',
+        contact: { id: 'contact-2', name: 'Pavan', phone: '7353838484' },
+      },
+      {
+        title: 'New brochure for the HSR plot',
+        priority: 'medium',
+        due_date: '2026-11-26T20:00:00.000Z',
+      },
+    ];
+    const msg = formatAgendaMessage('Saturday, 28 Nov', [], todos, {
+      siteUrl: null,
+      dayStartIso: '2026-11-27T18:30:00.000Z',
+    });
+    expect(msg).toContain(
+      [
+        '🔴 *Buyer Requirements*',
+        '      ⏳ Due 2 Jul · 149 days overdue',
+        '      👤 Gourishankar · 📞 +917829111981',
+      ].join('\n')
+    );
+    expect(msg).toContain(
+      '🔴 *New Website Inquiry*\n      👤 Pavan · 📞 +917353838484'
+    );
+    expect(msg).toContain(
+      '🔹 New brochure for the HSR plot\n      ⏳ Due 27 Nov · 1 day overdue'
+    );
+    expect(formatAgendaMessage('Saturday, 28 Nov', [], todos)).not.toContain(
+      'overdue'
+    );
+  });
+
   it('[CAL-017] leaves the links out when the site URL is unknown', () => {
     const msg = formatAgendaMessage(
       'Saturday, 28 Nov',
