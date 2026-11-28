@@ -6402,6 +6402,28 @@
             }
           ],
           "guards": ["mobile/lib/session-expiry.ts", "mobile/lib/api.ts"]
+        },
+        {
+          "id": "ACC-011",
+          "rule": "A signed-in caller is identified from their access token, verified against the project's public signing keys (supabase.auth.getClaims through resolveVerifiedUser in src/lib/auth/verified-user.ts), in src/proxy.ts and in getCurrentAccount(), so a request does not make a GoTrue round trip to learn who is calling. A token whose signature or expiry fails verification is signed out with no fallback; only when verification cannot run at all (the signing keys cannot be fetched) is GoTrue asked through getUser. A mobile request's Authorization bearer token is the token verified, never a cookie session. The profile, role, read-only and archived-account checks still read the database on every request, so a removed member or an archived account loses access at once; a session revoked in GoTrue stays usable until its access token expires. requirePlatformAdmin, withDenAuth and withBuyerAuth keep asking GoTrue.",
+          "tests": [
+            {
+              "file": "src/lib/auth/verified-user.test.ts",
+              "case": "[ACC-011]"
+            },
+            {
+              "file": "src/lib/auth/account.test.ts",
+              "case": "[ACC-011]"
+            },
+            {
+              "file": "src/lib/supabase/server.test.ts",
+              "case": "[ACC-011]"
+            },
+            {
+              "file": "src/proxy.test.ts",
+              "case": "[ACC-011]"
+            }
+          ]
         }
       ]
     },

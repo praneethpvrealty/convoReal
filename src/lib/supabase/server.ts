@@ -47,6 +47,12 @@ export async function createClient() {
     const originalGetUser = client.auth.getUser.bind(client.auth);
     client.auth.getUser = ((jwt?: string) =>
       originalGetUser(jwt ?? bearerToken)) as typeof client.auth.getUser;
+    const originalGetClaims = client.auth.getClaims.bind(client.auth);
+    client.auth.getClaims = ((jwt?: string, options?: object) =>
+      originalGetClaims(
+        jwt ?? bearerToken,
+        options
+      )) as typeof client.auth.getClaims;
 
     return client;
   }

@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   },
   createServerClient: vi.fn(),
   getUser: vi.fn(),
+  getClaims: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({
@@ -46,8 +47,13 @@ beforeEach(async () => {
     data: { user: { id: 'user-1' } },
     error: null,
   });
+  h.getClaims.mockReset();
+  h.getClaims.mockResolvedValue({
+    data: { claims: { sub: 'user-1' } },
+    error: null,
+  });
   h.createServerClient.mockImplementation(() => ({
-    auth: { getUser: h.getUser },
+    auth: { getUser: h.getUser, getClaims: h.getClaims },
   }));
   vi.resetModules();
   ({ createClient } = await import('./server'));
@@ -64,6 +70,14 @@ describe('createClient bearer transport', () => {
     // Route code calls getUser() with no args; it must validate the bearer JWT.
     await client.auth.getUser();
     expect(h.getUser).toHaveBeenCalledWith(FAKE_JWT);
+  });
+
+  it('[ACC-011] verifies the bearer JWT, not a cookie session, when claims are read with no args', async () => {
+    h.state.authorization = `Bearer ${FAKE_JWT}`;
+
+    const client = await createClient();
+    await client.auth.getClaims();
+    expect(h.getClaims).toHaveBeenCalledWith(FAKE_JWT, undefined);
   });
 
   it('prefers an explicitly passed JWT over the header token', async () => {
