@@ -66,6 +66,7 @@ import { createNotification } from '@/lib/notifications/create';
 import {
   ACCOUNT_QUIET_HOURS_COLUMNS,
   quietPeriodFromAccount,
+  quietPeriodStatus,
 } from '@/lib/notifications/quiet-hours';
 import {
   consentSchedule,
@@ -571,17 +572,39 @@ async function sendConsentAsk(
   }
 }
 
-async function consentScheduleFor(
-  admin: SupabaseClient,
-  accountId: string,
-  askedAt: Date
-) {
+async function clientQuietPeriod(admin: SupabaseClient, accountId: string) {
   const { data } = await admin
     .from('accounts')
     .select(ACCOUNT_QUIET_HOURS_COLUMNS)
     .eq('id', accountId)
     .maybeSingle();
-  return consentSchedule(askedAt, quietPeriodFromAccount(data, 'client'));
+  return quietPeriodFromAccount(data, 'client');
+}
+
+async function consentScheduleFor(
+  admin: SupabaseClient,
+  accountId: string,
+  askedAt: Date
+) {
+  return consentSchedule(askedAt, await clientQuietPeriod(admin, accountId));
+}
+
+/** Per-sweep memo: is it client quiet hours for this account now?
+ *  A sweep leaves a due row alone while it is, and the first sweep
+ *  after quiet hours end handles it. */
+function quietNowChecker(admin: SupabaseClient) {
+  const memo = new Map<string, Promise<boolean>>();
+  const now = new Date();
+  return (accountId: string) => {
+    let quiet = memo.get(accountId);
+    if (!quiet) {
+      quiet = clientQuietPeriod(admin, accountId).then(
+        (period) => quietPeriodStatus(now, period).isQuiet
+      );
+      memo.set(accountId, quiet);
+    }
+    return quiet;
+  };
 }
 
 /**
@@ -1434,9 +1457,11 @@ export async function sweepConsentReminders(
     .lt('consent_remind_at', now)
     .limit(50);
 
+  const isQuietNow = quietNowChecker(admin);
   let reminded = 0;
   for (const row of (data || []) as LocationRequestRow[]) {
     if (row.consent_deadline_at && row.consent_deadline_at <= now) continue;
+    if (await isQuietNow(row.account_id)) continue;
     const { data: claimed } = await admin
       .from('property_location_requests')
       .update({ consent_reminded_at: now })
@@ -1497,9 +1522,11 @@ export async function sweepConsentTimeouts(
   admin: SupabaseClient
 ): Promise<number> {
   const rows = await loadExpiredConsentAsks(admin);
+  const isQuietNow = quietNowChecker(admin);
 
   let stalled = 0;
   for (const row of rows) {
+    if (await isQuietNow(row.account_id)) continue;
     const contactId = row.pending_consent_contact_id!;
     const chain = Array.isArray(row.consent_chain) ? row.consent_chain : [];
     const { data: claimed } = await admin

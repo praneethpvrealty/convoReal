@@ -3396,7 +3396,7 @@
         },
         {
           "id": "PRP-067",
-          "rule": "A co-broker asked to consent to a guarded location or listing request has four daytime hours to answer: the clock stops during the account's client quiet hours (21:00-08:00 IST by default), so an ask sent at 06:08 is reminded at 10:00 and closes at 12:00. The consent ask stamps consent_remind_at and consent_deadline_at, and the 15-minute sweep sends one reminder with the same Approve and Decline buttons halfway through, claimed before it is sent so overlapping sweeps cannot both send it. The seeker stays masked in the reminder.",
+          "rule": "A co-broker asked to consent to a guarded location or listing request has four daytime hours to answer: the clock stops during the account's client quiet hours (21:00-08:00 IST by default), so an ask sent at 06:08 is reminded at 10:00 and closes at 12:00. The consent ask stamps consent_remind_at and consent_deadline_at, and the 15-minute sweep sends one reminder with the same Approve and Decline buttons halfway through, claimed before it is sent so overlapping sweeps cannot both send it. The seeker stays masked in the reminder. Neither a reminder nor a deadline falls inside quiet hours (one that would is moved to when they end), and a sweep that runs during them leaves due rows alone until the first sweep after.",
           "tests": [
             {
               "file": "src/lib/inventory/consent-clock.test.ts",

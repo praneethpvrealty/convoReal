@@ -27,7 +27,8 @@ export function addAwakeTime(
     t += step;
     left -= step;
   }
-  return new Date(t);
+  const end = quietPeriodStatus(new Date(t), period);
+  return end.isQuiet && end.deliverAt ? end.deliverAt : new Date(t);
 }
 
 export function consentSchedule(

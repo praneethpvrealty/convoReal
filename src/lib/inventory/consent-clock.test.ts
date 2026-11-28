@@ -45,6 +45,19 @@ describe('consentSchedule', () => {
     );
   });
 
+  it('[PRP-067] never lands a reminder or deadline on the first minute of quiet hours', () => {
+    const { remindAt, deadlineAt } = consentSchedule(
+      ist('2026-11-17T17:00:00'),
+      CLIENT
+    );
+    expect(remindAt.toISOString()).toBe(
+      ist('2026-11-17T19:00:00').toISOString()
+    );
+    expect(deadlineAt.toISOString()).toBe(
+      ist('2026-11-18T08:00:00').toISOString()
+    );
+  });
+
   it('runs on wall-clock time when quiet hours are off', () => {
     const start = ist('2026-11-17T23:00:00');
     expect(

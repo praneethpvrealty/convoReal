@@ -198,7 +198,13 @@ const C = 'contact-c';
 
 function freshTables(): Record<string, Row[]> {
   return {
-    accounts: [{ id: ACCOUNT, owner_user_id: OWNER_USER }],
+    accounts: [
+      {
+        id: ACCOUNT,
+        owner_user_id: OWNER_USER,
+        client_quiet_hours_enabled: false,
+      },
+    ],
     profiles: [
       { user_id: OWNER_USER, account_id: ACCOUNT, email: 'owner@agency.test' },
     ],
@@ -574,6 +580,35 @@ describe('multi-hop consent flow, end to end', () => {
     ).toBe(true);
 
     expect(await sweepConsentTimeouts(admin)).toBe(0);
+  });
+
+  it('[PRP-067] leaves due reminders and timeouts alone during client quiet hours', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-17T22:30:00+05:30'));
+    try {
+      const tables = freshTables();
+      tables.accounts[0].client_quiet_hours_enabled = true;
+      const admin = fakeAdmin(tables);
+      seedRequest(tables, {
+        pending_consent_contact_id: C,
+        consent_requested_at: new Date(Date.now() - 5 * 3600_000).toISOString(),
+        consent_remind_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
+        consent_reminded_at: null,
+        consent_deadline_at: new Date(Date.now() - 60_000).toISOString(),
+      });
+
+      expect(await sweepConsentReminders(admin)).toBe(0);
+      expect(await sweepConsentTimeouts(admin)).toBe(0);
+      expect(sent).toHaveLength(0);
+      expect(
+        tables.property_location_requests[0].pending_consent_contact_id
+      ).toBe(C);
+
+      vi.setSystemTime(new Date('2026-11-18T08:05:00+05:30'));
+      expect(await sweepConsentTimeouts(admin)).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('[PRP-068] never lets a stale sweep expire a newer ask to the same co-broker', async () => {
