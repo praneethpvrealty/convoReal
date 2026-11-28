@@ -46,7 +46,7 @@ export function overdueDays(
   return Math.ceil((start - due) / DAY_MS);
 }
 
-export function overdueLine(
+export function overdueText(
   dueDate: string | null | undefined,
   dayStartIso: string | null | undefined
 ): string | null {
@@ -57,7 +57,15 @@ export function overdueLine(
     day: 'numeric',
     month: 'short',
   });
-  return `⏳ Due ${due} · ${days} ${days === 1 ? 'day' : 'days'} overdue`;
+  return `Due ${due} · ${days} ${days === 1 ? 'day' : 'days'} overdue`;
+}
+
+export function overdueLine(
+  dueDate: string | null | undefined,
+  dayStartIso: string | null | undefined
+): string | null {
+  const text = overdueText(dueDate, dayStartIso);
+  return text ? `⏳ ${text}` : null;
 }
 
 export function agendaItemTitle(
