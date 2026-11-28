@@ -52,6 +52,10 @@ import {
   fileShowcaseInquiry,
   type ShowcaseInquiryInput,
 } from '@/lib/showcase/file-inquiry';
+import {
+  SWEEP_ACT_LIMIT,
+  SWEEP_SCAN_LIMIT,
+} from '@/lib/inventory/consent-clock';
 import type { MessageTemplate } from '@/types';
 
 export const LEGACY_REFERRAL_CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
@@ -958,11 +962,13 @@ export async function sweepReferredEnquiryReminders(
     .is('consent_reminded_at', null)
     .lt('consent_remind_at', now)
     .order('consent_remind_at', { ascending: true })
-    .limit(50);
+    .limit(SWEEP_SCAN_LIMIT);
 
   const isQuietNow = quietNowChecker(admin);
   let reminded = 0;
+  let acted = 0;
   for (const row of (data ?? []) as ReferredEnquiryRow[]) {
+    if (acted >= SWEEP_ACT_LIMIT) break;
     if (row.consent_deadline_at && row.consent_deadline_at <= now) continue;
     if (await isQuietNow(row.account_id)) continue;
     const filter = guestFilter(row);
@@ -977,6 +983,7 @@ export async function sweepReferredEnquiryReminders(
       filter ? query.or(filter) : query.eq('id', row.id)
     ).select('id');
     if (!claimed || claimed.length === 0) continue;
+    acted += 1;
 
     const { data: via } = await admin
       .from('contacts')
@@ -1028,7 +1035,7 @@ export async function sweepReferredEnquiryTimeouts(
       .eq('status', 'pending')
       .lt('consent_deadline_at', now)
       .order('consent_deadline_at', { ascending: true })
-      .limit(50),
+      .limit(SWEEP_SCAN_LIMIT),
     admin
       .from('referred_enquiries')
       .select('id, account_id, via_contact_id, requester_phone, session_key')
@@ -1036,11 +1043,12 @@ export async function sweepReferredEnquiryTimeouts(
       .is('consent_deadline_at', null)
       .lt('consent_requested_at', legacyCutoff)
       .order('consent_requested_at', { ascending: true })
-      .limit(50),
+      .limit(SWEEP_SCAN_LIMIT),
   ]);
 
   const isQuietNow = quietNowChecker(admin);
   let closed = 0;
+  let acted = 0;
   for (const row of [
     ...(scheduled.data ?? []),
     ...(legacy.data ?? []),
@@ -1050,9 +1058,11 @@ export async function sweepReferredEnquiryTimeouts(
       'id' | 'account_id' | 'via_contact_id' | 'requester_phone' | 'session_key'
     >
   >) {
+    if (acted >= SWEEP_ACT_LIMIT) break;
     if (await isQuietNow(row.account_id)) continue;
     const rows = await claimGuestRows(admin, row, 'expired');
     if (rows.length === 0) continue;
+    acted += 1;
     await closeGuestRows(admin, rows, 'expired');
     closed += rows.length;
   }

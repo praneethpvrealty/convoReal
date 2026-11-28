@@ -139,7 +139,9 @@ const alertAgent = vi.fn<(args: Row) => Promise<void>>(async () => undefined);
 vi.mock('@/lib/whatsapp/enquiry-alert', () => ({
   alertAgentOfPropertyEnquiry: (args: Row) => alertAgent(args),
 }));
-const quietNow = vi.fn(async () => false);
+const quietNow = vi.fn<(accountId?: string) => Promise<boolean>>(
+  async () => false
+);
 vi.mock('@/lib/inventory/location-requests', () => ({
   propertyTitle: async () => 'Commercial Building in Munnekolal',
   buildSeekerRedirectMessage: (title: string) => `speak to sharer: ${title}`,
@@ -148,7 +150,7 @@ vi.mock('@/lib/inventory/location-requests', () => ({
     remindAt: new Date(at.getTime() + 2 * 3600_000),
     deadlineAt: new Date(at.getTime() + 4 * 3600_000),
   }),
-  quietNowChecker: () => () => quietNow(),
+  quietNowChecker: () => (accountId: string) => quietNow(accountId),
 }));
 const loadTemplate = vi.fn();
 vi.mock('@/lib/whatsapp/template-language', () => ({
@@ -832,6 +834,38 @@ describe('[PLS-010] an agent’s guest is held until the agent approves', () => 
 
     quietNow.mockResolvedValue(false);
     expect(await sweepReferredEnquiryTimeouts(makeAdmin() as never)).toBe(1);
+  });
+
+  it("[PLS-012] does not let a quiet account's backlog hold up another account", async () => {
+    const past = new Date(Date.now() - 3600_000).toISOString();
+    for (let i = 0; i < 60; i += 1) {
+      tables.referred_enquiries.push({
+        id: `quiet-${i}`,
+        account_id: 'acc-quiet',
+        via_contact_id: NIMMY,
+        requester_name: 'Guest',
+        requester_phone: `+91980000${String(i).padStart(4, '0')}`,
+        session_key: null,
+        status: 'pending',
+        consent_requested_at: past,
+        consent_remind_at: past,
+        consent_deadline_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
+      });
+    }
+    await openWebsite();
+    const awake = tables.referred_enquiries.at(-1)!;
+    awake.consent_deadline_at = new Date(Date.now() - 60_000).toISOString();
+    quietNow.mockImplementation(
+      async (accountId?: string) => accountId === 'acc-quiet'
+    );
+
+    expect(await sweepReferredEnquiryTimeouts(makeAdmin() as never)).toBe(1);
+    expect(awake.status).toBe('expired');
+    expect(
+      tables.referred_enquiries
+        .filter((r) => r.account_id === 'acc-quiet')
+        .every((r) => r.status === 'pending')
+    ).toBe(true);
   });
 
   it('does not ask the agent again within a day of their decline', async () => {
