@@ -690,6 +690,27 @@ describe('multi-hop consent flow, end to end', () => {
     ).toBeNull();
   });
 
+  it('[PRP-068] does not re-ask a co-broker whose late approval landed after the request was read', async () => {
+    const tables = freshTables();
+    const admin = fakeAdmin(tables);
+    const timedOut = {
+      contact_id: C,
+      decision: 'timed_out',
+      at: new Date().toISOString(),
+    };
+    const request = seedRequest(tables, { consent_chain: [timedOut] });
+    tables.property_location_requests[0].consent_chain = [
+      timedOut,
+      { contact_id: C, decision: 'approved', at: new Date().toISOString() },
+    ];
+
+    expect(await reaskStalledConsent(admin, request)).toBe('not_stalled');
+    expect(sent).toHaveLength(0);
+    const row = tables.property_location_requests[0];
+    expect(row.pending_consent_contact_id).toBeNull();
+    expect(row.consent_requested_at).toBeNull();
+  });
+
   it('[PRP-068] releases the claim when the re-ask cannot be delivered', async () => {
     const tables = freshTables();
     const admin = fakeAdmin(tables);

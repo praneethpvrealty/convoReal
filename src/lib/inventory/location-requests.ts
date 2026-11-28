@@ -1611,13 +1611,38 @@ export async function reaskStalledConsent(
     .select('id');
   if (!claimed || claimed.length === 0) return 'not_stalled';
 
-  if (!(await sendConsentAsk(admin, request, contactId, false))) {
-    await admin
+  const releaseClaim = () =>
+    admin
       .from('property_location_requests')
       .update({ ...CLEARED_CONSENT_ASK })
       .eq('id', request.id)
       .eq('pending_consent_contact_id', contactId)
       .eq('consent_requested_at', askedAt.toISOString());
+
+  const readChain = Array.isArray(request.consent_chain)
+    ? request.consent_chain
+    : [];
+  const { data: current } = await admin
+    .from('property_location_requests')
+    .select('consent_chain')
+    .eq('id', request.id)
+    .eq('account_id', request.account_id)
+    .maybeSingle();
+  const currentChain = Array.isArray(current?.consent_chain)
+    ? (current.consent_chain as LocationRequestRow['consent_chain'])
+    : [];
+  const lastHop = currentChain[currentChain.length - 1];
+  if (
+    currentChain.length !== readChain.length ||
+    lastHop?.decision !== 'timed_out' ||
+    lastHop.contact_id !== contactId
+  ) {
+    await releaseClaim();
+    return 'not_stalled';
+  }
+
+  if (!(await sendConsentAsk(admin, request, contactId, false))) {
+    await releaseClaim();
     return 'unreachable';
   }
 
