@@ -37,10 +37,12 @@ export function agendaItemTitle(
   let clean = title.trim();
   const propertyTitle = property?.title?.trim();
   if (propertyTitle) {
-    const at = clean.indexOf(propertyTitle);
+    const at = clean.lastIndexOf(propertyTitle);
     const lead = at > 0 ? clean.slice(0, at) : '';
+    const tail = at > 0 ? clean.slice(at + propertyTitle.length).trim() : '';
     const head = lead.replace(/\s*[-–—:]\s*$/, '').trim();
-    if (head && head !== lead.trim()) clean = head;
+    const trailing = tail === '' || /^\([^()]*\)$/.test(tail);
+    if (trailing && head && head !== lead.trim()) clean = head;
   }
   if (!contact?.name) return clean;
   const stripped = clean.replace(/\s*[-–—:]\s*@[^@]+$/, '').trim();
