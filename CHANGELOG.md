@@ -30,6 +30,14 @@ than a written entry. Newest first.
   API's row cap can no longer cut a long calendar short. Web and mobile read
   the same named columns (CAL-025).
 
+- **Contacts, Inventory and Calendar open from the last copy on web.** The
+  lists you have already loaded are kept in the browser and shown at once on
+  the next visit or reload, then refreshed in the background, as the mobile
+  app already does. The copy is kept per signed-in user, is deleted when you
+  sign out or your session ends, and is dropped after a day or a new release.
+  Sidebar pages also start loading as soon as you point at, focus or touch
+  their link.
+
 - **Morning schedule on WhatsApp: links and a cleaner layout.** Each item in
   the morning digest and the "today" reply now carries a link that opens the
   record in the mobile app (or on the web): the buyer's contact, labelled
