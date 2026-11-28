@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { SIGN_OUT_REASON_PARAM } from '@/lib/auth/sign-out-reason';
+import { resolveVerifiedUser } from '@/lib/auth/verified-user';
 
 const SUPABASE_COOKIE_PREFIXES = [
   'sb-access-token',
@@ -66,43 +67,46 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // A thrown/timed-out getUser means auth is UNAVAILABLE, not that the
-  // caller is signed out. Those are handled differently below: definitive
-  // "no user" answers gate as usual, while infrastructure failures fail
-  // open — every API route re-checks auth itself and RLS scopes all data,
-  // so failing open never exposes anything; failing closed would kick
-  // validly-signed-in users to /login on every Supabase latency blip.
-  let data: { user: { id: string } | null } | null = null;
+  // A thrown/timed-out session check means auth is UNAVAILABLE, not that
+  // the caller is signed out. Those are handled differently below:
+  // definitive "no user" answers gate as usual, while infrastructure
+  // failures fail open — every API route re-checks auth itself and RLS
+  // scopes all data, so failing open never exposes anything; failing
+  // closed would kick validly-signed-in users to /login on every
+  // Supabase latency blip.
+  let userId: string | null = null;
   let error: (Error & { code?: string }) | null = null;
   let authUnavailable = false;
 
   // No auth cookie means there is no cookie session to resolve — the
-  // answer is "signed out" without a GoTrue round-trip. Skipping it
-  // keeps every public page, webhook, and cookieless bearer request off
-  // the auth network path entirely.
+  // answer is "signed out" without touching the session at all. Skipping
+  // it keeps every public page, webhook, and cookieless bearer request
+  // off the auth path entirely.
   const hasAuthCookie = request.cookies
     .getAll()
     .some(({ name }) => isAuthCookie(name));
 
   if (hasAuthCookie) {
-    // Race getUser against a 4-second timeout to prevent Supabase outages from freezing page load
-    const getUserPromise = supabase.auth.getUser();
+    // The access token is verified against the project's cached signing
+    // keys, so a live session costs no GoTrue round trip here; only an
+    // expired token (refresh) or a cold key cache reaches the network.
+    // Race that against a 4-second timeout so a Supabase outage cannot
+    // freeze page load.
+    const verifyPromise = resolveVerifiedUser(supabase.auth);
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-    const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>(
-      (_, reject) => {
-        timeoutHandle = setTimeout(
-          () => reject(new Error('Supabase request timed out')),
-          4000
-        );
-      }
-    );
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(
+        () => reject(new Error('Supabase request timed out')),
+        4000
+      );
+    });
 
     try {
-      const res = await Promise.race([getUserPromise, timeoutPromise]);
-      data = res.data;
+      const res = await Promise.race([verifyPromise, timeoutPromise]);
+      userId = res.userId;
       error = res.error;
     } catch (err) {
-      console.error('[proxy] getUser failed or timed out:', err);
+      console.error('[proxy] session check failed or timed out:', err);
       error = err instanceof Error ? err : new Error(String(err));
       authUnavailable = true;
     } finally {
@@ -110,7 +114,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const user = data?.user ?? null;
+  const user = userId ? { id: userId } : null;
 
   // A dead refresh token is a definitive "signed out", so the request
   // continues through the normal gates below — public pages and public

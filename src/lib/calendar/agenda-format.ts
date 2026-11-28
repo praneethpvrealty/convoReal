@@ -29,12 +29,53 @@ export function callablePhone(phone: string | null | undefined): string | null {
   return `+${digits}`;
 }
 
+const STALE_NEW_PREFIX = /^new\s+(?=(buyer requirements|website inquiry)\b)/i;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function overdueDays(
+  dueDate: string | null | undefined,
+  dayStartIso: string | null | undefined
+): number {
+  if (!dueDate || !dayStartIso) return 0;
+  const due = new Date(dueDate).getTime();
+  const start = new Date(dayStartIso).getTime();
+  if (!Number.isFinite(due) || !Number.isFinite(start) || due >= start) {
+    return 0;
+  }
+  return Math.ceil((start - due) / DAY_MS);
+}
+
+export function overdueText(
+  dueDate: string | null | undefined,
+  dayStartIso: string | null | undefined
+): string | null {
+  const days = overdueDays(dueDate, dayStartIso);
+  if (days === 0) return null;
+  const due = new Date(dueDate as string).toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: 'numeric',
+    month: 'short',
+  });
+  return `Due ${due} · ${days} ${days === 1 ? 'day' : 'days'} overdue`;
+}
+
+export function overdueLine(
+  dueDate: string | null | undefined,
+  dayStartIso: string | null | undefined
+): string | null {
+  const text = overdueText(dueDate, dayStartIso);
+  return text ? `⏳ ${text}` : null;
+}
+
 export function agendaItemTitle(
   title: string,
   contact: AgendaContact | null | undefined,
-  property?: AgendaProperty | null
+  property?: AgendaProperty | null,
+  options: { overdue?: boolean } = {}
 ): string {
   let clean = title.trim();
+  if (options.overdue) clean = clean.replace(STALE_NEW_PREFIX, '');
   const propertyTitle = property?.title?.trim();
   if (propertyTitle) {
     const at = clean.lastIndexOf(propertyTitle);

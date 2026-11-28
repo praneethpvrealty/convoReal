@@ -62,6 +62,7 @@ import {
   agendaItemTitle,
   agendaLinkLine,
   contactLine,
+  overdueLine,
   propertyLine,
   unwrapRelation,
   type AgendaContact,
@@ -417,12 +418,23 @@ function detailLines(
     .map((l) => `      ${l}`);
 }
 
-function todoLines(t: AgendaTodo, siteUrl: string | null): string[] {
+function todoLines(
+  t: AgendaTodo,
+  siteUrl: string | null,
+  dayStartIso: string | null
+): string[] {
   const contact = unwrapRelation(t.contact);
   const property = unwrapRelation(t.property);
-  const title = clip(agendaItemTitle(t.title, contact, property));
+  const late = overdueLine(t.due_date, dayStartIso);
+  const title = clip(
+    agendaItemTitle(t.title, contact, property, { overdue: late !== null })
+  );
   const head = t.priority === 'high' ? `🔴 *${title}*` : `🔹 ${title}`;
-  return [head, ...detailLines(siteUrl, t.title, title, contact, property)];
+  return [
+    head,
+    ...(late ? [`      ${late}`] : []),
+    ...detailLines(siteUrl, t.title, title, contact, property),
+  ];
 }
 
 function eventLines(ev: AgendaEvent, siteUrl: string | null): string[] {
@@ -450,7 +462,11 @@ export function formatAgendaMessage(
   dateLabel: string,
   events: AgendaEvent[],
   todos: AgendaTodo[],
-  options: { pdfUrl?: string | null; siteUrl?: string | null } = {}
+  options: {
+    pdfUrl?: string | null;
+    siteUrl?: string | null;
+    dayStartIso?: string | null;
+  } = {}
 ): string {
   const siteUrl =
     options.siteUrl === undefined
@@ -458,6 +474,7 @@ export function formatAgendaMessage(
         process.env.NEXT_PUBLIC_APP_URL ||
         null
       : options.siteUrl;
+  const dayStartIso = options.dayStartIso ?? null;
   const header = `🗓 *Your schedule — ${dateLabel}*`;
 
   const active = events.filter((e) => e.status === 'scheduled');
@@ -502,7 +519,7 @@ export function formatAgendaMessage(
     if (dated.length > 0) {
       lines.push('', AGENDA_RULE, `✅ *Tasks due:* ${dated.length}`);
       for (const t of dated.slice(0, shown.dated)) {
-        lines.push('', ...todoLines(t, siteUrl));
+        lines.push('', ...todoLines(t, siteUrl, dayStartIso));
       }
       const hidden = dated.length - shown.dated;
       if (hidden > 0) lines.push('', `_+${hidden} more ${moreWhere}._`);
@@ -511,7 +528,7 @@ export function formatAgendaMessage(
     if (undated.length > 0) {
       lines.push('', AGENDA_RULE, '📌 *No date set:*');
       for (const t of undated.slice(0, shown.undated)) {
-        lines.push('', ...todoLines(t, siteUrl));
+        lines.push('', ...todoLines(t, siteUrl, dayStartIso));
       }
       const hidden = undated.length - shown.undated;
       if (hidden > 0) lines.push('', `_+${hidden} more ${moreWhere}._`);
@@ -1165,6 +1182,7 @@ export async function tryHandleOwnerScheduling(
       (events || []) as unknown as AgendaEvent[],
       (todos || []) as unknown as AgendaTodo[],
       {
+        dayStartIso: startIso,
         pdfUrl: agendaPdfLinkFor({
           accountId,
           userId: userId,

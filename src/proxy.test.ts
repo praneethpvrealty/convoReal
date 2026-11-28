@@ -15,10 +15,19 @@ import { NextRequest } from 'next/server';
 let mockUser: { id: string } | null = null;
 let mockError: (Error & { code?: string }) | null = null;
 let getUserCalls = 0;
+let getClaimsCalls = 0;
 
 vi.mock('@supabase/ssr', () => ({
   createServerClient: () => ({
     auth: {
+      getClaims: async () => {
+        getClaimsCalls++;
+        return {
+          data:
+            mockError || !mockUser ? null : { claims: { sub: mockUser.id } },
+          error: mockError,
+        };
+      },
       getUser: async () => {
         getUserCalls++;
         return {
@@ -66,6 +75,7 @@ describe('proxy — Meta Flows endpoint auth exemption', () => {
     mockUser = null;
     mockError = null;
     getUserCalls = 0;
+    getClaimsCalls = 0;
   });
 
   it('passes through unauthenticated to the Flows data-exchange endpoint (Meta calls this directly)', async () => {
@@ -121,6 +131,7 @@ describe('proxy — mobile bearer-token transport', () => {
     mockUser = null;
     mockError = null;
     getUserCalls = 0;
+    getClaimsCalls = 0;
   });
 
   it('passes a cookieless bearer-JWT request through to /api/whatsapp/send', async () => {
@@ -167,6 +178,7 @@ describe('proxy — stale refresh token', () => {
     mockUser = null;
     mockError = staleRefreshTokenError();
     getUserCalls = 0;
+    getClaimsCalls = 0;
   });
 
   it('serves a public page instead of bouncing the visitor to /login', async () => {
@@ -225,15 +237,18 @@ describe('proxy — skips the auth round-trip when no session cookie is present'
     mockUser = null;
     mockError = null;
     getUserCalls = 0;
+    getClaimsCalls = 0;
   });
 
-  it('does not call getUser for a cookieless request', async () => {
+  it('does not check the session for a cookieless request', async () => {
     await proxy(req('/api/whatsapp/webhook'));
+    expect(getClaimsCalls).toBe(0);
     expect(getUserCalls).toBe(0);
   });
 
-  it('does not call getUser for a cookieless request carrying only non-auth cookies', async () => {
+  it('does not check the session for a cookieless request carrying only non-auth cookies', async () => {
     await proxy(req('/', { cookie: 'theme=violet' }));
+    expect(getClaimsCalls).toBe(0);
     expect(getUserCalls).toBe(0);
   });
 
@@ -244,9 +259,11 @@ describe('proxy — skips the auth round-trip when no session cookie is present'
     expect(location.searchParams.has('reason')).toBe(false);
   });
 
-  it('still calls getUser when a session cookie is present', async () => {
+  it('[ACC-012] verifies a cookie session locally, without a GoTrue getUser call', async () => {
     mockUser = { id: 'user-1' };
-    await proxy(signedInReq('/dashboard'));
-    expect(getUserCalls).toBe(1);
+    const res = await proxy(signedInReq('/dashboard'));
+    expect(res.headers.get('location')).toBeNull();
+    expect(getClaimsCalls).toBe(1);
+    expect(getUserCalls).toBe(0);
   });
 });
