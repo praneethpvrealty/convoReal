@@ -39,10 +39,14 @@ describe('[ACC-011] the persisted prefixes are the keys the screens use', () => 
     expect(isPersistedQueryKey(['inventory', 'map', 'page=0'])).toBe(false);
   });
 
-  it('covers the contacts list and tags', () => {
+  it('covers the contacts list, tags and tab counts', () => {
     const contacts = read('src/app/(dashboard)/contacts/contacts-content.tsx');
     expect(contacts).toContain("['contacts', 'list', listParams]");
     expect(contacts).toContain("['contacts', 'tags']");
+    expect(contacts).toContain("['contacts', 'tab-counts', accountId]");
+    expect(isPersistedQueryKey(['contacts', 'tab-counts', 'acct-1'])).toBe(
+      true
+    );
     expect(isPersistedQueryKey(['contacts', 'list', {}])).toBe(true);
     expect(isPersistedQueryKey(['contacts', 'tags'])).toBe(true);
   });
