@@ -17,6 +17,16 @@ This file was unreadable from #614 until it was restored from the last clean
 revision, so the pull requests merged in between carry their merge title rather
 than a written entry. Newest first.
 
+#### 28 November 2026
+
+- **Morning schedule on WhatsApp: links and a cleaner layout.** Each item in
+  the morning digest and the "today" reply now carries a link that opens the
+  record in the mobile app (or on the web): the buyer's contact, labelled
+  Requirements, on a buyer-requirements task, and the listing on any task or
+  appointment linked to a property. A linked property sits on its own line
+  with its code instead of running on inside the task title, and the line
+  under the date says how many tasks are high priority.
+
 #### 27 November 2026
 
 - **Do not contact.** Mark a contact Do not contact from the contact form on

@@ -24,7 +24,10 @@ import {
   isValidE164,
   phonesMatch,
 } from '@/lib/whatsapp/phone-utils';
-import type { AgendaContact } from '@/lib/calendar/agenda-format';
+import type {
+  AgendaContact,
+  AgendaProperty,
+} from '@/lib/calendar/agenda-format';
 import { agendaPdfLinkFor, istDateOf } from '@/lib/calendar/agenda-pdf-link';
 import {
   formatAgendaMessage,
@@ -326,7 +329,7 @@ export async function sendDailyScheduleDigests(
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, assigned_to, remind_creator, title, event_type, start_time, location, status, contact:contacts(name, phone)'
+      'id, account_id, user_id, assigned_to, remind_creator, title, event_type, start_time, location, status, contact:contacts(id, name, phone), property:properties(id, title, property_code)'
     )
     .eq('status', 'scheduled')
     .gte('start_time', startIso)
@@ -345,7 +348,7 @@ export async function sendDailyScheduleDigests(
     // No lower bound: a still-open todo overdue from an earlier day
     // belongs on today's agenda too, not just the ones due today.
     .select(
-      'account_id, user_id, assigned_to, title, priority, due_date, contact:contacts(name, phone)'
+      'account_id, user_id, assigned_to, title, priority, due_date, contact:contacts(id, name, phone), property:properties(id, title, property_code)'
     )
     .eq('completed', false)
     .not('due_date', 'is', null)
@@ -422,12 +425,14 @@ export async function sendDailyScheduleDigests(
           location: e.location as string | null,
           status: e.status as string,
           contact: e.contact as unknown as AgendaContact | null,
+          property: e.property as unknown as AgendaProperty | null,
         })),
         entry.todos.map((t) => ({
           title: t.title as string,
           priority: t.priority as string,
           due_date: (t.due_date as string | null) ?? null,
           contact: t.contact as unknown as AgendaContact | null,
+          property: t.property as unknown as AgendaProperty | null,
         })),
         {
           pdfUrl: agendaPdfLinkFor(
