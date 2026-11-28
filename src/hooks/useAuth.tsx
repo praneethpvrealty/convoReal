@@ -10,6 +10,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import {
@@ -38,6 +39,10 @@ import {
   isDeliberateSignOut,
   markDeliberateSignOut,
 } from '@/lib/auth/deliberate-sign-out';
+import {
+  clearPersistedQueryCaches,
+  startQueryCachePersistence,
+} from '@/lib/query/cache-persistence';
 
 type Profile = SessionProfile;
 type AccountSummary = SessionAccount;
@@ -163,6 +168,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // window they're in — see the type doc above.
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState(false);
+  const queryClient = useQueryClient();
+  const queryCacheRef = useRef<{ userId: string; stop: () => void } | null>(
+    null
+  );
+
+  const bindQueryCache = useCallback(
+    (userId: string | null) => {
+      const bound = queryCacheRef.current;
+      if (bound?.userId === userId) return;
+      if (bound) {
+        bound.stop();
+        queryClient.clear();
+      }
+      if (userId) {
+        queryCacheRef.current = {
+          userId,
+          stop: startQueryCachePersistence(
+            queryClient,
+            userId,
+            process.env.NEXT_PUBLIC_BUILD_ID ?? ''
+          ),
+        };
+      } else {
+        queryCacheRef.current = null;
+        clearPersistedQueryCaches();
+      }
+    },
+    [queryClient]
+  );
 
   // Shared across init, auth-state-change listener, and the exposed
   // refreshProfile() callback. Reads the current session's user id and
@@ -356,6 +390,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         const currentUser = session?.user ?? null;
         hadUserRef.current = Boolean(currentUser);
+        bindQueryCache(currentUser?.id ?? null);
         setUser(currentUser);
 
         if (currentUser) {
@@ -399,6 +434,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearDeliberateSignOut();
       }
       hadUserRef.current = Boolean(currentUser);
+      bindQueryCache(currentUser?.id ?? null);
       setUser(currentUser);
 
       if (currentUser) {
@@ -417,8 +453,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
+      queryCacheRef.current?.stop();
+      queryCacheRef.current = null;
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, bindQueryCache]);
 
   const signOut = useCallback(async () => {
     markDeliberateSignOut();
@@ -438,11 +476,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         err
       );
     }
+    bindQueryCache(null);
+    queryClient.clear();
     setUser(null);
     setProfile(null);
     setAccount(null);
     reloadTo('/login');
-  }, []);
+  }, [bindQueryCache, queryClient]);
 
   const refreshProfile = useCallback(async () => {
     if (!user?.id) return;

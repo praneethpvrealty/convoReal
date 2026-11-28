@@ -2,10 +2,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const state = vi.hoisted(() => ({
   direct: null as null | (() => Promise<unknown>),
   directCalls: 0,
+  authListener: null as
+    null | ((event: string, session: { user: { id: string } } | null) => void),
 }));
 
 vi.mock('@/lib/navigation', () => ({ reloadTo: vi.fn() }));
@@ -25,9 +28,10 @@ vi.mock('@/lib/supabase/client', () => {
         data: { session: { user: { id: 'user-1' } } },
         error: null,
       }),
-      onAuthStateChange: () => ({
-        data: { subscription: { unsubscribe: () => {} } },
-      }),
+      onAuthStateChange: (listener: NonNullable<typeof state.authListener>) => {
+        state.authListener = listener;
+        return { data: { subscription: { unsubscribe: () => {} } } };
+      },
     },
     from: () => query,
   };
@@ -72,11 +76,16 @@ function Probe() {
   );
 }
 
+let queryClient = new QueryClient();
+
 function renderProbe() {
+  queryClient = new QueryClient();
   return render(
-    <AuthProvider>
-      <Probe />
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -157,5 +166,43 @@ describe('[ACC-008] AuthProvider profile fallback', () => {
     expect(state.directCalls).toBe(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('loading').textContent).toBe('false');
+  });
+});
+
+describe('[ACC-011] AuthProvider scopes the stored query cache to the signed-in user', () => {
+  const storageKey = 'convoreal-query-cache:user-1';
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    state.direct = () =>
+      Promise.resolve({ data: apiBody.data.profile, error: null });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('stores list data under the user id and wipes memory and storage when the session ends', async () => {
+    window.localStorage.setItem('convoreal-query-cache:user-0', '{}');
+    renderProbe();
+    await waitFor(() =>
+      expect(screen.getByTestId('loading').textContent).toBe('false')
+    );
+    expect(window.localStorage.getItem('convoreal-query-cache:user-0')).toBe(
+      null
+    );
+
+    queryClient.setQueryData(['contacts', 'tags'], { t1: { id: 't1' } });
+    await waitFor(
+      () => expect(window.localStorage.getItem(storageKey)).toContain('t1'),
+      { timeout: 3000 }
+    );
+
+    state.authListener!('SIGNED_OUT', null);
+    expect(queryClient.getQueryData(['contacts', 'tags'])).toBeUndefined();
+    expect(window.localStorage.getItem(storageKey)).toBe(null);
   });
 });
