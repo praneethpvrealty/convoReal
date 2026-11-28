@@ -101,10 +101,16 @@ export function startQueryCachePersistence(
   buster: string
 ): () => void {
   clearPersistedQueryCaches(userId);
+  let stopped = false;
   const [unsubscribe, restored] = persistQueryClient({
     queryClient: client,
     persister: createAsyncStoragePersister({
-      storage: safeStorage,
+      storage: {
+        ...safeStorage,
+        setItem: (key: string, value: string) => {
+          if (!stopped) safeStorage.setItem(key, value);
+        },
+      },
       key: queryCacheStorageKey(userId),
     }),
     buster,
@@ -115,5 +121,8 @@ export function startQueryCachePersistence(
     },
   });
   restored.catch(() => {});
-  return unsubscribe;
+  return () => {
+    stopped = true;
+    unsubscribe();
+  };
 }

@@ -193,6 +193,20 @@ describe('[ACC-011] web query cache persistence', () => {
     expect(window.localStorage.getItem('theme')).toBe('violet');
   });
 
+  it('does not write a queued copy back after persistence stops', async () => {
+    const client = newClient();
+    const stop = startQueryCachePersistence(client, 'user-1', 'build-a');
+    await flushPersister();
+
+    client.setQueryData(['contacts', 'list', { page: 0 }], { contacts: [1] });
+    stop();
+    client.clear();
+    clearPersistedQueryCaches();
+    await flushPersister();
+
+    expect(stored('user-1')).toBeNull();
+  });
+
   it('degrades to no persistence when storage throws', async () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new DOMException('quota', 'QuotaExceededError');
