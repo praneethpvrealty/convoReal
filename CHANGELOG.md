@@ -19,6 +19,11 @@ than a written entry. Newest first.
 
 #### 28 November 2026
 
+- **Overdue tasks say so in the morning schedule.** A task that was due
+  before today shows its due date and how many days overdue it is, and an
+  overdue "New Buyer Requirements" or "New Website Inquiry" task is no longer
+  called new, in the WhatsApp message and the PDF.
+
 - **Morning schedule on WhatsApp: links and a cleaner layout.** Each item in
   the morning digest and the "today" reply now carries a link that opens the
   record in the mobile app (or on the web): the buyer's contact, labelled

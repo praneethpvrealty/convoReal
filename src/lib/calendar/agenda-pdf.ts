@@ -316,9 +316,9 @@ function drawTodo(w: Writer, todo: DailyAgendaTodo, dayStartIso: string) {
   const high = todo.priority === 'high';
   const badgeW = high ? 34 : 0;
   const width = CONTENT_W - 22 - (badgeW ? badgeW + 8 : 0);
-  const title = agendaItemTitle(todo.title, todo.contact);
-  const titleLines = w.wrap(title, high ? w.bold : w.regular, 11, width);
   const overdue = !!todo.dueDate && todo.dueDate < dayStartIso;
+  const title = agendaItemTitle(todo.title, todo.contact, null, { overdue });
+  const titleLines = w.wrap(title, high ? w.bold : w.regular, 11, width);
   const height =
     titleLines.length * 15 + (todo.contact ? 15 : 0) + (overdue ? 13 : 0) + 12;
   w.ensure(height);
