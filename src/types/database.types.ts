@@ -13767,6 +13767,26 @@ export type Database = {
           properties: Json;
         }[];
       };
+      contacts_listable: {
+        Args: { p_account_id: string };
+        Returns: Database['public']['Tables']['contacts']['Row'][];
+        SetofOptions: {
+          from: '*';
+          to: 'contacts';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
+      contacts_listable_tagged: {
+        Args: { p_account_id: string; p_tag_id: string };
+        Returns: Database['public']['Tables']['contacts']['Row'][];
+        SetofOptions: {
+          from: '*';
+          to: 'contacts';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       contacts_tab_counts: {
         Args: { p_account_id: string };
         Returns: {
