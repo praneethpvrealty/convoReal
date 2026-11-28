@@ -4435,6 +4435,9 @@ describe('[CAL-009] the to-do list is lightweight on both surfaces', () => {
       "title: 'Clear completed',\n      message: clearCompletedPrompt(todos.length),"
     );
     expect(webCalendar).toContain('completedTodoIds(doneTodos)');
+    expect(webCalendar).toMatch(
+      /doneTodosQuery\.hasNextPage \|\| doneTodosQuery\.isPlaceholderData\s+\? await loadDoneTodoIds\(supabase, accountId, todoFilter\)/
+    );
     expect(mobileCalendar).toContain(
       'deleteCompletedTodos(completedTodoIds(todos))'
     );

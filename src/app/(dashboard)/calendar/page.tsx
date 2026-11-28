@@ -1510,9 +1510,10 @@ export default function CalendarPage() {
     if (!accountId || doneTodosCount === 0) return;
     setClearingTodos(true);
     try {
-      const ids = doneTodosQuery.hasNextPage
-        ? await loadDoneTodoIds(supabase, accountId, todoFilter)
-        : completedTodoIds(doneTodos);
+      const ids =
+        doneTodosQuery.hasNextPage || doneTodosQuery.isPlaceholderData
+          ? await loadDoneTodoIds(supabase, accountId, todoFilter)
+          : completedTodoIds(doneTodos);
       if (ids.length === 0 || !confirm(clearCompletedPrompt(ids.length)))
         return;
       let removed = 0;
