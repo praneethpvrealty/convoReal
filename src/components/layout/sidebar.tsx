@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import { IntentPrefetchLink } from '@/components/layout/intent-prefetch-link';
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -212,9 +212,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Logo row. On mobile we put a close button here; on desktop the
             close button is hidden since the sidebar is always-visible. */}
         <div className="relative z-10 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-900/60 bg-slate-950/20 px-4 backdrop-blur-sm">
-          <Link
+          <IntentPrefetchLink
             href="/dashboard"
-            prefetch={false}
             className="flex items-center gap-2"
           >
             <div className="from-primary to-indigo-650 shadow-primary/20 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br shadow-md">
@@ -223,7 +222,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             <span className="bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-[11px] font-black tracking-tight text-transparent">
               CONVOREAL ENGINE
             </span>
-          </Link>
+          </IntentPrefetchLink>
           <button
             type="button"
             onClick={onClose}
@@ -270,9 +269,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
                 return (
                   <li key={item.href}>
-                    <Link
+                    <IntentPrefetchLink
                       href={item.href}
-                      prefetch={false}
                       data-tour={`nav-${item.href.slice(1)}`}
                       className={cn(
                         // Taller on mobile so fingers can hit the row reliably (≥44px).
@@ -303,7 +301,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                           <span className="bg-primary relative inline-flex h-2 w-2 rounded-full" />
                         </span>
                       )}
-                    </Link>
+                    </IntentPrefetchLink>
                   </li>
                 );
               })}
@@ -316,9 +314,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 const isActive = pathname.startsWith(item.href);
                 return (
                   <li key={item.href}>
-                    <Link
+                    <IntentPrefetchLink
                       href={item.href}
-                      prefetch={false}
                       data-tour={`nav-${item.href.slice(1)}`}
                       className={cn(
                         'flex items-center gap-3 px-3 py-2.5 text-sm font-semibold transition-all duration-300 lg:py-2',
@@ -331,7 +328,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       <span className="flex-1 truncate">
                         {t(item.labelKey)}
                       </span>
-                    </Link>
+                    </IntentPrefetchLink>
                   </li>
                 );
               })}
@@ -373,14 +370,13 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     href: '/contacts?search=follow-up',
                   },
                 ].map((qa) => (
-                  <Link
+                  <IntentPrefetchLink
                     key={qa.labelKey}
                     href={qa.href}
-                    prefetch={false}
                     className="text-slate-450 w-full cursor-pointer rounded-xl border border-slate-900/60 bg-slate-900/15 px-4 py-2 text-left text-xs font-bold transition-all duration-200 hover:border-slate-800 hover:bg-slate-900/45 hover:text-white"
                   >
                     {t(qa.labelKey)}
-                  </Link>
+                  </IntentPrefetchLink>
                 ))}
               </div>
             </div>
@@ -459,9 +455,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             >
               <DropdownMenuItem
                 render={
-                  <Link
+                  <IntentPrefetchLink
                     href="/settings?tab=profile"
-                    prefetch={false}
                     onClick={onClose}
                     className="text-slate-200 focus:bg-slate-800 focus:text-white"
                   />
@@ -472,9 +467,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               </DropdownMenuItem>
               <DropdownMenuItem
                 render={
-                  <Link
+                  <IntentPrefetchLink
                     href="/settings?tab=whatsapp"
-                    prefetch={false}
                     onClick={onClose}
                     className="text-slate-200 focus:bg-slate-800 focus:text-white"
                   />
