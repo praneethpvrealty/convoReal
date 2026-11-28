@@ -27,6 +27,26 @@ describe('[CAL-017] agenda contact formatting', () => {
     );
   });
 
+  it('drops only a trailing property label from the title', () => {
+    const property = { id: 'p1', title: 'HSR Plot', property_code: 'PROP-1' };
+    expect(
+      agendaItemTitle('Follow up with Anil — HSR Plot (PROP-1)', null, property)
+    ).toBe('Follow up with Anil');
+    expect(
+      agendaItemTitle('Follow up with Anil — HSR Plot', null, property)
+    ).toBe('Follow up with Anil');
+    expect(
+      agendaItemTitle(
+        'Documents — HSR Plot: collect the signed sale deed',
+        null,
+        property
+      )
+    ).toBe('Documents — HSR Plot: collect the signed sale deed');
+    expect(agendaItemTitle('HSR Plot (PROP-1)', null, property)).toBe(
+      'HSR Plot (PROP-1)'
+    );
+  });
+
   it('shows the name and a tappable phone', () => {
     expect(contactLine({ name: 'Pavan', phone: '9845012345' })).toBe(
       '👤 Pavan · 📞 +919845012345'

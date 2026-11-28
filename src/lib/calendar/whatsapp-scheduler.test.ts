@@ -383,6 +383,98 @@ describe('formatAgendaMessage', () => {
     );
   });
 
+  it('[CAL-017] links a requirement task to its contact and a property task to its listing', () => {
+    const msg = formatAgendaMessage(
+      'Saturday, 28 Nov',
+      [
+        {
+          title: 'Residential Plot in Sector 6 HSR Layout',
+          event_type: 'site_visit',
+          start_time: '2026-11-28T05:30:00.000Z',
+          location: null,
+          status: 'scheduled',
+          property: {
+            id: 'prop-1',
+            title: 'Residential Plot in Sector 6 HSR Layout',
+            property_code: 'PROP-1037',
+          },
+        },
+      ],
+      [
+        {
+          title: 'New Buyer Requirements - @Gourishankar',
+          priority: 'high',
+          due_date: '2026-11-28T06:00:00.000Z',
+          contact: {
+            id: 'contact-1',
+            name: 'Gourishankar',
+            phone: '7829111981',
+          },
+        },
+        {
+          title:
+            'Follow up with Mbuser — Residential Plot in Sector 6 HSR Layout (PROP-1037)',
+          priority: 'medium',
+          due_date: '2026-11-28T06:00:00.000Z',
+          contact: { id: 'contact-2', name: 'KP Anand', phone: '9994035636' },
+          property: [
+            {
+              id: 'prop-1',
+              title: 'Residential Plot in Sector 6 HSR Layout',
+              property_code: 'PROP-1037',
+            },
+          ],
+        },
+        {
+          title: "Follow up with Kusumaraju's advocate",
+          priority: 'medium',
+          due_date: '2026-11-28T06:00:00.000Z',
+        },
+      ],
+      { siteUrl: 'https://www.convoreal.com/' }
+    );
+    expect(msg).toContain('_1 appointment · 3 tasks · 1 high priority_');
+    expect(msg).toContain(
+      [
+        '🔴 *New Buyer Requirements*',
+        '      👤 Gourishankar · 📞 +917829111981',
+        '      📋 Requirements: https://www.convoreal.com/contacts?contactId=contact-1',
+      ].join('\n')
+    );
+    expect(msg).toContain(
+      [
+        '🔹 Follow up with Mbuser',
+        '      👤 KP Anand · 📞 +919994035636',
+        '      🏠 Residential Plot in Sector 6 HSR Layout (PROP-1037)',
+        '      🔗 https://www.convoreal.com/inventory?propertyId=prop-1',
+      ].join('\n')
+    );
+    expect(msg.endsWith("🔹 Follow up with Kusumaraju's advocate")).toBe(true);
+    expect(msg.match(/🏠/g)).toHaveLength(1);
+    expect(msg.match(/inventory\?propertyId=prop-1/g)).toHaveLength(2);
+  });
+
+  it('[CAL-017] leaves the links out when the site URL is unknown', () => {
+    const msg = formatAgendaMessage(
+      'Saturday, 28 Nov',
+      [],
+      [
+        {
+          title: 'New Buyer Requirements - @Gourishankar',
+          priority: 'high',
+          due_date: '2026-11-28T06:00:00.000Z',
+          contact: {
+            id: 'contact-1',
+            name: 'Gourishankar',
+            phone: '7829111981',
+          },
+        },
+      ],
+      { siteUrl: null }
+    );
+    expect(msg).not.toContain('http');
+  });
+
   it('[CAL-017] caps a long dated list so the text stays under WhatsApp limits', () => {
     const msg = formatAgendaMessage(
       'Wednesday, 4 Nov',

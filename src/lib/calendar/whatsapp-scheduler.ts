@@ -60,9 +60,12 @@ import {
 import { type MessageTemplate } from '@/types';
 import {
   agendaItemTitle,
+  agendaLinkLine,
   contactLine,
+  propertyLine,
   unwrapRelation,
   type AgendaContact,
+  type AgendaProperty,
 } from '@/lib/calendar/agenda-format';
 import { agendaPdfLinkFor, istDateOf } from '@/lib/calendar/agenda-pdf-link';
 
@@ -345,6 +348,7 @@ interface AgendaEvent {
   location: string | null;
   status: string;
   contact?: AgendaContact | AgendaContact[] | null;
+  property?: AgendaProperty | AgendaProperty[] | null;
 }
 
 interface AgendaTodo {
@@ -355,6 +359,7 @@ interface AgendaTodo {
    *  card's "Reply *today* to see your day's schedule" is a lie. */
   due_date?: string | null;
   contact?: AgendaContact | AgendaContact[] | null;
+  property?: AgendaProperty | AgendaProperty[] | null;
 }
 
 /** Undated tasks shown before the list is truncated — enough to be
@@ -392,15 +397,35 @@ function clip(text: string, max = MAX_ITEM_CHARS): string {
     : text;
 }
 
-function todoLines(t: AgendaTodo): string[] {
-  const contact = unwrapRelation(t.contact);
-  const title = clip(agendaItemTitle(t.title, contact));
-  const head = t.priority === 'high' ? `🔴 *${title}*` : `▫️ ${title}`;
-  const who = contactLine(contact);
-  return who ? [head, `      ${who}`] : [head];
+function detailLines(
+  siteUrl: string | null,
+  title: string,
+  shown: string,
+  contact: AgendaContact | null,
+  property: AgendaProperty | null,
+  location?: string | null
+): string[] {
+  const named = property?.title?.trim();
+  const place = named && shown.includes(named) ? null : propertyLine(property);
+  return [
+    contactLine(contact),
+    place ? clip(place) : null,
+    location ? `📌 ${clip(location, 120)}` : null,
+    agendaLinkLine(siteUrl, title, contact, property),
+  ]
+    .filter((l): l is string => l !== null)
+    .map((l) => `      ${l}`);
 }
 
-function eventLines(ev: AgendaEvent): string[] {
+function todoLines(t: AgendaTodo, siteUrl: string | null): string[] {
+  const contact = unwrapRelation(t.contact);
+  const property = unwrapRelation(t.property);
+  const title = clip(agendaItemTitle(t.title, contact, property));
+  const head = t.priority === 'high' ? `🔴 *${title}*` : `🔹 ${title}`;
+  return [head, ...detailLines(siteUrl, t.title, title, contact, property)];
+}
+
+function eventLines(ev: AgendaEvent, siteUrl: string | null): string[] {
   const time = new Date(ev.start_time).toLocaleTimeString('en-IN', {
     timeZone: 'Asia/Kolkata',
     hour: 'numeric',
@@ -408,24 +433,37 @@ function eventLines(ev: AgendaEvent): string[] {
     hour12: true,
   });
   const emoji = EVENT_TYPE_EMOJI[ev.event_type || 'other'] || '🗓';
-  const lines = [`${emoji} *${time}* — ${clip(ev.title)}`];
-  const who = contactLine(unwrapRelation(ev.contact));
-  if (who) lines.push(`      ${who}`);
-  if (ev.location) lines.push(`      📌 ${clip(ev.location, 120)}`);
-  return lines;
+  return [
+    `${emoji} *${time}* — ${clip(ev.title)}`,
+    ...detailLines(
+      siteUrl,
+      ev.title,
+      ev.title,
+      unwrapRelation(ev.contact),
+      unwrapRelation(ev.property),
+      ev.location
+    ),
+  ];
 }
 
 export function formatAgendaMessage(
   dateLabel: string,
   events: AgendaEvent[],
   todos: AgendaTodo[],
-  options: { pdfUrl?: string | null } = {}
+  options: { pdfUrl?: string | null; siteUrl?: string | null } = {}
 ): string {
+  const siteUrl =
+    options.siteUrl === undefined
+      ? process.env.NEXT_PUBLIC_SITE_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        null
+      : options.siteUrl;
   const header = `🗓 *Your schedule — ${dateLabel}*`;
 
   const active = events.filter((e) => e.status === 'scheduled');
   const dated = byPriority(todos.filter((t) => t.due_date != null));
   const undated = byPriority(todos.filter((t) => t.due_date == null));
+  const urgent = dated.filter((t) => t.priority === 'high').length;
 
   if (active.length === 0 && todos.length === 0) {
     return [
@@ -438,6 +476,7 @@ export function formatAgendaMessage(
   const summary = [
     active.length > 0 ? plural(active.length, 'appointment') : null,
     dated.length > 0 ? plural(dated.length, 'task') : null,
+    urgent > 0 ? `${urgent} high priority` : null,
   ].filter(Boolean);
   const moreWhere = options.pdfUrl
     ? 'in the PDF below'
@@ -454,7 +493,7 @@ export function formatAgendaMessage(
     if (active.length > 0) {
       lines.push('', AGENDA_RULE, '📅 *Appointments*');
       for (const ev of active.slice(0, shown.events)) {
-        lines.push('', ...eventLines(ev));
+        lines.push('', ...eventLines(ev, siteUrl));
       }
       const hidden = active.length - shown.events;
       if (hidden > 0) lines.push('', `_+${hidden} more ${moreWhere}._`);
@@ -463,7 +502,7 @@ export function formatAgendaMessage(
     if (dated.length > 0) {
       lines.push('', AGENDA_RULE, `✅ *Tasks due:* ${dated.length}`);
       for (const t of dated.slice(0, shown.dated)) {
-        lines.push('', ...todoLines(t));
+        lines.push('', ...todoLines(t, siteUrl));
       }
       const hidden = dated.length - shown.dated;
       if (hidden > 0) lines.push('', `_+${hidden} more ${moreWhere}._`);
@@ -472,7 +511,7 @@ export function formatAgendaMessage(
     if (undated.length > 0) {
       lines.push('', AGENDA_RULE, '📌 *No date set:*');
       for (const t of undated.slice(0, shown.undated)) {
-        lines.push('', ...todoLines(t));
+        lines.push('', ...todoLines(t, siteUrl));
       }
       const hidden = undated.length - shown.undated;
       if (hidden > 0) lines.push('', `_+${hidden} more ${moreWhere}._`);
@@ -1091,7 +1130,7 @@ export async function tryHandleOwnerScheduling(
       admin
         .from('appointments')
         .select(
-          'title, event_type, start_time, location, status, contact:contacts(name, phone)'
+          'title, event_type, start_time, location, status, contact:contacts(id, name, phone), property:properties(id, title, property_code)'
         )
         .eq('account_id', accountId)
         .or(
@@ -1108,7 +1147,9 @@ export async function tryHandleOwnerScheduling(
       // undated backlog rather than this agent's.
       admin
         .from('todos')
-        .select('title, priority, due_date, contact:contacts(name, phone)')
+        .select(
+          'title, priority, due_date, contact:contacts(id, name, phone), property:properties(id, title, property_code)'
+        )
         .eq('account_id', accountId)
         .eq('completed', false)
         .or(
