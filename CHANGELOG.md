@@ -19,6 +19,16 @@ than a written entry. Newest first.
 
 #### 28 November 2026
 
+- **Inventory opens faster.** The listing list no longer waits for the
+  shared-inventory sync: web and mobile run it beside the list and reload
+  only when it brought a new listing in. The list and map fetch the columns
+  a card shows instead of every column, and anything opened from a row
+  (view, edit, flyer, share, portals, promote) loads the whole listing
+  first. Match counts on the web cards are worked out on the server, so the
+  browser no longer downloads every buyer to count them, and the summary
+  tiles, Needs attention and tab counts arrive in one call instead of three.
+  The form, the map and the dialogs load after the list rather than with
+  it. **Migration required:** `20261128043149_inventory_overview.sql`.
 - **Morning schedule on WhatsApp: links and a cleaner layout.** Each item in
   the morning digest and the "today" reply now carries a link that opens the
   record in the mobile app (or on the web): the buyer's contact, labelled

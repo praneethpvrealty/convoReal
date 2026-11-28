@@ -59,11 +59,25 @@ vi.mock('@/lib/supabase/client', () => ({
     rpc: (name: string) => ({
       then: <T,>(onfulfilled: (value: unknown) => T | PromiseLike<T>) =>
         Promise.resolve(
-          name === 'inventory_source_breakdown'
-            ? { data: breakdownRows, error: null }
-            : name === 'inventory_attention_counts'
-              ? { data: attentionRows, error: null }
-              : { data: null, error: null }
+          name === 'inventory_overview'
+            ? {
+                data: {
+                  stats: {
+                    total: 0,
+                    published: 0,
+                    available: 0,
+                    sold_or_contract: 0,
+                    pending_review: 0,
+                    active_total: 0,
+                    direct: 0,
+                    agent_referred: 0,
+                  },
+                  attention: attentionRows,
+                  source_breakdown: breakdownRows,
+                },
+                error: null,
+              }
+            : { data: null, error: null }
         ).then(onfulfilled),
       maybeSingle: async () => ({
         data: {
@@ -127,14 +141,25 @@ vi.mock('@/components/inventory/property-list', () => ({
   PropertyList: ({
     properties,
     emptyState,
+    matchCounts,
+    onShare,
   }: {
-    properties: unknown[];
+    properties: { id: string }[];
     emptyState?: ReactNode;
+    matchCounts?: Record<string, number>;
+    onShare?: (property: { id: string }) => void;
   }) =>
     properties.length === 0 && emptyState ? (
       <>{emptyState}</>
     ) : (
-      <div data-testid="property-list" />
+      <div
+        data-testid="property-list"
+        data-match-counts={JSON.stringify(matchCounts ?? null)}
+      >
+        <button type="button" onClick={() => onShare?.(properties[0])}>
+          Share first row
+        </button>
+      </div>
     ),
 }));
 
@@ -265,9 +290,19 @@ function mockPropertiesFetch(fetchMock: ReturnType<typeof vi.fn>) {
           title: 'Maple Villa',
           status: 'Available',
           listing_type: 'Sell',
+          description: 'Corner villa with a garden',
           features: [],
           images: [],
         }),
+      };
+    }
+    if (url.startsWith('/api/properties/match-counts')) {
+      return { ok: true, json: async () => ({ data: { 'property-1': 4 } }) };
+    }
+    if (url === '/api/agents/inventory-sync') {
+      return {
+        ok: true,
+        json: async () => ({ data: { imported: 0, matched: 0 } }),
       };
     }
     if (url.startsWith('/api/properties')) {
@@ -664,7 +699,9 @@ describe('inventory source pills and empty state', () => {
     ];
     const fetchMock = vi.fn();
     mockPropertiesFetch(fetchMock);
-    const base = fetchMock.getMockImplementation()!;
+    const base = fetchMock.getMockImplementation() as (
+      url: string
+    ) => Promise<unknown>;
     fetchMock.mockImplementation(async (url: string) => {
       if (url.startsWith('/api/properties?')) {
         return {
@@ -840,7 +877,9 @@ describe('inventory list load failure', () => {
   it('[UIX-034] shows a retry instead of an empty inventory when the list fails', async () => {
     const fetchMock = vi.fn();
     mockPropertiesFetch(fetchMock);
-    const base = fetchMock.getMockImplementation()!;
+    const base = fetchMock.getMockImplementation() as (
+      url: string
+    ) => Promise<unknown>;
     let failing = true;
     fetchMock.mockImplementation(async (url: string) => {
       if (url.startsWith('/api/properties?') && failing) {
@@ -860,5 +899,121 @@ describe('inventory list load failure', () => {
 
     expect(await screen.findByTestId('property-list')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('inventory first load', () => {
+  it('[PRP-066] asks for card columns and opens a row action on the whole listing', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    await screen.findByTestId('property-list');
+    const listUrl = propertiesCalls(fetchMock)[0];
+    expect(new URLSearchParams(listUrl.split('?')[1]).get('fields')).toBe(
+      'card'
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Share first row' }));
+
+    const dialog = await screen.findByTestId('property-share-dialog');
+    expect(dialog.textContent).toContain('property-1:Maple Villa');
+    expect(
+      fetchMock.mock.calls.some(
+        (call) => String(call[0]) === '/api/properties/property-1'
+      )
+    ).toBe(true);
+  });
+
+  it('[PRP-066] does not open a row action on a listing it could not load', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    const base = fetchMock.getMockImplementation() as (
+      url: string
+    ) => Promise<unknown>;
+    fetchMock.mockImplementation(async (url: string) =>
+      url === '/api/properties/property-1'
+        ? { ok: false, json: async () => ({ error: 'boom' }) }
+        : base(url)
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    await screen.findByTestId('property-list');
+    fireEvent.click(screen.getByRole('button', { name: 'Share first row' }));
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          (call) => String(call[0]) === '/api/properties/property-1'
+        )
+      ).toBe(true)
+    );
+    expect(screen.queryByTestId('property-share-dialog')).toBeNull();
+  });
+
+  it('[PRP-067] runs the source sync beside the list and reloads only when it imported', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    const base = fetchMock.getMockImplementation() as (
+      url: string
+    ) => Promise<unknown>;
+    fetchMock.mockImplementation(async (url: string) =>
+      url === '/api/agents/inventory-sync'
+        ? {
+            ok: true,
+            json: async () => ({ data: { imported: 2, matched: 2 } }),
+          }
+        : base(url)
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    await screen.findByTestId('property-list');
+    const listCall = fetchMock.mock.calls.find((call) =>
+      String(call[0]).startsWith('/api/properties?')
+    )!;
+    expect(listCall[1]).toEqual({ headers: { 'x-inventory-sync': 'client' } });
+    const syncCalls = fetchMock.mock.calls.filter(
+      (call) => String(call[0]) === '/api/agents/inventory-sync'
+    );
+    expect(syncCalls).toHaveLength(1);
+    expect(syncCalls[0][1]).toEqual({ method: 'POST' });
+    await waitFor(() =>
+      expect(propertiesCalls(fetchMock).length).toBeGreaterThan(1)
+    );
+  });
+
+  it('[PRP-067] does not reload the list when the sync imported nothing', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    await screen.findByTestId('property-list');
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          (call) => String(call[0]) === '/api/agents/inventory-sync'
+        )
+      ).toBe(true)
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(propertiesCalls(fetchMock)).toHaveLength(1);
+  });
+
+  it('[PRP-068] shows match counts the server worked out for the listings on screen', async () => {
+    const fetchMock = mockPropertiesFetch(vi.fn());
+    vi.stubGlobal('fetch', fetchMock);
+    renderInventory();
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('property-list').getAttribute('data-match-counts')
+      ).toBe(JSON.stringify({ 'property-1': 4 }))
+    );
+    expect(
+      fetchMock.mock.calls.some(
+        (call) =>
+          String(call[0]) === '/api/properties/match-counts?ids=property-1'
+      )
+    ).toBe(true);
   });
 });

@@ -86,6 +86,11 @@ import {
 import type { PropertiesResponse, Property } from '@/lib/types';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { appendLocationFilters } from '@/lib/property-location-query';
+import {
+  cardListRequest,
+  syncImportedListings,
+} from '@/lib/property-card-request';
+import { queryClient } from '@/lib/query';
 
 const LISTING_FILTERS: ListingFilter[] = [
   'All',
@@ -152,6 +157,29 @@ export async function fetchPropertyPage(
   );
 }
 
+export async function fetchPropertyCardPage(
+  page: number,
+  search: string,
+  listing: ListingFilter,
+  near: NearAnchor | null,
+  includeUnavailable: boolean,
+  filters: PropertyFilters = EMPTY_PROPERTY_FILTERS,
+  locations: readonly string[] = []
+): Promise<PropertiesResponse> {
+  const { path, init } = cardListRequest(
+    buildPropertyParams(
+      page,
+      search,
+      listing,
+      near,
+      includeUnavailable,
+      filters,
+      locations
+    )
+  );
+  return apiFetch<PropertiesResponse>(path, init);
+}
+
 export default function PropertiesScreen() {
   const { colors, fonts: f } = useTheme();
   const { width } = useWindowDimensions();
@@ -177,6 +205,24 @@ export default function PropertiesScreen() {
     staleTime: 60_000,
   });
   const accountId = useAuthStore((state) => state.profile?.account_id);
+  const accountRole = useAuthStore((state) => state.profile?.account_role);
+  // Listings another brokerage shared with this agent are copied in
+  // beside the list, not ahead of it; the list reloads only when the
+  // sync brought something new.
+  useEffect(() => {
+    if (!accountId || !accountRole || accountRole === 'viewer') return;
+    let cancelled = false;
+    void apiFetch<unknown>('/api/agents/inventory-sync', { method: 'POST' })
+      .then(async (body) => {
+        if (cancelled || !syncImportedListings(body)) return;
+        await queryClient.cancelQueries({ queryKey: ['properties'] });
+        await queryClient.invalidateQueries({ queryKey: ['properties'] });
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, accountRole]);
   const { data: attentionCount } = useQuery({
     queryKey: ['properties', 'attention-count', accountId],
     enabled: Boolean(accountId),
@@ -244,7 +290,7 @@ export default function PropertiesScreen() {
       propertyFiltersKey(filters),
     ],
     queryFn: ({ pageParam }) =>
-      fetchPropertyPage(
+      fetchPropertyCardPage(
         pageParam,
         debounced,
         listing,

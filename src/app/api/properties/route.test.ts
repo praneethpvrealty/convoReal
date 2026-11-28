@@ -5,6 +5,9 @@ const eqCalls: Array<[string, unknown]> = [];
 const neqCalls: Array<[string, unknown]> = [];
 const updates: Array<{ patch: Record<string, unknown>; id: unknown }> = [];
 const ungeocodedRows: Array<Record<string, unknown>> = [];
+const selects: string[] = [];
+const afterTasks: Array<() => unknown> = [];
+let callerRole = 'owner';
 
 function propertiesQuery() {
   let ungeocoded = false;
@@ -12,7 +15,10 @@ function propertiesQuery() {
   const chain = () => query;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const query: any = {
-    select: chain,
+    select: (columns?: string) => {
+      if (typeof columns === 'string') selects.push(columns);
+      return query;
+    },
     eq: (column: string, value: unknown) => {
       eqCalls.push([column, value]);
       if (patch && column === 'id') updates.push({ patch, id: value });
@@ -51,7 +57,17 @@ function propertiesQuery() {
   return query;
 }
 
-const { geocodeAddress } = vi.hoisted(() => ({ geocodeAddress: vi.fn() }));
+const { geocodeAddress, syncAgentSourceInventory } = vi.hoisted(() => ({
+  geocodeAddress: vi.fn(),
+  syncAgentSourceInventory: vi.fn(),
+}));
+
+vi.mock('next/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  after: (task: () => unknown) => {
+    afterTasks.push(task);
+  },
+}));
 
 vi.mock('@/lib/maps/google-places', () => ({
   hasGoogleMapsKey: () => true,
@@ -61,7 +77,7 @@ vi.mock('@/lib/maps/google-places', () => ({
 vi.mock('@/lib/auth/account', () => ({
   requireRole: async () => ({
     accountId: 'account-1',
-    role: 'owner',
+    role: callerRole,
     userId: 'user-1',
     supabase: { from: () => propertiesQuery() },
   }),
@@ -73,11 +89,12 @@ vi.mock('@/lib/auth/account', () => ({
 }));
 
 vi.mock('@/lib/agents/source-inventory-sync', () => ({
-  syncAgentSourceInventory: async () => ({ imported: 0, matched: 0 }),
+  syncAgentSourceInventory,
 }));
 
 import { GET } from './route';
 import { NEEDS_ATTENTION_FILTER } from '@/lib/inventory/list-scope';
+import { PROPERTY_CARD_SELECT } from '@/lib/inventory/card-columns';
 
 beforeEach(() => {
   orFilters.length = 0;
@@ -86,6 +103,71 @@ beforeEach(() => {
   updates.length = 0;
   ungeocodedRows.length = 0;
   geocodeAddress.mockReset();
+  selects.length = 0;
+  afterTasks.length = 0;
+  callerRole = 'owner';
+  syncAgentSourceInventory.mockReset();
+  syncAgentSourceInventory.mockResolvedValue({ imported: 0, matched: 0 });
+});
+
+describe('GET /api/properties source inventory sync', () => {
+  it('[PRP-067] answers the list before the sync runs, then runs it', async () => {
+    const response = await GET(new Request('http://test/api/properties'));
+
+    expect(response.status).toBe(200);
+    expect(syncAgentSourceInventory).not.toHaveBeenCalled();
+    expect(afterTasks).toHaveLength(1);
+    await afterTasks[0]();
+    expect(syncAgentSourceInventory).toHaveBeenCalledTimes(1);
+  });
+
+  it('[PRP-067] leaves the sync to a client that runs it itself', async () => {
+    const response = await GET(
+      new Request('http://test/api/properties', {
+        headers: { 'x-inventory-sync': 'client' },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(afterTasks).toHaveLength(0);
+    expect(syncAgentSourceInventory).not.toHaveBeenCalled();
+  });
+
+  it('[PRP-067] never syncs for a viewer', async () => {
+    callerRole = 'viewer';
+    await GET(new Request('http://test/api/properties'));
+
+    expect(afterTasks).toHaveLength(0);
+  });
+
+  it('[PRP-067] a failed sync does not fail the list', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    syncAgentSourceInventory.mockRejectedValue(new Error('boom'));
+    const response = await GET(new Request('http://test/api/properties'));
+
+    expect(response.status).toBe(200);
+    await expect(afterTasks[0]()).resolves.toBeUndefined();
+    spy.mockRestore();
+  });
+});
+
+describe('GET /api/properties card projection', () => {
+  it('[PRP-066] selects every column unless the caller asks for the card set', async () => {
+    await GET(new Request('http://test/api/properties'));
+
+    expect(selects.at(-1)).toMatch(/^\*, owner:contacts!/);
+  });
+
+  it('[PRP-066] selects the card columns with the same embeds for fields=card', async () => {
+    await GET(new Request('http://test/api/properties?fields=card'));
+
+    const select = selects.at(-1) ?? '';
+    expect(select.startsWith(`${PROPERTY_CARD_SELECT}, owner:contacts!`)).toBe(
+      true
+    );
+    expect(select).toContain('interested_contacts:contacts!');
+    expect(select).not.toMatch(/(^|, )description(,|$)/);
+  });
 });
 
 describe('GET /api/properties location filters', () => {

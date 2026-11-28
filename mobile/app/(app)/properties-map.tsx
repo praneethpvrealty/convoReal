@@ -17,6 +17,7 @@ import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
 import { formatInr } from '@/lib/format';
 import { buildPropertyParams } from '@/app/(app)/(tabs)/properties';
+import { cardListRequest } from '@/lib/property-card-request';
 import { propertyFiltersKey } from '@/lib/property-filters';
 import { usePropertySearch } from '@/lib/property-search-store';
 import { mapPin, radius, spacing, useTheme, fonts } from '@/lib/theme';
@@ -65,9 +66,8 @@ export default function PropertiesMapScreen() {
         locations
       );
       params.set('limit', '100');
-      return apiFetch<PropertiesResponse>(
-        `/api/properties?${params.toString()}`
-      );
+      const { path, init } = cardListRequest(params);
+      return apiFetch<PropertiesResponse>(path, init);
     },
   });
 

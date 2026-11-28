@@ -27,6 +27,10 @@ import { khataColumns } from '@/lib/inventory/e-khata-fields';
 import type { Property } from '@/types';
 import { NEEDS_ATTENTION_FILTER } from '@/lib/inventory/list-scope';
 import { syncAgentSourceInventory } from '@/lib/agents/source-inventory-sync';
+import {
+  INVENTORY_SYNC_HEADER,
+  PROPERTY_CARD_SELECT,
+} from '@/lib/inventory/card-columns';
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
@@ -183,15 +187,18 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
 export async function GET(request: Request) {
   try {
     const ctx = await requireRole('viewer');
-    if (ctx.role !== 'viewer') {
-      try {
-        await syncAgentSourceInventory(ctx);
-      } catch (error) {
-        console.error(
-          '[GET /api/properties] Source inventory sync failed:',
-          error
-        );
-      }
+    if (
+      ctx.role !== 'viewer' &&
+      request.headers.get(INVENTORY_SYNC_HEADER) !== 'client'
+    ) {
+      after(() =>
+        syncAgentSourceInventory(ctx).catch((error) => {
+          console.error(
+            '[GET /api/properties] Source inventory sync failed:',
+            error
+          );
+        })
+      );
     }
     const { searchParams } = new URL(request.url);
 
@@ -251,7 +258,8 @@ export async function GET(request: Request) {
     const to = from + limit - 1;
 
     const SELECT_COLUMNS =
-      '*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)';
+      (searchParams.get('fields') === 'card' ? PROPERTY_CARD_SELECT : '*') +
+      ', owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)';
 
     // Shared filter chain used by both the plain listing query and the
     // two tiered-location candidate queries.
