@@ -6402,6 +6402,16 @@
             }
           ],
           "guards": ["mobile/lib/session-expiry.ts", "mobile/lib/api.ts"]
+        },
+        {
+          "id": "ACC-013",
+          "rule": "The contacts read policy (contacts_select) decides tenant membership once per statement, by comparing account_id with the set member_account_ids() returns, instead of calling is_account_member(account_id) for every contact row; member_account_ids() ranks roles exactly as is_account_member() does. Who may read a contact is unchanged: a manager or coordinator reads every contact of their account, an agent the contacts assigned to them, a team member the contacts assigned to their team, and a manager or leader also the unassigned ones. The write policies on contacts are untouched.",
+          "tests": [
+            {
+              "file": "src/lib/auth/contacts-select-member-initplan.test.ts",
+              "case": "[ACC-013]"
+            }
+          ]
         }
       ]
     },
